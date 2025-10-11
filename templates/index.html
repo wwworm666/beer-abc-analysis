@@ -71,15 +71,28 @@
         }
 
         .header-left h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            margin-bottom: 8px;
-            color: var(--text-primary);
+            font-size: 4rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--success) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .header-left .subtitle {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            margin-bottom: 12px;
         }
 
         .header-left p {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             color: var(--text-secondary);
             font-weight: 400;
         }
@@ -711,7 +724,7 @@
             <div style="margin-bottom: 24px;">
                 <label style="margin-bottom: 12px; display: block;">Режим анализа</label>
                 <div class="theme-toggle">
-                    <button class="theme-btn active" id="mode-beers" onclick="setAnalysisMode('beers')">По фасовкам</button>
+                    <button class="theme-btn active" id="mode-beers" onclick="setAnalysisMode('beers')">По бутылкам</button>
                     <button class="theme-btn" id="mode-categories" onclick="setAnalysisMode('categories')">По категориям</button>
                 </div>
             </div>
@@ -901,7 +914,7 @@
                         <div class="value">${formatMoney(data.total_revenue)}</div>
                     </div>
                     <div class="stat-card" onclick="showAllBeersList('${barName}', 'quantity')" style="cursor: pointer;" title="Нажмите для просмотра списка">
-                        <div class="label">Продано</div>
+                        <div class="label">Бутылок</div>
                         <div class="value">${formatNumber(data.total_qty)}</div>
                     </div>
                     <div class="stat-card" onclick="showAllBeersList('${barName}', 'sku')" style="cursor: pointer;" title="Нажмите для просмотра списка">
@@ -1599,7 +1612,7 @@
                             <div>
                                 <h2>${title} — ${barName}</h2>
                                 <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">
-                                    Всего: ${beers.length} SKU • Продано: ${formatNumber(barData.total_qty)} шт • Выручка: ${formatMoney(barData.total_revenue)}
+                                    Всего: ${beers.length} SKU • Бутылок: ${formatNumber(barData.total_qty)} шт • Выручка: ${formatMoney(barData.total_revenue)}
                                 </p>
                             </div>
                             <button class="modal-close" onclick="closeModal()">&times;</button>
