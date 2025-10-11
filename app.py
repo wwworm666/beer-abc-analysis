@@ -6,6 +6,7 @@ from olap_reports import OlapReports
 from data_processor import BeerDataProcessor
 from abc_analysis import ABCAnalysis
 from xyz_analysis import XYZAnalysis
+from category_analysis import CategoryAnalysis
 
 app = Flask(__name__)
 
@@ -186,6 +187,96 @@ def get_weekly_chart(bar_name, beer_name):
     except Exception as e:
         print(f"❌ Ошибка графика: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/categories', methods=['POST'])
+def analyze_categories():
+    """API endpoint для анализа по категориям пива"""
+    try:
+        data = request.json
+        bar_name = data.get('bar')
+        days = int(data.get('days', 30))
+
+        print(f"\n🔄 Запуск анализа по категориям...")
+        print(f"   Бар: {bar_name if bar_name else 'ВСЕ'}")
+        print(f"   Период: {days} дней")
+
+        # Подключаемся к iiko API
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        # Запрашиваем данные
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+        report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
+        olap.disconnect()
+
+        if not report_data or not report_data.get('data'):
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        # Обрабатываем данные
+        processor = BeerDataProcessor(report_data)
+        if not processor.prepare_dataframe():
+            return jsonify({'error': 'Ошибка обработки данных'}), 500
+
+        agg_data = processor.aggregate_by_beer_and_bar()
+
+        # Создаем анализатор категорий
+        cat_analyzer = CategoryAnalysis(agg_data, processor.df)
+
+        # XYZ анализатор для добавления данных о стабильности
+        xyz_analyzer = XYZAnalysis(processor.df)
+
+        # Получаем сводку по категориям
+        summary = cat_analyzer.get_category_summary(bar_name)
+
+        # Получаем детальный анализ для всех категорий
+        category_results = {}
+
+        if bar_name:
+            # Для одного бара
+            categories = cat_analyzer.get_categories(bar_name)
+
+            for category in categories:
+                result = cat_analyzer.analyze_category(category, bar_name)
+                if result:
+                    # Добавляем XYZ данные
+                    result = cat_analyzer.add_xyz_to_category_analysis(
+                        result, xyz_analyzer, bar_name
+                    )
+                    category_results[category] = result
+        else:
+            # Для всех баров - группируем по барам
+            for bar in BARS:
+                bar_results = {}
+                categories = cat_analyzer.get_categories(bar)
+
+                for category in categories:
+                    result = cat_analyzer.analyze_category(category, bar)
+                    if result:
+                        result = cat_analyzer.add_xyz_to_category_analysis(
+                            result, xyz_analyzer, bar
+                        )
+                        bar_results[category] = result
+
+                if bar_results:
+                    category_results[bar] = bar_results
+
+        # Формируем ответ
+        response_data = {
+            'summary': summary.to_dict('records'),
+            'categories': category_results
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"❌ Ошибка анализа категорий: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("🍺 BEER ABC/XYZ ANALYSIS")

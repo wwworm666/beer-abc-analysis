@@ -621,6 +621,15 @@
         </div>
 
         <div class="card">
+            <!-- Переключатель режима анализа -->
+            <div style="margin-bottom: 24px;">
+                <label style="margin-bottom: 12px; display: block;">Режим анализа</label>
+                <div class="theme-toggle">
+                    <button class="theme-btn active" id="mode-beers" onclick="setAnalysisMode('beers')">По фасовкам</button>
+                    <button class="theme-btn" id="mode-categories" onclick="setAnalysisMode('categories')">По категориям</button>
+                </div>
+            </div>
+
             <div class="controls">
                 <div class="form-group">
                     <label for="bar-select">Бар</label>
@@ -658,6 +667,22 @@
     <script>
         let currentData = {};
         let activeCharts = {};
+        let analysisMode = 'beers'; // 'beers' или 'categories'
+
+        // Analysis mode management
+        function setAnalysisMode(mode) {
+            analysisMode = mode;
+
+            document.querySelectorAll('#mode-beers, #mode-categories').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            if (mode === 'beers') {
+                document.getElementById('mode-beers').classList.add('active');
+            } else {
+                document.getElementById('mode-categories').classList.add('active');
+            }
+        }
 
         // Theme management
         function setTheme(theme) {
@@ -685,13 +710,16 @@
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
             const days = document.getElementById('days-input').value;
-            
+
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');
             document.getElementById('error-message').classList.remove('active');
-            
+
             try {
-                const response = await fetch('/api/analyze', {
+                // Выбираем endpoint в зависимости от режима
+                const endpoint = analysisMode === 'categories' ? '/api/categories' : '/api/analyze';
+
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -705,8 +733,14 @@
 
                 const data = await response.json();
                 currentData = data;
-                displayResults(data);
-                
+
+                // Отображаем результаты в зависимости от режима
+                if (analysisMode === 'categories') {
+                    displayCategoryResults(data);
+                } else {
+                    displayResults(data);
+                }
+
             } catch (error) {
                 console.error('Error:', error);
                 showError('Ошибка: ' + error.message);
@@ -1112,6 +1146,209 @@
                     chartRow.style.display = 'none';
                 }
             }
+        }
+
+        function displayCategoryResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            const bar = document.getElementById('bar-select').value;
+
+            if (bar) {
+                // Для одного бара
+                const section = createCategorySectionForBar(bar, data);
+                resultsDiv.appendChild(section);
+            } else {
+                // Для всех баров
+                for (const [barName, categoryData] of Object.entries(data.categories || {})) {
+                    const section = createCategorySectionForBar(barName, { categories: categoryData, summary: data.summary });
+                    resultsDiv.appendChild(section);
+                }
+            }
+
+            resultsDiv.classList.add('active');
+        }
+
+        function createCategorySectionForBar(barName, data) {
+            const section = document.createElement('div');
+            section.className = 'bar-section';
+
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const header = `
+                <div class="bar-header">
+                    <h2>📊 ${barName} — Анализ по категориям</h2>
+                </div>
+            `;
+
+            // Сводная таблица по категориям
+            let summaryTable = '';
+            if (data.summary && data.summary.length > 0) {
+                const barSummary = data.summary.filter(s => !barName || s.Category);
+
+                summaryTable = `
+                    <h3 class="section-title">Сводка по категориям</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Категория</th>
+                                <th>Фасовок</th>
+                                <th>Выручка</th>
+                                <th>% от выручки</th>
+                                <th>Накопленный %</th>
+                                <th>ABC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${barSummary.map(cat => `
+                                <tr class="beer-row" onclick="showCategoryDetail('${barName}', '${cat.Category}')">
+                                    <td><strong>${cat.Category}</strong></td>
+                                    <td>${cat.BeersCount}</td>
+                                    <td>${formatMoney(cat.TotalRevenue)}</td>
+                                    <td>${cat.RevenuePercent.toFixed(1)}%</td>
+                                    <td>${cat.CumulativePercent.toFixed(1)}%</td>
+                                    <td><span class="badge ${cat.ABC_Category.toLowerCase()}">${cat.ABC_Category}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+
+            // Детальные карточки категорий
+            let categoryCards = '';
+            const categories = data.categories || {};
+
+            if (Object.keys(categories).length > 0) {
+                const sortedCategories = Object.entries(categories)
+                    .sort((a, b) => b[1].total_revenue - a[1].total_revenue)
+                    .slice(0, 10); // Топ-10 категорий
+
+                categoryCards = `
+                    <h3 class="section-title">Топ-10 категорий по выручке</h3>
+                    <div class="abc-matrix">
+                        ${sortedCategories.map(([catName, catData]) => {
+                            const topABC = Object.entries(catData.abc_stats || {})
+                                .sort((a, b) => b[1] - a[1])[0];
+                            const dominantABC = topABC ? topABC[0] : 'BBB';
+
+                            return `
+                                <div class="abc-card" onclick="showCategoryDetail('${barName}', '${catName}')" style="cursor: pointer;">
+                                    <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; min-height: 40px;">
+                                        ${catName.length > 25 ? catName.substring(0, 25) + '...' : catName}
+                                    </div>
+                                    <div class="category">
+                                        <span class="badge ${dominantABC.toLowerCase()}">${dominantABC}</span>
+                                    </div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+                                        ${formatMoney(catData.total_revenue)}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-tertiary);">
+                                        ${catData.total_beers} фасовок
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            card.innerHTML = header + summaryTable + categoryCards;
+            section.appendChild(card);
+            return section;
+        }
+
+        function showCategoryDetail(barName, categoryName) {
+            const categories = currentData.categories || {};
+            const catData = categories[categoryName] || (categories[barName] && categories[barName][categoryName]);
+
+            if (!catData) {
+                alert('Нет данных для этой категории');
+                return;
+            }
+
+            const beers = catData.beers || [];
+            const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${categoryName} — ${barName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">
+                                    ${catData.total_beers} фасовок • Выручка: ${formatMoney(catData.total_revenue)}
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+
+                        <!-- ABC статистика -->
+                        <h3 class="section-title">ABC распределение</h3>
+                        <div class="abc-matrix" style="margin-bottom: 30px;">
+                            ${Object.entries(catData.abc_stats || {})
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 8)
+                                .map(([abc, count]) => `
+                                    <div class="abc-card ${abc.toLowerCase()}">
+                                        <div class="category">${abc}</div>
+                                        <div class="count">${count}</div>
+                                    </div>
+                                `).join('')}
+                        </div>
+
+                        ${hasXYZ ? `
+                            <h3 class="section-title">XYZ распределение</h3>
+                            <div class="abc-matrix" style="margin-bottom: 30px;">
+                                ${Object.entries(catData.xyz_stats || {})
+                                    .map(([xyz, count]) => {
+                                        let bgClass = xyz === 'X' ? 'aaa' : (xyz === 'Y' ? 'bbb' : 'ccc');
+                                        return `
+                                            <div class="abc-card ${bgClass}">
+                                                <div class="category">${xyz}</div>
+                                                <div class="count">${count}</div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                            </div>
+                        ` : ''}
+
+                        <!-- Таблица с пивом -->
+                        <h3 class="section-title">Все фасовки</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Пиво</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>ABC</th>
+                                    ${hasXYZ ? '<th>XYZ</th>' : ''}
+                                    ${hasXYZ ? '<th>Вариация</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${beers
+                                    .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
+                                    .map((beer, i) => `
+                                        <tr class="beer-row">
+                                            <td>${i + 1}</td>
+                                            <td>${beer.Beer}</td>
+                                            <td>${formatNumber(beer.TotalQty)}</td>
+                                            <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                            ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                                            ${hasXYZ ? `<td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>` : ''}
+                                        </tr>
+                                    `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
         }
 
         function closeModalBackdrop(event) {
