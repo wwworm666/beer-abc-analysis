@@ -10,6 +10,10 @@ class CategoryAnalysis:
         original_dataframe: DataFrame с исходными данными для XYZ анализа (опционально)
         """
         self.data = aggregated_data.copy()
+
+        # Заменяем пустые (NaN/None) значения Style на "Без категории (Ф)"
+        self.data['Style'] = self.data['Style'].fillna('Без категории (Ф)')
+
         self.original_df = original_dataframe.copy() if original_dataframe is not None else None
 
     def get_categories(self, bar_name=None):
@@ -24,12 +28,10 @@ class CategoryAnalysis:
         if bar_name:
             df = df[df['Bar'] == bar_name]
 
-        # Получаем уникальные стили, исключаем пустые
-        categories = df['Style'].dropna().unique().tolist()
-
+        # Получаем уникальные стили (теперь пустые значения уже заменены на "Без категории (Ф)")
         # Сортируем по количеству фасовок в категории (от большего к меньшему)
         category_counts = df['Style'].value_counts()
-        categories = [cat for cat in category_counts.index if pd.notna(cat)]
+        categories = list(category_counts.index)
 
         return categories
 
