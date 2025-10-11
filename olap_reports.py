@@ -1,0 +1,157 @@
+import requests
+import json
+from datetime import datetime, timedelta
+from iiko_api import IikoAPI
+
+class OlapReports:
+    """Класс для работы с OLAP отчетами iiko"""
+    
+    def __init__(self):
+        self.api = IikoAPI()
+        self.token = None
+    
+    def connect(self):
+        """Подключиться к API и получить токен"""
+        if self.api.authenticate():
+            self.token = self.api.token
+            return True
+        return False
+    
+    def disconnect(self):
+        """Отключиться и освободить токен"""
+        self.api.logout()
+    
+    def get_beer_sales_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по продажам пива
+        
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("❌ Сначала нужно подключиться (вызовите connect())")
+            return None
+        
+        print(f"\n📊 Запрашиваю OLAP отчет по продажам пива...")
+        print(f"   Период: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Бар: {bar_name}")
+        else:
+            print(f"   Бар: ВСЕ")
+        
+        # Формируем JSON запрос для OLAP v2
+        request_body = self._build_olap_request(date_from, date_to, bar_name)
+        
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+        
+        try:
+            response = requests.post(
+                url, 
+                params=params, 
+                json=request_body,
+                headers=headers
+            )
+            
+            if response.status_code == 200:
+                print("✅ Отчет успешно получен!")
+                return response.json()
+            else:
+                print(f"❌ Ошибка получения отчета: {response.status_code}")
+                print(f"   Ответ сервера: {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Ошибка: {e}")
+            return None
+    
+    def _build_olap_request(self, date_from, date_to, bar_name=None):
+        """Построить JSON запрос для OLAP отчета v2"""
+        
+        # Базовая структура запроса согласно документации
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "DishName",
+                "DishGroup.ThirdParent",
+                "DishForeignName",
+                "OpenDate.Typed"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+                "ProductCostBase.MarkUp"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DishGroup.TopParent": {
+                    "filterType": "IncludeValues",
+                    "values": ["Напитки Фасовка"]
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+        
+        # Если указан конкретный бар, добавляем фильтр
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+        
+        return request
+
+
+# Тестовый запуск
+if __name__ == "__main__":
+    print("🍺 Тестируем получение OLAP отчета по пиву\n")
+    
+    # Создаем объект для работы с отчетами
+    olap = OlapReports()
+    
+    # Подключаемся
+    if not olap.connect():
+        print("❌ Не удалось подключиться к API")
+        exit()
+    
+    # Запрашиваем отчет за последние 30 дней
+    date_to = datetime.now().strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    
+    # Получаем отчет
+    report_data = olap.get_beer_sales_report(date_from, date_to)
+    
+    if report_data:
+        # Сохраняем в файл для просмотра
+        with open("beer_report.json", "w", encoding="utf-8") as f:
+            json.dump(report_data, f, indent=2, ensure_ascii=False)
+        print("\n📄 Отчет сохранен в файл: beer_report.json")
+        print("   Откройте его чтобы посмотреть структуру данных")
+        
+        # Покажем первые несколько записей
+        if "data" in report_data and len(report_data["data"]) > 0:
+            print(f"\n📊 Получено записей: {len(report_data['data'])}")
+            print("\nПервые 3 записи:")
+            for i, record in enumerate(report_data["data"][:3], 1):
+                print(f"\n{i}. {record}")
+    
+    # Отключаемся
+    olap.disconnect()
+    print("\n✅ Готово!")

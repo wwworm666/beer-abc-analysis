@@ -1,0 +1,1885 @@
+{
+  "data": [
+    {
+      "DishAmountInt": 15,
+      "DishGroup.TopParent": null,
+      "DishName": "бутылка ПЭТ без пробки 0,5л"
+    },
+    {
+      "DishAmountInt": 20,
+      "DishGroup.TopParent": null,
+      "DishName": "бутылка ПЭТ без пробки 1,0л"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "BBQ 50 г"
+    },
+    {
+      "DishAmountInt": 29,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Арахис жареный соленый 100 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Бастурма ЕДА"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Брусничный 50 г"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Ветчина Грибы"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Говядина джерки 40 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Горчичный 50 г"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Груша-горгонзола"
+    },
+    {
+      "DishAmountInt": 15,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Картофель фри, порция"
+    },
+    {
+      "DishAmountInt": 12,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Картофельные дольки, порция"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Кетчуп 50 г"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Кешью жареный соленый 100 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Кешью чили  100 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Колбаска Говяжья с картофелем фри"
+    },
+    {
+      "DishAmountInt": 10,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Колбаски Охотничьи с картофелем фри"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Колбаски Пражские с картофелем фри"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Колбаски бараньи с картофелем фри"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Кольца кальмара, порция"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Копченый миндаль жареный соленый 100 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 18,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Курица джерки 40 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Луковые кольца, порция"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Маргарита"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Медальоны моцарела с халапеньо и малиновым джемом"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Миндаль жареный соленый 100 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Мясная"
+    },
+    {
+      "DishAmountInt": 19,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Оленина джерки 40 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Оленина холодного копчения ЕДА"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Пастрами из говядины блюдо"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Пастрами из индейки блюдо"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Пеперони "
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Рыбные палочки, порция"
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Сальсичча ЕДА"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Соус Сырный 50 г"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Страчателла"
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Стрипсы, порция"
+    },
+    {
+      "DishAmountInt": 15,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Сырный 50 г"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Три сыра"
+    },
+    {
+      "DishAmountInt": 15,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Фисташки жареные соленые 100 г. ЕДА"
+    },
+    {
+      "DishAmountInt": 22,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Чесночные гренки"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Чесночный 50 г"
+    },
+    {
+      "DishAmountInt": 32,
+      "DishGroup.TopParent": "ЕДА",
+      "DishName": "Чипсы свиные парманелло 25 гр. ЕДА"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Atmosphere brew Кислый Движ (0,25)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Atmosphere brew Кислый Движ (0,4)"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Atmosphere brew Кислый Движ (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Black Cat Moscow Calling (0,25)"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Black Cat Moscow Calling (0,4)"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Black Cat Moscow Calling (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok IPA (0,25)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok IPA (0,4)"
+    },
+    {
+      "DishAmountInt": 34,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok IPA (0,5)"
+    },
+    {
+      "DishAmountInt": 10,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok IPA (1,0)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok Stout (0,25)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok Stout (0,4)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok Stout (0,5) "
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok Stout (1,0)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok Василиса (0,25)"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Brewlok Василиса (0,4)"
+    },
+    {
+      "DishAmountInt": 12,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Gravity Pr Blueberry Jam (0,4)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Gravity Pr Blueberry Jam (0,5)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "PP Noggenfogger Elixir (0,25)"
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "PP Noggenfogger Elixir (0,4)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Selfmade Milk Star (0,25)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Selfmade Milk Star (0,4)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Абанамат (0,25)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Абанамат (0,4)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Абанамат (0,5) "
+    },
+    {
+      "DishAmountInt": 25,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Айингер Октобер Фест-Марцен (0,5)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Айингер Октобер Фест-Марцен (1,0)"
+    },
+    {
+      "DishAmountInt": 10,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Барбе Руби (0,25)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Барбе Руби (0,4)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Барбе Руби (0,5) "
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Барбе Руби (1,0) "
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бланш де Намур (0,4)"
+    },
+    {
+      "DishAmountInt": 19,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бланш де Намур (0,5)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бланш де Намур (1,0)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Блек Шип (0,25)"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Блек Шип (0,4)"
+    },
+    {
+      "DishAmountInt": 48,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Блек Шип (0,5)"
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бульви Семи Драй (0,4)"
+    },
+    {
+      "DishAmountInt": 18,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бульви Семи Драй (0,5)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бульви Семи Драй (1,0)"
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бюльви Рустик полусухой  (0,25)"
+    },
+    {
+      "DishAmountInt": 7,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бюльви Рустик полусухой (0,4)"
+    },
+    {
+      "DishAmountInt": 11,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Бюльви Рустик полусухой (0,5)"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Гулден Драк 708 (0,25)"
+    },
+    {
+      "DishAmountInt": 10,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Гулден Драк 708 (0,5) "
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Гулден Драк 708 (1,0) "
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Джаст Хёфевайцен (0,25)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Джаст Хёфевайцен (0,4)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Джаст Хёфевайцен (0,5)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Бланш ма Шери (0,4)"
+    },
+    {
+      "DishAmountInt": 26,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Бланш ма Шери (0,5)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Бланш ма Шери (1,0)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Мон Шер Кассис (0,25)"
+    },
+    {
+      "DishAmountInt": 11,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Мон Шер Кассис (0,4)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Черри Руби (0,25)"
+    },
+    {
+      "DishAmountInt": 12,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Черри Руби (0,4)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Коникс Черри Руби (0,5)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Крик де Лютин (0,25)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Крик де Лютин (0,4)"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Крик де Лютин (0,5)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Крик де Лютин (1,0)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ЛеФорт Трипель (0,4)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ЛеФорт Трипель (0,5) "
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Леруа Капиттель Блонд (0,25)"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Леруа Капиттель Блонд (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Леруа Капиттель Блонд (1,0)"
+    },
+    {
+      "DishAmountInt": 7,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Монкс Кафе (0,25)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Монкс Кафе (0,4)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Монкс Кафе (0,5)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нектар Лагер (0,25)"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нектар Лагер (0,4)"
+    },
+    {
+      "DishAmountInt": 18,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нектар Лагер (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нектар Лагер (1,0)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нишко Лагер (0,25)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нишко Лагер (0,4)"
+    },
+    {
+      "DishAmountInt": 30,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нишко Лагер (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Нишко Лагер (1,0)"
+    },
+    {
+      "DishAmountInt": 13,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Пауланер Мюнхен Хель (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Пауланер Мюнхен Хель (1,0)"
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "План Б Ковбой Мальборо (0,25)"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "План Б Ковбой Мальборо (0,4)"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "План Б Ковбой Мальборо (0,5)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Рей Ривер Stout (0,25)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Рей Ривер Stout (0,4)"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Роденбах Гранд Крю (0,25)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Стинбрюгге Бланш (0,25)"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Стинбрюгге Бланш (0,4)"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Стинбрюгге Бланш (0,5)"
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Вайцен (0,25)"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Вайцен (0,4)"
+    },
+    {
+      "DishAmountInt": 65,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Вайцен (0,5)"
+    },
+    {
+      "DishAmountInt": 25,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Вайцен (1,0)"
+    },
+    {
+      "DishAmountInt": 61,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Октобер (0,5)"
+    },
+    {
+      "DishAmountInt": 18,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Октобер (1,0)"
+    },
+    {
+      "DishAmountInt": 16,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Хеллес (0,25)"
+    },
+    {
+      "DishAmountInt": 39,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Хеллес (0,4)"
+    },
+    {
+      "DishAmountInt": 252,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Хеллес (0,5)"
+    },
+    {
+      "DishAmountInt": 39,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ФестХаус Хеллес (1,0)"
+    },
+    {
+      "DishAmountInt": 27,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ХБ Октоберфест (0,5)"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ХБ Октоберфест (1,0)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "ХБ Октоберфест (1,0) с собой"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Штраффе Хендрик Квад (0,25)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Штраффе Хендрик Квад (0,4)"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Розлив",
+      "DishName": "Штраффе Хендрик Квад (0,5) "
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": " Brewlok  Мыло Асс."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers A.I. 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Neuro Juice (banana blueberry) 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers | Качок-Кабачок | 450мл."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Зависимость Болгарский перц, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Зависимость Зеленые оливки, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Зависимость острая, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Зависимость, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Многоборье 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Рассол Дико Зол, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "4Brewers Юффий, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Andreev Meridian Breeze 0.75"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Atmosphere brew Кислый движ, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Big Village Twist Joy (berliner weisse) ж/б, 0,450"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Black cat Meowjito 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Bombardier Premium British, 0,5 бут"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Brew division  Forever young, бут., 0,33"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Brewlok | Черный Пес | 500мл."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Brewlok Василиса, бут. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Brewlok Кикимора, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Brewmen Tropic Smoothie Banana Blueberry Cream 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Brewmen Tropic Smoothie Mango 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Carlsberg Marston's Hobgoblin Dark Stout , бут. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Chibis brewery Сладкоежка 3  ж/б 0,450"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "DaDa сидр #3 (Полусладкий), бут. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Double A Brewing Berrymix 0.45, бут"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Dreamteam Sport Pilsner б/а, бут. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Gas Brew Saltmelier: Naryan-Mar, ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Gletcher Nut Butter, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix Cappuccino Stout, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix Choose your Fighter, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix Mary Stay Home, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix Salt and Malt, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery American One IPA 0.45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Fest Beer 0.45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Hefeweizen Grapefruit  0.45 ж/б"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Ice cream PASTRY SOUR ALE (banana mango pineapple)0.45 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Merry Berry 0.45 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Moose, just Moose  б/а, 0,450 бут"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Refreska lime0,33 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Еж в Тайге  б/а, 0,330 бут"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Еж и Ветер  б/а, 0,330 бут"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix brewery Еж и Зож  б/а, 0,330 бут"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Konix Орион, ж/б. 0,450."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Lapochka Pineapple + Lychee ж/б 0.33"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Lapochka peach+verbena, ж/б 0.33"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Lapochka Мираж: малина, гранат, ромашка, ж/б 0.33"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Lapochka Попробуй технологии на вкус, ж/б 0.33"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Magic Mess Арбузяка Арбуз 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "MagicMess Сёрф , 0,500 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Mantra Demolition Abyss, ж/б 0,33"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Mantra Waffle Shaffle 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Midnight Project | Cyberpunk Shotgun | 500мл."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "New Riga's White Moon , ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Nuclear brewery Кислый опыт (саур с брусникой и розмарином) 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Nuclear brewery Кислый опыт (саур с юдзу и лимоном) 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Nuclear brewery Летний опыт (саур с облепихой и ананасом) 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "PP Noggenfogger Elixir, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Paradox Stay brut remain dry 0.45, бут"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Plague Dill Forester 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Polnochnyj Progect Bogleman's Gift, ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Polnochnyj Progect Citra? Pre-order, ж/б, 0,450"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Polnochnyj Progect Sunlight Geliodor, ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Polnochnyj Progect Лимонсоль, ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Polnochnyj Project  black damage, ж/б 0,5"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Button Bedroom Bedlam  0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Button Frozen sour Kitchen  0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Button In The Beginning Was The IPA  0,33 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Button Kuts (сельдерей) 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Button MiMi 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Button Крыжовниковая кнопка 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red Rocket Take it easy 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Red button brewery Antistress, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Rewort Analog Dream 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Rewort Angela D 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Rewort Крылья Отваги 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Sabotage Dino Blast 0.450 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Sabotage Sour Habit,500мл."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Sabotage TOTEM, 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Sabotage Смена 6 0.450 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Saldens American IPA Six Hops ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade 2X ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade BoneLord 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade Deathspeaker 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade Scissors blade 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade Tomato Method,  ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade Tomato metod gamma 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade Void Garden 0.45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Selfmade Warlock Ritual ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "StadsHaven Great White, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "StadsHaven Moray IPA бут. 0,330 ."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "StadsHaven Octopus Blond 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "StadsHaven RedHead Ale, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "TRYWILD | 11 Aronia | 750мл."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Two Peaks Brew Back to Balance Tomato Gose, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Two Peaks Brew Back to Balance, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Two Peaks Brew Coconut Crime, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Two Peaks Brew Electro Cherry, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Two Peaks Brew Open Mind, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Two Peaks Brew Sochi Nights, б/а, 0,45"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Zagovor Цитра Цитра Цитра, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 12,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Айингер Лагер Хелл, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Айингер Столетнее , 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Айингер Урвайсс, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Айингер Фестмарцен , 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Араета 2021 яблочный 0,75 л бут."
+    },
+    {
+      "DishAmountInt": 10,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Баптист Вит, 0,33 бут"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Белхеван Scottish ale 0.44 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бембел Кирш 0.5 л ж/б."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Брю Дивижн Ай Рай. Рай Ай Пи Эй, 0,500 жб."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Брю Дивижн Ас Крим, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Брю Дивижн Бэк ту Революшн ,  0,500 жб."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Брю Дивижн Он Бейс,  0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви 1883 полусладкий 0,5 л бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви NEMO  0,45 л бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви Pixie 0,5 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви Пуаре, 0,750 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви Розе, 0,450 бут"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви Шорли Гранат б/а 0,450"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бульви сидр Тоффи 0,5 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Бургунь де Фландер, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вайнштефан Оригинал Хеллес б/а, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вайнштефан Оригинал, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вайнштефан Хефе Вайсбир, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вайнштефан Хефевайсбир б/a,0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вальдеранс сидр де Бретань Брют 0,75 л бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вандер Гинсте, 0,250 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Васька Чёрное 0.45л бут"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Велка Морава Big Boy from Idahoe IPA, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Велка Морава Take Five, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Верхаге Барбе Крик темное, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Вичвуд Брювери Хобгоблин Стаут, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Гиннесс Драфт, 0,440 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Глетчер Милк оф Амнезия  0.5, бан"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Ай Эм Саури Свитти, б/а, 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 8,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Американский Пэйл Эль, светлое, 0,450бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Атомная Прачечная Extra Ipa,  0,500 бут."
+    },
+    {
+      "DishAmountInt": 6,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Атомная Прачечная, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Бланш 0,5 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Вихтенаар Ищу человека, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Джоус Лагер, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Дюшес Де Бургунь 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заговор Hop Division, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заговор Пиксель, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заговор Фрактал, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заповедник  Le Shouga 0,33 л бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заповедник  ЛингонЭппл 0,3 л бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заповедник АБАНАМАТ  0,45 л бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заповедник Баркас  0,330 бут"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заповедник Плацебо  0,33 л бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Заповедник Ревность (Ревень), бут. 0,330"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Зеро Поинт Портер 42 б/а, 0,330 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Зеро Поинт Силк Роуд б/а, 0,330 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Зеро Поинт сила ветра б/а, 0,330 ж/б"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Зубр Голд , 0,500 бут."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Кастил Руж, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Квак Амбер 0.33"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Киис Экспорт Портер, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Клаусталер 0%,  0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Коникс Дать Шанс, ж/б. 0,500 ."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Кулинар Клафути 0,5 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Курпфальц Ур-Вайцен, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ла Трапп Дюббель, темное, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ла Трапп Исидор, темное, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ла Траппе Исидор, 0,750 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Мантра Galaxy blue, ж/б. 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Мэри, го хоум (томатный гозе), 0,500, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Нью Ригас Коза в малиннике, 0,450 ж/б."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Нью Ригас Комета, 0,450 ж/б."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "О'харас Ред  Нитро, 0,440 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Одна Тонна Choko Mammuth , ж/б 0,330 ."
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Островица Juicy IPA, 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Островица Американ Пейл Эль, 0,500 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Островица Индиа Пейл Эль, 0,450 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Островица Холи ДИПА, 0,450 ж/б"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Парадокс Jungle spirit  0,45, ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Парадокс Инсайдер Красная смородина, 0,500 ж/б"
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Парадокс Мичелада ж/б. 0,330 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Парадокс Стафф Онли (Гозе), ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Парадокс Фатум: Весткост Дабл ИПА, ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "План Б Rare Bird, ж/б., 0,5"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "План Б Sand Runner, 0.45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "План Б Райз оф Зе Зомбис, ж/б., 0,450"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "План Б Солнечный Ветер, ж/б, 0,450"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "План Б Тропикал Пэйнкиллер, 0,500 ж/б"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Полночный Проект Икарус, ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ребел Эпл Дикий Крест Полусухой, 0,45 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ребел Эпл Дикий Крест, 0,45 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Альте Вайс, темное, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Вайсс, б/а, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Вайцен Допельбок Аугустус, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Коммерциенрат, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 9,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Файнес Урхелль, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Хелль, б/а, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Ригеле Хефевайсбир, светлое, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Родное яблочко  Семисвит Б\\А 0,500 ."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Рошфор 6, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Рэбел Эппл Bride, бут. 0,75"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "С-Петерс  Бест Биттер, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "С-Петерс Руби ред, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "С-Петерс Хани Портер, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Саботаж Пицца Тайм  ж/б, 0,500"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Сент Бернардус 12 0,330 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Сидр ЛиК V6.0 0,450 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Славянское Солнце Квас Традиционный, б/а, жб. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Степь И Ветер Дыня Лемонграс, 0,45 ж/б"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Степь и ветер TONIC MEAD Мёд сладкий 0.450 ж/б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "СэлфМэйд ceremony, ж/б. 0,450 ."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Токсовская сидрерия Heart of Forest  0,330 бут"
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Токсовская сидрерия Костры рябин, 0,330 бут"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Трипл Кармелит, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Трипл Кармелит, 0,75 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Флорис Манго, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 4,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Фуллерс ЕСБ, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Фуллерс Лондон Блэк Каб Стаут, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 7,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Фуллерс Лондон Портер, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Фуллерс Лондон Прайд, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Фурнье сидр де Норманди Розе 0,33 л бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Херкенрод Ноктис брюн 0.75 б"
+    },
+    {
+      "DishAmountInt": 3,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Шапо Ананас Ламбик, 0,250 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Шнайдер Авентинус Вайзен-Айсбок, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Шнайдер Майне Хелле ТАР1, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Шнайдер ТАР5, 0,500 бут."
+    },
+    {
+      "DishAmountInt": 2,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Штраффе Квадрюпель Херитэйдж дерев. кор., 0,75 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Штраффе Хендрикс Брюгс Трипл,330 бут."
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Эплтон Пич , бут. 0,5л"
+    },
+    {
+      "DishAmountInt": 1,
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "DishName": "Якобинс Кюве Руж, темное, 0,330 бут."
+    },
+    {
+      "DishAmountInt": 53,
+      "DishGroup.TopParent": "Сервисный сбор",
+      "DishName": "Округление в пользу гостя"
+    },
+    {
+      "DishAmountInt": 5,
+      "DishGroup.TopParent": "Старое и неактуальное",
+      "DishName": "Брецель классческий товар"
+    }
+  ],
+  "summary": []
+}
