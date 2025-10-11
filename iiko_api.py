@@ -25,23 +25,23 @@ class IikoAPI:
             "pass": password_hash
         }
         
-        print(f"🔑 Подключаюсь к {self.base_url}...")
-        
+        print(f"[AUTH] Podklyuchaus k {self.base_url}...")
+
         try:
             response = requests.get(url, params=params)
-            
+
             if response.status_code == 200:
                 # Токен приходит в формате <string>токен</string>
                 self.token = response.text.strip().replace("<string>", "").replace("</string>", "")
-                print(f"✅ Успешно получен токен: {self.token[:20]}...")
+                print(f"[OK] Uspeshno poluchen token: {self.token[:20]}...")
                 return True
             else:
-                print(f"❌ Ошибка авторизации: {response.status_code}")
-                print(f"   Ответ сервера: {response.text}")
+                print(f"[ERROR] Oshibka avtorizacii: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
                 return False
-                
+
         except Exception as e:
-            print(f"❌ Ошибка подключения: {e}")
+            print(f"[ERROR] Oshibka podklyucheniya: {e}")
             return False
     
     def logout(self):
@@ -54,7 +54,7 @@ class IikoAPI:
         
         try:
             requests.get(url, params=params)
-            print("👋 Токен освобожден")
+            print("[OK] Token osvobozhden")
         except:
             pass
 

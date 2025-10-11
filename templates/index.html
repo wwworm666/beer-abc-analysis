@@ -554,6 +554,16 @@
                 align-items: flex-start;
                 gap: 20px;
             }
+
+            .header > div:last-child {
+                flex-direction: column;
+                align-items: flex-start;
+                width: 100%;
+            }
+
+            .api-status {
+                width: 100%;
+            }
         }
         /* Tooltips */
         .tooltip-wrapper {
@@ -605,6 +615,76 @@
         .tooltip .emoji {
             margin-right: 4px;
         }
+
+        /* API Connection Status Indicator */
+        .api-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .api-status:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .api-status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .api-status.checking .api-status-indicator {
+            background: var(--warning);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .api-status.connected .api-status-indicator {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .api-status.error .api-status-indicator {
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(0.9);
+            }
+        }
+
+        .api-status-text {
+            color: var(--text-secondary);
+        }
+
+        .api-status.connected .api-status-text {
+            color: var(--success);
+        }
+
+        .api-status.error .api-status-text {
+            color: var(--danger);
+        }
+
+        .api-status.checking .api-status-text {
+            color: var(--warning);
+        }
     </style>
 </head>
 <body>
@@ -614,9 +694,15 @@
                 <h1>Beer ABC/XYZ Analysis</h1>
                 <p>Автоматический анализ продаж пива из iiko</p>
             </div>
-            <div class="theme-toggle">
-                <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
-                <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
+                    <div class="api-status-indicator"></div>
+                    <span class="api-status-text">Проверка подключения...</span>
+                </div>
+                <div class="theme-toggle">
+                    <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
+                    <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                </div>
             </div>
         </div>
 
@@ -668,6 +754,40 @@
         let currentData = {};
         let activeCharts = {};
         let analysisMode = 'beers'; // 'beers' или 'categories'
+
+        // API Connection Status Check
+        async function checkApiConnection() {
+            const statusElement = document.getElementById('api-status');
+            const textElement = statusElement.querySelector('.api-status-text');
+
+            statusElement.className = 'api-status checking';
+            textElement.textContent = 'Проверка подключения...';
+
+            try {
+                const response = await fetch('/api/connection-status');
+                const data = await response.json();
+
+                if (response.ok && data.status === 'connected') {
+                    statusElement.className = 'api-status connected';
+                    textElement.textContent = 'iiko API подключен';
+                } else {
+                    statusElement.className = 'api-status error';
+                    textElement.textContent = 'Ошибка подключения';
+                    console.error('API connection error:', data.message);
+                }
+            } catch (error) {
+                statusElement.className = 'api-status error';
+                textElement.textContent = 'Ошибка подключения';
+                console.error('API connection error:', error);
+            }
+        }
+
+        // Check connection on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiConnection();
+            // Recheck connection every 60 seconds
+            setInterval(checkApiConnection, 60000);
+        });
 
         // Analysis mode management
         function setAnalysisMode(mode) {
@@ -776,16 +896,16 @@
 
             const stats = `
                 <div class="stats-grid">
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="showAllBeersList('${barName}', 'revenue')" style="cursor: pointer;" title="Нажмите для просмотра списка">
                         <div class="label">Выручка</div>
                         <div class="value">${formatMoney(data.total_revenue)}</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" onclick="showAllBeersList('${barName}', 'quantity')" style="cursor: pointer;" title="Нажмите для просмотра списка">
                         <div class="label">Продано</div>
                         <div class="value">${formatNumber(data.total_qty)}</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="label">Фасовок</div>
+                    <div class="stat-card" onclick="showAllBeersList('${barName}', 'sku')" style="cursor: pointer;" title="Нажмите для просмотра списка">
+                        <div class="label">SKU</div>
                         <div class="value">${data.total_beers}</div>
                     </div>
                 </div>
@@ -1447,6 +1567,77 @@
 
         function wrapWithTooltip(html, category) {
             return `<span class="tooltip-wrapper">${html}${createTooltip(category)}</span>`;
+        }
+
+        // Функция для отображения полного списка позиций
+        function showAllBeersList(barName, sortBy) {
+            const barData = currentData[barName];
+            if (!barData) return;
+
+            const beers = barData.records || [];
+            const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+
+            // Сортируем в зависимости от типа
+            let sortedBeers = [...beers];
+            let title = '';
+
+            if (sortBy === 'revenue') {
+                sortedBeers.sort((a, b) => b.TotalRevenue - a.TotalRevenue);
+                title = 'Все позиции по выручке';
+            } else if (sortBy === 'quantity') {
+                sortedBeers.sort((a, b) => b.TotalQty - a.TotalQty);
+                title = 'Все позиции по количеству';
+            } else {
+                sortedBeers.sort((a, b) => a.Beer.localeCompare(b.Beer));
+                title = 'Все позиции (алфавит)';
+            }
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${title} — ${barName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">
+                                    Всего: ${beers.length} SKU • Продано: ${formatNumber(barData.total_qty)} шт • Выручка: ${formatMoney(barData.total_revenue)}
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Пиво</th>
+                                    <th>Стиль</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>ABC</th>
+                                    ${hasXYZ ? '<th>XYZ</th>' : ''}
+                                    <th>Наценка %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sortedBeers.map((beer, i) => `
+                                    <tr class="beer-row">
+                                        <td>${i + 1}</td>
+                                        <td>${beer.Beer}</td>
+                                        <td>${beer.Style || '—'}</td>
+                                        <td>${formatNumber(beer.TotalQty)}</td>
+                                        <td>${formatMoney(beer.TotalRevenue)}</td>
+                                        <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                        ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                                        <td>${(beer.AvgMarkupPercent * 100).toFixed(1)}%</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
         }
     </script>
 </body>

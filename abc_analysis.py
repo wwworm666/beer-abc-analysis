@@ -54,10 +54,10 @@ class ABCAnalysis:
         bar_data = self.data[self.data['Bar'] == bar_name].copy()
         
         if len(bar_data) == 0:
-            print(f"⚠️  Нет данных для бара: {bar_name}")
+            print(f"[WARN]  Нет данных для бара: {bar_name}")
             return pd.DataFrame()
         
-        print(f"\n🔍 ABC анализ для бара: {bar_name}")
+        print(f"\n[EMOJI] ABC анализ для бара: {bar_name}")
         print(f"   Фасовок: {len(bar_data)}")
         
         # 1-я буква: ABC по выручке (больше = лучше, ascending=False)
@@ -86,7 +86,7 @@ class ABCAnalysis:
         )
         
         # Статистика
-        print(f"\n   📊 Распределение по категориям:")
+        print(f"\n   [STATS] Распределение по категориям:")
         print(f"      1-я буква (Выручка):")
         print(f"         A: {(bar_data['ABC_Revenue'] == 'A').sum()} шт")
         print(f"         B: {(bar_data['ABC_Revenue'] == 'B').sum()} шт")
@@ -103,7 +103,7 @@ class ABCAnalysis:
         print(f"         C: {(bar_data['ABC_Margin'] == 'C').sum()} шт")
         
         # Топ комбинации
-        print(f"\n   🏆 Топ-10 комбинаций ABC:")
+        print(f"\n   [EMOJI] Топ-10 комбинаций ABC:")
         top_combinations = bar_data['ABC_Combined'].value_counts().head(10)
         for combo, count in top_combinations.items():
             print(f"      {combo}: {count} фасовок")
@@ -120,7 +120,7 @@ class ABCAnalysis:
         results = {}
         
         print("=" * 60)
-        print("🍺 ABC АНАЛИЗ ПО ВСЕМ БАРАМ")
+        print("[BEER] ABC АНАЛИЗ ПО ВСЕМ БАРАМ")
         print("=" * 60)
         
         for bar in bars:
@@ -133,12 +133,12 @@ class ABCAnalysis:
 
 # Тестовый запуск
 if __name__ == "__main__":
-    print("🧪 Тест ABC анализа\n")
+    print("[TEST] Тест ABC анализа\n")
     
     # Загружаем агрегированные данные
     agg_data = pd.read_csv("aggregated_beer_data.csv", encoding='utf-8-sig')
     
-    print(f"📊 Загружено {len(agg_data)} записей")
+    print(f"[STATS] Загружено {len(agg_data)} записей")
     
     # Создаем анализатор
     analyzer = ABCAnalysis(agg_data)
@@ -153,11 +153,11 @@ if __name__ == "__main__":
             safe_name = bar_name.replace(" ", "_").replace(".", "")
             filename = f"abc_analysis_{safe_name}.csv"
             bar_result.to_csv(filename, index=False, encoding='utf-8-sig')
-            print(f"\n💾 Результаты для {bar_name} сохранены в: {filename}")
+            print(f"\n[EMOJI] Результаты для {bar_name} сохранены в: {filename}")
     
     # Общая статистика по всем барам
     print("\n" + "=" * 60)
-    print("📈 ОБЩАЯ СТАТИСТИКА ПО КАТЕГОРИЯМ AAA, ACA и т.д.")
+    print("[CHART] ОБЩАЯ СТАТИСТИКА ПО КАТЕГОРИЯМ AAA, ACA и т.д.")
     print("=" * 60)
     
     all_results = pd.concat(results.values(), ignore_index=True)

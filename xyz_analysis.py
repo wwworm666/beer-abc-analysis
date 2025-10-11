@@ -65,10 +65,10 @@ class XYZAnalysis:
         bar_data = self.df[self.df['Store.Name'] == bar_name].copy()
         
         if len(bar_data) == 0:
-            print(f"⚠️  Нет данных для бара: {bar_name}")
+            print(f"[WARN]  Нет данных для бара: {bar_name}")
             return pd.DataFrame()
         
-        print(f"\n🔍 XYZ анализ для бара: {bar_name}")
+        print(f"\n[EMOJI] XYZ анализ для бара: {bar_name}")
         
         # Группируем по фасовке и неделе
         weekly_sales = bar_data.groupby(['DishName', 'YearWeek'])['DishAmountInt'].sum().reset_index()
@@ -106,7 +106,7 @@ class XYZAnalysis:
         
         if not result_df.empty:
             print(f"   Проанализировано фасовок: {len(result_df)}")
-            print(f"\n   📊 Распределение XYZ:")
+            print(f"\n   [STATS] Распределение XYZ:")
             print(f"      X (стабильный): {(result_df['XYZ_Category'] == 'X').sum()} шт")
             print(f"      Y (средний): {(result_df['XYZ_Category'] == 'Y').sum()} шт")
             print(f"      Z (нестабильный): {(result_df['XYZ_Category'] == 'Z').sum()} шт")
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     import json
     from data_processor import BeerDataProcessor
     
-    print("🧪 Тест XYZ анализа\n")
+    print("[TEST] Тест XYZ анализа\n")
     
     # Загружаем данные
     with open("beer_report.json", "r", encoding="utf-8") as f:
@@ -158,16 +158,16 @@ if __name__ == "__main__":
         xyz_result = analyzer.perform_xyz_analysis_by_bar("Большой пр. В.О")
         
         if not xyz_result.empty:
-            print("\n📊 Топ-10 самых стабильных (X):")
+            print("\n[STATS] Топ-10 самых стабильных (X):")
             stable = xyz_result[xyz_result['XYZ_Category'] == 'X'].sort_values('CoefficientOfVariation').head(10)
             for i, row in stable.iterrows():
                 print(f"   {row['Beer'][:50]}: CV = {row['CoefficientOfVariation']:.1f}%")
             
-            print("\n📊 Топ-10 самых нестабильных (Z):")
+            print("\n[STATS] Топ-10 самых нестабильных (Z):")
             unstable = xyz_result[xyz_result['XYZ_Category'] == 'Z'].sort_values('CoefficientOfVariation', ascending=False).head(10)
             for i, row in unstable.iterrows():
                 print(f"   {row['Beer'][:50]}: CV = {row['CoefficientOfVariation']:.1f}%")
             
             # Сохраняем
             xyz_result.to_csv("xyz_analysis_test.csv", index=False, encoding='utf-8-sig')
-            print("\n💾 Результаты сохранены в: xyz_analysis_test.csv")
+            print("\n[EMOJI] Результаты сохранены в: xyz_analysis_test.csv")

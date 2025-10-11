@@ -23,6 +23,35 @@ def index():
     """Главная страница"""
     return render_template('index.html', bars=BARS)
 
+@app.route('/api/test', methods=['GET', 'POST'])
+def test_endpoint():
+    """Тестовый endpoint"""
+    print("[TEST] Test endpoint called!")
+    return jsonify({'status': 'ok', 'message': 'Test successful'})
+
+@app.route('/api/connection-status', methods=['GET'])
+def connection_status():
+    """API endpoint для проверки подключения к iiko API"""
+    try:
+        olap = OlapReports()
+        is_connected = olap.connect()
+        if is_connected:
+            olap.disconnect()
+            return jsonify({
+                'status': 'connected',
+                'message': 'Подключение к iiko API успешно'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Не удалось подключиться к iiko API'
+            }), 500
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Ошибка подключения: {str(e)}'
+        }), 500
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
     """API endpoint для запуска анализа"""
@@ -31,9 +60,9 @@ def analyze():
         bar_name = data.get('bar')
         days = int(data.get('days', 30))
         
-        print(f"\n🔄 Запуск анализа...")
-        print(f"   Бар: {bar_name if bar_name else 'ВСЕ'}")
-        print(f"   Период: {days} дней")
+        print(f"\n[ANALIZ] Zapusk analiza...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {days} dney")
         
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -155,10 +184,11 @@ def analyze():
         return jsonify(response_data)
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"[ERROR] Oshibka v /api/analyze: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        error_detail = f"{type(e).__name__}: {str(e)}"
+        return jsonify({'error': error_detail}), 500
 @app.route('/api/weekly-chart/<bar_name>/<beer_name>', methods=['GET'])
 def get_weekly_chart(bar_name, beer_name):
     """API endpoint для получения данных графика по неделям"""
@@ -196,16 +226,20 @@ def analyze_categories():
         bar_name = data.get('bar')
         days = int(data.get('days', 30))
 
-        print(f"\n🔄 Запуск анализа по категориям...")
-        print(f"   Бар: {bar_name if bar_name else 'ВСЕ'}")
-        print(f"   Период: {days} дней")
+        print(f"\n[CATEGORY] Zapusk analiza po kategoriyam...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {days} dney")
 
         # Подключаемся к iiko API
+        print("   [1/8] Podklyuchenie k iiko API...")
         olap = OlapReports()
         if not olap.connect():
+            print("   [ERROR] Ne udalos podklyuchitsya k iiko API")
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+        print("   [OK] Podklyucheno k iiko API")
 
         # Запрашиваем данные
+        print("   [2/8] Zapros dannykh iz OLAP...")
         date_to = datetime.now().strftime("%Y-%m-%d")
         date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
@@ -213,32 +247,56 @@ def analyze_categories():
         olap.disconnect()
 
         if not report_data or not report_data.get('data'):
+            print(f"   [ERROR] Net dannykh za period {date_from} - {date_to}")
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
 
+        print(f"   [OK] Polucheno {len(report_data.get('data', []))} zapisey")
+
         # Обрабатываем данные
+        print("   [3/8] Obrabotka dannykh...")
         processor = BeerDataProcessor(report_data)
         if not processor.prepare_dataframe():
+            print("   [ERROR] Oshibka obrabotki dannykh")
             return jsonify({'error': 'Ошибка обработки данных'}), 500
 
+        print("   [OK] Dannye obrabotany")
+
+        print("   [4/8] Agregaciya dannykh...")
         agg_data = processor.aggregate_by_beer_and_bar()
+        print(f"   [OK] Agregirovano {len(agg_data)} zapisey")
 
         # Создаем анализатор категорий
+        print("   [5/8] Sozdanie analizatora kategoriy...")
         cat_analyzer = CategoryAnalysis(agg_data, processor.df)
 
+        # Проверка null значений после создания
+        null_count_after = cat_analyzer.data['Style'].isna().sum()
+        uncategorized_count = (cat_analyzer.data['Style'] == 'Bez kategorii (F)').sum()
+        print(f"   [STATS] Pustykh Style posle sozdaniya CategoryAnalysis: {null_count_after}")
+        print(f"   [STATS] Fasovok v kategorii 'Bez kategorii (F)': {uncategorized_count}")
+        print("   [OK] Analizator kategoriy sozdan")
+
         # XYZ анализатор для добавления данных о стабильности
+        print("   [6/8] Sozdanie XYZ analizatora...")
         xyz_analyzer = XYZAnalysis(processor.df)
+        print("   [OK] XYZ analizator sozdan")
 
         # Получаем сводку по категориям
+        print("   [7/8] Poluchenie svodki po kategoriyam...")
         summary = cat_analyzer.get_category_summary(bar_name)
+        print(f"   [OK] Svodka poluchena: {len(summary)} kategoriy")
 
         # Получаем детальный анализ для всех категорий
+        print("   [8/8] Detalniy analiz kategoriy...")
         category_results = {}
 
         if bar_name:
             # Для одного бара
             categories = cat_analyzer.get_categories(bar_name)
+            print(f"   [STATS] Naydeno kategoriy dlya bara '{bar_name}': {len(categories)}")
 
-            for category in categories:
+            for i, category in enumerate(categories, 1):
+                print(f"      [{i}/{len(categories)}] Analiz kategorii: {category}")
                 result = cat_analyzer.analyze_category(category, bar_name)
                 if result:
                     # Добавляем XYZ данные
@@ -246,11 +304,16 @@ def analyze_categories():
                         result, xyz_analyzer, bar_name
                     )
                     category_results[category] = result
+                    print(f"         [OK] {result['total_beers']} fasovok")
+                else:
+                    print(f"         [WARN] Net dannykh dlya kategorii")
         else:
             # Для всех баров - группируем по барам
+            print(f"   [STATS] Analiz dlya vsekh barov: {', '.join(BARS)}")
             for bar in BARS:
                 bar_results = {}
                 categories = cat_analyzer.get_categories(bar)
+                print(f"      Bar '{bar}': {len(categories)} kategoriy")
 
                 for category in categories:
                     result = cat_analyzer.analyze_category(category, bar)
@@ -262,6 +325,10 @@ def analyze_categories():
 
                 if bar_results:
                     category_results[bar] = bar_results
+                    print(f"         [OK] {len(bar_results)} kategoriy obrabotano")
+
+        print(f"   [OK] Analiz zavershen")
+        print(f"   [STATS] Vsego kategoriy v rezultate: {len(category_results)}")
 
         # Формируем ответ
         response_data = {
@@ -269,20 +336,21 @@ def analyze_categories():
             'categories': category_results
         }
 
+        print(f"   [OK] Otvet sformirovan i otpravlyaetsya klientu")
         return jsonify(response_data)
 
     except Exception as e:
-        print(f"❌ Ошибка анализа категорий: {e}")
+        print(f"[ERROR] Oshibka analiza kategoriy: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🍺 BEER ABC/XYZ ANALYSIS")
+    print("BEER ABC/XYZ ANALYSIS")
     print("="*60)
-    print("\n🌐 Запуск веб-сервера...")
-    print("📍 Откройте в браузере: http://localhost:5000")
-    print("\n⚠️  Для остановки нажмите Ctrl+C\n")
-    
+    print("\nZapusk veb-servera...")
+    print("Otkroyte v brauzere: http://localhost:5000")
+    print("\nDlya ostanovki nazhmite Ctrl+C\n")
+
     app.run(debug=True, host='0.0.0.0', port=5000)

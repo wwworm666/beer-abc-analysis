@@ -23,16 +23,16 @@ class BeerDataProcessor:
         
     def prepare_dataframe(self):
         """Преобразовать данные в pandas DataFrame и подготовить"""
-        print("📊 Подготовка данных...")
+        print("[STATS] Подготовка данных...")
         
         # Создаем DataFrame
         self.df = pd.DataFrame(self.raw_data)
         
         if self.df.empty:
-            print("❌ Нет данных для анализа")
+            print("[ERROR] Нет данных для анализа")
             return False
         
-        print(f"✅ Загружено {len(self.df)} записей")
+        print(f"[OK] Загружено {len(self.df)} записей")
         
         # Преобразуем типы данных
         self.df['DishAmountInt'] = pd.to_numeric(self.df['DishAmountInt'], errors='coerce')
@@ -51,9 +51,9 @@ class BeerDataProcessor:
         self.df['Year'] = self.df['OpenDate.Typed'].dt.year
         self.df['YearWeek'] = self.df['Year'].astype(str) + '-W' + self.df['WeekNum'].astype(str).str.zfill(2)
         
-        print(f"📅 Период данных: {self.df['OpenDate.Typed'].min()} - {self.df['OpenDate.Typed'].max()}")
-        print(f"🍺 Уникальных фасовок: {self.df['DishName'].nunique()}")
-        print(f"🏪 Баров в данных: {self.df['Store.Name'].nunique()}")
+        print(f"[EMOJI] Период данных: {self.df['OpenDate.Typed'].min()} - {self.df['OpenDate.Typed'].max()}")
+        print(f"[BEER] Уникальных фасовок: {self.df['DishName'].nunique()}")
+        print(f"[BAR] Баров в данных: {self.df['Store.Name'].nunique()}")
         
         return True
     
@@ -62,25 +62,33 @@ class BeerDataProcessor:
         Агрегировать данные по фасовке и бару
         Возвращает DataFrame с суммарными показателями
         """
-        print("\n🔄 Агрегация данных по фасовке и бару...")
-        
-        agg_data = self.df.groupby(['Store.Name', 'DishName', 'DishGroup.ThirdParent', 'DishForeignName']).agg({
+        print("\n[PROCESS] Агрегация данных по фасовке и бару...")
+
+        # ВАЖНО: Заполняем пустые значения Style перед агрегацией
+        # Иначе pandas будет некорректно группировать строки с NaN
+        df_copy = self.df.copy()
+        df_copy['DishGroup.ThirdParent'] = df_copy['DishGroup.ThirdParent'].fillna('')
+
+        agg_data = df_copy.groupby(['Store.Name', 'DishName', 'DishGroup.ThirdParent', 'DishForeignName']).agg({
             'DishAmountInt': 'sum',                    # Общее количество
             'DishDiscountSumInt': 'sum',               # Общая выручка
             'ProductCostBase.ProductCost': 'sum',      # Общая себестоимость
             'ProductCostBase.MarkUp': 'mean',          # Средняя наценка %
             'Margin': 'sum'                            # Общая маржа
         }).reset_index()
-        
+
         # Переименуем столбцы для ясности
         agg_data.columns = [
             'Bar', 'Beer', 'Style', 'Country',
-            'TotalQty', 'TotalRevenue', 'TotalCost', 
+            'TotalQty', 'TotalRevenue', 'TotalCost',
             'AvgMarkupPercent', 'TotalMargin'
         ]
-        
-        print(f"✅ Агрегировано: {len(agg_data)} уникальных пар (бар + фасовка)")
-        
+
+        # Заменяем пустые строки на None для последующей обработки
+        agg_data['Style'] = agg_data['Style'].replace('', None)
+
+        print(f"[OK] Агрегировано: {len(agg_data)} уникальных пар (бар + фасовка)")
+
         return agg_data
     
     def get_weekly_sales(self, bar_name=None):
@@ -110,20 +118,20 @@ class BeerDataProcessor:
     
     def get_bar_statistics(self):
         """Получить статистику по каждому бару"""
-        print("\n📈 Статистика по барам:")
+        print("\n[CHART] Статистика по барам:")
         print("=" * 60)
         
         for bar in self.BARS:
             bar_data = self.df[self.df['Store.Name'] == bar]
             if len(bar_data) == 0:
-                print(f"\n🏪 {bar}: НЕТ ДАННЫХ")
+                print(f"\n[BAR] {bar}: НЕТ ДАННЫХ")
                 continue
             
             total_revenue = bar_data['DishDiscountSumInt'].sum()
             total_qty = bar_data['DishAmountInt'].sum()
             unique_beers = bar_data['DishName'].nunique()
             
-            print(f"\n🏪 {bar}:")
+            print(f"\n[BAR] {bar}:")
             print(f"   Выручка: {total_revenue:,.0f} руб")
             print(f"   Продано: {total_qty:,.0f} шт")
             print(f"   Уникальных фасовок: {unique_beers}")
@@ -135,7 +143,7 @@ class BeerDataProcessor:
 if __name__ == "__main__":
     import json
     
-    print("🧪 Тест обработки данных\n")
+    print("[TEST] Тест обработки данных\n")
     
     # Загружаем данные из файла
     with open("beer_report.json", "r", encoding="utf-8") as f:
@@ -152,9 +160,9 @@ if __name__ == "__main__":
         # Агрегация
         agg_data = processor.aggregate_by_beer_and_bar()
         
-        print(f"\n📊 Первые 5 записей агрегированных данных:")
+        print(f"\n[STATS] Первые 5 записей агрегированных данных:")
         print(agg_data.head())
         
         # Сохраним агрегированные данные
         agg_data.to_csv("aggregated_beer_data.csv", index=False, encoding='utf-8-sig')
-        print("\n💾 Агрегированные данные сохранены в: aggregated_beer_data.csv")
+        print("\n[EMOJI] Агрегированные данные сохранены в: aggregated_beer_data.csv")

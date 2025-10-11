@@ -88,15 +88,15 @@ class CategoryAnalysis:
         abc_stats = df['ABC_Combined'].value_counts().to_dict()
 
         # Общие показатели
-        total_revenue = df['TotalRevenue'].sum()
-        total_qty = df['TotalQty'].sum()
-        total_margin = df['TotalMargin'].sum()
-        avg_markup = df['AvgMarkupPercent'].mean()
+        total_revenue = float(df['TotalRevenue'].sum())
+        total_qty = float(df['TotalQty'].sum())
+        total_margin = float(df['TotalMargin'].sum())
+        avg_markup = float(df['AvgMarkupPercent'].mean())
 
         return {
             'category': category_name,
             'bar': bar_name,
-            'total_beers': len(df),
+            'total_beers': int(len(df)),
             'total_revenue': total_revenue,
             'total_qty': total_qty,
             'total_margin': total_margin,

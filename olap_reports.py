@@ -30,41 +30,41 @@ class OlapReports:
         bar_name: название бара (если None, то все бары)
         """
         if not self.token:
-            print("❌ Сначала нужно подключиться (вызовите connect())")
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
-        
-        print(f"\n📊 Запрашиваю OLAP отчет по продажам пива...")
-        print(f"   Период: {date_from} - {date_to}")
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po prodazham piva...")
+        print(f"   Period: {date_from} - {date_to}")
         if bar_name:
-            print(f"   Бар: {bar_name}")
+            print(f"   Bar: {bar_name}")
         else:
-            print(f"   Бар: ВСЕ")
-        
+            print(f"   Bar: VSE")
+
         # Формируем JSON запрос для OLAP v2
         request_body = self._build_olap_request(date_from, date_to, bar_name)
-        
+
         url = f"{self.api.base_url}/v2/reports/olap"
         params = {"key": self.token}
         headers = {"Content-Type": "application/json"}
-        
+
         try:
             response = requests.post(
-                url, 
-                params=params, 
+                url,
+                params=params,
                 json=request_body,
                 headers=headers
             )
-            
+
             if response.status_code == 200:
-                print("✅ Отчет успешно получен!")
+                print("[OK] Otchet uspeshno poluchen!")
                 return response.json()
             else:
-                print(f"❌ Ошибка получения отчета: {response.status_code}")
-                print(f"   Ответ сервера: {response.text}")
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
                 return None
-                
+
         except Exception as e:
-            print(f"❌ Ошибка: {e}")
+            print(f"[ERROR] Oshibka: {e}")
             return None
     
     def _build_olap_request(self, date_from, date_to, bar_name=None):
