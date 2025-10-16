@@ -7,6 +7,7 @@ from data_processor import BeerDataProcessor
 from abc_analysis import ABCAnalysis
 from xyz_analysis import XYZAnalysis
 from category_analysis import CategoryAnalysis
+from draft_analysis import DraftAnalysis
 
 app = Flask(__name__)
 
@@ -20,8 +21,13 @@ BARS = [
 
 @app.route('/')
 def index():
-    """Главная страница"""
+    """Главная страница - фасовка"""
     return render_template('index.html', bars=BARS)
+
+@app.route('/draft')
+def draft():
+    """Страница разливного пива"""
+    return render_template('draft.html', bars=BARS)
 
 @app.route('/api/test', methods=['GET', 'POST'])
 def test_endpoint():
@@ -115,25 +121,37 @@ def analyze():
             else:
                 results = {bar_name: abc_result}
         else:
-            # Анализ для всех баров
+            # Анализ для всех баров - объединяем в единую сводку
             abc_results = abc_analyzer.perform_full_analysis()
-            results = {}
-            
+
+            # Объединяем все данные из всех баров
+            all_bars_data = []
             for bar, abc_df in abc_results.items():
-                xyz_df = xyz_analyzer.perform_xyz_analysis_by_bar(bar)
-                
-                if not abc_df.empty and not xyz_df.empty:
-                    combined = abc_df.merge(
-                        xyz_df[['Beer', 'XYZ_Category', 'CoefficientOfVariation']], 
-                        on='Beer', 
-                        how='left'
-                    )
-                    combined['XYZ_Category'].fillna('Z', inplace=True)
-                    combined['CoefficientOfVariation'].fillna(100, inplace=True)
-                    combined['ABCXYZ_Combined'] = combined['ABC_Combined'] + '-' + combined['XYZ_Category']
-                    results[bar] = combined
-                else:
-                    results[bar] = abc_df
+                if not abc_df.empty:
+                    # Добавляем колонку с названием бара
+                    abc_df_copy = abc_df.copy()
+                    abc_df_copy['Bar'] = bar
+
+                    # Добавляем XYZ данные для этого бара
+                    xyz_df = xyz_analyzer.perform_xyz_analysis_by_bar(bar)
+                    if not xyz_df.empty:
+                        abc_df_copy = abc_df_copy.merge(
+                            xyz_df[['Beer', 'XYZ_Category', 'CoefficientOfVariation']],
+                            on='Beer',
+                            how='left'
+                        )
+                        abc_df_copy['XYZ_Category'].fillna('Z', inplace=True)
+                        abc_df_copy['CoefficientOfVariation'].fillna(100, inplace=True)
+                        abc_df_copy['ABCXYZ_Combined'] = abc_df_copy['ABC_Combined'] + '-' + abc_df_copy['XYZ_Category']
+
+                    all_bars_data.append(abc_df_copy)
+
+            # Создаём единый DataFrame со всеми данными
+            if all_bars_data:
+                combined_all = pd.concat(all_bars_data, ignore_index=True)
+                results = {"Общая": combined_all}
+            else:
+                results = {}
         
         # Формируем ответ
         response_data = {}
@@ -344,6 +362,338 @@ def analyze_categories():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft-analyze', methods=['POST'])
+def analyze_draft():
+    """API endpoint для анализа разливного пива"""
+    try:
+        data = request.json
+        bar_name = data.get('bar')
+        days = int(data.get('days', 30))
+
+        print(f"\n[DRAFT] Zapusk analiza razlivnogo piva...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {days} dney")
+
+        # Подключаемся к iiko API
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        # Запрашиваем данные разливного
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+        report_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
+        olap.disconnect()
+
+        if not report_data or not report_data.get('data'):
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        # Преобразуем в DataFrame
+        df = pd.DataFrame(report_data['data'])
+        df['DishAmountInt'] = pd.to_numeric(df['DishAmountInt'], errors='coerce')
+        df['DishDiscountSumInt'] = pd.to_numeric(df['DishDiscountSumInt'], errors='coerce')
+        df['ProductCostBase.ProductCost'] = pd.to_numeric(df['ProductCostBase.ProductCost'], errors='coerce')
+        df['ProductCostBase.MarkUp'] = pd.to_numeric(df['ProductCostBase.MarkUp'], errors='coerce')
+        df['OpenDate'] = pd.to_datetime(df['OpenDate.Typed'])
+
+        # Добавляем вычисляемые поля
+        df['Margin'] = df['DishDiscountSumInt'] - df['ProductCostBase.ProductCost']
+
+        # Создаем анализатор разливного
+        draft_analyzer = DraftAnalysis(df)
+
+        if bar_name:
+            # Анализ для одного бара с финансами
+            summary = draft_analyzer.get_beer_summary(bar_name, include_financials=True)
+
+            # Применяем ABC анализ (3 буквы: выручка + наценка + маржа)
+            if 'TotalRevenue' in summary.columns:
+                # 1. ABC по выручке (A)
+                summary_sorted = summary.sort_values('TotalRevenue', ascending=False).copy()
+                summary_sorted['CumulativeRevenue'] = summary_sorted['TotalRevenue'].cumsum()
+                total_revenue = summary_sorted['TotalRevenue'].sum()
+                summary_sorted['RevenuePercent'] = (summary_sorted['CumulativeRevenue'] / total_revenue * 100)
+
+                def assign_abc_revenue(pct):
+                    if pct <= 80:
+                        return 'A'
+                    elif pct <= 95:
+                        return 'B'
+                    else:
+                        return 'C'
+
+                summary_sorted['ABC_Revenue'] = summary_sorted['RevenuePercent'].apply(assign_abc_revenue)
+
+                # 2. ABC по наценке (B)
+                markup_sorted = summary_sorted.sort_values('AvgMarkupPercent', ascending=False).copy()
+                markup_sorted = markup_sorted.reset_index(drop=True)
+                markup_sorted['MarkupRank'] = (markup_sorted.index + 1) / len(markup_sorted) * 100
+
+                def assign_abc_markup(rank):
+                    if rank <= 33.33:
+                        return 'A'
+                    elif rank <= 66.66:
+                        return 'B'
+                    else:
+                        return 'C'
+
+                markup_sorted['ABC_Markup'] = markup_sorted['MarkupRank'].apply(assign_abc_markup)
+                summary_sorted = summary_sorted.merge(markup_sorted[['BeerName', 'ABC_Markup']], on='BeerName', how='left')
+
+                # 3. ABC по марже (C)
+                margin_sorted = summary_sorted.sort_values('TotalMargin', ascending=False).copy()
+                margin_sorted = margin_sorted.reset_index(drop=True)
+                margin_sorted['MarginRank'] = (margin_sorted.index + 1) / len(margin_sorted) * 100
+
+                def assign_abc_margin(rank):
+                    if rank <= 33.33:
+                        return 'A'
+                    elif rank <= 66.66:
+                        return 'B'
+                    else:
+                        return 'C'
+
+                margin_sorted['ABC_Margin'] = margin_sorted['MarginRank'].apply(assign_abc_margin)
+                summary_sorted = summary_sorted.merge(margin_sorted[['BeerName', 'ABC_Margin']], on='BeerName', how='left')
+
+                # Объединяем в 3-буквенный код
+                summary_sorted['ABC_Combined'] = summary_sorted['ABC_Revenue'] + summary_sorted['ABC_Markup'] + summary_sorted['ABC_Margin']
+
+                summary = summary_sorted
+
+            # Применяем XYZ анализ
+            xyz_df = draft_analyzer.calculate_xyz_for_summary(bar_name)
+            if not xyz_df.empty:
+                summary = summary.merge(
+                    xyz_df[['BeerName', 'XYZ_Category', 'CoefficientOfVariation']],
+                    on='BeerName',
+                    how='left'
+                )
+                # Заполняем пустые XYZ как Z (нестабильные)
+                summary['XYZ_Category'].fillna('Z', inplace=True)
+                summary['CoefficientOfVariation'].fillna(100.0, inplace=True)
+
+                # Полная категория ABC-XYZ (если есть ABC)
+                if 'ABC_Combined' in summary.columns:
+                    summary['ABCXYZ_Combined'] = summary['ABC_Combined'] + '-' + summary['XYZ_Category']
+
+            beers = draft_analyzer.format_summary_for_display(summary)
+
+            response_data = {
+                bar_name: {
+                    'total_liters': float(summary['TotalLiters'].sum()),
+                    'total_portions': int(summary['TotalPortions'].sum()),
+                    'total_beers': len(summary),
+                    'kegs_30l': float(summary['TotalLiters'].sum() / 30),
+                    'kegs_50l': float(summary['TotalLiters'].sum() / 50),
+                    'total_revenue': float(summary['TotalRevenue'].sum()) if 'TotalRevenue' in summary.columns else 0,
+                    'beers': beers
+                }
+            }
+        else:
+            # Анализ для всех баров - объединяем с ABC/XYZ для каждого
+            all_bars_data = []
+
+            for bar in BARS:
+                bar_summary = draft_analyzer.get_beer_summary(bar, include_financials=True)
+                if bar_summary.empty:
+                    continue
+
+                # Применяем ABC анализ для этого бара
+                if 'TotalRevenue' in bar_summary.columns:
+                    # 1. ABC по выручке
+                    summary_sorted = bar_summary.sort_values('TotalRevenue', ascending=False).copy()
+                    summary_sorted['CumulativeRevenue'] = summary_sorted['TotalRevenue'].cumsum()
+                    total_revenue = summary_sorted['TotalRevenue'].sum()
+                    summary_sorted['RevenuePercent'] = (summary_sorted['CumulativeRevenue'] / total_revenue * 100)
+
+                    def assign_abc_revenue(pct):
+                        if pct <= 80:
+                            return 'A'
+                        elif pct <= 95:
+                            return 'B'
+                        else:
+                            return 'C'
+
+                    summary_sorted['ABC_Revenue'] = summary_sorted['RevenuePercent'].apply(assign_abc_revenue)
+
+                    # 2. ABC по наценке
+                    markup_sorted = summary_sorted.sort_values('AvgMarkupPercent', ascending=False).copy()
+                    markup_sorted = markup_sorted.reset_index(drop=True)
+                    markup_sorted['MarkupRank'] = (markup_sorted.index + 1) / len(markup_sorted) * 100
+
+                    def assign_abc_markup(rank):
+                        if rank <= 33.33:
+                            return 'A'
+                        elif rank <= 66.66:
+                            return 'B'
+                        else:
+                            return 'C'
+
+                    markup_sorted['ABC_Markup'] = markup_sorted['MarkupRank'].apply(assign_abc_markup)
+                    summary_sorted = summary_sorted.merge(markup_sorted[['BeerName', 'ABC_Markup']], on='BeerName', how='left')
+
+                    # 3. ABC по марже
+                    margin_sorted = summary_sorted.sort_values('TotalMargin', ascending=False).copy()
+                    margin_sorted = margin_sorted.reset_index(drop=True)
+                    margin_sorted['MarginRank'] = (margin_sorted.index + 1) / len(margin_sorted) * 100
+
+                    def assign_abc_margin(rank):
+                        if rank <= 33.33:
+                            return 'A'
+                        elif rank <= 66.66:
+                            return 'B'
+                        else:
+                            return 'C'
+
+                    margin_sorted['ABC_Margin'] = margin_sorted['MarginRank'].apply(assign_abc_margin)
+                    summary_sorted = summary_sorted.merge(margin_sorted[['BeerName', 'ABC_Margin']], on='BeerName', how='left')
+
+                    # Объединяем в 3-буквенный код
+                    summary_sorted['ABC_Combined'] = summary_sorted['ABC_Revenue'] + summary_sorted['ABC_Markup'] + summary_sorted['ABC_Margin']
+
+                    bar_summary = summary_sorted
+
+                # Применяем XYZ анализ для этого бара
+                xyz_df = draft_analyzer.calculate_xyz_for_summary(bar)
+                if not xyz_df.empty:
+                    bar_summary = bar_summary.merge(
+                        xyz_df[['BeerName', 'XYZ_Category', 'CoefficientOfVariation']],
+                        on='BeerName',
+                        how='left'
+                    )
+                    bar_summary['XYZ_Category'].fillna('Z', inplace=True)
+                    bar_summary['CoefficientOfVariation'].fillna(100.0, inplace=True)
+
+                    if 'ABC_Combined' in bar_summary.columns:
+                        bar_summary['ABCXYZ_Combined'] = bar_summary['ABC_Combined'] + '-' + bar_summary['XYZ_Category']
+
+                all_bars_data.append(bar_summary)
+
+            # Объединяем все бары
+            if all_bars_data:
+                combined_data = pd.concat(all_bars_data, ignore_index=True)
+
+                # Агрегируем по названию пива (объединяем одинаковые сорта из разных баров)
+                agg_dict = {
+                    'TotalLiters': 'sum',
+                    'TotalPortions': 'sum',
+                    'WeeksActive': 'sum',
+                    'AvgPortionSize': 'mean',
+                    'Kegs30L': 'sum',
+                    'Kegs50L': 'sum'
+                }
+
+                if 'TotalRevenue' in combined_data.columns:
+                    agg_dict['TotalRevenue'] = 'sum'
+                    agg_dict['TotalCost'] = 'sum'
+                    agg_dict['AvgMarkupPercent'] = 'mean'
+                    agg_dict['TotalMargin'] = 'sum'
+
+                # Группируем по BeerName
+                aggregated = combined_data.groupby('BeerName', as_index=False).agg(agg_dict)
+
+                # Пересчитываем AvgLitersPerWeek
+                aggregated['AvgLitersPerWeek'] = aggregated['TotalLiters'] / aggregated['WeeksActive']
+
+                # Добавляем Bar = "Общая"
+                aggregated['Bar'] = 'Общая'
+
+                # Применяем ABC анализ к агрегированным данным
+                if 'TotalRevenue' in aggregated.columns:
+                    # 1. ABC по выручке
+                    abc_sorted = aggregated.sort_values('TotalRevenue', ascending=False).copy()
+                    abc_sorted['CumulativeRevenue'] = abc_sorted['TotalRevenue'].cumsum()
+                    total_revenue = abc_sorted['TotalRevenue'].sum()
+                    abc_sorted['RevenuePercent'] = (abc_sorted['CumulativeRevenue'] / total_revenue * 100)
+
+                    def assign_abc_revenue(pct):
+                        if pct <= 80:
+                            return 'A'
+                        elif pct <= 95:
+                            return 'B'
+                        else:
+                            return 'C'
+
+                    abc_sorted['ABC_Revenue'] = abc_sorted['RevenuePercent'].apply(assign_abc_revenue)
+
+                    # 2. ABC по наценке
+                    markup_sorted = abc_sorted.sort_values('AvgMarkupPercent', ascending=False).copy()
+                    markup_sorted = markup_sorted.reset_index(drop=True)
+                    markup_sorted['MarkupRank'] = (markup_sorted.index + 1) / len(markup_sorted) * 100
+
+                    def assign_abc_markup(rank):
+                        if rank <= 33.33:
+                            return 'A'
+                        elif rank <= 66.66:
+                            return 'B'
+                        else:
+                            return 'C'
+
+                    markup_sorted['ABC_Markup'] = markup_sorted['MarkupRank'].apply(assign_abc_markup)
+                    abc_sorted = abc_sorted.merge(markup_sorted[['BeerName', 'ABC_Markup']], on='BeerName', how='left')
+
+                    # 3. ABC по марже
+                    margin_sorted = abc_sorted.sort_values('TotalMargin', ascending=False).copy()
+                    margin_sorted = margin_sorted.reset_index(drop=True)
+                    margin_sorted['MarginRank'] = (margin_sorted.index + 1) / len(margin_sorted) * 100
+
+                    def assign_abc_margin(rank):
+                        if rank <= 33.33:
+                            return 'A'
+                        elif rank <= 66.66:
+                            return 'B'
+                        else:
+                            return 'C'
+
+                    margin_sorted['ABC_Margin'] = margin_sorted['MarginRank'].apply(assign_abc_margin)
+                    abc_sorted = abc_sorted.merge(margin_sorted[['BeerName', 'ABC_Margin']], on='BeerName', how='left')
+
+                    # Объединяем в 3-буквенный код
+                    abc_sorted['ABC_Combined'] = abc_sorted['ABC_Revenue'] + abc_sorted['ABC_Markup'] + abc_sorted['ABC_Margin']
+
+                    aggregated = abc_sorted
+
+                # Применяем XYZ анализ к агрегированным данным (без bar_name - по всем барам)
+                xyz_df = draft_analyzer.calculate_xyz_for_summary(None)
+                if not xyz_df.empty:
+                    aggregated = aggregated.merge(
+                        xyz_df[['BeerName', 'XYZ_Category', 'CoefficientOfVariation']],
+                        on='BeerName',
+                        how='left'
+                    )
+                    aggregated['XYZ_Category'].fillna('Z', inplace=True)
+                    aggregated['CoefficientOfVariation'].fillna(100.0, inplace=True)
+
+                    if 'ABC_Combined' in aggregated.columns:
+                        aggregated['ABCXYZ_Combined'] = aggregated['ABC_Combined'] + '-' + aggregated['XYZ_Category']
+
+                beers = draft_analyzer.format_summary_for_display(aggregated)
+
+                response_data = {
+                    "Общая": {
+                        'total_liters': float(aggregated['TotalLiters'].sum()),
+                        'total_portions': int(aggregated['TotalPortions'].sum()),
+                        'total_beers': len(aggregated),
+                        'kegs_30l': float(aggregated['TotalLiters'].sum() / 30),
+                        'kegs_50l': float(aggregated['TotalLiters'].sum() / 50),
+                        'total_revenue': float(aggregated['TotalRevenue'].sum()) if 'TotalRevenue' in aggregated.columns else 0,
+                        'beers': beers
+                    }
+                }
+            else:
+                response_data = {}
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/draft-analyze: {e}")
+        import traceback
+        traceback.print_exc()
+        error_detail = f"{type(e).__name__}: {str(e)}"
+        return jsonify({'error': error_detail}), 500
 
 if __name__ == '__main__':
     print("\n" + "="*60)

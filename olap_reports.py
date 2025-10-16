@@ -24,7 +24,7 @@ class OlapReports:
     def get_beer_sales_report(self, date_from, date_to, bar_name=None):
         """
         Получить OLAP отчет по продажам пива
-        
+
         date_from: дата начала (строка 'YYYY-MM-DD')
         date_to: дата окончания (строка 'YYYY-MM-DD')
         bar_name: название бара (если None, то все бары)
@@ -66,10 +66,62 @@ class OlapReports:
         except Exception as e:
             print(f"[ERROR] Oshibka: {e}")
             return None
+
+    def get_draft_sales_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по продажам разливного пива
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po razlivnomu pivu...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        # Формируем JSON запрос для OLAP v2 (разливное)
+        request_body = self._build_olap_request(date_from, date_to, bar_name, draft=True)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request_body,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet po razlivnomu uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
     
-    def _build_olap_request(self, date_from, date_to, bar_name=None):
-        """Построить JSON запрос для OLAP отчета v2"""
-        
+    def _build_olap_request(self, date_from, date_to, bar_name=None, draft=False):
+        """Построить JSON запрос для OLAP отчета v2
+
+        draft: True - разливное пиво, False - фасованное пиво
+        """
+
+        # Определяем группу напитков
+        drink_group = "Напитки Розлив" if draft else "Напитки Фасовка"
+
         # Базовая структура запроса согласно документации
         request = {
             "reportType": "SALES",
@@ -96,7 +148,7 @@ class OlapReports:
                 },
                 "DishGroup.TopParent": {
                     "filterType": "IncludeValues",
-                    "values": ["Напитки Фасовка"]
+                    "values": [drink_group]
                 },
                 "DeletedWithWriteoff": {
                     "filterType": "IncludeValues",
@@ -108,14 +160,14 @@ class OlapReports:
                 }
             }
         }
-        
+
         # Если указан конкретный бар, добавляем фильтр
         if bar_name:
             request["filters"]["Store.Name"] = {
                 "filterType": "IncludeValues",
                 "values": [bar_name]
             }
-        
+
         return request
 
 

@@ -72,29 +72,20 @@
 
         .header-left h1 {
             font-size: 4rem;
-            font-weight: 800;
-            letter-spacing: 0.1em;
-            margin-bottom: 4px;
-            background: linear-gradient(135deg, var(--accent) 0%, var(--success) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
             line-height: 1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
         .header-left .subtitle {
-            font-size: 0.75rem;
+            font-size: 0.9rem;
             color: var(--text-tertiary);
-            font-weight: 600;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .header-left p {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
             font-weight: 400;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
         }
 
         /* Theme Toggle */
@@ -568,6 +559,14 @@
                 gap: 20px;
             }
 
+            .header-left h1 {
+                font-size: 2.5rem;
+            }
+
+            .header-left .subtitle {
+                font-size: 0.8rem;
+            }
+
             .header > div:last-child {
                 flex-direction: column;
                 align-items: flex-start;
@@ -704,17 +703,23 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1>Beer ABC/XYZ Analysis</h1>
-                <p>Автоматический анализ продаж пива из iiko</p>
+                <h1>ABC/XYZ</h1>
+                <div class="subtitle">В культуре</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
-                    <div class="api-status-indicator"></div>
-                    <span class="api-status-text">Проверка подключения...</span>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+                <div style="display: flex; gap: 12px;">
+                    <a href="/" style="padding: 8px 20px; background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; color: white; text-decoration: none; font-size: 0.9rem; font-weight: 500;">Фасовка</a>
+                    <a href="/draft" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Разливное</a>
                 </div>
-                <div class="theme-toggle">
-                    <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
-                    <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
+                        <div class="api-status-indicator"></div>
+                        <span class="api-status-text">Проверка подключения...</span>
+                    </div>
+                    <div class="theme-toggle">
+                        <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
+                        <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -733,7 +738,7 @@
                 <div class="form-group">
                     <label for="bar-select">Бар</label>
                     <select id="bar-select">
-                        <option value="">Все бары</option>
+                        <option value="">Общая</option>
                         {% for bar in bars %}
                         <option value="{{ bar }}">{{ bar }}</option>
                         {% endfor %}
@@ -741,13 +746,39 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="days-input">Период (дней)</label>
-                    <input type="number" id="days-input" value="30" min="7" max="365">
+                    <label for="period-select">Период</label>
+                    <select id="period-select" onchange="toggleCustomPeriod()">
+                        <option value="7">Неделя</option>
+                        <option value="14">2 недели</option>
+                        <option value="30" selected>Месяц</option>
+                        <option value="60">2 месяца</option>
+                        <option value="90">Квартал</option>
+                        <option value="180">Полгода</option>
+                        <option value="365">Год</option>
+                        <option value="custom">Свой период</option>
+                    </select>
                 </div>
 
                 <div class="form-group">
                     <label>&nbsp;</label>
                     <button class="btn" onclick="runAnalysis()">Запустить анализ</button>
+                </div>
+            </div>
+
+            <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
+                <div class="form-group">
+                    <label for="date-from">Дата начала</label>
+                    <input type="date" id="date-from">
+                </div>
+
+                <div class="form-group">
+                    <label for="date-to">Дата окончания</label>
+                    <input type="date" id="date-to">
+                </div>
+
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                </div>
                 </div>
             </div>
         </div>
@@ -840,9 +871,51 @@
             }
         });
 
+        function toggleCustomPeriod() {
+            const periodSelect = document.getElementById('period-select').value;
+            const customControls = document.getElementById('custom-period-controls');
+
+            if (periodSelect === 'custom') {
+                customControls.style.display = 'grid';
+                // Устанавливаем значения по умолчанию
+                const today = new Date();
+                const monthAgo = new Date(today);
+                monthAgo.setDate(today.getDate() - 30);
+
+                document.getElementById('date-to').valueAsDate = today;
+                document.getElementById('date-from').valueAsDate = monthAgo;
+            } else {
+                customControls.style.display = 'none';
+            }
+        }
+
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
-            const days = document.getElementById('days-input').value;
+            const periodSelect = document.getElementById('period-select').value;
+
+            let days;
+            let dateFrom, dateTo;
+
+            if (periodSelect === 'custom') {
+                // Используем выбранные даты
+                const dateFromInput = document.getElementById('date-from').value;
+                const dateToInput = document.getElementById('date-to').value;
+
+                if (!dateFromInput || !dateToInput) {
+                    showError('Пожалуйста, выберите обе даты');
+                    return;
+                }
+
+                dateFrom = dateFromInput;
+                dateTo = dateToInput;
+
+                // Вычисляем количество дней для API
+                const from = new Date(dateFromInput);
+                const to = new Date(dateToInput);
+                days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
+            } else {
+                days = periodSelect;
+            }
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');
@@ -967,12 +1040,16 @@
                 `;
             }
 
+           // Проверяем, есть ли колонка Bar в данных (для режима "Все бары")
+            const hasBarColumn = data.top_beers && data.top_beers[0] && data.top_beers[0].Bar;
+
            const topTable = `
                 <h3 class="section-title">Топ-10 по выручке</h3>
                 <table>
                     <thead>
                         <tr>
                             <th>#</th>
+                            ${hasBarColumn ? '<th>Бар</th>' : ''}
                             <th>Пиво</th>
                             <th>Выручка</th>
                             <th>ABC</th>
@@ -983,6 +1060,7 @@
                         ${(data.top_beers || []).map((beer, i) => `
                             <tr class="beer-row">
                                 <td>${i + 1}</td>
+                                ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
                                 <td>${beer.Beer}</td>
                                 <td>${formatMoney(beer.TotalRevenue)}</td>
                                 <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
@@ -1010,7 +1088,8 @@
 
             const beers = barData.records.filter(record => record.ABC_Combined === category);
             const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
-            
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
+
             const modalHTML = `
                 <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
                     <div class="modal-content" onclick="event.stopPropagation()">
@@ -1023,6 +1102,7 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
                                     <th>Пиво</th>
                                     <th>Стиль</th>
                                     <th>Кол-во</th>
@@ -1038,9 +1118,11 @@
                                     .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
                                     .map((beer, i) => {
                                         const safeId = `cat-${category}-${i}`;
+                                        const beerBar = beer.Bar || barName;
                                         return `
                                         <tr class="beer-row" id="beer-row-${safeId}">
                                             <td>${i + 1}</td>
+                                            ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
                                             <td>${beer.Beer}</td>
                                             <td>${beer.Style || '—'}</td>
                                             <td>${formatNumber(beer.TotalQty)}</td>
@@ -1049,13 +1131,13 @@
                                             ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
                                             ${hasXYZ ? `<td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>` : ''}
                                             <td>
-                                                <span class="chart-icon" onclick='showWeeklyChart(event, "${barName}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
+                                                <span class="chart-icon" onclick='showWeeklyChart(event, "${beerBar}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
                                                     📊
                                                 </span>
                                             </td>
                                         </tr>
                                         <tr id="chart-row-${safeId}" style="display: none;">
-                                            <td colspan="${hasXYZ ? 9 : 7}">
+                                            <td colspan="${hasBarColumn ? (hasXYZ ? 10 : 8) : (hasXYZ ? 9 : 7)}">
                                                 <div class="chart-container">
                                                     <canvas id="chart-${safeId}"></canvas>
                                                 </div>
@@ -1076,7 +1158,8 @@
             if (!barData) return;
 
             const beers = barData.records.filter(record => record.XYZ_Category === xyzCategory);
-            
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
+
             let categoryName = xyzCategory;
             let categoryDesc = '';
             if (xyzCategory === 'X') {
@@ -1089,7 +1172,7 @@
                 categoryName = 'Z — Нестабильный';
                 categoryDesc = 'Вариация > 25%';
             }
-            
+
             const modalHTML = `
                 <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
                     <div class="modal-content" onclick="event.stopPropagation()">
@@ -1105,6 +1188,7 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
                                     <th>Пиво</th>
                                     <th>ABC</th>
                                     <th>Вариация</th>
@@ -1118,22 +1202,24 @@
                                     .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
                                     .map((beer, i) => {
                                         const safeId = `xyz-${xyzCategory}-${i}`;
+                                        const beerBar = beer.Bar || barName;
                                         return `
                                         <tr class="beer-row" id="beer-row-${safeId}">
                                             <td>${i + 1}</td>
+                                            ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
                                             <td>${beer.Beer}</td>
                                          <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
                                             <td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>
                                             <td>${formatNumber(beer.TotalQty)}</td>
                                             <td>${formatMoney(beer.TotalRevenue)}</td>
                                             <td>
-                                                <span class="chart-icon" onclick='showWeeklyChart(event, "${barName}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
+                                                <span class="chart-icon" onclick='showWeeklyChart(event, "${beerBar}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
                                                     📊
                                                 </span>
                                             </td>
                                         </tr>
                                         <tr id="chart-row-${safeId}" style="display: none;">
-                                            <td colspan="7">
+                                            <td colspan="${hasBarColumn ? 8 : 7}">
                                                 <div class="chart-container">
                                                     <canvas id="chart-${safeId}"></canvas>
                                                 </div>
@@ -1589,6 +1675,7 @@
 
             const beers = barData.records || [];
             const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
 
             // Сортируем в зависимости от типа
             let sortedBeers = [...beers];
@@ -1622,6 +1709,7 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
                                     <th>Пиво</th>
                                     <th>Стиль</th>
                                     <th>Кол-во</th>
@@ -1635,6 +1723,7 @@
                                 ${sortedBeers.map((beer, i) => `
                                     <tr class="beer-row">
                                         <td>${i + 1}</td>
+                                        ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
                                         <td>${beer.Beer}</td>
                                         <td>${beer.Style || '—'}</td>
                                         <td>${formatNumber(beer.TotalQty)}</td>
