@@ -2,12 +2,13 @@ from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import json
 from datetime import datetime, timedelta
-from olap_reports import OlapReports
-from data_processor import BeerDataProcessor
-from abc_analysis import ABCAnalysis
-from xyz_analysis import XYZAnalysis
-from category_analysis import CategoryAnalysis
-from draft_analysis import DraftAnalysis
+from core.olap_reports import OlapReports
+from core.data_processor import BeerDataProcessor
+from core.abc_analysis import ABCAnalysis
+from core.xyz_analysis import XYZAnalysis
+from core.category_analysis import CategoryAnalysis
+from core.draft_analysis import DraftAnalysis
+from core.waiter_analysis import WaiterAnalysis
 
 app = Flask(__name__)
 
@@ -28,6 +29,11 @@ def index():
 def draft():
     """Страница разливного пива"""
     return render_template('draft.html', bars=BARS)
+
+@app.route('/waiters')
+def waiters():
+    """Страница анализа по официантам"""
+    return render_template('waiters.html', bars=BARS)
 
 @app.route('/api/test', methods=['GET', 'POST'])
 def test_endpoint():
@@ -690,6 +696,87 @@ def analyze_draft():
 
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/draft-analyze: {e}")
+        import traceback
+        traceback.print_exc()
+        error_detail = f"{type(e).__name__}: {str(e)}"
+        return jsonify({'error': error_detail}), 500
+
+@app.route('/api/waiter-analyze', methods=['POST'])
+def analyze_waiters():
+    """API endpoint для анализа продаж разливного пива по официантам"""
+    try:
+        data = request.json
+        bar_name = data.get('bar')
+        days = int(data.get('days', 30))
+
+        print(f"\n[WAITER] Zapusk analiza po oficiantam...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {days} dney")
+
+        # Подключаемся к iiko API
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        # Запрашиваем данные разливного с официантами
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+        report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, bar_name)
+        olap.disconnect()
+
+        if not report_data or not report_data.get('data'):
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        # Преобразуем в DataFrame
+        df = pd.DataFrame(report_data['data'])
+        df['DishAmountInt'] = pd.to_numeric(df['DishAmountInt'], errors='coerce')
+        df['DishDiscountSumInt'] = pd.to_numeric(df['DishDiscountSumInt'], errors='coerce')
+        df['ProductCostBase.ProductCost'] = pd.to_numeric(df['ProductCostBase.ProductCost'], errors='coerce')
+        df['ProductCostBase.MarkUp'] = pd.to_numeric(df['ProductCostBase.MarkUp'], errors='coerce')
+
+        print(f"[INFO] Vsego zapisey: {len(df)}")
+
+        # Создаем анализатор по официантам
+        waiter_analyzer = WaiterAnalysis(df)
+
+        # Получаем сводку по официантам
+        summary = waiter_analyzer.get_waiter_summary(bar_name)
+
+        if summary.empty:
+            return jsonify({'error': 'Нет данных об официантах'}), 404
+
+        print(f"[INFO] Vsego oficiantov: {len(summary)}")
+
+        # Форматируем результат
+        waiters = waiter_analyzer.format_summary_for_display(summary)
+
+        # Для каждого официанта получаем детали о том, какое пиво он пролил
+        for waiter_record in waiters:
+            waiter_name = waiter_record['WaiterName']
+            waiter_bar = waiter_record['Bar'] if bar_name else None
+
+            # Получаем детали по пиву
+            beer_details = waiter_analyzer.get_waiter_beer_details(waiter_name, waiter_bar)
+            if not beer_details.empty:
+                beer_details_formatted = waiter_analyzer.format_beer_details_for_display(beer_details)
+                waiter_record['beers'] = beer_details_formatted[:10]  # Топ-10 сортов
+            else:
+                waiter_record['beers'] = []
+
+        response_data = {
+            'total_waiters': len(summary),
+            'total_liters': float(summary['TotalLiters'].sum()),
+            'total_portions': int(summary['TotalPortions'].sum()),
+            'total_revenue': float(summary['TotalRevenue'].sum()) if 'TotalRevenue' in summary.columns else 0,
+            'total_margin': float(summary['TotalMargin'].sum()) if 'TotalMargin' in summary.columns else 0,
+            'waiters': waiters
+        }
+
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/waiter-analyze: {e}")
         import traceback
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"

@@ -320,7 +320,7 @@ if __name__ == "__main__":
     # (нужно сначала получить данные через get_draft_sales_report)
     import json
     from datetime import datetime, timedelta
-    from olap_reports import OlapReports
+    from core.olap_reports import OlapReports
 
     # Подключаемся к API
     olap = OlapReports()

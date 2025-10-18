@@ -1,0 +1,67 @@
+[
+  {
+    "DishAmountInt": 1,
+    "DishDiscountSumInt": 245,
+    "DishForeignName": "Россия",
+    "DishGroup.ThirdParent": "Сауэр эли (Р)",
+    "DishName": "Atmosphere brew Кислый Движ (0,25)",
+    "OpenDate.Typed": "2025-10-10",
+    "OrderWaiter.Name": "Макарова Татьяна",
+    "ProductCostBase.MarkUp": 2.4905,
+    "ProductCostBase.ProductCost": 70.19,
+    "Store.Name": "Большой пр. В.О",
+    "WaiterName": "Макарова Татьяна"
+  },
+  {
+    "DishAmountInt": 1,
+    "DishDiscountSumInt": 430,
+    "DishForeignName": "Россия",
+    "DishGroup.ThirdParent": "Сауэр эли (Р)",
+    "DishName": "Atmosphere brew Кислый Движ (0,4)",
+    "OpenDate.Typed": "2025-10-10",
+    "OrderWaiter.Name": "Макарова Татьяна",
+    "ProductCostBase.MarkUp": 2.829,
+    "ProductCostBase.ProductCost": 112.3,
+    "Store.Name": "Большой пр. В.О",
+    "WaiterName": "Макарова Татьяна"
+  },
+  {
+    "DishAmountInt": 3,
+    "DishDiscountSumInt": 1157.25,
+    "DishForeignName": "Россия",
+    "DishGroup.ThirdParent": "Сауэр эли (Р)",
+    "DishName": "Atmosphere brew Кислый Движ (0,4)",
+    "OpenDate.Typed": "2025-10-11",
+    "OrderWaiter.Name": "Макарова Татьяна",
+    "ProductCostBase.MarkUp": 2.435,
+    "ProductCostBase.ProductCost": 336.9,
+    "Store.Name": "Большой пр. В.О",
+    "WaiterName": "Макарова Татьяна"
+  },
+  {
+    "DishAmountInt": 5,
+    "DishDiscountSumInt": 2150,
+    "DishForeignName": "Россия",
+    "DishGroup.ThirdParent": "Сауэр эли (Р)",
+    "DishName": "Atmosphere brew Кислый Движ (0,4)",
+    "OpenDate.Typed": "2025-10-12",
+    "OrderWaiter.Name": "Максим Поляков",
+    "ProductCostBase.MarkUp": 2.829,
+    "ProductCostBase.ProductCost": 561.5,
+    "Store.Name": "Большой пр. В.О",
+    "WaiterName": "Максим Поляков"
+  },
+  {
+    "DishAmountInt": 1,
+    "DishDiscountSumInt": 430,
+    "DishForeignName": "Россия",
+    "DishGroup.ThirdParent": "Сауэр эли (Р)",
+    "DishName": "Atmosphere brew Кислый Движ (0,4)",
+    "OpenDate.Typed": "2025-10-14",
+    "OrderWaiter.Name": "Егор Бобриков",
+    "ProductCostBase.MarkUp": 2.829,
+    "ProductCostBase.ProductCost": 112.3,
+    "Store.Name": "Большой пр. В.О",
+    "WaiterName": "Егор Бобриков"
+  }
+]

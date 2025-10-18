@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Проливы разливного пива</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <title>Статистика по официантам</title>
     <style>
         :root {
             /* Light Theme */
@@ -77,7 +76,6 @@
             margin-bottom: 8px;
             color: var(--text-primary);
             line-height: 1;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
 
         .header-left .subtitle {
@@ -187,7 +185,7 @@
             letter-spacing: 0.05em;
         }
 
-        select, input {
+        select {
             padding: 12px 16px;
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -198,7 +196,7 @@
             font-family: inherit;
         }
 
-        select:focus, input:focus {
+        select:focus {
             outline: none;
             border-color: var(--accent);
             background: var(--bg-secondary);
@@ -354,12 +352,12 @@
             color: var(--text-primary);
         }
 
-        .beer-row {
+        .waiter-row {
             cursor: pointer;
             transition: background 0.15s ease;
         }
 
-        .beer-row:hover {
+        .waiter-row:hover {
             background: var(--bg-tertiary);
         }
 
@@ -376,67 +374,6 @@
 
         .error.active {
             display: block;
-        }
-
-        /* Chart */
-        .chart-container {
-            margin: 20px 0;
-            padding: 24px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-        }
-
-        .chart-icon {
-            cursor: pointer;
-            font-size: 1.2rem;
-            transition: transform 0.2s ease;
-            display: inline-block;
-        }
-
-        .chart-icon:hover {
-            transform: scale(1.2);
-        }
-
-        /* Badge для ABC */
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-        }
-
-        .badge.abc-a {
-            background: var(--success);
-            color: white;
-        }
-
-        .badge.abc-b {
-            background: var(--warning);
-            color: white;
-        }
-
-        .badge.abc-c {
-            background: var(--danger);
-            color: white;
-        }
-
-        /* XYZ badges */
-        .badge.xyz-x {
-            background: #10b981;
-            color: white;
-        }
-
-        .badge.xyz-y {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .badge.xyz-z {
-            background: #6b7280;
-            color: white;
         }
 
         /* Modal */
@@ -619,8 +556,8 @@
                 font-size: 2.5rem;
             }
 
-            .header-left .subtitle {
-                font-size: 0.8rem;
+            .detail-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -629,14 +566,14 @@
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1>ПРОЛИВЫ</h1>
-                <div class="subtitle">В культуре</div>
+                <h1>ОФИЦИАНТЫ</h1>
+                <div class="subtitle">Статистика по проливам разливного пива</div>
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
                 <div class="nav-links">
                     <a href="/" class="nav-link">Фасовка</a>
-                    <a href="/draft" class="nav-link active">Разливное</a>
-                    <a href="/waiters" class="nav-link">Официанты</a>
+                    <a href="/draft" class="nav-link">Разливное</a>
+                    <a href="/waiters" class="nav-link active">Официанты</a>
                 </div>
                 <div style="display: flex; align-items: center; gap: 16px;">
                     <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
@@ -656,7 +593,7 @@
                 <div class="form-group">
                     <label for="bar-select">Бар</label>
                     <select id="bar-select">
-                        <option value="">Общая</option>
+                        <option value="">Все бары</option>
                         {% for bar in bars %}
                         <option value="{{ bar }}">{{ bar }}</option>
                         {% endfor %}
@@ -665,7 +602,7 @@
 
                 <div class="form-group">
                     <label for="period-select">Период</label>
-                    <select id="period-select" onchange="toggleCustomPeriod()">
+                    <select id="period-select">
                         <option value="7">Неделя</option>
                         <option value="14">2 недели</option>
                         <option value="30" selected>Месяц</option>
@@ -673,7 +610,6 @@
                         <option value="90">Квартал</option>
                         <option value="180">Полгода</option>
                         <option value="365">Год</option>
-                        <option value="custom">Свой период</option>
                     </select>
                 </div>
 
@@ -682,30 +618,13 @@
                     <button class="btn" onclick="runAnalysis()">Запустить анализ</button>
                 </div>
             </div>
-
-            <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
-                <div class="form-group">
-                    <label for="date-from">Дата начала</label>
-                    <input type="date" id="date-from">
-                </div>
-
-                <div class="form-group">
-                    <label for="date-to">Дата окончания</label>
-                    <input type="date" id="date-to">
-                </div>
-
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                </div>
-                </div>
-            </div>
         </div>
 
         <div class="error" id="error-message"></div>
 
         <div class="card loading" id="loading">
             <div class="spinner"></div>
-            <h2>Загружаем проливы...</h2>
+            <h2>Загружаем статистику...</h2>
             <p>Это может занять несколько секунд</p>
         </div>
 
@@ -714,7 +633,6 @@
 
     <script>
         let currentData = {};
-        let activeCharts = {};
 
         // Theme management
         function setTheme(theme) {
@@ -773,58 +691,16 @@
             setInterval(checkApiConnection, 60000);
         });
 
-        function toggleCustomPeriod() {
-            const periodSelect = document.getElementById('period-select').value;
-            const customControls = document.getElementById('custom-period-controls');
-
-            if (periodSelect === 'custom') {
-                customControls.style.display = 'grid';
-                // Устанавливаем значения по умолчанию
-                const today = new Date();
-                const monthAgo = new Date(today);
-                monthAgo.setDate(today.getDate() - 30);
-
-                document.getElementById('date-to').valueAsDate = today;
-                document.getElementById('date-from').valueAsDate = monthAgo;
-            } else {
-                customControls.style.display = 'none';
-            }
-        }
-
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
-            const periodSelect = document.getElementById('period-select').value;
-
-            let days;
-            let dateFrom, dateTo;
-
-            if (periodSelect === 'custom') {
-                // Используем выбранные даты
-                const dateFromInput = document.getElementById('date-from').value;
-                const dateToInput = document.getElementById('date-to').value;
-
-                if (!dateFromInput || !dateToInput) {
-                    showError('Пожалуйста, выберите обе даты');
-                    return;
-                }
-
-                dateFrom = dateFromInput;
-                dateTo = dateToInput;
-
-                // Вычисляем количество дней для API
-                const from = new Date(dateFromInput);
-                const to = new Date(dateToInput);
-                days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
-            } else {
-                days = periodSelect;
-            }
+            const days = document.getElementById('period-select').value;
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');
             document.getElementById('error-message').classList.remove('active');
 
             try {
-                const response = await fetch('/api/draft-analyze', {
+                const response = await fetch('/api/waiter-analyze', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -852,176 +728,138 @@
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
 
-            for (const [barName, barData] of Object.entries(data)) {
-                const section = createBarSection(barName, barData);
-                resultsDiv.appendChild(section);
-            }
-
-            resultsDiv.classList.add('active');
-        }
-
-        function createBarSection(barName, data) {
-            const section = document.createElement('div');
-            section.className = 'bar-section';
-
             const card = document.createElement('div');
             card.className = 'card';
-
-            const header = `
-                <div class="bar-header">
-                    <h2>${barName}</h2>
-                </div>
-            `;
 
             const stats = `
                 <div class="stats-grid">
                     <div class="stat-card">
+                        <div class="label">Всего официантов</div>
+                        <div class="value">${data.total_waiters}</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="label">Общий объём</div>
                         <div class="value">${data.total_liters.toFixed(1)}<span class="unit">L</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Порций продано</div>
+                        <div class="value">${formatNumber(data.total_portions)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Выручка</div>
+                        <div class="value">${formatMoney(data.total_revenue)}</div>
                     </div>
                 </div>
             `;
 
-            const hasBarColumn = data.beers && data.beers[0] && data.beers[0].Bar;
+            const hasBarColumn = data.waiters && data.waiters[0] && data.waiters[0].Bar;
 
-            const hasABC = data.beers && data.beers[0] && data.beers[0].ABC_Combined;
-            const hasXYZ = data.beers && data.beers[0] && data.beers[0].XYZ_Category;
-
-            const topTable = `
-                <h3 class="section-title">Все позиции по объёму (литры) - кликните для деталей</h3>
+            const waitersTable = `
+                <h3 class="section-title">Топ официантов по объёму проливов (кликните для деталей)</h3>
                 <table>
                     <thead>
                         <tr>
                             <th>#</th>
+                            <th>Официант</th>
                             ${hasBarColumn ? '<th>Бар</th>' : ''}
-                            <th>Пиво</th>
                             <th>Литры</th>
                             <th>Порции</th>
-                            <th>Средний объём порции</th>
-                            ${hasABC ? '<th>ABC</th>' : ''}
-                            ${hasXYZ ? '<th>XYZ</th>' : ''}
+                            <th>Сортов пива</th>
+                            <th>Кег 30L</th>
+                            <th>Выручка</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${(data.beers || []).map((beer, i) => `
-                            <tr class="beer-row" onclick='showBeerDetails(${JSON.stringify(beer)})' style="cursor: pointer;">
+                        ${(data.waiters || []).map((waiter, i) => `
+                            <tr class="waiter-row" onclick='showWaiterDetails(${JSON.stringify(waiter)})'>
                                 <td>${i + 1}</td>
-                                ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
-                                <td><strong>${beer.BeerName}</strong></td>
-                                <td>${beer.TotalLiters.toFixed(1)} L</td>
-                                <td>${beer.TotalPortions}</td>
-                                <td>${beer.AvgPortionSize.toFixed(2)} L</td>
-                                ${beer.ABC_Combined ? `<td><span class="badge abc-${beer.ABC_Combined.substring(0,1).toLowerCase()}">${beer.ABC_Combined}</span></td>` : ''}
-                                ${beer.XYZ_Category ? `<td><span class="badge xyz-${beer.XYZ_Category.toLowerCase()}">${beer.XYZ_Category}</span></td>` : ''}
+                                <td><strong>${waiter.WaiterName}</strong></td>
+                                ${hasBarColumn ? `<td>${waiter.Bar}</td>` : ''}
+                                <td>${waiter.TotalLiters.toFixed(1)} L</td>
+                                <td>${formatNumber(waiter.TotalPortions)}</td>
+                                <td>${waiter.UniqueBeers}</td>
+                                <td>${waiter.Kegs30L.toFixed(1)}</td>
+                                <td>${formatMoney(waiter.TotalRevenue || 0)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             `;
 
-            card.innerHTML = header + stats + topTable;
-            section.appendChild(card);
-            return section;
+            card.innerHTML = stats + waitersTable;
+            resultsDiv.appendChild(card);
+            resultsDiv.classList.add('active');
         }
 
-        function showBeerDetails(beer) {
-            const hasRevenue = beer.TotalRevenue !== undefined;
+        function showWaiterDetails(waiter) {
+            const hasRevenue = waiter.TotalRevenue !== undefined;
+            const hasBeers = waiter.beers && waiter.beers.length > 0;
+
+            const beersTable = hasBeers ? `
+                <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">Топ-10 сортов пива</h3>
+                <table style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Пиво</th>
+                            <th>Литры</th>
+                            <th>Порции</th>
+                            ${hasRevenue ? '<th>Выручка</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${waiter.beers.map(beer => `
+                            <tr>
+                                <td><strong>${beer.BeerName}</strong></td>
+                                <td>${beer.TotalLiters.toFixed(1)} L</td>
+                                <td>${formatNumber(beer.TotalPortions)}</td>
+                                ${hasRevenue && beer.TotalRevenue ? `<td>${formatMoney(beer.TotalRevenue)}</td>` : ''}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` : '';
 
             const modalHTML = `
-                <div class="modal active" id="beer-modal" onclick="closeModalBackdrop(event)">
+                <div class="modal active" id="waiter-modal" onclick="closeModalBackdrop(event)">
                     <div class="modal-content" onclick="event.stopPropagation()">
                         <div class="modal-header">
                             <div>
-                                <h2>${beer.BeerName}</h2>
-                                <p style="color: var(--text-secondary); margin-top: 4px;">${beer.Bar}</p>
+                                <h2>${waiter.WaiterName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 4px;">${waiter.Bar}</p>
                             </div>
                             <button class="modal-close" onclick="closeModal()">&times;</button>
                         </div>
 
                         <div class="detail-grid">
                             <div class="detail-item">
-                                <div class="label">Объём</div>
-                                <div class="value">${beer.TotalLiters.toFixed(1)} L</div>
+                                <div class="label">Объём пролито</div>
+                                <div class="value">${waiter.TotalLiters.toFixed(1)} L</div>
                             </div>
                             <div class="detail-item">
                                 <div class="label">Порций</div>
-                                <div class="value">${formatNumber(beer.TotalPortions)}</div>
+                                <div class="value">${formatNumber(waiter.TotalPortions)}</div>
                             </div>
                             <div class="detail-item">
-                                <div class="label">Средняя порция</div>
-                                <div class="value">${beer.AvgPortionSize.toFixed(2)} L</div>
+                                <div class="label">Уникальных сортов</div>
+                                <div class="value">${waiter.UniqueBeers}</div>
                             </div>
                             <div class="detail-item">
-                                <div class="label">Недель продавалось</div>
-                                <div class="value">${beer.WeeksActive}</div>
+                                <div class="label">Кег 30L</div>
+                                <div class="value">${waiter.Kegs30L.toFixed(1)}</div>
                             </div>
                             ${hasRevenue ? `
                                 <div class="detail-item">
                                     <div class="label">Выручка</div>
-                                    <div class="value">${formatMoney(beer.TotalRevenue)}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Наценка</div>
-                                    <div class="value">${(beer.AvgMarkupPercent * 100).toFixed(1)}%</div>
+                                    <div class="value">${formatMoney(waiter.TotalRevenue)}</div>
                                 </div>
                                 <div class="detail-item">
                                     <div class="label">Маржа</div>
-                                    <div class="value">${formatMoney(beer.TotalMargin)}</div>
+                                    <div class="value">${formatMoney(waiter.TotalMargin)}</div>
                                 </div>
                             ` : ''}
                         </div>
 
-                        ${hasRevenue && beer.ABC_Combined ? `
-                            <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">ABC Анализ</h3>
-                            <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 6px;">
-                                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-                                    <span class="badge abc-${beer.ABC_Combined.substring(0,1).toLowerCase()}" style="font-size: 1.5rem; padding: 8px 20px;">
-                                        ${beer.ABC_Combined}
-                                    </span>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                                        ${beer.RevenuePercent ? beer.RevenuePercent.toFixed(1) + '% от выручки' : ''}
-                                    </div>
-                                </div>
-                                <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                                    <div style="display: flex; gap: 12px;">
-                                        <span class="badge abc-${beer.ABC_Revenue ? beer.ABC_Revenue.toLowerCase() : 'c'}" style="width: 30px; text-align: center;">${beer.ABC_Revenue || '?'}</span>
-                                        <span>Выручка: ${beer.ABC_Revenue === 'A' ? 'Топ 80%' : beer.ABC_Revenue === 'B' ? 'Средние 15%' : 'Нижние 5%'}</span>
-                                    </div>
-                                    <div style="display: flex; gap: 12px;">
-                                        <span class="badge abc-${beer.ABC_Markup ? beer.ABC_Markup.toLowerCase() : 'c'}" style="width: 30px; text-align: center;">${beer.ABC_Markup || '?'}</span>
-                                        <span>Наценка: ${beer.ABC_Markup === 'A' ? 'Высокая' : beer.ABC_Markup === 'B' ? 'Средняя' : 'Низкая'} (${(beer.AvgMarkupPercent * 100).toFixed(1)}%)</span>
-                                    </div>
-                                    <div style="display: flex; gap: 12px;">
-                                        <span class="badge abc-${beer.ABC_Margin ? beer.ABC_Margin.toLowerCase() : 'c'}" style="width: 30px; text-align: center;">${beer.ABC_Margin || '?'}</span>
-                                        <span>Маржа: ${beer.ABC_Margin === 'A' ? 'Высокая' : beer.ABC_Margin === 'B' ? 'Средняя' : 'Низкая'} (${formatMoney(beer.TotalMargin)})</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ` : ''}
-
-                        ${beer.XYZ_Category ? `
-                            <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">XYZ Анализ (стабильность спроса)</h3>
-                            <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 6px;">
-                                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-                                    <span class="badge xyz-${beer.XYZ_Category.toLowerCase()}" style="font-size: 1.5rem; padding: 8px 20px;">
-                                        ${beer.XYZ_Category}
-                                    </span>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                                        Коэф. вариации: ${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}
-                                    </div>
-                                </div>
-                                <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                                    <div style="display: flex; gap: 12px; align-items: center;">
-                                        <span class="badge xyz-${beer.XYZ_Category.toLowerCase()}" style="width: 30px; text-align: center;">${beer.XYZ_Category}</span>
-                                        <span>
-                                            ${beer.XYZ_Category === 'X' ? 'Стабильный спрос (топ 33% по стабильности)' :
-                                              beer.XYZ_Category === 'Y' ? 'Переменный спрос (средние 33%)' :
-                                              'Нестабильный спрос (нижние 33%)'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        ` : ''}
+                        ${beersTable}
                     </div>
                 </div>
             `;
@@ -1036,7 +874,7 @@
         }
 
         function closeModal() {
-            const modal = document.getElementById('beer-modal');
+            const modal = document.getElementById('waiter-modal');
             if (modal) {
                 modal.remove();
             }
