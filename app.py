@@ -485,6 +485,9 @@ def analyze_draft():
                 if 'ABC_Combined' in summary.columns:
                     summary['ABCXYZ_Combined'] = summary['ABC_Combined'] + '-' + summary['XYZ_Category']
 
+            # Сортируем по объёму (литры) от большего к меньшему
+            summary = summary.sort_values('TotalLiters', ascending=False)
+
             beers = draft_analyzer.format_summary_for_display(summary)
 
             response_data = {
@@ -575,6 +578,9 @@ def analyze_draft():
 
                     if 'ABC_Combined' in bar_summary.columns:
                         bar_summary['ABCXYZ_Combined'] = bar_summary['ABC_Combined'] + '-' + bar_summary['XYZ_Category']
+
+                # Сортируем по объёму (литры) от большего к меньшему
+                bar_summary = bar_summary.sort_values('TotalLiters', ascending=False)
 
                 all_bars_data.append(bar_summary)
 
@@ -675,6 +681,9 @@ def analyze_draft():
 
                     if 'ABC_Combined' in aggregated.columns:
                         aggregated['ABCXYZ_Combined'] = aggregated['ABC_Combined'] + '-' + aggregated['XYZ_Category']
+
+                # Сортируем по объёму (литры) от большего к меньшему
+                aggregated = aggregated.sort_values('TotalLiters', ascending=False)
 
                 beers = draft_analyzer.format_summary_for_display(aggregated)
 
