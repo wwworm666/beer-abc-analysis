@@ -543,6 +543,24 @@
             background: var(--text-tertiary);
         }
 
+        /* Date Range Display */
+        .date-range-display {
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-top: 16px;
+            font-weight: 500;
+        }
+
+        .date-range-display .dates {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .controls {
@@ -748,7 +766,7 @@
 
                 <div class="form-group">
                     <label for="period-select">Период</label>
-                    <select id="period-select" onchange="toggleCustomPeriod()">
+                    <select id="period-select" onchange="toggleCustomPeriod(); updateDateRangeDisplay();">
                         <option value="7">Неделя</option>
                         <option value="14">2 недели</option>
                         <option value="30" selected>Месяц</option>
@@ -769,18 +787,22 @@
             <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
                 <div class="form-group">
                     <label for="date-from">Дата начала</label>
-                    <input type="date" id="date-from">
+                    <input type="date" id="date-from" onchange="updateDateRangeDisplay()">
                 </div>
 
                 <div class="form-group">
                     <label for="date-to">Дата окончания</label>
-                    <input type="date" id="date-to">
+                    <input type="date" id="date-to" onchange="updateDateRangeDisplay()">
                 </div>
 
                 <div class="form-group">
                     <label>&nbsp;</label>
                 </div>
-                </div>
+            </div>
+
+            <!-- Отображение диапазона дат -->
+            <div class="date-range-display" id="date-range-display" style="display: none;">
+                Период анализа: <span class="dates" id="date-range-text"></span>
             </div>
         </div>
 
@@ -832,6 +854,8 @@
             checkApiConnection();
             // Recheck connection every 60 seconds
             setInterval(checkApiConnection, 60000);
+            // Показываем диапазон дат при загрузке страницы
+            updateDateRangeDisplay();
         });
 
         // Analysis mode management
@@ -888,6 +912,45 @@
             } else {
                 customControls.style.display = 'none';
             }
+            // Обновляем отображение диапазона дат
+            updateDateRangeDisplay();
+        }
+
+        function formatDate(date) {
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+        }
+
+        function updateDateRangeDisplay() {
+            const periodSelect = document.getElementById('period-select').value;
+            const dateRangeDisplay = document.getElementById('date-range-display');
+            const dateRangeText = document.getElementById('date-range-text');
+
+            let startDate, endDate;
+            const today = new Date();
+
+            if (periodSelect === 'custom') {
+                const dateFromInput = document.getElementById('date-from').value;
+                const dateToInput = document.getElementById('date-to').value;
+
+                if (dateFromInput && dateToInput) {
+                    startDate = new Date(dateFromInput);
+                    endDate = new Date(dateToInput);
+                } else {
+                    dateRangeDisplay.style.display = 'none';
+                    return;
+                }
+            } else {
+                const days = parseInt(periodSelect);
+                endDate = new Date(today);
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - days);
+            }
+
+            dateRangeText.textContent = `${formatDate(startDate)} — ${formatDate(endDate)}`;
+            dateRangeDisplay.style.display = 'block';
         }
 
         async function runAnalysis() {
