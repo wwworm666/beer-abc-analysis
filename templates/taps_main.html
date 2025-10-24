@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Активность кранов</title>
+    <style>
+        :root {
+            /* Light Theme */
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #e0e0e0;
+            --accent: #0066cc;
+            --accent-hover: #0052a3;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            --border-color: #333333;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            line-height: 1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .header-left .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .nav-link {
+            padding: 8px 20px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .nav-link.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .theme-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .theme-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .theme-btn:hover:not(.active) {
+            color: var(--text-primary);
+        }
+
+        /* Bars Grid */
+        .bars-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .bar-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: block;
+        }
+
+        .bar-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px var(--shadow);
+            border-color: var(--accent);
+        }
+
+        .bar-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+
+        .bar-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .bar-taps {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .bar-status {
+            display: flex;
+            gap: 16px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .status-item {
+            flex: 1;
+            text-align: center;
+        }
+
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .active-count {
+            color: var(--success);
+        }
+
+        .empty-count {
+            color: var(--text-tertiary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-left h1 {
+                font-size: 2.5rem;
+            }
+
+            .bars-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <h1>Активность кранов</h1>
+            </div>
+            <div class="theme-toggle">
+                <button class="theme-btn active" data-theme="light">Светлая</button>
+                <button class="theme-btn" data-theme="dark">Темная</button>
+            </div>
+        </div>
+
+        <!-- Bars Grid -->
+        <div class="bars-grid" id="bars-grid">
+            <!-- Bars will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        const bars = [
+            { id: 'bar1', name: 'Большой пр. В.О', taps: 24 },
+            { id: 'bar2', name: 'Лиговский', taps: 12 },
+            { id: 'bar3', name: 'Кременчугская', taps: 12 },
+            { id: 'bar4', name: 'Варшавская', taps: 12 }
+        ];
+
+        // Theme toggle
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                document.documentElement.setAttribute('data-theme', theme);
+                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                localStorage.setItem('theme', theme);
+            });
+        });
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            if (btn.dataset.theme === savedTheme) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Load bars status
+        async function loadBarsStatus() {
+            const grid = document.getElementById('bars-grid');
+            grid.innerHTML = '';
+
+            for (const bar of bars) {
+                let active = 0;
+                let empty = bar.taps;
+
+                // Try to load stats from API
+                try {
+                    const response = await fetch(`/api/taps/${bar.id}/stats`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        active = data.active || 0;
+                        empty = data.empty || bar.taps;
+                    }
+                } catch (error) {
+                    console.error(`Error loading stats for ${bar.id}:`, error);
+                }
+
+                const card = document.createElement('a');
+                card.className = 'bar-card';
+                card.href = `/taps/${bar.id}`;
+
+                card.innerHTML = `
+                    <div class="bar-name">${bar.name}</div>
+                    <div class="bar-info">
+                        <span class="bar-taps">Кранов: ${bar.taps}</span>
+                    </div>
+                    <div class="bar-status">
+                        <div class="status-item">
+                            <div class="status-value active-count">${active}</div>
+                            <div class="status-label">Активных</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-value empty-count">${empty}</div>
+                            <div class="status-label">Пустых</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-value">${Math.round((active / bar.taps) * 100)}%</div>
+                            <div class="status-label">Загрузка</div>
+                        </div>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            }
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadBarsStatus, 30000);
+
+        // Initial load
+        loadBarsStatus();
+    </script>
+</body>
+</html>

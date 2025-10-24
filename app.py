@@ -41,8 +41,27 @@ def waiters():
 
 @app.route('/taps')
 def taps():
-    """Страница управления пивными кранами"""
-    return render_template('taps.html')
+    """Главная страница управления кранами - выбор бара"""
+    return render_template('taps_main.html')
+
+@app.route('/taps/<bar_id>')
+def taps_bar(bar_id):
+    """Страница управления кранами конкретного бара"""
+    bars_config = {
+        'bar1': {'name': 'Большой пр. В.О', 'taps': 24},
+        'bar2': {'name': 'Лиговский', 'taps': 12},
+        'bar3': {'name': 'Кременчугская', 'taps': 12},
+        'bar4': {'name': 'Варшавская', 'taps': 12}
+    }
+
+    if bar_id not in bars_config:
+        return "Бар не найден", 404
+
+    bar_info = bars_config[bar_id]
+    return render_template('taps_bar.html',
+                         bar_id=bar_id,
+                         bar_name=bar_info['name'],
+                         tap_count=bar_info['taps'])
 
 @app.route('/api/test', methods=['GET', 'POST'])
 def test_endpoint():
@@ -928,6 +947,70 @@ def get_statistics():
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/taps/statistics: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/<bar_id>/stats', methods=['GET'])
+def get_bar_stats(bar_id):
+    """Получить краткую статистику для карточки бара"""
+    try:
+        result = taps_manager.get_bar_taps(bar_id)
+        if 'error' in result:
+            return jsonify({'active': 0, 'empty': 12}), 200
+
+        taps = result.get('taps', [])
+        active = len([t for t in taps if t.get('status') == 'active'])
+        total = result.get('total_taps', 12)
+        empty = total - len([t for t in taps if t.get('status') in ['active', 'replacing']])
+
+        return jsonify({
+            'active': active,
+            'empty': empty,
+            'total': total
+        })
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/stats: {e}")
+        return jsonify({'active': 0, 'empty': 12}), 200
+
+@app.route('/api/beers/draft', methods=['GET'])
+def get_draft_beers():
+    """Получить список разливного пива из номенклатуры"""
+    try:
+        # Читаем файл с номенклатурой
+        import os
+        products_file = os.path.join('data', 'all_products.json')
+
+        if not os.path.exists(products_file):
+            # Если файла нет, возвращаем пустой список
+            return jsonify({'beers': []})
+
+        with open(products_file, 'r', encoding='utf-8') as f:
+            products = json.load(f)
+
+        # Фильтруем только разливное пиво
+        # Разливное обычно содержит "кег", "KEG", "30L", "50L" в названии
+        draft_beers = []
+        seen_names = set()
+
+        for product in products:
+            name = product.get('name', '')
+            # Ищем признаки разливного пива
+            if any(keyword in name.upper() for keyword in ['КЕГ', 'KEG', '30L', '50L', 'DRAFT']):
+                # Убираем дубликаты по названию
+                clean_name = name.strip()
+                if clean_name and clean_name not in seen_names:
+                    draft_beers.append({
+                        'id': product.get('id'),
+                        'name': clean_name,
+                        'num': product.get('num')
+                    })
+                    seen_names.add(clean_name)
+
+        # Сортируем по названию
+        draft_beers.sort(key=lambda x: x['name'])
+
+        return jsonify({'beers': draft_beers})
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/beers/draft: {e}")
+        return jsonify({'beers': []}), 200
 
 if __name__ == '__main__':
     print("\n" + "="*60)

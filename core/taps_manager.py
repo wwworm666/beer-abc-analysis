@@ -55,10 +55,10 @@ class TapsManager:
 
     # Конфигурация баров
     BARS_CONFIG = {
-        'bar1': {'name': 'Бар 1', 'taps': 12},
+        'bar1': {'name': 'Бар 1', 'taps': 24},
         'bar2': {'name': 'Бар 2', 'taps': 12},
         'bar3': {'name': 'Бар 3', 'taps': 12},
-        'bar4': {'name': 'Бар 4', 'taps': 24},
+        'bar4': {'name': 'Бар 4', 'taps': 12},
     }
 
     def __init__(self, data_file: str = 'data/taps_data.json'):
