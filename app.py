@@ -9,8 +9,12 @@ from core.xyz_analysis import XYZAnalysis
 from core.category_analysis import CategoryAnalysis
 from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
+from core.taps_manager import TapsManager
 
 app = Flask(__name__)
+
+# Инициализируем менеджер кранов
+taps_manager = TapsManager()
 
 # Список баров
 BARS = [
@@ -34,6 +38,11 @@ def draft():
 def waiters():
     """Страница анализа по официантам"""
     return render_template('waiters.html', bars=BARS)
+
+@app.route('/taps')
+def taps():
+    """Страница управления пивными кранами"""
+    return render_template('taps.html')
 
 @app.route('/api/test', methods=['GET', 'POST'])
 def test_endpoint():
@@ -790,6 +799,135 @@ def analyze_waiters():
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
+
+# ============= API для управления пивными кранами =============
+
+@app.route('/api/taps/bars', methods=['GET'])
+def get_bars_list():
+    """Получить список всех баров"""
+    try:
+        bars = taps_manager.get_bars()
+        return jsonify(bars)
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/bars: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/<bar_id>', methods=['GET'])
+def get_bar_taps(bar_id):
+    """Получить состояние кранов конкретного бара"""
+    try:
+        result = taps_manager.get_bar_taps(bar_id)
+        if 'error' in result:
+            return jsonify(result), 404
+        return jsonify(result)
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/{bar_id}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/<bar_id>/start', methods=['POST'])
+def start_tap(bar_id):
+    """Подключить кегу (начать работу крана)"""
+    try:
+        data = request.json
+        tap_number = data.get('tap_number')
+        beer_name = data.get('beer_name')
+        keg_id = data.get('keg_id')
+
+        if not all([tap_number, beer_name, keg_id]):
+            return jsonify({'error': 'Требуются: tap_number, beer_name, keg_id'}), 400
+
+        result = taps_manager.start_tap(bar_id, int(tap_number), beer_name, keg_id)
+
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/start: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/<bar_id>/stop', methods=['POST'])
+def stop_tap(bar_id):
+    """Остановить кран (кега закончилась)"""
+    try:
+        data = request.json
+        tap_number = data.get('tap_number')
+
+        if not tap_number:
+            return jsonify({'error': 'Требуется: tap_number'}), 400
+
+        result = taps_manager.stop_tap(bar_id, int(tap_number))
+
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/stop: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/<bar_id>/replace', methods=['POST'])
+def replace_tap(bar_id):
+    """Заменить кегу (смена сорта пива)"""
+    try:
+        data = request.json
+        tap_number = data.get('tap_number')
+        beer_name = data.get('beer_name')
+        keg_id = data.get('keg_id')
+
+        if not all([tap_number, beer_name, keg_id]):
+            return jsonify({'error': 'Требуются: tap_number, beer_name, keg_id'}), 400
+
+        result = taps_manager.replace_tap(bar_id, int(tap_number), beer_name, keg_id)
+
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/replace: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/<bar_id>/<int:tap_number>/history', methods=['GET'])
+def get_tap_history(bar_id, tap_number):
+    """Получить историю действий крана"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        result = taps_manager.get_tap_history(bar_id, tap_number, limit)
+
+        if 'error' in result:
+            return jsonify(result), 404
+        return jsonify(result)
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/{tap_number}/history: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/events/all', methods=['GET'])
+def get_all_events():
+    """Получить все события"""
+    try:
+        bar_id = request.args.get('bar_id', None)
+        limit = request.args.get('limit', 100, type=int)
+
+        events = taps_manager.get_all_events(bar_id, limit)
+        return jsonify({'events': events})
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/events/all: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/taps/statistics', methods=['GET'])
+def get_statistics():
+    """Получить статистику по кранам"""
+    try:
+        bar_id = request.args.get('bar_id', None)
+        result = taps_manager.get_statistics(bar_id)
+
+        if 'error' in result:
+            return jsonify(result), 404
+        return jsonify(result)
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/statistics: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("\n" + "="*60)
