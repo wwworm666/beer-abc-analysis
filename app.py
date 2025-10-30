@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import json
+import os
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
 from core.data_processor import BeerDataProcessor
@@ -1011,6 +1012,66 @@ def get_draft_beers():
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/beers/draft: {e}")
         return jsonify({'beers': []}), 200
+
+@app.route('/api/update-nomenclature', methods=['POST'])
+def update_nomenclature():
+    """Обновить список продуктов из iiko"""
+    try:
+        import requests
+        import xml.etree.ElementTree as ET
+        from core.iiko_api import IikoAPI
+
+        print("[INFO] Начинаем обновление номенклатуры...")
+
+        # Подключаемся к iiko
+        api = IikoAPI()
+        if not api.authenticate():
+            print("[ERROR] Не удалось авторизоваться в iiko")
+            return jsonify({'success': False, 'error': 'Authentication failed'}), 500
+
+        # Получаем список продуктов
+        url = f"{api.base_url}/products"
+        params = {"key": api.token}
+
+        response = requests.get(url, params=params, timeout=30)
+
+        if response.status_code != 200:
+            api.logout()
+            print(f"[ERROR] Ошибка получения продуктов: {response.status_code}")
+            return jsonify({'success': False, 'error': f'API error: {response.status_code}'}), 500
+
+        # Парсим XML
+        root = ET.fromstring(response.content)
+        products = []
+
+        for product in root.findall('.//productDto'):
+            product_id = product.find('id').text if product.find('id') is not None else None
+            name = product.find('name').text if product.find('name') is not None else None
+            parent_id = product.find('parentId').text if product.find('parentId') is not None else None
+            num = product.find('num').text if product.find('num') is not None else None
+
+            products.append({
+                'id': product_id,
+                'name': name,
+                'parent_id': parent_id,
+                'num': num
+            })
+
+        # Сохраняем в файл
+        products_file = os.path.join('data', 'all_products.json')
+        with open(products_file, 'w', encoding='utf-8') as f:
+            json.dump(products, f, indent=2, ensure_ascii=False)
+
+        api.logout()
+
+        print(f"[OK] Обновлено продуктов: {len(products)}")
+        return jsonify({'success': True, 'count': len(products)})
+
+    except Exception as e:
+        print(f"[ERROR] Ошибка при обновлении номенклатуры: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("\n" + "="*60)

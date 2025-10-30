@@ -117,6 +117,49 @@
             border-color: var(--accent);
         }
 
+        /* Header controls */
+        .header-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Refresh button */
+        .refresh-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .refresh-btn:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+
+        .refresh-btn.loading {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
         /* Theme Toggle */
         .theme-toggle {
             display: flex;
@@ -587,6 +630,8 @@
 
             .header {
                 margin-bottom: 16px;
+                flex-direction: column;
+                gap: 12px;
             }
 
             .header-left h1 {
@@ -595,6 +640,20 @@
 
             .header-left .subtitle {
                 font-size: 0.8rem;
+            }
+
+            .header-controls {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .refresh-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .theme-toggle {
+                width: 100%;
             }
 
             /* Компактная статистика */
@@ -687,9 +746,15 @@
                 <h1>{{ bar_name }}</h1>
                 <p class="subtitle">Управление кранами</p>
             </div>
-            <div class="theme-toggle">
-                <button class="theme-btn active" data-theme="light">Светлая</button>
-                <button class="theme-btn" data-theme="dark">Темная</button>
+            <div class="header-controls">
+                <button class="refresh-btn" onclick="refreshBeersList()" id="refresh-btn">
+                    <span id="refresh-icon">🔄</span>
+                    <span>Обновить списки</span>
+                </button>
+                <div class="theme-toggle">
+                    <button class="theme-btn active" data-theme="light">Светлая</button>
+                    <button class="theme-btn" data-theme="dark">Темная</button>
+                </div>
             </div>
         </div>
 
@@ -797,6 +862,43 @@
         }
 
         // Load beers list
+        // Refresh beers list
+        async function refreshBeersList() {
+            const btn = document.getElementById('refresh-btn');
+            const icon = document.getElementById('refresh-icon');
+
+            // Показываем состояние загрузки
+            btn.classList.add('loading');
+            btn.disabled = true;
+            icon.style.animation = 'spin 1s linear infinite';
+
+            try {
+                // Запрашиваем обновление номенклатуры на сервере
+                const updateResponse = await fetch('/api/update-nomenclature', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!updateResponse.ok) {
+                    throw new Error('Failed to update nomenclature');
+                }
+
+                // Перезагружаем список кег
+                await loadBeers();
+
+                // Показываем уведомление об успехе
+                alert('Список кег успешно обновлен!');
+            } catch (error) {
+                console.error('Error refreshing beers:', error);
+                alert('Ошибка при обновлении списка кег');
+            } finally {
+                // Убираем состояние загрузки
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                icon.style.animation = '';
+            }
+        }
+
         async function loadBeers() {
             try {
                 const response = await fetch('/api/beers/draft');
