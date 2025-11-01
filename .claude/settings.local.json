@@ -13,7 +13,12 @@
       "Bash(cat:*)",
       "Bash(git rm:*)",
       "Bash(git ls-tree:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Read(//c/Users/1/Downloads/**)",
+      "Bash(git log:*)",
+      "Bash(git config:*)",
+      "Bash(git check-attr:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []
