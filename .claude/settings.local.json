@@ -10,7 +10,8 @@
       "Bash(timeout:*)",
       "Bash(curl:*)",
       "Bash(findstr:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
