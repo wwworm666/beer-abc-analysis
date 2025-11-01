@@ -37,6 +37,7 @@ nul
 
 # Данные пользователей - НЕ КОММИТИТЬ!
 data/taps_data.json
+taps_data*.json
 
 # Бэкапы
 *.bak
