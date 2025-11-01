@@ -35,11 +35,8 @@ wheels/
 Thumbs.db
 nul
 
-# Данные пользователей - НЕ КОММИТИТЬ!
-data/taps_data.json
-taps_data*.json
-
-# Бэкапы
+# Бэкапы (временные копии не коммитим)
+taps_data_backup*.json
 *.bak
 *.backup
 

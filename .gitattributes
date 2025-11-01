@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Защита данных кранов от перезаписи
+data/taps_data.json merge=ours
