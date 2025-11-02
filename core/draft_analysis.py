@@ -32,15 +32,20 @@ class DraftAnalysis:
         "ФестХаус Хеллес (0,5)" -> ("ФестХаус Хеллес", 0.5)
         "Блек Шип (0,25)" -> ("Блек Шип", 0.25)
         "ФестХаус Вайцен (1,0)" -> ("ФестХаус Вайцен", 1.0)
+        "ХБ Октоберфест (1,0) с собой" -> ("ХБ Октоберфест", 1.0)
         """
-        # Паттерн для извлечения объема в скобках
-        pattern = r'^(.+?)\s*\((\d+[,\.]\d+)\)\s*$'
-        match = re.match(pattern, dish_name.strip())
+        # Более гибкий паттерн - ищет объём в скобках где угодно в строке
+        pattern = r'\((\d+[,\.]\d+)\)'
+        match = re.search(pattern, dish_name.strip())
 
         if match:
-            beer_name = match.group(1).strip()
-            volume_str = match.group(2).replace(',', '.')
+            # Извлекаем объём из скобок
+            volume_str = match.group(1).replace(',', '.')
             volume = float(volume_str)
+
+            # Извлекаем имя пива (всё до скобок)
+            beer_name = dish_name[:match.start()].strip()
+
             return beer_name, volume
         else:
             # Если не удалось распарсить, возвращаем как есть
