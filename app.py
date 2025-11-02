@@ -15,7 +15,16 @@ from core.taps_manager import TapsManager
 app = Flask(__name__)
 
 # Инициализируем менеджер кранов
-taps_manager = TapsManager()
+# Если на Render (есть диск /kultura), используем его для постоянного хранения
+# Иначе используем локальную папку data/
+TAPS_DATA_PATH = os.environ.get('TAPS_DATA_PATH', 'data/taps_data.json')
+if os.path.exists('/kultura'):
+    TAPS_DATA_PATH = '/kultura/taps_data.json'
+    print(f"[INFO] Используется Render Disk: {TAPS_DATA_PATH}")
+else:
+    print(f"[INFO] Используется локальный путь: {TAPS_DATA_PATH}")
+
+taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
 
 # Список баров
 BARS = [
