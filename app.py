@@ -420,15 +420,14 @@ def analyze_draft():
         print(f"\n[DRAFT] Zapusk analiza razlivnogo piva...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
-        # Если переданы конкретные даты, используем их, иначе используем days
-        if date_from and date_to:
-            print(f"   Period: {date_from} - {date_to}")
-        else:
-            print(f"   Period: {days} dney")
-            # Запрашиваем данные разливного
+        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем
+        if not date_from or not date_to:
+            # Вычисляем даты на основе дней
             date_to = datetime.now().strftime("%Y-%m-%d")
             date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-            print(f"   Computed dates: {date_from} - {date_to}")
+            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+        else:
+            print(f"   Period: {date_from} - {date_to}")
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -637,7 +636,7 @@ def analyze_draft():
                 agg_dict = {
                     'TotalLiters': 'sum',
                     'TotalPortions': 'sum',
-                    'WeeksActive': 'sum',
+                    'WeeksActive': 'max',
                     'AvgPortionSize': 'mean',
                     'Kegs30L': 'sum',
                     'Kegs50L': 'sum'
