@@ -107,6 +107,7 @@ class DraftAnalysis:
         - TotalPortions: количество порций
         - WeeksActive: количество недель с продажами
         - AvgLitersPerWeek: средний объем за неделю
+        - BeerSharePercent: доля пива от общего объема в %
         - Kegs30L: примерное количество кег 30л
         - Kegs50L: примерное количество кег 50л
         - (опционально) TotalRevenue, TotalCost, AvgMarkupPercent, TotalMargin
@@ -159,6 +160,13 @@ class DraftAnalysis:
 
         # Вычисляем средний объем за неделю
         summary['AvgLitersPerWeek'] = summary['TotalLiters'] / summary['WeeksActive']
+
+        # Вычисляем долю пива в % от общего объема
+        total_liters = summary['TotalLiters'].sum()
+        if total_liters > 0:
+            summary['BeerSharePercent'] = (summary['TotalLiters'] / total_liters * 100)
+        else:
+            summary['BeerSharePercent'] = 0.0
 
         # Примерное количество кег (30л и 50л)
         summary['Kegs30L'] = (summary['TotalLiters'] / 30).round(2)
@@ -274,7 +282,7 @@ class DraftAnalysis:
                 'TotalPortions': int(row['TotalPortions']),
                 'WeeksActive': int(row['WeeksActive']),
                 'AvgLitersPerWeek': float(row['AvgLitersPerWeek']),
-                'AvgPortionSize': float(row['AvgPortionSize']),
+                'BeerSharePercent': float(row['BeerSharePercent']) if 'BeerSharePercent' in row else 0.0,
                 'Kegs30L': float(row['Kegs30L']),
                 'Kegs50L': float(row['Kegs50L'])
             }

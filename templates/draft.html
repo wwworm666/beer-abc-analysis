@@ -961,7 +961,7 @@
                             <th>Пиво</th>
                             <th>Литры</th>
                             <th>Порции</th>
-                            <th>Средний объём порции</th>
+                            <th>Доля пива, %</th>
                             ${hasABC ? '<th>ABC</th>' : ''}
                             ${hasXYZ ? '<th>XYZ</th>' : ''}
                         </tr>
@@ -974,7 +974,7 @@
                                 <td><strong>${beer.BeerName}</strong></td>
                                 <td>${beer.TotalLiters.toFixed(1)} L</td>
                                 <td>${beer.TotalPortions}</td>
-                                <td>${beer.AvgPortionSize.toFixed(2)} L</td>
+                                <td>${beer.BeerSharePercent.toFixed(1)}%</td>
                                 ${beer.ABC_Combined ? `<td><span class="badge abc-${beer.ABC_Combined.substring(0,1).toLowerCase()}">${beer.ABC_Combined}</span></td>` : ''}
                                 ${beer.XYZ_Category ? `<td><span class="badge xyz-${beer.XYZ_Category.toLowerCase()}">${beer.XYZ_Category}</span></td>` : ''}
                             </tr>
@@ -1012,8 +1012,8 @@
                                 <div class="value">${formatNumber(beer.TotalPortions)}</div>
                             </div>
                             <div class="detail-item">
-                                <div class="label">Средняя порция</div>
-                                <div class="value">${beer.AvgPortionSize.toFixed(2)} L</div>
+                                <div class="label">Доля пива</div>
+                                <div class="value">${beer.BeerSharePercent.toFixed(1)}%</div>
                             </div>
                             <div class="detail-item">
                                 <div class="label">Недель продавалось</div>
