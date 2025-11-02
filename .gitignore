@@ -35,8 +35,11 @@ wheels/
 Thumbs.db
 nul
 
-# Бэкапы (временные копии не коммитим)
-taps_data_backup*.json
+# Данные кранов (хранятся на Render Disk, не в git)
+data/taps_data.json
+taps_data*.json
+
+# Бэкапы
 *.bak
 *.backup
 
