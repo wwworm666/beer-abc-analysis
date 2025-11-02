@@ -888,12 +888,18 @@
             document.getElementById('error-message').classList.remove('active');
 
             try {
+                const requestBody = { bar, days };
+                if (dateFrom && dateTo) {
+                    requestBody.date_from = dateFrom;
+                    requestBody.date_to = dateTo;
+                }
+
                 const response = await fetch('/api/draft-analyze', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ bar, days })
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (!response.ok) {
