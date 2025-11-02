@@ -19,7 +19,10 @@
       "Bash(git config:*)",
       "Bash(git check-attr:*)",
       "Bash(git push:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(lsof:*)",
+      "Bash(chcp 65001)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

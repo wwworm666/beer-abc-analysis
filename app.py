@@ -414,19 +414,26 @@ def analyze_draft():
         data = request.json
         bar_name = data.get('bar')
         days = int(data.get('days', 30))
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
 
         print(f"\n[DRAFT] Zapusk analiza razlivnogo piva...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
-        print(f"   Period: {days} dney")
+
+        # Если переданы конкретные даты, используем их, иначе используем days
+        if date_from and date_to:
+            print(f"   Period: {date_from} - {date_to}")
+        else:
+            print(f"   Period: {days} dney")
+            # Запрашиваем данные разливного
+            date_to = datetime.now().strftime("%Y-%m-%d")
+            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            print(f"   Computed dates: {date_from} - {date_to}")
 
         # Подключаемся к iiko API
         olap = OlapReports()
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        # Запрашиваем данные разливного
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
         report_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
         olap.disconnect()
