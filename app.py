@@ -761,10 +761,20 @@ def analyze_waiters():
         data = request.json
         bar_name = data.get('bar')
         days = int(data.get('days', 30))
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
 
         print(f"\n[WAITER] Zapusk analiza po oficiantam...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
-        print(f"   Period: {days} dney")
+
+        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем
+        if not date_from or not date_to:
+            # Вычисляем даты на основе дней
+            date_to = datetime.now().strftime("%Y-%m-%d")
+            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+        else:
+            print(f"   Period: {date_from} - {date_to}")
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -772,9 +782,6 @@ def analyze_waiters():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
         # Запрашиваем данные разливного с официантами
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-
         report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, bar_name)
         olap.disconnect()
 
