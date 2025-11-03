@@ -91,6 +91,11 @@ class WaiterAnalysis:
         self.df['BeerName'] = beer_info.apply(lambda x: x[0])
         self.df['PortionVolume'] = beer_info.apply(lambda x: x[1])
 
+        # НОРМАЛИЗАЦИЯ: убираем лишние пробелы и приводим к единому регистру
+        # Это критично для правильной группировки!
+        # Пример: "ФестХаус  Хеллес" (два пробела) → "фестхаус хеллес"
+        self.df['BeerName'] = self.df['BeerName'].str.strip().str.replace(r'\s+', ' ', regex=True).str.lower()
+
         # Фильтруем записи с нулевым объёмом (не удалось распарсить)
         zero_volume_count = (self.df['PortionVolume'] == 0).sum()
         if zero_volume_count > 0:
