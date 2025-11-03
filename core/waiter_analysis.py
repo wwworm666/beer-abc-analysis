@@ -20,19 +20,13 @@ class WaiterAnalysis:
         - OpenDate.Typed: дата продажи
         - Store.Name: название бара
         - WaiterName: имя официанта блюда
-        - OrderWaiter.Name: имя официанта заказа
         - DishDiscountSumInt: выручка
         - ProductCostBase.ProductCost: себестоимость
         - ProductCostBase.MarkUp: наценка %
         """
         self.df = df.copy()
 
-        # Используем WaiterName как основное поле официанта
-        # Если его нет, используем OrderWaiter.Name
-        if 'WaiterName' not in self.df.columns and 'OrderWaiter.Name' in self.df.columns:
-            self.df['WaiterName'] = self.df['OrderWaiter.Name']
-
-        # Если нет обоих полей - добавляем пустое поле
+        # Проверяем наличие поля WaiterName
         if 'WaiterName' not in self.df.columns:
             self.df['WaiterName'] = 'Неизвестно'
 

@@ -180,10 +180,11 @@ class OlapReports:
 
         # Добавляем поля официантов если требуется
         if include_waiter:
-            groupByRowFields.extend([
-                "WaiterName",           # Официант блюда
-                "OrderWaiter.Name"      # Официант заказа
-            ])
+            # ВАЖНО: Используем ТОЛЬКО WaiterName (официант блюда)
+            # Добавление OrderWaiter.Name в groupByRowFields создаёт дублирование строк!
+            # Если WaiterName и OrderWaiter.Name различаются, OLAP создаст отдельные строки,
+            # что приведёт к двойному учёту одних и тех же продаж.
+            groupByRowFields.append("WaiterName")
 
         request = {
             "reportType": "SALES",
