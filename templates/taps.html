@@ -918,7 +918,13 @@
                     html += `
                         <div class="bar-card">
                             <div class="bar-card-header">
-                                <h2>${bar.name}</h2>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h2>${bar.name}</h2>
+                                    <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
+                                            style="padding: 8px 15px; font-size: 14px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;">
+                                        <i class="fas fa-download"></i> Таплист
+                                    </button>
+                                </div>
                                 <div class="bar-card-stats">
                                     <span>✅ ${bar.active_taps}/${bar.tap_count}</span>
                                     <span>📊 ${Math.round(bar.active_taps / bar.tap_count * 100)}%</span>
