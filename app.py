@@ -1021,15 +1021,18 @@ def export_taplist():
 
         # Формируем имя файла
         if bar_id_filter and bars:
-            filename = f"taplist_{bars[0]['name']}.csv"
+            # Используем bar_id вместо имени для безопасности
+            filename = f"taplist_{bar_id_filter}.csv"
         else:
             filename = "taplist.csv"
 
         # Создаём response с правильными заголовками
         from flask import make_response
+        from urllib.parse import quote
         response = make_response(csv_content)
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        # Используем RFC 5987 для корректной работы с кириллицей
+        response.headers['Content-Disposition'] = f"attachment; filename={filename}; filename*=UTF-8''{quote(filename)}"
 
         return response
 
