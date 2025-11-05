@@ -971,6 +971,61 @@ def get_statistics():
         print(f"[ERROR] Oshibka v /api/taps/statistics: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/taps/export-taplist', methods=['GET'])
+def export_taplist():
+    """Экспортировать текущий таплист в CSV формате"""
+    try:
+        from io import StringIO
+        import csv
+
+        # Получаем список всех баров
+        bars = taps_manager.get_bars()
+
+        # Создаём CSV в памяти
+        output = StringIO()
+        writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_MINIMAL)
+
+        # Заголовок
+        writer.writerow(['Бар', 'Номер крана', 'Название пива'])
+
+        # Собираем данные по всем барам
+        for bar in bars:
+            bar_id = bar['bar_id']
+            bar_name = bar['name']
+
+            # Получаем краны бара
+            bar_data = taps_manager.get_bar_taps(bar_id)
+            if 'error' in bar_data:
+                continue
+
+            # Добавляем только активные краны
+            for tap in bar_data.get('taps', []):
+                if tap['status'] == 'active' and tap['current_beer']:
+                    writer.writerow([
+                        bar_name,
+                        tap['tap_number'],
+                        tap['current_beer']
+                    ])
+
+        # Готовим ответ
+        output.seek(0)
+        csv_content = output.getvalue()
+        output.close()
+
+        # Создаём response с правильными заголовками
+        from flask import make_response
+        response = make_response(csv_content)
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = 'attachment; filename=taplist.csv'
+
+        return response
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/taps/export-taplist: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/taps/<bar_id>/stats', methods=['GET'])
 def get_bar_stats(bar_id):
     """Получить краткую статистику для карточки бара"""

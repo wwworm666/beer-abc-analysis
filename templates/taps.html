@@ -613,7 +613,12 @@
             </div>
 
             <div id="overview" class="tab-content active">
-                <h2 style="margin-bottom: 20px;">Состояние всех кранов</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Состояние всех кранов</h2>
+                    <button class="btn btn-success" onclick="downloadTaplist()" style="padding: 10px 20px;">
+                        <i class="fas fa-download"></i> Скачать таплист
+                    </button>
+                </div>
                 <div id="overviewContent"></div>
             </div>
 
@@ -991,6 +996,12 @@
 
             document.getElementById(tab).classList.add('active');
             event.target.classList.add('active');
+        }
+
+        // Скачать таплист в формате CSV
+        function downloadTaplist() {
+            // Просто открываем URL, браузер автоматически скачает файл
+            window.location.href = '/api/taps/export-taplist';
         }
 
         function closeModal() {
