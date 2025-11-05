@@ -978,8 +978,15 @@ def export_taplist():
         from io import StringIO
         import csv
 
+        # Опциональный параметр bar_id для фильтрации по конкретному бару
+        bar_id_filter = request.args.get('bar_id', None)
+
         # Получаем список всех баров
         bars = taps_manager.get_bars()
+
+        # Фильтруем по конкретному бару, если указан
+        if bar_id_filter:
+            bars = [bar for bar in bars if bar['bar_id'] == bar_id_filter]
 
         # Создаём CSV в памяти
         output = StringIO()
@@ -988,7 +995,7 @@ def export_taplist():
         # Заголовок
         writer.writerow(['Бар', 'Номер крана', 'Название пива'])
 
-        # Собираем данные по всем барам
+        # Собираем данные по всем барам (или по одному, если bar_id_filter указан)
         for bar in bars:
             bar_id = bar['bar_id']
             bar_name = bar['name']
@@ -1012,11 +1019,17 @@ def export_taplist():
         csv_content = output.getvalue()
         output.close()
 
+        # Формируем имя файла
+        if bar_id_filter and bars:
+            filename = f"taplist_{bars[0]['name']}.csv"
+        else:
+            filename = "taplist.csv"
+
         # Создаём response с правильными заголовками
         from flask import make_response
         response = make_response(csv_content)
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
-        response.headers['Content-Disposition'] = 'attachment; filename=taplist.csv'
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
 
         return response
 
