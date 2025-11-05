@@ -1005,14 +1005,14 @@ def export_taplist():
             if 'error' in bar_data:
                 continue
 
-            # Добавляем только активные краны
+            # Добавляем все краны (активные и пустые)
             for tap in bar_data.get('taps', []):
-                if tap['status'] == 'active' and tap['current_beer']:
-                    writer.writerow([
-                        bar_name,
-                        tap['tap_number'],
-                        tap['current_beer']
-                    ])
+                beer_name = tap['current_beer'] if tap['current_beer'] else '(пусто)'
+                writer.writerow([
+                    bar_name,
+                    tap['tap_number'],
+                    beer_name
+                ])
 
         # Готовим ответ
         output.seek(0)
