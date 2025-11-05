@@ -747,6 +747,10 @@
                 <p class="subtitle">Управление кранами</p>
             </div>
             <div class="header-controls">
+                <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 10px;">
+                    <span>📥</span>
+                    <span>Скачать таплист</span>
+                </button>
                 <button class="refresh-btn" onclick="refreshBeersList()" id="refresh-btn">
                     <span id="refresh-icon">🔄</span>
                     <span>Обновить списки</span>
@@ -859,6 +863,11 @@
             } catch (error) {
                 console.error('Error loading taps:', error);
             }
+        }
+
+        // Download taplist for this bar
+        function downloadBarTaplist() {
+            window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
         }
 
         // Load beers list
