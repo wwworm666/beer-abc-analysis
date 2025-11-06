@@ -1325,6 +1325,15 @@ def get_taplist_stocks():
             # Суммируем остатки по базовому названию
             beer_stocks[base_name]['remaining_liters'] += amount
 
+        # Добавляем активные краны, которых нет в остатках (с нулевым остатком)
+        for active_beer in active_beers:
+            if active_beer not in beer_stocks:
+                beer_stocks[active_beer] = {
+                    'remaining_liters': 0,
+                    'category': 'Разливное',
+                    'on_tap': True
+                }
+
         # Формируем итоговый список
         taps_data = []
         total_liters = 0
@@ -1333,8 +1342,9 @@ def get_taplist_stocks():
         for beer_name, beer_data in beer_stocks.items():
             remaining_liters = beer_data['remaining_liters']
 
-            # Пропускаем пиво с нулевым остатком
-            if remaining_liters <= 0:
+            # НЕ пропускаем активные краны даже с нулевым остатком
+            # (чтобы видеть какие кеги нужно пополнить)
+            if remaining_liters <= 0 and not beer_data.get('on_tap', False):
                 continue
 
             total_liters += remaining_liters
