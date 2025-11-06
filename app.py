@@ -1192,6 +1192,8 @@ def get_taplist_stocks():
         # Собираем список активных кег со всех кранов
         active_beers = set()
 
+        import re
+
         if bar == 'Общая':
             # Для "Общая" собираем со всех баров
             for bar_id in ['bar1', 'bar2', 'bar3', 'bar4']:
@@ -1200,9 +1202,13 @@ def get_taplist_stocks():
                     for tap in result['taps']:
                         if tap.get('status') == 'active' and tap.get('current_beer'):
                             beer_name = tap['current_beer']
-                            # Убираем "КЕГ" из названия если есть
-                            import re
+                            # Обрабатываем название так же, как из остатков
                             beer_name = re.sub(r'^КЕГ\s+', '', beer_name, flags=re.IGNORECASE)
+                            beer_name = re.sub(r'^Кег\s+', '', beer_name, flags=re.IGNORECASE)
+                            beer_name = re.sub(r',?\s*\d+\s*л.*', '', beer_name)
+                            beer_name = re.sub(r'\s+л\s*$', '', beer_name)
+                            beer_name = re.sub(r',?\s*кег.*', '', beer_name, flags=re.IGNORECASE)
+                            beer_name = re.sub(r',\s*$', '', beer_name)
                             active_beers.add(beer_name.strip())
         else:
             bar_id = bar_id_map.get(bar)
@@ -1212,9 +1218,13 @@ def get_taplist_stocks():
                     for tap in result['taps']:
                         if tap.get('status') == 'active' and tap.get('current_beer'):
                             beer_name = tap['current_beer']
-                            # Убираем "КЕГ" из названия если есть
-                            import re
+                            # Обрабатываем название так же, как из остатков
                             beer_name = re.sub(r'^КЕГ\s+', '', beer_name, flags=re.IGNORECASE)
+                            beer_name = re.sub(r'^Кег\s+', '', beer_name, flags=re.IGNORECASE)
+                            beer_name = re.sub(r',?\s*\d+\s*л.*', '', beer_name)
+                            beer_name = re.sub(r'\s+л\s*$', '', beer_name)
+                            beer_name = re.sub(r',?\s*кег.*', '', beer_name, flags=re.IGNORECASE)
+                            beer_name = re.sub(r',\s*$', '', beer_name)
                             active_beers.add(beer_name.strip())
 
         # Подключаемся к iiko API
