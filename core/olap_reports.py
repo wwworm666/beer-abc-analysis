@@ -1,5 +1,6 @@
 import requests
 import json
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from core.iiko_api import IikoAPI
 
@@ -161,11 +162,13 @@ class OlapReports:
     
     def get_store_operations_report(self, date_from, date_to, bar_name=None):
         """
-        Получить отчет по складским операциям (остатки на складе)
+        Получить отчет по складским операциям с детализацией по товарам
 
-        date_from: дата начала (строка 'YYYY-MM-DD')
-        date_to: дата окончания (строка 'YYYY-MM-DD')
+        date_from: дата начала (строка 'DD.MM.YYYY')
+        date_to: дата окончания (строка 'DD.MM.YYYY')
         bar_name: название бара (если None, то все бары)
+
+        Возвращает детализированный отчет по всем складским операциям с товарами
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
@@ -196,7 +199,24 @@ class OlapReports:
 
             if response.status_code == 200:
                 print("[OK] Otchet po skladskim operaciyam uspeshno poluchen!")
-                return response.json()
+                # API возвращает XML, парсим его
+                print(f"[DEBUG] Response length: {len(response.text)} bytes")
+
+                # Парсим XML
+                root = ET.fromstring(response.text)
+
+                # Извлекаем данные из XML
+                items = []
+                for item_el in root.findall('storeReportItemDto'):
+                    item = {}
+                    # Извлекаем все нужные поля
+                    for child in item_el:
+                        item[child.tag] = child.text
+
+                    items.append(item)
+
+                print(f"[OK] Rasparsen XML: {len(items)} zapisey")
+                return items
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
                 print(f"   Otvet servera: {response.text}")
@@ -206,42 +226,40 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return None
 
-    def get_kitchen_sales_report(self, date_from, date_to, bar_name=None):
+    def get_product_expense_report(self, date_from, date_to, department_id=None):
         """
-        Получить OLAP отчет по продажам блюд кухни (не напитков)
+        Получить отчет по расходу продуктов (товаров) по продажам
 
-        date_from: дата начала (строка 'YYYY-MM-DD')
-        date_to: дата окончания (строка 'YYYY-MM-DD')
-        bar_name: название бара (если None, то все бары)
+        date_from: дата начала (строка 'DD.MM.YYYY')
+        date_to: дата окончания (строка 'DD.MM.YYYY')
+        department_id: GUID подразделения (если None, нужен ID)
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
 
-        print(f"\n[OLAP] Zaprashivayu OLAP otchet po prodazham blyud...")
+        print(f"\n[PRODUCTS] Zaprashivayu otchet po raskhodu produktov...")
         print(f"   Period: {date_from} - {date_to}")
-        if bar_name:
-            print(f"   Bar: {bar_name}")
-        else:
-            print(f"   Bar: VSE")
 
-        # Формируем JSON запрос для OLAP v2 (блюда кухни)
-        request_body = self._build_kitchen_olap_request(date_from, date_to, bar_name)
+        # TODO: Нужно получить department_id для каждого бара
+        # Пока используем заглушку - этот метод требует GUID подразделения
+        if not department_id:
+            print("[WARNING] Dlya productExpense nuzhen department GUID")
+            return None
 
-        url = f"{self.api.base_url}/v2/reports/olap"
-        params = {"key": self.token}
-        headers = {"Content-Type": "application/json"}
+        url = f"{self.api.base_url}/reports/productExpense"
+        params = {
+            "key": self.token,
+            "department": department_id,
+            "dateFrom": date_from,
+            "dateTo": date_to
+        }
 
         try:
-            response = requests.post(
-                url,
-                params=params,
-                json=request_body,
-                headers=headers
-            )
+            response = requests.get(url, params=params)
 
             if response.status_code == 200:
-                print("[OK] Otchet po prodazham blyud uspeshno poluchen!")
+                print("[OK] Otchet po raskhodu produktov uspeshno poluchen!")
                 return response.json()
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
