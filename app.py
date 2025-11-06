@@ -1259,35 +1259,65 @@ def get_kitchen_stocks():
         date_to = datetime.now().strftime("%Y-%m-%d")
         date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
-        # Здесь должен быть запрос к iiko для получения остатков на складе
-        # Для примера создадим mock данные
+        # Получаем отчет по продажам блюд кухни
+        bar_name = bar if bar != 'Общая' else None
+        sales_data = olap.get_kitchen_sales_report(date_from, date_to, bar_name)
+
+        if not sales_data or 'data' not in sales_data:
+            olap.disconnect()
+            return jsonify({'error': 'Не удалось получить данные о продажах'}), 500
+
+        # Обрабатываем данные
+        items_dict = {}
+
+        for row in sales_data['data']:
+            dish_name = row.get('DishName', 'Без названия')
+            category = row.get('DishGroup.TopParent') or 'Прочее'
+            amount = float(row.get('DishAmountInt', 0))
+
+            if dish_name not in items_dict:
+                items_dict[dish_name] = {
+                    'name': dish_name,
+                    'category': category,
+                    'total_sales': 0,
+                    'days_count': 0
+                }
+
+            items_dict[dish_name]['total_sales'] += amount
+            items_dict[dish_name]['days_count'] += 1
+
+        # Для простоты используем фиксированный период в 30 дней
+        days_in_period = 30
 
         items = []
-        categories = ['Закуски', 'Горячее', 'Салаты', 'Десерты']
+        for dish_name, dish_data in items_dict.items():
+            # Рассчитываем средние продажи в день
+            avg_sales = dish_data['total_sales'] / days_in_period if days_in_period > 0 else 0
 
-        # Mock данные - в реальности нужен запрос к iiko
-        import random
-        for i, category in enumerate(categories):
-            for j in range(5):
-                stock = random.randint(0, 50)
-                avg_sales = random.uniform(2, 10)
+            # TODO: Получить реальные остатки из складских операций
+            # Пока используем упрощенную логику - считаем что остатка хватает на 7 дней
+            stock = avg_sales * 7
 
-                if stock < 5:
-                    stock_level = 'low'
-                elif stock < 20:
-                    stock_level = 'medium'
-                else:
-                    stock_level = 'high'
+            # Определяем уровень остатков
+            if stock < avg_sales * 2:
+                stock_level = 'low'
+            elif stock < avg_sales * 5:
+                stock_level = 'medium'
+            else:
+                stock_level = 'high'
 
-                items.append({
-                    'category': category,
-                    'name': f'{category} блюдо {j+1}',
-                    'stock': stock,
-                    'avg_sales': avg_sales,
-                    'stock_level': stock_level
-                })
+            items.append({
+                'category': dish_data['category'],
+                'name': dish_name,
+                'stock': round(stock, 1),
+                'avg_sales': round(avg_sales, 2),
+                'stock_level': stock_level
+            })
 
         olap.disconnect()
+
+        # Сортируем по категориям и названиям
+        items.sort(key=lambda x: (x['category'], x['name']))
 
         low_stock_count = len([item for item in items if item['stock_level'] == 'low'])
 

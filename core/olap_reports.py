@@ -159,6 +159,149 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return None
     
+    def get_store_operations_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить отчет по складским операциям (остатки на складе)
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[STORE] Zaprashivayu otchet po skladskim operaciyam...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        url = f"{self.api.base_url}/reports/storeOperations"
+        params = {
+            "key": self.token,
+            "dateFrom": date_from,
+            "dateTo": date_to,
+            "productDetalization": "true"
+        }
+
+        # Если указан конкретный бар, добавляем его ID
+        # TODO: Нужно будет сделать mapping имени бара в его ID
+        # if bar_name:
+        #     params["stores"] = bar_id
+
+        try:
+            response = requests.get(url, params=params)
+
+            if response.status_code == 200:
+                print("[OK] Otchet po skladskim operaciyam uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def get_kitchen_sales_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по продажам блюд кухни (не напитков)
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po prodazham blyud...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        # Формируем JSON запрос для OLAP v2 (блюда кухни)
+        request_body = self._build_kitchen_olap_request(date_from, date_to, bar_name)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request_body,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet po prodazham blyud uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def _build_kitchen_olap_request(self, date_from, date_to, bar_name=None):
+        """Построить JSON запрос для OLAP отчета по блюдам кухни"""
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "DishName",
+                "DishGroup.TopParent",
+                "DishForeignName",
+                "OpenDate.Typed"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+                "ProductCostBase.MarkUp"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DishGroup.TopParent": {
+                    "filterType": "ExcludeValues",
+                    "values": ["Напитки Фасовка", "Напитки Розлив"]
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        # Если указан конкретный бар, добавляем фильтр
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return request
+
     def _build_olap_request(self, date_from, date_to, bar_name=None, draft=False, include_waiter=False):
         """Построить JSON запрос для OLAP отчета v2
 
