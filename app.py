@@ -1189,6 +1189,14 @@ def get_taplist_stocks():
             'Общая': None  # Для "Общая" покажем все бары
         }
 
+        # Маппинг баров на склады iiko (store_id)
+        store_id_map = {
+            'bar1': 'a4c88d1c-be9a-4366-9aca-68ddaf8be40d',  # Большой пр. В.О
+            'bar2': '1239d270-1bbe-f64f-b7ea-5f00518ef508',  # Лиговский
+            'bar3': '91d7d070-875b-4d98-a81c-ae628eca45fd',  # Кременчугская
+            'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',  # Варшавская
+        }
+
         # Собираем список активных кег со всех кранов
         active_beers = set()
 
@@ -1246,12 +1254,24 @@ def get_taplist_stocks():
 
         olap.disconnect()
 
+        # Определяем склад для фильтрации
+        target_store_id = None
+        if bar != 'Общая':
+            bar_id = bar_id_map.get(bar)
+            if bar_id:
+                target_store_id = store_id_map.get(bar_id)
+
         # Обрабатываем остатки кег (GOODS в литрах)
         beer_stocks = {}
 
         for balance in balances:
             product_id = balance.get('product')
             amount = balance.get('amount', 0)
+            store_id = balance.get('store')
+
+            # Фильтруем по складу конкретного бара (если не "Общая")
+            if target_store_id and store_id != target_store_id:
+                continue
 
             # Пропускаем нулевые и отрицательные остатки
             if amount <= 0:
