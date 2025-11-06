@@ -1266,10 +1266,11 @@ def get_taplist_stocks():
             import re
             base_name = product_name
             base_name = re.sub(r'^Кег\s+', '', base_name, flags=re.IGNORECASE)
-            # Убираем объемы: "20 л", "30 л", или просто " л" в конце
-            base_name = re.sub(r'\s+\d+\s*л.*', '', base_name)
+            # Убираем объемы: ", 20 л", "20 л", или просто " л" в конце
+            base_name = re.sub(r',?\s*\d+\s*л.*', '', base_name)
             base_name = re.sub(r'\s+л\s*$', '', base_name)  # Убираем " л" в конце если осталось
             base_name = re.sub(r',?\s*кег.*', '', base_name, flags=re.IGNORECASE)
+            base_name = re.sub(r',\s*$', '', base_name)  # Убираем запятую в конце
             base_name = base_name.strip()
 
             # ФИЛЬТР: Показываем только кеги, которые стоят на кранах
