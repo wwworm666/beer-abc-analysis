@@ -1243,7 +1243,7 @@ def get_taplist_stocks():
 
 @app.route('/api/stocks/kitchen', methods=['GET'])
 def get_kitchen_stocks():
-    """API endpoint для получения меню кухни с остатками"""
+    """API endpoint для получения товаров с остатками"""
     try:
         bar = request.args.get('bar', '')
 
@@ -1255,62 +1255,82 @@ def get_kitchen_stocks():
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        # Получаем данные о продажах за последние 30 дней для расчета средних продаж
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        # Получаем складские операции за последние 30 дней
+        # API требует формат DD.MM.YYYY
+        date_to_obj = datetime.now()
+        date_from_obj = datetime.now() - timedelta(days=30)
+        date_to = date_to_obj.strftime("%d.%m.%Y")
+        date_from = date_from_obj.strftime("%d.%m.%Y")
 
-        # Получаем отчет по продажам блюд кухни
+        # Получаем отчет по складским операциям с товарами
         bar_name = bar if bar != 'Общая' else None
-        sales_data = olap.get_kitchen_sales_report(date_from, date_to, bar_name)
+        store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
 
-        if not sales_data or 'data' not in sales_data:
+        if not store_data:
             olap.disconnect()
-            return jsonify({'error': 'Не удалось получить данные о продажах'}), 500
+            return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
 
-        # Обрабатываем данные
-        items_dict = {}
+        # Обрабатываем данные о товарах
+        products_dict = {}
 
-        for row in sales_data['data']:
-            dish_name = row.get('DishName', 'Без названия')
-            category = row.get('DishGroup.TopParent') or 'Прочее'
-            amount = float(row.get('DishAmountInt', 0))
+        for record in store_data:
+            product_id = record.get('product')
+            if not product_id:
+                continue
 
-            if dish_name not in items_dict:
-                items_dict[dish_name] = {
-                    'name': dish_name,
-                    'category': category,
-                    'total_sales': 0,
-                    'days_count': 0
+            # Пропускаем напитки (они в таплисте)
+            product_group = record.get('productGroup', '')
+            if 'Напитки' in product_group or 'пиво' in product_group.lower():
+                continue
+
+            if product_id not in products_dict:
+                products_dict[product_id] = {
+                    'id': product_id,
+                    'name': product_id,  # TODO: Получить название из номенклатуры
+                    'category': record.get('productCategory', 'Товары'),
+                    'incoming': 0,
+                    'outgoing': 0,
+                    'operations_count': 0
                 }
 
-            items_dict[dish_name]['total_sales'] += amount
-            items_dict[dish_name]['days_count'] += 1
+            # Учитываем приход и расход
+            amount = float(record.get('amount', 0) or 0)
+            is_incoming = record.get('incoming', 'false') == 'true'
 
-        # Для простоты используем фиксированный период в 30 дней
-        days_in_period = 30
+            products_dict[product_id]['operations_count'] += 1
 
+            if is_incoming:
+                products_dict[product_id]['incoming'] += amount
+            else:
+                products_dict[product_id]['outgoing'] += abs(amount)
+
+        # Формируем список товаров с остатками
         items = []
-        for dish_name, dish_data in items_dict.items():
-            # Рассчитываем средние продажи в день
-            avg_sales = dish_data['total_sales'] / days_in_period if days_in_period > 0 else 0
+        for product_id, product_data in products_dict.items():
+            # Рассчитываем текущий остаток
+            current_stock = product_data['incoming'] - product_data['outgoing']
 
-            # TODO: Получить реальные остатки из складских операций
-            # Пока используем упрощенную логику - считаем что остатка хватает на 7 дней
-            stock = avg_sales * 7
+            # Рассчитываем средний расход в день
+            days_in_period = 30
+            avg_consumption = product_data['outgoing'] / days_in_period if days_in_period > 0 else 0
 
-            # Определяем уровень остатков
-            if stock < avg_sales * 2:
-                stock_level = 'low'
-            elif stock < avg_sales * 5:
-                stock_level = 'medium'
+            # Определяем уровень остатков (сколько дней хватит)
+            if avg_consumption > 0:
+                days_left = current_stock / avg_consumption
+                if days_left < 3:
+                    stock_level = 'low'
+                elif days_left < 7:
+                    stock_level = 'medium'
+                else:
+                    stock_level = 'high'
             else:
                 stock_level = 'high'
 
             items.append({
-                'category': dish_data['category'],
-                'name': dish_name,
-                'stock': round(stock, 1),
-                'avg_sales': round(avg_sales, 2),
+                'category': product_data['category'],
+                'name': product_data['name'],
+                'stock': round(current_stock, 1),
+                'avg_sales': round(avg_consumption, 2),
                 'stock_level': stock_level
             })
 

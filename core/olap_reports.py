@@ -176,10 +176,7 @@ class OlapReports:
 
         print(f"\n[STORE] Zaprashivayu otchet po skladskim operaciyam...")
         print(f"   Period: {date_from} - {date_to}")
-        if bar_name:
-            print(f"   Bar: {bar_name}")
-        else:
-            print(f"   Bar: VSE")
+        # Пропускаем вывод bar_name чтобы избежать проблем с кодировкой
 
         url = f"{self.api.base_url}/reports/storeOperations"
         params = {
@@ -200,7 +197,6 @@ class OlapReports:
             if response.status_code == 200:
                 print("[OK] Otchet po skladskim operaciyam uspeshno poluchen!")
                 # API возвращает XML, парсим его
-                print(f"[DEBUG] Response length: {len(response.text)} bytes")
 
                 # Парсим XML
                 root = ET.fromstring(response.text)
