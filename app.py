@@ -1262,6 +1262,13 @@ def get_kitchen_stocks():
         date_to = date_to_obj.strftime("%d.%m.%Y")
         date_from = date_from_obj.strftime("%d.%m.%Y")
 
+        # Получаем номенклатуру товаров (GUID -> название)
+        nomenclature = olap.get_nomenclature()
+
+        if not nomenclature:
+            olap.disconnect()
+            return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
+
         # Получаем отчет по складским операциям с товарами
         bar_name = bar if bar != 'Общая' else None
         store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
@@ -1284,9 +1291,12 @@ def get_kitchen_stocks():
                 continue
 
             if product_id not in products_dict:
+                # Получаем название из номенклатуры, если нет - используем GUID
+                product_name = nomenclature.get(product_id, product_id)
+
                 products_dict[product_id] = {
                     'id': product_id,
-                    'name': product_id,  # TODO: Получить название из номенклатуры
+                    'name': product_name,
                     'category': record.get('productCategory', 'Товары'),
                     'incoming': 0,
                     'outgoing': 0,

@@ -21,7 +21,51 @@ class OlapReports:
     def disconnect(self):
         """Отключиться и освободить токен"""
         self.api.logout()
-    
+
+    def get_nomenclature(self):
+        """
+        Получить номенклатуру товаров (mapping GUID -> название)
+
+        Возвращает словарь: {product_guid: product_name}
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[NOMENCLATURE] Zaprashivayu nomenklaturu tovarov...")
+
+        url = f"{self.api.base_url}/products"
+        params = {"key": self.token}
+
+        try:
+            response = requests.get(url, params=params, timeout=30)
+
+            if response.status_code == 200:
+                print("[OK] Nomenklatura uspeshno poluchena!")
+
+                # API возвращает XML, парсим его
+                root = ET.fromstring(response.text)
+
+                # Создаем mapping GUID -> название
+                nomenclature = {}
+                for product_el in root.findall('productDto'):
+                    product_id = product_el.find('id')
+                    product_name = product_el.find('name')
+
+                    if product_id is not None and product_name is not None:
+                        nomenclature[product_id.text] = product_name.text
+
+                print(f"[OK] Rasparsen XML: {len(nomenclature)} tovarov")
+                return nomenclature
+            else:
+                print(f"[ERROR] Oshibka polucheniya nomenklatury: {response.status_code}")
+                print(f"   Otvet servera: {response.text[:200]}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
     def get_beer_sales_report(self, date_from, date_to, bar_name=None):
         """
         Получить OLAP отчет по продажам пива
