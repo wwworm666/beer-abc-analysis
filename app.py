@@ -1173,64 +1173,116 @@ def update_nomenclature():
 
 @app.route('/api/stocks/taplist', methods=['GET'])
 def get_taplist_stocks():
-    """API endpoint для получения таплиста с остатками"""
+    """API endpoint для получения таплиста с остатками из iiko API (через OLAP продажи)"""
     try:
         bar = request.args.get('bar', '')
 
         if not bar:
             return jsonify({'error': 'Требуется параметр bar'}), 400
 
-        # Получаем данные о кранах из TapsManager
-        bar_id_map = {
-            'Большой пр. В.О': 'bar1',
-            'Лиговский': 'bar2',
-            'Кременчугская': 'bar3',
-            'Варшавская': 'bar4'
-        }
+        # Подключаемся к iiko API
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        bar_id = bar_id_map.get(bar)
-        if not bar_id:
-            return jsonify({'error': 'Неверное название бара'}), 400
+        # Получаем OLAP отчет по продажам разливного пива за последние 30 дней
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
-        result = taps_manager.get_bar_taps(bar_id)
-        if 'error' in result:
-            return jsonify({'error': result['error']}), 404
+        bar_name = bar if bar != 'Общая' else None
+        sales_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
 
-        taps = result.get('taps', [])
+        if not sales_data:
+            olap.disconnect()
+            return jsonify({'error': 'Не удалось получить данные о продажах разливного пива'}), 500
 
-        # Формируем данные с уровнями остатков
+        olap.disconnect()
+
+        # Обрабатываем OLAP данные
+        data = sales_data.get('data', [])
+
+        # Агрегируем по названию пива (убираем объёмы из названия)
+        beer_aggregated = {}
+
+        for row in data:
+            dish_name = row.get('DishName')
+            if not dish_name:
+                continue
+
+            # Пропускаем ВО (выносная торговля)
+            if 'ВО' in dish_name:
+                continue
+
+            # Убираем объёмы из названия: (0,25), (0,4), (0,5), (1,0), (0,5)(б) и т.д.
+            import re
+            base_name = re.sub(r'\s*\([0-9,\.]+\)\s*\(.\)|\s*\([0-9,\.]+\)', '', dish_name).strip()
+
+            # Получаем объем продаж в литрах
+            total_sales = float(row.get('DishAmountInt', 0) or 0)
+
+            category = row.get('DishGroup.ThirdParent') or row.get('Store.Name') or 'Разливное'
+
+            if base_name not in beer_aggregated:
+                beer_aggregated[base_name] = {
+                    'total_sales': 0,
+                    'category': category
+                }
+
+            beer_aggregated[base_name]['total_sales'] += total_sales
+
+        # Формируем итоговый список
         taps_data = []
         total_liters = 0
-        active_taps = 0
         low_stock_count = 0
 
-        for tap in taps:
-            if tap.get('status') == 'active':
-                active_taps += 1
-                # Предполагаем, что в среднем осталось 25л из 50л кеги
-                # В реальности нужно получать данные из iiko о фактическом остатке
-                remaining_liters = 25.0
-                total_liters += remaining_liters
+        for beer_name, beer_data in beer_aggregated.items():
+            total_sales = beer_data['total_sales']
 
-                # Определяем уровень остатка (простая логика)
-                if remaining_liters < 10:
-                    stock_level = 'low'
-                    low_stock_count += 1
-                elif remaining_liters < 25:
-                    stock_level = 'medium'
-                else:
-                    stock_level = 'high'
+            # Средние продажи в день
+            avg_sales_per_day = total_sales / 30 if total_sales > 0 else 0
 
-                taps_data.append({
-                    'tap_number': tap['tap_number'],
-                    'beer_name': tap['current_beer'],
-                    'remaining_liters': remaining_liters,
-                    'stock_level': stock_level
-                })
+            # Пропускаем пиво без продаж
+            if avg_sales_per_day <= 0:
+                continue
+
+            # Оценка остатков: предполагаем что на кранах обычно 1-2 кеги по 30-50л
+            # Если продажи активные - остаток больше, если нет продаж - нет на кранах
+            if avg_sales_per_day > 5:  # Активные продажи (> 150л за месяц)
+                # Предполагаем остаток 30-50л (1-2 кеги)
+                estimated_remaining = 40.0
+            elif avg_sales_per_day > 1:  # Средние продажи (30-150л за месяц)
+                # Предполагаем остаток 15-25л (полкеги)
+                estimated_remaining = 20.0
+            else:  # Низкие продажи (< 30л за месяц)
+                # Предполагаем остаток 5-10л (заканчивается или редко пьют)
+                estimated_remaining = 7.0
+
+            total_liters += estimated_remaining
+
+            # Определяем уровень остатка
+            if estimated_remaining < 10:
+                stock_level = 'low'
+                low_stock_count += 1
+            elif estimated_remaining < 25:
+                stock_level = 'medium'
+            else:
+                stock_level = 'high'
+
+            taps_data.append({
+                'beer_name': beer_name,
+                'category': beer_data['category'],
+                'remaining_liters': round(estimated_remaining, 1),
+                'avg_sales_per_day': round(avg_sales_per_day, 2),
+                'total_sales_30d': round(total_sales, 1),
+                'stock_level': stock_level
+            })
+
+        # Сортируем по среднему расходу (что активнее продается - важнее отслеживать)
+        taps_data.sort(key=lambda x: -x['avg_sales_per_day'])
 
         return jsonify({
-            'active_taps': active_taps,
-            'total_liters': total_liters,
+            'total_items': len(taps_data),
+            'total_liters': round(total_liters, 1),
             'low_stock_count': low_stock_count,
             'taps': taps_data
         })
