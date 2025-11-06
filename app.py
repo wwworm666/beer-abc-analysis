@@ -1271,43 +1271,9 @@ def get_taplist_stocks():
             base_name = base_name.strip()
 
             # ФИЛЬТР: Показываем только кеги, которые стоят на кранах
+            # Названия идентичны в iiko и на кранах, поэтому только точное сравнение
             if active_beers:
-                # Точное совпадение
                 is_active = base_name in active_beers
-
-                # Если нет точного совпадения, пробуем нечеткое сравнение
-                if not is_active:
-                    base_name_norm = base_name.lower().strip()
-                    base_words = base_name_norm.split()
-
-                    for active_beer in active_beers:
-                        active_beer_norm = active_beer.lower().strip()
-                        active_words = active_beer_norm.split()
-
-                        # Проверка 1: Полное вхождение
-                        if (base_name_norm in active_beer_norm or
-                            active_beer_norm in base_name_norm):
-                            is_active = True
-                            break
-
-                        # Проверка 2: Первые 2 слова совпадают
-                        if len(base_words) >= 2 and len(active_words) >= 2:
-                            if base_words[0] == active_words[0] and base_words[1] == active_words[1]:
-                                is_active = True
-                                break
-
-                        # Проверка 3: Первое слово совпадает + второе слово похоже (начинается так же)
-                        if len(base_words) >= 2 and len(active_words) >= 2:
-                            if base_words[0] == active_words[0]:
-                                # Проверяем похожесть второго слова (например "альт" и "альте")
-                                word2_base = base_words[1]
-                                word2_active = active_words[1]
-
-                                if (word2_base.startswith(word2_active) or
-                                    word2_active.startswith(word2_base) or
-                                    word2_base[:4] == word2_active[:4]):  # Первые 4 буквы
-                                    is_active = True
-                                    break
 
                 # Если кега не активна, пропускаем
                 if not is_active:
