@@ -54,6 +54,11 @@ def taps():
     """Главная страница управления кранами - выбор бара"""
     return render_template('taps_main.html')
 
+@app.route('/stocks')
+def stocks():
+    """Страница управления стоками и формирования заказов"""
+    return render_template('stocks.html', bars=BARS)
+
 @app.route('/taps/<bar_id>')
 def taps_bar(bar_id):
     """Страница управления кранами конкретного бара"""
@@ -1165,6 +1170,138 @@ def update_nomenclature():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stocks/taplist', methods=['GET'])
+def get_taplist_stocks():
+    """API endpoint для получения таплиста с остатками"""
+    try:
+        bar = request.args.get('bar', '')
+
+        if not bar:
+            return jsonify({'error': 'Требуется параметр bar'}), 400
+
+        # Получаем данные о кранах из TapsManager
+        bar_id_map = {
+            'Большой пр. В.О': 'bar1',
+            'Лиговский': 'bar2',
+            'Кременчугская': 'bar3',
+            'Варшавская': 'bar4'
+        }
+
+        bar_id = bar_id_map.get(bar)
+        if not bar_id:
+            return jsonify({'error': 'Неверное название бара'}), 400
+
+        result = taps_manager.get_bar_taps(bar_id)
+        if 'error' in result:
+            return jsonify({'error': result['error']}), 404
+
+        taps = result.get('taps', [])
+
+        # Формируем данные с уровнями остатков
+        taps_data = []
+        total_liters = 0
+        active_taps = 0
+        low_stock_count = 0
+
+        for tap in taps:
+            if tap.get('status') == 'active':
+                active_taps += 1
+                # Предполагаем, что в среднем осталось 25л из 50л кеги
+                # В реальности нужно получать данные из iiko о фактическом остатке
+                remaining_liters = 25.0
+                total_liters += remaining_liters
+
+                # Определяем уровень остатка (простая логика)
+                if remaining_liters < 10:
+                    stock_level = 'low'
+                    low_stock_count += 1
+                elif remaining_liters < 25:
+                    stock_level = 'medium'
+                else:
+                    stock_level = 'high'
+
+                taps_data.append({
+                    'tap_number': tap['tap_number'],
+                    'beer_name': tap['current_beer'],
+                    'remaining_liters': remaining_liters,
+                    'stock_level': stock_level
+                })
+
+        return jsonify({
+            'active_taps': active_taps,
+            'total_liters': total_liters,
+            'low_stock_count': low_stock_count,
+            'taps': taps_data
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/stocks/taplist: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/stocks/kitchen', methods=['GET'])
+def get_kitchen_stocks():
+    """API endpoint для получения меню кухни с остатками"""
+    try:
+        bar = request.args.get('bar', '')
+
+        if not bar:
+            return jsonify({'error': 'Требуется параметр bar'}), 400
+
+        # Подключаемся к iiko API
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        # Получаем данные о продажах за последние 30 дней для расчета средних продаж
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+        # Здесь должен быть запрос к iiko для получения остатков на складе
+        # Для примера создадим mock данные
+
+        items = []
+        categories = ['Закуски', 'Горячее', 'Салаты', 'Десерты']
+
+        # Mock данные - в реальности нужен запрос к iiko
+        import random
+        for i, category in enumerate(categories):
+            for j in range(5):
+                stock = random.randint(0, 50)
+                avg_sales = random.uniform(2, 10)
+
+                if stock < 5:
+                    stock_level = 'low'
+                elif stock < 20:
+                    stock_level = 'medium'
+                else:
+                    stock_level = 'high'
+
+                items.append({
+                    'category': category,
+                    'name': f'{category} блюдо {j+1}',
+                    'stock': stock,
+                    'avg_sales': avg_sales,
+                    'stock_level': stock_level
+                })
+
+        olap.disconnect()
+
+        low_stock_count = len([item for item in items if item['stock_level'] == 'low'])
+
+        return jsonify({
+            'total_items': len(items),
+            'low_stock_count': low_stock_count,
+            'items': items
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/stocks/kitchen: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("\n" + "="*60)
