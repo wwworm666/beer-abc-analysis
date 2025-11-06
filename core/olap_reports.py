@@ -22,6 +22,48 @@ class OlapReports:
         """Отключиться и освободить токен"""
         self.api.logout()
 
+    def get_store_balances(self, timestamp=None):
+        """
+        Получить остатки товаров на складах (iiko API v2)
+
+        timestamp: дата-время в формате 'YYYY-MM-DDTHH:MM:SS' (если None, то текущее время)
+
+        Возвращает список остатков: [{store, product, amount, sum}, ...]
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        # Если timestamp не указан, используем текущее время
+        if not timestamp:
+            timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+        print(f"\n[BALANCE] Zaprashivayu ostatki na skladakh...")
+        print(f"   Timestamp: {timestamp}")
+
+        url = f"{self.api.base_url}/v2/reports/balance/stores"
+        params = {
+            "key": self.token,
+            "timestamp": timestamp
+        }
+
+        try:
+            response = requests.get(url, params=params, timeout=60)
+
+            if response.status_code == 200:
+                print("[OK] Ostatki uspeshno polucheny!")
+                balances = response.json()
+                print(f"[OK] Polucheno zapisey: {len(balances)}")
+                return balances
+            else:
+                print(f"[ERROR] Oshibka polucheniya ostatkov: {response.status_code}")
+                print(f"   Otvet servera: {response.text[:200]}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
     def get_nomenclature(self):
         """
         Получить номенклатуру товаров с полной информацией

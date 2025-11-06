@@ -1173,7 +1173,7 @@ def update_nomenclature():
 
 @app.route('/api/stocks/taplist', methods=['GET'])
 def get_taplist_stocks():
-    """API endpoint для получения таплиста с остатками из iiko API (через OLAP продажи)"""
+    """API endpoint для получения остатков КЕГ из iiko API"""
     try:
         bar = request.args.get('bar', '')
 
@@ -1185,85 +1185,84 @@ def get_taplist_stocks():
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        # Получаем OLAP отчет по продажам разливного пива за последние 30 дней
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-
-        bar_name = bar if bar != 'Общая' else None
-        sales_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
-
-        if not sales_data:
+        # Получаем номенклатуру для маппинга GUID -> информация о товаре
+        nomenclature = olap.get_nomenclature()
+        if not nomenclature:
             olap.disconnect()
-            return jsonify({'error': 'Не удалось получить данные о продажах разливного пива'}), 500
+            return jsonify({'error': 'Не удалось получить номенклатуру'}), 500
+
+        # Получаем РЕАЛЬНЫЕ остатки на складах
+        balances = olap.get_store_balances()
+        if not balances:
+            olap.disconnect()
+            return jsonify({'error': 'Не удалось получить остатки'}), 500
 
         olap.disconnect()
 
-        # Обрабатываем OLAP данные
-        data = sales_data.get('data', [])
+        # Обрабатываем остатки кег (GOODS в литрах)
+        beer_stocks = {}
 
-        # Агрегируем по названию пива (убираем объёмы из названия)
-        beer_aggregated = {}
+        for balance in balances:
+            product_id = balance.get('product')
+            amount = balance.get('amount', 0)
 
-        for row in data:
-            dish_name = row.get('DishName')
-            if not dish_name:
+            # Пропускаем нулевые и отрицательные остатки
+            if amount <= 0:
                 continue
 
-            # Пропускаем ВО (выносная торговля)
-            if 'ВО' in dish_name:
+            # Получаем информацию о товаре из номенклатуры
+            product_info = nomenclature.get(product_id)
+            if not product_info:
                 continue
 
-            # Убираем объёмы из названия: (0,25), (0,4), (0,5), (1,0), (0,5)(б) и т.д.
+            # Берем только GOODS (кеги - это товары, а не блюда!)
+            if product_info.get('type') != 'GOODS':
+                continue
+
+            # Берем только литры (кеги измеряются в литрах)
+            if product_info.get('mainUnit') != 'л':
+                continue
+
+            product_name = product_info.get('name', product_id)
+
+            # Убираем "Кег" и объёмы из названия для агрегации
             import re
-            base_name = re.sub(r'\s*\([0-9,\.]+\)\s*\(.\)|\s*\([0-9,\.]+\)', '', dish_name).strip()
+            base_name = product_name
+            base_name = re.sub(r'^Кег\s+', '', base_name, flags=re.IGNORECASE)
+            base_name = re.sub(r'\s+\d+\s*л.*', '', base_name)  # Убираем "20 л", "30 л" и т.д.
+            base_name = re.sub(r',?\s*кег.*', '', base_name, flags=re.IGNORECASE)
+            base_name = base_name.strip()
 
-            # Получаем объем продаж в литрах
-            total_sales = float(row.get('DishAmountInt', 0) or 0)
+            category = product_info.get('category', 'Разливное')
 
-            category = row.get('DishGroup.ThirdParent') or row.get('Store.Name') or 'Разливное'
-
-            if base_name not in beer_aggregated:
-                beer_aggregated[base_name] = {
-                    'total_sales': 0,
+            if base_name not in beer_stocks:
+                beer_stocks[base_name] = {
+                    'remaining_liters': 0,
                     'category': category
                 }
 
-            beer_aggregated[base_name]['total_sales'] += total_sales
+            # Суммируем остатки по базовому названию
+            beer_stocks[base_name]['remaining_liters'] += amount
 
         # Формируем итоговый список
         taps_data = []
         total_liters = 0
         low_stock_count = 0
 
-        for beer_name, beer_data in beer_aggregated.items():
-            total_sales = beer_data['total_sales']
+        for beer_name, beer_data in beer_stocks.items():
+            remaining_liters = beer_data['remaining_liters']
 
-            # Средние продажи в день
-            avg_sales_per_day = total_sales / 30 if total_sales > 0 else 0
-
-            # Пропускаем пиво без продаж
-            if avg_sales_per_day <= 0:
+            # Пропускаем пиво с нулевым остатком
+            if remaining_liters <= 0:
                 continue
 
-            # Оценка остатков: предполагаем что на кранах обычно 1-2 кеги по 30-50л
-            # Если продажи активные - остаток больше, если нет продаж - нет на кранах
-            if avg_sales_per_day > 5:  # Активные продажи (> 150л за месяц)
-                # Предполагаем остаток 30-50л (1-2 кеги)
-                estimated_remaining = 40.0
-            elif avg_sales_per_day > 1:  # Средние продажи (30-150л за месяц)
-                # Предполагаем остаток 15-25л (полкеги)
-                estimated_remaining = 20.0
-            else:  # Низкие продажи (< 30л за месяц)
-                # Предполагаем остаток 5-10л (заканчивается или редко пьют)
-                estimated_remaining = 7.0
-
-            total_liters += estimated_remaining
+            total_liters += remaining_liters
 
             # Определяем уровень остатка
-            if estimated_remaining < 10:
+            if remaining_liters < 10:
                 stock_level = 'low'
                 low_stock_count += 1
-            elif estimated_remaining < 25:
+            elif remaining_liters < 25:
                 stock_level = 'medium'
             else:
                 stock_level = 'high'
@@ -1271,14 +1270,12 @@ def get_taplist_stocks():
             taps_data.append({
                 'beer_name': beer_name,
                 'category': beer_data['category'],
-                'remaining_liters': round(estimated_remaining, 1),
-                'avg_sales_per_day': round(avg_sales_per_day, 2),
-                'total_sales_30d': round(total_sales, 1),
+                'remaining_liters': round(remaining_liters, 1),
                 'stock_level': stock_level
             })
 
-        # Сортируем по среднему расходу (что активнее продается - важнее отслеживать)
-        taps_data.sort(key=lambda x: -x['avg_sales_per_day'])
+        # Сортируем по остатку (от меньшего к большему - что заканчивается сверху)
+        taps_data.sort(key=lambda x: x['remaining_liters'])
 
         return jsonify({
             'total_items': len(taps_data),
