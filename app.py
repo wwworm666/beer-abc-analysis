@@ -1173,12 +1173,49 @@ def update_nomenclature():
 
 @app.route('/api/stocks/taplist', methods=['GET'])
 def get_taplist_stocks():
-    """API endpoint для получения остатков КЕГ из iiko API"""
+    """API endpoint для получения остатков КЕГ из iiko API (только активные на кранах)"""
     try:
         bar = request.args.get('bar', '')
 
         if not bar:
             return jsonify({'error': 'Требуется параметр bar'}), 400
+
+        # Получаем список активных кег из taps_manager
+        bar_id_map = {
+            'Большой пр. В.О': 'bar1',
+            'Лиговский': 'bar2',
+            'Кременчугская': 'bar3',
+            'Варшавская': 'bar4',
+            'Общая': None  # Для "Общая" покажем все бары
+        }
+
+        # Собираем список активных кег со всех кранов
+        active_beers = set()
+
+        if bar == 'Общая':
+            # Для "Общая" собираем со всех баров
+            for bar_id in ['bar1', 'bar2', 'bar3', 'bar4']:
+                result = taps_manager.get_bar_taps(bar_id)
+                if 'taps' in result:
+                    for tap in result['taps']:
+                        if tap.get('status') == 'active' and tap.get('current_beer'):
+                            beer_name = tap['current_beer']
+                            # Убираем "КЕГ" из названия если есть
+                            import re
+                            beer_name = re.sub(r'^КЕГ\s+', '', beer_name, flags=re.IGNORECASE)
+                            active_beers.add(beer_name.strip())
+        else:
+            bar_id = bar_id_map.get(bar)
+            if bar_id:
+                result = taps_manager.get_bar_taps(bar_id)
+                if 'taps' in result:
+                    for tap in result['taps']:
+                        if tap.get('status') == 'active' and tap.get('current_beer'):
+                            beer_name = tap['current_beer']
+                            # Убираем "КЕГ" из названия если есть
+                            import re
+                            beer_name = re.sub(r'^КЕГ\s+', '', beer_name, flags=re.IGNORECASE)
+                            active_beers.add(beer_name.strip())
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -1233,12 +1270,56 @@ def get_taplist_stocks():
             base_name = re.sub(r',?\s*кег.*', '', base_name, flags=re.IGNORECASE)
             base_name = base_name.strip()
 
+            # ФИЛЬТР: Показываем только кеги, которые стоят на кранах
+            if active_beers:
+                # Точное совпадение
+                is_active = base_name in active_beers
+
+                # Если нет точного совпадения, пробуем нечеткое сравнение
+                if not is_active:
+                    base_name_norm = base_name.lower().strip()
+                    base_words = base_name_norm.split()
+
+                    for active_beer in active_beers:
+                        active_beer_norm = active_beer.lower().strip()
+                        active_words = active_beer_norm.split()
+
+                        # Проверка 1: Полное вхождение
+                        if (base_name_norm in active_beer_norm or
+                            active_beer_norm in base_name_norm):
+                            is_active = True
+                            break
+
+                        # Проверка 2: Первые 2 слова совпадают
+                        if len(base_words) >= 2 and len(active_words) >= 2:
+                            if base_words[0] == active_words[0] and base_words[1] == active_words[1]:
+                                is_active = True
+                                break
+
+                        # Проверка 3: Первое слово совпадает + второе слово похоже (начинается так же)
+                        if len(base_words) >= 2 and len(active_words) >= 2:
+                            if base_words[0] == active_words[0]:
+                                # Проверяем похожесть второго слова (например "альт" и "альте")
+                                word2_base = base_words[1]
+                                word2_active = active_words[1]
+
+                                if (word2_base.startswith(word2_active) or
+                                    word2_active.startswith(word2_base) or
+                                    word2_base[:4] == word2_active[:4]):  # Первые 4 буквы
+                                    is_active = True
+                                    break
+
+                # Если кега не активна, пропускаем
+                if not is_active:
+                    continue
+
             category = product_info.get('category', 'Разливное')
 
             if base_name not in beer_stocks:
                 beer_stocks[base_name] = {
                     'remaining_liters': 0,
-                    'category': category
+                    'category': category,
+                    'on_tap': base_name in active_beers if active_beers else False
                 }
 
             # Суммируем остатки по базовому названию
@@ -1271,7 +1352,8 @@ def get_taplist_stocks():
                 'beer_name': beer_name,
                 'category': beer_data['category'],
                 'remaining_liters': round(remaining_liters, 1),
-                'stock_level': stock_level
+                'stock_level': stock_level,
+                'on_tap': beer_data.get('on_tap', False)
             })
 
         # Сортируем по остатку (от меньшего к большему - что заканчивается сверху)
