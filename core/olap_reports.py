@@ -24,9 +24,9 @@ class OlapReports:
 
     def get_nomenclature(self):
         """
-        Получить номенклатуру товаров (mapping GUID -> название)
+        Получить номенклатуру товаров с полной информацией
 
-        Возвращает словарь: {product_guid: product_name}
+        Возвращает словарь: {product_guid: {name, type, category, ...}}
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
@@ -46,14 +46,19 @@ class OlapReports:
                 # API возвращает XML, парсим его
                 root = ET.fromstring(response.text)
 
-                # Создаем mapping GUID -> название
+                # Создаем mapping GUID -> полная информация о товаре
                 nomenclature = {}
                 for product_el in root.findall('productDto'):
                     product_id = product_el.find('id')
-                    product_name = product_el.find('name')
 
-                    if product_id is not None and product_name is not None:
-                        nomenclature[product_id.text] = product_name.text
+                    if product_id is not None:
+                        product_info = {
+                            'name': product_el.find('name').text if product_el.find('name') is not None else None,
+                            'type': product_el.find('productType').text if product_el.find('productType') is not None else None,
+                            'category': product_el.find('productCategory').text if product_el.find('productCategory') is not None else None,
+                            'mainUnit': product_el.find('mainUnit').text if product_el.find('mainUnit') is not None else None,
+                        }
+                        nomenclature[product_id.text] = product_info
 
                 print(f"[OK] Rasparsen XML: {len(nomenclature)} tovarov")
                 return nomenclature

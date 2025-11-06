@@ -1285,19 +1285,41 @@ def get_kitchen_stocks():
             if not product_id:
                 continue
 
-            # Пропускаем напитки (они в таплисте)
-            product_group = record.get('productGroup', '')
-            if 'Напитки' in product_group or 'пиво' in product_group.lower():
+            # Получаем информацию о товаре из номенклатуры
+            product_info = nomenclature.get(product_id)
+            if not product_info:
+                continue  # Товар не найден в номенклатуре
+
+            # Фильтруем товары: исключаем пиво и напитки
+            # Пропускаем DISH (блюда - это разливное пиво)
+            if product_info.get('type') == 'DISH':
+                continue
+
+            # Используем белый список категорий для еды/продуктов
+            # Остальное (пиво, напитки) исключаем
+            category = product_info.get('category', '') or ''
+
+            # Белый список - только эти категории попадают в стоки
+            food_categories = [
+                'Метро', 'ООО "Май"', 'ООО "КВГ"', 'ГС Маркет',
+                'Марр Руссия', 'ИП Тихомиров', 'ООО "Кулинарпродторг"',
+                'ИП Новиков', 'ООО МП Арсенал'
+            ]
+
+            # Если категория не указана или не в белом списке - пропускаем
+            if not category or not any(food_cat in category for food_cat in food_categories):
+                continue
+
+            # Дополнительно фильтруем по названию (на случай если категория не указана)
+            product_name = product_info.get('name', product_id)
+            if any(keyword in product_name.lower() for keyword in ['пиво', 'beer', 'ipa', 'лагер', 'эль', 'стаут']):
                 continue
 
             if product_id not in products_dict:
-                # Получаем название из номенклатуры, если нет - используем GUID
-                product_name = nomenclature.get(product_id, product_id)
-
                 products_dict[product_id] = {
                     'id': product_id,
                     'name': product_name,
-                    'category': record.get('productCategory', 'Товары'),
+                    'category': category or 'Товары',
                     'incoming': 0,
                     'outgoing': 0,
                     'operations_count': 0
