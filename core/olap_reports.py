@@ -2,6 +2,7 @@ import requests
 import json
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from core.iiko_api import IikoAPI
 
 class OlapReports:
@@ -34,9 +35,11 @@ class OlapReports:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
 
-        # Если timestamp не указан, используем текущее время
+        # Если timestamp не указан, используем текущее время в timezone Europe/Moscow
         if not timestamp:
-            timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+            # Используем московское время (UTC+3)
+            moscow_tz = ZoneInfo("Europe/Moscow")
+            timestamp = datetime.now(moscow_tz).strftime("%Y-%m-%dT%H:%M:%S")
 
         print(f"\n[BALANCE] Zaprashivayu ostatki na skladakh...")
         print(f"   Timestamp: {timestamp}")
@@ -488,9 +491,11 @@ if __name__ == "__main__":
         print("❌ Не удалось подключиться к API")
         exit()
     
-    # Запрашиваем отчет за последние 30 дней
-    date_to = datetime.now().strftime("%Y-%m-%d")
-    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    # Запрашиваем отчет за последние 30 дней (московское время)
+    moscow_tz = ZoneInfo("Europe/Moscow")
+    now_moscow = datetime.now(moscow_tz)
+    date_to = now_moscow.strftime("%Y-%m-%d")
+    date_from = (now_moscow - timedelta(days=30)).strftime("%Y-%m-%d")
     
     # Получаем отчет
     report_data = olap.get_beer_sales_report(date_from, date_to)
