@@ -1192,8 +1192,8 @@ def get_taplist_stocks():
         # Маппинг баров на склады iiko (store_id)
         store_id_map = {
             'bar1': 'a4c88d1c-be9a-4366-9aca-68ddaf8be40d',  # Большой пр. В.О
-            'bar2': '1239d270-1bbe-f64f-b7ea-5f00518ef508',  # Лиговский
-            'bar3': '91d7d070-875b-4d98-a81c-ae628eca45fd',  # Кременчугская
+            'bar2': '91d7d070-875b-4d98-a81c-ae628eca45fd',  # Лиговский
+            'bar3': '1239d270-1bbe-f64f-b7ea-5f00518ef508',  # Кременчугская
             'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',  # Варшавская
         }
 
