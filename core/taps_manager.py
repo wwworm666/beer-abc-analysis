@@ -2,6 +2,7 @@
 Менеджер для управления пивными кранами в барах
 """
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
 import json
@@ -60,6 +61,12 @@ class TapsManager:
         'bar3': {'name': 'Бар 3', 'taps': 12},
         'bar4': {'name': 'Бар 4', 'taps': 12},
     }
+
+    @staticmethod
+    def _now():
+        """Возвращает текущее время в московской timezone"""
+        moscow_tz = ZoneInfo("Europe/Moscow")
+        return datetime.now(moscow_tz)
 
     def __init__(self, data_file: str = 'data/taps_data.json'):
         """
@@ -174,7 +181,7 @@ class TapsManager:
         # Если кран уже работает, добавляем запись в историю
         if tap.status == TapStatus.ACTIVE:
             event = {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': self._now().isoformat(),
                 'action': ActionType.STOP.value,
                 'beer_name': tap.current_beer,
                 'keg_id': tap.current_keg_id
@@ -184,10 +191,10 @@ class TapsManager:
         tap.status = TapStatus.ACTIVE
         tap.current_beer = beer_name
         tap.current_keg_id = keg_id
-        tap.started_at = datetime.now().isoformat()
+        tap.started_at = self._now().isoformat()
 
         event = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': self._now().isoformat(),
             'action': ActionType.START.value,
             'beer_name': beer_name,
             'keg_id': keg_id
@@ -227,7 +234,7 @@ class TapsManager:
             return {'success': False, 'error': 'Кран уже пустой'}
 
         event = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': self._now().isoformat(),
             'action': ActionType.STOP.value,
             'beer_name': tap.current_beer,
             'keg_id': tap.current_keg_id
@@ -272,7 +279,7 @@ class TapsManager:
         # Записываем старое пиво как остановленное
         if tap.current_beer:
             event = {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': self._now().isoformat(),
                 'action': ActionType.STOP.value,
                 'beer_name': tap.current_beer,
                 'keg_id': tap.current_keg_id
@@ -283,10 +290,10 @@ class TapsManager:
         tap.status = TapStatus.ACTIVE
         tap.current_beer = beer_name
         tap.current_keg_id = keg_id
-        tap.started_at = datetime.now().isoformat()
+        tap.started_at = self._now().isoformat()
 
         event = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': self._now().isoformat(),
             'action': ActionType.REPLACE.value,
             'beer_name': beer_name,
             'keg_id': keg_id
