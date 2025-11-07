@@ -1246,11 +1246,17 @@ def get_taplist_stocks():
             olap.disconnect()
             return jsonify({'error': 'Не удалось получить номенклатуру'}), 500
 
-        # Получаем РЕАЛЬНЫЕ остатки на складах
+        # Получаем РЕАЛЬНЫЕ остатки на складах (текущее время)
+        from datetime import datetime
+        current_time = datetime.now()
+        print(f"[DEBUG] Текущее время сервера: {current_time.strftime('%Y-%m-%d %H:%M:%S')}", flush=True)
+
         balances = olap.get_store_balances()
         if not balances:
             olap.disconnect()
             return jsonify({'error': 'Не удалось получить остатки'}), 500
+
+        print(f"[DEBUG] Получено {len(balances)} записей остатков", flush=True)
 
         olap.disconnect()
 
