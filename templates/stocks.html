@@ -339,6 +339,12 @@
             color: white;
         }
 
+        .badge.negative {
+            background: #991b1b;
+            color: white;
+            font-weight: 700;
+        }
+
         /* Input Number */
         input[type="number"] {
             width: 100px;
@@ -611,7 +617,11 @@
                 const statsHtml = `
                     <div class="stat-card">
                         <div class="label">Активных кранов</div>
-                        <div class="value">${data.active_taps || 0}</div>
+                        <div class="value">${data.active_taps_count || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Позиций пива</div>
+                        <div class="value">${data.total_items || 0}</div>
                     </div>
                     <div class="stat-card">
                         <div class="label">Общий объём (л)</div>
@@ -621,6 +631,12 @@
                         <div class="label">Требуют пополнения</div>
                         <div class="value">${data.low_stock_count || 0}</div>
                     </div>
+                    ${data.negative_stock_count > 0 ? `
+                    <div class="stat-card" style="border-color: #991b1b;">
+                        <div class="label" style="color: #991b1b;">Отрицательные остатки</div>
+                        <div class="value" style="color: #991b1b;">${data.negative_stock_count}</div>
+                    </div>
+                    ` : ''}
                 `;
                 document.getElementById('taplist-stats').innerHTML = statsHtml;
 
@@ -630,10 +646,13 @@
 
                 (data.taps || []).forEach(tap => {
                     const row = document.createElement('tr');
+                    const remainingDisplay = tap.remaining_liters !== undefined ?
+                        tap.remaining_liters.toFixed(1) : '—';
+
                     row.innerHTML = `
-                        <td>${tap.tap_number}</td>
+                        <td>${tap.tap_numbers || '—'}</td>
                         <td>${tap.beer_name || '—'}</td>
-                        <td>${tap.remaining_liters ? tap.remaining_liters.toFixed(1) : '—'}</td>
+                        <td style="${tap.remaining_liters < 0 ? 'color: #991b1b; font-weight: 700;' : ''}">${remainingDisplay}</td>
                         <td><span class="badge ${getStockBadge(tap.stock_level)}">${getStockLabel(tap.stock_level)}</span></td>
                         <td>
                             <input type="number" min="0" value="0"
@@ -817,6 +836,7 @@
 
         // Get stock badge class
         function getStockBadge(level) {
+            if (level === 'negative') return 'negative';
             if (level === 'low') return 'low';
             if (level === 'medium') return 'medium';
             return 'high';
@@ -824,6 +844,7 @@
 
         // Get stock label
         function getStockLabel(level) {
+            if (level === 'negative') return 'Отрицательный';
             if (level === 'low') return 'Низкий';
             if (level === 'medium') return 'Средний';
             return 'Высокий';

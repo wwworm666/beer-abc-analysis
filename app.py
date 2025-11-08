@@ -1197,8 +1197,9 @@ def get_taplist_stocks():
             'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',  # Варшавская
         }
 
-        # Собираем список активных кег со всех кранов
+        # Собираем список активных кег со всех кранов с номерами кранов
         active_beers = set()
+        beer_to_taps = {}  # { beer_name: [tap_numbers] }
 
         import re
 
@@ -1210,6 +1211,7 @@ def get_taplist_stocks():
                     for tap in result['taps']:
                         if tap.get('status') == 'active' and tap.get('current_beer'):
                             beer_name = tap['current_beer']
+                            tap_number = tap.get('tap_number', '?')
                             # Обрабатываем название так же, как из остатков
                             beer_name = re.sub(r'^КЕГ\s+', '', beer_name, flags=re.IGNORECASE)
                             beer_name = re.sub(r'^Кег\s+', '', beer_name, flags=re.IGNORECASE)
@@ -1217,7 +1219,11 @@ def get_taplist_stocks():
                             beer_name = re.sub(r'\s+л\s*$', '', beer_name)
                             beer_name = re.sub(r',?\s*кег.*', '', beer_name, flags=re.IGNORECASE)
                             beer_name = re.sub(r',\s*$', '', beer_name)
-                            active_beers.add(beer_name.strip())
+                            beer_name = beer_name.strip()
+                            active_beers.add(beer_name)
+                            if beer_name not in beer_to_taps:
+                                beer_to_taps[beer_name] = []
+                            beer_to_taps[beer_name].append(tap_number)
         else:
             bar_id = bar_id_map.get(bar)
             if bar_id:
@@ -1226,6 +1232,7 @@ def get_taplist_stocks():
                     for tap in result['taps']:
                         if tap.get('status') == 'active' and tap.get('current_beer'):
                             beer_name = tap['current_beer']
+                            tap_number = tap.get('tap_number', '?')
                             # Обрабатываем название так же, как из остатков
                             beer_name = re.sub(r'^КЕГ\s+', '', beer_name, flags=re.IGNORECASE)
                             beer_name = re.sub(r'^Кег\s+', '', beer_name, flags=re.IGNORECASE)
@@ -1233,7 +1240,11 @@ def get_taplist_stocks():
                             beer_name = re.sub(r'\s+л\s*$', '', beer_name)
                             beer_name = re.sub(r',?\s*кег.*', '', beer_name, flags=re.IGNORECASE)
                             beer_name = re.sub(r',\s*$', '', beer_name)
-                            active_beers.add(beer_name.strip())
+                            beer_name = beer_name.strip()
+                            active_beers.add(beer_name)
+                            if beer_name not in beer_to_taps:
+                                beer_to_taps[beer_name] = []
+                            beer_to_taps[beer_name].append(tap_number)
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -1279,9 +1290,11 @@ def get_taplist_stocks():
             if target_store_id and store_id != target_store_id:
                 continue
 
-            # Пропускаем нулевые и отрицательные остатки
-            if amount <= 0:
-                continue
+            # НЕ пропускаем отрицательные остатки - они важны для контроля!
+            # Пропускаем только нулевые, если кега не активна
+            if amount == 0:
+                # Пропустим потом при проверке на активность
+                pass
 
             # Получаем информацию о товаре из номенклатуры
             product_info = nomenclature.get(product_id)
@@ -1343,19 +1356,25 @@ def get_taplist_stocks():
         taps_data = []
         total_liters = 0
         low_stock_count = 0
+        negative_stock_count = 0
+        active_taps_count = len(active_beers)
 
         for beer_name, beer_data in beer_stocks.items():
             remaining_liters = beer_data['remaining_liters']
 
-            # НЕ пропускаем активные краны даже с нулевым остатком
+            # НЕ пропускаем активные краны даже с нулевым или отрицательным остатком
             # (чтобы видеть какие кеги нужно пополнить)
-            if remaining_liters <= 0 and not beer_data.get('on_tap', False):
+            if remaining_liters == 0 and not beer_data.get('on_tap', False):
                 continue
 
-            total_liters += remaining_liters
+            total_liters += remaining_liters if remaining_liters > 0 else 0
 
             # Определяем уровень остатка
-            if remaining_liters < 10:
+            if remaining_liters < 0:
+                stock_level = 'negative'
+                negative_stock_count += 1
+                low_stock_count += 1
+            elif remaining_liters < 10:
                 stock_level = 'low'
                 low_stock_count += 1
             elif remaining_liters < 25:
@@ -1363,12 +1382,18 @@ def get_taplist_stocks():
             else:
                 stock_level = 'high'
 
+            # Получаем номера кранов для этого пива
+            tap_numbers = beer_to_taps.get(beer_name, [])
+            tap_numbers_str = ', '.join(map(str, sorted(tap_numbers))) if tap_numbers else '—'
+
             taps_data.append({
                 'beer_name': beer_name,
                 'category': beer_data['category'],
                 'remaining_liters': round(remaining_liters, 1),
                 'stock_level': stock_level,
-                'on_tap': beer_data.get('on_tap', False)
+                'on_tap': beer_data.get('on_tap', False),
+                'tap_numbers': tap_numbers_str,
+                'taps_count': len(tap_numbers)
             })
 
         # Сортируем по остатку (от меньшего к большему - что заканчивается сверху)
@@ -1378,6 +1403,8 @@ def get_taplist_stocks():
             'total_items': len(taps_data),
             'total_liters': round(total_liters, 1),
             'low_stock_count': low_stock_count,
+            'negative_stock_count': negative_stock_count,
+            'active_taps_count': active_taps_count,
             'taps': taps_data
         })
 

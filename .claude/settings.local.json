@@ -22,7 +22,11 @@
       "Bash(git mv:*)",
       "Bash(lsof:*)",
       "Bash(chcp 65001)",
-      "Bash(nul)"
+      "Bash(nul)",
+      "Bash(dir \"C:\\KULT\\beer-abc-analysis\\Документация\" /b)",
+      "Bash(dir:*)",
+      "Bash(tasklist:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []

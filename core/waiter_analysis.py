@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import re
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
 class WaiterAnalysis:
@@ -371,9 +372,11 @@ if __name__ == "__main__":
         print("[ERROR] Ne udalos podklyuchitsya k API")
         exit()
 
-    # Получаем данные за последние 30 дней
-    date_to = datetime.now().strftime("%Y-%m-%d")
-    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    # Получаем данные за последние 30 дней (московское время)
+    moscow_tz = ZoneInfo("Europe/Moscow")
+    now_moscow = datetime.now(moscow_tz)
+    date_to = now_moscow.strftime("%Y-%m-%d")
+    date_from = (now_moscow - timedelta(days=30)).strftime("%Y-%m-%d")
 
     print(f"[INFO] Zaprashivaem dannye razlivnogo piva s oficiantami za {date_from} - {date_to}")
     report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to)
