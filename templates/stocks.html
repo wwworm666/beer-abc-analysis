@@ -243,6 +243,32 @@
             background: var(--bg-tertiary);
         }
 
+        /* Supplier groups */
+        .supplier-group {
+            margin-bottom: 30px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+
+        .supplier-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 16px 20px;
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 0.03em;
+        }
+
+        .supplier-group table {
+            margin-top: 0;
+        }
+
+        .supplier-group thead {
+            background: var(--bg-secondary);
+        }
+
         /* Loading */
         .loading {
             display: none;
@@ -507,19 +533,7 @@
             <div class="card" id="kitchen-content" style="display: none;">
                 <h2>Меню кухни и остатки</h2>
                 <div class="stats-grid" id="kitchen-stats"></div>
-                <table id="kitchen-table">
-                    <thead>
-                        <tr>
-                            <th>Категория</th>
-                            <th>Блюдо</th>
-                            <th>Остаток (шт)</th>
-                            <th>Средние продажи (шт/день)</th>
-                            <th>Статус</th>
-                            <th>Для заказа</th>
-                        </tr>
-                    </thead>
-                    <tbody id="kitchen-tbody"></tbody>
-                </table>
+                <div id="kitchen-groups"></div>
             </div>
         </div>
 
@@ -691,25 +705,60 @@
                 `;
                 document.getElementById('kitchen-stats').innerHTML = statsHtml;
 
-                // Update table
-                const tbody = document.getElementById('kitchen-tbody');
-                tbody.innerHTML = '';
-
+                // Group items by supplier
+                const groupedItems = {};
                 (data.items || []).forEach(item => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${item.category || '—'}</td>
-                        <td>${item.name}</td>
-                        <td>${item.stock || 0}</td>
-                        <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
-                        <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
-                        <td>
-                            <input type="number" min="0" value="0"
-                                onchange="addToOrder('kitchen', '${item.name}', this.value)"
-                                style="width: 80px;">
-                        </td>
+                    const supplier = item.category || 'Без поставщика';
+                    if (!groupedItems[supplier]) {
+                        groupedItems[supplier] = [];
+                    }
+                    groupedItems[supplier].push(item);
+                });
+
+                // Render groups
+                const container = document.getElementById('kitchen-groups');
+                container.innerHTML = '';
+
+                Object.keys(groupedItems).sort().forEach(supplier => {
+                    const group = document.createElement('div');
+                    group.className = 'supplier-group';
+
+                    const items = groupedItems[supplier];
+
+                    let tableRows = '';
+                    items.forEach(item => {
+                        tableRows += `
+                            <tr>
+                                <td>${item.name}</td>
+                                <td>${item.stock || 0}</td>
+                                <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                                <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
+                                <td>
+                                    <input type="number" min="0" value="0"
+                                        onchange="addToOrder('kitchen', '${item.name}', this.value)"
+                                        style="width: 80px;">
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    group.innerHTML = `
+                        <div class="supplier-header">${supplier}</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Блюдо</th>
+                                    <th>Остаток (шт)</th>
+                                    <th>Средние продажи (шт/день)</th>
+                                    <th>Статус</th>
+                                    <th>Для заказа</th>
+                                </tr>
+                            </thead>
+                            <tbody>${tableRows}</tbody>
+                        </table>
                     `;
-                    tbody.appendChild(row);
+
+                    container.appendChild(group);
                 });
 
                 content.style.display = 'block';
