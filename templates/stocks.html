@@ -550,26 +550,61 @@
                 display: block;
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
-                white-space: nowrap;
+                width: 100%;
             }
 
-            thead, tbody, tr {
+            thead, tbody {
                 display: table;
-                width: 100%;
-                table-layout: fixed;
+                width: max-content;
+                min-width: 100%;
+            }
+
+            tr {
+                display: table-row;
             }
 
             th, td {
-                padding: 12px 8px;
+                display: table-cell;
+                padding: 10px 8px;
+                white-space: nowrap;
+            }
+
+            /* Минимальные ширины колонок */
+            th:nth-child(1), td:nth-child(1) { /* Блюдо */
+                min-width: 180px;
+                max-width: 250px;
+                white-space: normal;
+                word-wrap: break-word;
+            }
+
+            th:nth-child(2), td:nth-child(2) { /* Остаток */
+                min-width: 80px;
+                text-align: center;
+            }
+
+            th:nth-child(3), td:nth-child(3) { /* Средние продажи */
+                min-width: 100px;
+                text-align: center;
+            }
+
+            th:nth-child(4), td:nth-child(4) { /* Статус */
+                min-width: 100px;
+                text-align: center;
+            }
+
+            th:nth-child(5), td:nth-child(5) { /* Для заказа */
+                min-width: 100px;
+                text-align: center;
             }
 
             th {
                 font-size: 0.7rem;
+                font-weight: 700;
             }
 
             /* Input fields in table */
             td input[type="number"] {
-                width: 60px !important;
+                width: 70px !important;
                 font-size: 0.85rem;
                 padding: 6px 8px;
             }
@@ -610,6 +645,10 @@
 
         /* Extra small devices */
         @media (max-width: 480px) {
+            .container {
+                padding: 16px 8px;
+            }
+
             .header-left h1 {
                 font-size: 1.5rem;
             }
@@ -633,12 +672,45 @@
             }
 
             th, td {
-                padding: 10px 6px;
+                padding: 8px 6px;
+            }
+
+            /* Минимальные ширины колонок для маленьких экранов */
+            th:nth-child(1), td:nth-child(1) {
+                min-width: 150px;
+                max-width: 200px;
+            }
+
+            th:nth-child(2), td:nth-child(2) {
+                min-width: 70px;
+            }
+
+            th:nth-child(3), td:nth-child(3) {
+                min-width: 90px;
+            }
+
+            th:nth-child(4), td:nth-child(4) {
+                min-width: 90px;
+            }
+
+            th:nth-child(5), td:nth-child(5) {
+                min-width: 90px;
+            }
+
+            td input[type="number"] {
+                width: 60px !important;
+                font-size: 0.8rem;
+                padding: 5px 6px;
             }
 
             .supplier-header {
-                font-size: 0.9rem;
+                font-size: 0.85rem;
                 padding: 10px 12px;
+            }
+
+            .badge {
+                font-size: 0.6rem;
+                padding: 2px 6px;
             }
         }
     </style>
