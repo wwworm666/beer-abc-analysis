@@ -603,6 +603,43 @@
                 box-sizing: border-box;
             }
 
+            /* Taplist table - специальные ширины */
+            #taplist-table {
+                font-size: 0.75rem;
+            }
+
+            #taplist-table th:nth-child(1),
+            #taplist-table td:nth-child(1) { /* Кран */
+                width: 12%;
+                text-align: center;
+            }
+
+            #taplist-table th:nth-child(2),
+            #taplist-table td:nth-child(2) { /* Название пива */
+                width: 45%;
+                text-align: left;
+                white-space: normal;
+                word-wrap: break-word;
+            }
+
+            #taplist-table th:nth-child(3),
+            #taplist-table td:nth-child(3) { /* Остаток */
+                width: 13%;
+                text-align: center;
+            }
+
+            #taplist-table th:nth-child(4),
+            #taplist-table td:nth-child(4) { /* Статус */
+                width: 15%;
+                text-align: center;
+            }
+
+            #taplist-table th:nth-child(5),
+            #taplist-table td:nth-child(5) { /* Для заказа */
+                width: 15%;
+                text-align: center;
+            }
+
             /* Badge */
             .badge {
                 padding: 2px 4px;
@@ -710,6 +747,36 @@
                 font-size: 0.55rem;
                 padding: 2px 4px;
                 letter-spacing: 0;
+            }
+
+            /* Taplist table для маленьких экранов */
+            #taplist-table {
+                font-size: 0.7rem;
+            }
+
+            #taplist-table th:nth-child(1),
+            #taplist-table td:nth-child(1) {
+                width: 10%;
+            }
+
+            #taplist-table th:nth-child(2),
+            #taplist-table td:nth-child(2) {
+                width: 43%;
+            }
+
+            #taplist-table th:nth-child(3),
+            #taplist-table td:nth-child(3) {
+                width: 12%;
+            }
+
+            #taplist-table th:nth-child(4),
+            #taplist-table td:nth-child(4) {
+                width: 17%;
+            }
+
+            #taplist-table th:nth-child(5),
+            #taplist-table td:nth-child(5) {
+                width: 18%;
             }
         }
     </style>
