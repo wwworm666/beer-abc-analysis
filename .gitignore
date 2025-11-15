@@ -49,3 +49,13 @@ taps_data*.json
 # Временные файлы
 *.tmp
 *.temp
+
+# Большие JSON/XML файлы для тестирования (не должны быть в git)
+kitchen_report.json
+store_operations_report.json
+nomenclature__products.xml
+*.xml
+*.json
+!data/*.json
+!mapping/*.json
+!package.json
