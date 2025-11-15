@@ -3,616 +3,128 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Статистика по официантам</title>
+    <title>Beer Management Platform | Официанты</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/claude-design.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
     <style>
-        :root {
-            /* Light Theme */
-            --bg-primary: #fafafa;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #f5f5f5;
-            --text-primary: #1a1a1a;
-            --text-secondary: #666666;
-            --text-tertiary: #999999;
-            --border-color: #e0e0e0;
-            --accent: #0066cc;
-            --accent-hover: #0052a3;
-            --shadow: rgba(0, 0, 0, 0.08);
-            --success: #059669;
-            --warning: #d97706;
-            --danger: #dc2626;
+        .leaderboard-card {
+            background: var(--bg-card);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            box-shadow: 0 2px 8px var(--shadow-light);
+            margin-bottom: var(--space-md);
+            border-left: 4px solid transparent;
+            transition: all var(--transition-base);
         }
 
-        [data-theme="dark"] {
-            /* Dark Theme */
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-tertiary: #2a2a2a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #999999;
-            --text-tertiary: #666666;
-            --border-color: #333333;
-            --accent: #3b82f6;
-            --accent-hover: #60a5fa;
-            --shadow: rgba(0, 0, 0, 0.3);
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
+        .leaderboard-card.rank-1 {
+            border-left-color: #FFD700;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.05) 0%, var(--bg-card) 100%);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .leaderboard-card.rank-2 {
+            border-left-color: #C0C0C0;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            transition: background-color 0.3s ease, color 0.3s ease;
+        .leaderboard-card.rank-3 {
+            border-left-color: #CD7F32;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 60px;
-            padding-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .header-left h1 {
-            font-size: 4rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            line-height: 1;
-        }
-
-        .header-left .subtitle {
-            font-size: 0.9rem;
-            color: var(--text-tertiary);
-            font-weight: 400;
-            letter-spacing: 0.02em;
-            margin-top: 4px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-
-        .nav-link {
-            padding: 8px 20px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link:hover {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-
-        .nav-link.active {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: var(--bg-secondary);
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-
-        .theme-btn {
-            background: transparent;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-
-        .theme-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .theme-btn:hover:not(.active) {
-            color: var(--text-primary);
-        }
-
-        /* Card */
-        .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 32px;
-            margin-bottom: 24px;
-            transition: all 0.2s ease;
-        }
-
-        .card:hover {
-            box-shadow: 0 4px 12px var(--shadow);
+        .leaderboard-card:hover {
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow-medium);
         }
 
-        /* Controls */
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-            margin-bottom: 16px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        select, input {
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-primary);
-            font-size: 0.95rem;
-            transition: all 0.2s ease;
-            font-family: inherit;
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: var(--accent);
-            background: var(--bg-secondary);
-        }
-
-        /* Button */
-        .btn {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 12px 32px;
-            border-radius: 6px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            width: 100%;
-            margin-top: auto;
-        }
-
-        .btn:hover {
-            background: var(--accent-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        /* Loading */
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 60px 32px;
-        }
-
-        .loading.active {
-            display: block;
-        }
-
-        .spinner {
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             width: 48px;
             height: 48px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 24px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading h2 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-
-        .loading p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        /* Results */
-        .results {
-            display: none;
-        }
-
-        .results.active {
-            display: block;
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-
-        .stat-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 24px;
-            transition: all 0.2s ease;
-        }
-
-        .stat-card:hover {
-            border-color: var(--accent);
-        }
-
-        .stat-card .label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 8px;
-        }
-
-        .stat-card .value {
-            font-size: 2rem;
+            font-family: var(--font-mono);
+            font-size: 20px;
             font-weight: 700;
-            color: var(--text-primary);
-            font-variant-numeric: tabular-nums;
-        }
-
-        .stat-card .unit {
-            font-size: 1rem;
-            color: var(--text-tertiary);
-            margin-left: 4px;
-        }
-
-        /* Section Title */
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin: 40px 0 20px 0;
-            color: var(--text-primary);
-            letter-spacing: -0.01em;
-        }
-
-        /* Table */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            font-size: 0.9rem;
-        }
-
-        thead {
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        th {
-            text-align: left;
-            padding: 12px 16px;
-            font-weight: 600;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        td {
-            padding: 16px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-primary);
-        }
-
-        .waiter-row {
-            cursor: pointer;
-            transition: background 0.15s ease;
-        }
-
-        .waiter-row:hover {
-            background: var(--bg-tertiary);
-        }
-
-        /* Error */
-        .error {
-            background: var(--danger);
-            color: white;
-            padding: 16px 20px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            display: none;
-            font-weight: 500;
-        }
-
-        .error.active {
-            display: block;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            padding: 20px;
-            overflow-y: auto;
-        }
-
-        .modal.active {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding-top: 40px;
-        }
-
-        .modal-content {
             background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 40px;
-            max-width: 800px;
-            width: 100%;
-            max-height: calc(100vh - 80px);
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 24px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .modal-header h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
             color: var(--text-primary);
         }
 
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 2rem;
-            cursor: pointer;
-            color: var(--text-secondary);
-            line-height: 1;
-            transition: color 0.2s ease;
-            padding: 0;
-            width: 32px;
-            height: 32px;
+        .rank-badge.rank-1 {
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+            color: #FFFFFF;
         }
 
-        .modal-close:hover {
-            color: var(--text-primary);
+        .rank-badge.rank-2 {
+            background: linear-gradient(135deg, #C0C0C0 0%, #A0A0A0 100%);
+            color: #FFFFFF;
         }
 
-        .detail-grid {
+        .rank-badge.rank-3 {
+            background: linear-gradient(135deg, #CD7F32 0%, #B8722E 100%);
+            color: #FFFFFF;
+        }
+
+        .waiter-stats {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
         }
 
-        .detail-item {
-            padding: 16px;
-            background: var(--bg-tertiary);
-            border-radius: 6px;
+        .waiter-stat {
+            text-align: center;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-sm);
         }
 
-        .detail-item .label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
+        .waiter-stat-label {
+            font-size: 11px;
             text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-secondary);
             margin-bottom: 4px;
         }
 
-        .detail-item .value {
-            font-size: 1.25rem;
-            font-weight: 600;
+        .waiter-stat-value {
+            font-family: var(--font-mono);
+            font-size: 20px;
+            font-weight: 700;
             color: var(--text-primary);
-        }
-
-        /* API Connection Status Indicator */
-        .api-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .api-status:hover {
-            border-color: var(--accent);
-            transform: translateY(-1px);
-        }
-
-        .api-status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--text-tertiary);
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .api-status.checking .api-status-indicator {
-            background: var(--warning);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .api-status.connected .api-status-indicator {
-            background: var(--success);
-            box-shadow: 0 0 8px var(--success);
-        }
-
-        .api-status.error .api-status-indicator {
-            background: var(--danger);
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.5;
-                transform: scale(0.9);
-            }
-        }
-
-        .api-status-text {
-            color: var(--text-secondary);
-        }
-
-        .api-status.connected .api-status-text {
-            color: var(--success);
-        }
-
-        .api-status.error .api-status-text {
-            color: var(--danger);
-        }
-
-        .api-status.checking .api-status-text {
-            color: var(--warning);
-        }
-
-        /* Date Range Display */
-        .date-range-display {
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-top: 16px;
-            font-weight: 500;
-        }
-
-        .date-range-display .dates {
-            color: var(--accent);
-            font-weight: 600;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .controls {
-                grid-template-columns: 1fr;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 20px;
-            }
-
-            .header-left h1 {
-                font-size: 2.5rem;
-            }
-
-            .detail-grid {
-                grid-template-columns: 1fr;
-            }
+            font-feature-settings: 'tnum';
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="header-left">
-                <h1>Проливы по барменам</h1>
-                <div class="subtitle">Статистика продаж разливного пива по барменам</div>
+        <!-- Header -->
+        <header class="header">
+            <div>
+                <h1 class="header-title">Анализ официантов</h1>
+                <p class="header-subtitle">Рейтинг продаж и производительность персонала</p>
             </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
-                <div class="nav-links">
-                    <a href="/" class="nav-link">ABC/XYZ фасовки</a>
-                    <a href="/draft" class="nav-link">Проливы по барам</a>
-                    <a href="/waiters" class="nav-link active">Проливы по барменам</a>
-                    <a href="/taps" class="nav-link">Активность кранов</a>
-                    <a href="/stocks" class="nav-link">Остатки и заказы</a>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
-                        <div class="api-status-indicator"></div>
-                        <span class="api-status-text">Проверка подключения...</span>
-                    </div>
-                    <div class="theme-toggle">
-                        <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
-                        <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </header>
 
-        <div class="card">
-            <div class="controls">
-                <div class="form-group">
-                    <label for="bar-select">Бар</label>
-                    <select id="bar-select">
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/" class="nav-item">Фасовка</a>
+            <a href="/draft" class="nav-item">Разливное</a>
+            <a href="/waiters" class="nav-item active">Официанты</a>
+            <a href="/taps" class="nav-item">Краны</a>
+            <a href="/stocks" class="nav-item">Остатки</a>
+        </nav>
+
+        <!-- Controls Card -->
+        <div class="card mb-lg">
+            <div class="flex flex-gap-md" style="flex-wrap: wrap; align-items: end;">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label class="form-label" for="bar-select">Бар</label>
+                    <select class="form-select" id="bar-select">
                         <option value="">Все бары</option>
                         {% for bar in bars %}
                         <option value="{{ bar }}">{{ bar }}</option>
@@ -620,420 +132,210 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label for="period-select">Период</label>
-                    <select id="period-select" onchange="toggleCustomPeriod(); updateDateRangeDisplay();">
+                <div class="form-group" style="flex: 1; min-width: 200px;">
+                    <label class="form-label" for="period-select">Период</label>
+                    <select class="form-select" id="period-select">
                         <option value="7">Неделя</option>
                         <option value="14">2 недели</option>
                         <option value="30" selected>Месяц</option>
                         <option value="60">2 месяца</option>
                         <option value="90">Квартал</option>
-                        <option value="180">Полгода</option>
-                        <option value="365">Год</option>
-                        <option value="custom">Свой период</option>
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" onclick="runAnalysis()">Запустить анализ</button>
-                </div>
-            </div>
-
-            <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
-                <div class="form-group">
-                    <label for="date-from">Дата начала</label>
-                    <input type="date" id="date-from" onchange="updateDateRangeDisplay()">
-                </div>
-
-                <div class="form-group">
-                    <label for="date-to">Дата окончания</label>
-                    <input type="date" id="date-to" onchange="updateDateRangeDisplay()">
-                </div>
-
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                </div>
-            </div>
-
-            <!-- Отображение диапазона дат -->
-            <div class="date-range-display" id="date-range-display" style="display: none;">
-                Период анализа: <span class="dates" id="date-range-text"></span>
+                <button class="btn btn-primary" onclick="runAnalysis()" style="min-width: 180px;">
+                    Запустить анализ
+                </button>
             </div>
         </div>
 
-        <div class="error" id="error-message"></div>
-
-        <div class="card loading" id="loading">
-            <div class="spinner"></div>
-            <h2>Загружаем статистику...</h2>
-            <p>Это может занять несколько секунд</p>
+        <!-- Loading State -->
+        <div id="loading-container" style="display: none;">
+            <div class="card text-center" style="padding: 60px;">
+                <div class="loading-spinner" style="margin: 0 auto 24px;"></div>
+                <h3 style="margin-bottom: 8px; color: var(--text-primary);">Анализируем данные...</h3>
+                <p style="color: var(--text-secondary);">Получаем статистику продаж по каждому официанту</p>
+            </div>
         </div>
 
-        <div class="results" id="results"></div>
+        <!-- Results Container -->
+        <div id="results-container" style="display: none;">
+            <!-- Total Stats -->
+            <div class="cards-grid mb-lg" id="total-stats">
+                <!-- Будут добавлены через JS -->
+            </div>
+
+            <!-- Leaderboard Title -->
+            <h3 style="color: var(--text-secondary); font-size: 14px; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: var(--space-md);">
+                Рейтинг официантов
+            </h3>
+
+            <!-- Leaderboard -->
+            <div id="leaderboard-container">
+                <!-- Будут добавлены через JS -->
+            </div>
+        </div>
+
+        <!-- No Data State -->
+        <div id="no-data-container" style="display: none;">
+            <div class="card text-center" style="padding: 60px;">
+                <h3 style="margin-bottom: 12px; color: var(--text-primary);">Нет данных за выбранный период</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 24px;">
+                    Попробуйте выбрать другой период или бар
+                </p>
+                <button class="btn btn-secondary" onclick="hideNoData()">
+                    Вернуться к настройкам
+                </button>
+            </div>
+        </div>
     </div>
 
+    <!-- Scripts -->
+    <script src="/static/js/microinteractions.js"></script>
     <script>
-        let currentData = {};
-
-        // Theme management
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('theme', theme);
-
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-        }
-
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            if ((savedTheme === 'light' && btn.textContent === 'Светлая') ||
-                (savedTheme === 'dark' && btn.textContent === 'Тёмная')) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-
-        // API Connection Status Check
-        async function checkApiConnection() {
-            const statusElement = document.getElementById('api-status');
-            const textElement = statusElement.querySelector('.api-status-text');
-
-            statusElement.className = 'api-status checking';
-            textElement.textContent = 'Проверка подключения...';
-
-            try {
-                const response = await fetch('/api/connection-status');
-                const data = await response.json();
-
-                if (response.ok && data.status === 'connected') {
-                    statusElement.className = 'api-status connected';
-                    textElement.textContent = 'iiko API подключен';
-                } else {
-                    statusElement.className = 'api-status error';
-                    textElement.textContent = 'Ошибка подключения';
-                    console.error('API connection error:', data.message);
-                }
-            } catch (error) {
-                statusElement.className = 'api-status error';
-                textElement.textContent = 'Ошибка подключения';
-                console.error('API connection error:', error);
-            }
-        }
-
-        // Check connection on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkApiConnection();
-            // Recheck connection every 60 seconds
-            setInterval(checkApiConnection, 60000);
-            // Показываем диапазон дат при загрузке страницы
-            updateDateRangeDisplay();
-        });
-
-        function toggleCustomPeriod() {
-            const periodSelect = document.getElementById('period-select').value;
-            const customControls = document.getElementById('custom-period-controls');
-
-            if (periodSelect === 'custom') {
-                customControls.style.display = 'grid';
-                // Устанавливаем значения по умолчанию
-                const today = new Date();
-                const monthAgo = new Date(today);
-                monthAgo.setDate(today.getDate() - 30);
-
-                document.getElementById('date-to').valueAsDate = today;
-                document.getElementById('date-from').valueAsDate = monthAgo;
-            } else {
-                customControls.style.display = 'none';
-            }
-            // Обновляем отображение диапазона дат
-            updateDateRangeDisplay();
-        }
-
-        function formatDate(date) {
-            const day = date.getDate().toString().padStart(2, '0');
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}.${month}.${year}`;
-        }
-
-        function updateDateRangeDisplay() {
-            const periodSelect = document.getElementById('period-select').value;
-            const dateRangeDisplay = document.getElementById('date-range-display');
-            const dateRangeText = document.getElementById('date-range-text');
-
-            let startDate, endDate;
-            const today = new Date();
-
-            if (periodSelect === 'custom') {
-                const dateFromInput = document.getElementById('date-from').value;
-                const dateToInput = document.getElementById('date-to').value;
-
-                if (dateFromInput && dateToInput) {
-                    startDate = new Date(dateFromInput);
-                    endDate = new Date(dateToInput);
-                } else {
-                    dateRangeDisplay.style.display = 'none';
-                    return;
-                }
-            } else {
-                const days = parseInt(periodSelect);
-                endDate = new Date(today);
-                startDate = new Date(today);
-                startDate.setDate(today.getDate() - days);
-            }
-
-            dateRangeText.textContent = `${formatDate(startDate)} — ${formatDate(endDate)}`;
-            dateRangeDisplay.style.display = 'block';
-        }
-
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
-            const periodSelect = document.getElementById('period-select').value;
+            const period = document.getElementById('period-select').value;
 
-            let days;
-            let dateFrom, dateTo;
+            // Скрыть результаты и no-data
+            document.getElementById('results-container').style.display = 'none';
+            document.getElementById('no-data-container').style.display = 'none';
 
-            if (periodSelect === 'custom') {
-                // Используем выбранные даты
-                const dateFromInput = document.getElementById('date-from').value;
-                const dateToInput = document.getElementById('date-to').value;
+            // Показать loading
+            document.getElementById('loading-container').style.display = 'block';
 
-                if (!dateFromInput || !dateToInput) {
-                    showError('Пожалуйста, выберите обе даты');
+            try {
+                const params = new URLSearchParams({
+                    bar: bar || '',
+                    days: period
+                });
+
+                const response = await fetch(`/api/waiter-analyze?${params}`);
+                const data = await response.json();
+
+                // Скрыть loading
+                document.getElementById('loading-container').style.display = 'none';
+
+                if (data.error) {
+                    BeerPlatform.showToast(data.error, 'error');
+                    document.getElementById('no-data-container').style.display = 'block';
                     return;
                 }
 
-                dateFrom = dateFromInput;
-                dateTo = dateToInput;
-
-                // Вычисляем количество дней для API
-                const from = new Date(dateFromInput);
-                const to = new Date(dateToInput);
-                days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
-            } else {
-                days = periodSelect;
-            }
-
-            document.getElementById('loading').classList.add('active');
-            document.getElementById('results').classList.remove('active');
-            document.getElementById('error-message').classList.remove('active');
-
-            try {
-                const requestBody = { bar, days };
-                if (dateFrom && dateTo) {
-                    requestBody.date_from = dateFrom;
-                    requestBody.date_to = dateTo;
+                if (!data.waiters || data.waiters.length === 0) {
+                    document.getElementById('no-data-container').style.display = 'block';
+                    return;
                 }
 
-                const response = await fetch('/api/waiter-analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) {
-                    throw new Error('Ошибка при получении данных');
-                }
-
-                const data = await response.json();
-                currentData = data;
+                // Отобразить результаты
                 displayResults(data);
 
             } catch (error) {
                 console.error('Error:', error);
-                showError('Ошибка: ' + error.message);
-            } finally {
-                document.getElementById('loading').classList.remove('active');
+                document.getElementById('loading-container').style.display = 'none';
+                BeerPlatform.showToast('Ошибка при получении данных', 'error');
+                document.getElementById('no-data-container').style.display = 'block';
             }
         }
 
         function displayResults(data) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '';
+            // Показать контейнер результатов
+            document.getElementById('results-container').style.display = 'block';
 
-            const card = document.createElement('div');
-            card.className = 'card';
+            // Total Stats
+            displayTotalStats(data);
 
-            const stats = `
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="label">Всего официантов</div>
-                        <div class="value">${data.total_waiters}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="label">Общий объём</div>
-                        <div class="value">${data.total_liters.toFixed(1)}<span class="unit">L</span></div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="label">Порций продано</div>
-                        <div class="value">${formatNumber(data.total_portions)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="label">Выручка</div>
-                        <div class="value">${formatMoney(data.total_revenue)}</div>
-                    </div>
-                </div>
-            `;
-
-            const hasBarColumn = data.waiters && data.waiters[0] && data.waiters[0].Bar;
-
-            const waitersTable = `
-                <h3 class="section-title">Топ официантов по объёму проливов (кликните для деталей)</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Официант</th>
-                            ${hasBarColumn ? '<th>Бар</th>' : ''}
-                            <th>Литры</th>
-                            <th>Порции</th>
-                            <th>Сортов пива</th>
-                            <th>Кег 30L</th>
-                            <th>Выручка</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${(data.waiters || []).map((waiter, i) => `
-                            <tr class="waiter-row" onclick='showWaiterDetails(${JSON.stringify(waiter)})'>
-                                <td>${i + 1}</td>
-                                <td><strong>${waiter.WaiterName}</strong></td>
-                                ${hasBarColumn ? `<td>${waiter.Bar}</td>` : ''}
-                                <td>${waiter.TotalLiters.toFixed(1)} L</td>
-                                <td>${formatNumber(waiter.TotalPortions)}</td>
-                                <td>${waiter.UniqueBeers}</td>
-                                <td>${waiter.Kegs30L.toFixed(1)}</td>
-                                <td>${formatMoney(waiter.TotalRevenue || 0)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-
-            card.innerHTML = stats + waitersTable;
-            resultsDiv.appendChild(card);
-            resultsDiv.classList.add('active');
+            // Leaderboard
+            displayLeaderboard(data.waiters);
         }
 
-        function showWaiterDetails(waiter) {
-            const hasRevenue = waiter.TotalRevenue !== undefined;
-            const hasBeers = waiter.beers && waiter.beers.length > 0;
+        function displayTotalStats(data) {
+            const container = document.getElementById('total-stats');
+            container.innerHTML = '';
 
-            const beersTable = hasBeers ? `
-                <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">Топ-10 сортов пива</h3>
-                <table style="font-size: 0.85rem;">
-                    <thead>
-                        <tr>
-                            <th>Пиво</th>
-                            <th>Литры</th>
-                            <th>Порции</th>
-                            ${hasRevenue ? '<th>Выручка</th>' : ''}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${waiter.beers.map(beer => `
-                            <tr>
-                                <td><strong>${beer.BeerName}</strong></td>
-                                <td>${beer.TotalLiters.toFixed(1)} L</td>
-                                <td>${formatNumber(beer.TotalPortions)}</td>
-                                ${hasRevenue && beer.TotalRevenue ? `<td>${formatMoney(beer.TotalRevenue)}</td>` : ''}
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            ` : '';
+            const metrics = [
+                { label: 'Всего официантов', value: data.total_waiters || 0 },
+                { label: 'Общая выручка', value: data.total_revenue || 0, suffix: ' ₽' },
+                { label: 'Средний чек', value: data.avg_check || 0, suffix: ' ₽' },
+                { label: 'Всего заказов', value: data.total_orders || 0 }
+            ];
 
-            const modalHTML = `
-                <div class="modal active" id="waiter-modal" onclick="closeModalBackdrop(event)">
-                    <div class="modal-content" onclick="event.stopPropagation()">
-                        <div class="modal-header">
+            metrics.forEach(metric => {
+                const card = document.createElement('div');
+                card.className = 'metric-card';
+                card.innerHTML = `
+                    <div class="metric-label">${metric.label}</div>
+                    <div class="metric-value-md">${formatNumber(metric.value)}${metric.suffix || ''}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function displayLeaderboard(waiters) {
+            const container = document.getElementById('leaderboard-container');
+            container.innerHTML = '';
+
+            // Сортируем по выручке
+            const sorted = [...waiters].sort((a, b) => (b.total_revenue || 0) - (a.total_revenue || 0));
+
+            sorted.forEach((waiter, index) => {
+                const rank = index + 1;
+                const card = document.createElement('div');
+                card.className = `leaderboard-card ${rank <= 3 ? `rank-${rank}` : ''}`;
+
+                card.innerHTML = `
+                    <div class="flex flex-between" style="align-items: center; margin-bottom: var(--space-sm);">
+                        <div class="flex" style="align-items: center; gap: var(--space-sm);">
+                            <div class="rank-badge ${rank <= 3 ? `rank-${rank}` : ''}">${rank}</div>
                             <div>
-                                <h2>${waiter.WaiterName}</h2>
-                                <p style="color: var(--text-secondary); margin-top: 4px;">${waiter.Bar}</p>
+                                <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 4px;">${waiter.name || 'Неизвестно'}</h3>
+                                <p style="font-size: 13px; color: var(--text-secondary);">${waiter.bar || 'Все бары'}</p>
                             </div>
-                            <button class="modal-close" onclick="closeModal()">&times;</button>
                         </div>
-
-                        <div class="detail-grid">
-                            <div class="detail-item">
-                                <div class="label">Объём пролито</div>
-                                <div class="value">${waiter.TotalLiters.toFixed(1)} L</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="label">Порций</div>
-                                <div class="value">${formatNumber(waiter.TotalPortions)}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="label">Уникальных сортов</div>
-                                <div class="value">${waiter.UniqueBeers}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="label">Кег 30L</div>
-                                <div class="value">${waiter.Kegs30L.toFixed(1)}</div>
-                            </div>
-                            ${hasRevenue ? `
-                                <div class="detail-item">
-                                    <div class="label">Выручка</div>
-                                    <div class="value">${formatMoney(waiter.TotalRevenue)}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Маржа</div>
-                                    <div class="value">${formatMoney(waiter.TotalMargin)}</div>
-                                </div>
-                            ` : ''}
+                        <div class="metric-value-sm" style="color: var(--accent);">
+                            ${formatNumber(waiter.total_revenue || 0)} ₽
                         </div>
-
-                        ${beersTable}
                     </div>
-                </div>
-            `;
+                    <div class="waiter-stats">
+                        <div class="waiter-stat">
+                            <div class="waiter-stat-label">Заказов</div>
+                            <div class="waiter-stat-value">${formatNumber(waiter.orders_count || 0)}</div>
+                        </div>
+                        <div class="waiter-stat">
+                            <div class="waiter-stat-label">Средний чек</div>
+                            <div class="waiter-stat-value">${formatNumber(waiter.avg_check || 0)}</div>
+                        </div>
+                        <div class="waiter-stat">
+                            <div class="waiter-stat-label">Маржа</div>
+                            <div class="waiter-stat-value">${formatNumber(waiter.total_margin || 0)}</div>
+                        </div>
+                        <div class="waiter-stat">
+                            <div class="waiter-stat-label">Наценка</div>
+                            <div class="waiter-stat-value">${formatNumber(waiter.avg_markup || 0, 'decimal')}%</div>
+                        </div>
+                    </div>
+                `;
 
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
+                container.appendChild(card);
+            });
         }
 
-        function closeModalBackdrop(event) {
-            if (event.target.classList.contains('modal')) {
-                closeModal();
+        function formatNumber(num, format = 'int') {
+            if (format === 'decimal') {
+                return parseFloat(num).toFixed(1).replace('.', ',');
             }
+            return Math.round(num).toLocaleString('ru-RU');
         }
 
-        function closeModal() {
-            const modal = document.getElementById('waiter-modal');
-            if (modal) {
-                modal.remove();
-            }
+        function hideNoData() {
+            document.getElementById('results-container').style.display = 'none';
+            document.getElementById('no-data-container').style.display = 'none';
         }
 
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Waiters analysis loaded');
         });
-
-        function formatMoney(value) {
-            return new Intl.NumberFormat('ru-RU', {
-                style: 'currency',
-                currency: 'RUB',
-                maximumFractionDigits: 0
-            }).format(value);
-        }
-
-        function formatNumber(value) {
-            return new Intl.NumberFormat('ru-RU').format(value);
-        }
-
-        function showError(message) {
-            const errorDiv = document.getElementById('error-message');
-            errorDiv.textContent = message;
-            errorDiv.classList.add('active');
-        }
     </script>
 </body>
 </html>
