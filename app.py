@@ -1587,6 +1587,13 @@ def get_bottles_stocks():
             olap.disconnect()
             return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
 
+        # ID группы "Напитки Фасовка"
+        FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
+
+        # Получаем все товары из группы "Напитки Фасовка" (включая подгруппы)
+        fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
+        print(f"[BOTTLES DEBUG] Товаров в группе 'Напитки Фасовка': {len(fasovka_product_ids)}")
+
         # Получаем отчет по складским операциям
         bar_name = bar if bar != 'Общая' else None
         store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
@@ -1612,23 +1619,11 @@ def get_bottles_stocks():
 
             checked_products += 1
 
-            # Фильтруем фасованное пиво: тип GOODS + единица измерения "шт" + в названии есть пиво/beer
-            product_type = product_info.get('type')
-            product_unit = product_info.get('mainUnit')
+            # Фильтруем по группе "Напитки Фасовка"
+            if product_id not in fasovka_product_ids:
+                continue
+
             product_name = product_info.get('name', product_id)
-            product_name_lower = product_name.lower()
-
-            # Проверяем: тип GOODS, единица "шт", и в названии есть пивные слова
-            if product_type != 'GOODS':
-                continue
-
-            if product_unit != 'шт':
-                continue
-
-            # Проверяем что это пиво
-            beer_keywords = ['пив', 'beer', 'ipa', 'лагер', 'эль', 'стаут', 'портер', 'ales']
-            if not any(keyword in product_name_lower for keyword in beer_keywords):
-                continue
 
             matched_products += 1
             supplier = product_info.get('category', 'Без поставщика')

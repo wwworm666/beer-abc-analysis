@@ -102,6 +102,7 @@ class OlapReports:
                             'type': product_el.find('productType').text if product_el.find('productType') is not None else None,
                             'category': product_el.find('productCategory').text if product_el.find('productCategory') is not None else None,
                             'mainUnit': product_el.find('mainUnit').text if product_el.find('mainUnit') is not None else None,
+                            'parentId': product_el.find('parentId').text if product_el.find('parentId') is not None else None,
                         }
                         nomenclature[product_id.text] = product_info
 
@@ -115,6 +116,37 @@ class OlapReports:
         except Exception as e:
             print(f"[ERROR] Oshibka: {e}")
             return None
+
+    def get_products_in_group(self, parent_group_id, nomenclature=None):
+        """
+        Рекурсивно получить все товары, входящие в указанную группу
+
+        Args:
+            parent_group_id: ID родительской группы
+            nomenclature: словарь с номенклатурой (если None, получит автоматически)
+
+        Returns:
+            set с ID всех товаров в этой группе и подгруппах
+        """
+        if nomenclature is None:
+            nomenclature = self.get_nomenclature()
+            if not nomenclature:
+                return set()
+
+        result_ids = set()
+
+        # Проходим по всем товарам и ищем те, у которых parentId = parent_group_id
+        for product_id, product_info in nomenclature.items():
+            if product_info.get('parentId') == parent_group_id:
+                # Если у этого товара есть тип (это реальный товар, а не группа)
+                if product_info.get('type'):
+                    result_ids.add(product_id)
+                else:
+                    # Это подгруппа, рекурсивно получаем товары из нее
+                    child_ids = self.get_products_in_group(product_id, nomenclature)
+                    result_ids.update(child_ids)
+
+        return result_ids
 
     def get_beer_sales_report(self, date_from, date_to, bar_name=None):
         """
