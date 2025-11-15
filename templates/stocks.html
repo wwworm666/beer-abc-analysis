@@ -53,7 +53,7 @@
 
         .stock-item {
             display: grid;
-            grid-template-columns: 1fr auto auto auto;
+            grid-template-columns: 1fr auto auto auto 100px;
             gap: var(--space-md);
             align-items: center;
             padding: var(--space-sm);
@@ -140,6 +140,95 @@
             color: var(--accent);
             margin-top: 8px;
         }
+
+        /* Order input field */
+        .order-input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            text-align: center;
+            font-family: var(--font-mono);
+            font-size: 14px;
+            font-weight: 600;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: all var(--transition-fast);
+        }
+
+        .order-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-card);
+        }
+
+        .order-input::-webkit-inner-spin-button,
+        .order-input::-webkit-outer-spin-button {
+            opacity: 1;
+        }
+
+        /* Order summary styles */
+        .supplier-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin-bottom: var(--space-md);
+        }
+
+        .supplier-header {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-sm);
+            padding-bottom: var(--space-sm);
+            border-bottom: 2px solid var(--border);
+        }
+
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--space-xs) 0;
+            border-bottom: 1px solid var(--bg-secondary);
+        }
+
+        .order-item:last-child {
+            border-bottom: none;
+        }
+
+        .order-item-name {
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .order-item-qty {
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .total-section {
+            margin-top: var(--space-md);
+            padding-top: var(--space-md);
+            border-top: 2px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-label {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .total-value {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--accent);
+        }
     </style>
 </head>
 <body>
@@ -185,7 +274,7 @@
             <button class="tab-btn active" onclick="switchTab('draft')">Разливное</button>
             <button class="tab-btn" onclick="switchTab('bottles')">Фасовка</button>
             <button class="tab-btn" onclick="switchTab('kitchen')">Кухня</button>
-            <button class="tab-btn" onclick="switchTab('recommendations')">Рекомендации</button>
+            <button class="tab-btn" onclick="switchTab('order')">Сборка заказа</button>
         </div>
 
         <!-- Loading State -->
@@ -210,10 +299,10 @@
             <div id="kitchen-stocks"></div>
         </div>
 
-        <div class="tab-content" id="tab-recommendations">
-            <div id="recommendations-container">
+        <div class="tab-content" id="tab-order">
+            <div id="order-summary">
                 <p style="color: var(--text-secondary); text-align: center; padding: 40px;">
-                    Загрузите данные, чтобы получить рекомендации по заказу
+                    Добавьте товары в заказ, чтобы увидеть сборку по поставщикам
                 </p>
             </div>
         </div>
