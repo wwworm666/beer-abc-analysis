@@ -305,6 +305,70 @@
             font-weight: 500;
             color: var(--text-primary);
         }
+
+        /* Badge styles for ABC/XYZ codes */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-family: var(--font-mono);
+            font-size: 13px;
+        }
+
+        .badge.aaa,
+        .badge.aab,
+        .badge.aac {
+            background: #7FA650;
+            color: white;
+        }
+
+        .badge.bba,
+        .badge.bbb,
+        .badge.bbc {
+            background: #F5A97D;
+            color: white;
+        }
+
+        .badge.cca,
+        .badge.ccb,
+        .badge.ccc {
+            background: #C4C4C4;
+            color: white;
+        }
+
+        /* Tooltip styles */
+        .tooltip {
+            position: relative;
+            cursor: help;
+        }
+
+        .emoji {
+            margin-right: 6px;
+        }
+
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Chart icon */
+        .chart-icon {
+            cursor: pointer;
+            margin-left: 8px;
+            font-size: 18px;
+            opacity: 0.6;
+            transition: opacity var(--transition-fast);
+        }
+
+        .chart-icon:hover {
+            opacity: 1;
+        }
+
+        /* Beer row в таблице */
+        .beer-row {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
