@@ -2,11 +2,18 @@
 Менеджер для управления пивными кранами в барах
 """
 from datetime import datetime
-from zoneinfo import ZoneInfo
 from typing import Dict, List, Optional, Tuple
 from enum import Enum
 import json
 import os
+
+# Импортируем MOSCOW_TZ из validators
+try:
+    from core.validators import MOSCOW_TZ
+except ImportError:
+    # Fallback если validators не импортируется
+    from zoneinfo import ZoneInfo
+    MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
 class ActionType(Enum):
     """Типы действий с кранами"""
@@ -65,8 +72,7 @@ class TapsManager:
     @staticmethod
     def _now():
         """Возвращает текущее время в московской timezone"""
-        moscow_tz = ZoneInfo("Europe/Moscow")
-        return datetime.now(moscow_tz)
+        return datetime.now(MOSCOW_TZ)
 
     def __init__(self, data_file: str = 'data/taps_data.json'):
         """
