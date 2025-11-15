@@ -3,762 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beer ABC/XYZ Analysis</title>
+    <title>Beer Management Platform | Фасовка</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/claude-design.css">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <style>
-        :root {
-            /* Light Theme */
-            --bg-primary: #fafafa;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #f5f5f5;
-            --text-primary: #1a1a1a;
-            --text-secondary: #666666;
-            --text-tertiary: #999999;
-            --border-color: #e0e0e0;
-            --accent: #0066cc;
-            --accent-hover: #0052a3;
-            --shadow: rgba(0, 0, 0, 0.08);
-            --success: #059669;
-            --warning: #d97706;
-            --danger: #dc2626;
-        }
-
-        [data-theme="dark"] {
-            /* Dark Theme */
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-tertiary: #2a2a2a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #999999;
-            --text-tertiary: #666666;
-            --border-color: #333333;
-            --accent: #3b82f6;
-            --accent-hover: #60a5fa;
-            --shadow: rgba(0, 0, 0, 0.3);
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 60px;
-            padding-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .header-left h1 {
-            font-size: 4rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            line-height: 1;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-
-        .header-left .subtitle {
-            font-size: 0.9rem;
-            color: var(--text-tertiary);
-            font-weight: 400;
-            letter-spacing: 0.02em;
-            margin-top: 4px;
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: var(--bg-secondary);
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-
-        .theme-btn {
-            background: transparent;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-
-        .theme-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .theme-btn:hover:not(.active) {
-            color: var(--text-primary);
-        }
-
-        /* Card */
-        .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 32px;
-            margin-bottom: 24px;
-            transition: all 0.2s ease;
-        }
-
-        .card:hover {
-            box-shadow: 0 4px 12px var(--shadow);
-            transform: translateY(-2px);
-        }
-
-        /* Controls */
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-            margin-bottom: 16px;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        select, input {
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-primary);
-            font-size: 0.95rem;
-            transition: all 0.2s ease;
-            font-family: inherit;
-        }
-
-        select:focus, input:focus {
-            outline: none;
-            border-color: var(--accent);
-            background: var(--bg-secondary);
-        }
-
-        /* Button */
-        .btn {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 12px 32px;
-            border-radius: 6px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            width: 100%;
-            margin-top: auto;
-        }
-
-        .btn:hover {
-            background: var(--accent-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        /* Loading */
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 60px 32px;
-        }
-
-        .loading.active {
-            display: block;
-        }
-
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 24px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading h2 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-
-        .loading p {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-
-        /* Results */
-        .results {
-            display: none;
-        }
-
-        .results.active {
-            display: block;
-        }
-
-        .bar-section {
-            margin-bottom: 40px;
-        }
-
-        .bar-header {
-            margin-bottom: 32px;
-        }
-
-        .bar-header h2 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            letter-spacing: -0.01em;
-            color: var(--text-primary);
-        }
-
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-
-        .stat-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 24px;
-            transition: all 0.2s ease;
-        }
-
-        .stat-card:hover {
-            border-color: var(--accent);
-        }
-
-        .stat-card .label {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 8px;
-        }
-
-        .stat-card .value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Section Title */
-        .section-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin: 40px 0 20px 0;
-            color: var(--text-primary);
-            letter-spacing: -0.01em;
-        }
-
-        /* ABC Matrix */
-        .abc-matrix {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 16px;
-            margin-bottom: 40px;
-        }
-
-        .abc-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .abc-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px var(--shadow);
-            border-color: var(--accent);
-        }
-
-        .abc-card.aaa {
-            background: var(--success);
-            border-color: var(--success);
-            color: white;
-        }
-
-        .abc-card.ccc {
-            background: var(--danger);
-            border-color: var(--danger);
-            color: white;
-        }
-
-        .abc-card .category {
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin-bottom: 4px;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .abc-card .count {
-            font-size: 1.75rem;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Table */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            font-size: 0.9rem;
-        }
-
-        thead {
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        th {
-            text-align: left;
-            padding: 12px 16px;
-            font-weight: 600;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        td {
-            padding: 16px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-primary);
-        }
-
-        .beer-row {
-            cursor: pointer;
-            transition: background 0.15s ease;
-        }
-
-        .beer-row:hover {
-            background: var(--bg-tertiary);
-        }
-
-        /* Badge */
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .badge.aaa, .badge.aab, .badge.aac { 
-            background: var(--success);
-            color: white;
-        }
-        .badge.aba, .badge.abb, .badge.abc,
-        .badge.aca, .badge.acb, .badge.acc { 
-            background: var(--accent);
-            color: white;
-        }
-        .badge.baa, .badge.bab, .badge.bac,
-        .badge.bba, .badge.bbb, .badge.bbc,
-        .badge.bca, .badge.bcb, .badge.bcc { 
-            background: var(--warning);
-            color: white;
-        }
-        .badge.caa, .badge.cab, .badge.cac,
-        .badge.cba, .badge.cbb, .badge.cbc,
-        .badge.ccc { 
-            background: var(--danger);
-            color: white;
-        }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-            padding: 20px;
-            overflow-y: auto;
-        }
-
-        .modal.active {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            padding-top: 40px;
-        }
-
-        .modal-content {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            padding: 40px;
-            max-width: 1200px;
-            width: 100%;
-            max-height: calc(100vh - 80px);
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 24px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .modal-header h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-
-        .modal-close {
-            background: none;
-            border: none;
-            font-size: 2rem;
-            cursor: pointer;
-            color: var(--text-secondary);
-            line-height: 1;
-            transition: color 0.2s ease;
-            padding: 0;
-            width: 32px;
-            height: 32px;
-        }
-
-        .modal-close:hover {
-            color: var(--text-primary);
-        }
-
-        /* Chart */
-        .chart-container {
-            margin: 20px 0;
-            padding: 24px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-        }
-
-        .chart-icon {
-            cursor: pointer;
-            font-size: 1.2rem;
-            transition: transform 0.2s ease;
-            display: inline-block;
-        }
-
-        .chart-icon:hover {
-            transform: scale(1.2);
-        }
-
-        /* Error */
-        .error {
-            background: var(--danger);
-            color: white;
-            padding: 16px 20px;
-            border-radius: 6px;
-            margin-bottom: 20px;
-            display: none;
-            font-weight: 500;
-        }
-
-        .error.active {
-            display: block;
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: var(--bg-tertiary);
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-tertiary);
-        }
-
-        /* Date Range Display */
-        .date-range-display {
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-top: 16px;
-            font-weight: 500;
-        }
-
-        .date-range-display .dates {
-            color: var(--accent);
-            font-weight: 600;
-        }
-
-        /* Responsive */
-        @media (max-width: 768px) {
-            .controls {
-                grid-template-columns: 1fr;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 20px;
-            }
-
-            .header-left h1 {
-                font-size: 2.5rem;
-            }
-
-            .header-left .subtitle {
-                font-size: 0.8rem;
-            }
-
-            .header > div:last-child {
-                flex-direction: column;
-                align-items: flex-start;
-                width: 100%;
-            }
-
-            .api-status {
-                width: 100%;
-            }
-        }
-        /* Tooltips */
-        .tooltip-wrapper {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip {
-            visibility: hidden;
-            opacity: 0;
-            position: absolute;
-            z-index: 1000;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-            padding: 12px 16px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 12px var(--shadow);
-            white-space: nowrap;
-            font-size: 0.85rem;
-            font-weight: 500;
-            line-height: 1.4;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-        }
-
-        .tooltip::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: var(--border-color) transparent transparent transparent;
-        }
-
-        .tooltip-wrapper:hover .tooltip {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .tooltip strong {
-            color: var(--accent);
-        }
-
-        .tooltip .emoji {
-            margin-right: 4px;
-        }
-
-        /* API Connection Status Indicator */
-        .api-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .api-status:hover {
-            border-color: var(--accent);
-            transform: translateY(-1px);
-        }
-
-        .api-status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--text-tertiary);
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .api-status.checking .api-status-indicator {
-            background: var(--warning);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .api-status.connected .api-status-indicator {
-            background: var(--success);
-            box-shadow: 0 0 8px var(--success);
-        }
-
-        .api-status.error .api-status-indicator {
-            background: var(--danger);
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.5;
-                transform: scale(0.9);
-            }
-        }
-
-        .api-status-text {
-            color: var(--text-secondary);
-        }
-
-        .api-status.connected .api-status-text {
-            color: var(--success);
-        }
-
-        .api-status.error .api-status-text {
-            color: var(--danger);
-        }
-
-        .api-status.checking .api-status-text {
-            color: var(--warning);
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="header-left">
-                <h1>ABC/XYZ фасовки</h1>
-                <div class="subtitle">Анализ ассортимента по продажам</div>
+        <!-- Header -->
+        <header class="header">
+            <div>
+                <h1 class="header-title">ABC/XYZ Фасовка</h1>
+                <p class="header-subtitle">Анализ ассортимента фасованного пива</p>
             </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
-                <div style="display: flex; gap: 12px;">
-                    <a href="/" style="padding: 8px 20px; background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; color: white; text-decoration: none; font-size: 0.9rem; font-weight: 500;">ABC/XYZ фасовки</a>
-                    <a href="/draft" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Проливы по барам</a>
-                    <a href="/waiters" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Проливы по барменам</a>
-                    <a href="/taps" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Активность кранов</a>
-                    <a href="/stocks" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Остатки и заказы</a>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
-                        <div class="api-status-indicator"></div>
-                        <span class="api-status-text">Проверка подключения...</span>
-                    </div>
-                    <div class="theme-toggle">
-                        <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
-                        <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </header>
 
-        <div class="card">
+        <!-- Navigation -->
+        <nav class="nav">
+            <a href="/" class="nav-item active">Фасовка</a>
+            <a href="/draft" class="nav-item">Разливное</a>
+            <a href="/waiters" class="nav-item">Официанты</a>
+            <a href="/taps" class="nav-item">Краны</a>
+            <a href="/stocks" class="nav-item">Остатки</a>
+        </nav>
+
+        <!-- Controls Card -->
+        <div class="card mb-md">
             <!-- Переключатель режима анализа -->
-            <div style="margin-bottom: 24px;">
-                <label style="margin-bottom: 12px; display: block;">Режим анализа</label>
-                <div class="theme-toggle">
-                    <button class="theme-btn active" id="mode-beers" onclick="setAnalysisMode('beers')">По бутылкам</button>
-                    <button class="theme-btn" id="mode-categories" onclick="setAnalysisMode('categories')">По категориям</button>
+            <div class="form-group mb-md">
+                <label class="form-label">Режим анализа</label>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-secondary active" id="mode-beers" onclick="setAnalysisMode('beers')">По бутылкам</button>
+                    <button class="btn btn-secondary" id="mode-categories" onclick="setAnalysisMode('categories')">По категориям</button>
                 </div>
             </div>
 
-            <div class="controls">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px;">
                 <div class="form-group">
-                    <label for="bar-select">Бар</label>
-                    <select id="bar-select">
+                    <label class="form-label" for="bar-select">Бар</label>
+                    <select class="form-select" id="bar-select">
                         <option value="">Общая</option>
                         {% for bar in bars %}
                         <option value="{{ bar }}">{{ bar }}</option>
@@ -767,8 +52,8 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="period-select">Период</label>
-                    <select id="period-select" onchange="toggleCustomPeriod(); updateDateRangeDisplay();">
+                    <label class="form-label" for="period-select">Период</label>
+                    <select class="form-select" id="period-select" onchange="toggleCustomPeriod(); updateDateRangeDisplay();">
                         <option value="7">Неделя</option>
                         <option value="14">2 недели</option>
                         <option value="30" selected>Месяц</option>
@@ -780,44 +65,47 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" onclick="runAnalysis()">Запустить анализ</button>
+                <div class="form-group" style="align-self: end;">
+                    <button class="btn btn-primary" onclick="runAnalysis()" style="width: 100%;">Запустить анализ</button>
                 </div>
             </div>
 
-            <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
-                <div class="form-group">
-                    <label for="date-from">Дата начала</label>
-                    <input type="date" id="date-from" onchange="updateDateRangeDisplay()">
-                </div>
+            <div id="custom-period-controls" style="display: none; margin-bottom: 16px;">
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label" for="date-from">Дата начала</label>
+                        <input class="form-input" type="date" id="date-from" onchange="updateDateRangeDisplay()">
+                    </div>
 
-                <div class="form-group">
-                    <label for="date-to">Дата окончания</label>
-                    <input type="date" id="date-to" onchange="updateDateRangeDisplay()">
-                </div>
-
-                <div class="form-group">
-                    <label>&nbsp;</label>
+                    <div class="form-group">
+                        <label class="form-label" for="date-to">Дата окончания</label>
+                        <input class="form-input" type="date" id="date-to" onchange="updateDateRangeDisplay()">
+                    </div>
                 </div>
             </div>
 
             <!-- Отображение диапазона дат -->
-            <div class="date-range-display" id="date-range-display" style="display: none;">
-                Период анализа: <span class="dates" id="date-range-text"></span>
+            <div id="date-range-display" style="display: none; padding: 12px; background: var(--bg-secondary); border-radius: var(--radius-sm); margin-top: 16px; color: var(--text-secondary); font-size: 14px;">
+                Период анализа: <span style="font-weight: 500; color: var(--text-primary);" id="date-range-text"></span>
             </div>
         </div>
 
-        <div class="error" id="error-message"></div>
+        <div id="error-message" style="display: none; padding: 16px; background: #fee; border: 1px solid #fcc; border-radius: var(--radius-sm); margin-bottom: 16px; color: #c33;"></div>
 
-        <div class="card loading" id="loading">
-            <div class="spinner"></div>
-            <h2>Анализируем данные...</h2>
-            <p>Это может занять несколько секунд</p>
+        <!-- Loading State -->
+        <div id="loading" style="display: none;">
+            <div class="card text-center" style="padding: 60px;">
+                <div class="loading-spinner" style="margin: 0 auto 24px;"></div>
+                <h3 style="margin-bottom: 8px; color: var(--text-primary);">Анализируем данные...</h3>
+                <p style="color: var(--text-secondary);">Получаем данные из iiko и вычисляем ABC/XYZ коды</p>
+            </div>
         </div>
 
         <div class="results" id="results"></div>
     </div>
+
+    <!-- Microinteractions -->
+    <script src="/static/js/microinteractions.js"></script>
 
     <script>
         let currentData = {};
