@@ -4,6 +4,10 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from core.iiko_api import IikoAPI
+from config import IIKO_API_TIMEOUT, IIKO_OLAP_TIMEOUT
+
+# Московская временная зона
+MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
 class OlapReports:
     """Класс для работы с OLAP отчетами iiko"""
@@ -38,8 +42,7 @@ class OlapReports:
         # Если timestamp не указан, используем текущее время в timezone Europe/Moscow
         if not timestamp:
             # Используем московское время (UTC+3)
-            moscow_tz = ZoneInfo("Europe/Moscow")
-            timestamp = datetime.now(moscow_tz).strftime("%Y-%m-%dT%H:%M:%S")
+            timestamp = datetime.now(MOSCOW_TZ).strftime("%Y-%m-%dT%H:%M:%S")
 
         print(f"\n[BALANCE] Zaprashivayu ostatki na skladakh...")
         print(f"   Timestamp: {timestamp}")
@@ -51,7 +54,7 @@ class OlapReports:
         }
 
         try:
-            response = requests.get(url, params=params, timeout=60)
+            response = requests.get(url, params=params, timeout=IIKO_OLAP_TIMEOUT)
 
             if response.status_code == 200:
                 print("[OK] Ostatki uspeshno polucheny!")
@@ -83,7 +86,7 @@ class OlapReports:
         params = {"key": self.token}
 
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, timeout=IIKO_API_TIMEOUT)
 
             if response.status_code == 200:
                 print("[OK] Nomenklatura uspeshno poluchena!")
@@ -179,7 +182,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=IIKO_OLAP_TIMEOUT
             )
 
             if response.status_code == 200:
@@ -225,7 +229,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=IIKO_OLAP_TIMEOUT
             )
 
             if response.status_code == 200:
@@ -271,7 +276,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=IIKO_OLAP_TIMEOUT
             )
 
             if response.status_code == 200:
@@ -318,7 +324,7 @@ class OlapReports:
         #     params["stores"] = bar_id
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=IIKO_API_TIMEOUT)
 
             if response.status_code == 200:
                 print("[OK] Otchet po skladskim operaciyam uspeshno poluchen!")
@@ -378,7 +384,7 @@ class OlapReports:
         }
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=IIKO_API_TIMEOUT)
 
             if response.status_code == 200:
                 print("[OK] Otchet po raskhodu produktov uspeshno poluchen!")
@@ -524,8 +530,7 @@ if __name__ == "__main__":
         exit()
     
     # Запрашиваем отчет за последние 30 дней (московское время)
-    moscow_tz = ZoneInfo("Europe/Moscow")
-    now_moscow = datetime.now(moscow_tz)
+    now_moscow = datetime.now(MOSCOW_TZ)
     date_to = now_moscow.strftime("%Y-%m-%d")
     date_from = (now_moscow - timedelta(days=30)).strftime("%Y-%m-%d")
     
