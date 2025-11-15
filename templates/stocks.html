@@ -824,6 +824,7 @@
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab active" onclick="switchTab('taplist')">Таплист</button>
+            <button class="tab" onclick="switchTab('bottles')">Фасовка</button>
             <button class="tab" onclick="switchTab('kitchen')">Меню кухни</button>
             <button class="tab" onclick="switchTab('order')">Формирование заказа</button>
         </div>
@@ -850,6 +851,20 @@
                     </thead>
                     <tbody id="taplist-tbody"></tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Bottles Tab -->
+        <div id="bottles-tab" class="tab-content">
+            <div class="card loading" id="loading-bottles">
+                <div class="spinner"></div>
+                <h2>Загружаем данные...</h2>
+            </div>
+
+            <div class="card" id="bottles-content" style="display: none;">
+                <h2>Фасовка и остатки</h2>
+                <div class="stats-grid" id="bottles-stats"></div>
+                <div id="bottles-groups"></div>
             </div>
         </div>
 
@@ -945,6 +960,9 @@
             // Load taplist
             await loadTaplist(bar);
 
+            // Load bottles
+            await loadBottles(bar);
+
             // Load kitchen menu
             await loadKitchenMenu(bar);
         }
@@ -1016,6 +1034,100 @@
         }
 
         // Load kitchen menu
+        async function loadBottles(bar) {
+            const loading = document.getElementById('loading-bottles');
+            const content = document.getElementById('bottles-content');
+
+            loading.classList.add('active');
+            content.style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/stocks/bottles?bar=${encodeURIComponent(bar)}`);
+                if (!response.ok) throw new Error('Ошибка загрузки данных');
+
+                const data = await response.json();
+
+                // Update stats
+                const statsHtml = `
+                    <div class="stat-card">
+                        <div class="label">Позиций фасовки</div>
+                        <div class="value">${data.total_items || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Требуют пополнения</div>
+                        <div class="value">${data.low_stock_count || 0}</div>
+                    </div>
+                `;
+                document.getElementById('bottles-stats').innerHTML = statsHtml;
+
+                // Group items by supplier
+                const groupedItems = {};
+                (data.items || []).forEach(item => {
+                    const supplier = item.category || 'Без поставщика';
+                    if (!groupedItems[supplier]) {
+                        groupedItems[supplier] = [];
+                    }
+                    groupedItems[supplier].push(item);
+                });
+
+                // Render groups
+                const container = document.getElementById('bottles-groups');
+                container.innerHTML = '';
+
+                Object.keys(groupedItems).sort().forEach(supplier => {
+                    const group = document.createElement('div');
+                    group.className = 'supplier-group';
+
+                    const items = groupedItems[supplier];
+
+                    let tableRows = '';
+                    items.forEach(item => {
+                        const escapedName = escapeHtml(item.name);
+                        tableRows += `
+                            <tr>
+                                <td>${escapedName}</td>
+                                <td>${item.stock || 0}</td>
+                                <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                                <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
+                                <td>
+                                    <input type="number" min="0" value="0"
+                                        onchange="addToOrder('bottles', \`${escapedName}\`, this.value)"
+                                        style="width: 80px;">
+                                </td>
+                            </tr>
+                        `;
+                    });
+
+                    const escapedSupplier = escapeHtml(supplier);
+
+                    group.innerHTML = `
+                        <div class="supplier-header">${escapedSupplier}</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Остаток (шт)</th>
+                                    <th>Средние продажи (шт/день)</th>
+                                    <th>Статус</th>
+                                    <th>Для заказа</th>
+                                </tr>
+                            </thead>
+                            <tbody>${tableRows}</tbody>
+                        </table>
+                    `;
+
+                    container.appendChild(group);
+                });
+
+                content.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading bottles:', error);
+                alert('Ошибка загрузки фасовки: ' + error.message);
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
         async function loadKitchenMenu(bar) {
             const loading = document.getElementById('loading-kitchen');
             const content = document.getElementById('kitchen-content');

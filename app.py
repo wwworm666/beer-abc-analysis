@@ -1560,6 +1560,135 @@ def get_kitchen_stocks():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/stocks/bottles', methods=['GET'])
+def get_bottles_stocks():
+    """API endpoint для получения фасованного пива с остатками"""
+    try:
+        bar = request.args.get('bar', '')
+
+        if not bar:
+            return jsonify({'error': 'Требуется параметр bar'}), 400
+
+        # Подключаемся к iiko API
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        # Получаем складские операции за последние 30 дней
+        date_to_obj = datetime.now()
+        date_from_obj = datetime.now() - timedelta(days=30)
+        date_to = date_to_obj.strftime("%d.%m.%Y")
+        date_from = date_from_obj.strftime("%d.%m.%Y")
+
+        # Получаем номенклатуру товаров
+        nomenclature = olap.get_nomenclature()
+
+        if not nomenclature:
+            olap.disconnect()
+            return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
+
+        # Получаем отчет по складским операциям
+        bar_name = bar if bar != 'Общая' else None
+        store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
+
+        if not store_data:
+            olap.disconnect()
+            return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
+
+        # Обрабатываем данные о фасовке
+        products_dict = {}
+
+        for record in store_data:
+            product_id = record.get('product')
+            if not product_id:
+                continue
+
+            # Получаем информацию о товаре из номенклатуры
+            product_info = nomenclature.get(product_id)
+            if not product_info:
+                continue
+
+            # Фильтруем только товары из группы "фасовка"
+            group = (product_info.get('group', '') or '').lower()
+            category = (product_info.get('category', '') or '').lower()
+
+            # Проверяем группу или категорию на наличие "фасовка"
+            if 'фасовка' not in group and 'фасовка' not in category:
+                continue
+
+            product_name = product_info.get('name', product_id)
+            supplier = product_info.get('category', 'Без поставщика')
+
+            if product_id not in products_dict:
+                products_dict[product_id] = {
+                    'id': product_id,
+                    'name': product_name,
+                    'category': supplier,
+                    'incoming': 0,
+                    'outgoing': 0,
+                    'operations_count': 0
+                }
+
+            # Учитываем приход и расход
+            amount = float(record.get('amount', 0) or 0)
+            is_incoming = record.get('incoming', 'false') == 'true'
+
+            products_dict[product_id]['operations_count'] += 1
+
+            if is_incoming:
+                products_dict[product_id]['incoming'] += amount
+            else:
+                products_dict[product_id]['outgoing'] += abs(amount)
+
+        # Формируем список товаров с остатками
+        items = []
+        for product_id, product_data in products_dict.items():
+            # Рассчитываем текущий остаток
+            current_stock = product_data['incoming'] - product_data['outgoing']
+
+            # Рассчитываем средний расход в день
+            days_in_period = 30
+            avg_consumption = product_data['outgoing'] / days_in_period if days_in_period > 0 else 0
+
+            # Определяем уровень остатков (сколько дней хватит)
+            if avg_consumption > 0:
+                days_left = current_stock / avg_consumption
+                if days_left < 3:
+                    stock_level = 'low'
+                elif days_left < 7:
+                    stock_level = 'medium'
+                else:
+                    stock_level = 'high'
+            else:
+                stock_level = 'high'
+
+            items.append({
+                'category': product_data['category'],
+                'name': product_data['name'],
+                'stock': round(current_stock, 1),
+                'avg_sales': round(avg_consumption, 2),
+                'stock_level': stock_level
+            })
+
+        olap.disconnect()
+
+        # Сортируем по категориям и названиям
+        items.sort(key=lambda x: (x['category'], x['name']))
+
+        low_stock_count = len([item for item in items if item['stock_level'] == 'low'])
+
+        return jsonify({
+            'total_items': len(items),
+            'low_stock_count': low_stock_count,
+            'items': items
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/stocks/bottles: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("BEER ABC/XYZ ANALYSIS")
