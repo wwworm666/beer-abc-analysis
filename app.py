@@ -1208,8 +1208,9 @@ def get_taplist_stocks():
     try:
         bar = request.args.get('bar', '')
 
+        # Если bar не указан или пустой, используем первый бар по умолчанию
         if not bar:
-            return jsonify({'error': 'Требуется параметр bar'}), 400
+            bar = 'Большой пр. В.О'
 
         # Получаем список активных кег из taps_manager
         bar_id_map = {
@@ -1451,8 +1452,9 @@ def get_kitchen_stocks():
     try:
         bar = request.args.get('bar', '')
 
+        # Если bar не указан или пустой, используем первый бар по умолчанию
         if not bar:
-            return jsonify({'error': 'Требуется параметр bar'}), 400
+            bar = 'Большой пр. В.О'
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -1597,8 +1599,9 @@ def get_bottles_stocks():
     try:
         bar = request.args.get('bar', '')
 
+        # Если bar не указан или пустой, используем первый бар по умолчанию
         if not bar:
-            return jsonify({'error': 'Требуется параметр bar'}), 400
+            bar = 'Большой пр. В.О'
 
         # Подключаемся к iiko API
         olap = OlapReports()
