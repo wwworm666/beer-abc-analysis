@@ -38,9 +38,12 @@ python app.py
 | Документ | Описание |
 |----------|----------|
 | [README.md](README.md) | ← ВЫ ЗДЕСЬ: Обзор и быстрый старт |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Подробное описание каждого модуля |
-| [PROJECT_ANALYSIS_FULL.md](PROJECT_ANALYSIS_FULL.md) | Технический аудит и найденные проблемы |
-| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Деплой на Render |
+| [docs/PROJECT_ANALYSIS_FULL.md](docs/PROJECT_ANALYSIS_FULL.md) | Технический аудит и найденные проблемы |
+| [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) | Деплой на Render |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Решение проблем и FAQ |
+| [docs/TAPS_MANAGEMENT.md](docs/TAPS_MANAGEMENT.md) | Управление пивными кранами |
+| [docs/MAPPING_SYSTEM_GUIDE.md](docs/MAPPING_SYSTEM_GUIDE.md) | Система маппинга кег |
+| [docs/ru/](docs/ru/) | Документация iiko API (PDF) |
 
 ---
 
@@ -621,7 +624,7 @@ GET /api/stocks/kitchen?bar=<name>
 ...
 ```
 
-**Полный список:** см. [ARCHITECTURE.md](ARCHITECTURE.md)
+**Полный список:** см. [PROJECT_ANALYSIS_FULL.md](docs/PROJECT_ANALYSIS_FULL.md) (26 API endpoints)
 
 ---
 
@@ -662,7 +665,7 @@ IIKO_OLAP_TIMEOUT = 60
 5. Создать Persist Disk `/kultura` для taps_data.json
 6. Добавить Environment Variables (IIKO_LOGIN, IIKO_PASSWORD)
 
-**Подробнее:** [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+**Подробнее:** [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
 
 ---
 
@@ -708,8 +711,11 @@ IIKO_OLAP_TIMEOUT = 60
 **Issue на GitHub:** [github.com/wwworm666/beer-abc-analysis/issues](https://github.com/wwworm666/beer-abc-analysis/issues)
 
 **Полная документация:**
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Подробное описание модулей
-- [PROJECT_ANALYSIS_FULL.md](PROJECT_ANALYSIS_FULL.md) - Технический аудит
+- [docs/PROJECT_ANALYSIS_FULL.md](docs/PROJECT_ANALYSIS_FULL.md) - Технический аудит проекта
+- [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) - Деплой на Render
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Решение проблем
+- [docs/TAPS_MANAGEMENT.md](docs/TAPS_MANAGEMENT.md) - Управление кранами
+- [docs/](docs/) - Вся документация
 
 ---
 
