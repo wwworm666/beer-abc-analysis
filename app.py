@@ -2,13 +2,8 @@ from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import json
 import os
-import logging
 from datetime import datetime, timedelta
-from functools import lru_cache
-from urllib.parse import quote
-
-# Core imports
-from core.olap_reports import OlapReports, MOSCOW_TZ
+from core.olap_reports import OlapReports
 from core.data_processor import BeerDataProcessor
 from core.abc_analysis import ABCAnalysis
 from core.xyz_analysis import XYZAnalysis
@@ -17,57 +12,7 @@ from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
 from core.taps_manager import TapsManager
 
-# Validators and helpers
-from core.validators import (
-    validate_days, validate_bar, validate_tap_number,
-    validate_required_fields, get_moscow_time, format_date_for_iiko
-)
-from core.abc_helpers import apply_abc_analysis, get_abc_stats, calculate_revenue_percent
-
-# Config
-from config import (
-    BARS, STORE_ID_MAP, FASOVKA_GROUP_ID,
-    NOMENCLATURE_CACHE_MINUTES, BAR_NAME_TO_ID
-)
-
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logger = logging.getLogger(__name__)
-
 app = Flask(__name__)
-
-# =============================================================================
-# ГЛОБАЛЬНЫЕ ERROR HANDLERS
-# =============================================================================
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    """Глобальный обработчик всех исключений"""
-    logger.error(f"Unhandled exception: {e}", exc_info=True)
-    return jsonify({
-        'error': 'Internal server error',
-        'message': str(e) if app.debug else 'Что-то пошло не так. Попробуйте позже.'
-    }), 500
-
-@app.errorhandler(404)
-def not_found(e):
-    """Обработчик 404 ошибок"""
-    return jsonify({
-        'error': 'Not found',
-        'message': 'Запрошенный ресурс не найден'
-    }), 404
-
-@app.errorhandler(400)
-def bad_request(e):
-    """Обработчик 400 ошибок"""
-    return jsonify({
-        'error': 'Bad request',
-        'message': str(e.description) if hasattr(e, 'description') else 'Неверный запрос'
-    }), 400
 
 # Инициализируем менеджер кранов
 # Если на Render (есть диск /kultura), используем его для постоянного хранения
@@ -81,45 +26,13 @@ else:
 
 taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
 
-# =============================================================================
-# КЕШИРОВАНИЕ НОМЕНКЛАТУРЫ
-# =============================================================================
-
-@lru_cache(maxsize=1)
-def get_cached_nomenclature(cache_key):
-    """
-    Кешированная номенклатура iiko
-
-    Args:
-        cache_key: ключ кеша (например, текущий час)
-
-    Returns:
-        dict с номенклатурой
-    """
-    logger.info(f"Получение номенклатуры (cache_key={cache_key})")
-    olap = OlapReports()
-    if not olap.connect():
-        logger.error("Не удалось подключиться к iiko API")
-        return None
-
-    nomenclature = olap.get_nomenclature()
-    olap.disconnect()
-
-    logger.info(f"Номенклатура получена: {len(nomenclature) if nomenclature else 0} товаров")
-    return nomenclature
-
-
-def get_nomenclature_cached():
-    """
-    Получить кешированную номенклатуру
-    Кеш обновляется каждые NOMENCLATURE_CACHE_MINUTES минут
-    """
-    # Создаем ключ кеша на основе текущего времени (округляем до N минут)
-    now = get_moscow_time()
-    cache_minutes = now.hour * 60 + (now.minute // NOMENCLATURE_CACHE_MINUTES) * NOMENCLATURE_CACHE_MINUTES
-    cache_key = f"{now.year}-{now.month}-{now.day}-{cache_minutes}"
-
-    return get_cached_nomenclature(cache_key)
+# Список баров
+BARS = [
+    "Большой пр. В.О",
+    "Лиговский",
+    "Кременчугская",
+    "Варшавская"
+]
 
 @app.route('/')
 def index():
@@ -199,30 +112,21 @@ def analyze():
     """API endpoint для запуска анализа"""
     try:
         data = request.json
-
-        # Валидация входных данных
-        is_valid_days, days_or_error = validate_days(data.get('days', 30))
-        if not is_valid_days:
-            return jsonify({'error': days_or_error}), 400
-
-        is_valid_bar, bar_name = validate_bar(data.get('bar'), allow_empty=True)
-        if not is_valid_bar:
-            return jsonify({'error': bar_name}), 400
-
-        days = days_or_error  # Валидированное значение
-
-        logger.info(f"Запуск анализа: bar={bar_name or 'ВСЕ'}, days={days}")
-
+        bar_name = data.get('bar')
+        days = int(data.get('days', 30))
+        
+        print(f"\n[ANALIZ] Zapusk analiza...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {days} dney")
+        
         # Подключаемся к iiko API
         olap = OlapReports()
         if not olap.connect():
-            logger.error("Не удалось подключиться к iiko API")
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        # Запрашиваем данные (используем московское время)
-        now = get_moscow_time()
-        date_to = format_date_for_iiko(now)
-        date_from = format_date_for_iiko(now - timedelta(days=days))
+        
+        # Запрашиваем данные
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         
         report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
         olap.disconnect()
