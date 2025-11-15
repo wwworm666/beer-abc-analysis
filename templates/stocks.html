@@ -260,11 +260,33 @@
                     fetch(`/api/stocks/kitchen?${params}`)
                 ]);
 
+                // Check HTTP status
+                if (!draftRes.ok && draftRes.status !== 404) {
+                    throw new Error(`Ошибка загрузки разливного: ${draftRes.status}`);
+                }
+                if (!bottlesRes.ok && bottlesRes.status !== 404) {
+                    throw new Error(`Ошибка загрузки фасовки: ${bottlesRes.status}`);
+                }
+                if (!kitchenRes.ok && kitchenRes.status !== 404) {
+                    throw new Error(`Ошибка загрузки кухни: ${kitchenRes.status}`);
+                }
+
                 const draftData = await draftRes.json();
                 const bottlesData = await bottlesRes.json();
                 const kitchenData = await kitchenRes.json();
 
                 document.getElementById('loading-container').style.display = 'none';
+
+                // Check for errors
+                if (draftData.error) {
+                    BeerPlatform.showToast('Ошибка загрузки разливного: ' + draftData.error, 'error');
+                }
+                if (bottlesData.error) {
+                    BeerPlatform.showToast('Ошибка загрузки фасовки: ' + bottlesData.error, 'error');
+                }
+                if (kitchenData.error) {
+                    BeerPlatform.showToast('Ошибка загрузки кухни: ' + kitchenData.error, 'error');
+                }
 
                 // Display data
                 displayDraftStocks(draftData);
