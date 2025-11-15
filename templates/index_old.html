@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beer ABC/XYZ Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            /* Light Theme */
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #e0e0e0;
+            --accent: #0066cc;
+            --accent-hover: #0052a3;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            --border-color: #333333;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            line-height: 1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .header-left .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .theme-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .theme-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .theme-btn:hover:not(.active) {
+            color: var(--text-primary);
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 32px;
+            margin-bottom: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        /* Controls */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input {
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        /* Button */
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 60px 32px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .loading p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Results */
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        .bar-section {
+            margin-bottom: 40px;
+        }
+
+        .bar-header {
+            margin-bottom: 32px;
+        }
+
+        .bar-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            color: var(--text-primary);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--accent);
+        }
+
+        .stat-card .label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Section Title */
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 40px 0 20px 0;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        /* ABC Matrix */
+        .abc-matrix {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .abc-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .abc-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+            border-color: var(--accent);
+        }
+
+        .abc-card.aaa {
+            background: var(--success);
+            border-color: var(--success);
+            color: white;
+        }
+
+        .abc-card.ccc {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        .abc-card .category {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .abc-card .count {
+            font-size: 1.75rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+
+        thead {
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .beer-row {
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .beer-row:hover {
+            background: var(--bg-tertiary);
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge.aaa, .badge.aab, .badge.aac { 
+            background: var(--success);
+            color: white;
+        }
+        .badge.aba, .badge.abb, .badge.abc,
+        .badge.aca, .badge.acb, .badge.acc { 
+            background: var(--accent);
+            color: white;
+        }
+        .badge.baa, .badge.bab, .badge.bac,
+        .badge.bba, .badge.bbb, .badge.bbc,
+        .badge.bca, .badge.bcb, .badge.bcc { 
+            background: var(--warning);
+            color: white;
+        }
+        .badge.caa, .badge.cab, .badge.cac,
+        .badge.cba, .badge.cbb, .badge.cbc,
+        .badge.ccc { 
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 40px;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 40px;
+            max-width: 1200px;
+            width: 100%;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            line-height: 1;
+            transition: color 0.2s ease;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        /* Chart */
+        .chart-container {
+            margin: 20px 0;
+            padding: 24px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+
+        .chart-icon {
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+
+        .chart-icon:hover {
+            transform: scale(1.2);
+        }
+
+        /* Error */
+        .error {
+            background: var(--danger);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-tertiary);
+        }
+
+        /* Date Range Display */
+        .date-range-display {
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-top: 16px;
+            font-weight: 500;
+        }
+
+        .date-range-display .dates {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 20px;
+            }
+
+            .header-left h1 {
+                font-size: 2.5rem;
+            }
+
+            .header-left .subtitle {
+                font-size: 0.8rem;
+            }
+
+            .header > div:last-child {
+                flex-direction: column;
+                align-items: flex-start;
+                width: 100%;
+            }
+
+            .api-status {
+                width: 100%;
+            }
+        }
+        /* Tooltips */
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            z-index: 1000;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px var(--shadow);
+            white-space: nowrap;
+            font-size: 0.85rem;
+            font-weight: 500;
+            line-height: 1.4;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: var(--border-color) transparent transparent transparent;
+        }
+
+        .tooltip-wrapper:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .tooltip strong {
+            color: var(--accent);
+        }
+
+        .tooltip .emoji {
+            margin-right: 4px;
+        }
+
+        /* API Connection Status Indicator */
+        .api-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .api-status:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .api-status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .api-status.checking .api-status-indicator {
+            background: var(--warning);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .api-status.connected .api-status-indicator {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .api-status.error .api-status-indicator {
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(0.9);
+            }
+        }
+
+        .api-status-text {
+            color: var(--text-secondary);
+        }
+
+        .api-status.connected .api-status-text {
+            color: var(--success);
+        }
+
+        .api-status.error .api-status-text {
+            color: var(--danger);
+        }
+
+        .api-status.checking .api-status-text {
+            color: var(--warning);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>ABC/XYZ фасовки</h1>
+                <div class="subtitle">Анализ ассортимента по продажам</div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+                <div style="display: flex; gap: 12px;">
+                    <a href="/" style="padding: 8px 20px; background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; color: white; text-decoration: none; font-size: 0.9rem; font-weight: 500;">ABC/XYZ фасовки</a>
+                    <a href="/draft" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Проливы по барам</a>
+                    <a href="/waiters" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Проливы по барменам</a>
+                    <a href="/taps" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Активность кранов</a>
+                    <a href="/stocks" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Остатки и заказы</a>
+                </div>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
+                        <div class="api-status-indicator"></div>
+                        <span class="api-status-text">Проверка подключения...</span>
+                    </div>
+                    <div class="theme-toggle">
+                        <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
+                        <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <!-- Переключатель режима анализа -->
+            <div style="margin-bottom: 24px;">
+                <label style="margin-bottom: 12px; display: block;">Режим анализа</label>
+                <div class="theme-toggle">
+                    <button class="theme-btn active" id="mode-beers" onclick="setAnalysisMode('beers')">По бутылкам</button>
+                    <button class="theme-btn" id="mode-categories" onclick="setAnalysisMode('categories')">По категориям</button>
+                </div>
+            </div>
+
+            <div class="controls">
+                <div class="form-group">
+                    <label for="bar-select">Бар</label>
+                    <select id="bar-select">
+                        <option value="">Общая</option>
+                        {% for bar in bars %}
+                        <option value="{{ bar }}">{{ bar }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="period-select">Период</label>
+                    <select id="period-select" onchange="toggleCustomPeriod(); updateDateRangeDisplay();">
+                        <option value="7">Неделя</option>
+                        <option value="14">2 недели</option>
+                        <option value="30" selected>Месяц</option>
+                        <option value="60">2 месяца</option>
+                        <option value="90">Квартал</option>
+                        <option value="180">Полгода</option>
+                        <option value="365">Год</option>
+                        <option value="custom">Свой период</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="runAnalysis()">Запустить анализ</button>
+                </div>
+            </div>
+
+            <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
+                <div class="form-group">
+                    <label for="date-from">Дата начала</label>
+                    <input type="date" id="date-from" onchange="updateDateRangeDisplay()">
+                </div>
+
+                <div class="form-group">
+                    <label for="date-to">Дата окончания</label>
+                    <input type="date" id="date-to" onchange="updateDateRangeDisplay()">
+                </div>
+
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                </div>
+            </div>
+
+            <!-- Отображение диапазона дат -->
+            <div class="date-range-display" id="date-range-display" style="display: none;">
+                Период анализа: <span class="dates" id="date-range-text"></span>
+            </div>
+        </div>
+
+        <div class="error" id="error-message"></div>
+
+        <div class="card loading" id="loading">
+            <div class="spinner"></div>
+            <h2>Анализируем данные...</h2>
+            <p>Это может занять несколько секунд</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let currentData = {};
+        let activeCharts = {};
+        let analysisMode = 'beers'; // 'beers' или 'categories'
+
+        // API Connection Status Check
+        async function checkApiConnection() {
+            const statusElement = document.getElementById('api-status');
+            const textElement = statusElement.querySelector('.api-status-text');
+
+            statusElement.className = 'api-status checking';
+            textElement.textContent = 'Проверка подключения...';
+
+            try {
+                const response = await fetch('/api/connection-status');
+                const data = await response.json();
+
+                if (response.ok && data.status === 'connected') {
+                    statusElement.className = 'api-status connected';
+                    textElement.textContent = 'iiko API подключен';
+                } else {
+                    statusElement.className = 'api-status error';
+                    textElement.textContent = 'Ошибка подключения';
+                    console.error('API connection error:', data.message);
+                }
+            } catch (error) {
+                statusElement.className = 'api-status error';
+                textElement.textContent = 'Ошибка подключения';
+                console.error('API connection error:', error);
+            }
+        }
+
+        // Check connection on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiConnection();
+            // Recheck connection every 60 seconds
+            setInterval(checkApiConnection, 60000);
+            // Показываем диапазон дат при загрузке страницы
+            updateDateRangeDisplay();
+        });
+
+        // Analysis mode management
+        function setAnalysisMode(mode) {
+            analysisMode = mode;
+
+            document.querySelectorAll('#mode-beers, #mode-categories').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            if (mode === 'beers') {
+                document.getElementById('mode-beers').classList.add('active');
+            } else {
+                document.getElementById('mode-categories').classList.add('active');
+            }
+        }
+
+        // Theme management
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            if ((savedTheme === 'light' && btn.textContent === 'Светлая') ||
+                (savedTheme === 'dark' && btn.textContent === 'Тёмная')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        function toggleCustomPeriod() {
+            const periodSelect = document.getElementById('period-select').value;
+            const customControls = document.getElementById('custom-period-controls');
+
+            if (periodSelect === 'custom') {
+                customControls.style.display = 'grid';
+                // Устанавливаем значения по умолчанию
+                const today = new Date();
+                const monthAgo = new Date(today);
+                monthAgo.setDate(today.getDate() - 30);
+
+                document.getElementById('date-to').valueAsDate = today;
+                document.getElementById('date-from').valueAsDate = monthAgo;
+            } else {
+                customControls.style.display = 'none';
+            }
+            // Обновляем отображение диапазона дат
+            updateDateRangeDisplay();
+        }
+
+        function formatDate(date) {
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}.${month}.${year}`;
+        }
+
+        function updateDateRangeDisplay() {
+            const periodSelect = document.getElementById('period-select').value;
+            const dateRangeDisplay = document.getElementById('date-range-display');
+            const dateRangeText = document.getElementById('date-range-text');
+
+            let startDate, endDate;
+            const today = new Date();
+
+            if (periodSelect === 'custom') {
+                const dateFromInput = document.getElementById('date-from').value;
+                const dateToInput = document.getElementById('date-to').value;
+
+                if (dateFromInput && dateToInput) {
+                    startDate = new Date(dateFromInput);
+                    endDate = new Date(dateToInput);
+                } else {
+                    dateRangeDisplay.style.display = 'none';
+                    return;
+                }
+            } else {
+                const days = parseInt(periodSelect);
+                endDate = new Date(today);
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - days);
+            }
+
+            dateRangeText.textContent = `${formatDate(startDate)} — ${formatDate(endDate)}`;
+            dateRangeDisplay.style.display = 'block';
+        }
+
+        async function runAnalysis() {
+            const bar = document.getElementById('bar-select').value;
+            const periodSelect = document.getElementById('period-select').value;
+
+            let days;
+            let dateFrom, dateTo;
+
+            if (periodSelect === 'custom') {
+                // Используем выбранные даты
+                const dateFromInput = document.getElementById('date-from').value;
+                const dateToInput = document.getElementById('date-to').value;
+
+                if (!dateFromInput || !dateToInput) {
+                    showError('Пожалуйста, выберите обе даты');
+                    return;
+                }
+
+                dateFrom = dateFromInput;
+                dateTo = dateToInput;
+
+                // Вычисляем количество дней для API
+                const from = new Date(dateFromInput);
+                const to = new Date(dateToInput);
+                days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
+            } else {
+                days = periodSelect;
+            }
+
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('error-message').classList.remove('active');
+
+            try {
+                // Выбираем endpoint в зависимости от режима
+                const endpoint = analysisMode === 'categories' ? '/api/categories' : '/api/analyze';
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ bar, days })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка при получении данных');
+                }
+
+                const data = await response.json();
+                currentData = data;
+
+                // Отображаем результаты в зависимости от режима
+                if (analysisMode === 'categories') {
+                    displayCategoryResults(data);
+                } else {
+                    displayResults(data);
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Ошибка: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            for (const [barName, barData] of Object.entries(data)) {
+                const section = createBarSection(barName, barData);
+                resultsDiv.appendChild(section);
+            }
+
+            resultsDiv.classList.add('active');
+        }
+
+        function createBarSection(barName, data) {
+            const section = document.createElement('div');
+            section.className = 'bar-section';
+            
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const header = `
+                <div class="bar-header">
+                    <h2>${barName}</h2>
+                </div>
+            `;
+
+            const stats = `
+                <div class="stats-grid">
+                    <div class="stat-card" onclick="showAllBeersList('${barName}', 'revenue')" style="cursor: pointer;" title="Нажмите для просмотра списка">
+                        <div class="label">Выручка</div>
+                        <div class="value">${formatMoney(data.total_revenue)}</div>
+                    </div>
+                    <div class="stat-card" onclick="showAllBeersList('${barName}', 'quantity')" style="cursor: pointer;" title="Нажмите для просмотра списка">
+                        <div class="label">Бутылок</div>
+                        <div class="value">${formatNumber(data.total_qty)}</div>
+                    </div>
+                    <div class="stat-card" onclick="showAllBeersList('${barName}', 'sku')" style="cursor: pointer;" title="Нажмите для просмотра списка">
+                        <div class="label">SKU</div>
+                        <div class="value">${data.total_beers}</div>
+                    </div>
+                </div>
+            `;
+
+           const abcCards = Object.entries(data.abc_stats || data.stats || {})
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 12)
+                .map(([category, count]) => `
+                    <div class="abc-card ${category.toLowerCase()}" onclick="showCategoryDetails('${barName}', '${category}')">
+                        ${wrapWithTooltip(`<div class="category">${category}</div>`, category)}
+                        <div class="count">${count}</div>
+                    </div>
+                `).join('');
+
+            const matrix = `
+                <h3 class="section-title">ABC категории</h3>
+                <div class="abc-matrix">
+                    ${abcCards}
+                </div>
+            `;
+
+            let xyzSection = '';
+            if (data.xyz_stats && Object.keys(data.xyz_stats).length > 0) {
+             const xyzCards = Object.entries(data.xyz_stats)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([category, count]) => {
+                        let bgClass = '';
+                        if (category === 'X') bgClass = 'aaa';
+                        else if (category === 'Y') bgClass = 'bbb';
+                        else if (category === 'Z') bgClass = 'ccc';
+                        
+                        return `
+                            <div class="abc-card ${bgClass}" onclick="showXYZDetails('${barName}', '${category}')">
+                                ${wrapWithTooltip(`<div class="category">${category}</div>`, category)}
+                                <div class="count">${count}</div>
+                            </div>
+                        `;
+                    }).join('');
+
+                xyzSection = `
+                    <h3 class="section-title">XYZ категории (стабильность)</h3>
+                    <div class="abc-matrix">
+                        ${xyzCards}
+                    </div>
+                `;
+            }
+
+           // Проверяем, есть ли колонка Bar в данных (для режима "Все бары")
+            const hasBarColumn = data.top_beers && data.top_beers[0] && data.top_beers[0].Bar;
+
+           const topTable = `
+                <h3 class="section-title">Топ-10 по выручке</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            ${hasBarColumn ? '<th>Бар</th>' : ''}
+                            <th>Пиво</th>
+                            <th>Выручка</th>
+                            <th>ABC</th>
+                            ${data.top_beers && data.top_beers[0] && data.top_beers[0].XYZ_Category ? '<th>XYZ</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${(data.top_beers || []).map((beer, i) => `
+                            <tr class="beer-row">
+                                <td>${i + 1}</td>
+                                ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
+                                <td>${beer.Beer}</td>
+                                <td>${formatMoney(beer.TotalRevenue)}</td>
+                                <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                ${beer.XYZ_Category ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            card.innerHTML = header + stats + matrix + xyzSection + topTable;
+            section.appendChild(card);
+            return section;
+        }
+
+        function getXYZBadgeClass(xyz) {
+            if (xyz === 'X') return 'aaa';
+            if (xyz === 'Y') return 'bbb';
+            return 'ccc';
+        }
+
+        function showCategoryDetails(barName, category) {
+            const barData = currentData[barName];
+            if (!barData) return;
+
+            const beers = barData.records.filter(record => record.ABC_Combined === category);
+            const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <h2>Категория ${category} — ${barName}</h2>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <p style="margin-bottom: 20px; color: var(--text-secondary);">Всего: ${beers.length} фасовок</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
+                                    <th>Пиво</th>
+                                    <th>Стиль</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>Наценка %</th>
+                                    ${hasXYZ ? '<th>XYZ</th>' : ''}
+                                    ${hasXYZ ? '<th>Вариация</th>' : ''}
+                                    <th>График</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${beers
+                                    .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
+                                    .map((beer, i) => {
+                                        const safeId = `cat-${category}-${i}`;
+                                        const beerBar = beer.Bar || barName;
+                                        return `
+                                        <tr class="beer-row" id="beer-row-${safeId}">
+                                            <td>${i + 1}</td>
+                                            ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
+                                            <td>${beer.Beer}</td>
+                                            <td>${beer.Style || '—'}</td>
+                                            <td>${formatNumber(beer.TotalQty)}</td>
+                                            <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>${(beer.AvgMarkupPercent * 100).toFixed(1)}%</td>
+                                            ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                                            ${hasXYZ ? `<td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>` : ''}
+                                            <td>
+                                                <span class="chart-icon" onclick='showWeeklyChart(event, "${beerBar}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
+                                                    📊
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr id="chart-row-${safeId}" style="display: none;">
+                                            <td colspan="${hasBarColumn ? (hasXYZ ? 10 : 8) : (hasXYZ ? 9 : 7)}">
+                                                <div class="chart-container">
+                                                    <canvas id="chart-${safeId}"></canvas>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `}).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        function showXYZDetails(barName, xyzCategory) {
+            const barData = currentData[barName];
+            if (!barData) return;
+
+            const beers = barData.records.filter(record => record.XYZ_Category === xyzCategory);
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
+
+            let categoryName = xyzCategory;
+            let categoryDesc = '';
+            if (xyzCategory === 'X') {
+                categoryName = 'X — Стабильный';
+                categoryDesc = 'Вариация < 10%';
+            } else if (xyzCategory === 'Y') {
+                categoryName = 'Y — Средний';
+                categoryDesc = 'Вариация 10-25%';
+            } else if (xyzCategory === 'Z') {
+                categoryName = 'Z — Нестабильный';
+                categoryDesc = 'Вариация > 25%';
+            }
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${categoryName} — ${barName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem;">${categoryDesc}</p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <p style="margin-bottom: 20px; color: var(--text-secondary);">Всего: ${beers.length} фасовок</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
+                                    <th>Пиво</th>
+                                    <th>ABC</th>
+                                    <th>Вариация</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>График</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${beers
+                                    .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
+                                    .map((beer, i) => {
+                                        const safeId = `xyz-${xyzCategory}-${i}`;
+                                        const beerBar = beer.Bar || barName;
+                                        return `
+                                        <tr class="beer-row" id="beer-row-${safeId}">
+                                            <td>${i + 1}</td>
+                                            ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
+                                            <td>${beer.Beer}</td>
+                                         <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                            <td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>
+                                            <td>${formatNumber(beer.TotalQty)}</td>
+                                            <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>
+                                                <span class="chart-icon" onclick='showWeeklyChart(event, "${beerBar}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
+                                                    📊
+                                                </span>
+                                            </td>
+                                        </tr>
+                                        <tr id="chart-row-${safeId}" style="display: none;">
+                                            <td colspan="${hasBarColumn ? 8 : 7}">
+                                                <div class="chart-container">
+                                                    <canvas id="chart-${safeId}"></canvas>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `}).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        async function showWeeklyChart(event, barName, beerName, rowId) {
+            event.stopPropagation();
+            
+            const chartRow = document.getElementById(`chart-row-${rowId}`);
+            
+            if (chartRow && chartRow.style.display !== 'none') {
+                chartRow.style.display = 'none';
+                if (activeCharts[rowId]) {
+                    activeCharts[rowId].destroy();
+                    delete activeCharts[rowId];
+                }
+                return;
+            }
+            
+            if (chartRow) {
+                chartRow.style.display = 'table-row';
+            }
+            
+            try {
+                const response = await fetch(`/api/weekly-chart/${encodeURIComponent(barName)}/${encodeURIComponent(beerName)}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Не удалось получить данные');
+                }
+                
+                const data = await response.json();
+                
+                const canvas = document.getElementById(`chart-${rowId}`);
+                if (!canvas) return;
+                
+                const ctx = canvas.getContext('2d');
+                
+                if (activeCharts[rowId]) {
+                    activeCharts[rowId].destroy();
+                }
+
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                
+                activeCharts[rowId] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.weeks,
+                        datasets: [{
+                            label: 'Продажи (шт)',
+                            data: data.sales,
+                            borderColor: isDark ? '#3b82f6' : '#0066cc',
+                            backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(0, 102, 204, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: isDark ? '#3b82f6' : '#0066cc',
+                            pointBorderColor: isDark ? '#1a1a1a' : '#ffffff',
+                            pointBorderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: beerName,
+                                color: isDark ? '#e0e0e0' : '#1a1a1a',
+                                font: {
+                                    size: 14,
+                                    weight: '600'
+                                },
+                                padding: {
+                                    bottom: 20
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: isDark ? '#2a2a2a' : '#ffffff',
+                                titleColor: isDark ? '#e0e0e0' : '#1a1a1a',
+                                bodyColor: isDark ? '#e0e0e0' : '#1a1a1a',
+                                borderColor: isDark ? '#333333' : '#e0e0e0',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return `${context.parsed.y} шт`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    stepSize: 1,
+                                    color: isDark ? '#666666' : '#999999'
+                                },
+                                grid: {
+                                    color: isDark ? '#2a2a2a' : '#f5f5f5'
+                                },
+                                border: {
+                                    display: false
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: isDark ? '#666666' : '#999999'
+                                },
+                                grid: {
+                                    display: false
+                                },
+                                border: {
+                                    display: false
+                                }
+                            }
+                        }
+                    }
+                });
+                
+                canvas.style.height = '300px';
+                
+            } catch (error) {
+                console.error('Ошибка загрузки графика:', error);
+                alert('Не удалось загрузить график: ' + error.message);
+                if (chartRow) {
+                    chartRow.style.display = 'none';
+                }
+            }
+        }
+
+        function displayCategoryResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            const bar = document.getElementById('bar-select').value;
+
+            if (bar) {
+                // Для одного бара
+                const section = createCategorySectionForBar(bar, data);
+                resultsDiv.appendChild(section);
+            } else {
+                // Для всех баров
+                for (const [barName, categoryData] of Object.entries(data.categories || {})) {
+                    const section = createCategorySectionForBar(barName, { categories: categoryData, summary: data.summary });
+                    resultsDiv.appendChild(section);
+                }
+            }
+
+            resultsDiv.classList.add('active');
+        }
+
+        function createCategorySectionForBar(barName, data) {
+            const section = document.createElement('div');
+            section.className = 'bar-section';
+
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const header = `
+                <div class="bar-header">
+                    <h2>📊 ${barName} — Анализ по категориям</h2>
+                </div>
+            `;
+
+            // Сводная таблица по категориям
+            let summaryTable = '';
+            if (data.summary && data.summary.length > 0) {
+                const barSummary = data.summary.filter(s => !barName || s.Category);
+
+                summaryTable = `
+                    <h3 class="section-title">Сводка по категориям</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Категория</th>
+                                <th>Фасовок</th>
+                                <th>Выручка</th>
+                                <th>% от выручки</th>
+                                <th>Накопленный %</th>
+                                <th>ABC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${barSummary.map(cat => `
+                                <tr class="beer-row" onclick="showCategoryDetail('${barName}', '${cat.Category}')">
+                                    <td><strong>${cat.Category}</strong></td>
+                                    <td>${cat.BeersCount}</td>
+                                    <td>${formatMoney(cat.TotalRevenue)}</td>
+                                    <td>${cat.RevenuePercent.toFixed(1)}%</td>
+                                    <td>${cat.CumulativePercent.toFixed(1)}%</td>
+                                    <td><span class="badge ${cat.ABC_Category.toLowerCase()}">${cat.ABC_Category}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+
+            // Детальные карточки категорий
+            let categoryCards = '';
+            const categories = data.categories || {};
+
+            if (Object.keys(categories).length > 0) {
+                const sortedCategories = Object.entries(categories)
+                    .sort((a, b) => b[1].total_revenue - a[1].total_revenue)
+                    .slice(0, 10); // Топ-10 категорий
+
+                categoryCards = `
+                    <h3 class="section-title">Топ-10 категорий по выручке</h3>
+                    <div class="abc-matrix">
+                        ${sortedCategories.map(([catName, catData]) => {
+                            const topABC = Object.entries(catData.abc_stats || {})
+                                .sort((a, b) => b[1] - a[1])[0];
+                            const dominantABC = topABC ? topABC[0] : 'BBB';
+
+                            return `
+                                <div class="abc-card" onclick="showCategoryDetail('${barName}', '${catName}')" style="cursor: pointer;">
+                                    <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; min-height: 40px;">
+                                        ${catName.length > 25 ? catName.substring(0, 25) + '...' : catName}
+                                    </div>
+                                    <div class="category">
+                                        <span class="badge ${dominantABC.toLowerCase()}">${dominantABC}</span>
+                                    </div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+                                        ${formatMoney(catData.total_revenue)}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-tertiary);">
+                                        ${catData.total_beers} фасовок
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            card.innerHTML = header + summaryTable + categoryCards;
+            section.appendChild(card);
+            return section;
+        }
+
+        function showCategoryDetail(barName, categoryName) {
+            const categories = currentData.categories || {};
+            const catData = categories[categoryName] || (categories[barName] && categories[barName][categoryName]);
+
+            if (!catData) {
+                alert('Нет данных для этой категории');
+                return;
+            }
+
+            const beers = catData.beers || [];
+            const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${categoryName} — ${barName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">
+                                    ${catData.total_beers} фасовок • Выручка: ${formatMoney(catData.total_revenue)}
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+
+                        <!-- ABC статистика -->
+                        <h3 class="section-title">ABC распределение</h3>
+                        <div class="abc-matrix" style="margin-bottom: 30px;">
+                            ${Object.entries(catData.abc_stats || {})
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 8)
+                                .map(([abc, count]) => `
+                                    <div class="abc-card ${abc.toLowerCase()}">
+                                        <div class="category">${abc}</div>
+                                        <div class="count">${count}</div>
+                                    </div>
+                                `).join('')}
+                        </div>
+
+                        ${hasXYZ ? `
+                            <h3 class="section-title">XYZ распределение</h3>
+                            <div class="abc-matrix" style="margin-bottom: 30px;">
+                                ${Object.entries(catData.xyz_stats || {})
+                                    .map(([xyz, count]) => {
+                                        let bgClass = xyz === 'X' ? 'aaa' : (xyz === 'Y' ? 'bbb' : 'ccc');
+                                        return `
+                                            <div class="abc-card ${bgClass}">
+                                                <div class="category">${xyz}</div>
+                                                <div class="count">${count}</div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                            </div>
+                        ` : ''}
+
+                        <!-- Таблица с пивом -->
+                        <h3 class="section-title">Все фасовки</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Пиво</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>ABC</th>
+                                    ${hasXYZ ? '<th>XYZ</th>' : ''}
+                                    ${hasXYZ ? '<th>Вариация</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${beers
+                                    .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
+                                    .map((beer, i) => `
+                                        <tr class="beer-row">
+                                            <td>${i + 1}</td>
+                                            <td>${beer.Beer}</td>
+                                            <td>${formatNumber(beer.TotalQty)}</td>
+                                            <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                            ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                                            ${hasXYZ ? `<td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>` : ''}
+                                        </tr>
+                                    `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        function closeModalBackdrop(event) {
+            if (event.target.classList.contains('modal')) {
+                closeModal();
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('category-modal');
+            if (modal) {
+                modal.remove();
+            }
+            for (let key in activeCharts) {
+                if (activeCharts[key]) {
+                    activeCharts[key].destroy();
+                }
+            }
+            activeCharts = {};
+        }
+
+        function formatMoney(value) {
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        function formatNumber(value) {
+            return new Intl.NumberFormat('ru-RU').format(value);
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+        // Описания категорий для tooltips
+        const categoryDescriptions = {
+            // ABC категории
+            'AAA': { emoji: '🌟', text: 'Отличная выручка • Высокая наценка • Высокая маржа', action: 'Звезды меню! Must have.' },
+            'AAB': { emoji: '⭐', text: 'Отличная выручка • Высокая наценка • Средняя маржа', action: 'Очень хорошо.' },
+            'AAC': { emoji: '⚠️', text: 'Отличная выручка • Высокая наценка • Низкая маржа', action: 'Проверить себестоимость.' },
+            
+            'ABA': { emoji: '💰', text: 'Отличная выручка • Средняя наценка • Высокая маржа', action: 'Зарабатывает за счёт объёма.' },
+            'ABB': { emoji: '✅', text: 'Отличная выручка • Средняя наценка • Средняя маржа', action: 'Стабильно хорошо.' },
+            'ABC': { emoji: '📊', text: 'Отличная выручка • Средняя наценка • Низкая маржа', action: 'Пересмотреть цену.' },
+            
+            'ACA': { emoji: '🔥', text: 'Отличная выручка • Низкая наценка • Высокая маржа', action: 'Народное пиво!' },
+            'ACB': { emoji: '💡', text: 'Отличная выручка • Низкая наценка • Средняя маржа', action: 'Можно поднять цену.' },
+            'ACC': { emoji: '⚠️', text: 'Отличная выручка • Низкая наценка • Низкая маржа', action: 'Поднять цену!' },
+            
+            'BAA': { emoji: '💎', text: 'Средняя выручка • Высокая наценка • Высокая маржа', action: 'Премиум сегмент.' },
+            'BAB': { emoji: '✅', text: 'Средняя выручка • Высокая наценка • Средняя маржа', action: 'Можно продвигать.' },
+            'BAC': { emoji: '🤔', text: 'Средняя выручка • Высокая наценка • Низкая маржа', action: 'Проверить расчёты.' },
+            
+            'BBA': { emoji: '📈', text: 'Средняя выручка • Средняя наценка • Высокая маржа', action: 'Стоит продвигать.' },
+            'BBB': { emoji: '➖', text: 'Средняя выручка • Средняя наценка • Средняя маржа', action: 'Середнячок.' },
+            'BBC': { emoji: '📉', text: 'Средняя выручка • Средняя наценка • Низкая маржа', action: 'Можно заменить.' },
+            
+            'BCA': { emoji: '🎯', text: 'Средняя выручка • Низкая наценка • Высокая маржа', action: 'Поднять цену.' },
+            'BCB': { emoji: '💭', text: 'Средняя выручка • Низкая наценка • Средняя маржа', action: 'Слабовато.' },
+            'BCC': { emoji: '❌', text: 'Средняя выручка • Низкая наценка • Низкая маржа', action: 'Кандидат на замену.' },
+            
+            'CAA': { emoji: '🍷', text: 'Низкая выручка • Высокая наценка • Высокая маржа', action: 'Craft/Premium для имиджа.' },
+            'CAB': { emoji: '🎨', text: 'Низкая выручка • Высокая наценка • Средняя маржа', action: 'Нишевый продукт.' },
+            'CAC': { emoji: '⚠️', text: 'Низкая выручка • Высокая наценка • Низкая маржа', action: 'Рассмотреть удаление.' },
+            
+            'CBA': { emoji: '🔍', text: 'Низкая выручка • Средняя наценка • Высокая маржа', action: 'Проверить данные.' },
+            'CBB': { emoji: '🤷', text: 'Низкая выручка • Средняя наценка • Средняя маржа', action: 'Рассмотреть замену.' },
+            'CBC': { emoji: '🗑️', text: 'Низкая выручка • Средняя наценка • Низкая маржа', action: 'Убрать из меню.' },
+            
+            'CCA': { emoji: '🧐', text: 'Низкая выручка • Низкая наценка • Высокая маржа', action: 'Проверить расчёты.' },
+            'CCB': { emoji: '❌', text: 'Низкая выручка • Низкая наценка • Средняя маржа', action: 'Убрать из ассортимента.' },
+            'CCC': { emoji: '💀', text: 'Низкая выручка • Низкая наценка • Низкая маржа', action: 'Немедленно убрать!' },
+            
+            // XYZ категории
+            'X': { emoji: '✅', text: 'Стабильный спрос (вариация <10%)', action: 'Легко планировать закупки.' },
+            'Y': { emoji: '📊', text: 'Умеренные колебания (10-25%)', action: 'Нужен небольшой запас.' },
+            'Z': { emoji: '⚡', text: 'Нестабильный спрос (>25%)', action: 'Сложно прогнозировать.' }
+        };
+
+        function createTooltip(category) {
+            const desc = categoryDescriptions[category];
+            if (!desc) return '';
+            
+            return `<span class="tooltip"><span class="emoji">${desc.emoji}</span>${desc.text}<br><strong>${desc.action}</strong></span>`;
+        }
+
+        function wrapWithTooltip(html, category) {
+            return `<span class="tooltip-wrapper">${html}${createTooltip(category)}</span>`;
+        }
+
+        // Функция для отображения полного списка позиций
+        function showAllBeersList(barName, sortBy) {
+            const barData = currentData[barName];
+            if (!barData) return;
+
+            const beers = barData.records || [];
+            const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
+
+            // Сортируем в зависимости от типа
+            let sortedBeers = [...beers];
+            let title = '';
+
+            if (sortBy === 'revenue') {
+                sortedBeers.sort((a, b) => b.TotalRevenue - a.TotalRevenue);
+                title = 'Все позиции по выручке';
+            } else if (sortBy === 'quantity') {
+                sortedBeers.sort((a, b) => b.TotalQty - a.TotalQty);
+                title = 'Все позиции по количеству';
+            } else {
+                sortedBeers.sort((a, b) => a.Beer.localeCompare(b.Beer));
+                title = 'Все позиции (алфавит)';
+            }
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${title} — ${barName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 8px; font-size: 0.9rem;">
+                                    Всего: ${beers.length} SKU • Бутылок: ${formatNumber(barData.total_qty)} шт • Выручка: ${formatMoney(barData.total_revenue)}
+                                </p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
+                                    <th>Пиво</th>
+                                    <th>Стиль</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>ABC</th>
+                                    ${hasXYZ ? '<th>XYZ</th>' : ''}
+                                    <th>Наценка %</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sortedBeers.map((beer, i) => `
+                                    <tr class="beer-row">
+                                        <td>${i + 1}</td>
+                                        ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
+                                        <td>${beer.Beer}</td>
+                                        <td>${beer.Style || '—'}</td>
+                                        <td>${formatNumber(beer.TotalQty)}</td>
+                                        <td>${formatMoney(beer.TotalRevenue)}</td>
+                                        <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                        ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                                        <td>${(beer.AvgMarkupPercent * 100).toFixed(1)}%</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+    </script>
+</body>
+</html>
