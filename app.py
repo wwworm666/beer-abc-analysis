@@ -853,8 +853,18 @@ def analyze_waiters():
 def get_all_taps():
     """Получить все краны всех баров"""
     try:
-        bars_data = taps_manager.get_bars()
-        return jsonify({'bars': bars_data})
+        # Получаем список баров
+        bars_list = taps_manager.get_bars()
+
+        # Для каждого бара получаем детальную информацию о кранах
+        bars_with_taps = {}
+        for bar in bars_list:
+            bar_id = bar['bar_id']
+            bar_details = taps_manager.get_bar_taps(bar_id)
+            if 'error' not in bar_details:
+                bars_with_taps[bar['name']] = bar_details
+
+        return jsonify({'bars': bars_with_taps})
     except Exception as e:
         print(f"[ERROR] Ошибка в /api/taps/all: {e}")
         return jsonify({'error': str(e)}), 500

@@ -284,30 +284,30 @@
         function displayDraftStocks(data) {
             const container = document.getElementById('draft-stocks');
 
-            if (!data.items || data.items.length === 0) {
+            if (!data.taps || data.taps.length === 0) {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 40px;">Нет данных</p>';
                 return;
             }
 
             container.innerHTML = '';
 
-            data.items.forEach(item => {
-                const stock = item.balance || 0;
-                const level = stock > 5 ? 'high' : stock > 2 ? 'medium' : 'low';
-                const levelPercent = Math.min((stock / 10) * 100, 100);
+            data.taps.forEach(item => {
+                const stock = item.remaining_liters || 0;
+                const level = stock > 50 ? 'high' : stock > 25 ? 'medium' : 'low';
+                const levelPercent = Math.min((stock / 100) * 100, 100);
 
                 const div = document.createElement('div');
                 div.className = 'stock-item';
                 div.innerHTML = `
                     <div>
-                        <div class="stock-item-name">${item.name || 'Неизвестно'}</div>
-                        <div class="stock-item-bar">${item.bar || ''}</div>
+                        <div class="stock-item-name">${item.beer_name || 'Неизвестно'}</div>
+                        <div class="stock-item-bar">Краны: ${item.tap_numbers || '—'}</div>
                     </div>
-                    <div class="stock-value">${stock} кег</div>
+                    <div class="stock-value">${stock.toFixed(1)} л</div>
                     <div class="stock-level-indicator">
                         <div class="stock-level-bar stock-level-${level}" style="width: ${levelPercent}%"></div>
                     </div>
-                    ${stock < 3 ? '<span class="badge badge-error">Низкий остаток</span>' : ''}
+                    ${stock < 10 ? '<span class="badge badge-error">Низкий остаток</span>' : ''}
                 `;
                 container.appendChild(div);
             });
@@ -324,7 +324,7 @@
             container.innerHTML = '';
 
             data.items.forEach(item => {
-                const stock = item.balance || 0;
+                const stock = item.stock || 0;
                 const level = stock > 50 ? 'high' : stock > 20 ? 'medium' : 'low';
                 const levelPercent = Math.min((stock / 100) * 100, 100);
 
@@ -333,9 +333,9 @@
                 div.innerHTML = `
                     <div>
                         <div class="stock-item-name">${item.name || 'Неизвестно'}</div>
-                        <div class="stock-item-bar">${item.bar || ''}</div>
+                        <div class="stock-item-bar">${item.category || ''}</div>
                     </div>
-                    <div class="stock-value">${stock} шт</div>
+                    <div class="stock-value">${stock.toFixed(1)} шт</div>
                     <div class="stock-level-indicator">
                         <div class="stock-level-bar stock-level-${level}" style="width: ${levelPercent}%"></div>
                     </div>
@@ -356,16 +356,16 @@
             container.innerHTML = '';
 
             data.items.forEach(item => {
-                const stock = item.balance || 0;
+                const stock = item.stock || 0;
 
                 const div = document.createElement('div');
                 div.className = 'stock-item';
                 div.innerHTML = `
                     <div>
                         <div class="stock-item-name">${item.name || 'Неизвестно'}</div>
-                        <div class="stock-item-bar">${item.bar || ''}</div>
+                        <div class="stock-item-bar">${item.category || ''}</div>
                     </div>
-                    <div class="stock-value">${formatNumber(stock, 'decimal')} ${item.unit || 'шт'}</div>
+                    <div class="stock-value">${formatNumber(stock, 'decimal')} шт</div>
                 `;
                 container.appendChild(div);
             });
@@ -376,20 +376,20 @@
             container.innerHTML = '';
 
             // Recommendations for draft beer
-            if (draftData.items) {
-                const lowStockDraft = draftData.items.filter(item => (item.balance || 0) < 3);
+            if (draftData.taps) {
+                const lowStockDraft = draftData.taps.filter(item => (item.remaining_liters || 0) < 30);
 
                 if (lowStockDraft.length > 0) {
                     lowStockDraft.forEach(item => {
                         const card = document.createElement('div');
                         card.className = 'recommendation-card';
                         card.innerHTML = `
-                            <div class="recommendation-title">🍺 ${item.name}</div>
+                            <div class="recommendation-title">🍺 ${item.beer_name}</div>
                             <div class="recommendation-text">
-                                Текущий остаток: ${item.balance || 0} кег<br>
+                                Текущий остаток: ${(item.remaining_liters || 0).toFixed(1)} л<br>
                                 Рекомендуем заказать:
                             </div>
-                            <div class="order-quantity">${calculateOrderQuantity(item.balance || 0, 'keg')} кег</div>
+                            <div class="order-quantity">${Math.max(Math.ceil((50 - (item.remaining_liters || 0)) / 30), 1)} кег (30л)</div>
                         `;
                         container.appendChild(card);
                     });
@@ -398,7 +398,7 @@
 
             // Recommendations for bottles
             if (bottlesData.items) {
-                const lowStockBottles = bottlesData.items.filter(item => (item.balance || 0) < 20);
+                const lowStockBottles = bottlesData.items.filter(item => (item.stock || 0) < 20);
 
                 if (lowStockBottles.length > 0) {
                     lowStockBottles.forEach(item => {
@@ -407,10 +407,10 @@
                         card.innerHTML = `
                             <div class="recommendation-title">🍾 ${item.name}</div>
                             <div class="recommendation-text">
-                                Текущий остаток: ${item.balance || 0} шт<br>
+                                Текущий остаток: ${(item.stock || 0).toFixed(1)} шт<br>
                                 Рекомендуем заказать:
                             </div>
-                            <div class="order-quantity">${calculateOrderQuantity(item.balance || 0, 'bottle')} бутылок</div>
+                            <div class="order-quantity">${calculateOrderQuantity(item.stock || 0, 'bottle')} бутылок</div>
                         `;
                         container.appendChild(card);
                     });
