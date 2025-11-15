@@ -325,18 +325,24 @@
                     }
                 }
 
-                const params = new URLSearchParams({
+                const requestBody = {
                     bar: bar || '',
-                    days: period !== 'custom' ? period : '',
+                    days: period !== 'custom' ? parseInt(period) : null,
                     mode: currentMode
-                });
+                };
 
                 if (period === 'custom') {
-                    params.set('date_from', dateFrom);
-                    params.set('date_to', dateTo);
+                    requestBody.date_from = dateFrom;
+                    requestBody.date_to = dateTo;
                 }
 
-                const response = await fetch(`/api/analyze?${params}`);
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
                 const data = await response.json();
 
                 // Скрыть loading

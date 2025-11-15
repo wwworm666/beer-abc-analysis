@@ -849,6 +849,16 @@ def analyze_waiters():
 
 # ============= API для управления пивными кранами =============
 
+@app.route('/api/taps/all', methods=['GET'])
+def get_all_taps():
+    """Получить все краны всех баров"""
+    try:
+        bars_data = taps_manager.get_bars()
+        return jsonify({'bars': bars_data})
+    except Exception as e:
+        print(f"[ERROR] Ошибка в /api/taps/all: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/taps/bars', methods=['GET'])
 def get_bars_list():
     """Получить список всех баров"""
@@ -1170,6 +1180,17 @@ def update_nomenclature():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stocks/draft', methods=['GET'])
+def get_draft_stocks():
+    """API endpoint для получения остатков КЕГ"""
+    try:
+        bar = request.args.get('bar', '')
+        # Используем тот же endpoint что и taplist
+        return get_taplist_stocks()
+    except Exception as e:
+        print(f"[ERROR] Ошибка в /api/stocks/draft: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/stocks/taplist', methods=['GET'])
 def get_taplist_stocks():

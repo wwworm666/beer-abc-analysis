@@ -205,12 +205,18 @@
             document.getElementById('loading-container').style.display = 'block';
 
             try {
-                const params = new URLSearchParams({
+                const requestBody = {
                     bar: bar || '',
-                    days: period
-                });
+                    days: parseInt(period)
+                };
 
-                const response = await fetch(`/api/waiter-analyze?${params}`);
+                const response = await fetch('/api/waiter-analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
                 const data = await response.json();
 
                 // Скрыть loading
