@@ -382,9 +382,6 @@
                 displayBottlesStocks(bottlesData);
                 displayKitchenStocks(kitchenData);
 
-                // Generate recommendations
-                generateRecommendations(draftData, bottlesData);
-
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('loading-container').style.display = 'none';
@@ -402,7 +399,7 @@
 
             container.innerHTML = '';
 
-            data.taps.forEach(item => {
+            data.taps.forEach((item, index) => {
                 const stock = item.remaining_liters || 0;
                 const level = stock > 50 ? 'high' : stock > 25 ? 'medium' : 'low';
                 const levelPercent = Math.min((stock / 100) * 100, 100);
@@ -418,7 +415,13 @@
                     <div class="stock-level-indicator">
                         <div class="stock-level-bar stock-level-${level}" style="width: ${levelPercent}%"></div>
                     </div>
-                    ${stock < 10 ? '<span class="badge badge-error">Низкий остаток</span>' : ''}
+                    ${stock < 10 ? '<span class="badge badge-error">Низкий остаток</span>' : '<span style="width: 100px;"></span>'}
+                    <input type="number" min="0" class="order-input"
+                           data-type="draft"
+                           data-name="${item.beer_name}"
+                           data-supplier="Пиво разливное"
+                           placeholder="0"
+                           onchange="updateOrder()">
                 `;
                 container.appendChild(div);
             });
@@ -450,7 +453,13 @@
                     <div class="stock-level-indicator">
                         <div class="stock-level-bar stock-level-${level}" style="width: ${levelPercent}%"></div>
                     </div>
-                    ${stock < 20 ? '<span class="badge badge-warning">Низкий остаток</span>' : ''}
+                    ${stock < 20 ? '<span class="badge badge-warning">Низкий остаток</span>' : '<span style="width: 100px;"></span>'}
+                    <input type="number" min="0" class="order-input"
+                           data-type="bottles"
+                           data-name="${item.name}"
+                           data-supplier="${item.category || 'Напитки фасовка'}"
+                           placeholder="0"
+                           onchange="updateOrder()">
                 `;
                 container.appendChild(div);
             });
@@ -477,59 +486,74 @@
                         <div class="stock-item-bar">${item.category || ''}</div>
                     </div>
                     <div class="stock-value">${formatNumber(stock, 'decimal')} шт</div>
+                    <div style="width: 80px;"></div>
+                    <div style="width: 100px;"></div>
+                    <input type="number" min="0" class="order-input"
+                           data-type="kitchen"
+                           data-name="${item.name}"
+                           data-supplier="${item.category || 'Кухня'}"
+                           placeholder="0"
+                           onchange="updateOrder()">
                 `;
                 container.appendChild(div);
             });
         }
 
-        function generateRecommendations(draftData, bottlesData) {
-            const container = document.getElementById('recommendations-container');
+        function updateOrder() {
+            // Собираем все input поля
+            const inputs = document.querySelectorAll('.order-input');
+            const orderBySupplier = {};
+
+            inputs.forEach(input => {
+                const qty = parseFloat(input.value) || 0;
+                if (qty > 0) {
+                    const supplier = input.dataset.supplier;
+                    const name = input.dataset.name;
+
+                    if (!orderBySupplier[supplier]) {
+                        orderBySupplier[supplier] = [];
+                    }
+
+                    orderBySupplier[supplier].push({
+                        name: name,
+                        qty: qty
+                    });
+                }
+            });
+
+            // Отображаем сборку заказа
+            const container = document.getElementById('order-summary');
+
+            if (Object.keys(orderBySupplier).length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 40px;">Добавьте товары в заказ, чтобы увидеть сборку по поставщикам</p>';
+                return;
+            }
+
             container.innerHTML = '';
 
-            // Recommendations for draft beer
-            if (draftData.taps) {
-                const lowStockDraft = draftData.taps.filter(item => (item.remaining_liters || 0) < 30);
+            for (const [supplier, items] of Object.entries(orderBySupplier)) {
+                const section = document.createElement('div');
+                section.className = 'supplier-section';
 
-                if (lowStockDraft.length > 0) {
-                    lowStockDraft.forEach(item => {
-                        const card = document.createElement('div');
-                        card.className = 'recommendation-card';
-                        card.innerHTML = `
-                            <div class="recommendation-title">🍺 ${item.beer_name}</div>
-                            <div class="recommendation-text">
-                                Текущий остаток: ${(item.remaining_liters || 0).toFixed(1)} л<br>
-                                Рекомендуем заказать:
-                            </div>
-                            <div class="order-quantity">${Math.max(Math.ceil((50 - (item.remaining_liters || 0)) / 30), 1)} кег (30л)</div>
-                        `;
-                        container.appendChild(card);
-                    });
-                }
-            }
+                let totalItems = items.reduce((sum, item) => sum + item.qty, 0);
 
-            // Recommendations for bottles
-            if (bottlesData.items) {
-                const lowStockBottles = bottlesData.items.filter(item => (item.stock || 0) < 20);
+                let itemsHTML = items.map(item => `
+                    <div class="order-item">
+                        <span class="order-item-name">${item.name}</span>
+                        <span class="order-item-qty">${item.qty} шт</span>
+                    </div>
+                `).join('');
 
-                if (lowStockBottles.length > 0) {
-                    lowStockBottles.forEach(item => {
-                        const card = document.createElement('div');
-                        card.className = 'recommendation-card';
-                        card.innerHTML = `
-                            <div class="recommendation-title">🍾 ${item.name}</div>
-                            <div class="recommendation-text">
-                                Текущий остаток: ${(item.stock || 0).toFixed(1)} шт<br>
-                                Рекомендуем заказать:
-                            </div>
-                            <div class="order-quantity">${calculateOrderQuantity(item.stock || 0, 'bottle')} бутылок</div>
-                        `;
-                        container.appendChild(card);
-                    });
-                }
-            }
+                section.innerHTML = `
+                    <div class="supplier-header">${supplier}</div>
+                    ${itemsHTML}
+                    <div class="total-section">
+                        <span class="total-label">Итого позиций:</span>
+                        <span class="total-value">${totalItems} шт</span>
+                    </div>
+                `;
 
-            if (container.children.length === 0) {
-                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 40px;">✓ Все остатки в норме</p>';
+                container.appendChild(section);
             }
         }
 
