@@ -1597,6 +1597,8 @@ def get_bottles_stocks():
 
         # Обрабатываем данные о фасовке
         products_dict = {}
+        checked_products = 0
+        matched_products = 0
 
         for record in store_data:
             product_id = record.get('product')
@@ -1608,16 +1610,23 @@ def get_bottles_stocks():
             if not product_info:
                 continue
 
-            # Фильтруем только товары из группы "фасовка"
-            group = (product_info.get('group', '') or '').lower()
+            checked_products += 1
+
+            # Фильтруем только товары из категории "фасовка"
+            # В iiko номенклатуре группа товаров хранится в поле 'category' (productCategory)
             category = (product_info.get('category', '') or '').lower()
 
-            # Проверяем группу или категорию на наличие "фасовка"
-            if 'фасовка' not in group and 'фасовка' not in category:
+            # Проверяем категорию на наличие "фасовка"
+            if 'фасовка' not in category:
                 continue
 
+            matched_products += 1
             product_name = product_info.get('name', product_id)
             supplier = product_info.get('category', 'Без поставщика')
+
+            # Отладочный вывод
+            if matched_products <= 5:
+                print(f"[DEBUG] Найдена фасовка: {product_name}, категория: {supplier}")
 
             if product_id not in products_dict:
                 products_dict[product_id] = {
@@ -1676,6 +1685,13 @@ def get_bottles_stocks():
         items.sort(key=lambda x: (x['category'], x['name']))
 
         low_stock_count = len([item for item in items if item['stock_level'] == 'low'])
+
+        # Отладочная информация
+        print(f"\n[BOTTLES DEBUG]")
+        print(f"   Проверено товаров: {checked_products}")
+        print(f"   Найдено фасовки: {matched_products}")
+        print(f"   Итого позиций: {len(items)}")
+        print(f"   Требуют пополнения: {low_stock_count}")
 
         return jsonify({
             'total_items': len(items),
