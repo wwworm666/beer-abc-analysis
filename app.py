@@ -1612,16 +1612,25 @@ def get_bottles_stocks():
 
             checked_products += 1
 
-            # Фильтруем только товары из категории "фасовка"
-            # В iiko номенклатуре группа товаров хранится в поле 'category' (productCategory)
-            category = (product_info.get('category', '') or '').lower()
+            # Фильтруем фасованное пиво: тип GOODS + единица измерения "шт" + в названии есть пиво/beer
+            product_type = product_info.get('type')
+            product_unit = product_info.get('mainUnit')
+            product_name = product_info.get('name', product_id)
+            product_name_lower = product_name.lower()
 
-            # Проверяем категорию на наличие "фасовка"
-            if 'фасовка' not in category:
+            # Проверяем: тип GOODS, единица "шт", и в названии есть пивные слова
+            if product_type != 'GOODS':
+                continue
+
+            if product_unit != 'шт':
+                continue
+
+            # Проверяем что это пиво
+            beer_keywords = ['пив', 'beer', 'ipa', 'лагер', 'эль', 'стаут', 'портер', 'ales']
+            if not any(keyword in product_name_lower for keyword in beer_keywords):
                 continue
 
             matched_products += 1
-            product_name = product_info.get('name', product_id)
             supplier = product_info.get('category', 'Без поставщика')
 
             # Отладочный вывод
