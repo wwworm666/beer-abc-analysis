@@ -26,7 +26,8 @@
       "Bash(dir \"C:\\KULT\\beer-abc-analysis\\Документация\" /b)",
       "Bash(dir:*)",
       "Bash(tasklist:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(iconv:*)"
     ],
     "deny": [],
     "ask": []
