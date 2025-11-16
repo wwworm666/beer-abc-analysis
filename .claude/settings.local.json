@@ -27,7 +27,10 @@
       "Bash(dir:*)",
       "Bash(tasklist:*)",
       "Bash(git restore:*)",
-      "Bash(iconv:*)"
+      "Bash(iconv:*)",
+      "Bash(backup.bat)",
+      "Bash(cmd /c backup.bat)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

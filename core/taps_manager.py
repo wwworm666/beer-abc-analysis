@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from enum import Enum
 import json
 import os
+import threading
 
 class ActionType(Enum):
     """Типы действий с кранами"""
@@ -77,6 +78,7 @@ class TapsManager:
         """
         self.data_file = data_file
         self.bars: Dict[str, Bar] = {}
+        self._lock = threading.Lock()  # Lock для thread-safe операций
         self._init_bars()
         self._load_data()
 
@@ -110,20 +112,21 @@ class TapsManager:
 
     def _save_data(self):
         """Сохранение данных в файл"""
-        try:
-            os.makedirs(os.path.dirname(self.data_file) or '.', exist_ok=True)
+        with self._lock:
+            try:
+                os.makedirs(os.path.dirname(self.data_file) or '.', exist_ok=True)
 
-            data = {}
-            for bar_id, bar in self.bars.items():
-                data[bar_id] = {
-                    'name': bar.name,
-                    'taps': [tap.to_dict() for tap in bar.taps.values()]
-                }
+                data = {}
+                for bar_id, bar in self.bars.items():
+                    data[bar_id] = {
+                        'name': bar.name,
+                        'taps': [tap.to_dict() for tap in bar.taps.values()]
+                    }
 
-            with open(self.data_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"[ERROR] Ошибка сохранения данных о кранах: {e}")
+                with open(self.data_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"[ERROR] Ошибка сохранения данных о кранах: {e}")
 
     def get_bars(self) -> List[Dict]:
         """Получить список всех баров"""
@@ -169,46 +172,47 @@ class TapsManager:
         Returns:
             Результат операции
         """
-        if bar_id not in self.bars:
-            return {'success': False, 'error': f'Бар {bar_id} не найден'}
+        with self._lock:
+            if bar_id not in self.bars:
+                return {'success': False, 'error': f'Бар {bar_id} не найден'}
 
-        bar = self.bars[bar_id]
-        if tap_number not in bar.taps:
-            return {'success': False, 'error': f'Кран {tap_number} не найден в баре {bar_id}'}
+            bar = self.bars[bar_id]
+            if tap_number not in bar.taps:
+                return {'success': False, 'error': f'Кран {tap_number} не найден в баре {bar_id}'}
 
-        tap = bar.taps[tap_number]
+            tap = bar.taps[tap_number]
 
-        # Если кран уже работает, добавляем запись в историю
-        if tap.status == TapStatus.ACTIVE:
+            # Если кран уже работает, добавляем запись в историю
+            if tap.status == TapStatus.ACTIVE:
+                event = {
+                    'timestamp': self._now().isoformat(),
+                    'action': ActionType.STOP.value,
+                    'beer_name': tap.current_beer,
+                    'keg_id': tap.current_keg_id
+                }
+                tap.history.append(event)
+
+            tap.status = TapStatus.ACTIVE
+            tap.current_beer = beer_name
+            tap.current_keg_id = keg_id
+            tap.started_at = self._now().isoformat()
+
             event = {
                 'timestamp': self._now().isoformat(),
-                'action': ActionType.STOP.value,
-                'beer_name': tap.current_beer,
-                'keg_id': tap.current_keg_id
+                'action': ActionType.START.value,
+                'beer_name': beer_name,
+                'keg_id': keg_id
             }
             tap.history.append(event)
 
-        tap.status = TapStatus.ACTIVE
-        tap.current_beer = beer_name
-        tap.current_keg_id = keg_id
-        tap.started_at = self._now().isoformat()
+            self._save_data()
 
-        event = {
-            'timestamp': self._now().isoformat(),
-            'action': ActionType.START.value,
-            'beer_name': beer_name,
-            'keg_id': keg_id
-        }
-        tap.history.append(event)
-
-        self._save_data()
-
-        return {
-            'success': True,
-            'tap_number': tap_number,
-            'beer_name': beer_name,
-            'status': 'started'
-        }
+            return {
+                'success': True,
+                'tap_number': tap_number,
+                'beer_name': beer_name,
+                'status': 'started'
+            }
 
     def stop_tap(self, bar_id: str, tap_number: int) -> Dict:
         """
@@ -221,38 +225,39 @@ class TapsManager:
         Returns:
             Результат операции
         """
-        if bar_id not in self.bars:
-            return {'success': False, 'error': f'Бар {bar_id} не найден'}
+        with self._lock:
+            if bar_id not in self.bars:
+                return {'success': False, 'error': f'Бар {bar_id} не найден'}
 
-        bar = self.bars[bar_id]
-        if tap_number not in bar.taps:
-            return {'success': False, 'error': f'Кран {tap_number} не найден'}
+            bar = self.bars[bar_id]
+            if tap_number not in bar.taps:
+                return {'success': False, 'error': f'Кран {tap_number} не найден'}
 
-        tap = bar.taps[tap_number]
+            tap = bar.taps[tap_number]
 
-        if tap.status == TapStatus.EMPTY:
-            return {'success': False, 'error': 'Кран уже пустой'}
+            if tap.status == TapStatus.EMPTY:
+                return {'success': False, 'error': 'Кран уже пустой'}
 
-        event = {
-            'timestamp': self._now().isoformat(),
-            'action': ActionType.STOP.value,
-            'beer_name': tap.current_beer,
-            'keg_id': tap.current_keg_id
-        }
-        tap.history.append(event)
+            event = {
+                'timestamp': self._now().isoformat(),
+                'action': ActionType.STOP.value,
+                'beer_name': tap.current_beer,
+                'keg_id': tap.current_keg_id
+            }
+            tap.history.append(event)
 
-        tap.status = TapStatus.EMPTY
-        tap.current_beer = None
-        tap.current_keg_id = None
-        tap.started_at = None
+            tap.status = TapStatus.EMPTY
+            tap.current_beer = None
+            tap.current_keg_id = None
+            tap.started_at = None
 
-        self._save_data()
+            self._save_data()
 
-        return {
-            'success': True,
-            'tap_number': tap_number,
-            'status': 'stopped'
-        }
+            return {
+                'success': True,
+                'tap_number': tap_number,
+                'status': 'stopped'
+            }
 
     def replace_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str) -> Dict:
         """
@@ -267,47 +272,48 @@ class TapsManager:
         Returns:
             Результат операции
         """
-        if bar_id not in self.bars:
-            return {'success': False, 'error': f'Бар {bar_id} не найден'}
+        with self._lock:
+            if bar_id not in self.bars:
+                return {'success': False, 'error': f'Бар {bar_id} не найден'}
 
-        bar = self.bars[bar_id]
-        if tap_number not in bar.taps:
-            return {'success': False, 'error': f'Кран {tap_number} не найден'}
+            bar = self.bars[bar_id]
+            if tap_number not in bar.taps:
+                return {'success': False, 'error': f'Кран {tap_number} не найден'}
 
-        tap = bar.taps[tap_number]
+            tap = bar.taps[tap_number]
 
-        # Записываем старое пиво как остановленное
-        if tap.current_beer:
+            # Записываем старое пиво как остановленное
+            if tap.current_beer:
+                event = {
+                    'timestamp': self._now().isoformat(),
+                    'action': ActionType.STOP.value,
+                    'beer_name': tap.current_beer,
+                    'keg_id': tap.current_keg_id
+                }
+                tap.history.append(event)
+
+            # Устанавливаем новое пиво
+            tap.status = TapStatus.ACTIVE
+            tap.current_beer = beer_name
+            tap.current_keg_id = keg_id
+            tap.started_at = self._now().isoformat()
+
             event = {
                 'timestamp': self._now().isoformat(),
-                'action': ActionType.STOP.value,
-                'beer_name': tap.current_beer,
-                'keg_id': tap.current_keg_id
+                'action': ActionType.REPLACE.value,
+                'beer_name': beer_name,
+                'keg_id': keg_id
             }
             tap.history.append(event)
 
-        # Устанавливаем новое пиво
-        tap.status = TapStatus.ACTIVE
-        tap.current_beer = beer_name
-        tap.current_keg_id = keg_id
-        tap.started_at = self._now().isoformat()
+            self._save_data()
 
-        event = {
-            'timestamp': self._now().isoformat(),
-            'action': ActionType.REPLACE.value,
-            'beer_name': beer_name,
-            'keg_id': keg_id
-        }
-        tap.history.append(event)
-
-        self._save_data()
-
-        return {
-            'success': True,
-            'tap_number': tap_number,
-            'beer_name': beer_name,
-            'status': 'replaced'
-        }
+            return {
+                'success': True,
+                'tap_number': tap_number,
+                'beer_name': beer_name,
+                'status': 'replaced'
+            }
 
     def get_tap_history(self, bar_id: str, tap_number: int, limit: int = 50) -> Dict:
         """

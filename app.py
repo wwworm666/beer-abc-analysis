@@ -27,6 +27,41 @@ else:
 
 taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
 
+# Кэш для номенклатуры (15 минут TTL)
+nomenclature_cache = {
+    'data': None,
+    'expires_at': None
+}
+
+def get_cached_nomenclature(olap):
+    """
+    Получить номенклатуру из кэша или запросить новую
+
+    Args:
+        olap: Экземпляр OlapReports
+
+    Returns:
+        Словарь с номенклатурой или None
+    """
+    now = datetime.now()
+
+    # Проверяем кэш
+    if nomenclature_cache['data'] is not None and nomenclature_cache['expires_at'] is not None:
+        if now < nomenclature_cache['expires_at']:
+            print(f"[CACHE] Использую кэшированную номенклатуру (истекает через {(nomenclature_cache['expires_at'] - now).seconds // 60} мин)")
+            return nomenclature_cache['data']
+
+    # Кэш устарел или пуст - запрашиваем новые данные
+    print("[CACHE] Запрашиваю свежую номенклатуру из iiko API...")
+    nomenclature = olap.get_nomenclature()
+
+    if nomenclature:
+        nomenclature_cache['data'] = nomenclature
+        nomenclature_cache['expires_at'] = now + timedelta(minutes=15)
+        print(f"[CACHE] Номенклатура закэширована на 15 минут (до {nomenclature_cache['expires_at'].strftime('%H:%M:%S')})")
+
+    return nomenclature
+
 # Список баров
 BARS = [
     "Большой пр. В.О",
@@ -125,17 +160,19 @@ def analyze():
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
         print(f"   Period: {days} dney")
         
-        # Подключаемся к iiko API
+            # Подключаемся к iiko API
         olap = OlapReports()
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-        
-        # Запрашиваем данные
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        
-        report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
-        olap.disconnect()
+
+        try:
+            # Запрашиваем данные
+            date_to = datetime.now().strftime("%Y-%m-%d")
+            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+
+            report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
+        finally:
+            olap.disconnect()
         
         if not report_data or not report_data.get('data'):
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
@@ -311,17 +348,19 @@ def analyze_categories():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
         print("   [OK] Podklyucheno k iiko API")
 
-        # Запрашиваем данные
-        print("   [2/8] Zapros dannykh iz OLAP...")
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        try:
+            # Запрашиваем данные
+            print("   [2/8] Zapros dannykh iz OLAP...")
+            date_to = datetime.now().strftime("%Y-%m-%d")
+            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
-        report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
-        olap.disconnect()
+            report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
 
-        if not report_data or not report_data.get('data'):
-            print(f"   [ERROR] Net dannykh za period {date_from} - {date_to}")
-            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+            if not report_data or not report_data.get('data'):
+                print(f"   [ERROR] Net dannykh za period {date_from} - {date_to}")
+                return jsonify({'error': 'Нет данных за выбранный период'}), 404
+        finally:
+            olap.disconnect()
 
         print(f"   [OK] Polucheno {len(report_data.get('data', []))} zapisey")
 
@@ -445,11 +484,13 @@ def analyze_draft():
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        report_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
-        olap.disconnect()
+        try:
+            report_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
 
-        if not report_data or not report_data.get('data'):
-            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+            if not report_data or not report_data.get('data'):
+                return jsonify({'error': 'Нет данных за выбранный период'}), 404
+        finally:
+            olap.disconnect()
 
         # Преобразуем в DataFrame
         df = pd.DataFrame(report_data['data'])
@@ -792,12 +833,14 @@ def analyze_waiters():
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        # Запрашиваем данные разливного с официантами
-        report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, bar_name)
-        olap.disconnect()
+        try:
+            # Запрашиваем данные разливного с официантами
+            report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, bar_name)
 
-        if not report_data or not report_data.get('data'):
-            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+            if not report_data or not report_data.get('data'):
+                return jsonify({'error': 'Нет данных за выбранный период'}), 404
+        finally:
+            olap.disconnect()
 
         # Преобразуем в DataFrame
         df = pd.DataFrame(report_data['data'])
@@ -1257,25 +1300,24 @@ def get_taplist_stocks():
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        # Получаем номенклатуру для маппинга GUID -> информация о товаре
-        nomenclature = olap.get_nomenclature()
-        if not nomenclature:
+        try:
+            # Получаем номенклатуру для маппинга GUID -> информация о товаре
+            nomenclature = get_cached_nomenclature(olap)
+            if not nomenclature:
+                return jsonify({'error': 'Не удалось получить номенклатуру'}), 500
+
+            # Получаем РЕАЛЬНЫЕ остатки на складах (текущее время)
+            from datetime import datetime
+            current_time = datetime.now()
+            print(f"[DEBUG] Текущее время сервера: {current_time.strftime('%Y-%m-%d %H:%M:%S')}", flush=True)
+
+            balances = olap.get_store_balances()
+            if not balances:
+                return jsonify({'error': 'Не удалось получить остатки'}), 500
+
+            print(f"[DEBUG] Получено {len(balances)} записей остатков", flush=True)
+        finally:
             olap.disconnect()
-            return jsonify({'error': 'Не удалось получить номенклатуру'}), 500
-
-        # Получаем РЕАЛЬНЫЕ остатки на складах (текущее время)
-        from datetime import datetime
-        current_time = datetime.now()
-        print(f"[DEBUG] Текущее время сервера: {current_time.strftime('%Y-%m-%d %H:%M:%S')}", flush=True)
-
-        balances = olap.get_store_balances()
-        if not balances:
-            olap.disconnect()
-            return jsonify({'error': 'Не удалось получить остатки'}), 500
-
-        print(f"[DEBUG] Получено {len(balances)} записей остатков", flush=True)
-
-        olap.disconnect()
 
         # Определяем склад для фильтрации
         target_store_id = None
@@ -1441,20 +1483,21 @@ def get_kitchen_stocks():
         date_to = date_to_obj.strftime("%d.%m.%Y")
         date_from = date_from_obj.strftime("%d.%m.%Y")
 
-        # Получаем номенклатуру товаров (GUID -> название)
-        nomenclature = olap.get_nomenclature()
+        try:
+            # Получаем номенклатуру товаров (GUID -> название)
+            nomenclature = get_cached_nomenclature(olap)
 
-        if not nomenclature:
+            if not nomenclature:
+                return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
+
+            # Получаем отчет по складским операциям с товарами
+            bar_name = bar if bar != 'Общая' else None
+            store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
+
+            if not store_data:
+                return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
+        finally:
             olap.disconnect()
-            return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
-
-        # Получаем отчет по складским операциям с товарами
-        bar_name = bar if bar != 'Общая' else None
-        store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
-
-        if not store_data:
-            olap.disconnect()
-            return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
 
         # Обрабатываем данные о товарах
         products_dict = {}
@@ -1547,8 +1590,6 @@ def get_kitchen_stocks():
                 'stock_level': stock_level
             })
 
-        olap.disconnect()
-
         # Сортируем по категориям и названиям
         items.sort(key=lambda x: (x['category'], x['name']))
 
@@ -1586,27 +1627,28 @@ def get_bottles_stocks():
         date_to = date_to_obj.strftime("%d.%m.%Y")
         date_from = date_from_obj.strftime("%d.%m.%Y")
 
-        # Получаем номенклатуру товаров
-        nomenclature = olap.get_nomenclature()
+        try:
+            # Получаем номенклатуру товаров
+            nomenclature = get_cached_nomenclature(olap)
 
-        if not nomenclature:
+            if not nomenclature:
+                return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
+
+            # ID группы "Напитки Фасовка"
+            FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
+
+            # Получаем все товары из группы "Напитки Фасовка" (включая подгруппы)
+            fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
+            print(f"[BOTTLES DEBUG] Товаров в группе 'Напитки Фасовка': {len(fasovka_product_ids)}")
+
+            # Получаем отчет по складским операциям
+            bar_name = bar if bar != 'Общая' else None
+            store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
+
+            if not store_data:
+                return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
+        finally:
             olap.disconnect()
-            return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
-
-        # ID группы "Напитки Фасовка"
-        FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
-
-        # Получаем все товары из группы "Напитки Фасовка" (включая подгруппы)
-        fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
-        print(f"[BOTTLES DEBUG] Товаров в группе 'Напитки Фасовка': {len(fasovka_product_ids)}")
-
-        # Получаем отчет по складским операциям
-        bar_name = bar if bar != 'Общая' else None
-        store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
-
-        if not store_data:
-            olap.disconnect()
-            return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
 
         # Обрабатываем данные о фасовке
         products_dict = {}
@@ -1688,8 +1730,6 @@ def get_bottles_stocks():
                 'avg_sales': round(avg_consumption, 2),
                 'stock_level': stock_level
             })
-
-        olap.disconnect()
 
         # Сортируем по категориям и названиям
         items.sort(key=lambda x: (x['category'], x['name']))
