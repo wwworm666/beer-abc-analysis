@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитический дашборд</title>
+    <style>
+        :root {
+            /* Light Theme */
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #e0e0e0;
+            --accent: #0066cc;
+            --accent-hover: #0052a3;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            --border-color: #333333;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            line-height: 1;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+
+        .header-left .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .theme-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .theme-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .theme-btn:hover:not(.active) {
+            color: var(--text-primary);
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 32px;
+            margin-bottom: 24px;
+            transition: all 0.2s ease;
+        }
+
+        /* Controls */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input {
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        /* Button */
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 60px 32px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .loading p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Results */
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.95rem;
+        }
+
+        thead {
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        th {
+            text-align: left;
+            padding: 16px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 20px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .metric-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .metric-value {
+            font-weight: 700;
+            font-size: 1.2rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .metric-value.money {
+            color: var(--success);
+        }
+
+        .metric-value.percent {
+            color: var(--accent);
+        }
+
+        /* Error */
+        .error {
+            background: var(--danger);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 20px;
+            }
+
+            .header-left h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .summary-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .summary-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .summary-card .label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .summary-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .summary-card .unit {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>Дашборд Аналитики</h1>
+                <div class="subtitle">Ключевые метрики бизнеса</div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+                <div style="display: flex; gap: 12px;">
+                    <a href="/" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">ABC/XYZ фасовки</a>
+                    <a href="/draft" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Проливы по барам</a>
+                    <a href="/waiters" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Проливы по барменам</a>
+                    <a href="/taps" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Активность кранов</a>
+                    <a href="/stocks" style="padding: 8px 20px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Остатки и заказы</a>
+                    <a href="/dashboard" style="padding: 8px 20px; background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; color: white; text-decoration: none; font-size: 0.9rem; font-weight: 500;">Дашборд</a>
+                </div>
+                <div class="theme-toggle">
+                    <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
+                    <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="controls">
+                <div class="form-group">
+                    <label for="bar-select">Бар</label>
+                    <select id="bar-select">
+                        <option value="">Общая</option>
+                        {% for bar in bars %}
+                        <option value="{{ bar }}">{{ bar }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="date-from">Дата начала</label>
+                    <input type="date" id="date-from">
+                </div>
+
+                <div class="form-group">
+                    <label for="date-to">Дата окончания</label>
+                    <input type="date" id="date-to">
+                </div>
+            </div>
+
+            <div class="controls" style="grid-template-columns: 1fr;">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="loadDashboard()">Загрузить данные</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="error" id="error-message"></div>
+
+        <div class="card loading" id="loading">
+            <div class="spinner"></div>
+            <h2>Загружаем данные...</h2>
+            <p>Это может занять несколько секунд</p>
+        </div>
+
+        <div class="results" id="results">
+            <div class="card">
+                <h2 style="margin-bottom: 24px; font-size: 1.5rem;">Общие метрики</h2>
+                <div class="summary-grid" id="summary-grid">
+                    <!-- Карточки заполнятся динамически -->
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 style="margin-bottom: 24px; font-size: 1.5rem;">Детальная таблица метрик</h2>
+                <table id="metrics-table">
+                    <thead>
+                        <tr>
+                            <th>Метрика</th>
+                            <th style="text-align: right;">Значение</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Строки заполнятся динамически -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Theme management
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            if ((savedTheme === 'light' && btn.textContent === 'Светлая') ||
+                (savedTheme === 'dark' && btn.textContent === 'Тёмная')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Установить даты по умолчанию
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date();
+            const monthAgo = new Date(today);
+            monthAgo.setDate(today.getDate() - 30);
+
+            document.getElementById('date-to').valueAsDate = today;
+            document.getElementById('date-from').valueAsDate = monthAgo;
+        });
+
+        async function loadDashboard() {
+            const bar = document.getElementById('bar-select').value;
+            const dateFrom = document.getElementById('date-from').value;
+            const dateTo = document.getElementById('date-to').value;
+
+            if (!dateFrom || !dateTo) {
+                showError('Пожалуйста, выберите обе даты');
+                return;
+            }
+
+            // Показываем индикатор загрузки
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('error-message').classList.remove('active');
+
+            try {
+                const response = await fetch('/api/dashboard-analytics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        bar: bar,
+                        date_from: dateFrom,
+                        date_to: dateTo
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка при получении данных');
+                }
+
+                const data = await response.json();
+                displayResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Ошибка: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function displayResults(data) {
+            // Заполняем карточки сводки
+            const summaryGrid = document.getElementById('summary-grid');
+            summaryGrid.innerHTML = `
+                <div class="summary-card">
+                    <div class="label">Общая выручка</div>
+                    <div class="value">${formatMoney(data.total_revenue)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Количество чеков</div>
+                    <div class="value">${formatNumber(data.total_checks)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Средний чек</div>
+                    <div class="value">${formatMoney(data.avg_check)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="label">Прибыль</div>
+                    <div class="value">${formatMoney(data.total_margin)}</div>
+                </div>
+            `;
+
+            // Заполняем таблицу
+            const tableBody = document.getElementById('metrics-table').querySelector('tbody');
+            tableBody.innerHTML = data.table_data.map(row => {
+                let valueClass = '';
+                let formattedValue = row.value;
+
+                if (row.format === 'money') {
+                    valueClass = 'money';
+                    formattedValue = formatMoney(row.value);
+                } else if (row.format === 'percent') {
+                    valueClass = 'percent';
+                    formattedValue = row.value.toFixed(2) + ' %';
+                } else {
+                    formattedValue = formatNumber(row.value);
+                }
+
+                return `
+                    <tr>
+                        <td class="metric-name">${row.metric}</td>
+                        <td class="metric-value ${valueClass}" style="text-align: right;">${formattedValue}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('results').classList.add('active');
+        }
+
+        function formatMoney(value) {
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        function formatNumber(value) {
+            return new Intl.NumberFormat('ru-RU').format(value);
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+        }
+    </script>
+</body>
+</html>

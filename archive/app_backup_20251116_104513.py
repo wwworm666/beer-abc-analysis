@@ -11,7 +11,6 @@ from core.category_analysis import CategoryAnalysis
 from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
 from core.taps_manager import TapsManager
-from dashboardNovaev.dashboard_analysis import DashboardAnalytics
 
 app = Flask(__name__)
 
@@ -59,11 +58,6 @@ def taps():
 def stocks():
     """Страница управления стоками и формирования заказов"""
     return render_template('stocks.html', bars=BARS)
-
-@app.route('/dashboard')
-def dashboard():
-    """Страница аналитического дашборда"""
-    return render_template('dashboard.html', bars=BARS)
 
 @app.route('/taps/<bar_id>')
 def taps_bar(bar_id):
@@ -1714,100 +1708,6 @@ def get_bottles_stocks():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/dashboard-analytics', methods=['POST'])
-def dashboard_analytics():
-    """API endpoint для получения всех метрик дашборда"""
-    try:
-        data = request.json
-        bar_name = data.get('bar')
-        date_from = data.get('date_from')  # YYYY-MM-DD
-        date_to = data.get('date_to')      # YYYY-MM-DD
-
-        print(f"\n[DASHBOARD] Запуск анализа дашборда...")
-        print(f"   Bar: {bar_name if bar_name else 'ВСЕ'}")
-        print(f"   Period: {date_from} - {date_to}")
-
-        if not date_from or not date_to:
-            return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
-
-        # Подключаемся к iiko API
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        # 1. Получаем данные по разливному пиву
-        print("   [1/3] Получение данных разливного...")
-        draft_report = olap.get_draft_sales_report(date_from, date_to, bar_name)
-        draft_df = pd.DataFrame()
-        if draft_report and draft_report.get('data'):
-            draft_df = pd.DataFrame(draft_report['data'])
-            draft_df['DishAmountInt'] = pd.to_numeric(draft_df['DishAmountInt'], errors='coerce')
-            draft_df['DishDiscountSumInt'] = pd.to_numeric(draft_df['DishDiscountSumInt'], errors='coerce')
-            draft_df['ProductCostBase.ProductCost'] = pd.to_numeric(draft_df['ProductCostBase.ProductCost'], errors='coerce')
-            draft_df['ProductCostBase.MarkUp'] = pd.to_numeric(draft_df['ProductCostBase.MarkUp'], errors='coerce')
-            draft_df['Margin'] = draft_df['DishDiscountSumInt'] - draft_df['ProductCostBase.ProductCost']
-            print(f"   [OK] Разливное: {len(draft_df)} записей")
-
-        # 2. Получаем данные по фасовке
-        print("   [2/3] Получение данных фасовки...")
-        bottles_report = olap.get_beer_sales_report(date_from, date_to, bar_name)
-        bottles_df = pd.DataFrame()
-        if bottles_report and bottles_report.get('data'):
-            processor = BeerDataProcessor(bottles_report)
-            if processor.prepare_dataframe():
-                bottles_df = processor.df
-                print(f"   [OK] Фасовка: {len(bottles_df)} записей")
-
-        # 3. Получаем данные по кухне (складские операции)
-        print("   [3/3] Получение данных кухни...")
-        # Конвертируем даты в формат DD.MM.YYYY для store_operations_report
-        date_from_store = datetime.strptime(date_from, "%Y-%m-%d").strftime("%d.%m.%Y")
-        date_to_store = datetime.strptime(date_to, "%Y-%m-%d").strftime("%d.%m.%Y")
-
-        kitchen_data = olap.get_store_operations_report(date_from_store, date_to_store, bar_name)
-        kitchen_df = pd.DataFrame()
-        if kitchen_data:
-            kitchen_df = pd.DataFrame(kitchen_data)
-            # Фильтруем только товары кухни (не пиво)
-            # Используем категорию для фильтрации
-            if not kitchen_df.empty and 'category' in kitchen_df.columns:
-                # Исключаем категории пива
-                beer_keywords = ['пиво', 'beer', 'кег', 'keg', 'напитки']
-                kitchen_df = kitchen_df[
-                    ~kitchen_df['category'].str.lower().str.contains('|'.join(beer_keywords), na=False)
-                ]
-            print(f"   [OK] Кухня: {len(kitchen_df)} записей")
-
-        olap.disconnect()
-
-        # Создаем аналитик и рассчитываем метрики
-        print("   [4/4] Расчет метрик...")
-        analytics = DashboardAnalytics(
-            draft_data=draft_df,
-            bottles_data=bottles_df,
-            kitchen_data=kitchen_df
-        )
-
-        metrics = analytics.calculate_all_metrics(bar_name)
-        table_data = analytics.get_metrics_table_data(bar_name)
-
-        print(f"   [OK] Метрики рассчитаны успешно!")
-
-        # Формируем ответ
-        response = {
-            **metrics,
-            'table_data': table_data
-        }
-
-        return jsonify(response)
-
-    except Exception as e:
-        print(f"[ERROR] Ошибка в /api/dashboard-analytics: {e}")
-        import traceback
-        traceback.print_exc()
-        error_detail = f"{type(e).__name__}: {str(e)}"
-        return jsonify({'error': error_detail}), 500
 
 if __name__ == '__main__':
     print("\n" + "="*60)
