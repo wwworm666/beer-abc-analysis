@@ -2054,6 +2054,87 @@ def delete_plan(period_key):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/comments/<venue_key>/<period_key>', methods=['GET'])
+def get_comment(venue_key, period_key):
+    """
+    Получить комментарий для периода и заведения
+
+    Args:
+        venue_key: Ключ заведения
+        period_key: Ключ периода
+
+    Returns:
+        JSON: {'comment': '...'} или {'comment': null}
+    """
+    try:
+        print(f"\n[COMMENTS API] Получение комментария: {venue_key} / {period_key}")
+
+        plan = plans_manager.get_plan(venue_key, period_key)
+
+        if plan and 'comment' in plan:
+            comment = plan['comment']
+            print(f"[COMMENTS API] Комментарий найден: {len(comment)} символов")
+            return jsonify({'comment': comment})
+        else:
+            print(f"[COMMENTS API] Комментарий не найден")
+            return jsonify({'comment': None})
+
+    except Exception as e:
+        print(f"[COMMENTS API ERROR] Ошибка при получении комментария: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/comments/<venue_key>/<period_key>', methods=['POST'])
+def save_comment(venue_key, period_key):
+    """
+    Сохранить комментарий для периода и заведения
+
+    Args:
+        venue_key: Ключ заведения
+        period_key: Ключ периода
+
+    Body:
+        {'comment': 'текст комментария'}
+
+    Returns:
+        JSON: {'success': True} или {'error': '...'}
+    """
+    try:
+        data = request.json
+        comment = data.get('comment', '').strip()
+
+        print(f"\n[COMMENTS API] Сохранение комментария: {venue_key} / {period_key}")
+        print(f"[COMMENTS API] Текст: {len(comment)} символов")
+
+        # Получаем существующий план или создаем пустой
+        plan = plans_manager.get_plan(venue_key, period_key)
+        if plan is None:
+            plan = {}
+
+        # Обновляем комментарий
+        plan['comment'] = comment
+
+        # Сохраняем план обратно
+        success = plans_manager.save_plan(venue_key, period_key, plan)
+
+        if success:
+            print(f"[COMMENTS API] Комментарий сохранен")
+            return jsonify({
+                'success': True,
+                'message': 'Comment saved successfully'
+            })
+        else:
+            return jsonify({'error': 'Failed to save comment'}), 500
+
+    except Exception as e:
+        print(f"[COMMENTS API ERROR] Ошибка при сохранении комментария: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 # ============================================================================
 # END OF DASHBOARD PLANS API
 # ============================================================================
