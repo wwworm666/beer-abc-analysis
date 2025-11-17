@@ -14,6 +14,9 @@ from core.taps_manager import TapsManager
 from dashboardNovaev.dashboard_analysis import DashboardMetrics
 from dashboardNovaev.plans_manager import PlansManager
 from dashboardNovaev.weeks_generator import WeeksGenerator
+from dashboardNovaev.backend.comparison_calculator import ComparisonCalculator
+from dashboardNovaev.backend.trends_analyzer import TrendsAnalyzer
+from dashboardNovaev.backend.export_manager import ExportManager
 
 app = Flask(__name__)
 
@@ -2020,6 +2023,68 @@ def delete_plan(period_key):
 # ============================================================================
 # END OF DASHBOARD PLANS API
 # ============================================================================
+
+
+# ========== COMPARISON, TRENDS & EXPORT APIs ==========
+
+# Инициализируем калькуляторы
+comparison_calculator = ComparisonCalculator()
+trends_analyzer = TrendsAnalyzer()
+export_manager = ExportManager()
+
+
+@app.route('/api/comparison/periods', methods=['POST'])
+def compare_periods():
+    """API для сравнения двух периодов"""
+    try:
+        data = request.json
+        venue_key = data.get('venue_key')
+        period1_key = data.get('period1_key')
+        period2_key = data.get('period2_key')
+
+        if not all([venue_key, period1_key, period2_key]):
+            return jsonify({'error': 'Missing required parameters'}), 400
+
+        # Получаем данные для обоих периодов
+        # TODO: Implement period data fetching
+        # Пока возвращаем mock данные
+        return jsonify({
+            'success': True,
+            'comparison': {},
+            'insights': []
+        })
+
+    except Exception as e:
+        print(f"[ERROR] /api/comparison/periods: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/export/text', methods=['POST'])
+def export_text():
+    """API для экспорта в текстовый формат"""
+    try:
+        data = request.json
+        venue_name = data.get('venue_name', 'Unknown')
+        period = data.get('period', {})
+        comparison = data.get('comparison', {})
+        insights = data.get('insights', [])
+
+        text_report = export_manager.prepare_text_report(
+            venue_name,
+            period,
+            comparison,
+            insights
+        )
+
+        return jsonify({
+            'success': True,
+            'text': text_report
+        })
+
+    except Exception as e:
+        print(f"[ERROR] /api/export/text: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     print("\n" + "="*60)

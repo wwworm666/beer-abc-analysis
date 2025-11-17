@@ -1,0 +1,26 @@
+<!-- Вкладка "Аналитика" - План vs Факт -->
+
+<!-- Stats Bar -->
+{% include 'dashboard/components/stats_bar.html' %}
+
+<!-- Loading State -->
+<div id="loading-state" class="loading-container hidden">
+    <div class="loading-spinner"></div>
+</div>
+
+<!-- No Plan State -->
+<div id="no-plan-state" class="no-plan-state hidden">
+    <h3>📋 План не задан</h3>
+    <p>Для этого периода пока нет плановых показателей.</p>
+    <button class="btn" onclick="document.querySelector('[data-tab=&quot;tab-plans&quot;]').click()">
+        Создать план
+    </button>
+</div>
+
+<!-- Metrics Grid -->
+<div id="metrics-grid" class="metrics-grid hidden">
+    <!-- Карточки метрик будут добавлены через JavaScript -->
+</div>
+
+<!-- Template для карточки метрики -->
+{% include 'dashboard/components/metric_card.html' %}

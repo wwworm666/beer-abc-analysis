@@ -1,0 +1,210 @@
+/* Стили карточек метрик */
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.metric-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px var(--shadow);
+}
+
+/* Цветная полоска слева в зависимости от статуса */
+.metric-card.success {
+    border-left: 4px solid var(--success);
+}
+
+.metric-card.warning {
+    border-left: 4px solid var(--warning);
+}
+
+.metric-card.danger {
+    border-left: 4px solid var(--danger);
+}
+
+/* Заголовок карточки */
+.metric-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+}
+
+.metric-icon {
+    font-size: 1.5rem;
+}
+
+.metric-name {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+/* Значения */
+.metric-values {
+    margin-bottom: var(--spacing-md);
+}
+
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: var(--spacing-xs);
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+}
+
+.metric-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.metric-value.plan {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+/* Прогресс бар */
+.metric-progress {
+    margin-bottom: var(--spacing-md);
+}
+
+.progress-bar-container {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: var(--spacing-xs);
+}
+
+.progress-bar {
+    height: 100%;
+    transition: width 0.5s ease, background-color 0.3s ease;
+    border-radius: 4px;
+}
+
+.progress-bar.success {
+    background: var(--success);
+}
+
+.progress-bar.warning {
+    background: var(--warning);
+}
+
+.progress-bar.danger {
+    background: var(--danger);
+}
+
+.progress-text {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+}
+
+.progress-percent {
+    font-weight: 600;
+}
+
+.progress-percent.success {
+    color: var(--success);
+}
+
+.progress-percent.warning {
+    color: var(--warning);
+}
+
+.progress-percent.danger {
+    color: var(--danger);
+}
+
+.progress-diff {
+    color: var(--text-tertiary);
+}
+
+/* Футер карточки */
+.metric-footer {
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+}
+
+.metric-status {
+    font-weight: 500;
+}
+
+.metric-status.success {
+    color: var(--success);
+}
+
+.metric-status.warning {
+    color: var(--warning);
+}
+
+.metric-status.danger {
+    color: var(--danger);
+}
+
+/* Статистика */
+.stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: var(--spacing-xs);
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+/* Состояние без плана */
+.no-plan-state {
+    padding: 60px 20px;
+    text-align: center;
+}
+
+.no-plan-state h3 {
+    font-size: 1.5rem;
+    margin-bottom: var(--spacing-md);
+    color: var(--text-secondary);
+}
+
+.no-plan-state p {
+    color: var(--text-tertiary);
+    margin-bottom: var(--spacing-lg);
+}
