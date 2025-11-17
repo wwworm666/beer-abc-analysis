@@ -1,0 +1,41 @@
+<!-- Шаблон карточки метрики (используется через JavaScript) -->
+<template id="metric-card-template">
+    <div class="metric-card" data-metric-id="">
+        <div class="metric-header">
+            <span class="metric-icon"></span>
+            <span class="metric-name"></span>
+        </div>
+
+        <div class="metric-values">
+            <div class="metric-row">
+                <span class="metric-label">План:</span>
+                <span class="metric-value plan"></span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Факт:</span>
+                <span class="metric-value actual"></span>
+            </div>
+        </div>
+
+        <div class="metric-progress">
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: 0%"></div>
+            </div>
+            <div class="progress-text">
+                <span class="progress-percent"></span>
+                <span class="progress-diff"></span>
+            </div>
+        </div>
+
+        <div class="metric-footer">
+            <span class="metric-status"></span>
+        </div>
+    </div>
+</template>
+
+<style>
+/* Дополнительные стили для template (если нужно) */
+template {
+    display: none;
+}
+</style>

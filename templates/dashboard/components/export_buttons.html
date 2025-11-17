@@ -1,0 +1,51 @@
+<!-- Кнопки экспорта -->
+<div class="export-buttons">
+    <button id="btn-export-excel" class="btn btn-secondary export-btn" title="Экспорт в Excel">
+        <span class="icon">📊</span>
+        <span class="desktop-only">Excel</span>
+    </button>
+
+    <button id="btn-export-pdf" class="btn btn-secondary export-btn" title="Экспорт в PDF">
+        <span class="icon">📄</span>
+        <span class="desktop-only">PDF</span>
+    </button>
+
+    <button id="btn-copy-clipboard" class="btn btn-secondary export-btn" title="Копировать в буфер">
+        <span class="icon">📋</span>
+        <span class="desktop-only">Копировать</span>
+    </button>
+
+    <button id="btn-share" class="btn btn-secondary export-btn mobile-only" title="Поделиться">
+        <span class="icon">📤</span>
+    </button>
+</div>
+
+<style>
+.export-buttons {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+    margin-bottom: var(--spacing-lg);
+}
+
+.export-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.export-btn .icon {
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .export-buttons {
+        justify-content: stretch;
+    }
+
+    .export-btn {
+        flex: 1;
+        justify-content: center;
+    }
+}
+</style>
