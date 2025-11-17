@@ -2201,6 +2201,257 @@ def export_text():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/export/excel', methods=['POST'])
+def export_excel():
+    """API для экспорта в Excel (XLSX) формат"""
+    try:
+        from io import BytesIO
+        import csv
+
+        data = request.json
+        venue_key = data.get('venue_key')
+        period_key = data.get('period_key')
+
+        print(f"\n[EXPORT EXCEL] Генерация Excel: {venue_key} / {period_key}")
+
+        # Получаем данные
+        plan = plans_manager.get_plan(venue_key, period_key) or {}
+        venue = venues_manager.get_venue(venue_key)
+        venue_name = venue['full_name'] if venue else venue_key
+
+        # Пробуем использовать openpyxl если установлен
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment, PatternFill
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Дашборд"
+
+            # Заголовок
+            ws.merge_cells('A1:E1')
+            ws['A1'] = f"Дашборд - {venue_name}"
+            ws['A1'].font = Font(size=16, bold=True)
+            ws['A1'].alignment = Alignment(horizontal='center')
+
+            ws['A2'] = f"Период: {period_key}"
+            ws['A2'].font = Font(bold=True)
+
+            # Заголовки таблицы
+            headers = ['Метрика', 'План', 'Факт', '% плана', 'Разница']
+            for col, header in enumerate(headers, 1):
+                cell = ws.cell(row=4, column=col, value=header)
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
+
+            # Данные метрик
+            metrics = [
+                ('💰 Выручка (₽)', 'revenue'),
+                ('🧾 Чеки (шт)', 'checks'),
+                ('💵 Средний чек (₽)', 'averageCheck'),
+                ('🍺 Доля розлива (%)', 'draftShare'),
+                ('🍾 Доля фасовки (%)', 'packagedShare'),
+                ('🍽️ Доля кухни (%)', 'kitchenShare'),
+                ('💹 Прибыль (₽)', 'profit'),
+                ('📈 % наценки', 'markupPercent')
+            ]
+
+            row = 5
+            for metric_name, metric_key in metrics:
+                plan_value = plan.get(metric_key, 0)
+                ws.cell(row=row, column=1, value=metric_name)
+                ws.cell(row=row, column=2, value=plan_value)
+                row += 1
+
+            # Сохраняем в BytesIO
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            print(f"[EXPORT EXCEL] ✅ Excel файл сгенерирован (openpyxl)")
+            return output.getvalue(), 200, {
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.xlsx'
+            }
+
+        except ImportError:
+            # Fallback to CSV if openpyxl not available
+            print("[EXPORT EXCEL] openpyxl не установлен, используем CSV")
+            output = BytesIO()
+            writer = csv.writer(output)
+
+            writer.writerow([f"Дашборд - {venue_name}"])
+            writer.writerow([f"Период: {period_key}"])
+            writer.writerow([])
+            writer.writerow(['Метрика', 'План', 'Факт', '% плана', 'Разница'])
+
+            metrics = [
+                ('Выручка (₽)', 'revenue'),
+                ('Чеки (шт)', 'checks'),
+                ('Средний чек (₽)', 'averageCheck'),
+                ('Доля розлива (%)', 'draftShare'),
+                ('Доля фасовки (%)', 'packagedShare'),
+                ('Доля кухни (%)', 'kitchenShare'),
+                ('Прибыль (₽)', 'profit'),
+                ('% наценки', 'markupPercent')
+            ]
+
+            for metric_name, metric_key in metrics:
+                plan_value = plan.get(metric_key, 0)
+                writer.writerow([metric_name, plan_value, '', '', ''])
+
+            output.seek(0)
+
+            print(f"[EXPORT EXCEL] ✅ CSV файл сгенерирован (fallback)")
+            return output.getvalue(), 200, {
+                'Content-Type': 'text/csv',
+                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.csv'
+            }
+
+    except Exception as e:
+        print(f"[ERROR] /api/export/excel: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/export/pdf', methods=['POST'])
+def export_pdf():
+    """API для экспорта в PDF формат"""
+    try:
+        from io import BytesIO
+
+        data = request.json
+        venue_key = data.get('venue_key')
+        period_key = data.get('period_key')
+
+        print(f"\n[EXPORT PDF] Генерация PDF: {venue_key} / {period_key}")
+
+        # Получаем данные
+        plan = plans_manager.get_plan(venue_key, period_key) or {}
+        venue = venues_manager.get_venue(venue_key)
+        venue_name = venue['full_name'] if venue else venue_key
+
+        # Пробуем использовать reportlab если установлен
+        try:
+            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet
+            from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+
+            output = BytesIO()
+            doc = SimpleDocTemplate(output, pagesize=A4)
+
+            elements = []
+            styles = getSampleStyleSheet()
+
+            # Заголовок
+            title = Paragraph(f"<b>Дашборд - {venue_name}</b>", styles['Title'])
+            elements.append(title)
+            elements.append(Spacer(1, 12))
+
+            subtitle = Paragraph(f"Период: {period_key}", styles['Normal'])
+            elements.append(subtitle)
+            elements.append(Spacer(1, 20))
+
+            # Таблица метрик
+            data_table = [['Метрика', 'План']]
+
+            metrics = [
+                ('Выручка (₽)', 'revenue'),
+                ('Чеки (шт)', 'checks'),
+                ('Средний чек (₽)', 'averageCheck'),
+                ('Доля розлива (%)', 'draftShare'),
+                ('Доля фасовки (%)', 'packagedShare'),
+                ('Доля кухни (%)', 'kitchenShare'),
+                ('Прибыль (₽)', 'profit'),
+                ('% наценки', 'markupPercent')
+            ]
+
+            for metric_name, metric_key in metrics:
+                plan_value = plan.get(metric_key, 0)
+                data_table.append([metric_name, f"{plan_value:,.2f}"])
+
+            table = Table(data_table)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 14),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+
+            elements.append(table)
+
+            doc.build(elements)
+            output.seek(0)
+
+            print(f"[EXPORT PDF] ✅ PDF файл сгенерирован (reportlab)")
+            return output.getvalue(), 200, {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.pdf'
+            }
+
+        except ImportError:
+            # Fallback to HTML if reportlab not available
+            print("[EXPORT PDF] reportlab не установлен, используем HTML")
+
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Дашборд - {venue_name}</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                    h1 {{ color: #333; }}
+                    table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+                    th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                    th {{ background-color: #4CAF50; color: white; }}
+                    tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                </style>
+            </head>
+            <body>
+                <h1>Дашборд - {venue_name}</h1>
+                <p><strong>Период:</strong> {period_key}</p>
+                <table>
+                    <tr>
+                        <th>Метрика</th>
+                        <th>План</th>
+                    </tr>
+                    {''.join(f'<tr><td>{name}</td><td>{plan.get(key, 0):,.2f}</td></tr>' for name, key in [
+                        ('Выручка (₽)', 'revenue'),
+                        ('Чеки (шт)', 'checks'),
+                        ('Средний чек (₽)', 'averageCheck'),
+                        ('Доля розлива (%)', 'draftShare'),
+                        ('Доля фасовки (%)', 'packagedShare'),
+                        ('Доля кухни (%)', 'kitchenShare'),
+                        ('Прибыль (₽)', 'profit'),
+                        ('% наценки', 'markupPercent')
+                    ])}
+                </table>
+            </body>
+            </html>
+            """
+
+            print(f"[EXPORT PDF] ✅ HTML файл сгенерирован (fallback)")
+            return html_content.encode('utf-8'), 200, {
+                'Content-Type': 'text/html; charset=utf-8',
+                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.html'
+            }
+
+    except Exception as e:
+        print(f"[ERROR] /api/export/pdf: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("BEER ABC/XYZ ANALYSIS")
