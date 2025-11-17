@@ -33,6 +33,9 @@
             <button class="tab-button" data-tab="tab-charts">
                 📈 Графики
             </button>
+            <button class="tab-button" data-tab="tab-comparison">
+                ⚖️ Сравнение
+            </button>
             <button class="tab-button" data-tab="tab-plans">
                 ⚙️ Плановые показатели
             </button>
@@ -45,6 +48,10 @@
 
         <div id="tab-charts" class="tab-content">
             {% include 'dashboard/charts_tab.html' %}
+        </div>
+
+        <div id="tab-comparison" class="tab-content">
+            {% include 'dashboard/comparison_tab.html' %}
         </div>
 
         <div id="tab-plans" class="tab-content">
