@@ -191,3 +191,22 @@ export async function saveComment(venueKey, periodKey, comment) {
         body: JSON.stringify({ comment })
     });
 }
+
+// Экспортируем объект api со всеми функциями для удобного импорта
+export const api = {
+    getVenues,
+    getVenue,
+    getWeeks,
+    getPlan,
+    savePlan,
+    deletePlan,
+    getAllPlans,
+    getAnalytics,
+    comparePeriods,
+    compareVenues,
+    getTrends,
+    exportToExcel,
+    exportToPDF,
+    getComment,
+    saveComment
+};
