@@ -24,12 +24,15 @@
 
     <!-- JavaScript модули (ES6 modules) -->
     <script type="module">
+        // Cache busting version
+        const v = '1763406133';
+
         // Импортируем главный файл
-        import dashboard from "/static/js/dashboard/main.js";
+        import dashboard from `/static/js/dashboard/main.js?v=${v}`;
 
         // Импортируем дополнительные модули
-        import { exportModule } from "/static/js/dashboard/modules/export.js";
-        import { comparisonModule } from "/static/js/dashboard/modules/comparison.js";
+        import { exportModule } from `/static/js/dashboard/modules/export.js?v=${v}`;
+        import { comparisonModule } from `/static/js/dashboard/modules/comparison.js?v=${v}`;
 
         // Инициализируем дополнительные модули
         exportModule.init();
