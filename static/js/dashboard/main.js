@@ -10,6 +10,7 @@ import { weekSelector } from './modules/week_selector.js';
 import { analytics } from './modules/analytics.js';
 import { plansManager } from './modules/plans.js';
 import { chartsModule } from './modules/charts.js';
+import { trendsModule } from './modules/trends.js';
 import { commentsManager } from './modules/comments.js';
 
 class Dashboard {
@@ -43,6 +44,9 @@ class Dashboard {
 
             chartsModule.init();
             console.log('✅ Модуль графиков инициализирован');
+
+            trendsModule.init();
+            console.log('✅ Модуль трендов инициализирован');
 
             plansManager.init();
             console.log('✅ Модуль планов инициализирован');
@@ -93,9 +97,10 @@ class Dashboard {
                     selectedTab.classList.add('active');
                     state.setActiveTab(tabId);
 
-                    // Загружаем графики при переключении на вкладку графиков
+                    // Загружаем графики и тренды при переключении на вкладку графиков
                     if (tabId === 'tab-charts') {
                         chartsModule.loadChartsData();
+                        trendsModule.loadTrendsData();
                     }
                 }
             });

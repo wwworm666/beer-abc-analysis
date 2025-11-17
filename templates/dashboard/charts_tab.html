@@ -65,6 +65,101 @@
     </div>
 </div>
 
+<!-- Секция трендов и прогнозирования -->
+<div class="trends-section">
+    <div class="trends-header">
+        <h2>🔮 Тренды и прогноз</h2>
+        <p class="subtitle">Анализ последних 12 недель и прогноз следующего периода</p>
+    </div>
+
+    <!-- Loading State -->
+    <div id="trends-loading" class="loading-container hidden">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <!-- No Data State -->
+    <div id="trends-no-data" class="no-data-state hidden">
+        <h3>📊 Недостаточно данных</h3>
+        <p>Для анализа трендов требуется минимум 3 недели данных</p>
+    </div>
+
+    <!-- Results -->
+    <div id="trends-results" class="trends-results hidden">
+        <!-- Статистика -->
+        <div class="trends-stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Среднее</div>
+                <div class="stat-value" id="trends-stat-mean">0 ₽</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Максимум</div>
+                <div class="stat-value" id="trends-stat-max">0 ₽</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Минимум</div>
+                <div class="stat-value" id="trends-stat-min">0 ₽</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Стд. отклонение</div>
+                <div class="stat-value" id="trends-stat-stddev">0 ₽</div>
+            </div>
+        </div>
+
+        <!-- Прогноз -->
+        <div class="forecast-section">
+            <h3>🎯 Прогноз следующего периода</h3>
+            <div class="forecast-grid">
+                <div class="forecast-card">
+                    <div class="forecast-icon" id="trends-trend-icon">📈</div>
+                    <div class="forecast-details">
+                        <div class="forecast-label">Прогнозируемая выручка</div>
+                        <div class="forecast-value" id="trends-forecast-revenue">0 ₽</div>
+                    </div>
+                </div>
+                <div class="forecast-meta">
+                    <div class="forecast-meta-item">
+                        <span class="meta-label">Тренд:</span>
+                        <span class="meta-value" id="trends-forecast-trend">-</span>
+                    </div>
+                    <div class="forecast-meta-item">
+                        <span class="meta-label">Уверенность:</span>
+                        <span class="meta-value" id="trends-forecast-confidence">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- График тренда -->
+        <div class="trend-chart-section">
+            <h3>📈 График тренда (12 недель + прогноз)</h3>
+            <div class="chart-wrapper">
+                <canvas id="trends-chart"></canvas>
+            </div>
+        </div>
+
+        <!-- Таблица недель -->
+        <div class="trends-table-section">
+            <h3>📋 Детализация по неделям</h3>
+            <div class="table-wrapper">
+                <table class="trends-table">
+                    <thead>
+                        <tr>
+                            <th>Неделя</th>
+                            <th>Выручка</th>
+                            <th>Чеки</th>
+                            <th>Средний чек</th>
+                            <th>Изменение</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trends-weeks-table-body">
+                        <!-- Заполняется через JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .charts-grid {
     display: grid;
@@ -156,6 +251,157 @@
 
     .chart-half {
         height: 250px;
+    }
+}
+
+/* Trends Section */
+.trends-section {
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-xl);
+    border-top: 2px solid var(--border-color);
+}
+
+.trends-header {
+    margin-bottom: var(--spacing-lg);
+}
+
+.trends-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.stat-card {
+    background: var(--bg-secondary);
+    padding: var(--spacing-md);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.forecast-section {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.forecast-grid {
+    display: flex;
+    gap: var(--spacing-lg);
+    align-items: center;
+    margin-top: var(--spacing-md);
+}
+
+.forecast-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: white;
+    border-radius: var(--border-radius);
+}
+
+.forecast-icon {
+    font-size: 3rem;
+}
+
+.forecast-label {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
+.forecast-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+}
+
+.forecast-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.forecast-meta-item {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
+.meta-label {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.meta-value {
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.trend-chart-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.trends-table-section {
+    margin-bottom: var(--spacing-xl);
+}
+
+.trends-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.trends-table thead {
+    background: var(--accent);
+    color: white;
+}
+
+.trends-table th,
+.trends-table td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.trends-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.trends-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.trends-table .positive {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.trends-table .negative {
+    color: var(--error);
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .forecast-grid {
+        flex-direction: column;
     }
 }
 </style>
