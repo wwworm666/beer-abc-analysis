@@ -28,17 +28,24 @@
         const v = '1763406133';
 
         // Импортируем главный файл
-        import dashboard from `/static/js/dashboard/main.js?v=${v}`;
-
-        // Импортируем дополнительные модули
-        import { exportModule } from `/static/js/dashboard/modules/export.js?v=${v}`;
-        import { comparisonModule } from `/static/js/dashboard/modules/comparison.js?v=${v}`;
-
-        // Инициализируем дополнительные модули
-        exportModule.init();
-        comparisonModule.init();
-
-        console.log('✅ Dashboard loaded successfully!');
+        import(`/static/js/dashboard/main.js?v=${v}`).then(() => {
+            // Импортируем дополнительные модули
+            return Promise.all([
+                import(`/static/js/dashboard/modules/export.js?v=${v}`),
+                import(`/static/js/dashboard/modules/comparison.js?v=${v}`)
+            ]);
+        }).then(([exportMod, comparisonMod]) => {
+            // Инициализируем дополнительные модули
+            if (exportMod && exportMod.exportModule) {
+                exportMod.exportModule.init();
+            }
+            if (comparisonMod && comparisonMod.comparisonModule) {
+                comparisonMod.comparisonModule.init();
+            }
+            console.log('✅ Dashboard loaded successfully!');
+        }).catch(err => {
+            console.error('❌ Error loading dashboard:', err);
+        });
     </script>
 
     <!-- Fallback для старых браузеров -->
