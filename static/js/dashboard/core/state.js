@@ -193,7 +193,12 @@ class DashboardState {
     notify(event, data) {
         this.subscribers.forEach(callback => {
             try {
-                callback(event, data);
+                // Проверяем что callback это функция перед вызовом
+                if (typeof callback === 'function') {
+                    callback(event, data);
+                } else {
+                    console.warn('Subscriber is not a function:', callback);
+                }
             } catch (e) {
                 console.error('Ошибка в subscriber:', e);
             }
