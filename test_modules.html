@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Test Modules Loading</title>
+</head>
+<body>
+    <h1>Testing Module Loading</h1>
+    <div id="results"></div>
+
+    <script type="module">
+        const results = document.getElementById('results');
+
+        function log(message, type = 'info') {
+            const p = document.createElement('p');
+            p.textContent = `[${type.toUpperCase()}] ${message}`;
+            p.style.color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            results.appendChild(p);
+            console.log(message);
+        }
+
+        // Test 1: Import config
+        try {
+            log('Test 1: Importing config.js...', 'info');
+            const { API } = await import('/static/js/dashboard/core/config.js');
+            log(`✅ config.js loaded, API.VENUES = ${API.VENUES}`, 'success');
+        } catch (error) {
+            log(`❌ Failed to load config.js: ${error.message}`, 'error');
+        }
+
+        // Test 2: Import api
+        try {
+            log('Test 2: Importing api.js...', 'info');
+            const { api } = await import('/static/js/dashboard/core/api.js');
+            log(`✅ api.js loaded, api.getVenues = ${typeof api.getVenues}`, 'success');
+        } catch (error) {
+            log(`❌ Failed to load api.js: ${error.message}`, 'error');
+        }
+
+        // Test 3: Import state
+        try {
+            log('Test 3: Importing state.js...', 'info');
+            const { state } = await import('/static/js/dashboard/core/state.js');
+            log(`✅ state.js loaded`, 'success');
+        } catch (error) {
+            log(`❌ Failed to load state.js: ${error.message}`, 'error');
+        }
+
+        // Test 4: Import venue_selector
+        try {
+            log('Test 4: Importing venue_selector.js...', 'info');
+            const { venueSelector } = await import('/static/js/dashboard/modules/venue_selector.js');
+            log(`✅ venue_selector.js loaded`, 'success');
+        } catch (error) {
+            log(`❌ Failed to load venue_selector.js: ${error.message}`, 'error');
+        }
+
+        // Test 5: Test API call
+        try {
+            log('Test 5: Making API call to /api/venues...', 'info');
+            const response = await fetch('/api/venues');
+            const data = await response.json();
+            log(`✅ API call successful, received ${data.venues.length} venues`, 'success');
+        } catch (error) {
+            log(`❌ API call failed: ${error.message}`, 'error');
+        }
+
+        log('=== All tests completed ===', 'info');
+    </script>
+</body>
+</html>
