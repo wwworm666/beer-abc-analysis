@@ -744,9 +744,21 @@
         <div class="header">
             <div class="header-left">
                 <h1>{{ bar_name }}</h1>
-                <p class="subtitle">Управление кранами</p>
+                <p class="subtitle">Активность кранов</p>
             </div>
-            <div class="header-controls">
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+                <div class="nav-links">
+                    <a href="/" class="nav-link">ABC/XYZ фасовки</a>
+                    <a href="/draft" class="nav-link">Проливы по барам</a>
+                    <a href="/waiters" class="nav-link">Проливы по барменам</a>
+                    <a href="/taps" class="nav-link active">Активность кранов</a>
+                    <a href="/stocks" class="nav-link">Остатки и заказы</a>
+                </div>
+                <div class="header-controls">
+                <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 10px;">
+                    <span>📥</span>
+                    <span>Скачать таплист</span>
+                </button>
                 <button class="refresh-btn" onclick="refreshBeersList()" id="refresh-btn">
                     <span id="refresh-icon">🔄</span>
                     <span>Обновить списки</span>
@@ -754,6 +766,7 @@
                 <div class="theme-toggle">
                     <button class="theme-btn active" data-theme="light">Светлая</button>
                     <button class="theme-btn" data-theme="dark">Темная</button>
+                </div>
                 </div>
             </div>
         </div>
@@ -859,6 +872,11 @@
             } catch (error) {
                 console.error('Error loading taps:', error);
             }
+        }
+
+        // Download taplist for this bar
+        function downloadBarTaplist() {
+            window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
         }
 
         // Load beers list

@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import re
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
 class DraftAnalysis:
@@ -33,23 +34,40 @@ class DraftAnalysis:
         "Блек Шип (0,25)" -> ("Блек Шип", 0.25)
         "ФестХаус Вайцен (1,0)" -> ("ФестХаус Вайцен", 1.0)
         "ХБ Октоберфест (1,0) с собой" -> ("ХБ Октоберфест", 1.0)
+        "Пиво (2)" -> ("Пиво", 2.0)
+        "Пиво (500мл)" -> ("Пиво", 0.5)
         """
-        # Более гибкий паттерн - ищет объём в скобках где угодно в строке
-        pattern = r'\((\d+[,\.]\d+)\)'
-        match = re.search(pattern, dish_name.strip())
+        # Паттерн 1: дробные числа в литрах (0,5 или 0.5)
+        pattern_liters = r'\((\d+[,\.]\d+)\s*(?:л|l)?\)'
+        match = re.search(pattern_liters, dish_name.strip(), re.IGNORECASE)
 
         if match:
-            # Извлекаем объём из скобок
             volume_str = match.group(1).replace(',', '.')
             volume = float(volume_str)
-
-            # Извлекаем имя пива (всё до скобок)
             beer_name = dish_name[:match.start()].strip()
-
             return beer_name, volume
-        else:
-            # Если не удалось распарсить, возвращаем как есть
-            return dish_name, 0.0
+
+        # Паттерн 2: целые числа в литрах (2)
+        pattern_whole_liters = r'\((\d+)\s*(?:л|l)?\)'
+        match = re.search(pattern_whole_liters, dish_name.strip(), re.IGNORECASE)
+
+        if match:
+            volume = float(match.group(1))
+            beer_name = dish_name[:match.start()].strip()
+            return beer_name, volume
+
+        # Паттерн 3: миллилитры (500мл, 500ml)
+        pattern_ml = r'\((\d+)\s*(?:мл|ml)\)'
+        match = re.search(pattern_ml, dish_name.strip(), re.IGNORECASE)
+
+        if match:
+            volume_ml = float(match.group(1))
+            volume = volume_ml / 1000  # Конвертируем в литры
+            beer_name = dish_name[:match.start()].strip()
+            return beer_name, volume
+
+        # Если не удалось распарсить, возвращаем как есть
+        return dish_name, 0.0
 
     def prepare_draft_data(self):
         """Подготовка данных для анализа разливного пива"""
@@ -58,11 +76,25 @@ class DraftAnalysis:
         self.df['BeerName'] = beer_info.apply(lambda x: x[0])
         self.df['PortionVolume'] = beer_info.apply(lambda x: x[1])
 
+        # НОРМАЛИЗАЦИЯ: убираем лишние пробелы и приводим к единому регистру
+        # Это критично для правильной группировки!
+        # Пример: "ФестХаус  Хеллес" (два пробела) → "фестхаус хеллес"
+        self.df['BeerName'] = self.df['BeerName'].str.strip().str.replace(r'\s+', ' ', regex=True).str.lower()
+
+        # Фильтруем записи с нулевым объёмом (не удалось распарсить)
+        zero_volume_count = (self.df['PortionVolume'] == 0).sum()
+        if zero_volume_count > 0:
+            print(f"[WARNING] Isklyucheno {zero_volume_count} zapisey s nulevym obyomom (ne udalos rasparsit)")
+        self.df = self.df[self.df['PortionVolume'] > 0]
+
         # Вычисляем объем в литрах (количество * объем порции)
         self.df['VolumeInLiters'] = self.df['DishAmountInt'] * self.df['PortionVolume']
 
-        # Добавляем неделю
-        self.df['Week'] = pd.to_datetime(self.df['OpenDate']).dt.to_period('W')
+        # Добавляем неделю - ИСПРАВЛЕНО: используем OpenDate.Typed
+        if 'OpenDate.Typed' in self.df.columns:
+            self.df['Week'] = pd.to_datetime(self.df['OpenDate.Typed']).dt.to_period('W')
+        elif 'OpenDate' in self.df.columns:
+            self.df['Week'] = pd.to_datetime(self.df['OpenDate']).dt.to_period('W')
 
         return self.df
 
@@ -341,9 +373,11 @@ if __name__ == "__main__":
         print("[ERROR] Ne udalos podklyuchitsya k API")
         exit()
 
-    # Получаем данные за последние 30 дней
-    date_to = datetime.now().strftime("%Y-%m-%d")
-    date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+    # Получаем данные за последние 30 дней (московское время)
+    moscow_tz = ZoneInfo("Europe/Moscow")
+    now_moscow = datetime.now(moscow_tz)
+    date_to = now_moscow.strftime("%Y-%m-%d")
+    date_from = (now_moscow - timedelta(days=30)).strftime("%Y-%m-%d")
 
     print(f"[INFO] Zaprashivaem dannye razlivnogo piva za {date_from} - {date_to}")
     report_data = olap.get_draft_sales_report(date_from, date_to)

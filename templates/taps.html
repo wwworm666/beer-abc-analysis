@@ -512,7 +512,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🍺 Управление пивными кранами</h1>
+            <h1>Активность кранов</h1>
             <p>Отслеживание состояния кранов в реальном времени</p>
             <div class="stats-bar" id="statsBar">
                 <div class="stat-card">
@@ -655,7 +655,13 @@
                     card.className = 'bar-card';
                     card.innerHTML = `
                         <div class="bar-card-header">
-                            <h2>${bar.name}</h2>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h2>${bar.name}</h2>
+                                <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
+                                        style="padding: 8px 15px; font-size: 14px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;">
+                                    <i class="fas fa-download"></i> Таплист
+                                </button>
+                            </div>
                             <div class="bar-card-stats">
                                 <span>✅ ${bar.active_taps}/${bar.tap_count}</span>
                                 <span>📊 ${Math.round(bar.active_taps / bar.tap_count * 100)}%</span>
@@ -912,7 +918,13 @@
                     html += `
                         <div class="bar-card">
                             <div class="bar-card-header">
-                                <h2>${bar.name}</h2>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <h2>${bar.name}</h2>
+                                    <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
+                                            style="padding: 8px 15px; font-size: 14px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;">
+                                        <i class="fas fa-download"></i> Таплист
+                                    </button>
+                                </div>
                                 <div class="bar-card-stats">
                                     <span>✅ ${bar.active_taps}/${bar.tap_count}</span>
                                     <span>📊 ${Math.round(bar.active_taps / bar.tap_count * 100)}%</span>
@@ -991,6 +1003,17 @@
 
             document.getElementById(tab).classList.add('active');
             event.target.classList.add('active');
+        }
+
+        // Скачать таплист в формате CSV (все бары)
+        function downloadTaplist() {
+            // Просто открываем URL, браузер автоматически скачает файл
+            window.location.href = '/api/taps/export-taplist';
+        }
+
+        // Скачать таплист конкретного бара
+        function downloadBarTaplist(barId) {
+            window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
         }
 
         function closeModal() {
