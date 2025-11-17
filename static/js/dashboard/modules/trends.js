@@ -23,8 +23,11 @@ class TrendsModule {
         console.log('[Trends] Инициализация модуля трендов...');
 
         // Подписываемся на изменения
-        state.subscribe('period', () => this.loadTrendsData());
-        state.subscribe('venue', () => this.loadTrendsData());
+        state.subscribe((event) => {
+            if (event === 'periodChanged' || event === 'venueChanged') {
+                this.loadTrendsData();
+            }
+        });
 
         this.initialized = true;
         console.log('[Trends] ✅ Модуль трендов инициализирован');

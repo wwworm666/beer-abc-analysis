@@ -22,8 +22,11 @@ class CommentsManager {
         this.setupEventListeners();
 
         // Подписываемся на изменения
-        state.subscribe('period', () => this.loadComment());
-        state.subscribe('venue', () => this.loadComment());
+        state.subscribe((event) => {
+            if (event === 'periodChanged' || event === 'venueChanged') {
+                this.loadComment();
+            }
+        });
 
         this.initialized = true;
         console.log('[Comments] ✅ Модуль комментариев инициализирован');

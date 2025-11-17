@@ -28,8 +28,11 @@ class ChartsModule {
         console.log('[Charts] Инициализация модуля графиков...');
 
         // Подписываемся на изменения периода и заведения
-        state.subscribe('period', () => this.loadChartsData());
-        state.subscribe('venue', () => this.loadChartsData());
+        state.subscribe((event) => {
+            if (event === 'periodChanged' || event === 'venueChanged') {
+                this.loadChartsData();
+            }
+        });
 
         this.initialized = true;
         console.log('[Charts] ✅ Модуль графиков инициализирован');
