@@ -452,6 +452,7 @@ class OlapReports:
             ],
             "groupByColFields": [],
             "aggregateFields": [
+                "UniqOrderId",
                 "DishAmountInt",
                 "DishDiscountSumInt",
                 "ProductCostBase.ProductCost",
@@ -520,6 +521,7 @@ class OlapReports:
             "groupByRowFields": groupByRowFields,
             "groupByColFields": [],
             "aggregateFields": [
+                "UniqOrderId",
                 "DishAmountInt",
                 "DishDiscountSumInt",
                 "ProductCostBase.ProductCost",
