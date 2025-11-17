@@ -4,7 +4,7 @@
  */
 
 import { state } from '../core/state.js';
-import { getPlan, savePlan, getAllPlansForVenue } from '../core/api.js';
+import { getPlan, savePlan, getAllPlans } from '../core/api.js';
 import { validateShares } from '../core/utils.js';
 import { METRICS } from '../core/config.js';
 
@@ -190,7 +190,7 @@ class PlansManager {
 
         try {
             // Получаем все планы для текущего заведения
-            const allPlans = await getAllPlansForVenue(state.currentVenue);
+            const allPlans = await getAllPlans(state.currentVenue);
 
             if (!allPlans || Object.keys(allPlans).length === 0) {
                 state.addMessage('info', 'Нет сохраненных планов для этого заведения', 3000);
