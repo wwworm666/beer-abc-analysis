@@ -1,0 +1,50 @@
+<!-- Базовый layout дашборда -->
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <h1>Дашборд</h1>
+            <div class="subtitle">Аналитика план vs факт</div>
+        </div>
+
+        <div class="header-right">
+            <!-- Theme Toggle -->
+            <button id="theme-toggle" class="btn btn-secondary" title="Переключить тему">
+                🌙
+            </button>
+        </div>
+    </div>
+
+    <!-- Venue Selector -->
+    {% include 'dashboard/components/venue_selector.html' %}
+
+    <!-- Week Selector -->
+    {% include 'dashboard/components/week_selector.html' %}
+
+    <!-- Export Buttons -->
+    {% include 'dashboard/components/export_buttons.html' %}
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-container">
+        <div class="tabs-nav">
+            <button class="tab-button active" data-tab="tab-analytics">
+                📊 Аналитика
+            </button>
+            <button class="tab-button" data-tab="tab-plans">
+                ⚙️ Плановые показатели
+            </button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div id="tab-analytics" class="tab-content active">
+            {% include 'dashboard/analytics_tab.html' %}
+        </div>
+
+        <div id="tab-plans" class="tab-content">
+            {% include 'dashboard/plans_tab.html' %}
+        </div>
+    </div>
+</div>
+
+<!-- Messages Container -->
+<div id="messages-container" class="messages-container"></div>

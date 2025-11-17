@@ -1,0 +1,56 @@
+/* CSS переменные для тем и общих стилей */
+
+:root {
+    /* Light Theme */
+    --bg-primary: #fafafa;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f5f5f5;
+    --text-primary: #1a1a1a;
+    --text-secondary: #666666;
+    --text-tertiary: #999999;
+    --border-color: #e0e0e0;
+    --accent: #0066cc;
+    --accent-hover: #0052a3;
+    --shadow: rgba(0, 0, 0, 0.08);
+
+    /* Статусы */
+    --success: #059669;
+    --success-bg: #d1fae5;
+    --warning: #d97706;
+    --warning-bg: #fed7aa;
+    --danger: #dc2626;
+    --danger-bg: #fecaca;
+
+    /* Шрифты */
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+
+    /* Размеры */
+    --border-radius: 8px;
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+}
+
+[data-theme="dark"] {
+    /* Dark Theme */
+    --bg-primary: #0f0f0f;
+    --bg-secondary: #1a1a1a;
+    --bg-tertiary: #2a2a2a;
+    --text-primary: #e0e0e0;
+    --text-secondary: #999999;
+    --text-tertiary: #666666;
+    --border-color: #333333;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --shadow: rgba(0, 0, 0, 0.3);
+
+    /* Статусы dark */
+    --success: #10b981;
+    --success-bg: #064e3b;
+    --warning: #f59e0b;
+    --warning-bg: #78350f;
+    --danger: #ef4444;
+    --danger-bg: #7f1d1d;
+}

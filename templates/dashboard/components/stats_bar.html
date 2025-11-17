@@ -1,0 +1,32 @@
+<!-- Строка статистики -->
+<div class="stats-bar hidden" id="stats-bar">
+    <div class="stat-item">
+        <div class="stat-value" id="stat-total-metrics">0</div>
+        <div class="stat-label">Всего метрик</div>
+    </div>
+
+    <div class="stat-item">
+        <div class="stat-value" id="stat-completed-plans">0</div>
+        <div class="stat-label">Выполнено планов</div>
+    </div>
+
+    <div class="stat-item">
+        <div class="stat-value" id="stat-avg-completion">0%</div>
+        <div class="stat-label">Средний % выполнения</div>
+    </div>
+</div>
+
+<style>
+/* Дополнительные стили для stats-bar */
+.stat-value.positive {
+    color: var(--success);
+}
+
+.stat-value.negative {
+    color: var(--danger);
+}
+
+.stat-value.neutral {
+    color: var(--accent);
+}
+</style>

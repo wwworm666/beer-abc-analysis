@@ -1,0 +1,180 @@
+<!-- Вкладка "Плановые показатели" -->
+
+<div class="plans-container">
+    <div class="plans-header">
+        <h2>Плановые показатели</h2>
+        <p class="subtitle">Задайте плановые значения для метрик</p>
+    </div>
+
+    <div class="plans-actions">
+        <button id="btn-copy-plan" class="btn btn-secondary">
+            📋 Копировать план из другого периода
+        </button>
+    </div>
+
+    <form id="plans-form" class="plans-form">
+        <!-- Выручка и чеки -->
+        <div class="form-section">
+            <h3>Основные показатели</h3>
+
+            <div class="form-group">
+                <label for="plan-revenue">💰 Выручка (₽)</label>
+                <input type="number" id="plan-revenue" name="revenue" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-checks">🧾 Чеки (шт)</label>
+                <input type="number" id="plan-checks" name="checks" step="1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-averageCheck">💵 Средний чек (₽)</label>
+                <input type="number" id="plan-averageCheck" name="averageCheck" step="0.01" required>
+            </div>
+        </div>
+
+        <!-- Доли категорий -->
+        <div class="form-section">
+            <h3>Доли категорий (%)</h3>
+            <p class="form-hint">⚠️ Сумма долей должна быть ~100%</p>
+
+            <div class="form-group">
+                <label for="plan-draftShare">🍺 Доля розлива (%)</label>
+                <input type="number" id="plan-draftShare" name="draftShare" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-packagedShare">🍾 Доля фасовки (%)</label>
+                <input type="number" id="plan-packagedShare" name="packagedShare" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-kitchenShare">🍽️ Доля кухни (%)</label>
+                <input type="number" id="plan-kitchenShare" name="kitchenShare" step="0.1" required>
+            </div>
+        </div>
+
+        <!-- Выручка по категориям -->
+        <div class="form-section">
+            <h3>Выручка по категориям (₽)</h3>
+
+            <div class="form-group">
+                <label for="plan-revenueDraft">💰 Выручка розлив</label>
+                <input type="number" id="plan-revenueDraft" name="revenueDraft" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-revenuePackaged">💰 Выручка фасовка</label>
+                <input type="number" id="plan-revenuePackaged" name="revenuePackaged" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-revenueKitchen">💰 Выручка кухня</label>
+                <input type="number" id="plan-revenueKitchen" name="revenueKitchen" step="0.01" required>
+            </div>
+        </div>
+
+        <!-- Наценка и прибыль -->
+        <div class="form-section">
+            <h3>Наценка и прибыль</h3>
+
+            <div class="form-group">
+                <label for="plan-markupPercent">📈 % наценки</label>
+                <input type="number" id="plan-markupPercent" name="markupPercent" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-profit">💹 Прибыль (₽)</label>
+                <input type="number" id="plan-profit" name="profit" step="0.01" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-markupDraft">📈 Наценка розлив (%)</label>
+                <input type="number" id="plan-markupDraft" name="markupDraft" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-markupPackaged">📈 Наценка фасовка (%)</label>
+                <input type="number" id="plan-markupPackaged" name="markupPackaged" step="0.1" required>
+            </div>
+
+            <div class="form-group">
+                <label for="plan-markupKitchen">📈 Наценка кухня (%)</label>
+                <input type="number" id="plan-markupKitchen" name="markupKitchen" step="0.1" required>
+            </div>
+        </div>
+
+        <!-- Прочее -->
+        <div class="form-section">
+            <h3>Прочее</h3>
+
+            <div class="form-group">
+                <label for="plan-loyaltyWriteoffs">💳 Списания баллов (₽)</label>
+                <input type="number" id="plan-loyaltyWriteoffs" name="loyaltyWriteoffs" step="0.01" required>
+            </div>
+        </div>
+
+        <!-- Кнопка сохранения -->
+        <div class="form-actions">
+            <button type="submit" id="btn-save-plan" class="btn">
+                💾 Сохранить план
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+.plans-container {
+    max-width: 800px;
+}
+
+.plans-header {
+    margin-bottom: var(--spacing-lg);
+}
+
+.plans-actions {
+    margin-bottom: var(--spacing-lg);
+}
+
+.plans-form {
+    display: grid;
+    gap: var(--spacing-xl);
+}
+
+.form-section {
+    padding: var(--spacing-lg);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.form-section h3 {
+    margin-bottom: var(--spacing-md);
+    color: var(--accent);
+}
+
+.form-hint {
+    font-size: 0.85rem;
+    color: var(--warning);
+    margin-bottom: var(--spacing-md);
+}
+
+.form-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.form-group input {
+    width: 100%;
+}
+
+.form-actions {
+    text-align: right;
+}
+</style>
