@@ -1,16 +1,14 @@
 /**
  * Модуль экспорта данных
- * Экспорт в текст, Excel (заглушка для будущей реализации)
+ * Экспорт в текст, Excel, PDF
  */
 
 import { state } from '../core/state.js';
+import { api } from '../core/api.js';
 import { copyToClipboard } from '../core/utils.js';
 
 class ExportModule {
     constructor() {
-        this.btnExportText = document.getElementById('btn-copy-clipboard');
-        this.btnShare = document.getElementById('btn-share');
-
         this.initialized = false;
     }
 
@@ -20,8 +18,12 @@ class ExportModule {
     init() {
         if (this.initialized) return;
 
+        console.log('[Export] Инициализация модуля экспорта...');
+
         this.setupEventListeners();
         this.initialized = true;
+
+        console.log('[Export] ✅ Модуль экспорта инициализирован');
     }
 
     /**
@@ -29,12 +31,22 @@ class ExportModule {
      */
     setupEventListeners() {
         // Копирование в буфер обмена
-        this.btnExportText?.addEventListener('click', () => {
+        document.getElementById('btn-copy-clipboard')?.addEventListener('click', () => {
             this.handleCopyToClipboard();
         });
 
+        // Excel экспорт
+        document.getElementById('btn-export-excel')?.addEventListener('click', () => {
+            this.handleExportExcel();
+        });
+
+        // PDF экспорт
+        document.getElementById('btn-export-pdf')?.addEventListener('click', () => {
+            this.handleExportPDF();
+        });
+
         // Share API (для мобильных)
-        this.btnShare?.addEventListener('click', () => {
+        document.getElementById('btn-share')?.addEventListener('click', () => {
             this.handleShare();
         });
     }
@@ -141,6 +153,115 @@ class ExportModule {
         lines.push('='.repeat(40));
 
         return lines.join('\n');
+    }
+
+    /**
+     * Экспортировать в Excel
+     */
+    async handleExportExcel() {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod;
+
+        if (!venueKey || !periodKey) {
+            state.addMessage('warning', 'Выберите заведение и период', 3000);
+            return;
+        }
+
+        try {
+            console.log('[Export] Экспорт в Excel...');
+            state.addMessage('info', 'Генерация Excel файла...', 2000);
+
+            const response = await fetch('/api/export/excel', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    venue_key: venueKey,
+                    period_key: periodKey
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            // Получаем файл как blob
+            const blob = await response.blob();
+            const filename = `dashboard_${venueKey}_${periodKey}.xlsx`;
+
+            // Скачиваем файл
+            this.downloadFile(blob, filename);
+
+            state.addMessage('success', 'Excel файл сохранен', 3000);
+
+        } catch (error) {
+            console.error('[Export] Ошибка экспорта в Excel:', error);
+            state.addMessage('error', 'Ошибка при экспорте в Excel', 5000);
+        }
+    }
+
+    /**
+     * Экспортировать в PDF
+     */
+    async handleExportPDF() {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod;
+
+        if (!venueKey || !periodKey) {
+            state.addMessage('warning', 'Выберите заведение и период', 3000);
+            return;
+        }
+
+        try {
+            console.log('[Export] Экспорт в PDF...');
+            state.addMessage('info', 'Генерация PDF файла...', 2000);
+
+            const response = await fetch('/api/export/pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    venue_key: venueKey,
+                    period_key: periodKey
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            // Получаем файл как blob
+            const blob = await response.blob();
+            const filename = `dashboard_${venueKey}_${periodKey}.pdf`;
+
+            // Скачиваем файл
+            this.downloadFile(blob, filename);
+
+            state.addMessage('success', 'PDF файл сохранен', 3000);
+
+        } catch (error) {
+            console.error('[Export] Ошибка экспорта в PDF:', error);
+            state.addMessage('error', 'Ошибка при экспорте в PDF', 5000);
+        }
+    }
+
+    /**
+     * Скачать файл
+     */
+    downloadFile(blob, filename) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+
+        document.body.appendChild(a);
+        a.click();
+
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
     }
 }
 

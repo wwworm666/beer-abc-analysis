@@ -30,6 +30,12 @@
             <button class="tab-button active" data-tab="tab-analytics">
                 📊 Аналитика
             </button>
+            <button class="tab-button" data-tab="tab-charts">
+                📈 Графики
+            </button>
+            <button class="tab-button" data-tab="tab-comparison">
+                ⚖️ Сравнение
+            </button>
             <button class="tab-button" data-tab="tab-plans">
                 ⚙️ Плановые показатели
             </button>
@@ -38,6 +44,14 @@
         <!-- Tab Contents -->
         <div id="tab-analytics" class="tab-content active">
             {% include 'dashboard/analytics_tab.html' %}
+        </div>
+
+        <div id="tab-charts" class="tab-content">
+            {% include 'dashboard/charts_tab.html' %}
+        </div>
+
+        <div id="tab-comparison" class="tab-content">
+            {% include 'dashboard/comparison_tab.html' %}
         </div>
 
         <div id="tab-plans" class="tab-content">

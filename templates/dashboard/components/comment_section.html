@@ -1,0 +1,134 @@
+<!-- Секция комментариев -->
+<div id="comment-section" class="comment-section">
+    <div class="comment-header">
+        <h3>💬 Комментарий к периоду</h3>
+        <button id="btn-toggle-comment" class="btn btn-secondary btn-sm">
+            ✏️ Редактировать
+        </button>
+    </div>
+
+    <!-- Отображение комментария -->
+    <div id="comment-display" class="comment-display hidden">
+        <p id="comment-text"></p>
+    </div>
+
+    <!-- Форма редактирования -->
+    <div id="comment-edit-form" class="comment-edit-form hidden">
+        <textarea
+            id="period-comment"
+            class="comment-textarea"
+            placeholder="Добавьте комментарий к этому периоду..."
+            rows="3"
+        ></textarea>
+        <div class="comment-actions">
+            <button id="btn-save-comment" class="btn">
+                💾 Сохранить
+            </button>
+            <button id="btn-cancel-comment" class="btn btn-secondary">
+                ❌ Отмена
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.comment-section {
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+}
+
+.comment-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.comment-display {
+    padding: var(--spacing-sm);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--accent);
+}
+
+.comment-display p {
+    margin: 0;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.comment-edit-form {
+    margin-top: var(--spacing-sm);
+}
+
+.comment-textarea {
+    width: 100%;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    min-height: 80px;
+}
+
+.comment-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.comment-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+@media (max-width: 768px) {
+    .comment-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-xs);
+    }
+
+    .comment-actions {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .comment-actions button {
+        width: 100%;
+    }
+}
+</style>
+
+<script type="module">
+    // Управление отображением формы комментария
+    const btnToggle = document.getElementById('btn-toggle-comment');
+    const btnCancel = document.getElementById('btn-cancel-comment');
+    const commentDisplay = document.getElementById('comment-display');
+    const commentForm = document.getElementById('comment-edit-form');
+
+    btnToggle?.addEventListener('click', () => {
+        commentDisplay?.classList.add('hidden');
+        commentForm?.classList.remove('hidden');
+    });
+
+    btnCancel?.addEventListener('click', () => {
+        commentForm?.classList.add('hidden');
+        if (document.getElementById('comment-text')?.textContent) {
+            commentDisplay?.classList.remove('hidden');
+        }
+    });
+</script>

@@ -4,15 +4,10 @@
  */
 
 import { state } from '../core/state.js';
-import { getComment, saveComment } from '../core/api.js';
+import { api } from '../core/api.js';
 
 class CommentsManager {
     constructor() {
-        this.commentSection = document.getElementById('comment-section');
-        this.commentTextarea = document.getElementById('period-comment');
-        this.btnSaveComment = document.getElementById('btn-save-comment');
-        this.commentDisplay = document.getElementById('comment-display');
-
         this.initialized = false;
     }
 
@@ -22,8 +17,16 @@ class CommentsManager {
     init() {
         if (this.initialized) return;
 
+        console.log('[Comments] Инициализация модуля комментариев...');
+
         this.setupEventListeners();
+
+        // Подписываемся на изменения
+        state.subscribe('period', () => this.loadComment());
+        state.subscribe('venue', () => this.loadComment());
+
         this.initialized = true;
+        console.log('[Comments] ✅ Модуль комментариев инициализирован');
     }
 
     /**
@@ -31,15 +34,8 @@ class CommentsManager {
      */
     setupEventListeners() {
         // Сохранение комментария
-        this.btnSaveComment?.addEventListener('click', () => {
+        document.getElementById('btn-save-comment')?.addEventListener('click', () => {
             this.handleSaveComment();
-        });
-
-        // Подписка на изменения состояния
-        state.subscribe((event, data) => {
-            if (event === 'venueChanged' || event === 'periodChanged') {
-                this.loadComment();
-            }
         });
     }
 
@@ -47,24 +43,28 @@ class CommentsManager {
      * Загрузить комментарий для текущего периода
      */
     async loadComment() {
-        if (!state.currentVenue || !state.currentPeriod) {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod;
+
+        if (!venueKey || !periodKey) {
+            this.clearComment();
             return;
         }
 
         try {
-            const data = await getComment(state.currentVenue, state.currentPeriod.key);
+            console.log(`[Comments] Загрузка комментария: ${venueKey} / ${periodKey}`);
+
+            const data = await api.getComment(venueKey, periodKey);
 
             if (data && data.comment) {
                 this.displayComment(data.comment);
-                if (this.commentTextarea) {
-                    this.commentTextarea.value = data.comment;
-                }
             } else {
                 this.clearComment();
             }
 
         } catch (error) {
-            console.error('Ошибка загрузки комментария:', error);
+            console.error('[Comments] Ошибка загрузки комментария:', error);
+            this.clearComment();
         }
     }
 
@@ -72,9 +72,20 @@ class CommentsManager {
      * Отобразить комментарий
      */
     displayComment(comment) {
-        if (this.commentDisplay) {
-            this.commentDisplay.textContent = comment;
-            this.commentDisplay.classList.remove('hidden');
+        const commentText = document.getElementById('comment-text');
+        const commentDisplay = document.getElementById('comment-display');
+        const commentForm = document.getElementById('comment-edit-form');
+        const textarea = document.getElementById('period-comment');
+
+        if (commentText && commentDisplay) {
+            commentText.textContent = comment;
+            commentDisplay.classList.remove('hidden');
+            commentForm?.classList.add('hidden');
+
+            // Также заполняем textarea на случай редактирования
+            if (textarea) {
+                textarea.value = comment;
+            }
         }
     }
 
@@ -82,12 +93,20 @@ class CommentsManager {
      * Очистить комментарий
      */
     clearComment() {
-        if (this.commentTextarea) {
-            this.commentTextarea.value = '';
+        const commentText = document.getElementById('comment-text');
+        const commentDisplay = document.getElementById('comment-display');
+        const commentForm = document.getElementById('comment-edit-form');
+        const textarea = document.getElementById('period-comment');
+
+        if (commentText) {
+            commentText.textContent = '';
         }
-        if (this.commentDisplay) {
-            this.commentDisplay.textContent = '';
-            this.commentDisplay.classList.add('hidden');
+
+        commentDisplay?.classList.add('hidden');
+        commentForm?.classList.add('hidden');
+
+        if (textarea) {
+            textarea.value = '';
         }
     }
 
@@ -95,12 +114,16 @@ class CommentsManager {
      * Обработать сохранение комментария
      */
     async handleSaveComment() {
-        if (!state.currentVenue || !state.currentPeriod) {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod;
+
+        if (!venueKey || !periodKey) {
             state.addMessage('warning', 'Выберите заведение и период', 3000);
             return;
         }
 
-        const comment = this.commentTextarea?.value.trim();
+        const textarea = document.getElementById('period-comment');
+        const comment = textarea?.value.trim() || '';
 
         if (!comment) {
             state.addMessage('warning', 'Введите комментарий', 3000);
@@ -108,11 +131,9 @@ class CommentsManager {
         }
 
         try {
-            const result = await saveComment(
-                state.currentVenue,
-                state.currentPeriod.key,
-                comment
-            );
+            console.log(`[Comments] Сохранение комментария: ${comment.length} символов`);
+
+            const result = await api.saveComment(venueKey, periodKey, comment);
 
             if (result.success) {
                 state.addMessage('success', 'Комментарий сохранен', 3000);
@@ -122,7 +143,7 @@ class CommentsManager {
             }
 
         } catch (error) {
-            console.error('Ошибка сохранения комментария:', error);
+            console.error('[Comments] Ошибка сохранения комментария:', error);
             state.addMessage('error', 'Не удалось сохранить комментарий', 5000);
         }
     }
