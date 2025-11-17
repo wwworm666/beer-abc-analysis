@@ -91,7 +91,7 @@ export async function deletePlan(venueKey, periodKey) {
 /**
  * Получить все планы для заведения
  */
-export async function getAllPlansForVenue(venueKey) {
+export async function getAllPlans(venueKey) {
     const data = await fetchAPI(API.ALL_PLANS(venueKey));
     return data.plans;
 }
