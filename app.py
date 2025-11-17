@@ -1900,10 +1900,43 @@ def get_weeks():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/plans/<venue_key>/<period_key>')
+def get_plan_with_venue(venue_key, period_key):
+    """
+    Получить план за конкретное заведение и период
+
+    URL: /api/plans/{venueKey}/{periodKey}
+
+    Args:
+        venue_key: Ключ заведения
+        period_key: Ключ периода (YYYY-MM-DD_YYYY-MM-DD)
+
+    Returns:
+        JSON: Данные плана или 404
+    """
+    try:
+        print(f"\n[PLANS API] Запрос плана для заведения: {venue_key}, период: {period_key}")
+
+        plan = plans_manager.get_plan(period_key)
+
+        if plan:
+            print(f"[PLANS API] План найден")
+            return jsonify(plan)
+        else:
+            print(f"[PLANS API] План НЕ найден")
+            return jsonify({'error': 'Plan not found'}), 404
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при получении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/plans/<period_key>')
 def get_plan(period_key):
     """
-    Получить план за конкретный период
+    Получить план за конкретный период (без указания заведения)
 
     Args:
         period_key: Ключ периода (YYYY-MM-DD_YYYY-MM-DD)
@@ -2022,10 +2055,92 @@ def save_plan():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/plans/<venue_key>/<period_key>', methods=['POST'])
+def save_plan_with_venue(venue_key, period_key):
+    """
+    Сохранить или обновить план для конкретного заведения и периода
+
+    URL: /api/plans/{venueKey}/{periodKey}
+
+    Body: объект с данными плана (например: {revenue: 1000, checks: 500, ...})
+
+    Returns:
+        JSON: {'success': True} или {'error': '...'}
+    """
+    try:
+        request_data = request.json
+
+        if not request_data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        print(f"\n[PLANS API] Сохранение плана для заведения: {venue_key}, период: {period_key}")
+        print(f"[PLANS API] Данные: {list(request_data.keys())}")
+
+        # Сохраняем план (валидация внутри PlansManager)
+        success = plans_manager.save_plan(period_key, request_data)
+
+        if success:
+            print(f"[PLANS API] План успешно сохранен")
+            return jsonify({
+                'success': True,
+                'message': 'Plan saved successfully',
+                'period': period_key,
+                'venue': venue_key
+            })
+        else:
+            return jsonify({'error': 'Failed to save plan'}), 500
+
+    except ValueError as e:
+        # Ошибки валидации
+        print(f"[PLANS API VALIDATION ERROR] {e}")
+        return jsonify({'error': f'Validation error: {str(e)}'}), 400
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при сохранении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans/<venue_key>/<period_key>', methods=['DELETE'])
+def delete_plan_with_venue(venue_key, period_key):
+    """
+    Удалить план за конкретное заведение и период
+
+    URL: /api/plans/{venueKey}/{periodKey}
+
+    Args:
+        venue_key: Ключ заведения
+        period_key: Ключ периода
+
+    Returns:
+        JSON: {'success': True} или {'error': '...'}
+    """
+    try:
+        print(f"\n[PLANS API] Удаление плана для заведения: {venue_key}, период: {period_key}")
+
+        success = plans_manager.delete_plan(period_key)
+
+        if success:
+            print(f"[PLANS API] План удален")
+            return jsonify({
+                'success': True,
+                'message': 'Plan deleted successfully'
+            })
+        else:
+            return jsonify({'error': 'Plan not found'}), 404
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при удалении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/plans/<period_key>', methods=['DELETE'])
 def delete_plan(period_key):
     """
-    Удалить план за период
+    Удалить план за период (без указания заведения)
 
     Args:
         period_key: Ключ периода
@@ -2452,12 +2567,19 @@ def export_pdf():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/test_modules')
+def test_modules():
+    """Route to serve test_modules.html"""
+    return render_template('test_modules.html')
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("BEER ABC/XYZ ANALYSIS")
     print("="*60)
     print("\nZapusk veb-servera...")
     print("Otkroyte v brauzere: http://localhost:5000")
+    print("Test modules: http://localhost:5000/test_modules")
     print("\nDlya ostanovki nazhmite Ctrl+C\n")
 
     app.run(debug=True, host='0.0.0.0', port=5000)
