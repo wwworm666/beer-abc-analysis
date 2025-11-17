@@ -169,7 +169,7 @@ export const API = {
     WEEKS: '/api/weeks',
     PLAN: (venueKey, periodKey) => `/api/plans/${venueKey}/${periodKey}`,
     ALL_PLANS: (venueKey) => `/api/plans/${venueKey}`,
-    ANALYTICS: '/api/dashboard-analytics-multi',
+    ANALYTICS: '/api/dashboard-analytics',  // ИСПРАВЛЕНО: было dashboard-analytics-multi
     COMPARISON_PERIODS: '/api/comparison/periods',
     COMPARISON_VENUES: '/api/comparison/venues',
     TRENDS: (venueKey, metric, weeks) => `/api/trends/${venueKey}/${metric}/${weeks}`,

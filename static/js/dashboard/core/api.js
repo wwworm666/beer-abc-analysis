@@ -103,7 +103,7 @@ export async function getAnalytics(venueKey, dateFrom, dateTo) {
     return await fetchAPI(API.ANALYTICS, {
         method: 'POST',
         body: JSON.stringify({
-            venue_key: venueKey,
+            bar: venueKey || '',  // ИСПРАВЛЕНО: бэкенд ожидает 'bar', не 'venue_key'
             date_from: dateFrom,
             date_to: dateTo
         })
