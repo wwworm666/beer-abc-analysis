@@ -41,8 +41,8 @@ class DashboardMetrics:
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
-        # 7. Количество чеков (уникальные даты открытия заказа)
-        total_checks = self._count_unique_dates(draft_records + bottles_records + kitchen_records)
+        # 7. Количество чеков (из поля UniqOrderId в OLAP данных)
+        total_checks = self._count_checks(draft_records + bottles_records + kitchen_records)
 
         # 8. Средний чек
         avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
@@ -205,28 +205,24 @@ class DashboardMetrics:
             return total_weighted_markup / total_cost
         return 0.0
 
-    def _count_unique_dates(self, records):
+    def _count_checks(self, records):
         """
-        Подсчитать количество уникальных дат (как прокси для чеков)
-
-        ПРИМЕЧАНИЕ: Это приблизительная метрика, так как в группировке
-        нет OrderId. Реальное количество чеков будет отличаться.
+        Подсчитать реальное количество чеков из поля UniqOrderId
 
         Args:
-            records: list - массив записей с полем 'OpenDate.Typed'
+            records: list - массив записей OLAP с полем 'UniqOrderId'
 
         Returns:
-            int - количество уникальных дат
+            int - суммарное количество уникальных чеков
         """
-        unique_dates = set()
+        total_checks = 0
 
         for record in records:
-            date = record.get('OpenDate.Typed')
-            if date:
-                unique_dates.add(date)
+            checks_count = record.get('UniqOrderId', 0)
+            if checks_count:
+                try:
+                    total_checks += int(checks_count)
+                except (ValueError, TypeError):
+                    continue
 
-        # Если дат нет, считаем что был хотя бы 1 чек (если есть выручка)
-        if len(unique_dates) == 0 and len(records) > 0:
-            return 1
-
-        return len(unique_dates)
+        return total_checks
