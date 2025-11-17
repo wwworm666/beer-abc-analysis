@@ -12,6 +12,8 @@ from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
 from core.taps_manager import TapsManager
 from dashboardNovaev.dashboard_analysis import DashboardMetrics
+from dashboardNovaev.plans_manager import PlansManager
+from dashboardNovaev.weeks_generator import WeeksGenerator
 
 app = Flask(__name__)
 
@@ -26,6 +28,9 @@ else:
     print(f"[INFO] Используется локальный путь: {TAPS_DATA_PATH}")
 
 taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
+
+# Инициализируем менеджер планов (использует ту же логику /kultura)
+plans_manager = PlansManager()
 
 # Кэш для номенклатуры (15 минут TTL)
 nomenclature_cache = {
@@ -1819,6 +1824,202 @@ def dashboard_analytics():
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
+
+
+# ============================================================================
+# DASHBOARD PLANS API - Управление плановыми показателями
+# ============================================================================
+
+@app.route('/api/weeks')
+def get_weeks():
+    """
+    Получить список всех недель для текущего года
+
+    Returns:
+        JSON: {
+            'weeks': [...],
+            'current_week': {...}
+        }
+    """
+    try:
+        print("\n[WEEKS API] Генерация недель для текущего года...")
+
+        current_year = datetime.now().year
+        weeks = WeeksGenerator.generate_weeks_for_year(current_year)
+        current_week = WeeksGenerator.get_current_week()
+
+        print(f"[WEEKS API] Сгенерировано недель: {len(weeks)}")
+        print(f"[WEEKS API] Текущая неделя: {current_week['label']}")
+
+        return jsonify({
+            'weeks': weeks,
+            'current_week': current_week
+        })
+
+    except Exception as e:
+        print(f"[WEEKS API ERROR] Ошибка при генерации недель: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans/<period_key>')
+def get_plan(period_key):
+    """
+    Получить план за конкретный период
+
+    Args:
+        period_key: Ключ периода (YYYY-MM-DD_YYYY-MM-DD)
+
+    Returns:
+        JSON: Данные плана или 404
+    """
+    try:
+        print(f"\n[PLANS API] Запрос плана для периода: {period_key}")
+
+        plan = plans_manager.get_plan(period_key)
+
+        if plan:
+            print(f"[PLANS API] План найден")
+            return jsonify(plan)
+        else:
+            print(f"[PLANS API] План НЕ найден")
+            return jsonify({'error': 'Plan not found'}), 404
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при получении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans', methods=['GET'])
+def get_all_plans():
+    """
+    Получить все планы (для функции копирования)
+
+    Returns:
+        JSON: {
+            'plans': {...},
+            'periods': [...]
+        }
+    """
+    try:
+        print("\n[PLANS API] Запрос всех планов...")
+
+        all_plans = plans_manager.get_all_plans()
+        periods = plans_manager.get_periods_with_plans()
+
+        print(f"[PLANS API] Загружено планов: {len(all_plans)}")
+
+        return jsonify({
+            'plans': all_plans,
+            'periods': periods
+        })
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при получении планов: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans', methods=['POST'])
+def save_plan():
+    """
+    Сохранить или обновить план
+
+    Body:
+        {
+            'period': 'YYYY-MM-DD_YYYY-MM-DD',
+            'data': {
+                'revenue': 1000000,
+                'checks': 500,
+                ...
+            }
+        }
+
+    Returns:
+        JSON: {'success': True} или {'error': '...'}
+    """
+    try:
+        request_data = request.json
+
+        if not request_data:
+            return jsonify({'error': 'No data provided'}), 400
+
+        period_key = request_data.get('period')
+        plan_data = request_data.get('data')
+
+        if not period_key:
+            return jsonify({'error': 'Period key is required'}), 400
+
+        if not plan_data:
+            return jsonify({'error': 'Plan data is required'}), 400
+
+        print(f"\n[PLANS API] Сохранение плана для периода: {period_key}")
+        print(f"[PLANS API] Данные: {list(plan_data.keys())}")
+
+        # Сохраняем план (валидация внутри PlansManager)
+        success = plans_manager.save_plan(period_key, plan_data)
+
+        if success:
+            print(f"[PLANS API] План успешно сохранен")
+            return jsonify({
+                'success': True,
+                'message': 'Plan saved successfully',
+                'period': period_key
+            })
+        else:
+            return jsonify({'error': 'Failed to save plan'}), 500
+
+    except ValueError as e:
+        # Ошибки валидации
+        print(f"[PLANS API VALIDATION ERROR] {e}")
+        return jsonify({'error': f'Validation error: {str(e)}'}), 400
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при сохранении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans/<period_key>', methods=['DELETE'])
+def delete_plan(period_key):
+    """
+    Удалить план за период
+
+    Args:
+        period_key: Ключ периода
+
+    Returns:
+        JSON: {'success': True} или {'error': '...'}
+    """
+    try:
+        print(f"\n[PLANS API] Удаление плана для периода: {period_key}")
+
+        success = plans_manager.delete_plan(period_key)
+
+        if success:
+            print(f"[PLANS API] План удален")
+            return jsonify({
+                'success': True,
+                'message': 'Plan deleted successfully'
+            })
+        else:
+            return jsonify({'error': 'Plan not found'}), 404
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при удалении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# END OF DASHBOARD PLANS API
+# ============================================================================
 
 if __name__ == '__main__':
     print("\n" + "="*60)
