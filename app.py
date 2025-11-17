@@ -14,6 +14,7 @@ from core.taps_manager import TapsManager
 from dashboardNovaev.dashboard_analysis import DashboardMetrics
 from dashboardNovaev.plans_manager import PlansManager
 from dashboardNovaev.weeks_generator import WeeksGenerator
+from dashboardNovaev.backend.venues_manager import VenuesManager
 from dashboardNovaev.backend.comparison_calculator import ComparisonCalculator
 from dashboardNovaev.backend.trends_analyzer import TrendsAnalyzer
 from dashboardNovaev.backend.export_manager import ExportManager
@@ -34,6 +35,9 @@ taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
 
 # Инициализируем менеджер планов (использует ту же логику /kultura)
 plans_manager = PlansManager()
+
+# Инициализируем менеджер заведений
+venues_manager = VenuesManager()
 
 # Кэш для номенклатуры (15 минут TTL)
 nomenclature_cache = {
@@ -1832,6 +1836,36 @@ def dashboard_analytics():
 # ============================================================================
 # DASHBOARD PLANS API - Управление плановыми показателями
 # ============================================================================
+
+@app.route('/api/venues')
+def get_venues():
+    """
+    Получить список всех заведений для селектора
+
+    Returns:
+        JSON: {
+            'venues': [
+                {'key': 'all', 'label': '📊 Все заведения', ...},
+                {'key': 'bolshoy', 'label': '🍺 Культура - Большой пр. В.О', ...},
+                ...
+            ]
+        }
+    """
+    try:
+        print("\n[VENUES API] Запрос списка заведений...")
+
+        venues = venues_manager.get_all_for_dropdown()
+
+        print(f"[VENUES API] Возвращаю {len(venues)} заведений")
+
+        return jsonify({'venues': venues})
+
+    except Exception as e:
+        print(f"[VENUES API ERROR] Ошибка при получении списка заведений: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 @app.route('/api/weeks')
 def get_weeks():
