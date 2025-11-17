@@ -9,6 +9,7 @@ import { venueSelector } from './modules/venue_selector.js';
 import { weekSelector } from './modules/week_selector.js';
 import { analytics } from './modules/analytics.js';
 import { plansManager } from './modules/plans.js';
+import { chartsModule } from './modules/charts.js';
 import { commentsManager } from './modules/comments.js';
 
 class Dashboard {
@@ -39,6 +40,9 @@ class Dashboard {
             // 3. Инициализируем модули данных
             analytics.init();
             console.log('✅ Модуль аналитики инициализирован');
+
+            chartsModule.init();
+            console.log('✅ Модуль графиков инициализирован');
 
             plansManager.init();
             console.log('✅ Модуль планов инициализирован');
@@ -88,6 +92,11 @@ class Dashboard {
                 if (selectedTab) {
                     selectedTab.classList.add('active');
                     state.setActiveTab(tabId);
+
+                    // Загружаем графики при переключении на вкладку графиков
+                    if (tabId === 'tab-charts') {
+                        chartsModule.loadChartsData();
+                    }
                 }
             });
         });

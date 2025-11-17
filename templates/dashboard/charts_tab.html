@@ -1,0 +1,161 @@
+<!-- Вкладка "Графики" -->
+
+<!-- Loading State -->
+<div id="charts-loading-state" class="loading-container hidden">
+    <div class="loading-spinner"></div>
+</div>
+
+<!-- No Data State -->
+<div id="charts-no-data-state" class="no-data-state hidden">
+    <h3>📊 Нет данных</h3>
+    <p>Для этого периода пока нет данных для построения графиков.</p>
+</div>
+
+<!-- Charts Grid -->
+<div id="charts-grid" class="charts-grid hidden">
+    <!-- Карточка: Выручка по дням недели -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>📅 Выручка по дням недели</h3>
+            <p class="chart-subtitle">Распределение выручки</p>
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="chart-revenue-by-day"></canvas>
+        </div>
+    </div>
+
+    <!-- Карточка: Тренд выручки (12 недель) -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>📈 Тренд выручки (12 недель)</h3>
+            <p class="chart-subtitle">Динамика за последние 12 недель</p>
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="chart-revenue-trend"></canvas>
+        </div>
+    </div>
+
+    <!-- Карточка: Доли категорий (план vs факт) -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>🎯 Доли категорий: План vs Факт</h3>
+            <p class="chart-subtitle">Розлив, фасовка, кухня</p>
+        </div>
+        <div class="chart-wrapper chart-wrapper-horizontal">
+            <div class="chart-half">
+                <h4>План</h4>
+                <canvas id="chart-shares-plan"></canvas>
+            </div>
+            <div class="chart-half">
+                <h4>Факт</h4>
+                <canvas id="chart-shares-actual"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Карточка: Динамика среднего чека -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3>💵 Динамика среднего чека</h3>
+            <p class="chart-subtitle">Средний чек vs плановый показатель</p>
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="chart-avg-check"></canvas>
+        </div>
+    </div>
+</div>
+
+<style>
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+.chart-card {
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    padding: var(--spacing-lg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.chart-header {
+    margin-bottom: var(--spacing-md);
+}
+
+.chart-header h3 {
+    margin: 0 0 var(--spacing-xs) 0;
+    color: var(--accent);
+}
+
+.chart-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+    margin-top: var(--spacing-md);
+}
+
+.chart-wrapper canvas {
+    max-height: 100%;
+}
+
+.chart-wrapper-horizontal {
+    display: flex;
+    gap: var(--spacing-md);
+    height: 300px;
+}
+
+.chart-half {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-half h4 {
+    margin: 0 0 var(--spacing-sm) 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.chart-half canvas {
+    flex: 1;
+}
+
+.no-data-state {
+    text-align: center;
+    padding: var(--spacing-xl);
+}
+
+.no-data-state h3 {
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-md);
+}
+
+.no-data-state p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-wrapper-horizontal {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .chart-half {
+        height: 250px;
+    }
+}
+</style>
