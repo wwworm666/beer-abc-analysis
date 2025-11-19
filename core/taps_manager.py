@@ -111,22 +111,25 @@ class TapsManager:
             print(f"[ERROR] Ошибка загрузки данных о кранах: {e}")
 
     def _save_data(self):
-        """Сохранение данных в файл"""
-        with self._lock:
-            try:
-                os.makedirs(os.path.dirname(self.data_file) or '.', exist_ok=True)
+        """
+        Сохранение данных в файл
+        ВАЖНО: Этот метод вызывается только из методов, которые УЖЕ держат self._lock!
+        НЕ использовать напрямую без lock!
+        """
+        try:
+            os.makedirs(os.path.dirname(self.data_file) or '.', exist_ok=True)
 
-                data = {}
-                for bar_id, bar in self.bars.items():
-                    data[bar_id] = {
-                        'name': bar.name,
-                        'taps': [tap.to_dict() for tap in bar.taps.values()]
-                    }
+            data = {}
+            for bar_id, bar in self.bars.items():
+                data[bar_id] = {
+                    'name': bar.name,
+                    'taps': [tap.to_dict() for tap in bar.taps.values()]
+                }
 
-                with open(self.data_file, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print(f"[ERROR] Ошибка сохранения данных о кранах: {e}")
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[ERROR] Ошибка сохранения данных о кранах: {e}")
 
     def get_bars(self) -> List[Dict]:
         """Получить список всех баров"""
