@@ -89,10 +89,36 @@ class PlansManager {
     }
 
     /**
-     * Очистить форму
+     * Очистить форму и заполнить дефолтными значениями (заглушками)
      */
     clearForm() {
-        this.plansForm?.reset();
+        // Вместо полной очистки, заполняем форму дефолтными значениями
+        this.fillDefaultValues();
+    }
+
+    /**
+     * Заполнить форму дефолтными значениями (заглушками)
+     */
+    fillDefaultValues() {
+        const defaultPlan = {
+            revenue: 1000000,           // 1 млн рублей
+            checks: 500,                // 500 чеков
+            averageCheck: 2000,         // 2000 рублей средний чек
+            draftShare: 45,             // 45% розлив
+            packagedShare: 30,          // 30% фасовка
+            kitchenShare: 25,           // 25% кухня
+            revenueDraft: 450000,       // 450к розлив
+            revenuePackaged: 300000,    // 300к фасовка
+            revenueKitchen: 250000,     // 250к кухня
+            markupPercent: 215,         // 215% наценка
+            profit: 500000,             // 500к прибыль
+            markupDraft: 230,           // 230% наценка розлив
+            markupPackaged: 210,        // 210% наценка фасовка
+            markupKitchen: 195,         // 195% наценка кухня
+            loyaltyWriteoffs: 10000     // 10к списания
+        };
+
+        this.populateForm(defaultPlan);
     }
 
     /**
