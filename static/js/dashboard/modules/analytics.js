@@ -66,6 +66,10 @@ class Analytics {
                 )
             ]);
 
+            // DEBUG: Логируем полученные данные
+            console.log('[Analytics] План загружен:', plan);
+            console.log('[Analytics] Факт загружен:', actual);
+
             state.setPlan(plan);
             state.setActual(actual);
 

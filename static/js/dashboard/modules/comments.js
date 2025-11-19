@@ -47,7 +47,7 @@ class CommentsManager {
      */
     async loadComment() {
         const venueKey = state.currentVenue;
-        const periodKey = state.currentPeriod;
+        const periodKey = state.currentPeriod?.key;  // ИСПРАВЛЕНО: было state.currentPeriod (объект)
 
         if (!venueKey || !periodKey) {
             this.clearComment();

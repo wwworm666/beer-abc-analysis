@@ -10,7 +10,7 @@ export const METRICS = [
         icon: '💰',
         name: 'Выручка',
         planKey: 'revenue',
-        actualKey: 'total_revenue',
+        actualKey: 'revenue',  // ИСПРАВЛЕНО: было total_revenue
         unit: '₽',
         format: 'money'
     },
@@ -19,7 +19,7 @@ export const METRICS = [
         icon: '🧾',
         name: 'Чеки',
         planKey: 'checks',
-        actualKey: 'total_checks',
+        actualKey: 'checks',  // ИСПРАВЛЕНО: было total_checks
         unit: 'шт',
         format: 'number'
     },
@@ -28,7 +28,7 @@ export const METRICS = [
         icon: '💵',
         name: 'Средний чек',
         planKey: 'averageCheck',
-        actualKey: 'avg_check',
+        actualKey: 'averageCheck',  // ИСПРАВЛЕНО: было avg_check
         unit: '₽',
         format: 'money'
     },
@@ -37,7 +37,7 @@ export const METRICS = [
         icon: '🍺',
         name: 'Доля розлива',
         planKey: 'draftShare',
-        actualKey: 'draft_share',
+        actualKey: 'draftShare',  // ИСПРАВЛЕНО: было draft_share
         unit: '%',
         format: 'percent'
     },
@@ -46,7 +46,7 @@ export const METRICS = [
         icon: '🍾',
         name: 'Доля фасовки',
         planKey: 'packagedShare',
-        actualKey: 'bottles_share',
+        actualKey: 'packagedShare',  // ИСПРАВЛЕНО: было bottles_share
         unit: '%',
         format: 'percent'
     },
@@ -55,7 +55,7 @@ export const METRICS = [
         icon: '🍽️',
         name: 'Доля кухни',
         planKey: 'kitchenShare',
-        actualKey: 'kitchen_share',
+        actualKey: 'kitchenShare',  // ИСПРАВЛЕНО: было kitchen_share
         unit: '%',
         format: 'percent'
     },
@@ -64,7 +64,7 @@ export const METRICS = [
         icon: '💰',
         name: 'Выручка розлив',
         planKey: 'revenueDraft',
-        actualKey: 'draft_revenue',
+        actualKey: 'revenueDraft',  // ИСПРАВЛЕНО: было draft_revenue
         unit: '₽',
         format: 'money'
     },
@@ -73,7 +73,7 @@ export const METRICS = [
         icon: '💰',
         name: 'Выручка фасовка',
         planKey: 'revenuePackaged',
-        actualKey: 'bottles_revenue',
+        actualKey: 'revenuePackaged',  // ИСПРАВЛЕНО: было bottles_revenue
         unit: '₽',
         format: 'money'
     },
@@ -82,7 +82,7 @@ export const METRICS = [
         icon: '💰',
         name: 'Выручка кухня',
         planKey: 'revenueKitchen',
-        actualKey: 'kitchen_revenue',
+        actualKey: 'revenueKitchen',  // ИСПРАВЛЕНО: было kitchen_revenue
         unit: '₽',
         format: 'money'
     },
@@ -91,7 +91,7 @@ export const METRICS = [
         icon: '📈',
         name: '% наценки',
         planKey: 'markupPercent',
-        actualKey: 'avg_markup',
+        actualKey: 'markupPercent',  // ИСПРАВЛЕНО: было avg_markup
         unit: '%',
         format: 'percent'
     },
@@ -100,7 +100,7 @@ export const METRICS = [
         icon: '💹',
         name: 'Прибыль',
         planKey: 'profit',
-        actualKey: 'total_margin',
+        actualKey: 'profit',  // ИСПРАВЛЕНО: было total_margin
         unit: '₽',
         format: 'money'
     },
@@ -109,7 +109,7 @@ export const METRICS = [
         icon: '📈',
         name: 'Наценка розлив',
         planKey: 'markupDraft',
-        actualKey: 'draft_markup',
+        actualKey: 'markupDraft',  // ИСПРАВЛЕНО: было draft_markup
         unit: '%',
         format: 'percent'
     },
@@ -118,7 +118,7 @@ export const METRICS = [
         icon: '📈',
         name: 'Наценка фасовка',
         planKey: 'markupPackaged',
-        actualKey: 'bottles_markup',
+        actualKey: 'markupPackaged',  // ИСПРАВЛЕНО: было bottles_markup
         unit: '%',
         format: 'percent'
     },
@@ -127,7 +127,7 @@ export const METRICS = [
         icon: '📈',
         name: 'Наценка кухня',
         planKey: 'markupKitchen',
-        actualKey: 'kitchen_markup',
+        actualKey: 'markupKitchen',  // ИСПРАВЛЕНО: было kitchen_markup
         unit: '%',
         format: 'percent'
     },
@@ -136,7 +136,7 @@ export const METRICS = [
         icon: '💳',
         name: 'Списания баллов',
         planKey: 'loyaltyWriteoffs',
-        actualKey: 'loyalty_points_written_off',
+        actualKey: 'loyaltyWriteoffs',  // ИСПРАВЛЕНО: было loyalty_points_written_off
         unit: '₽',
         format: 'money'
     }
