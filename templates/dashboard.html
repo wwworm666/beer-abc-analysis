@@ -24,8 +24,8 @@
 
     <!-- JavaScript модули (ES6 modules) -->
     <script type="module">
-        // Cache busting version
-        const v = '1763406133';
+        // Cache busting version - динамический timestamp для обхода кэша
+        const v = Date.now();
 
         // Импортируем главный файл
         import(`/static/js/dashboard/main.js?v=${v}`).then(() => {
