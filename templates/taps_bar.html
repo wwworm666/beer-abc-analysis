@@ -491,6 +491,14 @@
             background: #047857;
         }
 
+        .btn.warning {
+            background: var(--warning);
+        }
+
+        .btn.warning:hover {
+            background: #ea580c;
+        }
+
         .action-buttons {
             display: flex;
             flex-direction: column;
@@ -993,10 +1001,30 @@
                 setTimeout(() => showStartForm(), 0);
             } else if (tap.status === 'active') {
                 actionButtons.innerHTML = `
-                    <button class="btn warning" onclick="showReplaceForm()">Заменить сорт</button>
-                    <button class="btn danger" onclick="stopTap()">Остановить кран</button>
+                    <button class="btn warning" id="replace-btn">Заменить сорт</button>
+                    <button class="btn danger" id="stop-btn">Остановить кран</button>
                 `;
                 document.getElementById('form-container').innerHTML = '';
+
+                // Добавляем обработчики событий после создания кнопок
+                setTimeout(() => {
+                    const replaceBtn = document.getElementById('replace-btn');
+                    const stopBtn = document.getElementById('stop-btn');
+
+                    if (replaceBtn) {
+                        replaceBtn.addEventListener('click', function() {
+                            console.log('Replace button clicked');
+                            showReplaceForm();
+                        });
+                    }
+
+                    if (stopBtn) {
+                        stopBtn.addEventListener('click', function() {
+                            console.log('Stop button clicked');
+                            stopTap();
+                        });
+                    }
+                }, 0);
             }
 
             document.getElementById('tap-modal').classList.add('active');
@@ -1126,16 +1154,35 @@
                     <label>Артикул (опционально)</label>
                     <input type="text" id="artikul" placeholder="Артикул из iiko" readonly>
                 </div>
-                <button class="btn success" onclick="startTap()" style="width: 100%; margin-top: 12px;">Подключить</button>
+                <button class="btn success" id="start-submit-btn" style="width: 100%; margin-top: 12px;">Подключить</button>
             `;
 
-            // Setup autocomplete
-            setTimeout(() => setupBeerAutocomplete('beer-input'), 0);
+            // Setup autocomplete and button handler
+            setTimeout(() => {
+                setupBeerAutocomplete('beer-input');
+
+                // Добавляем обработчик для кнопки "Подключить"
+                const startSubmitBtn = document.getElementById('start-submit-btn');
+                if (startSubmitBtn) {
+                    startSubmitBtn.addEventListener('click', function() {
+                        console.log('Start submit button clicked');
+                        startTap();
+                    });
+                }
+            }, 0);
         }
 
         // Show replace form
         function showReplaceForm() {
+            console.log('showReplaceForm called');
+            console.log('currentTap:', currentTap);
+
             const container = document.getElementById('form-container');
+            if (!container) {
+                console.error('form-container not found');
+                return;
+            }
+
             container.innerHTML = `
                 <div class="form-group">
                     <label>Текущее пиво</label>
@@ -1149,17 +1196,47 @@
                     <label>Артикул (опционально)</label>
                     <input type="text" id="artikul" placeholder="Артикул из iiko" readonly>
                 </div>
-                <button class="btn warning" onclick="replaceTap()" style="width: 100%; margin-top: 12px;">Заменить</button>
+                <button class="btn warning" id="replace-submit-btn" style="width: 100%; margin-top: 12px;">Заменить</button>
             `;
 
-            // Setup autocomplete
-            setTimeout(() => setupBeerAutocomplete('beer-input'), 0);
+            console.log('Form container updated');
+
+            // Setup autocomplete and button handler
+            setTimeout(() => {
+                console.log('Setting up autocomplete and button handler');
+                setupBeerAutocomplete('beer-input');
+
+                // Добавляем обработчик для кнопки "Заменить"
+                const replaceSubmitBtn = document.getElementById('replace-submit-btn');
+                if (replaceSubmitBtn) {
+                    replaceSubmitBtn.addEventListener('click', function() {
+                        console.log('Replace submit button clicked');
+                        replaceTap();
+                    });
+                    console.log('Replace submit button handler attached');
+                } else {
+                    console.error('replace-submit-btn not found');
+                }
+            }, 0);
         }
 
         // Start tap
         async function startTap() {
-            const beerName = document.getElementById('beer-input').value.trim();
-            const artikul = document.getElementById('artikul').value || `AUTO-${Date.now()}`;
+            const beerInput = document.getElementById('beer-input');
+            const artikulInput = document.getElementById('artikul');
+
+            if (!beerInput) {
+                alert('Ошибка: не найдено поле ввода пива');
+                return;
+            }
+
+            const beerName = beerInput.value.trim();
+            const artikulValue = artikulInput ? artikulInput.value.trim() : '';
+            const artikul = artikulValue || `AUTO-${Date.now()}`;
+
+            console.log('startTap - beerName:', beerName);
+            console.log('startTap - artikulValue:', artikulValue);
+            console.log('startTap - artikul:', artikul);
 
             if (!beerName) {
                 alert('Введите название пива');
@@ -1192,8 +1269,27 @@
 
         // Replace tap
         async function replaceTap() {
-            const beerName = document.getElementById('beer-input').value.trim();
-            const artikul = document.getElementById('artikul').value || `AUTO-${Date.now()}`;
+            console.log('replaceTap called');
+            const beerInput = document.getElementById('beer-input');
+            const artikulInput = document.getElementById('artikul');
+
+            console.log('beerInput:', beerInput);
+            console.log('artikulInput:', artikulInput);
+
+            if (!beerInput) {
+                alert('Ошибка: не найдено поле ввода пива');
+                console.error('beer-input element not found');
+                return;
+            }
+
+            const beerName = beerInput.value.trim();
+            const artikulValue = artikulInput ? artikulInput.value.trim() : '';
+            const artikul = artikulValue || `AUTO-${Date.now()}`;
+
+            console.log('beerName:', beerName);
+            console.log('artikulValue:', artikulValue);
+            console.log('artikul:', artikul);
+            console.log('currentTap:', currentTap);
 
             if (!beerName) {
                 alert('Введите название пива');
@@ -1201,26 +1297,34 @@
             }
 
             try {
+                const requestData = {
+                    tap_number: currentTap.tap_number,
+                    beer_name: beerName,
+                    keg_id: artikul
+                };
+
+                console.log('Sending request:', requestData);
+
                 const response = await fetch(`/api/taps/${barId}/replace`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        tap_number: currentTap.tap_number,
-                        beer_name: beerName,
-                        keg_id: artikul
-                    })
+                    body: JSON.stringify(requestData)
                 });
+
+                console.log('Response status:', response.status);
+                const responseData = await response.json();
+                console.log('Response data:', responseData);
 
                 if (response.ok) {
                     closeModal();
                     loadTaps();
                     loadHistory();
                 } else {
-                    alert('Ошибка при замене кеги');
+                    alert('Ошибка при замене кеги: ' + (responseData.error || 'Неизвестная ошибка'));
                 }
             } catch (error) {
                 console.error('Error replacing tap:', error);
-                alert('Ошибка при замене кеги');
+                alert('Ошибка при замене кеги: ' + error.message);
             }
         }
 

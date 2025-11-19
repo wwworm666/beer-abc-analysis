@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import pandas as pd
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
 from core.data_processor import BeerDataProcessor
@@ -941,8 +942,13 @@ def start_tap(bar_id):
         beer_name = data.get('beer_name')
         keg_id = data.get('keg_id')
 
-        if not all([tap_number, beer_name, keg_id]):
-            return jsonify({'error': 'Требуются: tap_number, beer_name, keg_id'}), 400
+        # Проверяем только обязательные поля (keg_id может быть пустым, тогда создастся AUTO)
+        if not tap_number or not beer_name:
+            return jsonify({'error': 'Требуются: tap_number, beer_name'}), 400
+
+        # Если keg_id пустой, генерируем автоматический
+        if not keg_id:
+            keg_id = f'AUTO-{int(time.time() * 1000)}'
 
         result = taps_manager.start_tap(bar_id, int(tap_number), beer_name, keg_id)
 
@@ -983,8 +989,13 @@ def replace_tap(bar_id):
         beer_name = data.get('beer_name')
         keg_id = data.get('keg_id')
 
-        if not all([tap_number, beer_name, keg_id]):
-            return jsonify({'error': 'Требуются: tap_number, beer_name, keg_id'}), 400
+        # Проверяем только обязательные поля (keg_id может быть пустым, тогда создастся AUTO)
+        if not tap_number or not beer_name:
+            return jsonify({'error': 'Требуются: tap_number, beer_name'}), 400
+
+        # Если keg_id пустой, генерируем автоматический
+        if not keg_id:
+            keg_id = f'AUTO-{int(time.time() * 1000)}'
 
         result = taps_manager.replace_tap(bar_id, int(tap_number), beer_name, keg_id)
 
