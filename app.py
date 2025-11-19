@@ -984,20 +984,29 @@ def stop_tap(bar_id):
 def replace_tap(bar_id):
     """Заменить кегу (смена сорта пива)"""
     try:
+        print(f"[DEBUG] /api/taps/{bar_id}/replace called")
         data = request.json
+        print(f"[DEBUG] Request data: {data}")
+
         tap_number = data.get('tap_number')
         beer_name = data.get('beer_name')
         keg_id = data.get('keg_id')
 
+        print(f"[DEBUG] tap_number={tap_number}, beer_name={beer_name}, keg_id={keg_id}")
+
         # Проверяем только обязательные поля (keg_id может быть пустым, тогда создастся AUTO)
         if not tap_number or not beer_name:
+            print(f"[ERROR] Missing required fields")
             return jsonify({'error': 'Требуются: tap_number, beer_name'}), 400
 
         # Если keg_id пустой, генерируем автоматический
         if not keg_id:
             keg_id = f'AUTO-{int(time.time() * 1000)}'
+            print(f"[DEBUG] Generated auto keg_id: {keg_id}")
 
+        print(f"[DEBUG] Calling taps_manager.replace_tap...")
         result = taps_manager.replace_tap(bar_id, int(tap_number), beer_name, keg_id)
+        print(f"[DEBUG] Result: {result}")
 
         if result['success']:
             return jsonify(result)
@@ -1005,6 +1014,8 @@ def replace_tap(bar_id):
             return jsonify(result), 400
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/taps/{bar_id}/replace: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/taps/<bar_id>/<int:tap_number>/history', methods=['GET'])
