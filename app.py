@@ -1839,9 +1839,35 @@ def dashboard_analytics():
 
         print(f"   [OK] Метрики рассчитаны успешно!")
 
-        # Формируем ответ
+        # Преобразуем ключи для совместимости с фронтендом
+        # Фронтенд ожидает camelCase, бэкенд возвращает snake_case
+        frontend_mapping = {
+            'total_revenue': 'revenue',
+            'total_checks': 'checks',
+            'avg_check': 'averageCheck',
+            'draft_share': 'draftShare',
+            'bottles_share': 'packagedShare',
+            'kitchen_share': 'kitchenShare',
+            'draft_revenue': 'revenueDraft',
+            'bottles_revenue': 'revenuePackaged',
+            'kitchen_revenue': 'revenueKitchen',
+            'avg_markup': 'markupPercent',
+            'total_margin': 'profit',
+            'draft_markup': 'markupDraft',
+            'bottles_markup': 'markupPackaged',
+            'kitchen_markup': 'markupKitchen',
+            'loyalty_points_written_off': 'loyaltyWriteoffs'
+        }
+
+        # Применяем маппинг
+        mapped_metrics = {}
+        for old_key, new_key in frontend_mapping.items():
+            if old_key in metrics:
+                mapped_metrics[new_key] = metrics[old_key]
+
+        # Формируем ответ с преобразованными ключами
         response = {
-            **metrics,
+            **mapped_metrics,
             'table_data': table_data
         }
 
