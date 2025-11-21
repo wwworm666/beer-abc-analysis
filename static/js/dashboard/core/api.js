@@ -61,8 +61,11 @@ export async function getPlan(venueKey, periodKey) {
     try {
         return await fetchAPI(API.PLAN(venueKey, periodKey));
     } catch (error) {
-        // Если план не найден (404), вернуть null
-        if (error.message.includes('404') || error.message.includes('не найден')) {
+        // Если план не найден (404), вернуть null вместо ошибки
+        if (error.message.includes('404') ||
+            error.message.includes('не найден') ||
+            error.message.includes('not found') ||
+            error.message.includes('Plan not found')) {
             return null;
         }
         throw error;
@@ -100,6 +103,8 @@ export async function getAllPlans(venueKey) {
  * Получить фактические данные (аналитика)
  */
 export async function getAnalytics(venueKey, dateFrom, dateTo) {
+    console.log('[API] getAnalytics вызван с параметрами:', { venueKey, dateFrom, dateTo });
+
     return await fetchAPI(API.ANALYTICS, {
         method: 'POST',
         body: JSON.stringify({

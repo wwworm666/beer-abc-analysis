@@ -1,18 +1,24 @@
 /**
- * Модуль управления планами
- * Форма редактирования и сохранения планов
+ * Модуль просмотра плановых показателей
+ * Отображение плана и факта в виде таблицы (read-only)
  */
 
 import { state } from '../core/state.js';
-import { getPlan, savePlan, getAllPlans } from '../core/api.js';
-import { validateShares } from '../core/utils.js';
+import { getPlan, getAnalytics } from '../core/api.js';
 import { METRICS } from '../core/config.js';
+import {
+    formatValue,
+    calculatePercent,
+    calculateDiff,
+    getStatus
+} from '../core/utils.js';
 
-class PlansManager {
+class PlansViewer {
     constructor() {
-        this.plansForm = document.getElementById('plans-form');
-        this.btnSavePlan = document.getElementById('btn-save-plan');
-        this.btnCopyPlan = document.getElementById('btn-copy-plan');
+        this.loadingState = document.getElementById('plans-loading');
+        this.noDataState = document.getElementById('plans-no-data');
+        this.tableContainer = document.getElementById('plans-table-container');
+        this.tableBody = document.getElementById('plans-table-body');
 
         this.initialized = false;
     }
@@ -31,239 +37,230 @@ class PlansManager {
      * Настроить обработчики событий
      */
     setupEventListeners() {
-        // Сохранение плана
-        this.btnSavePlan?.addEventListener('click', (e) => {
-            e.preventDefault();
-            this.handleSavePlan();
-        });
-
-        // Копирование плана
-        this.btnCopyPlan?.addEventListener('click', () => {
-            this.handleCopyPlan();
-        });
-
         // Подписка на изменения состояния
-        state.subscribe((event, data) => {
+        state.subscribe((event) => {
             if (event === 'venueChanged' || event === 'periodChanged') {
-                this.loadPlan();
+                this.loadData();
             }
         });
     }
 
     /**
-     * Загрузить план для текущего заведения и периода
+     * Загрузить план и факт
      */
-    async loadPlan() {
+    async loadData() {
         if (!state.currentVenue || !state.currentPeriod) {
             return;
         }
 
-        state.setLoading('plan', true);
+        this.showLoading();
 
         try {
-            const plan = await getPlan(state.currentVenue, state.currentPeriod.key);
+            // Загружаем план и факт параллельно
+            const [planResult, actualResult] = await Promise.allSettled([
+                getPlan(state.currentVenue, state.currentPeriod.key),
+                getAnalytics(
+                    state.currentVenue,
+                    state.currentPeriod.start,
+                    state.currentPeriod.end
+                )
+            ]);
 
-            if (plan) {
-                this.populateForm(plan);
-            } else {
-                this.clearForm();
+            // Извлекаем план (может быть null если не найден)
+            const plan = planResult.status === 'fulfilled' ? planResult.value : null;
+
+            // Проверяем что факт загрузился успешно
+            if (actualResult.status === 'rejected') {
+                throw new Error('Не удалось загрузить фактические данные');
             }
 
+            const actual = actualResult.value;
+
+            // Отображаем данные
+            this.displayData(plan, actual);
+
         } catch (error) {
-            console.error('Ошибка загрузки плана:', error);
-        } finally {
-            state.setLoading('plan', false);
+            console.error('Ошибка загрузки данных:', error);
+            state.addMessage('error', 'Не удалось загрузить данные');
+            this.hideLoading();
         }
     }
 
     /**
-     * Заполнить форму данными плана
+     * Отобразить данные в таблице
      */
-    populateForm(plan) {
-        METRICS.forEach(metric => {
-            const input = document.getElementById(`plan-${metric.planKey}`);
-            if (input) {
-                input.value = plan[metric.planKey] || '';
+    displayData(plan, actual) {
+        this.hideLoading();
+        this.hideNoData();
+        this.showTable();
+
+        // Очищаем таблицу
+        this.tableBody.innerHTML = '';
+
+        // Группировка метрик по секциям
+        const sections = [
+            {
+                name: 'Основные показатели',
+                metrics: ['revenue', 'checks', 'averageCheck']
+            },
+            {
+                name: 'Доли категорий',
+                metrics: ['draftShare', 'packagedShare', 'kitchenShare']
+            },
+            {
+                name: 'Выручка по категориям',
+                metrics: ['revenueDraft', 'revenuePackaged', 'revenueKitchen']
+            },
+            {
+                name: 'Наценка и прибыль',
+                metrics: ['markupPercent', 'profit', 'markupDraft', 'markupPackaged', 'markupKitchen']
+            },
+            {
+                name: 'Прочее',
+                metrics: ['loyaltyWriteoffs']
             }
+        ];
+
+        // Создаем строки таблицы по секциям
+        sections.forEach(section => {
+            // Заголовок секции
+            const headerRow = document.createElement('tr');
+            headerRow.className = 'section-header';
+            headerRow.innerHTML = `
+                <td colspan="5">${section.name}</td>
+            `;
+            this.tableBody.appendChild(headerRow);
+
+            // Метрики секции
+            section.metrics.forEach(metricId => {
+                const metric = METRICS.find(m => m.planKey === metricId);
+                if (!metric) return;
+
+                const planValue = plan ? plan[metric.planKey] : null;
+                const actualValue = actual[metric.actualKey];
+
+                const row = this.createMetricRow(
+                    metric,
+                    planValue,
+                    actualValue
+                );
+
+                this.tableBody.appendChild(row);
+            });
         });
+
+        // Если нет плана - показываем предупреждение
+        if (!plan) {
+            this.showNoDataWarning();
+        }
     }
 
     /**
-     * Очистить форму и заполнить дефолтными значениями (заглушками)
+     * Создать строку таблицы для метрики
      */
-    clearForm() {
-        // Вместо полной очистки, заполняем форму дефолтными значениями
-        this.fillDefaultValues();
+    createMetricRow(metric, planValue, actualValue) {
+        const row = document.createElement('tr');
+
+        // Вычисляем процент и отклонение
+        const percent = planValue ? calculatePercent(actualValue, planValue) : null;
+        const diff = planValue ? calculateDiff(actualValue, planValue) : null;
+        const status = planValue ? getStatus(percent) : 'neutral';
+
+        // Форматируем значения
+        const formattedPlan = planValue !== null ? formatValue(planValue, metric.format) : '—';
+        const formattedActual = formatValue(actualValue, metric.format);
+        const formattedDiff = diff !== null ? formatValue(Math.abs(diff), metric.format) : '—';
+        const formattedPercent = percent !== null ? `${percent.toFixed(1)}%` : '—';
+
+        // Класс для отклонения
+        let diffClass = 'neutral';
+        if (diff !== null) {
+            if (diff > 0) diffClass = 'positive';
+            else if (diff < 0) diffClass = 'negative';
+        }
+
+        // Префикс для отклонения
+        const diffPrefix = diff !== null && diff > 0 ? '+' : '';
+
+        // HTML строки
+        row.innerHTML = `
+            <td class="metric-name">${metric.icon} ${metric.name}</td>
+            <td class="value-col plan-col">${formattedPlan}</td>
+            <td class="value-col fact-col">${formattedActual}</td>
+            <td class="value-col diff-col ${diffClass}">${diffPrefix}${formattedDiff}</td>
+            <td class="value-col percent-col ${status}">${formattedPercent}</td>
+        `;
+
+        return row;
     }
 
     /**
-     * Заполнить форму дефолтными значениями (заглушками)
+     * Показать предупреждение об отсутствии плана
      */
-    fillDefaultValues() {
-        const defaultPlan = {
-            revenue: 1000000,           // 1 млн рублей
-            checks: 500,                // 500 чеков
-            averageCheck: 2000,         // 2000 рублей средний чек
-            draftShare: 45,             // 45% розлив
-            packagedShare: 30,          // 30% фасовка
-            kitchenShare: 25,           // 25% кухня
-            revenueDraft: 450000,       // 450к розлив
-            revenuePackaged: 300000,    // 300к фасовка
-            revenueKitchen: 250000,     // 250к кухня
-            markupPercent: 215,         // 215% наценка
-            profit: 500000,             // 500к прибыль
-            markupDraft: 230,           // 230% наценка розлив
-            markupPackaged: 210,        // 210% наценка фасовка
-            markupKitchen: 195,         // 195% наценка кухня
-            loyaltyWriteoffs: 10000     // 10к списания
-        };
-
-        this.populateForm(defaultPlan);
+    showNoDataWarning() {
+        // Добавляем информационное сообщение в начало таблицы
+        const infoRow = document.createElement('tr');
+        infoRow.style.backgroundColor = 'var(--bg-tertiary)';
+        infoRow.innerHTML = `
+            <td colspan="5" style="text-align: center; padding: var(--spacing-lg); color: var(--warning);">
+                ⚠️ Для выбранного периода план не задан. Показаны только фактические данные.
+            </td>
+        `;
+        this.tableBody.insertBefore(infoRow, this.tableBody.firstChild);
     }
 
     /**
-     * Собрать данные из формы
+     * Показать состояние загрузки
      */
-    collectFormData() {
-        const data = {};
-
-        METRICS.forEach(metric => {
-            const input = document.getElementById(`plan-${metric.planKey}`);
-            if (input) {
-                const value = parseFloat(input.value);
-                data[metric.planKey] = isNaN(value) ? 0 : value;
-            }
-        });
-
-        return data;
+    showLoading() {
+        this.loadingState?.classList.remove('hidden');
+        this.noDataState?.classList.add('hidden');
+        this.tableContainer?.classList.add('hidden');
     }
 
     /**
-     * Валидировать данные плана
+     * Скрыть состояние загрузки
      */
-    validatePlanData(data) {
-        // Проверка суммы долей
-        const isValid = validateShares(
-            data.draftShare,
-            data.packagedShare,
-            data.kitchenShare
-        );
-
-        if (!isValid) {
-            state.addMessage('error', 'Сумма долей (розлив + фасовка + кухня) должна быть ~100%', 5000);
-            return false;
-        }
-
-        // Проверка на отрицательные значения
-        for (const [key, value] of Object.entries(data)) {
-            if (value < 0) {
-                state.addMessage('error', `Значение "${key}" не может быть отрицательным`, 5000);
-                return false;
-            }
-        }
-
-        return true;
+    hideLoading() {
+        this.loadingState?.classList.add('hidden');
     }
 
     /**
-     * Обработать сохранение плана
+     * Показать таблицу
      */
-    async handleSavePlan() {
-        if (!state.currentVenue || !state.currentPeriod) {
-            state.addMessage('warning', 'Выберите заведение и период', 3000);
-            return;
-        }
-
-        const planData = this.collectFormData();
-
-        // Валидация
-        if (!this.validatePlanData(planData)) {
-            return;
-        }
-
-        state.setLoading('plan', true);
-
-        try {
-            const result = await savePlan(
-                state.currentVenue,
-                state.currentPeriod.key,
-                planData
-            );
-
-            if (result.success) {
-                state.addMessage('success', 'План успешно сохранен', 3000);
-                state.setPlan(planData);
-            } else {
-                state.addMessage('error', result.error || 'Ошибка сохранения плана', 5000);
-            }
-
-        } catch (error) {
-            console.error('Ошибка сохранения плана:', error);
-            state.addMessage('error', 'Не удалось сохранить план', 5000);
-        } finally {
-            state.setLoading('plan', false);
-        }
+    showTable() {
+        this.tableContainer?.classList.remove('hidden');
     }
 
     /**
-     * Обработать копирование плана из другого периода
+     * Скрыть таблицу
      */
-    async handleCopyPlan() {
-        if (!state.currentVenue) {
-            state.addMessage('warning', 'Выберите заведение', 3000);
-            return;
-        }
-
-        try {
-            // Получаем все планы для текущего заведения
-            const allPlans = await getAllPlans(state.currentVenue);
-
-            if (!allPlans || Object.keys(allPlans).length === 0) {
-                state.addMessage('info', 'Нет сохраненных планов для этого заведения', 3000);
-                return;
-            }
-
-            // Показываем модальное окно с выбором периода
-            this.showCopyPlanModal(allPlans);
-
-        } catch (error) {
-            console.error('Ошибка получения планов:', error);
-            state.addMessage('error', 'Не удалось загрузить планы', 5000);
-        }
+    hideTable() {
+        this.tableContainer?.classList.add('hidden');
     }
 
     /**
-     * Показать модальное окно выбора плана для копирования
+     * Показать состояние "нет данных"
      */
-    showCopyPlanModal(allPlans) {
-        // TODO: Реализовать модальное окно
-        // Пока используем простой prompt
-        const periods = Object.keys(allPlans);
-        const periodsList = periods.map((key, idx) => `${idx + 1}. ${key}`).join('\n');
-
-        const choice = prompt(
-            `Выберите период для копирования (введите номер):\n\n${periodsList}`
-        );
-
-        if (choice) {
-            const index = parseInt(choice) - 1;
-            if (index >= 0 && index < periods.length) {
-                const selectedPeriod = periods[index];
-                const planToCopy = allPlans[selectedPeriod];
-
-                this.populateForm(planToCopy);
-                state.addMessage('success', `План скопирован из периода ${selectedPeriod}`, 3000);
-            }
-        }
+    showNoData() {
+        this.noDataState?.classList.remove('hidden');
+        this.tableContainer?.classList.add('hidden');
     }
 
     /**
-     * Обновить форму
+     * Скрыть состояние "нет данных"
+     */
+    hideNoData() {
+        this.noDataState?.classList.add('hidden');
+    }
+
+    /**
+     * Обновить данные
      */
     refresh() {
-        this.loadPlan();
+        this.loadData();
     }
 }
 
 // Экспортируем единственный экземпляр
-export const plansManager = new PlansManager();
+export const plansViewer = new PlansViewer();

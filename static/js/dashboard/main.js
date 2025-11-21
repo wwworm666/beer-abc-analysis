@@ -8,7 +8,7 @@ import { themeManager } from './modules/theme.js';
 import { venueSelector } from './modules/venue_selector.js';
 import { weekSelector } from './modules/week_selector.js';
 import { analytics } from './modules/analytics.js';
-import { plansManager } from './modules/plans.js';
+import { plansViewer } from './modules/plans.js';
 import { chartsModule } from './modules/charts.js';
 import { trendsModule } from './modules/trends.js';
 import { commentsManager } from './modules/comments.js';
@@ -48,8 +48,8 @@ class Dashboard {
             trendsModule.init();
             console.log('✅ Модуль трендов инициализирован');
 
-            plansManager.init();
-            console.log('✅ Модуль планов инициализирован');
+            plansViewer.init();
+            console.log('✅ Модуль просмотра планов инициализирован');
 
             commentsManager.init();
             console.log('✅ Модуль комментариев инициализирован');
@@ -97,10 +97,12 @@ class Dashboard {
                     selectedTab.classList.add('active');
                     state.setActiveTab(tabId);
 
-                    // Загружаем графики и тренды при переключении на вкладку графиков
+                    // Загружаем данные при переключении на вкладки
                     if (tabId === 'tab-charts') {
                         chartsModule.loadChartsData();
                         trendsModule.loadTrendsData();
+                    } else if (tabId === 'tab-plans') {
+                        plansViewer.loadData();
                     }
                 }
             });

@@ -1794,13 +1794,23 @@ def dashboard_analytics():
     """API endpoint для получения всех метрик дашборда из сырых OLAP данных"""
     try:
         data = request.json
-        bar_name = data.get('bar')
+        venue_key = data.get('bar')  # ключ заведения (kremenchugskaya, bolshoy, etc)
         date_from = data.get('date_from')  # YYYY-MM-DD
         date_to = data.get('date_to')      # YYYY-MM-DD
 
+        # Преобразуем venue_key в название для iiko API
+        bar_name = venues_manager.get_iiko_name(venue_key) if venue_key and venue_key != 'all' else None
+
+        # iiko API: date_to не включается (exclusive end)
+        # Чтобы получить данные за 10.11-16.11 включительно, нужно запросить до 17.11
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+        date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+
         print(f"\n[DASHBOARD] Запуск анализа дашборда...")
-        print(f"   Bar: {bar_name if bar_name else 'ВСЕ'}")
-        print(f"   Period: {date_from} - {date_to}")
+        print(f"   Venue key: {venue_key}")
+        print(f"   Bar name (iiko): {bar_name if bar_name else 'ВСЕ'}")
+        print(f"   Period (requested): {date_from} - {date_to}")
+        print(f"   Period (iiko API): {date_from} - {date_to_inclusive}")
 
         if not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
@@ -1812,19 +1822,19 @@ def dashboard_analytics():
 
         # 1. Получаем СЫРЫЕ данные по разливному пиву
         print("   [1/3] Получение данных разливного...")
-        draft_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
+        draft_data = olap.get_draft_sales_report(date_from, date_to_inclusive, bar_name)
         if draft_data:
             print(f"   [OK] Разливное: {len(draft_data.get('data', []))} записей")
 
         # 2. Получаем СЫРЫЕ данные по фасовке
         print("   [2/3] Получение данных фасовки...")
-        bottles_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
+        bottles_data = olap.get_beer_sales_report(date_from, date_to_inclusive, bar_name)
         if bottles_data:
             print(f"   [OK] Фасовка: {len(bottles_data.get('data', []))} записей")
 
         # 3. Получаем СЫРЫЕ данные по кухне (через OLAP, а не storeOperations)
         print("   [3/3] Получение данных кухни...")
-        kitchen_data = olap.get_kitchen_sales_report(date_from, date_to, bar_name)
+        kitchen_data = olap.get_kitchen_sales_report(date_from, date_to_inclusive, bar_name)
         if kitchen_data:
             print(f"   [OK] Кухня: {len(kitchen_data.get('data', []))} записей")
 
@@ -1965,7 +1975,11 @@ def get_plan_with_venue(venue_key, period_key):
     try:
         print(f"\n[PLANS API] Запрос плана для заведения: {venue_key}, период: {period_key}")
 
-        plan = plans_manager.get_plan(period_key)
+        # Используем составной ключ: venue_period
+        composite_key = f"{venue_key}_{period_key}"
+        print(f"[PLANS API] Составной ключ: {composite_key}")
+
+        plan = plans_manager.get_plan(composite_key)
 
         if plan:
             print(f"[PLANS API] План найден")
@@ -2124,8 +2138,12 @@ def save_plan_with_venue(venue_key, period_key):
         print(f"\n[PLANS API] Сохранение плана для заведения: {venue_key}, период: {period_key}")
         print(f"[PLANS API] Данные: {list(request_data.keys())}")
 
+        # Используем составной ключ: venue_period
+        composite_key = f"{venue_key}_{period_key}"
+        print(f"[PLANS API] Составной ключ: {composite_key}")
+
         # Сохраняем план (валидация внутри PlansManager)
-        success = plans_manager.save_plan(period_key, request_data)
+        success = plans_manager.save_plan(composite_key, request_data)
 
         if success:
             print(f"[PLANS API] План успешно сохранен")
@@ -2167,7 +2185,11 @@ def delete_plan_with_venue(venue_key, period_key):
     try:
         print(f"\n[PLANS API] Удаление плана для заведения: {venue_key}, период: {period_key}")
 
-        success = plans_manager.delete_plan(period_key)
+        # Используем составной ключ: venue_period
+        composite_key = f"{venue_key}_{period_key}"
+        print(f"[PLANS API] Составной ключ: {composite_key}")
+
+        success = plans_manager.delete_plan(composite_key)
 
         if success:
             print(f"[PLANS API] План удален")
@@ -2232,7 +2254,7 @@ def get_comment(venue_key, period_key):
     try:
         print(f"\n[COMMENTS API] Получение комментария: {venue_key} / {period_key}")
 
-        plan = plans_manager.get_plan(venue_key, period_key)
+        plan = plans_manager.get_plan(period_key)
 
         if plan and 'comment' in plan:
             comment = plan['comment']
@@ -2272,7 +2294,7 @@ def save_comment(venue_key, period_key):
         print(f"[COMMENTS API] Текст: {len(comment)} символов")
 
         # Получаем существующий план или создаем пустой
-        plan = plans_manager.get_plan(venue_key, period_key)
+        plan = plans_manager.get_plan(period_key)
         if plan is None:
             plan = {}
 
@@ -2280,7 +2302,7 @@ def save_comment(venue_key, period_key):
         plan['comment'] = comment
 
         # Сохраняем план обратно
-        success = plans_manager.save_plan(venue_key, period_key, plan)
+        success = plans_manager.save_plan(period_key, plan)
 
         if success:
             print(f"[COMMENTS API] Комментарий сохранен")
@@ -2378,7 +2400,7 @@ def export_excel():
         print(f"\n[EXPORT EXCEL] Генерация Excel: {venue_key} / {period_key}")
 
         # Получаем данные
-        plan = plans_manager.get_plan(venue_key, period_key) or {}
+        plan = plans_manager.get_plan(period_key) or {}
         venue = venues_manager.get_venue(venue_key)
         venue_name = venue['full_name'] if venue else venue_key
 
@@ -2491,7 +2513,7 @@ def export_pdf():
         print(f"\n[EXPORT PDF] Генерация PDF: {venue_key} / {period_key}")
 
         # Получаем данные
-        plan = plans_manager.get_plan(venue_key, period_key) or {}
+        plan = plans_manager.get_plan(period_key) or {}
         venue = venues_manager.get_venue(venue_key)
         venue_name = venue['full_name'] if venue else venue_key
 

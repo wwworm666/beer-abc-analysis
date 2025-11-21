@@ -49,15 +49,18 @@ class Analytics {
      * Загрузить данные аналитики
      */
     async loadAnalytics() {
+        console.log('[Analytics] loadAnalytics вызван. state.currentPeriod:', state.currentPeriod);
+
         if (!state.currentVenue || !state.currentPeriod) {
+            console.log('[Analytics] Пропуск загрузки - нет venue или period');
             return;
         }
 
         this.showLoading();
 
         try {
-            // Параллельная загрузка плана и факта
-            const [plan, actual] = await Promise.all([
+            // Загружаем план и факт параллельно, но обрабатываем ошибки отдельно
+            const [planResult, actualResult] = await Promise.allSettled([
                 getPlan(state.currentVenue, state.currentPeriod.key),
                 getAnalytics(
                     state.currentVenue,
@@ -65,6 +68,16 @@ class Analytics {
                     state.currentPeriod.end
                 )
             ]);
+
+            // Извлекаем план (может быть null если не найден)
+            const plan = planResult.status === 'fulfilled' ? planResult.value : null;
+
+            // Проверяем что факт загрузился успешно
+            if (actualResult.status === 'rejected') {
+                throw new Error('Не удалось загрузить фактические данные: ' + actualResult.reason);
+            }
+
+            const actual = actualResult.value;
 
             // DEBUG: Логируем полученные данные
             console.log('[Analytics] План загружен:', plan);
@@ -74,11 +87,8 @@ class Analytics {
             state.setActual(actual);
 
             // Отображаем данные
-            if (plan) {
-                this.displayComparison(plan, actual);
-            } else {
-                this.displayNoPlan();
-            }
+            // Всегда показываем факт, план опционален
+            this.displayComparison(plan, actual);
 
         } catch (error) {
             console.error('Ошибка загрузки аналитики:', error);
@@ -91,6 +101,8 @@ class Analytics {
      * Отобразить сравнение план vs факт
      */
     displayComparison(plan, actual) {
+        console.log('[Analytics] displayComparison called with:', { plan, actual });
+
         this.hideLoading();
         this.hideNoPlan();
         this.showMetricsGrid();
@@ -104,12 +116,19 @@ class Analytics {
 
         // Создаем карточки для каждой метрики
         METRICS.forEach(metric => {
-            const planValue = plan[metric.planKey];
+            const planValue = plan ? plan[metric.planKey] : null;
             const actualValue = actual[metric.actualKey];
 
-            const percent = calculatePercent(actualValue, planValue);
-            const diff = calculateDiff(actualValue, planValue);
-            const status = getStatus(percent);
+            console.log(`[Analytics] Метрика "${metric.name}":`, {
+                planKey: metric.planKey,
+                actualKey: metric.actualKey,
+                planValue,
+                actualValue
+            });
+
+            const percent = planValue ? calculatePercent(actualValue, planValue) : 0;
+            const diff = planValue ? calculateDiff(actualValue, planValue) : 0;
+            const status = planValue ? getStatus(percent) : 'neutral';
 
             if (percent >= 100) {
                 completedCount++;
@@ -129,6 +148,8 @@ class Analytics {
             this.metricsGrid.appendChild(card);
         });
 
+        console.log('[Analytics] Всего метрик отрисовано:', METRICS.length);
+
         // Обновляем статистику
         this.updateStats(METRICS.length, completedCount, totalPercent / METRICS.length);
     }
@@ -142,9 +163,9 @@ class Analytics {
         card.setAttribute('data-metric-id', metric.id);
 
         // Форматируем значения
-        const formattedPlan = formatValue(planValue, metric.format);
+        const formattedPlan = planValue !== null ? formatValue(planValue, metric.format) : '—';
         const formattedActual = formatValue(actualValue, metric.format);
-        const formattedDiff = formatValue(Math.abs(diff), metric.format);
+        const formattedDiff = planValue !== null ? formatValue(Math.abs(diff), metric.format) : '—';
 
         // HTML карточки
         card.innerHTML = `
@@ -164,6 +185,7 @@ class Analytics {
                 </div>
             </div>
 
+            ${planValue !== null ? `
             <div class="metric-progress">
                 <div class="progress-bar-container">
                     <div class="progress-bar ${status}" style="width: ${Math.min(percent, 100)}%"></div>
@@ -179,6 +201,13 @@ class Analytics {
                     ${this.getStatusText(status, percent)}
                 </span>
             </div>
+            ` : `
+            <div class="metric-footer">
+                <span class="metric-status neutral">
+                    План не задан
+                </span>
+            </div>
+            `}
         `;
 
         return card;

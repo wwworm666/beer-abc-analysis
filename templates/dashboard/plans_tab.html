@@ -3,178 +3,206 @@
 <div class="plans-container">
     <div class="plans-header">
         <h2>Плановые показатели</h2>
-        <p class="subtitle">Задайте плановые значения для метрик</p>
+        <p class="subtitle">Просмотр плановых и фактических значений метрик</p>
     </div>
 
-    <div class="plans-actions">
-        <button id="btn-copy-plan" class="btn btn-secondary">
-            📋 Копировать план из другого периода
-        </button>
+    <!-- Состояние загрузки -->
+    <div id="plans-loading" class="loading-state hidden">
+        <div class="spinner"></div>
+        <p>Загрузка данных...</p>
     </div>
 
-    <form id="plans-form" class="plans-form">
-        <!-- Выручка и чеки -->
-        <div class="form-section">
-            <h3>Основные показатели</h3>
+    <!-- Нет плана -->
+    <div id="plans-no-data" class="no-data-state hidden">
+        <div class="icon">📊</div>
+        <h3>Нет плановых данных</h3>
+        <p>Для выбранного периода план не задан. Показаны только фактические данные.</p>
+    </div>
 
-            <div class="form-group">
-                <label for="plan-revenue">💰 Выручка (₽)</label>
-                <input type="number" id="plan-revenue" name="revenue" step="0.01" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-checks">🧾 Чеки (шт)</label>
-                <input type="number" id="plan-checks" name="checks" step="1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-averageCheck">💵 Средний чек (₽)</label>
-                <input type="number" id="plan-averageCheck" name="averageCheck" step="0.01" required>
-            </div>
-        </div>
-
-        <!-- Доли категорий -->
-        <div class="form-section">
-            <h3>Доли категорий (%)</h3>
-            <p class="form-hint">⚠️ Сумма долей должна быть ~100%</p>
-
-            <div class="form-group">
-                <label for="plan-draftShare">🍺 Доля розлива (%)</label>
-                <input type="number" id="plan-draftShare" name="draftShare" step="0.1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-packagedShare">🍾 Доля фасовки (%)</label>
-                <input type="number" id="plan-packagedShare" name="packagedShare" step="0.1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-kitchenShare">🍽️ Доля кухни (%)</label>
-                <input type="number" id="plan-kitchenShare" name="kitchenShare" step="0.1" required>
-            </div>
-        </div>
-
-        <!-- Выручка по категориям -->
-        <div class="form-section">
-            <h3>Выручка по категориям (₽)</h3>
-
-            <div class="form-group">
-                <label for="plan-revenueDraft">💰 Выручка розлив</label>
-                <input type="number" id="plan-revenueDraft" name="revenueDraft" step="0.01" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-revenuePackaged">💰 Выручка фасовка</label>
-                <input type="number" id="plan-revenuePackaged" name="revenuePackaged" step="0.01" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-revenueKitchen">💰 Выручка кухня</label>
-                <input type="number" id="plan-revenueKitchen" name="revenueKitchen" step="0.01" required>
-            </div>
-        </div>
-
-        <!-- Наценка и прибыль -->
-        <div class="form-section">
-            <h3>Наценка и прибыль</h3>
-
-            <div class="form-group">
-                <label for="plan-markupPercent">📈 % наценки</label>
-                <input type="number" id="plan-markupPercent" name="markupPercent" step="0.1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-profit">💹 Прибыль (₽)</label>
-                <input type="number" id="plan-profit" name="profit" step="0.01" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-markupDraft">📈 Наценка розлив (%)</label>
-                <input type="number" id="plan-markupDraft" name="markupDraft" step="0.1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-markupPackaged">📈 Наценка фасовка (%)</label>
-                <input type="number" id="plan-markupPackaged" name="markupPackaged" step="0.1" required>
-            </div>
-
-            <div class="form-group">
-                <label for="plan-markupKitchen">📈 Наценка кухня (%)</label>
-                <input type="number" id="plan-markupKitchen" name="markupKitchen" step="0.1" required>
-            </div>
-        </div>
-
-        <!-- Прочее -->
-        <div class="form-section">
-            <h3>Прочее</h3>
-
-            <div class="form-group">
-                <label for="plan-loyaltyWriteoffs">💳 Списания баллов (₽)</label>
-                <input type="number" id="plan-loyaltyWriteoffs" name="loyaltyWriteoffs" step="0.01" required>
-            </div>
-        </div>
-
-        <!-- Кнопка сохранения -->
-        <div class="form-actions">
-            <button type="submit" id="btn-save-plan" class="btn">
-                💾 Сохранить план
-            </button>
-        </div>
-    </form>
+    <!-- Таблица с данными -->
+    <div id="plans-table-container" class="plans-table-container">
+        <table class="plans-table">
+            <thead>
+                <tr>
+                    <th class="metric-name">Метрика</th>
+                    <th class="value-col plan-col">План</th>
+                    <th class="value-col fact-col">Факт</th>
+                    <th class="value-col diff-col">Отклонение</th>
+                    <th class="value-col percent-col">%</th>
+                </tr>
+            </thead>
+            <tbody id="plans-table-body">
+                <!-- Данные загружаются через JS -->
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <style>
 .plans-container {
-    max-width: 800px;
+    max-width: 1200px;
 }
 
 .plans-header {
     margin-bottom: var(--spacing-lg);
 }
 
-.plans-actions {
-    margin-bottom: var(--spacing-lg);
+.loading-state,
+.no-data-state {
+    text-align: center;
+    padding: var(--spacing-xxl);
+    color: var(--text-secondary);
 }
 
-.plans-form {
-    display: grid;
-    gap: var(--spacing-xl);
+.loading-state .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto var(--spacing-md);
 }
 
-.form-section {
-    padding: var(--spacing-lg);
+.no-data-state .icon {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-md);
+}
+
+.no-data-state h3 {
+    margin-bottom: var(--spacing-sm);
+    color: var(--text-primary);
+}
+
+.plans-table-container {
+    overflow-x: auto;
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
 }
 
-.form-section h3 {
-    margin-bottom: var(--spacing-md);
+.plans-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.plans-table thead {
+    background: var(--bg-tertiary);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.plans-table th {
+    padding: var(--spacing-md);
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.plans-table th.metric-name {
+    min-width: 200px;
+}
+
+.plans-table th.value-col {
+    text-align: right;
+    min-width: 120px;
+}
+
+.plans-table tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.plans-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.plans-table td {
+    padding: var(--spacing-md);
+}
+
+.plans-table td.metric-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.plans-table td.value-col {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+}
+
+.plans-table td.plan-col {
     color: var(--accent);
 }
 
-.form-hint {
-    font-size: 0.85rem;
-    color: var(--warning);
-    margin-bottom: var(--spacing-md);
+.plans-table td.fact-col {
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
-.form-group {
-    margin-bottom: var(--spacing-md);
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: var(--spacing-xs);
+.plans-table td.diff-col {
     font-weight: 500;
+}
+
+.plans-table td.diff-col.positive {
+    color: var(--success);
+}
+
+.plans-table td.diff-col.negative {
+    color: var(--danger);
+}
+
+.plans-table td.diff-col.neutral {
     color: var(--text-secondary);
 }
 
-.form-group input {
-    width: 100%;
+.plans-table td.percent-col {
+    font-weight: 600;
 }
 
-.form-actions {
-    text-align: right;
+.plans-table td.percent-col.success {
+    color: var(--success);
+}
+
+.plans-table td.percent-col.warning {
+    color: var(--warning);
+}
+
+.plans-table td.percent-col.danger {
+    color: var(--danger);
+}
+
+.plans-table td.percent-col.neutral {
+    color: var(--text-secondary);
+}
+
+/* Секции таблицы */
+.plans-table tbody tr.section-header td {
+    background: var(--bg-tertiary);
+    font-weight: 700;
+    color: var(--accent);
+    padding-top: var(--spacing-lg);
+    padding-bottom: var(--spacing-sm);
+}
+
+/* Мобильная адаптация */
+@media (max-width: 768px) {
+    .plans-table th.value-col,
+    .plans-table td.value-col {
+        min-width: 80px;
+        font-size: 0.85rem;
+        padding: var(--spacing-sm);
+    }
+
+    .plans-table th.metric-name,
+    .plans-table td.metric-name {
+        min-width: 150px;
+    }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 </style>
