@@ -18,7 +18,6 @@ METRIC_MAPPING = {
     'Прибыль': 'profit',
     'Гости': 'guests',
     'Средний чек': 'avgCheck',
-    'Средний чек на гостя': 'avgCheckPerGuest',
     'Доля розлив': 'shareDraft',
     'Доля фасовка': 'sharePackaged',
     'Доля кухня': 'shareKitchen',
