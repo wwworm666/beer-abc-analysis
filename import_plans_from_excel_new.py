@@ -16,12 +16,12 @@ VENUE_MAPPING = {
 METRIC_MAPPING = {
     'Выручка': 'revenue',
     'Прибыль': 'profit',
-    'Гости': 'guests',
-    'Средний чек': 'avgCheck',
-    'Доля розлив': 'shareDraft',
-    'Доля фасовка': 'sharePackaged',
-    'Доля кухня': 'shareKitchen',
-    'Наценка': 'markup',
+    'Чеки': 'checks',
+    'Средний чек': 'averageCheck',
+    'Доля розлив': 'draftShare',
+    'Доля фасовка': 'packagedShare',
+    'Доля кухня': 'kitchenShare',
+    'Наценка': 'markupPercent',
     'Наценка розлив': 'markupDraft',
     'Наценка фасовка': 'markupPackaged',
     'Наценка кухня': 'markupKitchen'
