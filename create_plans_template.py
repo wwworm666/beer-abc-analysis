@@ -10,9 +10,10 @@ ws.title = "Планы 2025-2026"
 
 # Список баров
 bars = [
+    'Большой пр. В.О',
+    'Лиговский',
     'Кременчугская',
     'Варшавская',
-    'Ленинградская',
     'Общая'
 ]
 
@@ -127,10 +128,11 @@ for month in months:
 
 # Настройка ширины столбцов
 ws.column_dimensions['A'].width = 30  # Метрика
-ws.column_dimensions['B'].width = 18  # Кременчугская
-ws.column_dimensions['C'].width = 18  # Варшавская
-ws.column_dimensions['D'].width = 18  # Ленинградская
-ws.column_dimensions['E'].width = 18  # Общая
+ws.column_dimensions['B'].width = 20  # Большой пр. В.О
+ws.column_dimensions['C'].width = 18  # Лиговский
+ws.column_dimensions['D'].width = 18  # Кременчугская
+ws.column_dimensions['E'].width = 18  # Варшавская
+ws.column_dimensions['F'].width = 18  # Общая
 
 # Закрепляем первую строку
 ws.freeze_panes = 'A4'

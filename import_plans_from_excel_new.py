@@ -5,9 +5,10 @@ from datetime import datetime, timedelta
 
 # Маппинг названий баров в коде к ключам venue
 VENUE_MAPPING = {
+    'Большой пр. В.О': 'bolshoy',
+    'Лиговский': 'ligovskiy',
     'Кременчугская': 'kremenchugskaya',
     'Варшавская': 'varshavskaya',
-    'Ленинградская': 'leningradskaya',
     'Общая': 'all'
 }
 
