@@ -162,10 +162,20 @@ if __name__ == '__main__':
 
     print(f"\nВсего создано планов: {len(plans)}")
 
-    # Сохраняем в JSON
+    # Сохраняем в JSON в формате PlansManager
+    from datetime import datetime
+    output_data = {
+        'plans': plans,
+        'metadata': {
+            'lastUpdate': datetime.now().isoformat(),
+            'version': '1.0',
+            'source': 'Excel import from планы_2025_2026.xlsx'
+        }
+    }
+
     output_file = 'data/plansdashboard.json'
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(plans, f, ensure_ascii=False, indent=2)
+        json.dump(output_data, f, ensure_ascii=False, indent=2)
 
     print(f"\nПланы сохранены в {output_file}")
 
