@@ -82,6 +82,18 @@ class PlansManager:
 
         # Создаем файл с пустой структурой если не существует
         if not os.path.exists(self.data_file):
+            # Сначала пробуем скопировать из data/plansdashboard.json (fallback)
+            fallback_file = 'data/plansdashboard.json'
+            if os.path.exists(fallback_file):
+                try:
+                    shutil.copy2(fallback_file, self.data_file)
+                    print(f"[PLANS] Скопированы планы из {fallback_file} в {self.data_file}")
+                    return
+                except Exception as e:
+                    print(f"[PLANS WARNING] Не удалось скопировать файл {fallback_file}: {e}")
+                    # Продолжаем с пустым файлом
+
+            # Создаем пустой файл если нет fallback
             empty_structure = {
                 'plans': {},
                 'metadata': {
