@@ -47,20 +47,13 @@ class PlansManager:
 
         Args:
             data_file: Путь к файлу планов (опционально)
-                Если не указан, используется:
-                - /kultura/plansdashboard.json (на Render)
-                - data/plansdashboard.json (локально)
         """
         if data_file:
             self.data_file = data_file
         else:
-            # Определяем путь к файлу (Render Disk или локальная папка)
-            if os.path.exists('/kultura'):
-                self.data_file = '/kultura/plansdashboard.json'
-                print(f"[PLANS] Используется Render Disk: {self.data_file}")
-            else:
-                self.data_file = 'data/plansdashboard.json'
-                print(f"[PLANS] Используется локальный путь: {self.data_file}")
+            # Всегда используем data/plansdashboard.json (работает везде - локально и на Render)
+            self.data_file = 'data/plansdashboard.json'
+            print(f"[PLANS] Файл планов: {self.data_file}")
 
         # Создаем lock для thread-safe операций
         self._lock = threading.Lock()
@@ -82,18 +75,6 @@ class PlansManager:
 
         # Создаем файл с пустой структурой если не существует
         if not os.path.exists(self.data_file):
-            # Сначала пробуем скопировать из data/plansdashboard.json (fallback)
-            fallback_file = 'data/plansdashboard.json'
-            if os.path.exists(fallback_file):
-                try:
-                    shutil.copy2(fallback_file, self.data_file)
-                    print(f"[PLANS] Скопированы планы из {fallback_file} в {self.data_file}")
-                    return
-                except Exception as e:
-                    print(f"[PLANS WARNING] Не удалось скопировать файл {fallback_file}: {e}")
-                    # Продолжаем с пустым файлом
-
-            # Создаем пустой файл если нет fallback
             empty_structure = {
                 'plans': {},
                 'metadata': {
