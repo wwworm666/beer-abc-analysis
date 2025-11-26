@@ -43,7 +43,8 @@
       "Bash(pip install:*)",
       "Bash(cmd /c \"taskkill /F /PID 29208\")",
       "Bash(powershell -Command:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
