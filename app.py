@@ -1838,14 +1838,16 @@ def dashboard_analytics():
         if kitchen_data:
             print(f"   [OK] Кухня: {len(kitchen_data.get('data', []))} записей")
 
-        olap.disconnect()
-
         # Создаем калькулятор метрик и рассчитываем из СЫРЫХ данных
         print("   [4/4] Расчет метрик из сырых OLAP данных...")
         calculator = DashboardMetrics()
 
-        metrics = calculator.calculate_metrics(draft_data, bottles_data, kitchen_data)
+        # ВАЖНО: передаем olap объект для корректного подсчета количества чеков
+        metrics = calculator.calculate_metrics(draft_data, bottles_data, kitchen_data, olap, bar_name, date_from, date_to_inclusive)
         table_data = calculator.get_table_data(metrics)
+
+        # Отключаемся от iiko API только ПОСЛЕ расчета всех метрик
+        olap.disconnect()
 
         print(f"   [OK] Метрики рассчитаны успешно!")
 
@@ -1873,7 +1875,14 @@ def dashboard_analytics():
         mapped_metrics = {}
         for old_key, new_key in frontend_mapping.items():
             if old_key in metrics:
-                mapped_metrics[new_key] = metrics[old_key]
+                value = metrics[old_key]
+
+                # Наценка в API приходит как дробное число (1.95), а в планах как проценты (195)
+                # Умножаем на 100 для единообразия
+                if new_key in ['markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen']:
+                    value = value * 100
+
+                mapped_metrics[new_key] = value
 
         # Формируем ответ с преобразованными ключами
         response = {
@@ -2359,6 +2368,50 @@ def compare_periods():
         return jsonify({'error': str(e)}), 500
 
 
+def get_dashboard_analytics_data(bar, date_from, date_to):
+    """
+    Helper функция для получения аналитических данных дашборда
+    Используется в экспорте и других местах
+
+    Args:
+        bar: ключ заведения (kremenchugskaya, bolshoy, etc) или 'all'
+        date_from: дата начала периода (YYYY-MM-DD)
+        date_to: дата окончания периода (YYYY-MM-DD)
+
+    Returns:
+        dict: словарь с метриками в snake_case формате
+    """
+    # Преобразуем venue_key в название для iiko API
+    bar_name = venues_manager.get_iiko_name(bar) if bar and bar != 'all' else None
+
+    # iiko API: date_to не включается (exclusive end)
+    date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+    date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+
+    # Подключаемся к iiko API
+    olap = OlapReports()
+    if not olap.connect():
+        raise Exception('Не удалось подключиться к iiko API')
+
+    try:
+        # Получаем СЫРЫЕ данные
+        draft_data = olap.get_draft_sales_report(date_from, date_to_inclusive, bar_name)
+        bottles_data = olap.get_beer_sales_report(date_from, date_to_inclusive, bar_name)
+        kitchen_data = olap.get_kitchen_sales_report(date_from, date_to_inclusive, bar_name)
+
+        # Создаем калькулятор и рассчитываем метрики
+        calculator = DashboardMetrics()
+        metrics = calculator.calculate_metrics(
+            draft_data, bottles_data, kitchen_data,
+            olap, bar_name, date_from, date_to_inclusive
+        )
+
+        return metrics
+
+    finally:
+        olap.disconnect()
+
+
 @app.route('/api/export/text', methods=['POST'])
 def export_text():
     """API для экспорта в текстовый формат"""
@@ -2394,15 +2447,22 @@ def export_excel():
         import csv
 
         data = request.json
-        venue_key = data.get('venue_key')
-        period_key = data.get('period_key')
+        bar = data.get('bar')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
 
-        print(f"\n[EXPORT EXCEL] Генерация Excel: {venue_key} / {period_key}")
+        print(f"\n[EXPORT EXCEL] Генерация Excel: {bar} / {date_from} - {date_to}")
 
         # Получаем данные
-        plan = plans_manager.get_plan(period_key) or {}
-        venue = venues_manager.get_venue(venue_key)
-        venue_name = venue['full_name'] if venue else venue_key
+        venue = venues_manager.get_venue(bar)
+        venue_name = venue['full_name'] if venue else bar
+
+        # Получаем фактические данные
+        actual_data = get_dashboard_analytics_data(bar, date_from, date_to)
+
+        # Получаем плановые данные
+        plan_key = f"{bar}_{date_from}"
+        plan_data = plans_manager.get_plan(plan_key) or {}
 
         # Пробуем использовать openpyxl если установлен
         try:
@@ -2414,38 +2474,43 @@ def export_excel():
             ws.title = "Дашборд"
 
             # Заголовок
-            ws.merge_cells('A1:E1')
-            ws['A1'] = f"Дашборд - {venue_name}"
-            ws['A1'].font = Font(size=16, bold=True)
+            ws.merge_cells('A1:C1')
+            ws['A1'] = f"{venue_name} | {date_from} - {date_to}"
+            ws['A1'].font = Font(size=14, bold=True)
             ws['A1'].alignment = Alignment(horizontal='center')
 
-            ws['A2'] = f"Период: {period_key}"
-            ws['A2'].font = Font(bold=True)
-
-            # Заголовки таблицы
-            headers = ['Метрика', 'План', 'Факт', '% плана', 'Разница']
+            # Заголовки таблицы - простая таблица факт/план
+            headers = ['Метрика', 'План', 'Факт']
             for col, header in enumerate(headers, 1):
                 cell = ws.cell(row=4, column=col, value=header)
                 cell.font = Font(bold=True)
                 cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
 
-            # Данные метрик
+            # Данные метрик с маппингом между plan и actual
             metrics = [
-                ('💰 Выручка (₽)', 'revenue'),
-                ('🧾 Чеки (шт)', 'checks'),
-                ('💵 Средний чек (₽)', 'averageCheck'),
-                ('🍺 Доля розлива (%)', 'draftShare'),
-                ('🍾 Доля фасовки (%)', 'packagedShare'),
-                ('🍽️ Доля кухни (%)', 'kitchenShare'),
-                ('💹 Прибыль (₽)', 'profit'),
-                ('📈 % наценки', 'markupPercent')
+                ('Выручка (₽)', 'revenue', 'total_revenue'),
+                ('Чеки (шт)', 'checks', 'total_checks'),
+                ('Средний чек (₽)', 'averageCheck', 'avg_check'),
+                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
+                ('Прибыль (₽)', 'profit', 'total_margin'),
+                ('% наценки', 'markupPercent', 'avg_markup'),
+                ('Доля розлива (%)', 'draftShare', 'draft_share'),
+                ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
+                ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
             ]
 
             row = 5
-            for metric_name, metric_key in metrics:
-                plan_value = plan.get(metric_key, 0)
+            for metric_name, plan_key, actual_key in metrics:
+                plan_value = plan_data.get(plan_key, 0) or 0
+                actual_value = actual_data.get(actual_key, 0) or 0
+
+                # Для наценки конвертируем (API возвращает дробь, план в процентах)
+                if 'markup' in actual_key.lower():
+                    actual_value = actual_value * 100
+
                 ws.cell(row=row, column=1, value=metric_name)
-                ws.cell(row=row, column=2, value=plan_value)
+                ws.cell(row=row, column=2, value=round(plan_value, 2))
+                ws.cell(row=row, column=3, value=round(actual_value, 2))
                 row += 1
 
             # Сохраняем в BytesIO
@@ -2453,10 +2518,10 @@ def export_excel():
             wb.save(output)
             output.seek(0)
 
-            print(f"[EXPORT EXCEL] ✅ Excel файл сгенерирован (openpyxl)")
+            print(f"[EXPORT EXCEL] Excel файл сгенерирован (openpyxl)")
             return output.getvalue(), 200, {
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.xlsx'
+                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.xlsx'
             }
 
         except ImportError:
@@ -2465,32 +2530,38 @@ def export_excel():
             output = BytesIO()
             writer = csv.writer(output)
 
-            writer.writerow([f"Дашборд - {venue_name}"])
-            writer.writerow([f"Период: {period_key}"])
+            writer.writerow([f"{venue_name} | {date_from} - {date_to}"])
             writer.writerow([])
-            writer.writerow(['Метрика', 'План', 'Факт', '% плана', 'Разница'])
+            writer.writerow(['Метрика', 'План', 'Факт'])
 
             metrics = [
-                ('Выручка (₽)', 'revenue'),
-                ('Чеки (шт)', 'checks'),
-                ('Средний чек (₽)', 'averageCheck'),
-                ('Доля розлива (%)', 'draftShare'),
-                ('Доля фасовки (%)', 'packagedShare'),
-                ('Доля кухни (%)', 'kitchenShare'),
-                ('Прибыль (₽)', 'profit'),
-                ('% наценки', 'markupPercent')
+                ('Выручка (₽)', 'revenue', 'total_revenue'),
+                ('Чеки (шт)', 'checks', 'total_checks'),
+                ('Средний чек (₽)', 'averageCheck', 'avg_check'),
+                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
+                ('Прибыль (₽)', 'profit', 'total_margin'),
+                ('% наценки', 'markupPercent', 'avg_markup'),
+                ('Доля розлива (%)', 'draftShare', 'draft_share'),
+                ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
+                ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
             ]
 
-            for metric_name, metric_key in metrics:
-                plan_value = plan.get(metric_key, 0)
-                writer.writerow([metric_name, plan_value, '', '', ''])
+            for metric_name, plan_key, actual_key in metrics:
+                plan_value = plan_data.get(plan_key, 0) or 0
+                actual_value = actual_data.get(actual_key, 0) or 0
+
+                # Для наценки конвертируем (API возвращает дробь, план в процентах)
+                if 'markup' in actual_key.lower():
+                    actual_value = actual_value * 100
+
+                writer.writerow([metric_name, plan_value, actual_value])
 
             output.seek(0)
 
-            print(f"[EXPORT EXCEL] ✅ CSV файл сгенерирован (fallback)")
+            print(f"[EXPORT EXCEL] CSV файл сгенерирован (fallback)")
             return output.getvalue(), 200, {
                 'Content-Type': 'text/csv',
-                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.csv'
+                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.csv'
             }
 
     except Exception as e:
@@ -2507,15 +2578,22 @@ def export_pdf():
         from io import BytesIO
 
         data = request.json
-        venue_key = data.get('venue_key')
-        period_key = data.get('period_key')
+        bar = data.get('bar')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
 
-        print(f"\n[EXPORT PDF] Генерация PDF: {venue_key} / {period_key}")
+        print(f"\n[EXPORT PDF] Генерация PDF: {bar} / {date_from} - {date_to}")
 
         # Получаем данные
-        plan = plans_manager.get_plan(period_key) or {}
-        venue = venues_manager.get_venue(venue_key)
-        venue_name = venue['full_name'] if venue else venue_key
+        venue = venues_manager.get_venue(bar)
+        venue_name = venue['full_name'] if venue else bar
+
+        # Получаем фактические данные
+        actual_data = get_dashboard_analytics_data(bar, date_from, date_to)
+
+        # Получаем плановые данные
+        plan_key = f"{bar}_{date_from}"
+        plan_data = plans_manager.get_plan(plan_key) or {}
 
         # Пробуем использовать reportlab если установлен
         try:
@@ -2537,27 +2615,42 @@ def export_pdf():
             elements.append(title)
             elements.append(Spacer(1, 12))
 
-            subtitle = Paragraph(f"Период: {period_key}", styles['Normal'])
+            subtitle = Paragraph(f"Период: {date_from} - {date_to}", styles['Normal'])
             elements.append(subtitle)
             elements.append(Spacer(1, 20))
 
             # Таблица метрик
-            data_table = [['Метрика', 'План']]
+            data_table = [['Метрика', 'План', 'Факт', '% плана', 'Разница']]
 
             metrics = [
-                ('Выручка (₽)', 'revenue'),
-                ('Чеки (шт)', 'checks'),
-                ('Средний чек (₽)', 'averageCheck'),
-                ('Доля розлива (%)', 'draftShare'),
-                ('Доля фасовки (%)', 'packagedShare'),
-                ('Доля кухни (%)', 'kitchenShare'),
-                ('Прибыль (₽)', 'profit'),
-                ('% наценки', 'markupPercent')
+                ('Выручка (₽)', 'revenue', 'total_revenue'),
+                ('Чеки (шт)', 'checks', 'total_checks'),
+                ('Средний чек (₽)', 'averageCheck', 'avg_check'),
+                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
+                ('Прибыль (₽)', 'profit', 'total_margin'),
+                ('% наценки', 'markupPercent', 'avg_markup'),
+                ('Доля розлива (%)', 'draftShare', 'draft_share'),
+                ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
+                ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
             ]
 
-            for metric_name, metric_key in metrics:
-                plan_value = plan.get(metric_key, 0)
-                data_table.append([metric_name, f"{plan_value:,.2f}"])
+            for metric_name, plan_key, actual_key in metrics:
+                plan_value = plan_data.get(plan_key, 0) or 0
+                actual_value = actual_data.get(actual_key, 0) or 0
+
+                # Для наценки конвертируем (API возвращает дробь, план в процентах)
+                if 'markup' in actual_key.lower():
+                    actual_value = actual_value * 100
+
+                percent = (actual_value / plan_value * 100) if plan_value > 0 else 0
+                diff = actual_value - plan_value
+                data_table.append([
+                    metric_name,
+                    f"{plan_value:,.2f}",
+                    f"{actual_value:,.2f}",
+                    f"{percent:.1f}%",
+                    f"{diff:,.2f}"
+                ])
 
             table = Table(data_table)
             table.setStyle(TableStyle([
@@ -2576,15 +2669,71 @@ def export_pdf():
             doc.build(elements)
             output.seek(0)
 
-            print(f"[EXPORT PDF] ✅ PDF файл сгенерирован (reportlab)")
+            print(f"[EXPORT PDF] PDF файл сгенерирован (reportlab)")
             return output.getvalue(), 200, {
                 'Content-Type': 'application/pdf',
-                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.pdf'
+                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.pdf'
             }
 
         except ImportError:
             # Fallback to HTML if reportlab not available
             print("[EXPORT PDF] reportlab не установлен, используем HTML")
+
+            # Создаем карточки метрик для HTML
+            metrics = [
+                ('Выручка', 'revenue', 'total_revenue', '₽'),
+                ('Чеки', 'checks', 'total_checks', 'шт'),
+                ('Средний чек', 'averageCheck', 'avg_check', '₽'),
+                ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
+                ('Прибыль', 'profit', 'total_margin', '₽'),
+                ('Наценка', 'markupPercent', 'avg_markup', '%'),
+                ('Доля розлива', 'draftShare', 'draft_share', '%'),
+                ('Доля фасовки', 'packagedShare', 'bottles_share', '%'),
+                ('Доля кухни', 'kitchenShare', 'kitchen_share', '%'),
+            ]
+
+            cards = []
+            for name, plan_key, actual_key, unit in metrics:
+                plan_val = plan_data.get(plan_key, 0) or 0
+                actual_val = actual_data.get(actual_key, 0) or 0
+
+                # Для наценки конвертируем
+                if 'markup' in actual_key.lower():
+                    actual_val = actual_val * 100
+
+                percent = (actual_val / plan_val * 100) if plan_val > 0 else 0
+                diff = actual_val - plan_val
+
+                # Определяем цвет по выполнению плана
+                if percent >= 100:
+                    color = '#4CAF50'  # зеленый
+                elif percent >= 90:
+                    color = '#FFC107'  # желтый
+                else:
+                    color = '#F44336'  # красный
+
+                cards.append(f"""
+                <div class="metric-card">
+                    <div class="metric-name">{name}</div>
+                    <div class="metric-values">
+                        <div class="value-row">
+                            <span class="label">План:</span>
+                            <span class="value">{plan_val:,.2f} {unit}</span>
+                        </div>
+                        <div class="value-row">
+                            <span class="label">Факт:</span>
+                            <span class="value" style="color: {color}; font-weight: bold;">{actual_val:,.2f} {unit}</span>
+                        </div>
+                        <div class="value-row progress-row">
+                            <span class="label">Выполнение:</span>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {min(percent, 100)}%; background: {color};"></div>
+                                <span class="progress-text">{percent:.1f}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """)
 
             html_content = f"""
             <!DOCTYPE html>
@@ -2593,41 +2742,128 @@ def export_pdf():
                 <meta charset="UTF-8">
                 <title>Дашборд - {venue_name}</title>
                 <style>
-                    body {{ font-family: Arial, sans-serif; margin: 40px; }}
-                    h1 {{ color: #333; }}
-                    table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
-                    th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
-                    th {{ background-color: #4CAF50; color: white; }}
-                    tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                    * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        padding: 30px;
+                        min-height: 100vh;
+                    }}
+                    .container {{
+                        max-width: 1200px;
+                        margin: 0 auto;
+                        background: white;
+                        border-radius: 20px;
+                        padding: 40px;
+                        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                    }}
+                    .header {{
+                        text-align: center;
+                        margin-bottom: 40px;
+                        padding-bottom: 20px;
+                        border-bottom: 3px solid #667eea;
+                    }}
+                    h1 {{
+                        color: #333;
+                        font-size: 32px;
+                        margin-bottom: 10px;
+                    }}
+                    .period {{
+                        color: #666;
+                        font-size: 16px;
+                    }}
+                    .metrics-grid {{
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                        gap: 20px;
+                    }}
+                    .metric-card {{
+                        background: #f8f9fa;
+                        border-radius: 12px;
+                        padding: 20px;
+                        transition: transform 0.2s, box-shadow 0.2s;
+                    }}
+                    .metric-card:hover {{
+                        transform: translateY(-5px);
+                        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+                    }}
+                    .metric-name {{
+                        font-size: 18px;
+                        font-weight: 600;
+                        color: #333;
+                        margin-bottom: 15px;
+                    }}
+                    .metric-values {{
+                        display: flex;
+                        flex-direction: column;
+                        gap: 10px;
+                    }}
+                    .value-row {{
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 8px 0;
+                    }}
+                    .label {{
+                        color: #666;
+                        font-size: 14px;
+                    }}
+                    .value {{
+                        font-size: 16px;
+                        color: #333;
+                    }}
+                    .progress-row {{
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 5px;
+                        margin-top: 5px;
+                    }}
+                    .progress-bar {{
+                        width: 100%;
+                        height: 24px;
+                        background: #e0e0e0;
+                        border-radius: 12px;
+                        position: relative;
+                        overflow: hidden;
+                    }}
+                    .progress-fill {{
+                        height: 100%;
+                        border-radius: 12px;
+                        transition: width 0.3s ease;
+                    }}
+                    .progress-text {{
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #333;
+                    }}
+                    @media print {{
+                        body {{ background: white; padding: 0; }}
+                        .container {{ box-shadow: none; }}
+                    }}
                 </style>
             </head>
             <body>
-                <h1>Дашборд - {venue_name}</h1>
-                <p><strong>Период:</strong> {period_key}</p>
-                <table>
-                    <tr>
-                        <th>Метрика</th>
-                        <th>План</th>
-                    </tr>
-                    {''.join(f'<tr><td>{name}</td><td>{plan.get(key, 0):,.2f}</td></tr>' for name, key in [
-                        ('Выручка (₽)', 'revenue'),
-                        ('Чеки (шт)', 'checks'),
-                        ('Средний чек (₽)', 'averageCheck'),
-                        ('Доля розлива (%)', 'draftShare'),
-                        ('Доля фасовки (%)', 'packagedShare'),
-                        ('Доля кухни (%)', 'kitchenShare'),
-                        ('Прибыль (₽)', 'profit'),
-                        ('% наценки', 'markupPercent')
-                    ])}
-                </table>
+                <div class="container">
+                    <div class="header">
+                        <h1>{venue_name}</h1>
+                        <div class="period">{date_from} - {date_to}</div>
+                    </div>
+                    <div class="metrics-grid">
+                        {''.join(cards)}
+                    </div>
+                </div>
             </body>
             </html>
             """
 
-            print(f"[EXPORT PDF] ✅ HTML файл сгенерирован (fallback)")
+            print(f"[EXPORT PDF] HTML файл сгенерирован (fallback)")
             return html_content.encode('utf-8'), 200, {
                 'Content-Type': 'text/html; charset=utf-8',
-                'Content-Disposition': f'attachment; filename=dashboard_{venue_key}_{period_key}.html'
+                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.html'
             }
 
     except Exception as e:

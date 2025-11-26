@@ -35,7 +35,7 @@ class ChartsModule {
         });
 
         this.initialized = true;
-        console.log('[Charts] ✅ Модуль графиков инициализирован');
+        console.log('[Charts] Модуль графиков инициализирован');
     }
 
     /**
@@ -52,22 +52,28 @@ class ChartsModule {
 
         try {
             const venueKey = state.currentVenue;
-            const periodKey = state.currentPeriod;
+            const period = state.currentPeriod;
 
-            if (!periodKey) {
+            if (!period || !period.start || !period.end) {
+                console.log('[Charts] Период не выбран');
                 this.showNoData();
                 return;
             }
 
+            console.log('[Charts] Период:', period);
+
             // Получаем данные для текущего периода
-            const actualData = await api.getAnalytics(venueKey, periodKey);
-            const planData = await api.getPlan(venueKey, periodKey);
+            const actualData = await api.getAnalytics(venueKey, period.start, period.end);
+            const planData = await api.getPlan(venueKey, period.key || period.start);
+
+            console.log('[Charts] Фактические данные:', actualData);
+            console.log('[Charts] Плановые данные:', planData);
 
             // Получаем данные для тренда (12 недель)
-            const trendData = await this.loadTrendData(venueKey, periodKey);
+            const trendData = await this.loadTrendData(venueKey, period);
 
             // Получаем данные по дням недели
-            const dayOfWeekData = await this.loadDayOfWeekData(venueKey, periodKey);
+            const dayOfWeekData = await this.loadDayOfWeekData(venueKey, period, actualData);
 
             // Строим все графики
             this.showCharts();
@@ -76,7 +82,7 @@ class ChartsModule {
             this.buildSharesCharts(planData, actualData);
             this.buildAvgCheckChart(trendData, planData);
 
-            console.log('[Charts] ✅ Графики построены успешно');
+            console.log('[Charts] Графики построены успешно');
 
         } catch (error) {
             console.error('[Charts] Ошибка загрузки данных:', error);
@@ -88,14 +94,16 @@ class ChartsModule {
     /**
      * Загрузить данные для тренда (12 недель назад)
      */
-    async loadTrendData(venueKey, currentPeriodKey) {
+    async loadTrendData(venueKey, currentPeriod) {
         // Получаем список всех недель
         const weeksResponse = await api.getWeeks();
         const weeks = weeksResponse.weeks || [];
 
         // Находим текущую неделю
-        const currentIndex = weeks.findIndex(w => w.key === currentPeriodKey);
+        const currentKey = currentPeriod.key || currentPeriod.start;
+        const currentIndex = weeks.findIndex(w => w.key === currentKey);
         if (currentIndex === -1) {
+            console.warn('[Charts] Текущая неделя не найдена в списке');
             return [];
         }
 
@@ -103,19 +111,21 @@ class ChartsModule {
         const startIndex = Math.max(0, currentIndex - 11);
         const last12Weeks = weeks.slice(startIndex, currentIndex + 1);
 
+        console.log(`[Charts] Загрузка тренда для ${last12Weeks.length} недель`);
+
         // Загружаем данные для каждой недели
         const trendData = [];
         for (const week of last12Weeks) {
             try {
-                const data = await api.getAnalytics(venueKey, week.key);
+                const data = await api.getAnalytics(venueKey, week.start, week.end);
                 trendData.push({
                     label: week.label,
-                    revenue: data.actual?.revenue || 0,
-                    avgCheck: data.actual?.averageCheck || 0,
-                    checks: data.actual?.checks || 0
+                    revenue: data.revenue || data.total_revenue || 0,
+                    avgCheck: data.averageCheck || data.avg_check || 0,
+                    checks: data.checks || data.total_checks || 0
                 });
             } catch (error) {
-                console.warn(`[Charts] Нет данных для недели ${week.label}`);
+                console.warn(`[Charts] Нет данных для недели ${week.label}:`, error);
                 trendData.push({
                     label: week.label,
                     revenue: 0,
@@ -131,11 +141,10 @@ class ChartsModule {
     /**
      * Загрузить данные по дням недели (заглушка - в реальности нужен отдельный endpoint)
      */
-    async loadDayOfWeekData(venueKey, periodKey) {
+    async loadDayOfWeekData(venueKey, period, actualData) {
         // TODO: В будущем создать endpoint для группировки по дням недели
         // Пока используем равномерное распределение для демонстрации
-        const data = await api.getAnalytics(venueKey, periodKey);
-        const totalRevenue = data.actual?.revenue || 0;
+        const totalRevenue = actualData.revenue || actualData.total_revenue || 0;
 
         // Временное распределение (в реальности нужны данные из OLAP)
         const avgPerDay = totalRevenue / 7;
@@ -249,8 +258,8 @@ class ChartsModule {
      * График 3: Доли категорий - План vs Факт (Doughnut Charts)
      */
     buildSharesCharts(planData, actualData) {
-        this.buildSharesChart('chart-shares-plan', planData?.plan, 'План');
-        this.buildSharesChart('chart-shares-actual', actualData?.actual, 'Факт');
+        this.buildSharesChart('chart-shares-plan', planData, 'План');
+        this.buildSharesChart('chart-shares-actual', actualData, 'Факт');
     }
 
     buildSharesChart(canvasId, data, label) {
@@ -270,9 +279,9 @@ class ChartsModule {
                 labels: ['Розлив', 'Фасовка', 'Кухня'],
                 datasets: [{
                     data: [
-                        data.draftShare || 0,
-                        data.packagedShare || 0,
-                        data.kitchenShare || 0
+                        data.draftShare || data.draft_share || 0,
+                        data.packagedShare || data.bottles_share || 0,
+                        data.kitchenShare || data.kitchen_share || 0
                     ],
                     backgroundColor: ['#FF9800', '#9C27B0', '#F44336'],
                     borderWidth: 2,
@@ -311,7 +320,7 @@ class ChartsModule {
             this.charts.avgCheck.destroy();
         }
 
-        const planAvgCheck = planData?.plan?.averageCheck || 0;
+        const planAvgCheck = planData?.averageCheck || 0;
 
         const ctx = canvas.getContext('2d');
         this.charts.avgCheck = new Chart(ctx, {

@@ -24,9 +24,38 @@ class ComparisonModule {
         console.log('[Comparison] Инициализация модуля сравнения...');
 
         this.setupEventListeners();
+        this.loadPeriodSelectors();
 
         this.initialized = true;
-        console.log('[Comparison] ✅ Модуль сравнения инициализирован');
+        console.log('[Comparison] Модуль сравнения инициализирован');
+    }
+
+    /**
+     * Загрузить список периодов в селекторы
+     */
+    async loadPeriodSelectors() {
+        try {
+            const weeksResponse = await api.getWeeks();
+            const weeks = weeksResponse.weeks || [];
+
+            const select1 = document.getElementById('comparison-period-1');
+            const select2 = document.getElementById('comparison-period-2');
+
+            if (!select1 || !select2) return;
+
+            // Заполняем селекторы
+            const options = weeks.map(w => `<option value="${w.key}">${w.label}</option>`).join('');
+            select1.innerHTML = '<option value="">Выберите период...</option>' + options;
+            select2.innerHTML = '<option value="">Выберите период...</option>' + options;
+
+            // Устанавливаем текущий период в первый селектор
+            if (state.currentPeriod && state.currentPeriod.key) {
+                select1.value = state.currentPeriod.key;
+            }
+
+        } catch (error) {
+            console.error('[Comparison] Ошибка загрузки периодов:', error);
+        }
     }
 
     /**
@@ -75,14 +104,28 @@ class ComparisonModule {
         try {
             const venueKey = state.currentVenue;
 
+            // Получаем недели для определения start/end
+            const weeksResponse = await api.getWeeks();
+            const weeks = weeksResponse.weeks || [];
+
+            const week1 = weeks.find(w => w.key === period1Key);
+            const week2 = weeks.find(w => w.key === period2Key);
+
+            if (!week1 || !week2) {
+                throw new Error('Не удалось найти периоды');
+            }
+
             // Загружаем данные для обоих периодов
             const [data1, data2] = await Promise.all([
-                api.getAnalytics(venueKey, period1Key),
-                api.getAnalytics(venueKey, period2Key)
+                api.getAnalytics(venueKey, week1.start, week1.end),
+                api.getAnalytics(venueKey, week2.start, week2.end)
             ]);
 
-            this.period1Data = { key: period1Key, ...data1 };
-            this.period2Data = { key: period2Key, ...data2 };
+            console.log('[Comparison] Данные период 1:', data1);
+            console.log('[Comparison] Данные период 2:', data2);
+
+            this.period1Data = { key: period1Key, label: week1.label, ...data1 };
+            this.period2Data = { key: period2Key, label: week2.label, ...data2 };
 
             // Отображаем результаты
             this.displayComparisonTable();
@@ -103,13 +146,20 @@ class ComparisonModule {
      * Сравнить с предыдущей неделей
      */
     async compareToPrevWeek() {
-        const weeks = await api.getWeeks();
+        const weeksResponse = await api.getWeeks();
+        const weeks = weeksResponse.weeks || [];
         const currentPeriod = state.currentPeriod;
-        const currentIndex = weeks.weeks.findIndex(w => w.key === currentPeriod);
+
+        if (!currentPeriod || !currentPeriod.key) {
+            state.addMessage('warning', 'Выберите текущий период', 3000);
+            return;
+        }
+
+        const currentIndex = weeks.findIndex(w => w.key === currentPeriod.key);
 
         if (currentIndex > 0) {
-            const prevWeek = weeks.weeks[currentIndex - 1];
-            document.getElementById('comparison-period-1').value = currentPeriod;
+            const prevWeek = weeks[currentIndex - 1];
+            document.getElementById('comparison-period-1').value = currentPeriod.key;
             document.getElementById('comparison-period-2').value = prevWeek.key;
             this.runComparison();
         } else {
@@ -121,13 +171,20 @@ class ComparisonModule {
      * Сравнить с предыдущим месяцем (4 недели назад)
      */
     async compareToPrevMonth() {
-        const weeks = await api.getWeeks();
+        const weeksResponse = await api.getWeeks();
+        const weeks = weeksResponse.weeks || [];
         const currentPeriod = state.currentPeriod;
-        const currentIndex = weeks.weeks.findIndex(w => w.key === currentPeriod);
+
+        if (!currentPeriod || !currentPeriod.key) {
+            state.addMessage('warning', 'Выберите текущий период', 3000);
+            return;
+        }
+
+        const currentIndex = weeks.findIndex(w => w.key === currentPeriod.key);
 
         if (currentIndex >= 4) {
-            const prevMonth = weeks.weeks[currentIndex - 4];
-            document.getElementById('comparison-period-1').value = currentPeriod;
+            const prevMonth = weeks[currentIndex - 4];
+            document.getElementById('comparison-period-1').value = currentPeriod.key;
             document.getElementById('comparison-period-2').value = prevMonth.key;
             this.runComparison();
         } else {
@@ -139,13 +196,20 @@ class ComparisonModule {
      * Сравнить с прошлым годом (52 недели назад)
      */
     async compareToPrevYear() {
-        const weeks = await api.getWeeks();
+        const weeksResponse = await api.getWeeks();
+        const weeks = weeksResponse.weeks || [];
         const currentPeriod = state.currentPeriod;
-        const currentIndex = weeks.weeks.findIndex(w => w.key === currentPeriod);
+
+        if (!currentPeriod || !currentPeriod.key) {
+            state.addMessage('warning', 'Выберите текущий период', 3000);
+            return;
+        }
+
+        const currentIndex = weeks.findIndex(w => w.key === currentPeriod.key);
 
         if (currentIndex >= 52) {
-            const prevYear = weeks.weeks[currentIndex - 52];
-            document.getElementById('comparison-period-1').value = currentPeriod;
+            const prevYear = weeks[currentIndex - 52];
+            document.getElementById('comparison-period-1').value = currentPeriod.key;
             document.getElementById('comparison-period-2').value = prevYear.key;
             this.runComparison();
         } else {
@@ -161,34 +225,55 @@ class ComparisonModule {
         if (!tbody) return;
 
         const metrics = [
-            { key: 'revenue', label: '💰 Выручка', formatter: formatMoney },
-            { key: 'checks', label: '🧾 Чеки', formatter: (v) => Math.round(v) },
-            { key: 'averageCheck', label: '💵 Средний чек', formatter: formatMoney },
-            { key: 'draftShare', label: '🍺 Доля розлива', formatter: formatPercent },
-            { key: 'packagedShare', label: '🍾 Доля фасовки', formatter: formatPercent },
-            { key: 'kitchenShare', label: '🍽️ Доля кухни', formatter: formatPercent },
-            { key: 'profit', label: '💹 Прибыль', formatter: formatMoney },
-            { key: 'markupPercent', label: '📈 % наценки', formatter: formatPercent }
+            { key: 'revenue', label: '💰 Выручка', formatter: formatMoney, altKey: 'total_revenue' },
+            { key: 'checks', label: '🧾 Чеки', formatter: (v) => Math.round(v), altKey: 'total_checks' },
+            { key: 'averageCheck', label: '💵 Средний чек', formatter: formatMoney, altKey: 'avg_check' },
+            { key: 'draftShare', label: '🍺 Доля розлива', formatter: formatPercent, altKey: 'draft_share' },
+            { key: 'packagedShare', label: '🍾 Доля фасовки', formatter: formatPercent, altKey: 'bottles_share' },
+            { key: 'kitchenShare', label: '🍽️ Доля кухни', formatter: formatPercent, altKey: 'kitchen_share' },
+            { key: 'profit', label: '💹 Прибыль', formatter: formatMoney, altKey: 'total_margin' },
+            { key: 'markupPercent', label: '📈 % наценки', formatter: (v) => `${(v * 100).toFixed(1)}%`, altKey: 'avg_markup' }
         ];
 
         tbody.innerHTML = '';
 
         metrics.forEach(metric => {
-            const val1 = this.period1Data.actual?.[metric.key] || 0;
-            const val2 = this.period2Data.actual?.[metric.key] || 0;
-            const diff = val1 - val2;
-            const diffPercent = val2 !== 0 ? ((diff / val2) * 100) : 0;
+            const val1 = this.period1Data[metric.key] || this.period1Data[metric.altKey] || 0;
+            const val2 = this.period2Data[metric.key] || this.period2Data[metric.altKey] || 0;
+
+            // Для наценки конвертируем если нужно
+            let displayVal1 = val1;
+            let displayVal2 = val2;
+            if (metric.key === 'markupPercent' && val1 < 1 && val2 < 1) {
+                displayVal1 = val1;
+                displayVal2 = val2;
+            }
+
+            const diff = displayVal1 - displayVal2;
+            const diffPercent = displayVal2 !== 0 ? ((diff / displayVal2) * 100) : 0;
 
             const row = document.createElement('tr');
+
+            let formattedVal1, formattedVal2, formattedDiff;
+            if (metric.key === 'markupPercent') {
+                formattedVal1 = `${(displayVal1 * 100).toFixed(1)}%`;
+                formattedVal2 = `${(displayVal2 * 100).toFixed(1)}%`;
+                formattedDiff = `${(diff * 100).toFixed(1)}%`;
+            } else {
+                formattedVal1 = metric.formatter(displayVal1);
+                formattedVal2 = metric.formatter(displayVal2);
+                formattedDiff = metric.formatter(Math.abs(diff));
+            }
+
             row.innerHTML = `
                 <td>${metric.label}</td>
-                <td>${metric.formatter(val1)}</td>
-                <td>${metric.formatter(val2)}</td>
+                <td>${formattedVal1}</td>
+                <td>${formattedVal2}</td>
                 <td class="${diff >= 0 ? 'positive' : 'negative'}">
-                    ${diff >= 0 ? '+' : ''}${metric.formatter(diff)}
+                    ${diff >= 0 ? '+' : '-'}${formattedDiff}
                 </td>
                 <td class="${diffPercent >= 0 ? 'positive' : 'negative'}">
-                    ${diff >= 0 ? '+' : ''}${diffPercent.toFixed(1)}%
+                    ${diffPercent >= 0 ? '+' : ''}${diffPercent.toFixed(1)}%
                 </td>
             `;
             tbody.appendChild(row);
@@ -216,39 +301,46 @@ class ComparisonModule {
      */
     generateInsights() {
         const insights = [];
-        const actual1 = this.period1Data.actual || {};
-        const actual2 = this.period2Data.actual || {};
 
         // Выручка
-        const revenueDiff = actual1.revenue - actual2.revenue;
-        const revenuePercent = actual2.revenue !== 0 ? ((revenueDiff / actual2.revenue) * 100) : 0;
+        const revenue1 = this.period1Data.revenue || this.period1Data.total_revenue || 0;
+        const revenue2 = this.period2Data.revenue || this.period2Data.total_revenue || 0;
+        const revenueDiff = revenue1 - revenue2;
+        const revenuePercent = revenue2 !== 0 ? ((revenueDiff / revenue2) * 100) : 0;
+
         if (Math.abs(revenuePercent) > 5) {
             insights.push({
                 type: revenuePercent > 0 ? 'positive' : 'negative',
                 icon: revenuePercent > 0 ? '📈' : '📉',
-                text: `Выручка ${revenuePercent > 0 ? 'выросла' : 'упала'} на ${formatPercent(Math.abs(revenuePercent))}`
+                text: `Выручка ${revenuePercent > 0 ? 'выросла' : 'упала'} на ${Math.abs(revenuePercent).toFixed(1)}%`
             });
         }
 
         // Средний чек
-        const checkDiff = actual1.averageCheck - actual2.averageCheck;
-        const checkPercent = actual2.averageCheck !== 0 ? ((checkDiff / actual2.averageCheck) * 100) : 0;
+        const check1 = this.period1Data.averageCheck || this.period1Data.avg_check || 0;
+        const check2 = this.period2Data.averageCheck || this.period2Data.avg_check || 0;
+        const checkDiff = check1 - check2;
+        const checkPercent = check2 !== 0 ? ((checkDiff / check2) * 100) : 0;
+
         if (Math.abs(checkPercent) > 5) {
             insights.push({
                 type: checkPercent > 0 ? 'positive' : 'negative',
                 icon: '💵',
-                text: `Средний чек ${checkPercent > 0 ? 'вырос' : 'снизился'} на ${formatPercent(Math.abs(checkPercent))}`
+                text: `Средний чек ${checkPercent > 0 ? 'вырос' : 'снизился'} на ${Math.abs(checkPercent).toFixed(1)}%`
             });
         }
 
         // Прибыль
-        const profitDiff = actual1.profit - actual2.profit;
-        const profitPercent = actual2.profit !== 0 ? ((profitDiff / actual2.profit) * 100) : 0;
+        const profit1 = this.period1Data.profit || this.period1Data.total_margin || 0;
+        const profit2 = this.period2Data.profit || this.period2Data.total_margin || 0;
+        const profitDiff = profit1 - profit2;
+        const profitPercent = profit2 !== 0 ? ((profitDiff / profit2) * 100) : 0;
+
         if (Math.abs(profitPercent) > 5) {
             insights.push({
                 type: profitDiff > 0 ? 'positive' : 'negative',
                 icon: '💹',
-                text: `Прибыль ${profitDiff > 0 ? 'выросла' : 'упала'} на ${formatPercent(Math.abs(profitPercent))}`
+                text: `Прибыль ${profitDiff > 0 ? 'выросла' : 'упала'} на ${Math.abs(profitPercent).toFixed(1)}%`
             });
         }
 
@@ -266,9 +358,6 @@ class ComparisonModule {
             this.comparisonChart.destroy();
         }
 
-        const actual1 = this.period1Data.actual || {};
-        const actual2 = this.period2Data.actual || {};
-
         const labels = ['Выручка розлив', 'Выручка фасовка', 'Выручка кухня', 'Прибыль'];
 
         const ctx = canvas.getContext('2d');
@@ -278,22 +367,22 @@ class ComparisonModule {
                 labels: labels,
                 datasets: [
                     {
-                        label: 'Период 1',
+                        label: `Период 1 (${this.period1Data.label})`,
                         data: [
-                            actual1.revenueDraft || 0,
-                            actual1.revenuePackaged || 0,
-                            actual1.revenueKitchen || 0,
-                            actual1.profit || 0
+                            this.period1Data.revenueDraft || this.period1Data.draft_revenue || 0,
+                            this.period1Data.revenuePackaged || this.period1Data.bottles_revenue || 0,
+                            this.period1Data.revenueKitchen || this.period1Data.kitchen_revenue || 0,
+                            this.period1Data.profit || this.period1Data.total_margin || 0
                         ],
                         backgroundColor: '#4CAF50'
                     },
                     {
-                        label: 'Период 2',
+                        label: `Период 2 (${this.period2Data.label})`,
                         data: [
-                            actual2.revenueDraft || 0,
-                            actual2.revenuePackaged || 0,
-                            actual2.revenueKitchen || 0,
-                            actual2.profit || 0
+                            this.period2Data.revenueDraft || this.period2Data.draft_revenue || 0,
+                            this.period2Data.revenuePackaged || this.period2Data.bottles_revenue || 0,
+                            this.period2Data.revenueKitchen || this.period2Data.kitchen_revenue || 0,
+                            this.period2Data.profit || this.period2Data.total_margin || 0
                         ],
                         backgroundColor: '#2196F3'
                     }

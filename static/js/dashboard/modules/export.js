@@ -160,9 +160,9 @@ class ExportModule {
      */
     async handleExportExcel() {
         const venueKey = state.currentVenue;
-        const periodKey = state.currentPeriod;
+        const period = state.currentPeriod;
 
-        if (!venueKey || !periodKey) {
+        if (!venueKey || !period) {
             state.addMessage('warning', 'Выберите заведение и период', 3000);
             return;
         }
@@ -177,8 +177,9 @@ class ExportModule {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    venue_key: venueKey,
-                    period_key: periodKey
+                    bar: venueKey,
+                    date_from: period.start,
+                    date_to: period.end
                 })
             });
 
@@ -188,7 +189,7 @@ class ExportModule {
 
             // Получаем файл как blob
             const blob = await response.blob();
-            const filename = `dashboard_${venueKey}_${periodKey}.xlsx`;
+            const filename = `dashboard_${venueKey}_${period.start}_${period.end}.xlsx`;
 
             // Скачиваем файл
             this.downloadFile(blob, filename);
@@ -206,9 +207,9 @@ class ExportModule {
      */
     async handleExportPDF() {
         const venueKey = state.currentVenue;
-        const periodKey = state.currentPeriod;
+        const period = state.currentPeriod;
 
-        if (!venueKey || !periodKey) {
+        if (!venueKey || !period) {
             state.addMessage('warning', 'Выберите заведение и период', 3000);
             return;
         }
@@ -223,8 +224,9 @@ class ExportModule {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    venue_key: venueKey,
-                    period_key: periodKey
+                    bar: venueKey,
+                    date_from: period.start,
+                    date_to: period.end
                 })
             });
 
@@ -234,12 +236,37 @@ class ExportModule {
 
             // Получаем файл как blob
             const blob = await response.blob();
-            const filename = `dashboard_${venueKey}_${periodKey}.pdf`;
+
+            // Определяем расширение файла по Content-Type или Content-Disposition
+            let fileExtension = '.pdf';
+            const contentType = response.headers.get('Content-Type');
+            const contentDisposition = response.headers.get('Content-Disposition');
+
+            // Проверяем Content-Disposition для имени файла
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    const serverFilename = filenameMatch[1].replace(/['"]/g, '');
+                    if (serverFilename.endsWith('.html')) {
+                        fileExtension = '.html';
+                    }
+                }
+            }
+
+            // Также проверяем Content-Type
+            if (contentType && contentType.includes('text/html')) {
+                fileExtension = '.html';
+            }
+
+            const filename = `dashboard_${venueKey}_${period.start}_${period.end}${fileExtension}`;
 
             // Скачиваем файл
             this.downloadFile(blob, filename);
 
-            state.addMessage('success', 'PDF файл сохранен', 3000);
+            const message = fileExtension === '.html'
+                ? 'PDF файл сохранен как HTML (reportlab не установлен)'
+                : 'PDF файл сохранен';
+            state.addMessage('success', message, 3000);
 
         } catch (error) {
             console.error('[Export] Ошибка экспорта в PDF:', error);
