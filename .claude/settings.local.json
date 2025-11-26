@@ -30,7 +30,20 @@
       "Bash(iconv:*)",
       "Bash(backup.bat)",
       "Bash(cmd /c backup.bat)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(ping:*)",
+      "Bash(echo Waiting... curl -s http://localhost:5000/dashboard)",
+      "Bash(grep:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(xargs kill:*)",
+      "Bash(pkill:*)",
+      "Bash(set FLASK_ENV=production:*)",
+      "Bash(netstat:*)",
+      "Bash(git checkout:*)",
+      "Bash(pip install:*)",
+      "Bash(cmd /c \"taskkill /F /PID 29208\")",
+      "Bash(powershell -Command:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

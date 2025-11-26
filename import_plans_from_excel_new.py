@@ -24,7 +24,8 @@ METRIC_MAPPING = {
     'Наценка': 'markupPercent',
     'Наценка розлив': 'markupDraft',
     'Наценка фасовка': 'markupPackaged',
-    'Наценка кухня': 'markupKitchen'
+    'Наценка кухня': 'markupKitchen',
+    'Списания баллов': 'loyaltyWriteoffs'  # Сумма скидок
 }
 
 # Маппинг русских названий месяцев
@@ -80,16 +81,25 @@ def get_weeks_for_month(year, month):
 
     return weeks
 
-def distribute_monthly_to_weeks(monthly_value, year, month):
-    """Распределяет месячное значение по неделям пропорционально количеству дней"""
+def distribute_monthly_to_weeks(monthly_value, year, month, metric_key):
+    """Распределяет месячное значение по неделям пропорционально или копирует без изменений"""
     weeks = get_weeks_for_month(year, month)
-    days_in_month = calendar.monthrange(year, month)[1]
+
+    # Метрики, которые нужно ДЕЛИТЬ (суммируемые показатели)
+    DIVISIBLE_METRICS = ['revenue', 'profit', 'checks', 'loyaltyWriteoffs']
+
+    # Метрики, которые нужно КОПИРОВАТЬ (проценты, доли, средние значения)
+    # Все остальные метрики (доли, наценка, средний чек) копируются как есть
 
     result = {}
     for week_key in weeks:
-        # Для простоты - равномерное распределение
-        # В будущем можно учитывать точное количество дней недели в месяце
-        week_value = monthly_value / len(weeks)
+        if metric_key in DIVISIBLE_METRICS:
+            # Делим суммируемые показатели по неделям
+            week_value = monthly_value / len(weeks)
+        else:
+            # Копируем проценты и доли без изменений
+            week_value = monthly_value
+
         result[week_key] = week_value
 
     return result
@@ -138,8 +148,8 @@ def read_excel_plans(file_path):
                     try:
                         value = float(cell_value)
 
-                        # Распределяем месячное значение по неделям
-                        weeks_data = distribute_monthly_to_weeks(value, year, month)
+                        # Распределяем месячное значение по неделям или копируем
+                        weeks_data = distribute_monthly_to_weeks(value, year, month, metric_key)
 
                         for week_key, week_value in weeks_data.items():
                             # Создаем составной ключ: venue_week
@@ -161,6 +171,35 @@ if __name__ == '__main__':
     plans = read_excel_plans('планы_2025_2026.xlsx')
 
     print(f"\nВсего создано планов: {len(plans)}")
+
+    # Расчёт выручки по категориям из общей выручки и долей
+    print("\nРасчёт выручки по категориям...")
+    calculated_count = 0
+    for plan_key, plan_data in plans.items():
+        if 'revenue' in plan_data:
+            revenue = plan_data['revenue']
+
+            # Выручка розлив = Выручка * (Доля розлив / 100)
+            if 'draftShare' in plan_data:
+                plan_data['revenueDraft'] = revenue * (plan_data['draftShare'] / 100)
+                calculated_count += 1
+
+            # Выручка фасовка = Выручка * (Доля фасовка / 100)
+            if 'packagedShare' in plan_data:
+                plan_data['revenuePackaged'] = revenue * (plan_data['packagedShare'] / 100)
+                calculated_count += 1
+
+            # Выручка кухня = Выручка * (Доля кухня / 100)
+            if 'kitchenShare' in plan_data:
+                plan_data['revenueKitchen'] = revenue * (plan_data['kitchenShare'] / 100)
+                calculated_count += 1
+
+            # Списания баллов = 5% от выручки (если не задано явно)
+            if 'loyaltyWriteoffs' not in plan_data:
+                plan_data['loyaltyWriteoffs'] = revenue * 0.05
+                calculated_count += 1
+
+    print(f"Рассчитано значений выручки по категориям: {calculated_count}")
 
     # Сохраняем в JSON в формате PlansManager
     from datetime import datetime

@@ -59,9 +59,13 @@ class Analytics {
         this.showLoading();
 
         try {
+            // Извлекаем только дату начала (понедельник) из ключа периода
+            // Ключ периода: "2025-07-21_2025-07-27", нужно: "2025-07-21"
+            const periodKey = state.currentPeriod.start; // Используем дату начала как ключ
+
             // Загружаем план и факт параллельно, но обрабатываем ошибки отдельно
             const [planResult, actualResult] = await Promise.allSettled([
-                getPlan(state.currentVenue, state.currentPeriod.key),
+                getPlan(state.currentVenue, periodKey),
                 getAnalytics(
                     state.currentVenue,
                     state.currentPeriod.start,

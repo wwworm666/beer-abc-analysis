@@ -1,0 +1,21 @@
+================================================================================
+КОМПЛЕКСНАЯ ПРОВЕРКА ДАШБОРДА
+================================================================================
+
+Период проверки: 2025-11-17 - 2025-11-23
+
+
+================================================================================
+1. ПРОВЕРКА ФАКТИЧЕСКИХ МЕТРИК
+================================================================================
+
+Кременчугская (kremenchugskaya):
+----------------------------------------
+Traceback (most recent call last):
+  File "c:\Users\wwwor\OneDrive\Документы\GitHub\beer-abc-analysis\comprehensive_dashboard_check.py", line 79, in <module>
+    print(f"  Выручка: {data.get('revenue', 0):,.2f} \u20bd")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\wwwor\AppData\Local\Python\pythoncore-3.14-64\Lib\encodings\cp1251.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u20bd' in position 22: character maps to <undefined>

@@ -453,8 +453,10 @@ class OlapReports:
             "groupByColFields": [],
             "aggregateFields": [
                 "UniqOrderId",
+                "UniqOrderId.OrdersCount",  # Количество уникальных заказов (чеков)
                 "DishAmountInt",
                 "DishDiscountSumInt",
+                "DiscountSum",  # Сумма скидки (для списаний баллов)
                 "ProductCostBase.ProductCost",
                 "ProductCostBase.MarkUp"
             ],
@@ -522,8 +524,10 @@ class OlapReports:
             "groupByColFields": [],
             "aggregateFields": [
                 "UniqOrderId",
+                "UniqOrderId.OrdersCount",  # Количество уникальных заказов (чеков)
                 "DishAmountInt",
                 "DishDiscountSumInt",
+                "DiscountSum",  # Сумма скидки (для списаний баллов)
                 "ProductCostBase.ProductCost",
                 "ProductCostBase.MarkUp"
             ],
@@ -557,6 +561,100 @@ class OlapReports:
             }
 
         return request
+
+    def _build_orders_count_request(self, bar_name, date_from, date_to):
+        """
+        Создать OLAP запрос для подсчета КОЛИЧЕСТВА ЧЕКОВ (заказов)
+
+        ВАЖНО: Этот запрос НЕ группирует по DishName, только по Store.Name и дате.
+        Это даёт правильное количество уникальных заказов без дублирования.
+
+        Args:
+            bar_name: str - название бара или None для всех баров
+            date_from: str - начальная дата в формате YYYY-MM-DD
+            date_to: str - конечная дата в формате YYYY-MM-DD
+
+        Returns:
+            dict - OLAP запрос для подсчета заказов
+        """
+        # Группируем ТОЛЬКО по бару и дате, БЕЗ DishName!
+        groupByRowFields = [
+            "Store.Name",
+            "OpenDate.Typed"
+        ]
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": groupByRowFields,
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId.OrdersCount"  # Количество уникальных заказов
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        # Если указан конкретный бар, добавляем фильтр
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return request
+
+    def get_orders_count(self, bar_name, date_from, date_to):
+        """
+        Получить количество заказов (чеков) за период
+
+        Args:
+            bar_name: str - название бара или None для всех баров
+            date_from: str - начальная дата в формате YYYY-MM-DD
+            date_to: str - конечная дата в формате YYYY-MM-DD
+
+        Returns:
+            int - количество уникальных заказов
+        """
+        request = self._build_orders_count_request(bar_name, date_from, date_to)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(url, params=params, json=request, headers=headers, timeout=60)
+
+            if response.status_code == 200:
+                result = response.json()
+                # Суммируем количество заказов из всех записей
+                total_orders = 0
+                for record in result.get('data', []):
+                    orders = record.get('UniqOrderId.OrdersCount', 0)
+                    total_orders += int(orders) if orders else 0
+
+                return total_orders
+            else:
+                print(f"[ERROR] OLAP orders count request failed: {response.status_code}")
+                print(f"[ERROR] Response: {response.text}")
+                return 0
+
+        except Exception as e:
+            print(f"[ERROR] Failed to get orders count: {e}")
+            return 0
 
 
 # Тестовый запуск
@@ -597,3 +695,60 @@ if __name__ == "__main__":
     # Отключаемся
     olap.disconnect()
     print("\n✅ Готово!")
+    def get_orders_count_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет с подсчётом уникальных заказов (чеков)
+        Без группировки по товарам - только общее количество заказов
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po kolichestvu chekov...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+
+        # Запрос без группировки по DishName - только Store.Name и OpenDate.Typed
+        # Это даст общее количество уникальных заказов за каждый день
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "OpenDate.Typed"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId.OrdersCount"  # Количество уникальных заказов
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        # Если указан конкретный бар, добавляем фильтр
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        # Выполняем запрос к OLAP v2
+        return self._execute_olap_request(request)

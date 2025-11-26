@@ -1,6 +1,8 @@
 /**
  * Модуль просмотра плановых показателей
  * Отображение плана и факта в виде таблицы (read-only)
+ *
+ * FIX: Использует state.currentPeriod.start для запроса планов вместо state.currentPeriod.key
  */
 
 import { state } from '../core/state.js';
@@ -56,9 +58,13 @@ class PlansViewer {
         this.showLoading();
 
         try {
+            // Извлекаем только дату начала (понедельник) из ключа периода
+            // Ключ периода: "2025-11-10_2025-11-16", нужно: "2025-11-10"
+            const periodKey = state.currentPeriod.start; // Используем дату начала как ключ
+
             // Загружаем план и факт параллельно
             const [planResult, actualResult] = await Promise.allSettled([
-                getPlan(state.currentVenue, state.currentPeriod.key),
+                getPlan(state.currentVenue, periodKey),
                 getAnalytics(
                     state.currentVenue,
                     state.currentPeriod.start,

@@ -11,7 +11,7 @@ class DashboardMetrics:
         """Инициализация калькулятора метрик"""
         pass
 
-    def calculate_metrics(self, draft_data, bottles_data, kitchen_data):
+    def calculate_metrics(self, draft_data, bottles_data, kitchen_data, olap, bar_name, date_from, date_to):
         """
         Рассчитать все 15 метрик из сырых OLAP данных
 
@@ -19,6 +19,10 @@ class DashboardMetrics:
             draft_data: dict - сырой ответ от get_draft_sales_report()
             bottles_data: dict - сырой ответ от get_beer_sales_report()
             kitchen_data: dict - сырой ответ от _build_kitchen_olap_request()
+            olap: OlapReports - объект для работы с OLAP API (должен быть подключен)
+            bar_name: str - название бара или None для всех баров
+            date_from: str - начальная дата в формате YYYY-MM-DD
+            date_to: str - конечная дата в формате YYYY-MM-DD
 
         Returns:
             dict с 15 метриками
@@ -41,8 +45,8 @@ class DashboardMetrics:
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
-        # 7. Количество чеков (из поля UniqOrderId в OLAP данных)
-        total_checks = self._count_checks(draft_records + bottles_records + kitchen_records)
+        # 7. Количество чеков - ПРАВИЛЬНЫЙ метод через отдельный OLAP запрос БЕЗ группировки по товарам
+        total_checks = olap.get_orders_count(bar_name, date_from, date_to)
 
         # 8. Средний чек
         avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
@@ -61,8 +65,8 @@ class DashboardMetrics:
         kitchen_margin = self._sum_margin(kitchen_records)
         total_margin = draft_margin + bottles_margin + kitchen_margin
 
-        # 14. Списания баллов (пока недоступно в API)
-        loyalty_points = 0
+        # 14. Списания баллов (сумма скидок из DiscountSum)
+        loyalty_points = self._sum_discounts(draft_records + bottles_records + kitchen_records)
 
         # Формируем результат
         metrics = {
@@ -205,24 +209,22 @@ class DashboardMetrics:
             return total_weighted_markup / total_cost
         return 0.0
 
-    def _count_checks(self, records):
+    def _sum_discounts(self, records):
         """
-        Подсчитать реальное количество чеков из поля UniqOrderId
+        Суммировать скидки из массива записей OLAP
 
         Args:
-            records: list - массив записей OLAP с полем 'UniqOrderId'
+            records: list - массив записей с полем 'DiscountSum'
 
         Returns:
-            int - суммарное количество уникальных чеков
+            float - общая сумма скидок
         """
-        total_checks = 0
-
+        total = 0.0
         for record in records:
-            checks_count = record.get('UniqOrderId', 0)
-            if checks_count:
+            discount = record.get('DiscountSum', 0)
+            if discount:
                 try:
-                    total_checks += int(checks_count)
+                    total += float(discount)
                 except (ValueError, TypeError):
                     continue
-
-        return total_checks
+        return total
