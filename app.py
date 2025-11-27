@@ -1853,7 +1853,21 @@ def dashboard_analytics():
 
         # Добавляем метрику активности кранов за период
         print("   [5/5] Расчет активности кранов...")
-        tap_activity = taps_manager.calculate_tap_activity_for_period(venue_key, date_from, date_to)
+
+        # Маппинг venue_key -> bar_id для TapsManager
+        VENUE_TO_BAR_MAPPING = {
+            'bolshoy': 'bar1',
+            'ligovskiy': 'bar2',
+            'kremenchugskaya': 'bar3',
+            'varshavskaya': 'bar4',
+            'all': None  # Для "all" передаем None чтобы считать все бары
+        }
+
+        # Преобразуем venue_key в bar_id для TapsManager
+        bar_id_for_taps = VENUE_TO_BAR_MAPPING.get(venue_key)
+        print(f"   [DEBUG] venue_key={venue_key} -> bar_id_for_taps={bar_id_for_taps}")
+
+        tap_activity = taps_manager.calculate_tap_activity_for_period(bar_id_for_taps, date_from, date_to)
         metrics['tap_activity'] = tap_activity
         print(f"   [OK] Активность кранов: {tap_activity}%")
 
