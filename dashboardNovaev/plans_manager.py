@@ -38,7 +38,8 @@ class PlansManager:
         'markupDraft': (float, int),
         'markupPackaged': (float, int),
         'markupKitchen': (float, int),
-        'loyaltyWriteoffs': (float, int)
+        'loyaltyWriteoffs': (float, int),
+        'tapActivity': (float, int)
     }
 
     def __init__(self, data_file: str = None):

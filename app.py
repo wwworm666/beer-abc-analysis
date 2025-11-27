@@ -1851,6 +1851,12 @@ def dashboard_analytics():
 
         print(f"   [OK] Метрики рассчитаны успешно!")
 
+        # Добавляем метрику активности кранов за период
+        print("   [5/5] Расчет активности кранов...")
+        tap_activity = taps_manager.calculate_tap_activity_for_period(venue_key, date_from, date_to)
+        metrics['tap_activity'] = tap_activity
+        print(f"   [OK] Активность кранов: {tap_activity}%")
+
         # Преобразуем ключи для совместимости с фронтендом
         # Фронтенд ожидает camelCase, бэкенд возвращает snake_case
         frontend_mapping = {
@@ -1867,6 +1873,7 @@ def dashboard_analytics():
             'total_margin': 'profit',
             'draft_markup': 'markupDraft',
             'bottles_markup': 'markupPackaged',
+            'tap_activity': 'tapActivity',
             'kitchen_markup': 'markupKitchen',
             'loyalty_points_written_off': 'loyaltyWriteoffs'
         }

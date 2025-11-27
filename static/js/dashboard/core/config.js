@@ -139,6 +139,15 @@ export const METRICS = [
         actualKey: 'loyaltyWriteoffs',  // ИСПРАВЛЕНО: было loyalty_points_written_off
         unit: '₽',
         format: 'money'
+    },
+    {
+        id: 'tapActivity',
+        icon: '🚰',
+        name: 'Активность кранов',
+        planKey: 'tapActivity',
+        actualKey: 'tapActivity',
+        unit: '%',
+        format: 'percent'
     }
 ];
 

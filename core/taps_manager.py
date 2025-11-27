@@ -427,3 +427,65 @@ class TapsManager:
                 'active_percentage': round(active_taps / total_taps * 100) if total_taps > 0 else 0,
                 'total_events': total_events
             }
+
+    def calculate_tap_activity_for_period(self, bar_id: Optional[str], date_from: str, date_to: str) -> float:
+        """
+        Рассчитать процент активности кранов за период
+
+        Логика:
+        - Считаем сколько кранов было активно хотя бы раз за период
+        - Процент = (активные краны / всего кранов) * 100
+
+        Args:
+            bar_id: ID бара (None = все бары)
+            date_from: Дата начала периода (YYYY-MM-DD)
+            date_to: Дата конца периода (YYYY-MM-DD)
+
+        Returns:
+            Процент активности кранов (0-100)
+        """
+        from datetime import datetime
+
+        # Парсим даты
+        period_start = datetime.fromisoformat(date_from)
+        period_end = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59)
+
+        # Определяем какие бары анализируем
+        bars_to_check = [bar_id] if bar_id else list(self.bars.keys())
+
+        total_taps = 0
+        active_taps_count = 0
+
+        for current_bar_id in bars_to_check:
+            if current_bar_id not in self.bars:
+                continue
+
+            bar = self.bars[current_bar_id]
+            total_taps += bar.tap_count
+
+            # Для каждого крана проверяем был ли он активен в периоде
+            for tap in bar.taps.values():
+                was_active = False
+
+                for event in tap.history:
+                    try:
+                        # Парсим timestamp события
+                        event_time = datetime.fromisoformat(event['timestamp'].replace('+03:00', ''))
+
+                        # Проверяем что событие в нужном периоде
+                        if period_start <= event_time <= period_end:
+                            # Если это START или REPLACE - кран был активен
+                            if event.get('action') in ['start', 'replace']:
+                                was_active = True
+                                break
+                    except (ValueError, KeyError):
+                        continue
+
+                if was_active:
+                    active_taps_count += 1
+
+        # Рассчитываем процент
+        if total_taps == 0:
+            return 0.0
+
+        return round((active_taps_count / total_taps) * 100, 2)
