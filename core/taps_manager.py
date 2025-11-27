@@ -433,7 +433,9 @@ class TapsManager:
         Рассчитать процент активности кранов за период
 
         Логика:
-        - Считаем сколько кранов было активно хотя бы раз за период
+        - Кран активен в периоде если:
+          1. В период произошло событие START/REPLACE
+          2. ИЛИ кран был активен на начало периода и не был остановлен до конца
         - Процент = (активные краны / всего кранов) * 100
 
         Args:
@@ -450,6 +452,8 @@ class TapsManager:
         period_start = datetime.fromisoformat(date_from)
         period_end = datetime.fromisoformat(date_to).replace(hour=23, minute=59, second=59)
 
+        print(f"\n[TAP_ACTIVITY] Расчет за период: {date_from} - {date_to}")
+
         # Определяем какие бары анализируем
         bars_to_check = [bar_id] if bar_id else list(self.bars.keys())
 
@@ -462,30 +466,64 @@ class TapsManager:
 
             bar = self.bars[current_bar_id]
             total_taps += bar.tap_count
+            bar_active = 0
 
-            # Для каждого крана проверяем был ли он активен в периоде
-            for tap in bar.taps.values():
+            print(f"[TAP_ACTIVITY] Бар {current_bar_id}: {bar.tap_count} кранов")
+
+            # Для каждого крана определяем был ли он активен в периоде
+            for tap_num, tap in bar.taps.items():
                 was_active = False
+
+                # Сначала определяем статус крана на начало периода
+                # Идем по истории в обратном порядке до начала периода
+                last_status_before_period = None
 
                 for event in tap.history:
                     try:
-                        # Парсим timestamp события
                         event_time = datetime.fromisoformat(event['timestamp'].replace('+03:00', ''))
 
-                        # Проверяем что событие в нужном периоде
-                        if period_start <= event_time <= period_end:
-                            # Если это START или REPLACE - кран был активен
-                            if event.get('action') in ['start', 'replace']:
+                        if event_time < period_start:
+                            # Событие ДО периода - запоминаем последний статус
+                            last_status_before_period = event.get('action')
+                        elif period_start <= event_time <= period_end:
+                            # Событие ВНУТРИ периода
+                            action = event.get('action')
+                            if action in ['start', 'replace']:
                                 was_active = True
                                 break
-                    except (ValueError, KeyError):
+                    except (ValueError, KeyError) as e:
                         continue
+
+                # Если событий в периоде не было, но кран был активен ДО периода
+                # и текущий статус ACTIVE - значит он был активен весь период
+                if not was_active:
+                    if last_status_before_period in ['start', 'replace']:
+                        # Проверяем не был ли он остановлен в периоде
+                        was_stopped_in_period = False
+                        for event in tap.history:
+                            try:
+                                event_time = datetime.fromisoformat(event['timestamp'].replace('+03:00', ''))
+                                if period_start <= event_time <= period_end:
+                                    if event.get('action') == 'stop':
+                                        was_stopped_in_period = True
+                                        break
+                            except (ValueError, KeyError):
+                                continue
+
+                        if not was_stopped_in_period:
+                            was_active = True
 
                 if was_active:
                     active_taps_count += 1
+                    bar_active += 1
+
+            print(f"[TAP_ACTIVITY] Бар {current_bar_id}: {bar_active}/{bar.tap_count} активных")
 
         # Рассчитываем процент
         if total_taps == 0:
             return 0.0
 
-        return round((active_taps_count / total_taps) * 100, 2)
+        result = round((active_taps_count / total_taps) * 100, 2)
+        print(f"[TAP_ACTIVITY] ИТОГО: {active_taps_count}/{total_taps} = {result}%\n")
+
+        return result
