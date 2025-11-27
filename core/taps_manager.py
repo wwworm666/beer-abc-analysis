@@ -451,6 +451,7 @@ class TapsManager:
         Returns:
             Процент активности кранов (0-100)
         """
+        import sys
         from datetime import datetime, timedelta
 
         # Парсим даты
@@ -458,9 +459,17 @@ class TapsManager:
         period_end = datetime.fromisoformat(date_to)
 
         print(f"\n[TAP_ACTIVITY] Расчет за период: {date_from} - {date_to}")
+        sys.stdout.flush()
+
+        # DEBUG: Проверяем что есть в self.bars
+        print(f"[TAP_ACTIVITY] DEBUG: self.bars keys = {list(self.bars.keys())}")
+        print(f"[TAP_ACTIVITY] DEBUG: bar_id parameter = {bar_id}")
+        sys.stdout.flush()
 
         # Определяем какие бары анализируем
         bars_to_check = [bar_id] if bar_id else list(self.bars.keys())
+        print(f"[TAP_ACTIVITY] DEBUG: bars_to_check = {bars_to_check}")
+        sys.stdout.flush()
 
         # Генерируем список дней в периоде
         days = []
@@ -472,14 +481,24 @@ class TapsManager:
         total_taps = 0
         total_tap_days = 0  # Сумма активных кран-дней
 
+        print(f"[TAP_ACTIVITY] DEBUG: Начинаем цикл по барам, всего баров: {len(bars_to_check)}")
+        sys.stdout.flush()
+
         for current_bar_id in bars_to_check:
+            print(f"[TAP_ACTIVITY] DEBUG: Проверяем бар {current_bar_id}")
+            sys.stdout.flush()
+
             if current_bar_id not in self.bars:
+                print(f"[TAP_ACTIVITY] DEBUG: Бар {current_bar_id} не найден в self.bars!")
+                sys.stdout.flush()
                 continue
 
             bar = self.bars[current_bar_id]
             total_taps += bar.tap_count
 
             print(f"[TAP_ACTIVITY] Бар {current_bar_id}: {bar.tap_count} кранов x {len(days)} дней = {bar.tap_count * len(days)} кран-дней")
+            print(f"[TAP_ACTIVITY] DEBUG: bar.taps.items() count = {len(bar.taps)}")
+            sys.stdout.flush()
 
             # Для каждого дня считаем активные краны
             for day in days:
@@ -491,15 +510,20 @@ class TapsManager:
                 for tap_num, tap in bar.taps.items():
                     # Находим последнее событие до конца этого дня
                     last_action = None
+                    history_count = len(tap.history) if tap.history else 0
 
                     for event in tap.history:
                         try:
-                            event_time = datetime.fromisoformat(event['timestamp'].replace('+03:00', ''))
+                            # Убираем timezone если есть
+                            timestamp_str = event['timestamp'].replace('+03:00', '')
+                            event_time = datetime.fromisoformat(timestamp_str)
 
                             # Событие произошло до или в течение этого дня
                             if event_time <= day_end:
                                 last_action = event.get('action')
-                        except (ValueError, KeyError):
+                        except (ValueError, KeyError) as e:
+                            print(f"[TAP_ACTIVITY] DEBUG: Ошибка парсинга события крана {tap_num}: {e}")
+                            sys.stdout.flush()
                             continue
 
                     # Кран активен если последнее действие = START или REPLACE
@@ -508,13 +532,20 @@ class TapsManager:
 
                 total_tap_days += active_taps_today
                 print(f"  {day.strftime('%Y-%m-%d')}: {active_taps_today} активных")
+                sys.stdout.flush()
 
         # Рассчитываем процент
+        print(f"[TAP_ACTIVITY] DEBUG: total_taps = {total_taps}, days = {len(days)}")
+        sys.stdout.flush()
+
         max_tap_days = total_taps * len(days)
         if max_tap_days == 0:
+            print(f"[TAP_ACTIVITY] DEBUG: max_tap_days = 0, возвращаем 0.0")
+            sys.stdout.flush()
             return 0.0
 
         result = round((total_tap_days / max_tap_days) * 100, 2)
         print(f"[TAP_ACTIVITY] ИТОГО: {total_tap_days}/{max_tap_days} кран-дней = {result}%\n")
+        sys.stdout.flush()
 
         return result
