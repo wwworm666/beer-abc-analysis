@@ -336,12 +336,14 @@
                 let empty = bar.taps;
 
                 // Try to load stats from API
+                let activity7d = 0;
                 try {
                     const response = await fetch(`/api/taps/${bar.id}/stats`);
                     if (response.ok) {
                         const data = await response.json();
                         active = data.active || 0;
                         empty = data.empty || bar.taps;
+                        activity7d = data.activity_7d || 0;
                     }
                 } catch (error) {
                     console.error(`Error loading stats for ${bar.id}:`, error);
@@ -368,6 +370,10 @@
                         <div class="status-item">
                             <div class="status-value">${Math.round((active / bar.taps) * 100)}%</div>
                             <div class="status-label">Загрузка</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="status-value">${activity7d.toFixed(1)}%</div>
+                            <div class="status-label">Активность 7д</div>
                         </div>
                     </div>
                 `;

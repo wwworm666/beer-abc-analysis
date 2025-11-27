@@ -1136,21 +1136,33 @@ def get_bar_stats(bar_id):
     try:
         result = taps_manager.get_bar_taps(bar_id)
         if 'error' in result:
-            return jsonify({'active': 0, 'empty': 12}), 200
+            return jsonify({'active': 0, 'empty': 12, 'activity_7d': 0}), 200
 
         taps = result.get('taps', [])
         active = len([t for t in taps if t.get('status') == 'active'])
         total = result.get('total_taps', 12)
         empty = total - len([t for t in taps if t.get('status') in ['active', 'replacing']])
 
+        # Рассчитываем активность за последние 7 дней
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        week_ago = today - timedelta(days=7)
+        date_from = week_ago.strftime('%Y-%m-%d')
+        date_to = today.strftime('%Y-%m-%d')
+
+        activity_7d = taps_manager.calculate_tap_activity_for_period(bar_id, date_from, date_to)
+
         return jsonify({
             'active': active,
             'empty': empty,
-            'total': total
+            'total': total,
+            'activity_7d': round(activity_7d, 1)  # Процент активности за последние 7 дней
         })
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/taps/{bar_id}/stats: {e}")
-        return jsonify({'active': 0, 'empty': 12}), 200
+        import traceback
+        traceback.print_exc()
+        return jsonify({'active': 0, 'empty': 12, 'activity_7d': 0}), 200
 
 @app.route('/api/beers/draft', methods=['GET'])
 def get_draft_beers():
