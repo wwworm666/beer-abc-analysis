@@ -85,7 +85,12 @@ BARS = [
 
 @app.route('/')
 def index():
-    """Главная страница - фасовка"""
+    """Главная страница - Дашборд"""
+    return render_template('dashboard.html', bars=BARS)
+
+@app.route('/packaging')
+def packaging():
+    """Страница фасовки"""
     return render_template('index.html', bars=BARS)
 
 @app.route('/draft')
