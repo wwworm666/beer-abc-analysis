@@ -2907,22 +2907,27 @@ def debug_taps_data():
             info['top_level_keys'] = list(data.keys()) if isinstance(data, dict) else f'Not a dict: {type(data)}'
             info['data_type'] = str(type(data))
 
-            # Если это словарь, показываем первый элемент
+            # Показываем полную структуру одного крана
             if isinstance(data, dict) and data:
-                first_key = list(data.keys())[0]
-                first_value = data[first_key]
+                first_bar_key = list(data.keys())[0]
+                first_bar = data[first_bar_key]
 
-                info['first_item'] = {
-                    'key': first_key,
-                    'value_type': str(type(first_value)),
-                    'value_sample': first_value if not isinstance(first_value, dict) else {
-                        'keys': list(first_value.keys())[:5] if isinstance(first_value, dict) else None,
-                        'first_nested_item': {
-                            'key': list(first_value.keys())[0] if isinstance(first_value, dict) and first_value else None,
-                            'value': first_value[list(first_value.keys())[0]] if isinstance(first_value, dict) and first_value else None
-                        }
-                    }
+                info['structure'] = {
+                    'bar_keys': list(first_bar.keys()) if isinstance(first_bar, dict) else 'not a dict'
                 }
+
+                # Если есть поле taps
+                if isinstance(first_bar, dict) and 'taps' in first_bar:
+                    taps = first_bar['taps']
+                    if isinstance(taps, dict) and taps:
+                        first_tap_key = list(taps.keys())[0]
+                        first_tap = taps[first_tap_key]
+
+                        info['tap_sample'] = {
+                            'bar': first_bar_key,
+                            'tap_number': first_tap_key,
+                            'tap_data': first_tap
+                        }
 
         return jsonify(info)
 
