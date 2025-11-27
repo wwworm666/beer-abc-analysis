@@ -2903,44 +2903,35 @@ def debug_taps_data():
             with open(TAPS_DATA_PATH, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-            # Собираем статистику
-            stats = {}
-            for bar_id, taps in data.items():
-                tap_stats = {
-                    'total_taps': len(taps),
-                    'taps_with_history': 0,
-                    'total_events': 0
-                }
+            # Показываем структуру первого уровня
+            info['top_level_keys'] = list(data.keys()) if isinstance(data, dict) else f'Not a dict: {type(data)}'
+            info['data_type'] = str(type(data))
 
-                for tap_num, tap_data in taps.items():
-                    history = tap_data.get('history', [])
-                    if history:
-                        tap_stats['taps_with_history'] += 1
-                        tap_stats['total_events'] += len(history)
+            # Если это словарь, показываем первый элемент
+            if isinstance(data, dict) and data:
+                first_key = list(data.keys())[0]
+                first_value = data[first_key]
 
-                stats[bar_id] = tap_stats
-
-            info['stats'] = stats
-            info['first_bar_sample'] = {k: list(data[k].keys())[:3] for k in list(data.keys())[:1]}
-
-            # Показываем первые 2 события из первого крана с историей
-            for bar_id, taps in data.items():
-                for tap_num, tap_data in taps.items():
-                    history = tap_data.get('history', [])
-                    if history:
-                        info['sample_history'] = {
-                            'bar': bar_id,
-                            'tap': tap_num,
-                            'events': history[:2]
+                info['first_item'] = {
+                    'key': first_key,
+                    'value_type': str(type(first_value)),
+                    'value_sample': first_value if not isinstance(first_value, dict) else {
+                        'keys': list(first_value.keys())[:5] if isinstance(first_value, dict) else None,
+                        'first_nested_item': {
+                            'key': list(first_value.keys())[0] if isinstance(first_value, dict) and first_value else None,
+                            'value': first_value[list(first_value.keys())[0]] if isinstance(first_value, dict) and first_value else None
                         }
-                        break
-                if 'sample_history' in info:
-                    break
+                    }
+                }
 
         return jsonify(info)
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
 
 
 if __name__ == '__main__':
