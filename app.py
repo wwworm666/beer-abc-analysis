@@ -2886,6 +2886,63 @@ def test_modules():
     return render_template('test_modules.html')
 
 
+@app.route('/api/debug/taps-data')
+def debug_taps_data():
+    """DEBUG: Показать содержимое файла taps_data.json"""
+    try:
+        import os
+        import json
+
+        info = {
+            'file_path': TAPS_DATA_PATH,
+            'file_exists': os.path.exists(TAPS_DATA_PATH),
+            'file_size': os.path.getsize(TAPS_DATA_PATH) if os.path.exists(TAPS_DATA_PATH) else 0
+        }
+
+        if os.path.exists(TAPS_DATA_PATH):
+            with open(TAPS_DATA_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # Собираем статистику
+            stats = {}
+            for bar_id, taps in data.items():
+                tap_stats = {
+                    'total_taps': len(taps),
+                    'taps_with_history': 0,
+                    'total_events': 0
+                }
+
+                for tap_num, tap_data in taps.items():
+                    history = tap_data.get('history', [])
+                    if history:
+                        tap_stats['taps_with_history'] += 1
+                        tap_stats['total_events'] += len(history)
+
+                stats[bar_id] = tap_stats
+
+            info['stats'] = stats
+            info['first_bar_sample'] = {k: list(data[k].keys())[:3] for k in list(data.keys())[:1]}
+
+            # Показываем первые 2 события из первого крана с историей
+            for bar_id, taps in data.items():
+                for tap_num, tap_data in taps.items():
+                    history = tap_data.get('history', [])
+                    if history:
+                        info['sample_history'] = {
+                            'bar': bar_id,
+                            'tap': tap_num,
+                            'events': history[:2]
+                        }
+                        break
+                if 'sample_history' in info:
+                    break
+
+        return jsonify(info)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("BEER ABC/XYZ ANALYSIS")
