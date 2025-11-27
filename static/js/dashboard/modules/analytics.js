@@ -120,8 +120,13 @@ class Analytics {
 
         // Создаем карточки для каждой метрики
         METRICS.forEach(metric => {
-            const planValue = plan ? plan[metric.planKey] : null;
+            let planValue = plan ? plan[metric.planKey] : null;
             const actualValue = actual[metric.actualKey];
+
+            // Для активности кранов план всегда 100% (если не задан вручную)
+            if (metric.id === 'tapActivity' && !planValue) {
+                planValue = 100;
+            }
 
             console.log(`[Analytics] Метрика "${metric.name}":`, {
                 planKey: metric.planKey,

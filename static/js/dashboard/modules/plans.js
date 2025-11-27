@@ -123,7 +123,7 @@ class PlansViewer {
             },
             {
                 name: 'Прочее',
-                metrics: ['loyaltyWriteoffs']
+                metrics: ['loyaltyWriteoffs', 'tapActivity']
             }
         ];
 
@@ -142,8 +142,13 @@ class PlansViewer {
                 const metric = METRICS.find(m => m.planKey === metricId);
                 if (!metric) return;
 
-                const planValue = plan ? plan[metric.planKey] : null;
+                let planValue = plan ? plan[metric.planKey] : null;
                 const actualValue = actual[metric.actualKey];
+
+                // Для активности кранов план всегда 100% (если не задан вручную)
+                if (metric.id === 'tapActivity' && !planValue) {
+                    planValue = 100;
+                }
 
                 const row = this.createMetricRow(
                     metric,
