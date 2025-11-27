@@ -213,3 +213,43 @@ if (document.readyState === 'loading') {
 }
 
 export default dashboard;
+
+// Глобальная функция для проверки API
+window.dashboardCheckApi = async function() {
+    const statusElement = document.getElementById('api-status');
+    if (!statusElement) return;
+    
+    const textElement = statusElement.querySelector('.api-status-text');
+    
+    statusElement.className = 'api-status checking';
+    textElement.textContent = 'Проверка подключения...';
+    
+    try {
+        const response = await fetch('/api/connection-status');
+        const data = await response.json();
+        
+        if (response.ok && data.status === 'connected') {
+            statusElement.className = 'api-status connected';
+            textElement.textContent = 'iiko API подключен';
+        } else {
+            statusElement.className = 'api-status error';
+            textElement.textContent = 'Ошибка подключения';
+            console.error('API connection error:', data.message);
+        }
+    } catch (error) {
+        statusElement.className = 'api-status error';
+        textElement.textContent = 'Ошибка подключения';
+        console.error('API connection error:', error);
+    }
+};
+
+// Проверяем API при загрузке страницы
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        window.dashboardCheckApi();
+        setInterval(window.dashboardCheckApi, 60000); // Каждую минуту
+    });
+} else {
+    window.dashboardCheckApi();
+    setInterval(window.dashboardCheckApi, 60000);
+}

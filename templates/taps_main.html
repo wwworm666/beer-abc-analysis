@@ -149,6 +149,76 @@
             color: var(--text-primary);
         }
 
+        /* API Status */
+        .api-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .api-status:hover {
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        .api-status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .api-status.checking .api-status-indicator {
+            background: var(--warning);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .api-status.connected .api-status-indicator {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .api-status.error .api-status-indicator {
+            background: var(--danger);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(0.9);
+            }
+        }
+
+        .api-status-text {
+            color: var(--text-secondary);
+        }
+
+        .api-status.connected .api-status-text {
+            color: var(--success);
+        }
+
+        .api-status.error .api-status-text {
+            color: var(--danger);
+        }
+
+        .api-status.checking .api-status-text {
+            color: var(--warning);
+        }
+
         /* Bars Grid */
         .bars-grid {
             display: grid;
@@ -284,9 +354,15 @@
                     <a href="/taps" class="nav-link active">Краны</a>
                     <a href="/stocks" class="nav-link">Остатки</a>
                 </div>
-                <div class="theme-toggle">
-                    <button class="theme-btn active" data-theme="light">Светлая</button>
-                    <button class="theme-btn" data-theme="dark">Темная</button>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
+                        <div class="api-status-indicator"></div>
+                        <span class="api-status-text">Проверка подключения...</span>
+                    </div>
+                    <div class="theme-toggle">
+                        <button class="theme-btn active" data-theme="light">Светлая</button>
+                        <button class="theme-btn" data-theme="dark">Темная</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -326,6 +402,39 @@
                 btn.classList.remove('active');
             }
         });
+
+        // Check API Connection
+        async function checkApiConnection() {
+            const statusElement = document.getElementById('api-status');
+            if (!statusElement) return;
+
+            const textElement = statusElement.querySelector('.api-status-text');
+
+            statusElement.className = 'api-status checking';
+            textElement.textContent = 'Проверка подключения...';
+
+            try {
+                const response = await fetch('/api/connection-status');
+                const data = await response.json();
+
+                if (response.ok && data.status === 'connected') {
+                    statusElement.className = 'api-status connected';
+                    textElement.textContent = 'iiko API подключен';
+                } else {
+                    statusElement.className = 'api-status error';
+                    textElement.textContent = 'Ошибка подключения';
+                    console.error('API connection error:', data.message);
+                }
+            } catch (error) {
+                statusElement.className = 'api-status error';
+                textElement.textContent = 'Ошибка подключения';
+                console.error('API connection error:', error);
+            }
+        }
+
+        // Check connection on page load
+        checkApiConnection();
+        setInterval(checkApiConnection, 60000); // Every minute
 
         // Load bars status
         async function loadBarsStatus() {

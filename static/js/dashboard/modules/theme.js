@@ -7,7 +7,7 @@ import { STORAGE_KEYS } from '../core/config.js';
 
 class ThemeManager {
     constructor() {
-        this.themeToggle = document.getElementById('theme-toggle');
+        this.themeButtons = null;
         this.currentTheme = this.loadTheme();
 
         this.initialized = false;
@@ -19,6 +19,7 @@ class ThemeManager {
     init() {
         if (this.initialized) return;
 
+        this.themeButtons = document.querySelectorAll('.theme-btn');
         this.applyTheme(this.currentTheme);
         this.setupEventListeners();
 
@@ -57,12 +58,15 @@ class ThemeManager {
         this.currentTheme = theme;
         this.saveTheme(theme);
 
-        // Обновить иконку кнопки
-        if (this.themeToggle) {
-            this.themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
-            this.themeToggle.setAttribute('title',
-                theme === 'dark' ? 'Светлая тема' : 'Темная тема'
-            );
+        // Обновить активную кнопку
+        if (this.themeButtons) {
+            this.themeButtons.forEach(btn => {
+                btn.classList.remove('active');
+                const btnTheme = btn.textContent === 'Светлая' ? 'light' : 'dark';
+                if (btnTheme === theme) {
+                    btn.classList.add('active');
+                }
+            });
         }
     }
 
@@ -78,9 +82,9 @@ class ThemeManager {
      * Настроить обработчики событий
      */
     setupEventListeners() {
-        this.themeToggle?.addEventListener('click', () => {
-            this.toggleTheme();
-        });
+        // Обработчики для новых кнопок (через onclick в HTML)
+        // Делаем setTheme доступным глобально
+        window.dashboardSetTheme = (theme) => this.setTheme(theme);
 
         // Слушаем изменения системных настроек
         if (window.matchMedia) {
