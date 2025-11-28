@@ -65,10 +65,9 @@ class CategoryAnalysis:
             ascending=False
         )
 
-        # 2-я буква: ABC по % наценки
-        df['ABC_Markup'] = self._calculate_abc_category(
-            df['AvgMarkupPercent'],
-            ascending=False
+        # 2-я буква: ABC по % наценки (фиксированные пороги: A≥120%, B=100-120%, C<100%)
+        df['ABC_Markup'] = self._calculate_markup_category(
+            df['AvgMarkupPercent']
         )
 
         # 3-я буква: ABC по марже в рублях
@@ -215,6 +214,33 @@ class CategoryAnalysis:
         categories[(cumulative_percent > 80) & (cumulative_percent <= 95)] = 'B'
         # C = последние 5% (от 95% до 100%)
         categories[cumulative_percent > 95] = 'C'
+
+        return categories
+
+    def _calculate_markup_category(self, markup_percent):
+        """
+        Рассчитать ABC категорию для % наценки по фиксированным порогам
+
+        markup_percent: pandas Series с процентами наценки (в виде десятичной дроби, например 1.2 = 120%)
+
+        Пороги:
+        - A = наценка >= 120% (1.2)
+        - B = наценка от 100% до 120% (от 1.0 до 1.2)
+        - C = наценка < 100% (< 1.0)
+
+        Возвращает: Series с категориями A, B, C
+        """
+        # Создаем Series категорий с C по умолчанию
+        categories = pd.Series('C', index=markup_percent.index)
+
+        # A = наценка >= 120% (1.2)
+        categories[markup_percent >= 1.2] = 'A'
+
+        # B = наценка от 100% до 120% (от 1.0 до 1.2)
+        categories[(markup_percent >= 1.0) & (markup_percent < 1.2)] = 'B'
+
+        # C = наценка < 100% (< 1.0)
+        # Уже установлено по умолчанию
 
         return categories
 

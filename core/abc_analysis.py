@@ -39,7 +39,34 @@ class ABCAnalysis:
         categories[cumulative_percent > 95] = 'C'
         
         return categories
-    
+
+    def calculate_markup_category(self, markup_percent):
+        """
+        Рассчитать ABC категорию для % наценки по фиксированным порогам
+
+        markup_percent: pandas Series с процентами наценки (в виде десятичной дроби, например 1.2 = 120%)
+
+        Пороги:
+        - A = наценка >= 120% (1.2)
+        - B = наценка от 100% до 120% (от 1.0 до 1.2)
+        - C = наценка < 100% (< 1.0)
+
+        Возвращает: Series с категориями A, B, C
+        """
+        # Создаем Series категорий с C по умолчанию
+        categories = pd.Series('C', index=markup_percent.index)
+
+        # A = наценка >= 120% (1.2)
+        categories[markup_percent >= 1.2] = 'A'
+
+        # B = наценка от 100% до 120% (от 1.0 до 1.2)
+        categories[(markup_percent >= 1.0) & (markup_percent < 1.2)] = 'B'
+
+        # C = наценка < 100% (< 1.0)
+        # Уже установлено по умолчанию
+
+        return categories
+
     def perform_abc_analysis_by_bar(self, bar_name):
         """
         Выполнить ABC анализ для конкретного бара
@@ -66,10 +93,9 @@ class ABCAnalysis:
             ascending=False
         )
         
-        # 2-я буква: ABC по % наценки (больше = лучше, ascending=False)
-        bar_data['ABC_Markup'] = self.calculate_abc_category(
-            bar_data['AvgMarkupPercent'], 
-            ascending=False
+        # 2-я буква: ABC по % наценки (фиксированные пороги: A≥120%, B=100-120%, C<100%)
+        bar_data['ABC_Markup'] = self.calculate_markup_category(
+            bar_data['AvgMarkupPercent']
         )
         
         # 3-я буква: ABC по марже в рублях (больше = лучше, ascending=False)

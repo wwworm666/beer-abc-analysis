@@ -259,7 +259,76 @@ def analyze():
             # Создаём единый DataFrame со всеми данными
             if all_bars_data:
                 combined_all = pd.concat(all_bars_data, ignore_index=True)
-                results = {"Общая": combined_all}
+
+                # Агрегируем данные по пиву, объединяя все бары
+                # Группируем по Beer, Style, Country и агрегируем метрики
+                aggregated = combined_all.groupby(['Beer', 'Style', 'Country']).agg({
+                    'TotalQty': 'sum',
+                    'TotalRevenue': 'sum',
+                    'TotalCost': 'sum',
+                    'TotalMargin': 'sum',
+                    'AvgMarkupPercent': 'max',  # Берём максимальную наценку по всем барам
+                }).reset_index()
+
+                # Пересчитываем ABC категории на основе агрегированных данных
+                # Создаем временный экземпляр для использования методов
+                abc_temp = ABCAnalysis(pd.DataFrame())
+
+                # 1-я буква: ABC по выручке
+                aggregated['ABC_Revenue'] = abc_temp.calculate_abc_category(
+                    aggregated['TotalRevenue'],
+                    ascending=False
+                )
+
+                # 2-я буква: ABC по % наценки (фиксированные пороги)
+                aggregated['ABC_Markup'] = abc_temp.calculate_markup_category(
+                    aggregated['AvgMarkupPercent']
+                )
+
+                # 3-я буква: ABC по марже
+                aggregated['ABC_Margin'] = abc_temp.calculate_abc_category(
+                    aggregated['TotalMargin'],
+                    ascending=False
+                )
+
+                # Комбинированная категория
+                aggregated['ABC_Combined'] = (
+                    aggregated['ABC_Revenue'] +
+                    aggregated['ABC_Markup'] +
+                    aggregated['ABC_Margin']
+                )
+
+                # Добавляем XYZ анализ на основе агрегированных данных
+                # Для этого нужно пересчитать вариацию по всем барам
+                xyz_all = []
+                for beer in aggregated['Beer'].unique():
+                    beer_data = combined_all[combined_all['Beer'] == beer]
+                    if len(beer_data) > 1:
+                        cv = beer_data['TotalQty'].std() / beer_data['TotalQty'].mean() * 100 if beer_data['TotalQty'].mean() > 0 else 100
+                    else:
+                        cv = 100
+
+                    # Категоризация XYZ
+                    if cv < 10:
+                        xyz_cat = 'X'
+                    elif cv < 25:
+                        xyz_cat = 'Y'
+                    else:
+                        xyz_cat = 'Z'
+
+                    xyz_all.append({
+                        'Beer': beer,
+                        'CoefficientOfVariation': cv,
+                        'XYZ_Category': xyz_cat
+                    })
+
+                xyz_df_all = pd.DataFrame(xyz_all)
+                aggregated = aggregated.merge(xyz_df_all, on='Beer', how='left')
+                aggregated['XYZ_Category'].fillna('Z', inplace=True)
+                aggregated['CoefficientOfVariation'].fillna(100, inplace=True)
+                aggregated['ABCXYZ_Combined'] = aggregated['ABC_Combined'] + '-' + aggregated['XYZ_Category']
+
+                results = {"Общая": aggregated}
             else:
                 results = {}
         

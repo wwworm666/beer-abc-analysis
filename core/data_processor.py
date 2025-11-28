@@ -73,7 +73,7 @@ class BeerDataProcessor:
             'DishAmountInt': 'sum',                    # Общее количество
             'DishDiscountSumInt': 'sum',               # Общая выручка
             'ProductCostBase.ProductCost': 'sum',      # Общая себестоимость
-            'ProductCostBase.MarkUp': 'mean',          # Средняя наценка %
+            'ProductCostBase.MarkUp': 'max',           # Максимальная наценка % (текущая актуальная)
             'Margin': 'sum'                            # Общая маржа
         }).reset_index()
 
@@ -81,7 +81,7 @@ class BeerDataProcessor:
         agg_data.columns = [
             'Bar', 'Beer', 'Style', 'Country',
             'TotalQty', 'TotalRevenue', 'TotalCost',
-            'AvgMarkupPercent', 'TotalMargin'
+            'AvgMarkupPercent', 'TotalMargin'  # AvgMarkupPercent = максимальная (текущая) наценка из iiko
         ]
 
         # Заменяем пустые строки на None для последующей обработки
