@@ -49,3 +49,9 @@ taps_data*.json
 # Временные файлы
 *.tmp
 *.temp
+
+# API ключи и секреты
+апи
+.env
+api_key.txt
+*.key
