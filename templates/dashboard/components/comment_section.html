@@ -1,134 +1,451 @@
-<!-- Секция комментариев -->
-<div id="comment-section" class="comment-section">
-    <div class="comment-header">
-        <h3>💬 Комментарий к периоду</h3>
-        <button id="btn-toggle-comment" class="btn btn-secondary btn-sm">
-            ✏️ Редактировать
-        </button>
+<!-- Секция AI Анализа -->
+<div id="comment-section" class="ai-analysis-section">
+    <!-- Состояние: Кнопка для генерации -->
+    <div id="analysis-prompt-state" class="analysis-card">
+        <div class="analysis-card-content">
+            <div class="analysis-icon">✨</div>
+            <h3>Анализ периода через Gemini</h3>
+            <p class="analysis-description">Получи интеллектуальный анализ продаж и рекомендации по улучшению</p>
+            <button id="btn-generate-ai-comment" class="btn-generate-analysis">
+                <span class="btn-icon">🤖</span>
+                <span class="btn-text">Запустить анализ</span>
+            </button>
+        </div>
     </div>
 
-    <!-- Отображение комментария -->
-    <div id="comment-display" class="comment-display hidden">
-        <p id="comment-text"></p>
+    <!-- Состояние: Результат анализа -->
+    <div id="analysis-result-state" class="analysis-card hidden">
+        <div class="analysis-result-header">
+            <div class="result-title">
+                <span class="result-icon">✅</span>
+                <span>Анализ готов</span>
+            </div>
+            <button id="btn-new-analysis" class="btn-regenerate" title="Получить новый анализ">
+                🔄
+            </button>
+        </div>
+        <div class="analysis-result-content">
+            <p id="analysis-text"></p>
+        </div>
+        <div class="analysis-result-actions">
+            <button id="btn-copy-analysis" class="btn-action">Копировать</button>
+            <button id="btn-edit-analysis" class="btn-action btn-action-primary">Редактировать</button>
+        </div>
     </div>
 
-    <!-- Форма редактирования -->
-    <div id="comment-edit-form" class="comment-edit-form hidden">
-        <textarea
-            id="period-comment"
-            class="comment-textarea"
-            placeholder="Добавьте комментарий к этому периоду..."
-            rows="3"
-        ></textarea>
-        <div class="comment-actions">
-            <button id="btn-save-comment" class="btn">
-                💾 Сохранить
-            </button>
-            <button id="btn-cancel-comment" class="btn btn-secondary">
-                ❌ Отмена
-            </button>
+    <!-- Состояние: Редактирование -->
+    <div id="analysis-edit-state" class="analysis-card hidden">
+        <div class="edit-header">
+            <h4>Редактировать анализ</h4>
+            <button id="btn-cancel-edit" class="btn-close" title="Отмена">✕</button>
+        </div>
+        <textarea id="period-comment" class="analysis-textarea" placeholder="Отредактируйте анализ..."></textarea>
+        <div class="edit-actions">
+            <button id="btn-save-comment" class="btn-action btn-action-primary">Сохранить</button>
+            <button id="btn-cancel-edit-form" class="btn-action">Отмена</button>
         </div>
     </div>
 </div>
 
 <style>
-.comment-section {
-    margin-bottom: var(--spacing-lg);
+.ai-analysis-section {
+    margin-bottom: var(--spacing-md);
+}
+
+/* Карточка анализа */
+.analysis-card {
     padding: var(--spacing-md);
     background: var(--bg-secondary);
     border-radius: var(--border-radius);
     border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
 }
 
-.comment-header {
+.analysis-card:not(.hidden) {
+    animation: slideIn 0.4s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Состояние: Промпт для генерации */
+.analysis-card-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.analysis-icon {
+    font-size: 1.8rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+.analysis-card-content h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.analysis-description {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    max-width: 400px;
+}
+
+/* Кнопка генерации анализа */
+.btn-generate-analysis {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
+    color: white;
+    border: none;
+    border-radius: 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+    min-width: 220px;
+}
+
+.btn-generate-analysis:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
+}
+
+.btn-generate-analysis:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-generate-analysis:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn-icon {
+    font-size: 1.1rem;
+}
+
+.btn-text {
+    letter-spacing: 0.2px;
+}
+
+/* Состояние: Результат */
+.analysis-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.result-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.result-icon {
+    font-size: 1.3rem;
+}
+
+.btn-regenerate {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: transform 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.btn-regenerate:hover {
+    transform: rotate(180deg);
+}
+
+.analysis-result-content {
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-primary);
+    border-radius: 0.5rem;
+    border-left: 4px solid var(--accent);
+}
+
+#analysis-text {
+    margin: 0;
+    color: var(--text-primary);
+    line-height: 1.5;
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.analysis-result-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+/* Состояние: Редактирование */
+.edit-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--spacing-sm);
 }
 
-.comment-header h3 {
+.edit-header h4 {
     margin: 0;
-    font-size: 1rem;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.btn-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    padding: 0;
+    transition: color 0.2s ease;
+}
+
+.btn-close:hover {
     color: var(--text-primary);
 }
 
-.comment-display {
-    padding: var(--spacing-sm);
-    background: var(--bg-primary);
-    border-radius: var(--border-radius);
-    border-left: 4px solid var(--accent);
-}
-
-.comment-display p {
-    margin: 0;
-    color: var(--text-primary);
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-
-.comment-edit-form {
-    margin-top: var(--spacing-sm);
-}
-
-.comment-textarea {
+.analysis-textarea {
     width: 100%;
     padding: var(--spacing-sm);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: 0.5rem;
     background: var(--bg-primary);
     color: var(--text-primary);
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     resize: vertical;
-    min-height: 80px;
+    min-height: 120px;
+    margin-bottom: var(--spacing-sm);
+    transition: border-color 0.2s ease;
 }
 
-.comment-textarea:focus {
+.analysis-textarea:focus {
     outline: none;
     border-color: var(--accent);
 }
 
-.comment-actions {
+.edit-actions {
     display: flex;
     gap: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
+    justify-content: flex-end;
 }
 
+/* Кнопки действий */
+.btn-action {
+    padding: 0.5rem 1rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-action:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+}
+
+.btn-action-primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.btn-action-primary:hover {
+    background: #4f46e5;
+    opacity: 0.9;
+}
+
+/* Утилита */
+.hidden {
+    display: none !important;
+}
+
+/* Мобильный */
 @media (max-width: 768px) {
-    .comment-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--spacing-xs);
+    .analysis-card-content {
+        gap: var(--spacing-md);
     }
 
-    .comment-actions {
-        flex-direction: column;
+    .btn-generate-analysis {
         width: 100%;
+        min-width: unset;
     }
 
-    .comment-actions button {
+    .analysis-result-actions,
+    .edit-actions {
+        flex-direction: column;
+    }
+
+    .btn-action {
         width: 100%;
     }
 }
 </style>
 
 <script type="module">
-    // Управление отображением формы комментария
-    const btnToggle = document.getElementById('btn-toggle-comment');
-    const btnCancel = document.getElementById('btn-cancel-comment');
-    const commentDisplay = document.getElementById('comment-display');
-    const commentForm = document.getElementById('comment-edit-form');
+    import { state } from '../core/state.js';
 
-    btnToggle?.addEventListener('click', () => {
-        commentDisplay?.classList.add('hidden');
-        commentForm?.classList.remove('hidden');
+    // Элементы DOM
+    const promptState = document.getElementById('analysis-prompt-state');
+    const resultState = document.getElementById('analysis-result-state');
+    const editState = document.getElementById('analysis-edit-state');
+
+    const btnGenerate = document.getElementById('btn-generate-ai-comment');
+    const btnNewAnalysis = document.getElementById('btn-new-analysis');
+    const btnCopy = document.getElementById('btn-copy-analysis');
+    const btnEdit = document.getElementById('btn-edit-analysis');
+    const btnSave = document.getElementById('btn-save-comment');
+    const btnCancelEdit = document.getElementById('btn-cancel-edit');
+    const btnCancelEditForm = document.getElementById('btn-cancel-edit-form');
+
+    const analysisText = document.getElementById('analysis-text');
+    const textarea = document.getElementById('period-comment');
+
+    // Переключение состояний
+    function showPromptState() {
+        promptState.classList.remove('hidden');
+        resultState.classList.add('hidden');
+        editState.classList.add('hidden');
+    }
+
+    function showResultState() {
+        promptState.classList.add('hidden');
+        resultState.classList.remove('hidden');
+        editState.classList.add('hidden');
+    }
+
+    function showEditState() {
+        promptState.classList.add('hidden');
+        resultState.classList.add('hidden');
+        editState.classList.remove('hidden');
+    }
+
+    // Генерация анализа
+    btnGenerate?.addEventListener('click', generateAnalysis);
+    btnNewAnalysis?.addEventListener('click', generateAnalysis);
+
+    async function generateAnalysis() {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod?.key;
+
+        if (!venueKey || !periodKey) {
+            state.addMessage('warning', 'Выберите заведение и период', 3000);
+            return;
+        }
+
+        btnGenerate.disabled = true;
+        const originalText = btnGenerate.innerHTML;
+        btnGenerate.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Анализирую...</span>';
+
+        try {
+            const response = await fetch(`/api/analyze-period/${venueKey}/${periodKey}`);
+
+            if (!response.ok) {
+                throw new Error(`Ошибка: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.analysis) {
+                analysisText.textContent = data.analysis;
+                textarea.value = data.analysis;
+                showResultState();
+                state.addMessage('success', 'Анализ готов!', 3000);
+            } else if (data.error) {
+                throw new Error(data.error);
+            }
+
+        } catch (error) {
+            console.error('[AI ERROR]', error);
+            state.addMessage('error', `Ошибка: ${error.message}`, 5000);
+        } finally {
+            btnGenerate.disabled = false;
+            btnGenerate.innerHTML = originalText;
+        }
+    }
+
+    // Копирование анализа
+    btnCopy?.addEventListener('click', () => {
+        const text = analysisText.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            state.addMessage('success', 'Анализ скопирован в буфер обмена', 2000);
+        }).catch(() => {
+            state.addMessage('error', 'Не удалось скопировать', 2000);
+        });
     });
 
-    btnCancel?.addEventListener('click', () => {
-        commentForm?.classList.add('hidden');
-        if (document.getElementById('comment-text')?.textContent) {
-            commentDisplay?.classList.remove('hidden');
+    // Редактирование
+    btnEdit?.addEventListener('click', showEditState);
+    btnCancelEdit?.addEventListener('click', showResultState);
+    btnCancelEditForm?.addEventListener('click', showResultState);
+
+    // Сохранение
+    btnSave?.addEventListener('click', async () => {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod?.key;
+        const comment = textarea.value.trim();
+
+        if (!comment) {
+            state.addMessage('warning', 'Комментарий не может быть пустым', 3000);
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/comments/${venueKey}/${periodKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ comment })
+            });
+
+            if (response.ok) {
+                analysisText.textContent = comment;
+                showResultState();
+                state.addMessage('success', 'Анализ сохранен', 3000);
+            } else {
+                throw new Error('Ошибка сохранения');
+            }
+
+        } catch (error) {
+            state.addMessage('error', `Ошибка: ${error.message}`, 5000);
         }
     });
+
+    // Инициализация
+    showPromptState();
 </script>
