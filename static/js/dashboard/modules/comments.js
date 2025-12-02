@@ -40,6 +40,11 @@ class CommentsManager {
         document.getElementById('btn-save-comment')?.addEventListener('click', () => {
             this.handleSaveComment();
         });
+
+        // Генерация AI анализа
+        document.getElementById('btn-generate-ai-comment')?.addEventListener('click', () => {
+            this.handleGenerateAIAnalysis();
+        });
     }
 
     /**
@@ -156,6 +161,66 @@ class CommentsManager {
      */
     refresh() {
         this.loadComment();
+    }
+
+    /**
+     * Сгенерировать AI анализ для периода
+     */
+    async handleGenerateAIAnalysis() {
+        const venueKey = state.currentVenue;
+        const periodKey = state.currentPeriod?.key;
+
+        if (!venueKey || !periodKey) {
+            state.addMessage('warning', 'Выберите заведение и период', 3000);
+            return;
+        }
+
+        const btn = document.getElementById('btn-generate-ai-comment');
+        const commentForm = document.getElementById('comment-edit-form');
+        const commentDisplay = document.getElementById('comment-display');
+        const textarea = document.getElementById('period-comment');
+
+        // Показываем форму редактирования
+        commentDisplay?.classList.add('hidden');
+        commentForm?.classList.remove('hidden');
+
+        // Деактивируем кнопку и показываем прогресс
+        const originalText = btn?.textContent || '🤖 AI анализ';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '⏳ Анализирую...';
+        }
+
+        try {
+            console.log(`[AI] Запрос анализа для ${venueKey} / ${periodKey}`);
+
+            const response = await fetch(`/api/analyze-period/${venueKey}/${periodKey}`);
+
+            if (!response.ok) {
+                throw new Error(`Ошибка сервера: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.analysis) {
+                console.log('[AI] Анализ получен, заполняю textarea');
+                if (textarea) {
+                    textarea.value = data.analysis;
+                }
+                state.addMessage('success', 'AI анализ сгенерирован', 3000);
+            } else if (data.error) {
+                throw new Error(data.error);
+            }
+
+        } catch (error) {
+            console.error('[AI ERROR]', error);
+            state.addMessage('error', `Ошибка генерации анализа: ${error.message}`, 5000);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
     }
 }
 

@@ -1,0 +1,42 @@
+{
+  "/products": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2713' in position 15: character maps to <undefined>",
+    "available": false
+  },
+  "/priceLists": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2717' in position 17: character maps to <undefined>",
+    "available": false
+  },
+  "/menu": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2717' in position 11: character maps to <undefined>",
+    "available": false
+  },
+  "/v2/reports/balance/stores": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2717' in position 32: character maps to <undefined>",
+    "available": false
+  },
+  "/priceCategories": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2717' in position 22: character maps to <undefined>",
+    "available": false
+  },
+  "/productGroups": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2717' in position 20: character maps to <undefined>",
+    "available": false
+  },
+  "/measures": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2717' in position 15: character maps to <undefined>",
+    "available": false
+  },
+  "/suppliers": {
+    "status": "error",
+    "error": "'charmap' codec can't encode character '\\u2713' in position 16: character maps to <undefined>",
+    "available": false
+  }
+}

@@ -154,6 +154,35 @@ class Analytics {
                 status
             );
 
+            // Для активности кранов добавляем ссылку на страницу кранов
+            if (metric.id === 'tapActivity') {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', () => {
+                    // Получаем текущий venue из state
+                    const currentVenue = state.currentVenue;
+                    // Маппинг venue_key -> bar_id для страницы кранов
+                    const venueToBarMapping = {
+                        'bolshoy': 'bar1',
+                        'ligovskiy': 'bar2',
+                        'kremenchugskaya': 'bar3',
+                        'varshavskaya': 'bar4'
+                    };
+
+                    if (currentVenue === 'all') {
+                        // Если выбрано "Все заведения", идем на общую страницу кранов
+                        window.location.href = '/taps';
+                    } else {
+                        // Иначе идем на страницу конкретного бара
+                        const barId = venueToBarMapping[currentVenue];
+                        if (barId) {
+                            window.location.href = `/taps/${barId}`;
+                        } else {
+                            window.location.href = '/taps';
+                        }
+                    }
+                });
+            }
+
             this.metricsGrid.appendChild(card);
         });
 

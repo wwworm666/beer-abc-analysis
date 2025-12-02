@@ -2535,19 +2535,27 @@ def analyze_period_with_ai(venue_key, period_key):
 - Практичные рекомендации, которые можно сделать сегодня"""
 
         response = model.generate_content(prompt)
-        analysis = response.text if response and hasattr(response, 'text') else ""
 
-        print(f"[AI ANALYSIS] Ответ от Gemini: {len(analysis)} символов")
-        if not analysis:
-            print(f"[AI ANALYSIS] WARNING: Пустой ответ от Gemini")
-            print(f"[AI ANALYSIS] Response object: {response}")
+        # Получаем текст из ответа
+        analysis = ""
+        if hasattr(response, 'text'):
+            analysis = response.text
+        elif hasattr(response, 'parts') and response.parts:
+            analysis = str(response.parts[0])
+        elif hasattr(response, 'candidates') and response.candidates:
+            analysis = str(response.candidates[0])
 
         if not analysis or not analysis.strip():
+            print("[AI ANALYSIS] ERROR: Analysis is empty or whitespace only")
             return jsonify({
                 'error': 'Gemini вернул пустой ответ. Попробуйте позже.'
             }), 500
 
-        print(f"[AI ANALYSIS] OK: Анализ сгенерирован успешно")
+        # Логируем только базовую информацию (без содержимого с emoji/Unicode)
+        try:
+            print(f"[AI ANALYSIS] OK: Analysis generated, length={len(analysis)}")
+        except:
+            pass  # Ignore encoding errors in logging
 
         return jsonify({
             'success': True,
@@ -2555,10 +2563,11 @@ def analyze_period_with_ai(venue_key, period_key):
         })
 
     except Exception as e:
-        print(f"[AI ANALYSIS ERROR] Ошибка при генерации анализа: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        try:
+            print(f"[AI ANALYSIS ERROR] Exception: {type(e).__name__}")
+        except:
+            print("[AI ANALYSIS ERROR] Exception occurred")
+        return jsonify({'error': 'Ошибка при генерации анализа. Попробуйте позже.'}), 500
 
 
 def _prepare_analysis_text(data, venue_key, period_key):
@@ -2613,9 +2622,11 @@ def _prepare_analysis_text(data, venue_key, period_key):
         return text
 
     except Exception as e:
-        print(f"[PREPARE_TEXT ERROR] {e}")
-        print(f"[PREPARE_TEXT] Доступные колонки: {list(data.columns)}")
-        return f"Ошибка подготовки данных: {str(e)}"
+        try:
+            print(f"[PREPARE_TEXT ERROR] {type(e).__name__}")
+        except:
+            print("[PREPARE_TEXT ERROR] Exception occurred")
+        return "Ошибка подготовки данных"
 
 
 # ============================================================================
