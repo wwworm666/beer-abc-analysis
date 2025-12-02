@@ -2539,7 +2539,7 @@ def analyze_period_with_ai(venue_key, period_key):
 
         print(f"[AI ANALYSIS] Ответ от Gemini: {len(analysis)} символов")
         if not analysis:
-            print(f"[AI ANALYSIS] ⚠️ Пустой ответ от Gemini")
+            print(f"[AI ANALYSIS] WARNING: Пустой ответ от Gemini")
             print(f"[AI ANALYSIS] Response object: {response}")
 
         if not analysis or not analysis.strip():
@@ -2547,7 +2547,7 @@ def analyze_period_with_ai(venue_key, period_key):
                 'error': 'Gemini вернул пустой ответ. Попробуйте позже.'
             }), 500
 
-        print(f"[AI ANALYSIS] ✅ Анализ сгенерирован успешно")
+        print(f"[AI ANALYSIS] OK: Анализ сгенерирован успешно")
 
         return jsonify({
             'success': True,
@@ -2567,78 +2567,55 @@ def _prepare_analysis_text(data, venue_key, period_key):
     if data.empty:
         return "Нет данных"
 
-    # Базовая статистика
-    text = f"Заведение: {venue_key}\nПериод: {period_key}\n"
-    text += "=" * 50 + "\n\n"
+    try:
+        # Базовая статистика
+        text = f"Заведение: {venue_key}\nПериод: {period_key}\n"
+        text += "=" * 50 + "\n\n"
 
-    # Общие показатели
-    total_qty = int(data['TotalQty'].sum())
-    total_revenue = int(data['TotalRevenue'].sum())
-    avg_check = total_revenue / total_qty if total_qty > 0 else 0
+        # Общие показатели
+        total_qty = int(data['TotalQty'].sum())
+        total_revenue = int(data['TotalRevenue'].sum())
+        avg_check = total_revenue / total_qty if total_qty > 0 else 0
 
-    text += f"📊 ОБЩИЕ ПОКАЗАТЕЛИ:\n"
-    text += f"- Всего продано: {total_qty} шт\n"
-    text += f"- Общая выручка: {total_revenue}₽\n"
-    text += f"- Средний чек: {avg_check:.0f}₽\n"
-    text += f"- Ассортимент: {len(data)} наименований\n\n"
+        text += "ОБЩИЕ ПОКАЗАТЕЛИ:\n"
+        text += f"- Всего продано: {total_qty} шт\n"
+        text += f"- Общая выручка: {total_revenue}р\n"
+        text += f"- Средний чек: {avg_check:.0f}р\n"
+        text += f"- Ассортимент: {len(data)} наименований\n\n"
 
-    # Топ 10 по выручке
-    text += f"🥇 ТОП 10 ПО ВЫРУЧКЕ:\n"
-    top_revenue = data.nlargest(10, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
-    revenue_sum = top_revenue['TotalRevenue'].sum()
-    revenue_share = (revenue_sum / total_revenue * 100) if total_revenue > 0 else 0
-    text += f"(Доля в выручке: {revenue_share:.1f}%)\n"
+        # Топ 10 по выручке
+        text += "ТОП 10 ПО ВЫРУЧКЕ:\n"
+        top_revenue = data.nlargest(10, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
+        revenue_sum = top_revenue['TotalRevenue'].sum()
+        revenue_share = (revenue_sum / total_revenue * 100) if total_revenue > 0 else 0
+        text += f"(Доля в выручке: {revenue_share:.1f}%)\n"
 
-    for idx, row in top_revenue.iterrows():
-        markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
-        item_share = (row['TotalRevenue'] / total_revenue * 100) if total_revenue > 0 else 0
-        text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}₽ ({item_share:.1f}%, наценка {markup_pct:.0f}%)\n"
+        for idx, row in top_revenue.iterrows():
+            markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
+            item_share = (row['TotalRevenue'] / total_revenue * 100) if total_revenue > 0 else 0
+            text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}р ({item_share:.1f}%, наценка {markup_pct:.0f}%)\n"
 
-    # Аутсайдеры (низкая выручка)
-    text += f"\n⚠️ АУТСАЙДЕРЫ (низкая выручка):\n"
-    bottom_revenue = data.nsmallest(5, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
-    for idx, row in bottom_revenue.iterrows():
-        markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
-        text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}₽ (наценка {markup_pct:.0f}%)\n"
+        # Аутсайдеры (низкая выручка)
+        text += "\nАУТСАЙДЕРЫ (низкая выручка):\n"
+        bottom_revenue = data.nsmallest(5, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
+        for idx, row in bottom_revenue.iterrows():
+            markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
+            text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}р (наценка {markup_pct:.0f}%)\n"
 
-    # Статистика наценки
-    text += f"\n💰 АНАЛИЗ НАЦЕНОК:\n"
-    markup_values = data['AvgMarkupPercent'].dropna() * 100
-    if not markup_values.empty:
-        text += f"- Минимальная: {markup_values.min():.0f}%\n"
-        text += f"- Средняя: {markup_values.mean():.0f}%\n"
-        text += f"- Максимальная: {markup_values.max():.0f}%\n"
+        # Статистика наценки
+        text += "\nАНАЛИЗ НАЦЕНОК:\n"
+        markup_values = data['AvgMarkupPercent'].dropna() * 100
+        if not markup_values.empty:
+            text += f"- Минимальная: {markup_values.min():.0f}%\n"
+            text += f"- Средняя: {markup_values.mean():.0f}%\n"
+            text += f"- Максимальная: {markup_values.max():.0f}%\n"
 
-        # Товары с высокой наценкой
-        high_markup = data[data['AvgMarkupPercent'] * 100 > markup_values.mean() + 10].nlargest(3, 'TotalRevenue')
-        if not high_markup.empty:
-            text += f"  └─ Высокая наценка ({markup_values.mean() + 10:.0f}%+):\n"
-            for idx, row in high_markup.iterrows():
-                markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
-                text += f"    • {row['Beer']}: {int(row['TotalRevenue'])}₽ ({markup_pct:.0f}%)\n"
+        return text
 
-        # Товары с низкой наценкой
-        low_markup = data[data['AvgMarkupPercent'] * 100 < markup_values.mean() - 10].nlargest(3, 'TotalRevenue')
-        if not low_markup.empty:
-            text += f"  └─ Низкая наценка ({markup_values.mean() - 10:.0f}%-)\n"
-            for idx, row in low_markup.iterrows():
-                markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
-                text += f"    • {row['Beer']}: {int(row['TotalRevenue'])}₽ ({markup_pct:.0f}%)\n"
-
-    # ABC анализ по выручке
-    text += f"\n📈 ABC АНАЛИЗ ПО ВЫРУЧКЕ:\n"
-    cumulative_revenue = data.sort_values('TotalRevenue', ascending=False)['TotalRevenue'].cumsum() / total_revenue
-    a_items = len(data[data.sort_values('TotalRevenue', ascending=False)['TotalRevenue'].cumsum() / total_revenue <= 0.8])
-    b_items = len(data) - a_items - len(data[cumulative_revenue <= 0.95])
-    c_items = len(data) - a_items - b_items
-
-    text += f"- A (80% выручки): {a_items} товаров\n"
-    text += f"- B (15% выручки): {b_items} товаров\n"
-    text += f"- C (5% выручки): {c_items} товаров\n"
-
-    text += "\n" + "=" * 50
-
-    return text
+    except Exception as e:
+        print(f"[PREPARE_TEXT ERROR] {e}")
+        print(f"[PREPARE_TEXT] Доступные колонки: {list(data.columns)}")
+        return f"Ошибка подготовки данных: {str(e)}"
 
 
 # ============================================================================
