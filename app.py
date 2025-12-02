@@ -2526,7 +2526,7 @@ def analyze_period_with_ai(venue_key, period_key):
 
         # Запрашиваем анализ у Gemini
         model = genai.GenerativeModel(
-            'gemini-2.5-pro',
+            'gemini-2.0-flash-exp',  # Используем Flash модель - быстрее и доступнее
             system_instruction="""Ты — опытный финансовый аналитик сети пивных баров "Культура" с 15-летним опытом в HoReCa бизнесе.
 
 Специализация:
@@ -2605,9 +2605,24 @@ def analyze_period_with_ai(venue_key, period_key):
 
     except Exception as e:
         try:
-            print(f"[AI ANALYSIS ERROR] Exception: {type(e).__name__}")
+            error_type = type(e).__name__
+            print(f"[AI ANALYSIS ERROR] Exception: {error_type}")
+
+            # Специальная обработка для ResourceExhausted (превышение квоты API)
+            if 'ResourceExhausted' in error_type or 'RESOURCE_EXHAUSTED' in str(e):
+                return jsonify({
+                    'error': 'Превышен лимит запросов к Gemini API. Попробуйте через несколько минут.'
+                }), 429
+
+            # Обработка других ошибок квоты
+            if 'quota' in str(e).lower() or 'rate limit' in str(e).lower():
+                return jsonify({
+                    'error': 'Превышен лимит запросов к Gemini API. Попробуйте через несколько минут.'
+                }), 429
+
         except:
             print("[AI ANALYSIS ERROR] Exception occurred")
+
         return jsonify({'error': 'Ошибка при генерации анализа. Попробуйте позже.'}), 500
 
 
