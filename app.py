@@ -43,13 +43,22 @@ venues_manager = VenuesManager()
 
 # Инициализируем Gemini API
 try:
-    # Читаем API ключ из файла
-    with open('апи', 'r', encoding='utf-8') as f:
-        GEMINI_API_KEY = f.read().strip()
+    # Сначала пытаемся получить из переменной окружения (для Render)
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+
+    if GEMINI_API_KEY:
+        print("[GEMINI] API ключ загружен из переменной окружения")
+    else:
+        # Если нет в env, читаем из файла (для локальной разработки)
+        with open('апи', 'r', encoding='utf-8') as f:
+            GEMINI_API_KEY = f.read().strip()
+        print("[GEMINI] API ключ загружен из файла")
+
     genai.configure(api_key=GEMINI_API_KEY)
-    print("[GEMINI] API ключ загружен из файла успешно")
+    print("[GEMINI] API инициализирован успешно")
 except FileNotFoundError:
-    print("[GEMINI ERROR] Файл 'апи' не найден. Создайте файл с API ключом.")
+    print("[GEMINI ERROR] Файл 'апи' не найден и переменная окружения GEMINI_API_KEY не установлена.")
+    print("[GEMINI ERROR] Установите переменную окружения или создайте файл 'апи' с API ключом.")
     GEMINI_API_KEY = None
 except Exception as e:
     print(f"[GEMINI ERROR] Ошибка инициализации: {e}")
