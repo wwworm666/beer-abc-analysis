@@ -23,6 +23,11 @@ from dashboardNovaev.backend.export_manager import ExportManager
 
 app = Flask(__name__)
 
+# Кэш для AI анализов (чтобы не превышать квоту Gemini API)
+# Формат: {(venue_key, period_key): {'analysis': str, 'timestamp': float}}
+AI_ANALYSIS_CACHE = {}
+AI_CACHE_TTL = 3600  # 1 час
+
 # Инициализируем менеджер кранов
 # Если на Render (есть диск /kultura), используем его для постоянного хранения
 # Иначе используем локальную папку data/
@@ -2474,6 +2479,26 @@ def analyze_period_with_ai(venue_key, period_key):
         JSON: {'analysis': 'текст анализа'}
     """
     try:
+        # Проверяем кэш
+        cache_key = (venue_key, period_key)
+        current_time = time.time()
+
+        if cache_key in AI_ANALYSIS_CACHE:
+            cached = AI_ANALYSIS_CACHE[cache_key]
+            age = current_time - cached['timestamp']
+
+            if age < AI_CACHE_TTL:
+                print(f"[AI ANALYSIS] Возврат из кэша (возраст: {int(age)}с)")
+                return jsonify({
+                    'success': True,
+                    'analysis': cached['analysis'],
+                    'from_cache': True
+                })
+            else:
+                # Устаревший кэш, удаляем
+                del AI_ANALYSIS_CACHE[cache_key]
+                print("[AI ANALYSIS] Кэш устарел, генерируем заново")
+
         # Проверяем, что API ключ загружен
         if not GEMINI_API_KEY:
             print("[AI ANALYSIS ERROR] Gemini API ключ не установлен")
@@ -2597,6 +2622,13 @@ def analyze_period_with_ai(venue_key, period_key):
             print(f"[AI ANALYSIS] OK: Analysis generated, length={len(analysis)}")
         except:
             pass  # Ignore encoding errors in logging
+
+        # Сохраняем в кэш
+        AI_ANALYSIS_CACHE[cache_key] = {
+            'analysis': analysis,
+            'timestamp': current_time
+        }
+        print(f"[AI ANALYSIS] Сохранено в кэш (ключ: {cache_key})")
 
         return jsonify({
             'success': True,
