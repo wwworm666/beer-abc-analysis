@@ -4,6 +4,7 @@ import json
 import os
 import time
 from datetime import datetime, timedelta
+import google.generativeai as genai
 from core.olap_reports import OlapReports
 from core.data_processor import BeerDataProcessor
 from core.abc_analysis import ABCAnalysis
@@ -39,6 +40,14 @@ plans_manager = PlansManager()
 
 # Инициализируем менеджер заведений
 venues_manager = VenuesManager()
+
+# Инициализируем Gemini API
+GEMINI_API_KEY = 'AIzaSyC2tY2Zg7irNM42s_0nvNdLVeCDG-Z7Wgs'
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("[GEMINI] API ключ загружен успешно")
+except Exception as e:
+    print(f"[GEMINI ERROR] Ошибка инициализации: {e}")
 
 # Кэш для номенклатуры (15 минут TTL)
 nomenclature_cache = {
@@ -2434,6 +2443,214 @@ def save_comment(venue_key, period_key):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/analyze-period/<venue_key>/<path:period_key>', methods=['GET'])
+def analyze_period_with_ai(venue_key, period_key):
+    """
+    Сгенерировать AI анализ для периода с использованием Gemini
+
+    Args:
+        venue_key: Ключ заведения
+        period_key: Ключ периода (формат: YYYY-MM-DD_YYYY-MM-DD или просто YYYY-MM-DD)
+
+    Returns:
+        JSON: {'analysis': 'текст анализа'}
+    """
+    try:
+        print(f"\n[AI ANALYSIS] Генерация анализа для {venue_key} / {period_key}")
+
+        # Парсим period_key
+        if '_' in period_key:
+            # Формат: YYYY-MM-DD_YYYY-MM-DD
+            date_parts = period_key.split('_')
+            date_from = date_parts[0]
+            date_to = date_parts[1]
+        else:
+            # Формат: YYYY-MM-DD (неделя)
+            period_date = datetime.strptime(period_key, '%Y-%m-%d')
+            end_date = period_date + timedelta(days=6)
+            date_from = period_date.strftime('%Y-%m-%d')
+            date_to = end_date.strftime('%Y-%m-%d')
+
+        print(f"[AI ANALYSIS] Загрузка данных: {date_from} - {date_to}")
+
+        # Подключаемся к iiko API и получаем данные
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            # Запрашиваем данные для заведения (bar_name = None для всех баров)
+            report_data = olap.get_beer_sales_report(date_from, date_to, None)
+        finally:
+            olap.disconnect()
+
+        if not report_data or not report_data.get('data'):
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        # Обрабатываем данные
+        processor = BeerDataProcessor(report_data)
+        if not processor.prepare_dataframe():
+            return jsonify({'error': 'Ошибка обработки данных'}), 500
+
+        data = processor.aggregate_by_beer_and_bar()
+
+        # Подготавливаем текст для анализа
+        analysis_text = _prepare_analysis_text(data, venue_key, period_key)
+
+        print(f"[AI ANALYSIS] Отправка запроса в Gemini...")
+
+        # Запрашиваем анализ у Gemini
+        model = genai.GenerativeModel(
+            'gemini-2.0-flash',
+            system_instruction="""Ты — опытный финансовый аналитик сети пивных баров "Культура" с 15-летним опытом в HoReCa бизнесе.
+
+Специализация:
+- Пиво на розлив (основной доход)
+- Фасованное пиво (высокая маржа)
+- Кухня: снеки, колбасы, закуски
+
+Твой стиль анализа:
+- Конкретные цифры в рублях и штуках
+- Измеримые рекомендации с расчётом финансового эффекта
+- Приоритизация по срочности и влиянию на выручку
+- Практичные инсайты без воды"""
+        )
+
+        prompt = f"""ГЛУБОКИЙ АНАЛИЗ ПЕРИОДА ПРОДАЖ ПИВА
+
+ИСХОДНЫЕ ДАННЫЕ:
+{analysis_text}
+
+ТРЕБУЕМАЯ СТРУКТУРА АНАЛИЗА:
+
+🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ (если есть)
+Для каждой проблемы указать:
+- Конкретное отклонение (цифры в ₽ и %)
+- Финансовое влияние (потери)
+- Вероятная причина
+- Взаимосвязь с другими метриками
+
+💡 ПРИОРИТИЗИРОВАННЫЕ ДЕЙСТВИЯ
+Для каждого действия:
+- Конкретное действие (что именно делать)
+- Ожидаемый финансовый эффект (% или ₽)
+- Зона ответственности (персонал/менеджмент/закупки)
+- Срочность (сегодня/неделю/месяц)
+
+📊 СКРЫТЫЕ ЗАКОНОМЕРНОСТИ
+- Какие товары/категории коррелируют в продажах
+- Неочевидные взаимосвязи между наценками и объёмами
+- Паттерны и тренды в данных
+
+📈 ВОЗМОЖНОСТИ РОСТА
+- На сколько % можно нарастить выручку за счёт топ-товаров
+- Упущенные возможности по оптимизации наценок
+- Пути расширения ассортимента
+
+ФОРМАТИРОВАНИЕ:
+- Максимум 1200 символов
+- Все суммы в рублях, объёмы в штуках
+- Используй эмодзи для чёткой структуры
+- Только практичные выводы, без общих фраз
+- Начинай с самого важного"""
+
+        response = model.generate_content(prompt)
+        analysis = response.text
+
+        print(f"[AI ANALYSIS] Анализ сгенерирован успешно")
+
+        return jsonify({
+            'success': True,
+            'analysis': analysis
+        })
+
+    except Exception as e:
+        print(f"[AI ANALYSIS ERROR] Ошибка при генерации анализа: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+def _prepare_analysis_text(data, venue_key, period_key):
+    """Подготовить детальный текст данных для передачи в AI"""
+
+    if data.empty:
+        return "Нет данных"
+
+    # Базовая статистика
+    text = f"Заведение: {venue_key}\nПериод: {period_key}\n"
+    text += "=" * 50 + "\n\n"
+
+    # Общие показатели
+    total_qty = int(data['TotalQty'].sum())
+    total_revenue = int(data['TotalRevenue'].sum())
+    avg_check = total_revenue / total_qty if total_qty > 0 else 0
+
+    text += f"📊 ОБЩИЕ ПОКАЗАТЕЛИ:\n"
+    text += f"- Всего продано: {total_qty} шт\n"
+    text += f"- Общая выручка: {total_revenue}₽\n"
+    text += f"- Средний чек: {avg_check:.0f}₽\n"
+    text += f"- Ассортимент: {len(data)} наименований\n\n"
+
+    # Топ 10 по выручке
+    text += f"🥇 ТОП 10 ПО ВЫРУЧКЕ:\n"
+    top_revenue = data.nlargest(10, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
+    revenue_sum = top_revenue['TotalRevenue'].sum()
+    revenue_share = (revenue_sum / total_revenue * 100) if total_revenue > 0 else 0
+    text += f"(Доля в выручке: {revenue_share:.1f}%)\n"
+
+    for idx, row in top_revenue.iterrows():
+        markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
+        item_share = (row['TotalRevenue'] / total_revenue * 100) if total_revenue > 0 else 0
+        text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}₽ ({item_share:.1f}%, наценка {markup_pct:.0f}%)\n"
+
+    # Аутсайдеры (низкая выручка)
+    text += f"\n⚠️ АУТСАЙДЕРЫ (низкая выручка):\n"
+    bottom_revenue = data.nsmallest(5, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
+    for idx, row in bottom_revenue.iterrows():
+        markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
+        text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}₽ (наценка {markup_pct:.0f}%)\n"
+
+    # Статистика наценки
+    text += f"\n💰 АНАЛИЗ НАЦЕНОК:\n"
+    markup_values = data['AvgMarkupPercent'].dropna() * 100
+    if not markup_values.empty:
+        text += f"- Минимальная: {markup_values.min():.0f}%\n"
+        text += f"- Средняя: {markup_values.mean():.0f}%\n"
+        text += f"- Максимальная: {markup_values.max():.0f}%\n"
+
+        # Товары с высокой наценкой
+        high_markup = data[data['AvgMarkupPercent'] * 100 > markup_values.mean() + 10].nlargest(3, 'TotalRevenue')
+        if not high_markup.empty:
+            text += f"  └─ Высокая наценка ({markup_values.mean() + 10:.0f}%+):\n"
+            for idx, row in high_markup.iterrows():
+                markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
+                text += f"    • {row['Beer']}: {int(row['TotalRevenue'])}₽ ({markup_pct:.0f}%)\n"
+
+        # Товары с низкой наценкой
+        low_markup = data[data['AvgMarkupPercent'] * 100 < markup_values.mean() - 10].nlargest(3, 'TotalRevenue')
+        if not low_markup.empty:
+            text += f"  └─ Низкая наценка ({markup_values.mean() - 10:.0f}%-)\n"
+            for idx, row in low_markup.iterrows():
+                markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
+                text += f"    • {row['Beer']}: {int(row['TotalRevenue'])}₽ ({markup_pct:.0f}%)\n"
+
+    # ABC анализ по выручке
+    text += f"\n📈 ABC АНАЛИЗ ПО ВЫРУЧКЕ:\n"
+    cumulative_revenue = data.sort_values('TotalRevenue', ascending=False)['TotalRevenue'].cumsum() / total_revenue
+    a_items = len(data[data.sort_values('TotalRevenue', ascending=False)['TotalRevenue'].cumsum() / total_revenue <= 0.8])
+    b_items = len(data) - a_items - len(data[cumulative_revenue <= 0.95])
+    c_items = len(data) - a_items - b_items
+
+    text += f"- A (80% выручки): {a_items} товаров\n"
+    text += f"- B (15% выручки): {b_items} товаров\n"
+    text += f"- C (5% выручки): {c_items} товаров\n"
+
+    text += "\n" + "=" * 50
+
+    return text
 
 
 # ============================================================================
