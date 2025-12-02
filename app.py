@@ -42,12 +42,18 @@ plans_manager = PlansManager()
 venues_manager = VenuesManager()
 
 # Инициализируем Gemini API
-GEMINI_API_KEY = 'AIzaSyC2tY2Zg7irNM42s_0nvNdLVeCDG-Z7Wgs'
 try:
+    # Читаем API ключ из файла
+    with open('апи', 'r', encoding='utf-8') as f:
+        GEMINI_API_KEY = f.read().strip()
     genai.configure(api_key=GEMINI_API_KEY)
-    print("[GEMINI] API ключ загружен успешно")
+    print("[GEMINI] API ключ загружен из файла успешно")
+except FileNotFoundError:
+    print("[GEMINI ERROR] Файл 'апи' не найден. Создайте файл с API ключом.")
+    GEMINI_API_KEY = None
 except Exception as e:
     print(f"[GEMINI ERROR] Ошибка инициализации: {e}")
+    GEMINI_API_KEY = None
 
 # Кэш для номенклатуры (15 минут TTL)
 nomenclature_cache = {
