@@ -2551,7 +2551,7 @@ def analyze_period_with_ai(venue_key, period_key):
 
         # Запрашиваем анализ у Gemini
         model = genai.GenerativeModel(
-            'gemini-2.5-pro',
+            'gemini-2.5-flash',
             system_instruction="""Ты — опытный финансовый аналитик сети пивных баров "Культура" с 15-летним опытом в HoReCa бизнесе.
 
 Специализация:
