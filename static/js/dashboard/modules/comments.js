@@ -41,10 +41,10 @@ class CommentsManager {
             this.handleSaveComment();
         });
 
-        // Генерация AI анализа обрабатывается через comment_section.html inline скрипт
-        // document.getElementById('btn-generate-ai-comment')?.addEventListener('click', () => {
-        //     this.handleGenerateAIAnalysis();
-        // });
+        // Генерация AI анализа
+        document.getElementById('btn-generate-ai-comment')?.addEventListener('click', () => {
+            this.handleGenerateAIAnalysis();
+        });
     }
 
     /**
