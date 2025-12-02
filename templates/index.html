@@ -1174,6 +1174,7 @@
                                     <th>Стиль</th>
                                     <th>Кол-во</th>
                                     <th>Выручка</th>
+                                    <th>Себес. за ед.</th>
                                     <th>Наценка %</th>
                                     ${hasXYZ ? '<th>XYZ</th>' : ''}
                                     ${hasXYZ ? '<th>Вариация</th>' : ''}
@@ -1194,6 +1195,7 @@
                                             <td>${beer.Style || '—'}</td>
                                             <td>${formatNumber(beer.TotalQty)}</td>
                                             <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>${formatMoney(beer.CostPerUnit || 0)}</td>
                                             <td>${(beer.AvgMarkupPercent * 100).toFixed(1)}%</td>
                                             ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
                                             ${hasXYZ ? `<td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>` : ''}
@@ -1204,7 +1206,7 @@
                                             </td>
                                         </tr>
                                         <tr id="chart-row-${safeId}" style="display: none;">
-                                            <td colspan="${hasBarColumn ? (hasXYZ ? 10 : 8) : (hasXYZ ? 9 : 7)}">
+                                            <td colspan="${hasBarColumn ? (hasXYZ ? 11 : 9) : (hasXYZ ? 10 : 8)}">
                                                 <div class="chart-container">
                                                     <canvas id="chart-${safeId}"></canvas>
                                                 </div>
@@ -1261,6 +1263,7 @@
                                     <th>Вариация</th>
                                     <th>Кол-во</th>
                                     <th>Выручка</th>
+                                    <th>Себес. за ед.</th>
                                     <th>График</th>
                                 </tr>
                             </thead>
@@ -1279,6 +1282,7 @@
                                             <td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>
                                             <td>${formatNumber(beer.TotalQty)}</td>
                                             <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>${formatMoney(beer.CostPerUnit || 0)}</td>
                                             <td>
                                                 <span class="chart-icon" onclick='showWeeklyChart(event, "${beerBar}", ${JSON.stringify(beer.Beer)}, "${safeId}")'>
                                                     📊
@@ -1286,7 +1290,7 @@
                                             </td>
                                         </tr>
                                         <tr id="chart-row-${safeId}" style="display: none;">
-                                            <td colspan="${hasBarColumn ? 8 : 7}">
+                                            <td colspan="${hasBarColumn ? 9 : 8}">
                                                 <div class="chart-container">
                                                     <canvas id="chart-${safeId}"></canvas>
                                                 </div>

@@ -44,7 +44,9 @@
       "Bash(cmd /c \"taskkill /F /PID 29208\")",
       "Bash(powershell -Command:*)",
       "Bash(find:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(start /B python:*)",
+      "Bash(product_fields_report.txt)"
     ],
     "deny": [],
     "ask": []

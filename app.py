@@ -225,17 +225,17 @@ def analyze():
             # Объединяем ABC и XYZ
             if not abc_result.empty and not xyz_result.empty:
                 combined = abc_result.merge(
-                    xyz_result[['Beer', 'XYZ_Category', 'CoefficientOfVariation']], 
-                    on='Beer', 
+                    xyz_result[['Beer', 'XYZ_Category', 'CoefficientOfVariation']],
+                    on='Beer',
                     how='left'
                 )
                 # Заполняем пустые XYZ как Z (нестабильные)
                 combined['XYZ_Category'].fillna('Z', inplace=True)
                 combined['CoefficientOfVariation'].fillna(100, inplace=True)
-                
+
                 # Полная категория ABC-XYZ
                 combined['ABCXYZ_Combined'] = combined['ABC_Combined'] + '-' + combined['XYZ_Category']
-                
+
                 results = {bar_name: combined}
             else:
                 results = {bar_name: abc_result}
@@ -276,6 +276,7 @@ def analyze():
                     'TotalRevenue': 'sum',
                     'TotalCost': 'sum',
                     'TotalMargin': 'sum',
+                    'CostPerUnit': 'max',  # Берём актуальную себестоимость единицы
                     'AvgMarkupPercent': 'max',  # Берём максимальную наценку по всем барам
                 }).reset_index()
 

@@ -458,6 +458,7 @@ class OlapReports:
                 "DishDiscountSumInt",
                 "DiscountSum",  # Сумма скидки (для списаний баллов)
                 "ProductCostBase.ProductCost",
+                "ProductCostBase.OneItem",  # Себестоимость единицы товара
                 "ProductCostBase.MarkUp"
             ],
             "filters": {
@@ -529,6 +530,7 @@ class OlapReports:
                 "DishDiscountSumInt",
                 "DiscountSum",  # Сумма скидки (для списаний баллов)
                 "ProductCostBase.ProductCost",
+                "ProductCostBase.OneItem",  # Себестоимость единицы товара
                 "ProductCostBase.MarkUp"
             ],
             "filters": {
