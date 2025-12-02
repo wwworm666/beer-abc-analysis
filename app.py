@@ -2474,6 +2474,13 @@ def analyze_period_with_ai(venue_key, period_key):
         JSON: {'analysis': 'текст анализа'}
     """
     try:
+        # Проверяем, что API ключ загружен
+        if not GEMINI_API_KEY:
+            print("[AI ANALYSIS ERROR] Gemini API ключ не установлен")
+            return jsonify({
+                'error': 'Gemini API не настроен. Установите переменную окружения GEMINI_API_KEY или создайте файл "апи".'
+            }), 503
+
         print(f"\n[AI ANALYSIS] Генерация анализа для {venue_key} / {period_key}")
 
         # Парсим period_key
