@@ -1,0 +1,245 @@
+================================================================================
+ДОСТУПНЫЕ ПОЛЯ ТОВАРА/БЛЮДА В iiko OLAP API (SALES)
+================================================================================
+
+
+[Основная информация о блюде] (5 полей)
+--------------------------------------------------------------------------------
+  Блюдо
+    API: DishName
+    Тип: STRING [GROUP, FILTER]
+
+  Единица измерения
+    API: DishMeasureUnit
+    Тип: STRING [GROUP, FILTER]
+
+  Наименование блюда на иностранном языке
+    API: DishForeignName
+    Тип: STRING [GROUP, FILTER]
+
+  Полное наименование блюда
+    API: DishFullName
+    Тип: STRING [GROUP, FILTER]
+
+  Тип товара
+    API: DishType
+    Тип: ENUM [GROUP, FILTER]
+
+
+[Группы и категории] (15 полей)
+--------------------------------------------------------------------------------
+  ID Шага Комбо
+    API: ItemSaleEventDiscountType.ComboGroupId
+    Тип: ID_STRING [GROUP, FILTER]
+
+  ID бухгалтерской категории блюда
+    API: DishCategory.Accounting.Id
+    Тип: ID [GROUP, FILTER]
+
+  ID группы блюда
+    API: DishGroup.Id
+    Тип: ID [GROUP, FILTER]
+
+  ID категории блюда
+    API: DishCategory.Id
+    Тип: ID_STRING [GROUP, FILTER]
+
+  ID налоговой категории
+    API: DishTaxCategory.Id
+    Тип: ID [GROUP, FILTER]
+
+  Бухгалтерская категория блюда
+    API: DishCategory.Accounting
+    Тип: STRING [GROUP, FILTER]
+
+  Группа блюда
+    API: DishGroup
+    Тип: STRING [GROUP, FILTER]
+
+  Группа блюда 1-го уровня
+    API: DishGroup.TopParent
+    Тип: STRING [GROUP, FILTER]
+
+  Группа блюда 2-го уровня
+    API: DishGroup.SecondParent
+    Тип: STRING [GROUP, FILTER]
+
+  Группа блюда 3-го уровня
+    API: DishGroup.ThirdParent
+    Тип: STRING [GROUP, FILTER]
+
+  Иерархия блюда
+    API: DishGroup.Hierarchy
+    Тип: STRING [GROUP, FILTER]
+
+  Категория блюда
+    API: DishCategory
+    Тип: STRING [GROUP, FILTER]
+
+  Код группы блюда
+    API: DishGroup.Num
+    Тип: STRING [GROUP, FILTER]
+
+  Налоговая категория
+    API: DishTaxCategory.Name
+    Тип: STRING [GROUP, FILTER]
+
+  Шаг Комбо
+    API: ItemSaleEventDiscountType.ComboGroupName
+    Тип: STRING [GROUP, FILTER]
+
+
+[Размеры и фасовки] (8 полей)
+--------------------------------------------------------------------------------
+  ID размера Комбо
+    API: ItemSaleEventDiscountType.ComboSizeId
+    Тип: ID_STRING [GROUP, FILTER]
+
+  ID размера блюда
+    API: DishSize.Id
+    Тип: ID_STRING [GROUP, FILTER]
+
+  ID шкалы размеров блюда
+    API: DishSize.Scale.Id
+    Тип: ID [GROUP, FILTER]
+
+  Код размера блюда
+    API: DishSize.ShortName
+    Тип: STRING [GROUP, FILTER]
+
+  Порядковый номер размера блюда
+    API: DishSize.Priority
+    Тип: INTEGER [GROUP, FILTER]
+
+  Размер Комбо
+    API: ItemSaleEventDiscountType.ComboSizeName
+    Тип: STRING [GROUP, FILTER]
+
+  Размер блюда
+    API: DishSize.Name
+    Тип: STRING [GROUP, FILTER]
+
+  Шкала размеров блюда
+    API: DishSize.Scale.Name
+    Тип: STRING [GROUP, FILTER]
+
+
+[Цены и финансы] (5 полей)
+--------------------------------------------------------------------------------
+  ID Комбо
+    API: ItemSaleEventDiscountType.ComboId
+    Тип: ID_STRING [GROUP, FILTER]
+
+  Колич. блюд со скидкой
+    API: ItemSaleEventDiscountType.DiscountAmount
+    Тип: AMOUNT [AGG]
+
+  Количество Комбо
+    API: ItemSaleEventDiscountType.ComboAmount
+    Тип: INTEGER [AGG]
+
+  Название Комбо
+    API: ItemSaleEventDiscountType.ComboName
+    Тип: STRING [GROUP, FILTER]
+
+  Наименование скидки, надбавки
+    API: ItemSaleEventDiscountType
+    Тип: STRING [GROUP, FILTER]
+
+
+[Себестоимость и наценка] (6 полей)
+--------------------------------------------------------------------------------
+  Наценка
+    API: ProductCostBase.Profit
+    Тип: MONEY [AGG]
+
+  Наценка(%)
+    API: ProductCostBase.MarkUp
+    Тип: PERCENT [AGG]
+
+  Себестоимость
+    API: ProductCostBase.ProductCost
+    Тип: MONEY [AGG]
+
+  Себестоимость без НДС(%)
+    API: ProductCostBase.PercentWithoutVAT
+    Тип: PERCENT [AGG]
+
+  Себестоимость единицы
+    API: ProductCostBase.OneItem
+    Тип: MONEY [AGG]
+
+  Себестоимость(%)
+    API: ProductCostBase.Percent
+    Тип: PERCENT [AGG]
+
+
+[Идентификаторы] (3 полей)
+--------------------------------------------------------------------------------
+  ID блюда
+    API: DishId
+    Тип: ID_STRING [GROUP, FILTER]
+
+  ID основного блюда
+    API: SoldWithDish.Id
+    Тип: ID_STRING [GROUP, FILTER]
+
+  ID пользовательского свойства
+    API: DishTag.Id
+    Тип: ID [GROUP, FILTER]
+
+
+[Коды] (2 полей)
+--------------------------------------------------------------------------------
+  Код блюда
+    API: DishCode
+    Тип: STRING [GROUP, FILTER]
+
+  Код быстрого набора блюда
+    API: DishCode.Quick
+    Тип: STRING [GROUP, FILTER]
+
+
+[Пользовательские свойства и теги] (3 полей)
+--------------------------------------------------------------------------------
+  ID пользовательских свойств (комб.)
+    API: DishTags.IdsCombo
+    Тип: STRING [GROUP, FILTER]
+
+  Пользовательские свойства (комб.)
+    API: DishTags.NamesCombo
+    Тип: STRING [GROUP, FILTER]
+
+  Пользовательское свойство
+    API: DishTag.Name
+    Тип: STRING [GROUP, FILTER]
+
+
+[Состав и комбо] (1 полей)
+--------------------------------------------------------------------------------
+  Продано с блюдом
+    API: SoldWithDish
+    Тип: STRING [GROUP, FILTER]
+
+
+[Время приготовления] (1 полей)
+--------------------------------------------------------------------------------
+  Тип места приготовления
+    API: CookingPlaceType
+    Тип: STRING [GROUP, FILTER]
+
+
+[Прочее] (1 полей)
+--------------------------------------------------------------------------------
+  Блюдо удалено
+    API: DeletedWithWriteoff
+    Тип: ENUM [GROUP, FILTER]
+
+================================================================================
+ИТОГО: 50 полей, связанных с товаром/блюдом
+================================================================================
+
+Легенда:
+  AGG    - поддерживает агрегацию (суммирование)
+  GROUP  - поддерживает группировку
+  FILTER - поддерживает фильтрацию

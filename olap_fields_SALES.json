@@ -1,0 +1,2897 @@
+{
+  "PercentOfSummary.ByCol": {
+    "name": "% по столбцу",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "PercentOfSummary.ByRow": {
+    "name": "% по строке",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "CloseTime.Minutes15": {
+    "name": "15-минутный интервал закрытия",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "OpenTime.Minutes15": {
+    "name": "15-минутный интервал открытия",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboId": {
+    "name": "ID Комбо",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboGroupId": {
+    "name": "ID Шага Комбо",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "AuthUser.Id": {
+    "name": "ID авторизовавшего",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "DishId": {
+    "name": "ID блюда",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "WaiterTeam.Id": {
+    "name": "ID бригады официантов",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ",
+      "Сотрудники"
+    ]
+  },
+  "DishCategory.Accounting.Id": {
+    "name": "ID бухгалтерской категории блюда",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "GroupOrderId": {
+    "name": "ID группового заказа",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "RestorauntGroup.Id": {
+    "name": "ID группы",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "DishGroup.Id": {
+    "name": "ID группы блюда",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.Id": {
+    "name": "ID доставки",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "UniqOrderId.Id": {
+    "name": "ID заказа",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "SourceOrderId": {
+    "name": "ID заказа-источника",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Cashier.Id": {
+    "name": "ID кассира",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "SessionID": {
+    "name": "ID кассовой смены",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "DishCategory.Id": {
+    "name": "ID категории блюда",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.Courier.Id": {
+    "name": "ID курьера",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "CookingPlace.Id": {
+    "name": "ID места приготовления",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "DishTaxCategory.Id": {
+    "name": "ID налоговой категории",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.DeliveryOperator.Id": {
+    "name": "ID оператора доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "SoldWithDish.Id": {
+    "name": "ID основного блюда",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "RestaurantSection.Id": {
+    "name": "ID отделения",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "WaiterName.ID": {
+    "name": "ID официанта блюда",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "OrderWaiter.Id": {
+    "name": "ID официанта заказа",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ",
+      "Сотрудники"
+    ]
+  },
+  "Department.Id": {
+    "name": "ID подразделения",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "ItemSaleEvent.Id": {
+    "name": "ID позиции заказа",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "SoldWithItem.Id": {
+    "name": "ID позиции заказа основного блюда",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "DishTags.IdsCombo": {
+    "name": "ID пользовательских свойств (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishTag.Id": {
+    "name": "ID пользовательского свойства",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "PaymentTransaction.Id": {
+    "name": "ID проводки оплаты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "PaymentTransaction.Ids": {
+    "name": "ID проводок оплат (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboSizeId": {
+    "name": "ID размера Комбо",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishSize.Id": {
+    "name": "ID размера блюда",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Store.Id": {
+    "name": "ID склада",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "OrderType.Id": {
+    "name": "ID типа заказа",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "PayTypes.GUID": {
+    "name": "ID типа оплаты",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "OrderIncrease.Type.IDs": {
+    "name": "ID типов надбавок",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "OrderDiscount.Type.IDs": {
+    "name": "ID типов скидок",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishSize.Scale.Id": {
+    "name": "ID шкалы размеров блюда",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.Email": {
+    "name": "e-mail доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "AuthUser": {
+    "name": "Авторизовал",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "Delivery.Address": {
+    "name": "Адрес",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Banquet": {
+    "name": "Банкет",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "NonCashPaymentType": {
+    "name": "Безналичный тип оплаты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "DishName": {
+    "name": "Блюдо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DeletedWithWriteoff": {
+    "name": "Блюдо удалено",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "WaiterTeam.Name": {
+    "name": "Бригада официантов",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ",
+      "Сотрудники"
+    ]
+  },
+  "DishCategory.Accounting": {
+    "name": "Бухгалтерская категория блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "CreditUser": {
+    "name": "В кредит на...",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата",
+      "Сотрудники"
+    ]
+  },
+  "Currencies.Currency": {
+    "name": "Валюта оплаты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "CardOwner": {
+    "name": "Владелец карты гостя",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости"
+    ]
+  },
+  "ExternalNumber": {
+    "name": "Внешний номер заказа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Storned": {
+    "name": "Возврат чека",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "OrderTime.PrechequeLength": {
+    "name": "Время в пречеке (мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "Delivery.WayDuration": {
+    "name": "Время в пути(мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "CloseTime": {
+    "name": "Время закрытия",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "Delivery.CloseTime": {
+    "name": "Время закрытия доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "OrderTime.OrderLengthSum": {
+    "name": "Время обсл.сумм.(мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "OrderTime.OrderLength": {
+    "name": "Время обслуживания (мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "Delivery.CookingFinishTime": {
+    "name": "Время окончания приготовления",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка",
+      "Приготовление"
+    ]
+  },
+  "Delivery.PackedTime": {
+    "name": "Время окончания сборки доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "OpenTime": {
+    "name": "Время открытия",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "Delivery.SendTime": {
+    "name": "Время отправки доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "Delivery.PrintTime": {
+    "name": "Время печати доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "Delivery.BillTime": {
+    "name": "Время печати накладной",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "Delivery.ConfirmTime": {
+    "name": "Время подтверждения доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "PrechequeTime": {
+    "name": "Время пречека",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "YearOpen": {
+    "name": "Год",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "Delivery.City": {
+    "name": "Город",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "OrderDiscount.GuestCard": {
+    "name": "Гостевая карта",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "RestorauntGroup": {
+    "name": "Группа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "DishGroup": {
+    "name": "Группа блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishGroup.TopParent": {
+    "name": "Группа блюда 1-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishGroup.SecondParent": {
+    "name": "Группа блюда 2-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishGroup.ThirdParent": {
+    "name": "Группа блюда 3-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "PayTypes.Group": {
+    "name": "Группа оплаты",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.CustomerCreatedDateTyped": {
+    "name": "Дата создания клиента",
+    "type": "DATE",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "DayOfWeekOpen": {
+    "name": "День недели",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "Delivery.Line2": {
+    "name": "Детали адреса",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "DishServicePrintTime.OpenToLastPrintDuration": {
+    "name": "Длит: откр.-посл.серв.печать",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Время"
+    ]
+  },
+  "Delivery.CookingToSendDuration": {
+    "name": "Длит: посл.серв.печать-отправка",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "Delivery.IsDelivery": {
+    "name": "Доставка",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "DishMeasureUnit": {
+    "name": "Единица измерения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Cooking.StartDelayTime.Avg": {
+    "name": "Задержка начала приготовления (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "OrderDeleted": {
+    "name": "Заказ удален",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "UniqOrderId.OrdersCount": {
+    "name": "Заказов",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.Zone": {
+    "name": "Зона доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.ExternalCartographyId": {
+    "name": "Идентификатор адреса",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "DishGroup.Hierarchy": {
+    "name": "Иерархия блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.Index": {
+    "name": "Индекс адреса",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.SourceKey": {
+    "name": "Источник доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "OriginName": {
+    "name": "Источник заказа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.IsAsap": {
+    "name": "Как можно скорее",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Card": {
+    "name": "Карта авторизации",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "CashRegisterName": {
+    "name": "Касса",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "Cashier": {
+    "name": "Кассир",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "Department.Category1": {
+    "name": "Категория 1",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category2": {
+    "name": "Категория 2",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category3": {
+    "name": "Категория 3",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category4": {
+    "name": "Категория 4",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category5": {
+    "name": "Категория 5",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "DishCategory": {
+    "name": "Категория блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "QuarterOpen": {
+    "name": "Квартал",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "DishCode": {
+    "name": "Код блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishCode.Quick": {
+    "name": "Код быстрого набора блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishGroup.Num": {
+    "name": "Код группы блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Conception.Code": {
+    "name": "Код концепции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "Department.Code": {
+    "name": "Код подразделения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "DishSize.ShortName": {
+    "name": "Код размера блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "ItemSaleEventDiscountType.DiscountAmount": {
+    "name": "Колич. блюд со скидкой",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboAmount": {
+    "name": "Количество Комбо",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishAmountInt": {
+    "name": "Количество блюд",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "PayTypes.VoucherNum": {
+    "name": "Количество ваучеров",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "GuestNum": {
+    "name": "Количество гостей",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости"
+    ]
+  },
+  "PayableAmountInt": {
+    "name": "Количество платных блюд",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "OrderComment": {
+    "name": "Комментарий заказа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Comment": {
+    "name": "Комментарий к блюду",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.DeliveryComment": {
+    "name": "Комментарий к доставке",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.CustomerComment": {
+    "name": "Комментарий к клиенту",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Доставка"
+    ]
+  },
+  "Delivery.CancelComment": {
+    "name": "Комментарий к отмене доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "DeletionComment": {
+    "name": "Комментарий к удалению блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "CreditUser.Company": {
+    "name": "Компания-контрагент",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата",
+      "Сотрудники"
+    ]
+  },
+  "Counteragent.Name": {
+    "name": "Контрагент",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Conception": {
+    "name": "Концепция",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "CardType": {
+    "name": "Кредитная карта",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.Line1": {
+    "name": "Куда везти",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Currencies.CurrencyRate": {
+    "name": "Курс валюты оплаты",
+    "type": "MONEY",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.Courier": {
+    "name": "Курьер",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.EcsService": {
+    "name": "Курьерская служба",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "CookingPlace": {
+    "name": "Место приготовления",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "Mounth": {
+    "name": "Месяц",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "IncentiveSumBase.Sum": {
+    "name": "Мотивационный бонус",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Бонусы"
+    ]
+  },
+  "VAT.SplitVat": {
+    "name": "НДС платит гость",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "НДС",
+      "Оплата"
+    ]
+  },
+  "VAT.Sum": {
+    "name": "НДС по чекам(Сумма)",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": true,
+    "tags": [
+      "НДС",
+      "Оплата"
+    ]
+  },
+  "VAT.Percent": {
+    "name": "НДС(%)",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "НДС",
+      "Оплата"
+    ]
+  },
+  "StoreTo": {
+    "name": "На склад",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboName": {
+    "name": "Название Комбо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishForeignName": {
+    "name": "Наименование блюда на иностранном языке",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "ItemSaleEventDiscountType": {
+    "name": "Наименование скидки, надбавки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishTaxCategory.Name": {
+    "name": "Налоговая категория",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "ProductCostBase.Profit": {
+    "name": "Наценка",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Себестоимость"
+    ]
+  },
+  "ProductCostBase.MarkUp": {
+    "name": "Наценка(%)",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Себестоимость"
+    ]
+  },
+  "WeekInYearOpen": {
+    "name": "Неделя года",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "WeekInMonthOpen": {
+    "name": "Неделя месяца",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "Bonus.CardNumber": {
+    "name": "Номер бонусной карты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Бонусы"
+    ]
+  },
+  "GroupOrderNum": {
+    "name": "Номер группового чека",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.Number": {
+    "name": "Номер доставки",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.CustomerCardNumber": {
+    "name": "Номер карты клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "CardNumber": {
+    "name": "Номер карты оплаты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "CashRegisterName.Number": {
+    "name": "Номер кассы",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "CouponInfo.Number": {
+    "name": "Номер купона",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Скидки/надбавки"
+    ]
+  },
+  "Cooking.ServeNumber": {
+    "name": "Номер подачи",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Приготовление"
+    ]
+  },
+  "SessionNum": {
+    "name": "Номер смены",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "TableNum": {
+    "name": "Номер стола",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "OrderNum": {
+    "name": "Номер чека",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "SourceOrderNum": {
+    "name": "Номер чека-источника",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "VatInvoice.InvoiceNumbers": {
+    "name": "Номера счетов-фактур",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ",
+      "Оплата"
+    ]
+  },
+  "VatInvoice.DeletedInvoiceNumbers": {
+    "name": "Номера удаленных счетов-фактур",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ",
+      "Оплата"
+    ]
+  },
+  "FiscalChequeNumber": {
+    "name": "Номера фиск. чеков",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.DeliveryOperator": {
+    "name": "Оператор доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "OperationType": {
+    "name": "Операция",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.Delay": {
+    "name": "Опоздание доставки(мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "Cooking.FeedLateTime.Avg": {
+    "name": "Опоздание подачи (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.CookingLateTime.Avg": {
+    "name": "Опоздание приготовления (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "RestaurantSection": {
+    "name": "Отделение",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "Delivery.CustomerOpinionComment": {
+    "name": "Отзыв клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.DiffBetweenActualDeliveryTimeAndPredictedDeliveryTime": {
+    "name": "Отклонение от сроков доставки, фактическое от прогнозируемого (мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "WaiterName": {
+    "name": "Официант блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "OrderWaiter.Name": {
+    "name": "Официант заказа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ",
+      "Сотрудники"
+    ]
+  },
+  "Delivery.AvgMark": {
+    "name": "Оценка доставки, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.AvgCourierMark": {
+    "name": "Оценка курьера, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.AvgFoodMark": {
+    "name": "Оценка кухни, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.AvgOperatorMark": {
+    "name": "Оценка оператора, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.ExpectedTime": {
+    "name": "Планируемое время доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "OrderItems": {
+    "name": "Позиций чека",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "DishFullName": {
+    "name": "Полное наименование блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishTags.NamesCombo": {
+    "name": "Пользовательские свойства (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishTag.Name": {
+    "name": "Пользовательское свойство",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "DishSize.Priority": {
+    "name": "Порядковый номер размера блюда",
+    "type": "INTEGER",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.CancelCause": {
+    "name": "Причина отмены доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "WriteoffReason": {
+    "name": "Причина списания",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "RemovalType": {
+    "name": "Причина удаления блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.PredictedDeliveryTime": {
+    "name": "Прогнозируемое время доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "Delivery.PredictedCookingCompleteTime": {
+    "name": "Прогнозируемое время окончания готовки заказа",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "SoldWithDish": {
+    "name": "Продано с блюдом",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Cooking.GuestWaitTime.Avg": {
+    "name": "Продолжительность ожидания гостя (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.ServeTime.Avg": {
+    "name": "Продолжительность подачи гостю (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.CookingDuration.Avg": {
+    "name": "Продолжительность приготовления (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.Cooking1Duration.Avg": {
+    "name": "Продолжительность приготовления 1 (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.Cooking2Duration.Avg": {
+    "name": "Продолжительность приготовления 2 (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.Cooking3Duration.Avg": {
+    "name": "Продолжительность приготовления 3 (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.Cooking4Duration.Avg": {
+    "name": "Продолжительность приготовления 4 (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "Cooking.KitchenTime.Avg": {
+    "name": "Продолжительность работы кухни (средняя)",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Приготовление"
+    ]
+  },
+  "IncreasePercent": {
+    "name": "Процент надбавки",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "DiscountPercent": {
+    "name": "Процент скидки",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "PublicExternalData": {
+    "name": "Публичные данные плагинов",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "PublicExternalData.Xml": {
+    "name": "Публичные данные плагинов (XML)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Cooking.PublicExternalData": {
+    "name": "Публичные данные плагинов о приготовлении",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Приготовление"
+    ]
+  },
+  "Cooking.PublicExternalData.Xml": {
+    "name": "Публичные данные плагинов о приготовлении (XML)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Приготовление"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboSizeName": {
+    "name": "Размер Комбо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishSize.Name": {
+    "name": "Размер блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Delivery.Region": {
+    "name": "Район",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "CashLocation": {
+    "name": "Расположение кассы",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "OrderServiceType": {
+    "name": "Режим обслуживания",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.MarketingSource": {
+    "name": "Реклама",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.CustomerMarketingSource": {
+    "name": "Реклама клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "ProductCostBase.ProductCost": {
+    "name": "Себестоимость",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Себестоимость"
+    ]
+  },
+  "ProductCostBase.PercentWithoutVAT": {
+    "name": "Себестоимость без НДС(%)",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Себестоимость"
+    ]
+  },
+  "ProductCostBase.OneItem": {
+    "name": "Себестоимость единицы",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Себестоимость"
+    ]
+  },
+  "ProductCostBase.Percent": {
+    "name": "Себестоимость(%)",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Себестоимость"
+    ]
+  },
+  "DishServicePrintTime": {
+    "name": "Сервисная печать блюда",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "DishServicePrintTime.Max": {
+    "name": "Сервисная печать последнего блюда",
+    "type": "DATETIME",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Время"
+    ]
+  },
+  "CashRegisterName.CashRegisterSerialNumber": {
+    "name": "Серийный номер ФР",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "CouponInfo.Series": {
+    "name": "Серия купона",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Скидки/надбавки"
+    ]
+  },
+  "Store.Name": {
+    "name": "Со склада",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "WriteoffUser": {
+    "name": "Списано на сотрудника",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "DishAmountInt.PerOrder": {
+    "name": "Ср. количество блюд на чек",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "OrderTime.AveragePrechequeTime": {
+    "name": "Ср.время в пречеке (мин)",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "Delivery.WayDurationAvg": {
+    "name": "Ср.время в пути(мин)",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Доставка"
+    ]
+  },
+  "OrderTime.AverageOrderTime": {
+    "name": "Ср.время обсл.(мин)",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Время",
+      "Заказ"
+    ]
+  },
+  "GuestNum.Avg": {
+    "name": "Ср.кол-во гостей на чек",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Гости"
+    ]
+  },
+  "Delivery.DelayAvg": {
+    "name": "Ср.опоздание доставки(мин)",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Доставка"
+    ]
+  },
+  "DishDiscountSumInt.averageByGuest": {
+    "name": "Средняя выручка с гостя",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.AggregatedAvgMark": {
+    "name": "Средняя оценка доставки, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.AggregatedAvgCourierMark": {
+    "name": "Средняя оценка курьера, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.AggregatedAvgFoodMark": {
+    "name": "Средняя оценка кухни, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "Delivery.AggregatedAvgOperatorMark": {
+    "name": "Средняя оценка оператора, %",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Доставка",
+      "Отзывы клиентов"
+    ]
+  },
+  "DishDiscountSumInt.average": {
+    "name": "Средняя сумма заказа",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "DishDiscountSumInt.averageWithoutVAT": {
+    "name": "Средняя сумма заказа без НДС",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "DishDiscountSumInt.averagePriceWithVAT": {
+    "name": "Средняя цена",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "DishDiscountSumInt.averagePrice": {
+    "name": "Средняя цена без НДС",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "DishSumInt.averagePriceWithVAT": {
+    "name": "Средняя цена без скидки",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.WayDurationSum": {
+    "name": "Сумм.время в пути(мин)",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Временные интервалы",
+      "Доставка"
+    ]
+  },
+  "fullSum": {
+    "name": "Сумма без НДС не включенного в стоимость",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "НДС",
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishSumInt": {
+    "name": "Сумма без скидки",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Bonus.Sum": {
+    "name": "Сумма бонуса",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Бонусы"
+    ]
+  },
+  "Currencies.SumInCurrency": {
+    "name": "Сумма в валюте оплаты / заказ",
+    "type": "OBJECT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "DishReturnSum": {
+    "name": "Сумма возврата",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "DishReturnSum.withoutVAT": {
+    "name": "Сумма возврата без НДС",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "IncreaseSum": {
+    "name": "Сумма надбавки",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "DiscountSum": {
+    "name": "Сумма скидки",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "discountWithoutVAT": {
+    "name": "Сумма скидки без НДС не включенного в стоимость",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "НДС",
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishDiscountSumInt": {
+    "name": "Сумма со скидкой",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "DishDiscountSumInt.withoutVAT": {
+    "name": "Сумма со скидкой без НДС",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "sumAfterDiscountWithoutVAT": {
+    "name": "Сумма со скидкой без НДС не включенного в стоимость",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "НДС",
+      "Оплата",
+      "Скидки/надбавки"
+    ]
+  },
+  "Cashier.Code": {
+    "name": "Табельный номер кассира",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Сотрудники"
+    ]
+  },
+  "Delivery.Phone": {
+    "name": "Телефон доставки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "Delivery.CustomerPhone": {
+    "name": "Телефон клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "Bonus.Type": {
+    "name": "Тип бонуса",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Бонусы"
+    ]
+  },
+  "NonCashPaymentType.DocumentType": {
+    "name": "Тип документа списания",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "Delivery.ServiceType": {
+    "name": "Тип доставки",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "OrderType": {
+    "name": "Тип заказа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "CardTypeName": {
+    "name": "Тип карты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Delivery.CustomerCardType": {
+    "name": "Тип карты клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Доставка",
+      "Клиент доставки"
+    ]
+  },
+  "CookingPlaceType": {
+    "name": "Тип места приготовления",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "OrderIncrease.Type": {
+    "name": "Тип надбавки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "PayTypes": {
+    "name": "Тип оплаты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "PayTypes.Combo": {
+    "name": "Тип оплаты (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "OrderDiscount.Type": {
+    "name": "Тип скидки",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishType": {
+    "name": "Тип товара",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "Department": {
+    "name": "Торговое предприятие",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "Delivery.Street": {
+    "name": "Улица",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "OpenDate.Typed": {
+    "name": "Учетный день",
+    "type": "DATE",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "Delivery.CustomerName": {
+    "name": "ФИО клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Доставка"
+    ]
+  },
+  "Delivery.ActualTime": {
+    "name": "Фактическое время доставки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время",
+      "Доставка"
+    ]
+  },
+  "PayTypes.IsPrintCheque": {
+    "name": "Фиск. тип оплаты",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "PriceCategoryDiscountCardOwner": {
+    "name": "ЦК владелец карты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "PriceCategoryUserCardOwner": {
+    "name": "ЦК контрагент",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "PriceCategoryCard": {
+    "name": "ЦК номер карты",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "PriceCategory": {
+    "name": "Ценовая категория клиента",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Гости",
+      "Скидки/надбавки"
+    ]
+  },
+  "HourClose": {
+    "name": "Час закрытия",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "HourOpen": {
+    "name": "Час открытия",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Время"
+    ]
+  },
+  "UniqOrderId": {
+    "name": "Чеков",
+    "type": "INTEGER",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Заказ"
+    ]
+  },
+  "ItemSaleEventDiscountType.ComboGroupName": {
+    "name": "Шаг Комбо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда",
+      "Скидки/надбавки"
+    ]
+  },
+  "DishSize.Scale.Name": {
+    "name": "Шкала размеров блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Блюда"
+    ]
+  },
+  "JurName": {
+    "name": "Юридическое лицо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  }
+}
