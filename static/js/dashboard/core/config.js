@@ -177,6 +177,8 @@ export const API = {
     VENUE: (venueKey) => `/api/venues/${venueKey}`,
     WEEKS: '/api/weeks',
     PLAN: (venueKey, periodKey) => `/api/plans/${venueKey}/${periodKey}`,
+    // Новый endpoint для расчёта плана на произвольный период
+    CALCULATE_PLAN: (venueKey, startDate, endDate) => `/api/plans/calculate/${venueKey || 'total'}/${startDate}/${endDate}`,
     ALL_PLANS: (venueKey) => `/api/plans/${venueKey}`,
     ANALYTICS: '/api/dashboard-analytics',  // ИСПРАВЛЕНО: было dashboard-analytics-multi
     COMPARISON_PERIODS: '/api/comparison/periods',

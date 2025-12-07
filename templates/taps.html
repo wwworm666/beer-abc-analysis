@@ -491,12 +491,54 @@
         }
 
         @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            header {
+                padding: 16px;
+            }
+
+            header h1 {
+                font-size: 1.75rem;
+            }
+
+            header p {
+                font-size: 0.85rem;
+            }
+
             .bars-grid {
                 grid-template-columns: 1fr;
+                gap: 16px;
             }
 
             .stats-bar {
                 grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 14px;
+            }
+
+            .stat-card h3 {
+                font-size: 1.25rem;
+            }
+
+            .stat-card p {
+                font-size: 0.75rem;
+            }
+
+            .bar-card-header {
+                padding: 14px;
+            }
+
+            .bar-card-header h2 {
+                font-size: 1rem;
+            }
+
+            .bar-card-body {
+                padding: 14px;
             }
 
             .modal-actions {
@@ -504,7 +546,95 @@
             }
 
             .taps-grid {
-                grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
+                gap: 8px;
+            }
+
+            .tap {
+                font-size: 0.85rem;
+            }
+
+            .tap-popup {
+                padding: 20px;
+                max-width: 95%;
+            }
+
+            .tap-popup h2 {
+                font-size: 1.2rem;
+            }
+
+            .form-group input,
+            .form-group select {
+                padding: 10px;
+                font-size: 16px;
+            }
+
+            .button-group {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            .tab-btn {
+                padding: 8px 14px;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 480px) {
+            body {
+                padding: 8px;
+            }
+
+            header h1 {
+                font-size: 1.4rem;
+            }
+
+            .stats-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-card h3 {
+                font-size: 1.1rem;
+            }
+
+            .bar-card-header {
+                padding: 12px;
+            }
+
+            .bar-card-header h2 {
+                font-size: 0.9rem;
+            }
+
+            .bar-card-header button {
+                padding: 6px 10px !important;
+                font-size: 0.7rem !important;
+            }
+
+            .bar-card-stats {
+                font-size: 0.75rem;
+            }
+
+            .taps-grid {
+                grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+                gap: 6px;
+            }
+
+            .tap {
+                font-size: 0.75rem;
+            }
+
+            .tap-popup {
+                padding: 16px;
+            }
+
+            .action-button {
+                padding: 10px;
+                font-size: 0.85rem;
             }
         }
     </style>

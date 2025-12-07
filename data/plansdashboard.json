@@ -1,6 +1,6 @@
 {
   "plans": {
-    "bolshoy_2025-09-29": {
+    "bolshoy_2025-09": {
       "revenue": 240350.0,
       "profit": 159112.82,
       "checks": 209.0,
@@ -17,7 +17,7 @@
       "revenueKitchen": 36052.5,
       "loyaltyWriteoffs": 12017.5
     },
-    "bolshoy_2025-10-06": {
+    "bolshoy_2025-10": {
       "revenue": 240350.0,
       "profit": 159112.82,
       "checks": 209.0,
@@ -34,58 +34,7 @@
       "revenueKitchen": 36052.5,
       "loyaltyWriteoffs": 12017.5
     },
-    "bolshoy_2025-10-13": {
-      "revenue": 240350.0,
-      "profit": 159112.82,
-      "checks": 209.0,
-      "averageCheck": 1150.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 195.86,
-      "markupDraft": 260.0,
-      "markupPackaged": 120.0,
-      "markupKitchen": 160.0,
-      "revenueDraft": 144210.0,
-      "revenuePackaged": 60087.5,
-      "revenueKitchen": 36052.5,
-      "loyaltyWriteoffs": 12017.5
-    },
-    "bolshoy_2025-10-20": {
-      "revenue": 240350.0,
-      "profit": 159112.82,
-      "checks": 209.0,
-      "averageCheck": 1150.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 195.86,
-      "markupDraft": 260.0,
-      "markupPackaged": 120.0,
-      "markupKitchen": 160.0,
-      "revenueDraft": 144210.0,
-      "revenuePackaged": 60087.5,
-      "revenueKitchen": 36052.5,
-      "loyaltyWriteoffs": 12017.5
-    },
-    "bolshoy_2025-10-27": {
-      "revenue": 200100.0,
-      "profit": 132467.132,
-      "checks": 174.0,
-      "averageCheck": 1150.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 195.86,
-      "markupDraft": 260.0,
-      "markupPackaged": 120.0,
-      "markupKitchen": 160.0,
-      "revenueDraft": 120060.0,
-      "revenuePackaged": 50025.0,
-      "revenueKitchen": 30015.0,
-      "loyaltyWriteoffs": 10005.0
-    },
-    "ligovskiy_2025-09-29": {
+    "ligovskiy_2025-09": {
       "revenue": 131100.0,
       "profit": 84344.05600000001,
       "checks": 138.0,
@@ -102,7 +51,7 @@
       "revenueKitchen": 13110.0,
       "loyaltyWriteoffs": 6555.0
     },
-    "ligovskiy_2025-10-06": {
+    "ligovskiy_2025-10": {
       "revenue": 131100.0,
       "profit": 84344.05600000001,
       "checks": 138.0,
@@ -119,58 +68,7 @@
       "revenueKitchen": 13110.0,
       "loyaltyWriteoffs": 6555.0
     },
-    "ligovskiy_2025-10-13": {
-      "revenue": 131100.0,
-      "profit": 84344.05600000001,
-      "checks": 138.0,
-      "averageCheck": 950.0,
-      "draftShare": 60.0,
-      "packagedShare": 30.0,
-      "kitchenShare": 10.0,
-      "markupPercent": 180.39,
-      "markupDraft": 230.0,
-      "markupPackaged": 120.0,
-      "markupKitchen": 160.0,
-      "revenueDraft": 78660.0,
-      "revenuePackaged": 39330.0,
-      "revenueKitchen": 13110.0,
-      "loyaltyWriteoffs": 6555.0
-    },
-    "ligovskiy_2025-10-20": {
-      "revenue": 131100.0,
-      "profit": 84344.05600000001,
-      "checks": 138.0,
-      "averageCheck": 950.0,
-      "draftShare": 60.0,
-      "packagedShare": 30.0,
-      "kitchenShare": 10.0,
-      "markupPercent": 180.39,
-      "markupDraft": 230.0,
-      "markupPackaged": 120.0,
-      "markupKitchen": 160.0,
-      "revenueDraft": 78660.0,
-      "revenuePackaged": 39330.0,
-      "revenueKitchen": 13110.0,
-      "loyaltyWriteoffs": 6555.0
-    },
-    "ligovskiy_2025-10-27": {
-      "revenue": 165000.0,
-      "profit": 103153.84599999999,
-      "checks": 150.0,
-      "averageCheck": 1100.0,
-      "draftShare": 60.0,
-      "packagedShare": 30.0,
-      "kitchenShare": 10.0,
-      "markupPercent": 166.79,
-      "markupDraft": 200.0,
-      "markupPackaged": 120.0,
-      "markupKitchen": 160.0,
-      "revenueDraft": 99000.0,
-      "revenuePackaged": 49500.0,
-      "revenueKitchen": 16500.0,
-      "loyaltyWriteoffs": 8250.0
-    },
-    "kremenchugskaya_2025-09-29": {
+    "kremenchugskaya_2025-09": {
       "revenue": 321780.0,
       "profit": 214520.0,
       "checks": 186.0,
@@ -187,7 +85,7 @@
       "revenueKitchen": 48267.0,
       "loyaltyWriteoffs": 16089.0
     },
-    "kremenchugskaya_2025-10-06": {
+    "kremenchugskaya_2025-10": {
       "revenue": 321780.0,
       "profit": 214520.0,
       "checks": 186.0,
@@ -204,58 +102,7 @@
       "revenueKitchen": 48267.0,
       "loyaltyWriteoffs": 16089.0
     },
-    "kremenchugskaya_2025-10-13": {
-      "revenue": 321780.0,
-      "profit": 214520.0,
-      "checks": 186.0,
-      "averageCheck": 1730.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 200.0,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 170.0,
-      "revenueDraft": 193068.0,
-      "revenuePackaged": 80445.0,
-      "revenueKitchen": 48267.0,
-      "loyaltyWriteoffs": 16089.0
-    },
-    "kremenchugskaya_2025-10-20": {
-      "revenue": 321780.0,
-      "profit": 214520.0,
-      "checks": 186.0,
-      "averageCheck": 1730.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 200.0,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 170.0,
-      "revenueDraft": 193068.0,
-      "revenuePackaged": 80445.0,
-      "revenueKitchen": 48267.0,
-      "loyaltyWriteoffs": 16089.0
-    },
-    "kremenchugskaya_2025-10-27": {
-      "revenue": 280000.0,
-      "profit": 186666.666,
-      "checks": 160.0,
-      "averageCheck": 1750.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 200.0,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 170.0,
-      "revenueDraft": 168000.0,
-      "revenuePackaged": 70000.0,
-      "revenueKitchen": 42000.0,
-      "loyaltyWriteoffs": 14000.0
-    },
-    "varshavskaya_2025-09-29": {
+    "varshavskaya_2025-09": {
       "revenue": 192410.0,
       "profit": 128655.1,
       "checks": 142.0,
@@ -272,7 +119,7 @@
       "revenueKitchen": 28861.5,
       "loyaltyWriteoffs": 9620.5
     },
-    "varshavskaya_2025-10-06": {
+    "varshavskaya_2025-10": {
       "revenue": 192410.0,
       "profit": 128655.1,
       "checks": 142.0,
@@ -289,58 +136,7 @@
       "revenueKitchen": 28861.5,
       "loyaltyWriteoffs": 9620.5
     },
-    "varshavskaya_2025-10-13": {
-      "revenue": 192410.0,
-      "profit": 128655.1,
-      "checks": 142.0,
-      "averageCheck": 1355.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 201.8,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 180.0,
-      "revenueDraft": 115446.0,
-      "revenuePackaged": 48102.5,
-      "revenueKitchen": 28861.5,
-      "loyaltyWriteoffs": 9620.5
-    },
-    "varshavskaya_2025-10-20": {
-      "revenue": 192410.0,
-      "profit": 128655.1,
-      "checks": 142.0,
-      "averageCheck": 1355.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 201.8,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 180.0,
-      "revenueDraft": 115446.0,
-      "revenuePackaged": 48102.5,
-      "revenueKitchen": 28861.5,
-      "loyaltyWriteoffs": 9620.5
-    },
-    "varshavskaya_2025-10-27": {
-      "revenue": 190350.0,
-      "profit": 127443.85800000001,
-      "checks": 141.0,
-      "averageCheck": 1350.0,
-      "draftShare": 60.0,
-      "packagedShare": 24.0,
-      "kitchenShare": 16.0,
-      "markupPercent": 202.59,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 180.0,
-      "revenueDraft": 114210.0,
-      "revenuePackaged": 45684.0,
-      "revenueKitchen": 30456.0,
-      "loyaltyWriteoffs": 9517.5
-    },
-    "bolshoy_2025-11-03": {
+    "bolshoy_2025-11": {
       "revenue": 200100.0,
       "profit": 132467.132,
       "checks": 174.0,
@@ -356,55 +152,7 @@
       "revenueKitchen": 30015.0,
       "loyaltyWriteoffs": 10005.0
     },
-    "bolshoy_2025-11-10": {
-      "revenue": 200100.0,
-      "profit": 132467.132,
-      "checks": 174.0,
-      "averageCheck": 1150.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 195.86,
-      "markupDraft": 260.0,
-      "markupPackaged": 120.0,
-      "revenueDraft": 120060.0,
-      "revenuePackaged": 50025.0,
-      "revenueKitchen": 30015.0,
-      "loyaltyWriteoffs": 10005.0
-    },
-    "bolshoy_2025-11-17": {
-      "revenue": 200100.0,
-      "profit": 132467.132,
-      "checks": 174.0,
-      "averageCheck": 1150.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 195.86,
-      "markupDraft": 260.0,
-      "markupPackaged": 120.0,
-      "revenueDraft": 120060.0,
-      "revenuePackaged": 50025.0,
-      "revenueKitchen": 30015.0,
-      "loyaltyWriteoffs": 10005.0
-    },
-    "bolshoy_2025-11-24": {
-      "revenue": 200100.0,
-      "profit": 132467.132,
-      "checks": 174.0,
-      "averageCheck": 1150.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 195.86,
-      "markupDraft": 260.0,
-      "markupPackaged": 120.0,
-      "revenueDraft": 120060.0,
-      "revenuePackaged": 50025.0,
-      "revenueKitchen": 30015.0,
-      "loyaltyWriteoffs": 10005.0
-    },
-    "ligovskiy_2025-11-03": {
+    "ligovskiy_2025-11": {
       "revenue": 165000.0,
       "profit": 103153.84599999999,
       "checks": 150.0,
@@ -420,55 +168,7 @@
       "revenueKitchen": 16500.0,
       "loyaltyWriteoffs": 8250.0
     },
-    "ligovskiy_2025-11-10": {
-      "revenue": 165000.0,
-      "profit": 103153.84599999999,
-      "checks": 150.0,
-      "averageCheck": 1100.0,
-      "draftShare": 60.0,
-      "packagedShare": 30.0,
-      "kitchenShare": 10.0,
-      "markupPercent": 166.79,
-      "markupDraft": 200.0,
-      "markupPackaged": 120.0,
-      "revenueDraft": 99000.0,
-      "revenuePackaged": 49500.0,
-      "revenueKitchen": 16500.0,
-      "loyaltyWriteoffs": 8250.0
-    },
-    "ligovskiy_2025-11-17": {
-      "revenue": 165000.0,
-      "profit": 103153.84599999999,
-      "checks": 150.0,
-      "averageCheck": 1100.0,
-      "draftShare": 60.0,
-      "packagedShare": 30.0,
-      "kitchenShare": 10.0,
-      "markupPercent": 166.79,
-      "markupDraft": 200.0,
-      "markupPackaged": 120.0,
-      "revenueDraft": 99000.0,
-      "revenuePackaged": 49500.0,
-      "revenueKitchen": 16500.0,
-      "loyaltyWriteoffs": 8250.0
-    },
-    "ligovskiy_2025-11-24": {
-      "revenue": 165000.0,
-      "profit": 103153.84599999999,
-      "checks": 150.0,
-      "averageCheck": 1100.0,
-      "draftShare": 60.0,
-      "packagedShare": 30.0,
-      "kitchenShare": 10.0,
-      "markupPercent": 166.79,
-      "markupDraft": 200.0,
-      "markupPackaged": 120.0,
-      "revenueDraft": 99000.0,
-      "revenuePackaged": 49500.0,
-      "revenueKitchen": 16500.0,
-      "loyaltyWriteoffs": 8250.0
-    },
-    "kremenchugskaya_2025-11-03": {
+    "kremenchugskaya_2025-11": {
       "revenue": 280000.0,
       "profit": 186666.666,
       "checks": 160.0,
@@ -485,109 +185,7 @@
       "revenueKitchen": 42000.0,
       "loyaltyWriteoffs": 14000.0
     },
-    "kremenchugskaya_2025-11-10": {
-      "revenue": 280000.0,
-      "profit": 186666.666,
-      "checks": 160.0,
-      "averageCheck": 1750.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 200.0,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 170.0,
-      "revenueDraft": 168000.0,
-      "revenuePackaged": 70000.0,
-      "revenueKitchen": 42000.0,
-      "loyaltyWriteoffs": 14000.0
-    },
-    "kremenchugskaya_2025-11-17": {
-      "revenue": 280000.0,
-      "profit": 186666.666,
-      "checks": 160.0,
-      "averageCheck": 1750.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 200.0,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 170.0,
-      "revenueDraft": 168000.0,
-      "revenuePackaged": 70000.0,
-      "revenueKitchen": 42000.0,
-      "loyaltyWriteoffs": 14000.0
-    },
-    "kremenchugskaya_2025-11-24": {
-      "revenue": 280000.0,
-      "profit": 186666.666,
-      "checks": 160.0,
-      "averageCheck": 1750.0,
-      "draftShare": 60.0,
-      "packagedShare": 25.0,
-      "kitchenShare": 15.0,
-      "markupPercent": 200.0,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 170.0,
-      "revenueDraft": 168000.0,
-      "revenuePackaged": 70000.0,
-      "revenueKitchen": 42000.0,
-      "loyaltyWriteoffs": 14000.0
-    },
-    "varshavskaya_2025-11-03": {
-      "revenue": 190350.0,
-      "profit": 127443.85800000001,
-      "checks": 141.0,
-      "averageCheck": 1350.0,
-      "draftShare": 60.0,
-      "packagedShare": 24.0,
-      "kitchenShare": 16.0,
-      "markupPercent": 202.59,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 180.0,
-      "revenueDraft": 114210.0,
-      "revenuePackaged": 45684.0,
-      "revenueKitchen": 30456.0,
-      "loyaltyWriteoffs": 9517.5
-    },
-    "varshavskaya_2025-11-10": {
-      "revenue": 190350.0,
-      "profit": 127443.85800000001,
-      "checks": 141.0,
-      "averageCheck": 1350.0,
-      "draftShare": 60.0,
-      "packagedShare": 24.0,
-      "kitchenShare": 16.0,
-      "markupPercent": 202.59,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 180.0,
-      "revenueDraft": 114210.0,
-      "revenuePackaged": 45684.0,
-      "revenueKitchen": 30456.0,
-      "loyaltyWriteoffs": 9517.5
-    },
-    "varshavskaya_2025-11-17": {
-      "revenue": 190350.0,
-      "profit": 127443.85800000001,
-      "checks": 141.0,
-      "averageCheck": 1350.0,
-      "draftShare": 60.0,
-      "packagedShare": 24.0,
-      "kitchenShare": 16.0,
-      "markupPercent": 202.59,
-      "markupDraft": 260.0,
-      "markupPackaged": 125.0,
-      "markupKitchen": 180.0,
-      "revenueDraft": 114210.0,
-      "revenuePackaged": 45684.0,
-      "revenueKitchen": 30456.0,
-      "loyaltyWriteoffs": 9517.5
-    },
-    "varshavskaya_2025-11-24": {
+    "varshavskaya_2025-11": {
       "revenue": 190350.0,
       "profit": 127443.85800000001,
       "checks": 141.0,
@@ -606,8 +204,9 @@
     }
   },
   "metadata": {
-    "lastUpdate": "2025-11-26T12:12:58.261311",
+    "lastUpdate": "2025-12-07T23:23:08.825237",
     "version": "1.0",
-    "source": "Excel import from планы_2025_2026.xlsx"
+    "source": "Excel import from планы_2025_2026.xlsx",
+    "migratedToMonthly": "2025-12-07T23:23:08.823059"
   }
 }

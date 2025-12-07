@@ -561,8 +561,23 @@
             font-weight: 600;
         }
 
-        /* Responsive */
+        /* Responsive - Tablet */
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .abc-matrix {
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            }
+        }
+
+        /* Responsive - Mobile */
         @media (max-width: 768px) {
+            .container {
+                padding: 20px 12px;
+            }
+
             .controls {
                 grid-template-columns: 1fr;
             }
@@ -575,10 +590,12 @@
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 20px;
+                margin-bottom: 30px;
+                padding-bottom: 20px;
             }
 
             .header-left h1 {
-                font-size: 2.5rem;
+                font-size: 2rem;
             }
 
             .header-left .subtitle {
@@ -587,12 +604,135 @@
 
             .header > div:last-child {
                 flex-direction: column;
-                align-items: flex-start;
+                align-items: stretch !important;
                 width: 100%;
             }
 
-            .api-status {
+            /* Nav links - horizontal scroll */
+            .header > div:last-child > div:first-child {
+                display: flex;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+                white-space: nowrap;
+                padding-bottom: 8px;
+                gap: 8px;
+            }
+
+            .header > div:last-child > div:first-child::-webkit-scrollbar {
+                display: none;
+            }
+
+            .header > div:last-child > div:first-child a {
+                display: inline-block;
+                padding: 8px 12px !important;
+                font-size: 0.8rem !important;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+
+            .header > div:last-child > div:last-child {
                 width: 100%;
+                justify-content: space-between;
+            }
+
+            .api-status {
+                flex: 1;
+            }
+
+            .theme-toggle {
+                flex-shrink: 0;
+            }
+
+            /* Cards */
+            .card {
+                padding: 20px 16px;
+            }
+
+            /* ABC Matrix */
+            .abc-matrix {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 10px;
+            }
+
+            .abc-card {
+                padding: 12px 8px;
+            }
+
+            .abc-card .category {
+                font-size: 1rem;
+            }
+
+            .abc-card .count {
+                font-size: 1.25rem;
+            }
+
+            /* Tables - horizontal scroll */
+            .card {
+                overflow-x: auto;
+            }
+
+            table {
+                min-width: 600px;
+                font-size: 0.8rem;
+            }
+
+            th, td {
+                padding: 10px 8px;
+            }
+
+            /* Modal */
+            .modal-content {
+                padding: 20px;
+                max-width: 95%;
+            }
+
+            .modal-header h2 {
+                font-size: 1.2rem;
+            }
+
+            /* Stats in bar sections */
+            .stat-card .value {
+                font-size: 1.5rem;
+            }
+        }
+
+        /* Extra small screens */
+        @media (max-width: 480px) {
+            .container {
+                padding: 16px 8px;
+            }
+
+            .header-left h1 {
+                font-size: 1.5rem;
+            }
+
+            .header > div:last-child > div:first-child a {
+                padding: 6px 10px !important;
+                font-size: 0.75rem !important;
+            }
+
+            .abc-matrix {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .stat-card .value {
+                font-size: 1.25rem;
+            }
+
+            table {
+                min-width: 500px;
+                font-size: 0.75rem;
+            }
+
+            th, td {
+                padding: 8px 6px;
+            }
+
+            .badge {
+                padding: 3px 8px;
+                font-size: 0.65rem;
             }
         }
         /* Tooltips */

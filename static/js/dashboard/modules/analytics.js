@@ -4,7 +4,7 @@
  */
 
 import { state } from '../core/state.js';
-import { getPlan, getAnalytics } from '../core/api.js';
+import { calculatePlan, getAnalytics } from '../core/api.js';
 import { METRICS } from '../core/config.js';
 import {
     formatValue,
@@ -59,17 +59,20 @@ class Analytics {
         this.showLoading();
 
         try {
-            // Извлекаем только дату начала (понедельник) из ключа периода
-            // Ключ периода: "2025-07-21_2025-07-27", нужно: "2025-07-21"
-            const periodKey = state.currentPeriod.start; // Используем дату начала как ключ
+            // Используем новый endpoint для расчёта плана на произвольный период
+            // Он берёт месячные планы и пропорционально делит на выбранный период
+            const startDate = state.currentPeriod.start;
+            const endDate = state.currentPeriod.end;
+
+            console.log('[Analytics] Загрузка данных для периода:', startDate, '-', endDate);
 
             // Загружаем план и факт параллельно, но обрабатываем ошибки отдельно
             const [planResult, actualResult] = await Promise.allSettled([
-                getPlan(state.currentVenue, periodKey),
+                calculatePlan(state.currentVenue, startDate, endDate),
                 getAnalytics(
                     state.currentVenue,
-                    state.currentPeriod.start,
-                    state.currentPeriod.end
+                    startDate,
+                    endDate
                 )
             ]);
 

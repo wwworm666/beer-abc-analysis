@@ -55,7 +55,7 @@ export async function getWeeks() {
 }
 
 /**
- * Получить план для заведения и периода
+ * Получить план для заведения и периода (старый endpoint - для недельных планов)
  */
 export async function getPlan(venueKey, periodKey) {
     try {
@@ -66,6 +66,32 @@ export async function getPlan(venueKey, periodKey) {
             error.message.includes('не найден') ||
             error.message.includes('not found') ||
             error.message.includes('Plan not found')) {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Рассчитать план для произвольного периода (новый endpoint)
+ * Использует месячные планы и пропорционально делит их на выбранный период
+ *
+ * @param {string} venueKey - ключ заведения (bolshoy, ligovskiy, kremenchugskaya, varshavskaya) или пустая строка для "Общая"
+ * @param {string} startDate - дата начала в формате YYYY-MM-DD
+ * @param {string} endDate - дата конца в формате YYYY-MM-DD
+ * @returns {Object|null} - рассчитанный план или null если нет данных
+ */
+export async function calculatePlan(venueKey, startDate, endDate) {
+    try {
+        console.log('[API] calculatePlan вызван:', { venueKey, startDate, endDate });
+        return await fetchAPI(API.CALCULATE_PLAN(venueKey, startDate, endDate));
+    } catch (error) {
+        // Если план не найден (404), вернуть null вместо ошибки
+        if (error.message.includes('404') ||
+            error.message.includes('не найден') ||
+            error.message.includes('not found') ||
+            error.message.includes('No monthly plans')) {
+            console.log('[API] Месячные планы не найдены для периода');
             return null;
         }
         throw error;
@@ -203,6 +229,7 @@ export const api = {
     getVenue,
     getWeeks,
     getPlan,
+    calculatePlan,  // Новая функция для расчёта плана на произвольный период
     savePlan,
     deletePlan,
     getAllPlans,

@@ -2141,6 +2141,78 @@ def get_plan_with_venue(venue_key, period_key):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/plans/calculate/<venue_key>/<start_date>/<end_date>')
+def calculate_plan_for_period(venue_key, start_date, end_date):
+    """
+    Рассчитать план для произвольного периода на основе месячных планов
+
+    Пример: /api/plans/calculate/kremenchugskaya/2025-10-01/2025-10-31
+    Пример: /api/plans/calculate/kremenchugskaya/2025-10-15/2025-11-15
+
+    Логика:
+    - Находит все месяцы в периоде
+    - Берёт пропорциональную долю от каждого месячного плана
+    - Суммирует абсолютные метрики, усредняет относительные
+
+    Args:
+        venue_key: Ключ заведения (bolshoy, ligovskiy, kremenchugskaya, varshavskaya) или пустой для общей
+        start_date: Дата начала (YYYY-MM-DD)
+        end_date: Дата конца (YYYY-MM-DD)
+
+    Returns:
+        JSON: Рассчитанный план или 404 если нет данных
+    """
+    try:
+        print(f"\n[PLANS API] Расчёт плана для {venue_key}, период: {start_date} - {end_date}")
+
+        # Для "общей" передаём пустую строку
+        venue = '' if venue_key in ('', 'total', 'общая', 'all') else venue_key
+
+        plan = plans_manager.calculate_plan_for_period(venue, start_date, end_date)
+
+        if plan:
+            print(f"[PLANS API] План рассчитан: выручка={plan.get('revenue', 0):.0f}")
+            return jsonify(plan)
+        else:
+            print(f"[PLANS API] Не удалось рассчитать план")
+            return jsonify({'error': 'No monthly plans found for this period'}), 404
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка при расчёте плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans/migrate-to-monthly', methods=['POST'])
+def migrate_plans_to_monthly():
+    """
+    Миграция недельных планов в месячные (одноразовая)
+
+    POST /api/plans/migrate-to-monthly
+
+    Returns:
+        JSON: Результат миграции
+    """
+    try:
+        print("\n[PLANS API] Запуск миграции планов в месячный формат...")
+
+        monthly_plans = plans_manager.import_monthly_plans_from_weekly()
+
+        return jsonify({
+            'success': True,
+            'message': f'Migrated to {len(monthly_plans)} monthly plans',
+            'plans_count': len(monthly_plans),
+            'plan_keys': list(monthly_plans.keys())
+        })
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка миграции: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/plans/<period_key>')
 def get_plan(period_key):
     """

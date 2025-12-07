@@ -13,8 +13,10 @@
 
 import json
 import os
-from datetime import datetime
-from typing import Dict, Optional, List
+from datetime import datetime, date
+from dateutil.relativedelta import relativedelta
+from calendar import monthrange
+from typing import Dict, Optional, List, Tuple
 import threading
 import shutil
 
@@ -371,6 +373,211 @@ class PlansManager:
         """
         plans = self.get_all_plans()
         return sorted(plans.keys())
+
+    def _get_month_key(self, venue_key: str, year: int, month: int) -> str:
+        """Создать ключ месячного плана: venue_2025-10"""
+        return f"{venue_key}_{year}-{month:02d}"
+
+    def _parse_date(self, date_str: str) -> date:
+        """Парсинг даты из строки YYYY-MM-DD"""
+        return datetime.strptime(date_str, '%Y-%m-%d').date()
+
+    def _get_months_in_period(self, start_date: date, end_date: date) -> List[Tuple[int, int, int, int]]:
+        """
+        Получить список месяцев в периоде с количеством дней в каждом
+
+        Returns:
+            List of tuples: (year, month, days_in_period, total_days_in_month)
+        """
+        months = []
+        current = start_date.replace(day=1)
+
+        while current <= end_date:
+            year = current.year
+            month = current.month
+            days_in_month = monthrange(year, month)[1]
+
+            # Определяем первый и последний день периода в этом месяце
+            period_start = max(start_date, current)
+            month_end = current.replace(day=days_in_month)
+            period_end = min(end_date, month_end)
+
+            # Количество дней периода в этом месяце
+            days_in_period = (period_end - period_start).days + 1
+
+            months.append((year, month, days_in_period, days_in_month))
+
+            # Переходим к следующему месяцу
+            if month == 12:
+                current = current.replace(year=year + 1, month=1)
+            else:
+                current = current.replace(month=month + 1)
+
+        return months
+
+    def get_monthly_plan(self, venue_key: str, year: int, month: int) -> Optional[Dict]:
+        """
+        Получить месячный план для заведения
+
+        Args:
+            venue_key: Ключ заведения (bolshoy, ligovskiy, kremenchugskaya, varshavskaya)
+            year: Год
+            month: Месяц (1-12)
+
+        Returns:
+            Optional[Dict]: План или None
+        """
+        month_key = self._get_month_key(venue_key, year, month)
+        return self.get_plan(month_key)
+
+    def calculate_plan_for_period(self, venue_key: str, start_date_str: str, end_date_str: str) -> Optional[Dict]:
+        """
+        Рассчитать пропорциональный план для произвольного периода
+
+        Логика:
+        - Находим все месяцы, попадающие в период
+        - Для каждого месяца берём пропорциональную долю (дни_периода / дни_месяца)
+        - Суммируем абсолютные метрики (выручка, прибыль, чеки)
+        - Усредняем относительные метрики (доли, наценки, средний чек)
+
+        Args:
+            venue_key: Ключ заведения или '' для общей
+            start_date_str: Начало периода 'YYYY-MM-DD'
+            end_date_str: Конец периода 'YYYY-MM-DD'
+
+        Returns:
+            Optional[Dict]: Рассчитанный план или None если нет данных
+        """
+        try:
+            start_date = self._parse_date(start_date_str)
+            end_date = self._parse_date(end_date_str)
+
+            if start_date > end_date:
+                print(f"[PLANS] Некорректный период: {start_date_str} > {end_date_str}")
+                return None
+
+            # Получаем список месяцев в периоде
+            months_data = self._get_months_in_period(start_date, end_date)
+
+            if not months_data:
+                return None
+
+            # Абсолютные метрики (суммируются пропорционально)
+            absolute_metrics = [
+                'revenue', 'profit', 'checks', 'loyaltyWriteoffs',
+                'revenueDraft', 'revenuePackaged', 'revenueKitchen'
+            ]
+
+            # Относительные метрики (усредняются с весом)
+            relative_metrics = [
+                'averageCheck', 'draftShare', 'packagedShare', 'kitchenShare',
+                'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
+                'tapActivity'
+            ]
+
+            # Инициализация результата
+            result = {metric: 0.0 for metric in absolute_metrics}
+            weighted_sums = {metric: 0.0 for metric in relative_metrics}
+            total_weight = 0.0
+            months_found = 0
+
+            # Если venue_key пустой - суммируем по всем заведениям
+            venues_to_check = [venue_key] if venue_key else ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
+
+            for year, month, days_in_period, days_in_month in months_data:
+                ratio = days_in_period / days_in_month
+
+                for venue in venues_to_check:
+                    month_plan = self.get_monthly_plan(venue, year, month)
+
+                    if month_plan:
+                        months_found += 1
+
+                        # Суммируем абсолютные метрики пропорционально
+                        for metric in absolute_metrics:
+                            if metric in month_plan:
+                                result[metric] += month_plan[metric] * ratio
+
+                        # Накапливаем относительные метрики с весом
+                        weight = ratio
+                        total_weight += weight
+
+                        for metric in relative_metrics:
+                            if metric in month_plan:
+                                weighted_sums[metric] += month_plan[metric] * weight
+
+            if months_found == 0:
+                print(f"[PLANS] Нет месячных планов для периода {start_date_str} - {end_date_str}")
+                return None
+
+            # Рассчитываем средневзвешенные относительные метрики
+            if total_weight > 0:
+                for metric in relative_metrics:
+                    result[metric] = weighted_sums[metric] / total_weight
+
+            # Округляем значения
+            for key in result:
+                if isinstance(result[key], float):
+                    result[key] = round(result[key], 2)
+
+            # Добавляем мета-информацию
+            result['_calculated'] = True
+            result['_period'] = f"{start_date_str}_{end_date_str}"
+            result['_months_used'] = months_found
+            result['_total_days'] = (end_date - start_date).days + 1
+
+            print(f"[PLANS] Рассчитан план для {venue_key or 'общая'} на {start_date_str} - {end_date_str}: "
+                  f"{months_found} месяцев, {result['_total_days']} дней, выручка={result['revenue']:.0f}")
+
+            return result
+
+        except Exception as e:
+            print(f"[PLANS ERROR] Ошибка расчёта плана: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def import_monthly_plans_from_weekly(self):
+        """
+        Конвертировать недельные планы в месячные (одноразовая миграция)
+
+        Берёт существующие недельные планы и группирует их по месяцам,
+        беря среднее или первое значение для каждого месяца.
+        """
+        all_plans = self.get_all_plans()
+        monthly_plans = {}
+
+        for key, plan in all_plans.items():
+            # Пропускаем уже месячные планы (формат venue_2025-10)
+            parts = key.split('_')
+            if len(parts) == 2 and len(parts[1]) == 7:  # venue_2025-10
+                monthly_plans[key] = plan
+                continue
+
+            # Парсим недельный ключ: venue_2025-10-06
+            if len(parts) >= 2:
+                venue = parts[0]
+                date_part = '_'.join(parts[1:])
+
+                try:
+                    week_date = datetime.strptime(date_part, '%Y-%m-%d').date()
+                    month_key = f"{venue}_{week_date.year}-{week_date.month:02d}"
+
+                    # Берём первый попавшийся план для месяца
+                    if month_key not in monthly_plans:
+                        monthly_plans[month_key] = plan.copy()
+                        print(f"[PLANS] Миграция: {key} -> {month_key}")
+                except ValueError:
+                    print(f"[PLANS] Не удалось распарсить ключ: {key}")
+
+        # Сохраняем месячные планы
+        data = self._read_file()
+        data['plans'] = monthly_plans
+        data['metadata']['migratedToMonthly'] = datetime.now().isoformat()
+        self._write_file(data)
+
+        print(f"[PLANS] Миграция завершена: {len(monthly_plans)} месячных планов")
+        return monthly_plans
 
 
 # Тестирование модуля
