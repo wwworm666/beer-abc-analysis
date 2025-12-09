@@ -122,9 +122,9 @@
         font-size: 16px; /* Предотвращает zoom на iOS */
     }
 
-    /* Свайп для переключения вкладок */
+    /* Разрешаем нормальный скролл в контейнере вкладок */
     .tabs-container {
-        touch-action: pan-x;
+        touch-action: auto;
     }
 }
 
