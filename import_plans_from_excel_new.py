@@ -106,7 +106,8 @@ def distribute_monthly_to_weeks(monthly_value, year, month, metric_key):
 
 def read_excel_plans(file_path):
     """Читает планы из Excel файла новой структуры"""
-    wb = openpyxl.load_workbook(file_path)
+    # data_only=True читает вычисленные значения формул вместо текста формул
+    wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
 
     all_plans = {}
@@ -148,17 +149,13 @@ def read_excel_plans(file_path):
                     try:
                         value = float(cell_value)
 
-                        # Распределяем месячное значение по неделям или копируем
-                        weeks_data = distribute_monthly_to_weeks(value, year, month, metric_key)
+                        # Создаем МЕСЯЧНЫЙ ключ: venue_2025-12
+                        month_key = f"{venue_key}_{year}-{month:02d}"
 
-                        for week_key, week_value in weeks_data.items():
-                            # Создаем составной ключ: venue_week
-                            composite_key = f"{venue_key}_{week_key}"
+                        if month_key not in all_plans:
+                            all_plans[month_key] = {}
 
-                            if composite_key not in all_plans:
-                                all_plans[composite_key] = {}
-
-                            all_plans[composite_key][metric_key] = week_value
+                        all_plans[month_key][metric_key] = value
 
                     except (ValueError, TypeError) as e:
                         print(f"Ошибка преобразования значения '{cell_value}' для {venue_key}, {metric_name}: {e}")
