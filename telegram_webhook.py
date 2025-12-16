@@ -96,54 +96,66 @@ def get_taplist_data(bar_id=None, taps_manager=None, beer_mapping=None):
 
 
 def find_beer_info_local(beer_name, mapping):
-    """Ищет информацию о пиве в маппинге"""
+    """
+    Ищет информацию о пиве в маппинге с fuzzy matching.
+    Использует difflib для нечёткого сравнения строк.
+    """
     if not beer_name or not mapping:
         return None
 
     import re
+    from difflib import SequenceMatcher
 
-    def clean_name(name):
-        """Очищает название от типичных суффиксов"""
-        # Убираем "КЕГ "
-        name = name.replace('КЕГ ', '').strip()
-        # Заменяем тире "—" на пробел
-        name = name.replace(' — ', ' ').replace('—', ' ').strip()
-        # Убираем ", светлое", ", темное", ", нефильтрованное" и т.д.
-        name = re.sub(r',\s*(светлое|темное|тёмное|нефильтрованное|фильтрованное|пшеничное)$', '', name, flags=re.IGNORECASE).strip()
-        # Убираем объем в конце (30 л, 20л, 50L, ", 20 л")
-        name = re.sub(r',?\s*\d+\s*(л|l|кг|kg)\s*$', '', name, flags=re.IGNORECASE).strip()
-        # Убираем одиночный " л" в конце (без числа)
-        name = re.sub(r'\s+л\s*$', '', name, flags=re.IGNORECASE).strip()
-        return name
+    def normalize(name):
+        """Нормализует название для сравнения"""
+        name = name.lower()
+        # Убираем "кег "
+        name = name.replace('кег ', '')
+        # Заменяем тире на пробел
+        name = name.replace(' — ', ' ').replace('—', ' ').replace('-', ' ')
+        # Убираем запятые и точки
+        name = name.replace(',', '').replace('.', '')
+        # Убираем объёмы и единицы измерения
+        name = re.sub(r'\d+\s*(л|l|кг|kg|ml|мл)', '', name)
+        # Убираем типичные суффиксы
+        for suffix in ['светлое', 'темное', 'тёмное', 'нефильтрованное', 'фильтрованное', 'пшеничное', 'полусухой', 'полусладкий']:
+            name = name.replace(suffix, '')
+        # Убираем лишние пробелы
+        name = ' '.join(name.split())
+        return name.strip()
+
+    def similarity(a, b):
+        """Возвращает степень схожести двух строк (0-1)"""
+        return SequenceMatcher(None, a, b).ratio()
 
     # Прямое совпадение
     if beer_name in mapping:
         return mapping[beer_name]
 
-    # Очищенное название
-    cleaned = clean_name(beer_name)
-    if cleaned in mapping:
-        return mapping[cleaned]
+    # Нормализуем искомое название
+    normalized_search = normalize(beer_name)
 
-    # Без "КЕГ "
-    name_without_keg = beer_name.replace('КЕГ ', '').strip()
-    if name_without_keg in mapping:
-        return mapping[name_without_keg]
-
-    # С "КЕГ "
-    name_with_keg = f"КЕГ {beer_name}"
-    if name_with_keg in mapping:
-        return mapping[name_with_keg]
-
-    # Частичное совпадение без объема
-    name_base = re.sub(r'\s*\d+\s*(л|l|кг|kg)\s*$', '', beer_name, flags=re.IGNORECASE).strip()
-    name_base = name_base.replace('КЕГ ', '').strip()
+    # Ищем лучшее совпадение
+    best_match = None
+    best_score = 0
+    threshold = 0.75  # Минимальная схожесть 75%
 
     for key in mapping:
-        key_base = re.sub(r'\s*\d+\s*(л|l|кг|kg)\s*$', '', key, flags=re.IGNORECASE).strip()
-        key_base = key_base.replace('КЕГ ', '').strip()
-        if name_base.lower() == key_base.lower():
+        normalized_key = normalize(key)
+
+        # Точное совпадение после нормализации
+        if normalized_search == normalized_key:
             return mapping[key]
+
+        # Fuzzy matching
+        score = similarity(normalized_search, normalized_key)
+        if score > best_score:
+            best_score = score
+            best_match = key
+
+    # Возвращаем лучшее совпадение если оно выше порога
+    if best_match and best_score >= threshold:
+        return mapping[best_match]
 
     return None
 
