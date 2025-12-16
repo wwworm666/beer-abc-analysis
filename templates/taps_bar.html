@@ -768,9 +768,13 @@
                     <div class="api-status-indicator"></div>
                     <span class="api-status-text">Проверка подключения...</span>
                 </div>
-                <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 10px;">
+                <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 5px;">
                     <span>📥</span>
-                    <span>Скачать таплист</span>
+                    <span>Таплист</span>
+                </button>
+                <button class="refresh-btn" onclick="downloadBarTaplistFull()" style="margin-right: 10px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);">
+                    <span>📥</span>
+                    <span>Таплист V2</span>
                 </button>
                 <button class="refresh-btn" onclick="refreshBeersList()" id="refresh-btn">
                     <span id="refresh-icon">🔄</span>
@@ -929,6 +933,11 @@
         // Download taplist for this bar
         function downloadBarTaplist() {
             window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
+        }
+
+        // Download full taplist with Untappd, style, ABV, IBU
+        function downloadBarTaplistFull() {
+            window.location.href = `/api/taps/export-taplist-full?bar_id=${barId}`;
         }
 
         // Load beers list
