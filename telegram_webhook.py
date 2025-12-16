@@ -43,8 +43,8 @@ def get_taplist_data(bar_id=None, taps_manager=None, beer_mapping=None):
         'taplist': []
     }
 
-    bars = taps_manager.get_all_bars()
-    if 'error' in bars:
+    bars = taps_manager.get_bars()
+    if isinstance(bars, dict) and 'error' in bars:
         return None
 
     # Если запрошен конкретный бар

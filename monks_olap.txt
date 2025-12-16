@@ -1,0 +1,52 @@
+OLAP данные для Монкс:
+================================================================================
+DishName: Монкс Кафе (0,25)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,4)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+
+DishName: Монкс Кафе (0,5)
+  DishGroup.ThirdParent: Флемиш - кислые эли (Р)
+  DishForeignName: Бельгия
+  Store.Name: Варшавская
+

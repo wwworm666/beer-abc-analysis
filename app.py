@@ -3647,6 +3647,20 @@ def debug_taps_data():
 # TELEGRAM BOT WEBHOOK ENDPOINTS
 # ============================================================
 
+def run_async(coro):
+    """Безопасный запуск асинхронной функции из синхронного контекста"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_closed():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    return loop.run_until_complete(coro)
+
+
 @app.route('/telegram/webhook', methods=['POST'])
 def telegram_webhook_handler():
     """
@@ -3662,12 +3676,7 @@ def telegram_webhook_handler():
             return jsonify({'error': 'No data'}), 400
 
         # Обрабатываем update асинхронно
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(telegram_webhook.process_telegram_update(update_data))
-        finally:
-            loop.close()
+        result = run_async(telegram_webhook.process_telegram_update(update_data))
 
         return jsonify({'ok': result})
     except Exception as e:
@@ -3677,7 +3686,7 @@ def telegram_webhook_handler():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/telegram/setup-webhook', methods=['POST'])
+@app.route('/telegram/setup-webhook', methods=['POST', 'GET'])
 def setup_telegram_webhook():
     """
     Установить webhook URL для Telegram бота.
@@ -3688,8 +3697,11 @@ def setup_telegram_webhook():
 
     try:
         # Получаем базовый URL из запроса или используем Render URL
-        data = request.get_json() or {}
-        base_url = data.get('base_url')
+        if request.method == 'POST' and request.is_json:
+            data = request.get_json() or {}
+            base_url = data.get('base_url')
+        else:
+            base_url = request.args.get('base_url')
 
         if not base_url:
             # Пытаемся определить URL автоматически
@@ -3700,12 +3712,7 @@ def setup_telegram_webhook():
 
         webhook_url = f"{base_url}/telegram/webhook"
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(telegram_webhook.set_webhook(webhook_url))
-        finally:
-            loop.close()
+        result = run_async(telegram_webhook.set_webhook(webhook_url))
 
         if result:
             return jsonify({
@@ -3718,6 +3725,8 @@ def setup_telegram_webhook():
 
     except Exception as e:
         print(f"[TELEGRAM SETUP ERROR] {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -3728,12 +3737,7 @@ def get_telegram_webhook_info():
         return jsonify({'error': 'Telegram bot not enabled'}), 503
 
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            info = loop.run_until_complete(telegram_webhook.get_webhook_info())
-        finally:
-            loop.close()
+        info = run_async(telegram_webhook.get_webhook_info())
 
         if info:
             return jsonify({
@@ -3745,6 +3749,8 @@ def get_telegram_webhook_info():
 
     except Exception as e:
         print(f"[TELEGRAM INFO ERROR] {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
@@ -3758,12 +3764,7 @@ def delete_telegram_webhook():
         return jsonify({'error': 'Telegram bot not enabled'}), 503
 
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(telegram_webhook.delete_webhook())
-        finally:
-            loop.close()
+        result = run_async(telegram_webhook.delete_webhook())
 
         if result:
             return jsonify({
@@ -3775,6 +3776,8 @@ def delete_telegram_webhook():
 
     except Exception as e:
         print(f"[TELEGRAM DELETE ERROR] {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
