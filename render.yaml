@@ -1,0 +1,24 @@
+services:
+  # Основной веб-сервис (уже существует)
+  - type: web
+    name: beer-abc-analysis
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+  # Telegram бот (новый сервис)
+  - type: worker
+    name: kult-taplist-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python telegram_bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false  # Устанавливается вручную в Dashboard
+      - key: API_BASE_URL
+        value: https://beer-abc-analysis.onrender.com
+      - key: PYTHON_VERSION
+        value: 3.11.0
