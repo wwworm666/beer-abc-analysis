@@ -100,9 +100,26 @@ def find_beer_info_local(beer_name, mapping):
     if not beer_name or not mapping:
         return None
 
+    import re
+
+    def clean_name(name):
+        """Очищает название от типичных суффиксов"""
+        # Убираем "КЕГ "
+        name = name.replace('КЕГ ', '').strip()
+        # Убираем ", светлое", ", темное", ", нефильтрованное" и т.д.
+        name = re.sub(r',\s*(светлое|темное|тёмное|нефильтрованное|фильтрованное|пшеничное)$', '', name, flags=re.IGNORECASE).strip()
+        # Убираем объем в конце (30 л, 20л, 50L)
+        name = re.sub(r'\s*\d+\s*(л|l|кг|kg)\s*$', '', name, flags=re.IGNORECASE).strip()
+        return name
+
     # Прямое совпадение
     if beer_name in mapping:
         return mapping[beer_name]
+
+    # Очищенное название
+    cleaned = clean_name(beer_name)
+    if cleaned in mapping:
+        return mapping[cleaned]
 
     # Без "КЕГ "
     name_without_keg = beer_name.replace('КЕГ ', '').strip()
@@ -115,7 +132,6 @@ def find_beer_info_local(beer_name, mapping):
         return mapping[name_with_keg]
 
     # Частичное совпадение без объема
-    import re
     name_base = re.sub(r'\s*\d+\s*(л|l|кг|kg)\s*$', '', beer_name, flags=re.IGNORECASE).strip()
     name_base = name_base.replace('КЕГ ', '').strip()
 

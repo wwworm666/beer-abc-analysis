@@ -1273,37 +1273,46 @@ def find_beer_info(beer_name, mapping):
     Ищет информацию о пиве в маппинге.
     Поддерживает различные форматы названий (с КЕГ и без).
     """
+    import re
+
     if not beer_name or not mapping:
         return None
+
+    def clean_name(name):
+        """Очищает название от типичных суффиксов"""
+        # Убираем "КЕГ "
+        name = name.replace('КЕГ ', '').replace('кег ', '').strip()
+        # Убираем ", светлое", ", темное", ", нефильтрованное" и т.д.
+        name = re.sub(r',\s*(светлое|темное|тёмное|нефильтрованное|фильтрованное|пшеничное)$', '', name, flags=re.IGNORECASE).strip()
+        # Убираем объем в конце (30 л, 20л, 50L)
+        name = re.sub(r'\s*\d+\s*(л|l|кг|kg)\s*$', '', name, flags=re.IGNORECASE).strip()
+        return name
 
     # Прямое совпадение
     if beer_name in mapping:
         return mapping[beer_name]
 
+    # Очищенное название
+    cleaned = clean_name(beer_name)
+    if cleaned in mapping:
+        return mapping[cleaned]
+
     # Попробуем убрать "КЕГ " из начала названия на кране
     if beer_name.startswith('КЕГ '):
-        clean_name = beer_name[4:]  # убираем "КЕГ "
-        if clean_name in mapping:
-            return mapping[clean_name]
+        clean_keg = beer_name[4:]  # убираем "КЕГ "
+        if clean_keg in mapping:
+            return mapping[clean_keg]
 
     # Попробуем добавить "КЕГ " к названию
     keg_name = f"КЕГ {beer_name}"
     if keg_name in mapping:
         return mapping[keg_name]
 
-    # Попробуем найти частичное совпадение (без учёта литража)
-    beer_name_lower = beer_name.lower()
+    # Попробуем найти частичное совпадение
+    cleaned_lower = cleaned.lower()
     for key in mapping.keys():
-        key_lower = key.lower()
-        # Убираем литраж для сравнения (20 л, 30 л, и т.д.)
-        clean_beer = beer_name_lower.replace(' 20 л', '').replace(' 30 л', '').replace(' л', '').strip()
-        clean_key = key_lower.replace(' 20 л', '').replace(' 30 л', '').replace(' л', '').strip()
-
-        if clean_beer == clean_key:
-            return mapping[key]
-
-        # Также проверяем без "кег "
-        if clean_beer.replace('кег ', '') == clean_key.replace('кег ', ''):
+        key_cleaned = clean_name(key).lower()
+        if cleaned_lower == key_cleaned:
             return mapping[key]
 
     return None
