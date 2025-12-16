@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 import time
+import asyncio
 from datetime import datetime, timedelta
 import google.generativeai as genai
 from core.olap_reports import OlapReports
@@ -45,6 +46,26 @@ plans_manager = PlansManager()
 
 # Инициализируем менеджер заведений
 venues_manager = VenuesManager()
+
+# Инициализируем Telegram бота (webhook режим)
+try:
+    import telegram_webhook
+
+    # Загружаем маппинг пива для бота
+    beer_mapping_file = os.path.join(os.path.dirname(__file__), 'data', 'beer_info_mapping.json')
+    beer_mapping_for_bot = {}
+    if os.path.exists(beer_mapping_file):
+        with open(beer_mapping_file, 'r', encoding='utf-8') as f:
+            beer_mapping_for_bot = json.load(f)
+        print(f"[TELEGRAM] Загружен маппинг пива: {len(beer_mapping_for_bot)} записей")
+
+    # Передаем источники данных в telegram модуль
+    telegram_webhook.set_data_sources(taps_manager, beer_mapping_for_bot)
+    TELEGRAM_BOT_ENABLED = True
+    print("[TELEGRAM] Бот инициализирован (webhook режим)")
+except Exception as e:
+    print(f"[TELEGRAM] Ошибка инициализации бота: {e}")
+    TELEGRAM_BOT_ENABLED = False
 
 # Инициализируем Gemini API
 try:
@@ -3622,6 +3643,141 @@ def debug_taps_data():
         }), 500
 
 
+# ============================================================
+# TELEGRAM BOT WEBHOOK ENDPOINTS
+# ============================================================
+
+@app.route('/telegram/webhook', methods=['POST'])
+def telegram_webhook_handler():
+    """
+    Webhook endpoint для Telegram бота.
+    Telegram отправляет сюда все обновления.
+    """
+    if not TELEGRAM_BOT_ENABLED:
+        return jsonify({'error': 'Telegram bot not enabled'}), 503
+
+    try:
+        update_data = request.get_json()
+        if not update_data:
+            return jsonify({'error': 'No data'}), 400
+
+        # Обрабатываем update асинхронно
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(telegram_webhook.process_telegram_update(update_data))
+        finally:
+            loop.close()
+
+        return jsonify({'ok': result})
+    except Exception as e:
+        print(f"[TELEGRAM WEBHOOK ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/telegram/setup-webhook', methods=['POST'])
+def setup_telegram_webhook():
+    """
+    Установить webhook URL для Telegram бота.
+    Вызывается один раз после деплоя на Render.
+    """
+    if not TELEGRAM_BOT_ENABLED:
+        return jsonify({'error': 'Telegram bot not enabled'}), 503
+
+    try:
+        # Получаем базовый URL из запроса или используем Render URL
+        data = request.get_json() or {}
+        base_url = data.get('base_url')
+
+        if not base_url:
+            # Пытаемся определить URL автоматически
+            base_url = os.environ.get('RENDER_EXTERNAL_URL')
+            if not base_url:
+                # Если Render URL не найден, используем URL из запроса
+                base_url = request.url_root.rstrip('/')
+
+        webhook_url = f"{base_url}/telegram/webhook"
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(telegram_webhook.set_webhook(webhook_url))
+        finally:
+            loop.close()
+
+        if result:
+            return jsonify({
+                'success': True,
+                'webhook_url': webhook_url,
+                'message': 'Webhook установлен успешно'
+            })
+        else:
+            return jsonify({'error': 'Failed to set webhook'}), 500
+
+    except Exception as e:
+        print(f"[TELEGRAM SETUP ERROR] {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/telegram/webhook-info', methods=['GET'])
+def get_telegram_webhook_info():
+    """Получить информацию о текущем webhook"""
+    if not TELEGRAM_BOT_ENABLED:
+        return jsonify({'error': 'Telegram bot not enabled'}), 503
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            info = loop.run_until_complete(telegram_webhook.get_webhook_info())
+        finally:
+            loop.close()
+
+        if info:
+            return jsonify({
+                'success': True,
+                'webhook_info': info
+            })
+        else:
+            return jsonify({'error': 'Failed to get webhook info'}), 500
+
+    except Exception as e:
+        print(f"[TELEGRAM INFO ERROR] {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/telegram/delete-webhook', methods=['POST'])
+def delete_telegram_webhook():
+    """
+    Удалить webhook (для переключения обратно на polling режим).
+    Используется для локальной разработки.
+    """
+    if not TELEGRAM_BOT_ENABLED:
+        return jsonify({'error': 'Telegram bot not enabled'}), 503
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(telegram_webhook.delete_webhook())
+        finally:
+            loop.close()
+
+        if result:
+            return jsonify({
+                'success': True,
+                'message': 'Webhook удален. Теперь можно использовать polling режим.'
+            })
+        else:
+            return jsonify({'error': 'Failed to delete webhook'}), 500
+
+    except Exception as e:
+        print(f"[TELEGRAM DELETE ERROR] {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("BEER ABC/XYZ ANALYSIS")
@@ -3629,6 +3785,8 @@ if __name__ == '__main__':
     print("\nZapusk veb-servera...")
     print("Otkroyte v brauzere: http://localhost:5000")
     print("Test modules: http://localhost:5000/test_modules")
+    if TELEGRAM_BOT_ENABLED:
+        print("Telegram bot: ENABLED (webhook mode)")
     print("\nDlya ostanovki nazhmite Ctrl+C\n")
 
     app.run(debug=True, host='0.0.0.0', port=5000)
