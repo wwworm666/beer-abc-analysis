@@ -106,10 +106,14 @@ def find_beer_info_local(beer_name, mapping):
         """Очищает название от типичных суффиксов"""
         # Убираем "КЕГ "
         name = name.replace('КЕГ ', '').strip()
+        # Заменяем тире "—" на пробел
+        name = name.replace(' — ', ' ').replace('—', ' ').strip()
         # Убираем ", светлое", ", темное", ", нефильтрованное" и т.д.
         name = re.sub(r',\s*(светлое|темное|тёмное|нефильтрованное|фильтрованное|пшеничное)$', '', name, flags=re.IGNORECASE).strip()
-        # Убираем объем в конце (30 л, 20л, 50L)
-        name = re.sub(r'\s*\d+\s*(л|l|кг|kg)\s*$', '', name, flags=re.IGNORECASE).strip()
+        # Убираем объем в конце (30 л, 20л, 50L, ", 20 л")
+        name = re.sub(r',?\s*\d+\s*(л|l|кг|kg)\s*$', '', name, flags=re.IGNORECASE).strip()
+        # Убираем одиночный " л" в конце (без числа)
+        name = re.sub(r'\s+л\s*$', '', name, flags=re.IGNORECASE).strip()
         return name
 
     # Прямое совпадение
