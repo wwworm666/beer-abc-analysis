@@ -1,12 +1,40 @@
 """
 МАППИНГ КЕГОВ К БЛЮДАМ
 Импортировано из tochno prav spisok - active_dishes_to_kegs_CLEAN.csv.csv
-Дата: 2025-10-18 01:38:18
+Дата: 2025-12-15 (обновлено)
 Только активные кеги продававшиеся в 2025 году
 """
 
 KEG_TO_DISH_MAPPING = {
     'КЕГ  Традиционный мид СиВ 20 л': ['Степь и Ветер Традиционный'],
+    # === Добавлено 2025-12-15 ===
+    'КЕГ Балтика Брю Блонд 30 л': ['Baltika Brew Blond'],
+    'КЕГ Brewlok 40 скелетов': ['Brewlok 40 скелетов'],
+    'КЕГ Brewlok Русалка': ['Brewlok Русалка'],
+    'КЕГ Gravity Project Heartless Bitch 2.0': ['Gravity Project Heartless Bitch 2.0'],
+    'КЕГ Old Speckled Hen  л': ['Old Speckled Hen'],
+    'КЕГ Paradox Ghost Whales': ['Paradox Ghost Whales'],
+    'КЕГ Paradox IPA': ['Paradox IPA'],
+    'КЕГ Paradox Masters Table': ['Paradox Masters Table'],
+    'КЕГ Paradox Pumpkin Hell': ['Paradox Pumpkin Hell'],
+    'КЕГ Pilgerstoff Weizen': ['Pilgerstoff Weizen'],
+    'КЕГ Plague Brew Rusty Blob Plum': ['Plague Brew Rusty Blob Plum'],
+    'КЕГ Red Button Matilde': ['Red Button Matilde'],
+    'КЕГ Velka Morava Frothy Froh': ['Velka Morava Frothy Froh'],
+    'КЕГ Velka Morava  Moravský  Klas Světlé': ['Velka Morava Moravský  Klas Světlé'],
+    'КЕГ Velka Morava Пятипитие': ['Velka Morava Пятипитие'],
+    'КЕГ Zagovor Stoner': ['Zagovor Stoner'],
+    'КЕГ Белхевен Блэк Скоттиш Стаут': ['Белхевен Блэк Скоттиш Стаут'],
+    'КЕГ Бюльви Вивизеро 30л.': ['Бульви Вивидзеро'],
+    'КЕГ Бургунь де Фландер': ['Бургунь де Фландер'],
+    'КЕГ Бюльви Рустик полусладкий 30 л': ['Бюльви Рустик полусладкий'],
+    'КЕГ Дрим Тим Октобер 30 л': ['Дримтим Октобер'],
+    'КЕГ Дрим Тим Порт Пилснер 30 л': ['Дримтим Порт Пилснер'],
+    'КЕГ Курпфальц Брау Хеллес 30л': ['Курпфальц Брау Хеллес'],
+    'КЕГ Василеостровское Руж Де Лютин': ['Руж де лютин'],
+    'КЕГ Страковице Пшеничное': ['Страковице Пшеничное'],
+    'КЕГ Фердинант лагер (10) 30 л': ['Фердинанд лагер 10'],
+    # === конец добавленного ===
     'КЕГ Atmosphere brew Кислый Движ 20 л': ['Atmosphere brew Кислый Движ'],
     'КЕГ Atmosphere brew Острая Томатная Дичь': ['Atmosphere brew Острая Томатная Дичь'],
     'КЕГ Atmosphere brew Томатная Дичь 20 л': ['Atmosphere brew Томатная Дичь'],

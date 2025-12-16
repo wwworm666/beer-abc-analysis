@@ -787,10 +787,18 @@
                         <div class="bar-card-header">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <h2>${bar.name}</h2>
-                                <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
-                                        style="padding: 8px 15px; font-size: 14px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;">
-                                    <i class="fas fa-download"></i> Таплист
-                                </button>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
+                                            style="padding: 8px 12px; font-size: 13px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;"
+                                            title="Скачать простой таплист">
+                                        Таплист
+                                    </button>
+                                    <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplistFull('${bar.bar_id}')"
+                                            style="padding: 8px 12px; font-size: 13px; background: rgba(76,175,80,0.8); border: 1px solid rgba(255,255,255,0.5); color: white;"
+                                            title="Скачать таплист с Untappd, стилем, ABV, IBU и описанием">
+                                        Таплист V2
+                                    </button>
+                                </div>
                             </div>
                             <div class="bar-card-stats">
                                 <span>✅ ${bar.active_taps}/${bar.tap_count}</span>
@@ -1050,10 +1058,18 @@
                             <div class="bar-card-header">
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <h2>${bar.name}</h2>
-                                    <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
-                                            style="padding: 8px 15px; font-size: 14px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;">
-                                        <i class="fas fa-download"></i> Таплист
-                                    </button>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button class="btn" onclick="event.stopPropagation(); downloadBarTaplist('${bar.bar_id}')"
+                                                style="padding: 8px 12px; font-size: 13px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white;"
+                                                title="Скачать простой таплист">
+                                            Таплист
+                                        </button>
+                                        <button class="btn btn-success" onclick="event.stopPropagation(); downloadBarTaplistFull('${bar.bar_id}')"
+                                                style="padding: 8px 12px; font-size: 13px; background: rgba(76,175,80,0.8); border: 1px solid rgba(255,255,255,0.5); color: white;"
+                                                title="Скачать таплист с Untappd, стилем, ABV, IBU и описанием">
+                                            Таплист V2
+                                        </button>
+                                    </div>
                                 </div>
                                 <div class="bar-card-stats">
                                     <span>✅ ${bar.active_taps}/${bar.tap_count}</span>
@@ -1144,6 +1160,16 @@
         // Скачать таплист конкретного бара
         function downloadBarTaplist(barId) {
             window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
+        }
+
+        // Скачать расширенный таплист (с Untappd, стилем, ABV и т.д.)
+        function downloadTaplistFull() {
+            window.location.href = '/api/taps/export-taplist-full';
+        }
+
+        // Скачать расширенный таплист конкретного бара
+        function downloadBarTaplistFull(barId) {
+            window.location.href = `/api/taps/export-taplist-full?bar_id=${barId}`;
         }
 
         function closeModal() {

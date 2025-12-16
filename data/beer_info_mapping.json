@@ -1,0 +1,2297 @@
+{
+  "Традиционный мид СиВ 20 л": {
+    "brewery": "Степь и Ветер",
+    "beer_name": "Традиционный мид",
+    "untappd_url": "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-traditional-mead/4711460",
+    "style": "Mead - Traditional",
+    "abv": "4.5%",
+    "description": "Дорогой и горячо любимый биргик! Не руби с плеча! Этот мёд не призван шокировать твои вкусовые рецепторы. Это базовый мид из цветочного мёда сброженный с дубовой щепой. Медовуха, как она есть. Наше видение баланса в угоду питкости и умеренной цены."
+  },
+  "Atmosphere brew Кислый Движ 20 л": {
+    "brewery": "Atmosphere Brew",
+    "beer_name": "Кислый Движ",
+    "untappd_url": "https://untappd.com/b/atmosphere-brewery-kislyj-dvizh/4588361",
+    "style": "Sour - Fruited",
+    "abv": "6.5%",
+    "description": "Sour Ale с добавлением дыни ,банана , ананаса и персика."
+  },
+  "Atmosphere brew Острая Томатная Дичь": {
+    "brewery": "Atmosphere Brew",
+    "beer_name": "Острая Томатная Дичь",
+    "untappd_url": "https://untappd.com/b/atmosphere-brewery-ostraya-tomatnaya-dich/3715132",
+    "style": "Sour - Tomato / Vegetable Gose",
+    "abv": "6.5%",
+    "ibu": "10",
+    "description": "Немецкий стиль кислого пива с добавлением гималайской соли, кориандра, томатов, кайенского перца и правильно подобранным букетов специй. Чрезвычайно свежий, яркий, вкусный и сбалансированный бодрящий напиток."
+  },
+  "Atmosphere brew Томатная Дичь 20 л": {
+    "brewery": "Atmosphere Brew",
+    "beer_name": "Томатная Дичь",
+    "untappd_url": "https://untappd.com/b/atmosphere-brewery-tomatnaya-dich/3701697",
+    "style": "Sour - Tomato / Vegetable Gose",
+    "abv": "6.5%",
+    "ibu": "10",
+    "description": "Немецкий стиль кислого пива с добавлением гималайской соли, кориандра, томатов кайенского перца и правильно подобранным букетов специй. Чрезвычайно свежий, яркий, вкусный и сбалансированный бодрящий напиток."
+  },
+  "Black Cat Moscow Calling": {
+    "brewery": "Black Cat",
+    "beer_name": "Moscow Calling",
+    "untappd_url": "https://untappd.com/b/black-cat-brewery-moscow-calling/5230956",
+    "style": "Bitter - Best",
+    "abv": "4.7%",
+    "ibu": "30",
+    "description": "Inspired by Britain\r\nBrewed in Moscow\r\nCollabo with Drunk United"
+  },
+  "Black Cat Out of Passion 20 л": {
+    "brewery": "Black Cat",
+    "beer_name": "Out of Passion",
+    "untappd_url": "https://untappd.com/b/black-cat-brewery-out-of-passion/6229387",
+    "style": "Sour - Fruited",
+    "abv": "4%",
+    "description": "Out of passion Освежающий sour ale со вкусом маракуйи и малины."
+  },
+  "Brewlok 40 скелетов": {
+    "brewery": "Brewlok",
+    "beer_name": "40 скелетов",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-dom-40-skeletov/1297780",
+    "style": "Stout - Oatmeal",
+    "abv": "5.5%",
+    "description": "Легкий, обволакивающий и немного сливочный овсяный стаут с 5.5% алкоголя. \r\nПо мотивам истории, случившейся в середине XIX века в Воронеже: поручик, проиграв в карты, отправился в заброшенный дом, навевающий ужас всей губернии. Что было дальше — в истории на этикетке."
+  },
+  "Brewlok IPA 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "IPA",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-ipa/5857981",
+    "style": "IPA - English",
+    "abv": "6.2%",
+    "description": "Яркий IPA в английском стиле. Сбалансированная горечь переливается в аромате свежим цитрусово-тропическим букетом из отборных сортов хмеля. Торжество баланса и вкуса!"
+  },
+  "Brewlok Stout": {
+    "brewery": "Brewlok",
+    "beer_name": "Stout",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-brewlok-stout/6214862",
+    "style": "Stout - English",
+    "abv": "6.5%",
+    "description": "Лёгкий сливочный стаут с бархатистой сладостью, который приятно обволакивает и убаюкивает вкусом. Идеальный десерт для вашего вечера!"
+  },
+  "Brewlok Баба Яга 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "Баба Яга",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-baba-yaga-baba-yga/1673847",
+    "style": "Stout - Milk / Sweet",
+    "abv": "6%",
+    "description": "Ох уж эта Баба Яга… Сложный и противоречивый персонаж. В один кон она помогает герою, в другой — хочет заживо сожрать. То подсказывает, где найти волшебные артефакты, а то насылает целую армию своих подручных головорезов. С ней не соскучишься, встреча обязательно будет бодрящей — совсем как наш молочный стаут с кофейным характером. Вкус незабываемый, как сам облик старухи с костяной ногой. Но чем лясы точить — лучше попробуйте сами!"
+  },
+  "Brewlok Василиса 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "Василиса",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-vasilisa-vasilisa/4585406",
+    "style": "Stout - Imperial / Double Oatmeal",
+    "abv": "8.6%",
+    "description": "Чародейка, воительница, рукодельница — и просто красавица. Это она, Василиса, краса и гордость русских сказок. Мы решили выразить своё безмерное уважение этой героине, сварив овсяный стаут с какао-бобами и вишней. Терпкий вкус бобов напоминает о трудностях, с которыми приходится разбираться царевне, а сладость вишни — вкус поцелуя со своим суженым-ряженым."
+  },
+  "Brewlok Пилс 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "Пилс",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-brewlok-pils/6214846",
+    "style": "Pilsner - Other",
+    "abv": "5.2%",
+    "description": "Сорт, который навсегда изменил мир пива.\r\nНаша классика с ярким хмелевым вкусом и\r\nцветочными нотами. Раскрывается округлой\r\nтравянистой горчинкой, подчёркивающей\r\nсухой солодовый вкус."
+  },
+  "Brewlok Русалка": {
+    "brewery": "Brewlok",
+    "beer_name": "Русалка",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-rusalka-rusalka/2027746",
+    "style": "Sour - Fruited",
+    "abv": "5%",
+    "ibu": "10",
+    "description": "Ребята, держитесь — перед саур элем с малиной невозможно устоять. Он манит и притягивает так же, как пение и хороводы русалок весной, так и хочется к ним присоединиться. Мы сварили его по технологии саур мэш и получили терпко ягодный, с сочной кислинкой вкус. Отлично сочетается с летними беззаботными прогулками, прыжками через костёр и ночным купанием в речке."
+  },
+  "Brewlok Трехлинейка": {
+    "brewery": "Brewlok",
+    "beer_name": "Трехлинейка",
+    "untappd_url": "https://untappd.com/b/brewlok-brewery-tryohlinejka/1448833",
+    "style": "Porter - Other",
+    "abv": "6.9%",
+    "description": "Классический портер с кофейными нотами и счастливой историей любви. \r\n\r\nСергей Мосин, уроженец Воронежской губернии, был вынужден отправиться в Тулу. Там он повстречал Варвару Арсеньеву, свою будущую жену. Женщина была замужем, но амур был вероломен и «пробил» сердце Сергея Ивановича. Чувства оказались взаимными, а объяснения с мужем Варвары закончились вызовом на дуэль. Арсеньев донес начальству, и Мосин оказался под домашним арестом. Спустя три дня Мосин повторил свой вызов, но уже на Дворянском собрании при свидетелях — и снова попал под арест.\r\n\r\nЧерез четыре года Сергей Иванович предъявил Арсеньеву просьбу о расторжении брака, на что муж Варвары потребовал отступных. Денег у молодого офицера не было. В последующие 8 лет Мосин изобрел винтовку, средства от которой и воссоединили его с любимой. В 1891 году, спустя 16 лет после первой встречи, они наконец были вместе.\r\n\r\nСергей Иванович и Варвара Николаевна прожили счастливую жизнь, а Трехлинейка, или «русская винтовка Мосина», прошла более трех войн. В России было выпущено свыше 10 миллионов этого оружия, а в ряде стран Трехлинейка до сих пор на вооружении."
+  },
+  "DaDa сидр #1 сухой 30л": {
+    "brewery": "DaDa",
+    "beer_name": "Сидр #1 сухой",
+    "untappd_url": "https://untappd.com/b/dada-cider-sidr-1-suhoj/3063743",
+    "style": "Cider - Dry",
+    "abv": "5.5%",
+    "description": "Полнотелый и терпкий, этот сидр обладает ароматом, который вернет вкусные воспоминания детства."
+  },
+  "DaDa сидр #2 полусухой 30л": {
+    "brewery": "DaDa",
+    "beer_name": "Сидр #2 полусухой",
+    "untappd_url": "https://untappd.com/b/dada-cider-sidr-2-polusuhoj/3253011",
+    "style": "Cider - Traditional / Apfelwein",
+    "abv": "5%",
+    "description": "С ароматом сочного персика, свежими яблочными нотками, как в домашнем яблочном соке."
+  },
+  "Gas brew Saltmelier: Naryan-Mar": {
+    "brewery": "Gas Brew",
+    "beer_name": "Saltmelier: Naryan-Mar",
+    "untappd_url": "https://untappd.com/b/gas-brew-saltmelier-naryan-mar/6029292",
+    "style": "Sour - Other Gose",
+    "abv": "5.5%",
+    "description": "Коллаборация с Seagull Oleg и cолевым cомелье Юрием Кесельманом, проект SaltLab.\r\n\r\nЛинейка Неоклассических традиционных гозе, в составе которых НЕТ рассолов, бульонов, томатных паст, пюре. Только пиво, соль, кориандр и натуральные специи, вывереные солевым сомелье.\r\n\r\nВ данном сорте использовалась \"Нарьян-Мар\" соль, которую можно приобрести отдельно - https://www.saltlab.ru/\r\n\r\nГвоздика × Розмарин × Брусника"
+  },
+  "Gletchers Milk of Amnesia 20 л": {
+    "brewery": "Gletcher",
+    "beer_name": "Milk of Amnesia",
+    "untappd_url": "https://untappd.com/b/gletcher-brewery-gletcher-milk-of-amnesia-v-tropic-milkshake-ipa/2576678",
+    "style": "IPA - Milkshake",
+    "abv": "5.5%",
+    "ibu": "35",
+    "description": "После феноменального успеха в 2018 году\r\nнашей «тропической амнезии», мы решили\r\nвключить Milk of Amnesia v. Tropic в постоянную\r\nлинейку. По-прежнему остался дух бунтарства\r\nот наших друзей из Anarchy Brew Co. (UK),\r\nмы смело смешали соки ананаса, манго\r\nи маракуйи, сдобрив это очередной порцией\r\nлактозы. Благодаря насыщенной фруктовой\r\nоснове, вкус получился умеренно сладким,\r\nокруглым и полнотелым.\r\nЗа аромат и продолжительную горчинку\r\nв финале отвечают хмели Nugget, Columbus,\r\nCentenial и Mosaic.\r\nСорт не сдает позиции и бьет\r\nрекорды топ-чартов! Смело\r\nпродолжайте наслаждаться новой\r\nпорцией «молочной амнезии»"
+  },
+  "Gravity Project Blueberry Jam 30 л": {
+    "brewery": "Gravity Project",
+    "beer_name": "Blueberry Jam",
+    "untappd_url": "https://untappd.com/b/gravity-project-blue-berry-jam/3047146",
+    "style": "Cider - Other Fruit",
+    "abv": "5%",
+    "description": "Сидр с голубикой."
+  },
+  "Gravity Project Heartless Bitch 2.0": {
+    "brewery": "Gravity Project",
+    "beer_name": "Heartless Bitch 2.0",
+    "untappd_url": "https://untappd.com/b/gravity-project-heartless-bitch-2-0/3300416",
+    "style": "Cider - Other Fruit",
+    "abv": "4.5%",
+    "description": "Heartless Bitch 2.0 Малина с мятой"
+  },
+  "Gusi Clear Sky 20л": {
+    "brewery": "Gusi",
+    "beer_name": "Clear Sky",
+    "untappd_url": "https://untappd.com/b/gusi-clear-sky/1196967",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "4.7%",
+    "ibu": "11",
+    "description": "Пшеничное пиво, сваренное в немецком стиле. Ароматное и характерно для пшеничных сортов непрозрачное пиво с мягким, сладко-солодовым вкусом."
+  },
+  "Mahatma G. NEIPA": {
+    "brewery": "Mahatma G.",
+    "beer_name": "NEIPA",
+    "untappd_url": "https://untappd.com/b/rewort-brewery-poetry-of-love-mahatma-g/2367269",
+    "style": "IPA - New England / Hazy",
+    "abv": "7.3%",
+    "ibu": "48",
+    "description": "Lemon Drop Vermont IPA «Mahatma G.»\r\n \r\nЭтот яркий стиль пива мы посвятили Махатме Ганди, человеку, чья жизнь прошла в неустанной борьбе за независимость собственного народа. Ганди показал, что можно добиваться серьезных политических результатов ненасильственными методами, и в этом мы с ним согласны.\r\n\r\nВ качестве лидирующей хмелевой компоненты мы выбрали Lemon Drop, цитрусовая составляющая которого созвучна аромату и вкусу спелых мандаринов, сок и цедру которых мы не пожалели на стадии дображивания. Результат получился столь же уверенным и ярким, как личность самого Ганди. Не верите? Сами попробуйте. \r\n\r\nPlato° 17 % / Alc. 7,3 % / IBU 48"
+  },
+  "O'Hara's Irish Red Nitro": {
+    "brewery": "O'Hara's (Carlow)",
+    "beer_name": "Irish Red Nitro",
+    "untappd_url": "https://untappd.com/b/o-hara-s-brewery-irish-red-nitro/800934",
+    "style": "Red Ale - Irish",
+    "abv": "4.3%",
+    "ibu": "25",
+    "description": "New addition to the draught line in 2014. Same flavours and tastes as Irish Red Ale but amplified with a smooth creamy mouth feel and a nice warming finish."
+  },
+  "O'Hara's Irish Stout": {
+    "brewery": "O'Hara's (Carlow)",
+    "beer_name": "Irish Stout",
+    "untappd_url": "https://untappd.com/b/o-hara-s-brewery-o-hara-s-irish-stout/6210",
+    "style": "Stout - Irish Dry",
+    "abv": "4.3%",
+    "ibu": "36",
+    "description": "The flagship of the O’Hara’s brand, this uniquely Irish stout brings one back to how Irish stouts used to taste. First brewed in 1999, it has since been awarded prestigious honours for its quality and authenticity.\r\n\r\nO’Hara’s Irish Stout has a robust roast flavour complemented by a full-bodied and smooth mouth feel. The generous addition of Fuggle hops lends a tart bitterness to the dry espresso-like finish. This sessionable stout beer is filled with rich complex coffee aromas mingled with light liquorice notes. The combination of traditional stout hops with an extra pinch of roast barley allows us to stay true to Irish tradition, recreating a taste so often yearned for by stout drinkers."
+  },
+  "O'Hara's Pale Ale": {
+    "brewery": "O'Hara's (Carlow)",
+    "beer_name": "Pale Ale",
+    "untappd_url": "https://untappd.com/b/o-hara-s-brewery-o-hara-s-irish-pale-ale/143851",
+    "style": "Pale Ale - Other",
+    "abv": "5.2%",
+    "ibu": "45",
+    "description": "Contemporary style IPA with an Irish twist, combining the balance of European IPAs with the generous dry hopping of APAs, this beer is everything an IPA should be and more. Zesty and refreshingly bitter the finish is long. With a copper tone body and topped with a lightly carbonated head, the dry hopping brings an intense aroma and lasting array of fruit and floral notes."
+  },
+  "Odna Tonna Hyperpink 30л": {
+    "brewery": "Одна Тонна",
+    "beer_name": "Hyperpink",
+    "untappd_url": "https://untappd.com/b/pivovarnya-odna-tonna-odna-tonna-brewery-hyperpink-citra-cryo-krush-motueka/6273932",
+    "style": "IPA - New England / Hazy",
+    "abv": "6.5%",
+    "description": "Hyperpink - взрыв розового космоса в бокале! Этот NEIPA — не просто мутный, а гиперцветный: сочный, бархатистый и настолько насыщенный - спасибо вердантам за это, - что даже Instagram заподозрит фильтр. За вкусовой профиль отвечает моднейшее сочетание Citra Cryo, Krush и Motueka, ориентированное на тропическую хмелевую атаку ваших рецепторов."
+  },
+  "Old Speckled Hen": {
+    "brewery": "Greene King (Morland)",
+    "beer_name": "Old Speckled Hen",
+    "untappd_url": "https://untappd.com/b/greene-king-morland-old-speckled-hen/3121",
+    "style": "Pale Ale - English",
+    "abv": "5%",
+    "description": "Old Speckled Hen is in pubs and bars across the country in cask and also as a smooth version at 4.5% ABV.\r\n\r\nYou can also enjoy ‘Old Speckled Hen’ in 500ml or 355ml bottles and 500ml cans at 5% ABV from all leading supermarkets and convenience outlets. And for the jet setters amongst us, you can even find it in 47 countries around the world, from Australia to the UAE.\r\n\r\n‘Old Speckled Hen’ has a full, smooth flavour and is very easy to drink. Its rich amber colour and superb fruity aromas are complemented by a delicious blend of malty tastes. Toffee and malt combine with bitterness on the back of the tongue to give a balanced sweetness. This, all followed by a refreshingly dry finish."
+  },
+  "PP Noggenfogger Elixir": {
+    "brewery": "Midnight Project",
+    "beer_name": "Noggenfogger Elixir",
+    "untappd_url": "https://untappd.com/b/midnight-project-noggenfogger-elixir/6194501",
+    "style": "Pale Ale - New England / Hazy",
+    "abv": "5.5%",
+    "ibu": "25",
+    "description": "NE Pale Ale w/ Cryo Pop, Rakau Amplifire, \r\nMotueka Amplifire Hop Oil\r\n\r\nДобыть его было непросто: сначала пришлось выполнить пару поручений для барона Синь Гогельмогеля из Примбабаска, раздобыть фиалковый порошок, кактусовую росу и парочку желез загадочных тварей. Но результат того стоит.\r\n\r\nЭтот  максимально сухой эликсир — чистая магия в бокале. \r\nНикогда не знаешь, какой эффект он \r\nпринесет в этот раз:\r\n— Легкость невесомого пера — устоишь даже \r\nна самой шаткой поверхности.\r\n— Загадочное превращение — почувствуй, \r\nкак мир становится вдвое больше.\r\n— Проклятие древних — кто сказал, что скелеты \r\nне умеют веселиться?\r\n\r\nИ пусть бокалы не пустеют, а ноги сами идут в пляс. Осторожно: возможно, придется привыкать \r\nк новому росту!"
+  },
+  "PP Sunlight Geliodor": {
+    "brewery": "Midnight Project",
+    "beer_name": "Sunlight Geliodor",
+    "untappd_url": "https://untappd.com/b/midnight-project-sunlight-geliodor/6289383",
+    "style": "Pale Ale - New England / Hazy",
+    "abv": "5.1%",
+    "ibu": "30",
+    "description": "NE Pale Ale w/ Cascade NZ, Nectaron CRYO, Citra, Nelson Sauvin Amplifire Oil\r\n\r\nВ мире Atelier достаточно одного артефакта, чтобы прогнать облака. Geliodor — драгоценный камень, что приносит солнце даже в самый хмурый день.\r\n\r\nМы собрали этот сорт по тем же законам алхимии: лёгкий, сияющий, с настроением ясного полудня — он словно включает внутренний свет!"
+  },
+  "Paradox Ghost Whales": {
+    "brewery": "Paradox",
+    "beer_name": "Ghost Whales",
+    "untappd_url": "https://untappd.com/b/paradox-ghost-whales/5570025",
+    "style": "Porter - Imperial / Double Baltic",
+    "abv": "10%",
+    "ibu": "20",
+    "description": "Ghost Whales - это традиционный крепкий балтийский портер. Плотное темное пиво с выраженным солодовым характером, зерновой сладостью, нотами сухофруктов и умеренной мягкой горечью. Для ценителей темных сортов с многослойным вкусом и сухим финишем."
+  },
+  "Paradox IPA": {
+    "brewery": "Paradox",
+    "beer_name": "IPA",
+    "untappd_url": "https://untappd.com/b/paradox-brewery-ipa/421466",
+    "style": "IPA - New England / Hazy",
+    "abv": "6%",
+    "ibu": "68",
+    "description": "Our flagship New England IPA. We brew Beaver Bite with choice English crystal malt, copious amounts of American hops, which are then fermented with our house ale strain. It’s the beer that got us started. You know it. You love it. If you don’t, that’s okay! It’s always available and always will be."
+  },
+  "Paradox Masters Table": {
+    "brewery": "Paradox",
+    "beer_name": "Master's Table",
+    "untappd_url": "https://untappd.com/b/paradox-msaters-table/6057149",
+    "style": "Sour - Fruited",
+    "abv": "6%",
+    "ibu": "12",
+    "description": "MASTERS’ TABLE — это мастерская партия кислого эля и насыщенного ягодного вкуса.\r\nМы сварили классический базовый саур с добавлением сочной малины с освежающими кислыми нотами и спелой сладкой черники."
+  },
+  "Paradox Pumpkin Hell": {
+    "brewery": "Paradox",
+    "beer_name": "Pumpkin Hell",
+    "untappd_url": "https://untappd.com/b/paradox-pumpkin-hell/6415786",
+    "style": "Pumpkin / Yam Beer",
+    "abv": "6.8%",
+    "ibu": "35",
+    "description": "PUMPKIN HELL — темная сторона тыквенного эля. Главный символ Хэллоуина и лучший сорт для\r\nосеннего шабаша сварен с запеченой тыквой и щедрой засыпью пряностей. Перец чили, копченая\r\nпаприка, мускатный орех, кардамон и лавровый лист подожгут ваш бокал острыми и пряными\r\nнотами."
+  },
+  "Pilgerstoff Maria Ehrenberger 30 л": {
+    "brewery": "Pilgerstoff",
+    "beer_name": "Maria Ehrenberger",
+    "untappd_url": "https://untappd.com/b/will-brau-hochstiftliches-brauhaus-in-bayern-pilgerstoff-edelhell-maria-ehrenberger/1656905",
+    "style": "Lager - Helles",
+    "abv": "5.1%",
+    "description": "\"Des Pilgers Helle Freude\" - In der Tradition eines echten Bayerisch Hell begeistert unser Pilgerstoff Edelhell durch seine ideale Balance zwischen vollmundigem Körper, herrlich weichen Malzaromen und einer besonders ausgewogenen und milden Hopfennote.\r\n\r\nOb dunkles Bernstein oder kräftiges Gelbgold - jeder Pilgerstoff bietet sein eigenes, unvergleichliches Geschmackserlebnis und verspricht traditionelles Brauhandwerk und beste Zutaten!"
+  },
+  "Pilgerstoff Weizen": {
+    "brewery": "Pilgerstoff",
+    "beer_name": "Weizen",
+    "untappd_url": "https://untappd.com/b/will-brau-hochstiftliches-brauhaus-in-bayern-pilgerstoff-edelhell-maria-ehrenberger/1656905",
+    "style": "Lager - Helles",
+    "abv": "5.1%",
+    "description": "\"Des Pilgers Helle Freude\" - In der Tradition eines echten Bayerisch Hell begeistert unser Pilgerstoff Edelhell durch seine ideale Balance zwischen vollmundigem Körper, herrlich weichen Malzaromen und einer besonders ausgewogenen und milden Hopfennote.\r\n\r\nOb dunkles Bernstein oder kräftiges Gelbgold - jeder Pilgerstoff bietet sein eigenes, unvergleichliches Geschmackserlebnis und verspricht traditionelles Brauhandwerk und beste Zutaten!"
+  },
+  "Plague Brew Rusty Blob Plum": {
+    "brewery": "Plague Brew",
+    "beer_name": "Rusty Blob Plum",
+    "untappd_url": "https://untappd.com/b/plague-brew-rusty-blob-plum/4931222",
+    "style": "Historical Beer - Adambier",
+    "abv": "9.6%",
+    "ibu": "28",
+    "description": "Plum Adambier\r\nИсторический дортмундский стиль пива, с тонами копоти, легкой кислотностью, карамельно солодовыми тонами и хмелевой горечью. В данный сорт мы добавили Сливы."
+  },
+  "Rebel Apple \"Dickiy Crest\" 30л": {
+    "brewery": "Rebel Apple",
+    "beer_name": "Дикий Крест",
+    "untappd_url": "https://untappd.com/b/rebel-apple-dickiy-crest-dry/4276330",
+    "style": "Cider - Dry",
+    "abv": "6%",
+    "description": "Dickiy Crest – натуральный сидр в современном прочтении, созданный в центре Москвы.\r\n\r\n\r\nОн сделан из 100% яблочного сока, без воды и концентратов. В бленде только российские яблоки 4 разных сортов с узнаваемым аккордом Антоновки.\r\n\r\nОтбирая каждое яблоко, мы создавали DC для каждого из вас таким, каким видим современный напиток городского жителя - чистый, натуральный и освежающий сидр на каждый день.\r\n\r\nНаполняете ли вы бокал или неформально пьете прямо из бутылки, он будет одинаково хорош, как пара для блюд европейской кухни, стритфуда или как самодостаточный напиток. \r\n\r\n\r\n★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ \r\n\r\nСидр соломенно-золотистого цвета, средней карбонизации. Яркий яблочный аромат и фруктовый свежий вкус с умеренной сладостью и нотой прелого яблока.\r\nОптимальная температура: 7 - 9 С (5 минут после холодильника). \r\nСодержание сахара в 1 бутылке - всего 1,8г."
+  },
+  "Rebel Apple Дикий Крест": {
+    "brewery": "Rebel Apple",
+    "beer_name": "Дикий Крест",
+    "untappd_url": "https://untappd.com/b/rebel-apple-dickiy-crest-dry/4276330",
+    "style": "Cider - Dry",
+    "abv": "6%",
+    "description": "Dickiy Crest – натуральный сидр в современном прочтении, созданный в центре Москвы.\r\n\r\n\r\nОн сделан из 100% яблочного сока, без воды и концентратов. В бленде только российские яблоки 4 разных сортов с узнаваемым аккордом Антоновки.\r\n\r\nОтбирая каждое яблоко, мы создавали DC для каждого из вас таким, каким видим современный напиток городского жителя - чистый, натуральный и освежающий сидр на каждый день.\r\n\r\nНаполняете ли вы бокал или неформально пьете прямо из бутылки, он будет одинаково хорош, как пара для блюд европейской кухни, стритфуда или как самодостаточный напиток. \r\n\r\n\r\n★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ ★ \r\n\r\nСидр соломенно-золотистого цвета, средней карбонизации. Яркий яблочный аромат и фруктовый свежий вкус с умеренной сладостью и нотой прелого яблока.\r\nОптимальная температура: 7 - 9 С (5 минут после холодильника). \r\nСодержание сахара в 1 бутылке - всего 1,8г."
+  },
+  "Red Button Matilde": {
+    "brewery": "Red Button Brewery",
+    "beer_name": "Matilde",
+    "untappd_url": "https://untappd.com/b/red-button-brewery-matilde-frozen/6448651",
+    "style": "Freeze-Distilled Beer",
+    "abv": "20%",
+    "description": "Frozen blueberry and bilberry imperial stout \r\n\r\nЭтот концентрированный эликсир мы соединили с таким же мощным, выдержанным имперским стаутом. Результат превосходит все ожидания: насыщенное, почти черное как смоль тело с бархатистой текстурой. В аромате — интенсивные ноты джемовой черники, терпкой лесной голубики, горького шоколада."
+  },
+  "Red Rocket ESB 30l": {
+    "brewery": "Red Rocket",
+    "beer_name": "ESB",
+    "untappd_url": "https://untappd.com/b/red-rocket-brewery-esb/5218599",
+    "style": "Bitter - Extra Special / Strong (ESB)",
+    "abv": "6%",
+    "description": "Классический английский ESB медного цвета с лёгкой цветочной ароматикой хмелей East Kent Goldings и Fuggles."
+  },
+  "Rewort Nutty Nut 20 л": {
+    "brewery": "Rewort",
+    "beer_name": "Nutty Nut",
+    "untappd_url": "https://untappd.com/b/rewort-brewery-nutty-nut/2976231",
+    "style": "Porter - Other",
+    "abv": "6.9%",
+    "ibu": "30",
+    "description": "Double Porter «Nutty Nut» \r\nwith hazelnut.\r\n\r\nБуквально очень ореховый портер, для приготовления которого фундук был задействован на нескольких стадиях. Мы добавили его на варку и на холодное охмеление, а затем на нём же мы некоторое время выдерживали готовое пиво. Результат налицо - мощный, яркий и сбивающий с ног ореховый аромат в сочетании с орехово-лактозной сладостью во вкусе.\r\n\r\nPlato° 19.8 % / Alc. 6,9 % / IBU 30"
+  },
+  "Rewort Крылья Доблести 20 л": {
+    "brewery": "Rewort",
+    "beer_name": "Крылья Доблести",
+    "untappd_url": "https://untappd.com/b/rewort-brewery-krylya-doblesti/3168515",
+    "style": "Sour - Fruited",
+    "abv": "6.9%",
+    "ibu": "11",
+    "description": "Sour ale with bergamot, strawberry and passion fruit"
+  },
+  "Saldens Double IPA 30 л": {
+    "brewery": "Salden's",
+    "beer_name": "Double IPA",
+    "untappd_url": "https://untappd.com/b/salden-s-brewery-old-school-double-ipa/1571083",
+    "style": "IPA - Imperial / Double",
+    "abv": "8.5%",
+    "ibu": "100",
+    "description": "Двойной IPA в стиле западного побережья США на охмелении которого использовались по-настоящему олдскульные хмели Goldings, Cascade, Columbus и Chinook, радующие всех любителей охмелённого пива уже не один десяток лет, что и отражено в названии сорта. Не смотря на свою крепость этот эль почти не обладает сладостью и благодаря выбору хмелей имеет насыщенную горечь с оттенками хвои, дерева, цитрусовых и травы, а так же продолжительную накопительную сухость на финише и послевкусии."
+  },
+  "Selfmade Milk Star 20 л": {
+    "brewery": "Selfmade Brewery",
+    "beer_name": "Milk Star",
+    "untappd_url": "https://untappd.com/b/selfmade-brewery-milk-star/2345713",
+    "style": "Stout - Milk / Sweet",
+    "abv": "5.6%",
+    "ibu": "24",
+    "description": "В составе Milk Star английские и бельгийские солода, придающие сорту карамельный и шоколадный вкусы; овсяные хлопья дают мягкость и округлость телу эля; классический британский хмель придаёт легкую горечь и терпкость. Сладкий, молочный, шоколадный!"
+  },
+  "Starlingtons Black Spot": {
+    "brewery": "Starlingtons",
+    "beer_name": "Black Spot",
+    "untappd_url": "https://untappd.com/b/hobsons-brewery-starlingtons-black-spot/5983764",
+    "style": "Stout - English",
+    "abv": "4%",
+    "ibu": "26",
+    "description": "Starlingtons Black Spot - Roasted, black malt combined with traditional, savory hops provide a rich taste to the beer. The color of the beer is almost black, not transparent. The aroma of roasted coffee is of medium intensity. The body of the beer is medium-light, the taste has bright tones of toasted bread with notes of licorice. When pouring, the creamy head remains for a long time.\r\n\r\nSold in Russia"
+  },
+  "Starlingtons Day in Paradise": {
+    "brewery": "Starlingtons",
+    "beer_name": "Day in Paradise",
+    "untappd_url": "https://untappd.com/b/hobsons-brewery-starlingtons-day-in-paradise/5978413",
+    "style": "Blonde / Golden Ale - English",
+    "abv": "4.2%",
+    "ibu": "15"
+  },
+  "Starlingtons Knock to Heaven 30 л": {
+    "brewery": "Starlingtons",
+    "beer_name": "Knock to Heaven",
+    "untappd_url": "https://untappd.com/b/hobsons-brewery-starlingtons-knock-to-heaven/6001844",
+    "style": "Porter - English",
+    "abv": "4.8%",
+    "ibu": "21"
+  },
+  "Starlingtons Moonlight 30 л": {
+    "brewery": "Starlingtons",
+    "beer_name": "Moonlight",
+    "untappd_url": "https://untappd.com/b/hobsons-brewery-starlingtons-moonlight/5978404",
+    "style": "Pale Ale - English",
+    "abv": "4.5%",
+    "ibu": "28"
+  },
+  "True Hops IPA 20 л": {
+    "brewery": "True Hops",
+    "beer_name": "IPA",
+    "untappd_url": "https://untappd.com/b/new-riga-s-brewery-true-hops-ipa/5930694",
+    "style": "IPA - Other",
+    "abv": "6%",
+    "ibu": "55",
+    "description": "Пиво золотистого цвета с умеренной хмелевой горечью и солодовыми тонами во вкусе, травянистым и цитрусовым ароматом, обусловленным используемыми сортами хмеля из Северной Америки"
+  },
+  "Velka Morava Moravský Klas Světlé": {
+    "brewery": "Velka Morava",
+    "beer_name": "Moravský Klas Světlé",
+    "untappd_url": "https://untappd.com/b/velka-morava-moravsky-klas-svetle-moravskij-klass-svetloe/302027",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.5%",
+    "ibu": "35",
+    "description": "Classic Czech pale lezak, brewed in Pilsner style from Moravian malt and Zatec (Saaz) hops. Beer with a bright hop aroma and a pleasant, strong bitterness.\r\n\r\nКлассический чешский светлый лежак , сваренный в пльзеньском стиле из моравского солода и жатецкого хмеля. Пиво с ярким хмелевым ароматом и приятной, сильной горчинкой."
+  },
+  "Velka Morava Big Boy Amarillo 20 л": {
+    "brewery": "Velka Morava",
+    "beer_name": "Big Boy Amarillo",
+    "untappd_url": "https://untappd.com/b/velka-morava-big-boy-amarillo/6186930",
+    "style": "IPA - Imperial / Double",
+    "abv": "8.4%",
+    "description": "Fresh batch of our West Coast Double India Pale Ale, double dry hopped with neoclassical American hops with addition of Amarillo in the blend. Smooth and rich, with decent bitterness.\r\n\r\nсвежий бэтч нашего двойного весткоста, с двойным сухим охмелением авторским блендом американских хмелей во главе с Амарилло. Гладкий в теле, сухо выброженный, с ощутимой гармоничной горчинкой."
+  },
+  "Velka Morava Big Boy From Idaho": {
+    "brewery": "Velka Morava",
+    "beer_name": "Big Boy From Idaho",
+    "untappd_url": "https://untappd.com/b/velka-morava-big-boy-from-idaho/6385425",
+    "style": "IPA - Imperial / Double",
+    "abv": "8.4%",
+    "description": "Новый релиз в линейке мощных строгих индиа пейлов в стилистике западного побережья, с двойным сухим охмелением авторским блендом, с акцентом на Idaho 7. Ароматный, смолистый, сухо выброженный, с выраженными нотами цитрусовых, оттенком пряных трав и лёгким данком."
+  },
+  "Velka Morava Frothy Froh": {
+    "brewery": "Velka Morava",
+    "beer_name": "Frothy Froh",
+    "untappd_url": "https://untappd.com/b/velka-morava-frothy-froh/5699267",
+    "style": "Stout - Irish Dry",
+    "abv": "4.7%",
+    "description": "Traditional dry Irish stout, easy drinking and silky, with hints of slightly roasted coffee, dark chocolate, slight nuttiness and a tone of baked goods. The title is driven by James Joyse's laudation to Irish stout in his Finnegan's Wake.\r\n\r\nКлассический сухой стаут в ирландском стиле, питкий и шелковистый, с ощутимой ноткой кофе светлой обжарки, лёгким тоном ореха, выпечки и горького шоколада.\r\nНазвание отсылает нас к творчеству Джеймса Джойса, великого певца Эрин, а конкретно к его оде ирландскому стауту в \"Поминках по Финнегану\"."
+  },
+  "Velka Morava Schrader 30 л": {
+    "brewery": "Velka Morava",
+    "beer_name": "Schrader",
+    "untappd_url": "https://untappd.com/b/velka-morava-schrader/4993517",
+    "style": "IPA - American",
+    "abv": "6.1%",
+    "description": "Another collab with Spitsa Bar. \r\nThis one is inspired by cycling again. Schrader, as well as Presta, is a valve but a more universal one. Most of modern car, motor and hardtail bike wheels are equipped with it.\r\nOur new India Pale Ale is easy to drink but full bodied, with a decent hoppy bitterness and rather dry finish. It has been brewed to freshen and cheer you up in any mood.\r\n\r\nВторой в череде сортов, сваренных совместно с командой бара Спица. \r\nВ поисках вдохновения для создания этого сорта мы вновь погрузились в велоспорт. Schrader, как и Presta -- клапан для камеры колеса, только чуть более универсальный. Этим устройством оборудуют большинство колес современных машин и мотоциклов, хардтейлов или туринговых байков.\r\nНаш новый индиа пейл -- питкий, но полнотелый, с бодрой, но не навязчивой горчинкой, довольно сухо выброженный. Он сварен, чтобы освежить и порадовать вас, в любом настроении."
+  },
+  "Velka Morava Пятипитие": {
+    "brewery": "Velka Morava",
+    "beer_name": "Пятипитие",
+    "untappd_url": "https://untappd.com/b/velka-morava-pyatipitie/5157675",
+    "style": "Pilsner - Other",
+    "abv": "5%",
+    "description": "Light and refreshing half German - half Czech pilsner, brewed with double decoction, hopped with Hallertau Mittelfrüh and Saaz pellets. Crisp and clean, with grassy and woody bitternes, some floral notes and a hint of bread crust. Brewed in collab with Para Pint pub especially for their 5th anniversary.\r\nОсвежающий лёгкий немецко-чешский пилс, приготовленный отварочным методом, с двумя отварками, охмелённый гранулами Hallertau Mittelfrüh и Saaz. Сухо выброженный, искристый, с ощутимой травянисто-древесной горчинкой, лёгким цветочным оттенком и нотой хлебной корочки. Коллаб с Пара Пинт, сварен специально к пятому дню рождения паба."
+  },
+  "Weissmuller 30 л": {
+    "brewery": "Weissmuller",
+    "beer_name": "Weissmuller",
+    "untappd_url": "https://untappd.com/b/privatbrauerei-m-c-wieninger-weissmuller-hefeweissbier/5338809",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "5.3%",
+    "ibu": "10",
+    "description": "Brewed \"Brauservice BGL\""
+  },
+  "Weissmuller Original Helles 30 л": {
+    "brewery": "Weissmuller",
+    "beer_name": "Original Helles",
+    "untappd_url": "https://untappd.com/b/privatbrauerei-m-c-wieninger-weissmuller-original-helles/5344123",
+    "style": "Lager - Helles",
+    "abv": "5.3%"
+  },
+  "Zagovor Stoner": {
+    "brewery": "Zagovor",
+    "beer_name": "Stoner",
+    "untappd_url": "https://untappd.com/b/zagovor-brewery-stoner/873889",
+    "style": "Stout - Milk / Sweet",
+    "abv": "5.5%",
+    "ibu": "23",
+    "description": "True milk stout with lactose and oats for extra smooth and rich. Moderate bitterness and sweet notes."
+  },
+  "Абанамат 30л": {
+    "brewery": "Заповедник",
+    "beer_name": "Абанамат",
+    "untappd_url": "https://untappd.com/b/zapovednik-abanamat/1963594",
+    "style": "Cider - Dry",
+    "abv": "5%",
+    "description": "Сухой сидр, яблоки для которого собраны непосредственно на территории и в окрестностях Мемориального музея-заповедника А. С. Пушкина «Михайловское». Часть яблок собрана в саду дома, в котором жил Валерий Карпов, он же Марков из \"Заповедника\" Сергея Довлатова. Для АБАНАМАТА мы давили сок из Антоновки, Мельбы, Китайки и Лешуги (так в наших местах называют дикую яблоню)."
+  },
+  "Айингер Весеннее 30 л": {
+    "brewery": "Ayinger",
+    "beer_name": "Frühlingsbier",
+    "untappd_url": "https://untappd.com/b/ayinger-privatbrauerei-ayinger-fruhlingsbier/37596",
+    "style": "Kellerbier / Zwickelbier",
+    "abv": "5.5%",
+    "ibu": "30",
+    "description": "This naturally cloudy “Frühlingsbier” is bottled unfiltered, one of the results being that the beer retains many natural, protein, hops and yeast elements. The fine, natural cloudiness and the flowery-yeast aroma allow the beer-lover to anticipate the richness of taste that this refreshing, very drinkable beer offers, a beer that is also thoroughly distinguished by a pleasantly bitter sensation. From a nutritional-physiological view it must also be emphasized that this beer makes a significant contribution to good health with its vitamin and mineral-rich yeast content. From the beginning of March, beer enthusiasts can enjoy this seasonal Ayinger beer specialty for a brief period."
+  },
+  "Айингер Октобер Фест-Марцен 30 л": {
+    "brewery": "Ayinger",
+    "beer_name": "Oktober Fest-Märzen",
+    "untappd_url": "https://untappd.com/b/ayinger-privatbrauerei-oktober-fest-marzen/5964",
+    "style": "Märzen",
+    "abv": "5.8%",
+    "ibu": "25"
+  },
+  "Байройтер хель 30 л": {
+    "brewery": "Bayreuther",
+    "beer_name": "Hell",
+    "untappd_url": "https://untappd.com/b/bayreuther-bierbrauerei-bayreuther-hell/116296",
+    "style": "Lager - Helles",
+    "abv": "4.9%",
+    "ibu": "17",
+    "description": "Unser echt bayerisches Hell ist ehrlich, frisch und würzig.\r\n\r\nDer frisch-würzige Geschmack und der süffige Biergenuss sind charakteristisch für die traditionell bayerische Bierspezialität. Bayreuther Hell bekommt durch die sorgsam ausgewogene Balance aus feinsten hellen Gerstenmalzen und eine dezente Hopfennote seinen unverkennbaren Charakter. Gebraut wird es mit viel Liebe und Herzblut nach überliefertem Rezept und nach den Regeln bester bayerischer Braukunst.\r\n\r\nBayreuther Hell strahlt im Glas mit seiner leuchtend goldenen Farbe und einer stattlichen Schaumkrone. Die Nase umspielen frische, florale Noten mit einem leichten Hauch von Honig und Zitrone. Im Mund zeigt sich ein leichtes, wunderbar würziges und süffiges Bier mit feinster Spritzigkeit: eine tolle Komposition aus Honig, Karamell und blumigen Hopfennoten mit einem Hauch von Getreide. Ein ehrliches und schmackhaftes Helles, wie es in Bayern schon seit Jahrhunderten gebraut und geliebt wird."
+  },
+  "Балтика Брю Блонд 30 л": {
+    "brewery": "Балтика Brew",
+    "beer_name": "Blonde",
+    "untappd_url": "https://untappd.com/b/baltika-brew-blond-blond/5985263",
+    "style": "Belgian Blonde",
+    "abv": "6.7%",
+    "ibu": "12",
+    "description": "Cветлый эль в традиционном бельгийском стиле с утонченным, но сложным фруктово-цветочным ароматом с лёгкими пряными и цитрусовыми оттенками. Гармония богатого солодового вкуса, едва заметного дрожжевого характера, умеренной горечи и благородного сухого послевкусия."
+  },
+  "Балтика Брю Брюн 30 л": {
+    "brewery": "Балтика Brew",
+    "beer_name": "Brune",
+    "untappd_url": "https://untappd.com/b/baltika-brew-blond-blond/5985263",
+    "style": "Belgian Blonde",
+    "abv": "6.7%",
+    "ibu": "12",
+    "description": "Cветлый эль в традиционном бельгийском стиле с утонченным, но сложным фруктово-цветочным ароматом с лёгкими пряными и цитрусовыми оттенками. Гармония богатого солодового вкуса, едва заметного дрожжевого характера, умеренной горечи и благородного сухого послевкусия."
+  },
+  "Баптист Вит": {
+    "brewery": "Van Steenberge",
+    "beer_name": "Baptist Wit",
+    "untappd_url": "https://untappd.com/b/brouwerij-van-steenberge-baptist-wit-blanche/2138256",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "5%",
+    "ibu": "15"
+  },
+  "Барбе Руби 30 л": {
+    "brewery": "Verhaeghe",
+    "beer_name": "Barbe Ruby",
+    "untappd_url": "https://untappd.com/b/brouwerij-verhaeghe-barbe-ruby/208848",
+    "style": "Fruit Beer",
+    "abv": "7%",
+    "description": "Barbe Ruby is one of the four Barbe beers. The name of the series of “Barbe” beers refers to the Liege brewery “Barbe d’Or”. Brewery Barbe d’Or was a medieval brewery in the old town of Liege (Belgium) and belonged to the family “de Romsée”, an ancient Liege family whose coat of arms adorns the logo of the Barbe beers. Barbe Ruby is a top-fermented beer. The “Barbe Ruby” is  the fruity beer in the series of “Barbe” beers. Its taste has aromas of fruit with hints of almonds and light sour cherries. The taste is initially sweet and fruity and keeps nicely the balance with a refreshing aftertaste."
+  },
+  "Белхевен Блэк Скоттиш Стаут": {
+    "brewery": "Belhaven",
+    "beer_name": "Black Scottish Stout",
+    "untappd_url": "https://untappd.com/b/belhaven-brewery-belhaven-black/136568",
+    "style": "Stout - Irish Dry",
+    "abv": "4.2%",
+    "ibu": "10",
+    "description": "Belhaven Black Scottish Stout really is something completely different. Bursting with roast coffee and chocolate flavours, this is a truly genuine and premium pint. Brewed using pure Scottish water and a unique blend of Scottish triple malts sourced from the finest locally grown barley.\r\n\r\nBelhaven Black was launched across the UK on 23rd January 2012. A day of Scottish pride indeed. Bottles will be available in your local supermarket from April 2012."
+  },
+  "Бланш де Намур": {
+    "brewery": "Du Bocq",
+    "beer_name": "Blanche de Namur",
+    "untappd_url": "https://untappd.com/b/brasserie-du-bocq-blanche-de-namur/222",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "4.5%",
+    "ibu": "11",
+    "description": "\"Cloudy, smooth and mellow, the Blanche de Namur is a very high-quality wheatbeer. From the first sip, you will feel all its roundness and its delicacy that make it an outstanding wheatbeer. \n\nIts qualities and the brewery’s know-how earned it the honour of being named the best wheatbeer in the world (2009).\"\n\nDescription\n\nAppearance : Blond, cloudy and milky colour (colloidal turbidity when cold): the cloudiness is created when the beer is cold but can disappear when the beer warms up or is kept in the cold for too long a time.\nAroma : Fine fruity, revealing the spices used: coriander and bitter orange.\nTaste : Mellow beer, thirst-quenching but smooth, slightly acid flavour, powdery consistency on the tongue, not bitter.\nRemark : Best when drunk between 2° and 4°C.\nPackaging : 25 cl, 33cl, 75 cl, 1.5 l, keg\n\nServing suggestions\nGame, red meats, highly-seasoned white meats."
+  },
+  "Бланш де неж": {
+    "brewery": "Unibroue",
+    "beer_name": "Blanche de Neige",
+    "untappd_url": "https://untappd.com/b/brasserie-du-bocq-blanche-de-namur/222",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "4.5%",
+    "ibu": "11",
+    "description": "\"Cloudy, smooth and mellow, the Blanche de Namur is a very high-quality wheatbeer. From the first sip, you will feel all its roundness and its delicacy that make it an outstanding wheatbeer. \n\nIts qualities and the brewery’s know-how earned it the honour of being named the best wheatbeer in the world (2009).\"\n\nDescription\n\nAppearance : Blond, cloudy and milky colour (colloidal turbidity when cold): the cloudiness is created when the beer is cold but can disappear when the beer warms up or is kept in the cold for too long a time.\nAroma : Fine fruity, revealing the spices used: coriander and bitter orange.\nTaste : Mellow beer, thirst-quenching but smooth, slightly acid flavour, powdery consistency on the tongue, not bitter.\nRemark : Best when drunk between 2° and 4°C.\nPackaging : 25 cl, 33cl, 75 cl, 1.5 l, keg\n\nServing suggestions\nGame, red meats, highly-seasoned white meats."
+  },
+  "Блек Шип": {
+    "brewery": "Black Sheep Brewery",
+    "beer_name": "Black Sheep Ale",
+    "untappd_url": "https://untappd.com/b/obedinyonnye-pivovarni-holding-black-sheep-irish-stout/4932231",
+    "style": "Stout - Irish Dry",
+    "abv": "4%"
+  },
+  "Борнем Блонд 20 л": {
+    "brewery": "Van Steenberge",
+    "beer_name": "Bornem Blonde",
+    "untappd_url": "https://untappd.com/b/brouwerij-van-steenberge-st-stefanus-blonde/111296",
+    "style": "Belgian Blonde",
+    "abv": "7%",
+    "ibu": "15",
+    "description": "Appearance is hazy golden with an orange hue and minimal foam cap. Aroma is very fruity, mainly apricot, apple, and melon, with a touch of alcohol. Taste is a sweet, slightly musty malt with a lot of apricot, tangerine, apple. Mouthfeel is light with a high carbonation and touch of alcohol warmth. Finishes very dry and balanced."
+  },
+  "Брю Дивижн Астролагер Премиум Пилс": {
+    "brewery": "Brew Division",
+    "beer_name": "Astrolager Premium Pils",
+    "untappd_url": "https://untappd.com/b/brew-division-astrologer/1823327",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.7%",
+    "ibu": "25",
+    "description": "Крафтовый пилснер, ставший культовым."
+  },
+  "Бульви Квинси 30л": {
+    "brewery": "Bullevie",
+    "beer_name": "Quincy",
+    "untappd_url": "https://untappd.com/b/bullevie-queency/3930388?ysclid=mj7o320kck395589292",
+    "style": "Cider - Traditional / Apfelwein",
+    "abv": "5.5%",
+    "description": "Сидр обладает легким освежающим вкусом, идеальным балансом умеренной сладости, освежающей кислинки и яблочных танинов."
+  },
+  "Бульви Семи Драй": {
+    "brewery": "Bullevie",
+    "beer_name": "Semi Dry",
+    "untappd_url": "https://untappd.com/b/bullevie-rustiq-semi-dry/4061644",
+    "style": "Cider - Traditional / Apfelwein",
+    "abv": "5.5%",
+    "description": "Сидр обладает текстурой бархатистого смузи, приятным полнотелым вкусом. Сочетает в себе сбалансированную сладость с гармоничной и яркой кислинкой. Чистый, цветочно-фруктовый аромат с нотами запечённого десертного яблока."
+  },
+  "Бургунь де Фландер": {
+    "brewery": "Timmermans",
+    "beer_name": "Bourgogne des Flandres",
+    "untappd_url": "https://untappd.com/b/brewery-john-martin-brewery-timmermans-bourgogne-des-flandres-brune-bruin/561371",
+    "style": "Sour - Flanders Red Ale",
+    "abv": "5%",
+    "ibu": "19",
+    "description": "Commercial description by brewer : \"Bourgogne des Flandres is the real taste of Bruges. The mixed fermentation is what makes this beer so special. The top-fermented brown ale is subtly blended with the best spontaneously fermented lambic, which is then matured in oak barrels for many months. It is this process that gives the red-brown beer a rich, creamy finish.\"\r\nAbout the style: Even though \"Bruin\" suggests a style like \"Old Brown\" or \"Brown Ale\", this beer should definitively be classified as Flanders Red Ale (Category 23B in BJCP 2015), because its aromas and flavors are rather fruity than malty, it has mixed fermentation, it's aged in oak casks and its brewing location is in West Flanders."
+  },
+  "Бюльви Вивизеро 30л": {
+    "brewery": "Bullevie",
+    "beer_name": "Vivisero",
+    "untappd_url": "https://untappd.com/b/bullevie-vivizero/2626346",
+    "style": "Cider - Dry",
+    "abv": "5.5%",
+    "description": "Vivizero (Вивидзеро)\r\nсухой игристый жемчужный сидр\r\n\r\nСухой, живительный фитнесс сидр с хорошей кислотностью и богатой ароматикой.\r\nVivizero – это сочетание классической технологии изготовления сидра с Бискайского побережья и уникального российского взгляда на настоящий сухой сидр, способный удовлетворить любого ценителя традиционной испанской стилистики.\r\nVivizero в переводе с испанского означает «живительный ноль», ведь в нем полностью отсутствует сахар!\r\nСидр обладает ярким янтарным цветом, мягким теплым ароматом яблок, приятной кислинкой и натуральной легкой газацией, ласкающей нёбо.\r\nВсе наши сидры живые не пастеризованные и изготовлены исключительно из сока прямого отжима, без добавления воды, концентратов и ароматизаторов."
+  },
+  "Бюльви Рустик полусладкий 30 л": {
+    "brewery": "Bullevie",
+    "beer_name": "Рустик полусладкий",
+    "untappd_url": "https://untappd.com/b/bullevie-rustiq-semi-dry/4061644",
+    "style": "Cider - Traditional / Apfelwein",
+    "abv": "5.5%",
+    "description": "Сидр обладает текстурой бархатистого смузи, приятным полнотелым вкусом. Сочетает в себе сбалансированную сладость с гармоничной и яркой кислинкой. Чистый, цветочно-фруктовый аромат с нотами запечённого десертного яблока."
+  },
+  "Варка Пшено 30л": {
+    "brewery": "Warka",
+    "beer_name": "Pszeniczne",
+    "untappd_url": "https://untappd.com/b/browar-watra-psezeniczne/601472",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "4.7%",
+    "description": "Brewed by starobawarskiej recipe from a blend of wheat malt and barley in the double-decoction mash. Thanks to her - a blend of malts we extract the essence of the beer taste, additionally enriched salutary for kidney and liver activities of top-fermenting yeast. Thanks to them - beer is naturally cloudy and just a characteristic accent, stands out among the whole range of beverages. When our brewer marketers explained his secrets, wheat summed up as \"the most beer of beers.\" As a connoisseur of hops - you absolutely have to try it."
+  },
+  "Василеостровское Бланш де Лютин": {
+    "brewery": "Василеостровская",
+    "beer_name": "Blanche de Lutin",
+    "untappd_url": "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-blanche-de-lutin/1014215",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "4.5%",
+    "ibu": "17",
+    "description": "Typical Belgian witbier  - cloudy straw wheat ale with an impressive orange aroma, moderately spicy with a pleasant sweetness and colorful citrus flavor. Light and refreshing.  Smooth and very bright."
+  },
+  "Василеостровское Крик де Лютин": {
+    "brewery": "Василеостровская",
+    "beer_name": "Kriek de Lutin",
+    "untappd_url": "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-kriek-de-lutin/2535914",
+    "style": "Fruit Beer",
+    "abv": "4%",
+    "ibu": "14",
+    "description": "Light, quenching thirst, cherry ale, with a delicate balanced sweet and sour cherry taste. Kriek de Lutin is welded in the best traditions of the Belgian style!"
+  },
+  "Василеостровское Лагер светлое": {
+    "brewery": "Василеостровская",
+    "beer_name": "Лагер",
+    "untappd_url": "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-vasileostrovskoe-svetlyj-nefiltrovannyj-lager-domashnee-vasileostrovskoe-ligth-unfiltered-lager-aka-domashnee/55784",
+    "style": "Kellerbier / Zwickelbier",
+    "abv": "4.5%",
+    "ibu": "8",
+    "description": "Light unfiltered lager of Franconian Keller style with its soft full-bodied malt taste and bright yest aromas."
+  },
+  "Василеостровское Пшеничное": {
+    "brewery": "Василеостровская",
+    "beer_name": "Пшеничное",
+    "untappd_url": "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-vaska-pshenichnoe/3425133",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "4.5%",
+    "ibu": "17",
+    "description": "Лёгкое, освежающее пшеничное пиво, сваренное в классическом немецком стиле. Имеет сбалансированный вкус и характерные банановые ноты."
+  },
+  "Василеостровское Руж Де Лютин": {
+    "brewery": "Василеостровская",
+    "beer_name": "Rouge de Lutin",
+    "untappd_url": "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-rouge-de-lutin/1046359",
+    "style": "Fruit Beer",
+    "abv": "8%",
+    "ibu": "23",
+    "description": "Dark malts and natural juice combination formed a pleasant and lasting vinous aroma with bright cherry tinges and rich complex flavor, abounded of caramel, nutty and some chocolate tones. Its warming strength successfully cords with malty richness and cherrystone in aftertaste."
+  },
+  "Вита Сид Том 2 30л": {
+    "brewery": "Вита Сид",
+    "beer_name": "Том 2",
+    "untappd_url": "https://untappd.com/b/men-s-company-vitasid-yablochnye-istorii-tom-2/5804848",
+    "style": "Cider - Traditional / Apfelwein",
+    "abv": "5.7%",
+    "description": "Облегченный вариант полусладкого яблочного сидра.\r\nСамый легкий и самый освежающий. Особенно хорош в жаркую летнюю пору. Питкий полусухой яблочный сидр!"
+  },
+  "Гулден Драк 708 20 л": {
+    "brewery": "Van Steenberge",
+    "beer_name": "Gulden Draak 7080",
+    "untappd_url": "https://untappd.com/b/brouwerij-van-steenberge-gulden-draak-classic/6758",
+    "style": "Belgian Strong Dark Ale",
+    "abv": "10.5%",
+    "ibu": "30",
+    "description": "The authentic, dark red tripel.\r\n\r\nSuch an impressive symbol that has been around for more than 6 centuries requires an equally impressive beer. Like the dragon at the top of the city, Gulden Draak has been one of the world's best beers for years. It is a dark tripel, which in itself makes it an exceptional beer, but the complex taste with notes of caramel, roasted malt and coffee makes it unique.\r\n\r\nFor the secondary fermentation use is made of a wine yeast that determines the unparalleled taste and that ensures the long-term taste evolution (= living beer). The older the beer gets, the more aroma it gets and the fuller the taste and color become.\r\n\r\nwww.guldendraak.be"
+  },
+  "Делириум Ноктюрнум": {
+    "brewery": "Huyghe",
+    "beer_name": "Delirium Nocturnum",
+    "untappd_url": "https://untappd.com/b/delirium-huyghe-brewery-delirium-nocturnum/4486",
+    "style": "Belgian Strong Dark Ale",
+    "abv": "8.5%",
+    "ibu": "24",
+    "description": "Color and Sight:\r\nDark Chocolate Brown with a compact foam, white-yellow, stable and creamy. Odor Touches of caramel, mocca and chocolate. Spices such as licorice and coriander are also present. \r\n\r\nTaste:\r\nInitially a very pleasant sensation in the mouth of alcohol and softness. It is followed by a growing bitterness, which comes partly from hops, but also from roasted malt and chocolate malt. \r\nTowards the end, pleasant balance between bitter, sour and sweet notes."
+  },
+  "Делириум Тременс": {
+    "brewery": "Huyghe",
+    "beer_name": "Delirium Tremens",
+    "untappd_url": "https://untappd.com/b/delirium-huyghe-brewery-delirium-tremens/4485",
+    "style": "Belgian Strong Golden Ale",
+    "abv": "8.5%",
+    "ibu": "24",
+    "description": "The allusion to pink elephants and the choice of names is not due to chance. With a particular character, the unique taste results from triple fermentation and the use of three different yeast strains. Sweet, biscuit malt backbone, supported by pleasant warmth and spice, finishes well rounded, floral, and dry.\r\n\r\nColor and Sight:\r\nPale blond, the fine and regular sparkle creates a nice, stable foam head. \r\n\r\nScent: \r\nSlightly malty, heavy touch of alcohol, spicy. \r\n\r\nTaste:\r\nA good shot of alcohol ignites in the mouth, as it were, which really warms the tongue and palate. The taste is also characterized by its roundness. The finish is strong, long and dry bitter."
+  },
+  "Джоус Бланш": {
+    "brewery": "Jaws",
+    "beer_name": "Бланш",
+    "untappd_url": "https://untappd.com/b/jaws-brewery-blanche/4904047",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "4.5%",
+    "description": "Пиво сварено с кориандром и корнем померанца. Бельгийская классика в линейке классических сортов Jaws. Бланш сражает фирменным пряно-цитрусовым ароматом и освежающим сладковатым вкусом с тонами луговых трав."
+  },
+  "Джоус Грезы": {
+    "brewery": "Jaws",
+    "beer_name": "Грёзы",
+    "untappd_url": "https://untappd.com/b/jaws-brewery-gryozy/5892341",
+    "style": "Fruit Beer",
+    "abv": "4.5%"
+  },
+  "Джоус Мюних Хеллес": {
+    "brewery": "Jaws",
+    "beer_name": "Munich Helles",
+    "untappd_url": "https://untappd.com/b/jaws-brewery-jaws-lager/601856",
+    "style": "Pilsner - Other",
+    "abv": "5.3%",
+    "ibu": "35",
+    "description": "Классика новой волны. Многозначительная простота ячменного вкуса с мягкой цедровой горечью американских хмелей.\r\n\r\nХмель: Perle, Crystal, Centennial\r\nСолод: Pilsner, Carared"
+  },
+  "Дрим Тим Локдаун 30 л": {
+    "brewery": "Dream Team",
+    "beer_name": "Lockdown",
+    "untappd_url": "https://untappd.com/b/dreamteam-brew-lockdown/3779347",
+    "style": "IPA - American",
+    "abv": "6.3%",
+    "ibu": "55",
+    "description": "Хмелевой альянс Warrior, Amarillo и Citra, интенсивный хмелевой профиль, приятная крепость, солодовое тело и продолжительное сухое послевкусие - вот, что спасало нас во время всемирного локдауна. Каноническое сочетание градуса, горечи и интенсивности аромата и вкуса - Lockdown отлично дополнит кухню гастропабов и азиатскую еду."
+  },
+  "Дрим Тим Октобер 30 л": {
+    "brewery": "Dream Team",
+    "beer_name": "Oktober",
+    "untappd_url": "https://untappd.com/b/dreamteam-brew-lockdown/3779347",
+    "style": "IPA - American",
+    "abv": "6.3%",
+    "ibu": "55",
+    "description": "Хмелевой альянс Warrior, Amarillo и Citra, интенсивный хмелевой профиль, приятная крепость, солодовое тело и продолжительное сухое послевкусие - вот, что спасало нас во время всемирного локдауна. Каноническое сочетание градуса, горечи и интенсивности аромата и вкуса - Lockdown отлично дополнит кухню гастропабов и азиатскую еду."
+  },
+  "Дрим Тим Порт Пилснер 30 л": {
+    "brewery": "Dream Team",
+    "beer_name": "Port Pilsner",
+    "untappd_url": "https://untappd.com/b/dreamteam-brew-port-pilsner/3379859",
+    "style": "Pilsner - German",
+    "abv": "4.9%",
+    "ibu": "25",
+    "description": "Хрустящий и звонкий , Port Pilsner выдерживается уникальные по современным меркам 50 дней. Для его производства мы используем всего четыре канонических ингредиента: вода, солод, хмель и дрожжи."
+  },
+  "Инсайдер сухой": {
+    "brewery": "InCider",
+    "beer_name": "Сухой",
+    "untappd_url": "https://untappd.com/b/incider-incider-dry/4006688",
+    "style": "Cider - Dry",
+    "abv": "6%",
+    "description": "Натуральный сухой сидр из яблочного сока прямого отжима, сброженный шампанскими дрожжами.\r\n\r\nСочетание сортов яблок Антоновка и Хани Крисп дает многогранный вкус, перетекающий из кислого в терпкий, и наполняет сидр яблочной спелостью и ароматом."
+  },
+  "Карлова Корчма Премиум 30 л": {
+    "brewery": "Karlova Korčma",
+    "beer_name": "Premium",
+    "untappd_url": "https://untappd.com/b/karluv-pivovar-karlova-krcma-premium-12/4189794",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.8%",
+    "ibu": "21"
+  },
+  "Клаштер Лежак 30 л": {
+    "brewery": "Klášter",
+    "beer_name": "Ležák",
+    "untappd_url": "https://untappd.com/b/pivovar-klaster-klaster-lezak-11-deg/212772",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.6%",
+    "description": "Klášter lager is a delicious harmonious beer with a fresh taste and a balance between full taste and bitterness. The beer is not pasteurised, i.e. heat-processed, so the taste is the same as in the brewery cellars in the rock.\r\n\r\n\r\nKlášter Ležák je nepasterované, středně prokvašené pivo se silnou plností, výraznou hořkostí, středním řízem a čistým chmelovým aroma. Nedochází k tepelnému ošetření, pasterizaci, a proto chutná stejně, jako ve sklepích pivovaru vytesaných hluboko ve skalním masivu."
+  },
+  "Коникс Бланш ма Шери 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Blanche Ma Chérie",
+    "untappd_url": "https://untappd.com/b/konix-brewery-blanche-ma-cherie/1434224",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "4.5%",
+    "ibu": "8",
+    "description": "Цветочный аромат с легкими пшеничными и пряными тонами, нотками кориандра и цитрусовой кислинкой. Хороший баланс между медовым и апельсиновым солодом создает полный, насыщенный вкус и короткое сухое послевкусие с еле уловимым мягким овсяным оттенком. С добавлением кориандра и апельсиновой цедры."
+  },
+  "Коникс Кассис Руби 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Cassis Ruby",
+    "untappd_url": "https://untappd.com/b/konix-brewery-cassis-ruby/3539672",
+    "style": "Fruit Beer",
+    "abv": "7%",
+    "description": "Крепкий, насыщенный черно-смородиновый эль. Яркий аромат и кисло-сладкий вкус, с легкой терпкостью ликёра Cassis, впечатлит и не оставит равнодушным."
+  },
+  "Коникс Мон Шер Кассис 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Mon Cher Cassis",
+    "untappd_url": "https://untappd.com/b/konix-brewery-mon-cher-cassis/2048717",
+    "style": "Fruit Beer",
+    "abv": "4.5%",
+    "ibu": "10",
+    "description": "Пиво Ma Chere Cassis (моя дорогая смородина) – это фантастический аромат свежесобранной черной смородины и смородинного листа. Сбалансированный и освежающий вкус окунёт Вас в приятные воспоминания и создаст солнечное настроение."
+  },
+  "Коникс Не хлебом единым 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Не хлебом единым",
+    "untappd_url": "https://untappd.com/b/konix-brewery-ne-hlebom-edinym/6065284",
+    "style": "Bock - Doppelbock",
+    "abv": "7.5%",
+    "ibu": "18",
+    "description": "Не хлебом единым, пиво сваренное в очень интересном историческом стиле доппельбок. По легенде монахи пили его во время поста и за его калорийность называли его \"жидкий хлеб\". Это крепкий лагер с богатым набором солодов и благородных немецких хмелем. Один из немногих лагерных стилей, который может соперничать с элями по многообразию вкусов."
+  },
+  "Коникс Оверфолл ИПА 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Overfall IPA",
+    "untappd_url": "https://untappd.com/b/konix-brewery-overfall/1451436",
+    "style": "IPA - American",
+    "abv": "6.5%",
+    "ibu": "65",
+    "description": "Классический американский IPA с богатой ароматикой. Вкус и аромат цитрусовых и манго, охмеление - непотопляемый Cascade. Сильный хмелевой характер с длительным послевкусием."
+  },
+  "Коникс Хефевайсбир 20л": {
+    "brewery": "Konix",
+    "beer_name": "Hefeweissbier",
+    "untappd_url": "https://untappd.com/b/konix-brewery-hefeweizen/2523298",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "4.8%",
+    "ibu": "12",
+    "description": "Один из старейших германских стилей – пшеничный эль. Фруктовые банановые нотки, немного – гвоздика, во вкусе –белый хлеб. Деликатное долгое послвекусие."
+  },
+  "Коникс Черри Руби 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Cherry Ruby",
+    "untappd_url": "https://untappd.com/b/konix-brewery-cherry-ruby/3158806",
+    "style": "Fruit Beer",
+    "abv": "7%",
+    "ibu": "10",
+    "description": "Крепкий фрутбир. Вкус насыщенный, слегка пряный, кисло-сладкий с интонациями вишни и легкой горечью миндаля. Финиширует гармоничным освежающим послевкусием."
+  },
+  "Корсендонк Бланш 30л": {
+    "brewery": "Corsendonk (Du Bocq)",
+    "beer_name": "Blanche",
+    "untappd_url": "https://untappd.com/b/brouwerij-corsendonk-corsendonk-blanche/791814",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "4.8%",
+    "ibu": "11",
+    "description": "Corsendonk Blanche, a refreshing thirst-quenching white beer, is brewed with the finest ingredients in the Belgian Ardennes and filled with unfiltered. It has fruity aromas, a subtle coriander fragrance mixed with notes of orange. These herbs are easy on the palate and make the Corsendonk Blanche a soft and refreshing beer."
+  },
+  "Кот i Сабака 20 л": {
+    "brewery": "Midnight Project",
+    "beer_name": "Кот і Собака",
+    "untappd_url": "https://untappd.com/b/midnight-project-kot-i-sabaka/5929383",
+    "style": "Sour - Fruited Gose",
+    "abv": "5%",
+    "ibu": "10",
+    "description": "RASPBERRY AND RED ORANGE\r\n\r\nВ преддверии Дня бездомных животных мы выпускаем новый благотворительный сорт с приютами «Галкино Подворье» и «Приютино». Поддержите с нами два дружественных приюта\r\nЛенинградской области. Часть средств с продажи каждой банки этого пива мы направим на помощь животным, а на этикетке вас ждут qr-коды для персональных донатов."
+  },
+  "Курпфальц Брау Хеллес 30л": {
+    "brewery": "Kurpfalz Bräu",
+    "beer_name": "Helles",
+    "untappd_url": "https://untappd.com/b/welde-braumanufaktur-kurpfalzbrau-helles/1765378",
+    "style": "Lager - Helles",
+    "abv": "5.3%",
+    "ibu": "16",
+    "description": "Das original Kurpfalzbräu Helles schmeckt süffig und löscht den Durst. Traditionell gebraut in der Kurpfalz. Hellgelbes, klares, untergäriges Bier mit fester Schaumkrone. Im Antrunk bestimmt von einer feinen Malznote, am Gaumen begleitet von einer dezenten Bittere."
+  },
+  "ЛеФорт Трипель 20л": {
+    "brewery": "Van Steenberge",
+    "beer_name": "LeFort Tripel",
+    "untappd_url": "https://untappd.com/b/omer-vander-ghinste-tripel-lefort/1533976",
+    "style": "Belgian Tripel",
+    "abv": "8.8%",
+    "ibu": "20",
+    "description": "Tripel LeFort is a golden blonde beer of 8.8% ABV and sets itself apart through its crisp, fruity aroma and beautifully rounded full flavour.  The top-fermenting yeast used for Tripel LeFort results in a beer with vanilla-clove aromas as well as a fruity taste of bananas and red apples. Pleasant hints of citrus, lime and roses make this into a balanced beer that is intriguingly complex at the same time."
+  },
+  "Леруа Ипперман 30 л": {
+    "brewery": "Leroy",
+    "beer_name": "Yperman",
+    "untappd_url": "https://untappd.com/b/leroy-breweries-yperman/11874",
+    "style": "Pale Ale - Belgian",
+    "abv": "5.5%",
+    "ibu": "23",
+    "description": "Voor het proeven wordt het licht fruitig aroma van de aanwezige kruiden waargenomen. Bij de eerste slok komt vooral de lichtzoete toets met een moutig karakter en een lichte karamelsmaak naar voor, gevolgd door een hint van zachte hoppe en kruidige mout. De nadronk behoudt zijn licht bittere toets, maar eindigt met een zachte kruidensmaak.\r\n\r\nYperman owes its slightly fruity aroma to the herbs used. The mildly sweet attack is offset by the maltiness and hints of caramel that come to the fore, followed by hints of mild hops and spicy malt. The finish retains its soft bitterness, but ends on a mild herbal note."
+  },
+  "Леруа Капиттель Блонд 30 л": {
+    "brewery": "Leroy",
+    "beer_name": "Kapittel Blond",
+    "untappd_url": "https://untappd.com/b/leroy-breweries-kapittel-blond/12733",
+    "style": "Belgian Blonde",
+    "abv": "6.5%",
+    "description": "Kapittel Blond is een zacht blond bier van hoge gisting met nagisting op de fles. De smaak start met een lichte zoetzure toets, waarop een zachte fruitsmaak met een hint van citrus en sinaas volgt. De lichte afdronk, gecombineerd met het sprankelende parelen van de koolzuur, zorgt voor een gebalanceerde verfrissing.\r\n\r\nKapittel Blond is a mild blond high-fermentation beer with secondary fermentation in the bottle. It has a slightly sweet and sour attack, with a mildly fruity palate and hints of citrus and orange. The light finish, combined with the tingle of the carbonation, combines to create a balanced thirst-quenching and refreshing ale."
+  },
+  "Леруа Хоммельбир 30 л": {
+    "brewery": "Leroy",
+    "beer_name": "Hommel Bier",
+    "untappd_url": "https://untappd.com/b/leroy-breweries-kapittel-blond/12733",
+    "style": "Belgian Blonde",
+    "abv": "6.5%",
+    "description": "Kapittel Blond is een zacht blond bier van hoge gisting met nagisting op de fles. De smaak start met een lichte zoetzure toets, waarop een zachte fruitsmaak met een hint van citrus en sinaas volgt. De lichte afdronk, gecombineerd met het sprankelende parelen van de koolzuur, zorgt voor een gebalanceerde verfrissing.\r\n\r\nKapittel Blond is a mild blond high-fermentation beer with secondary fermentation in the bottle. It has a slightly sweet and sour attack, with a mildly fruity palate and hints of citrus and orange. The light finish, combined with the tingle of the carbonation, combines to create a balanced thirst-quenching and refreshing ale."
+  },
+  "Леруа Хоммельбир Драй Хоппдт 30 л": {
+    "brewery": "Leroy",
+    "beer_name": "Hommel Bier Dry Hopped",
+    "untappd_url": "https://untappd.com/b/leroy-breweries-kapittel-blond/12733",
+    "style": "Belgian Blonde",
+    "abv": "6.5%",
+    "description": "Kapittel Blond is een zacht blond bier van hoge gisting met nagisting op de fles. De smaak start met een lichte zoetzure toets, waarop een zachte fruitsmaak met een hint van citrus en sinaas volgt. De lichte afdronk, gecombineerd met het sprankelende parelen van de koolzuur, zorgt voor een gebalanceerde verfrissing.\r\n\r\nKapittel Blond is a mild blond high-fermentation beer with secondary fermentation in the bottle. It has a slightly sweet and sour attack, with a mildly fruity palate and hints of citrus and orange. The light finish, combined with the tingle of the carbonation, combines to create a balanced thirst-quenching and refreshing ale."
+  },
+  "ЛиК v7 30 л": {
+    "brewery": "Лось и Кедр",
+    "beer_name": "v7",
+    "untappd_url": "https://untappd.com/b/los-i-kedr-los-i-kedr-v-7-0-versiya-7-0/2691976",
+    "style": "Cider - Herbed / Spiced / Hopped",
+    "abv": "4.7%",
+    "description": "МангОстра! )\r\nПолусладкий яблочный сидр с пюре манго, выдержанный с красным стручковым перцем."
+  },
+  "Литовел Маэстро 30 л": {
+    "brewery": "Litovel",
+    "beer_name": "Maestro",
+    "untappd_url": "https://untappd.com/b/litovel-litovel-moravan/291479",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.6%",
+    "description": "This beer has the optimal combination of intensive aromatic luxurious bitterness and average richness, excellent zest and foams extremely well. These are the main characteristics of this beer.\r\n\r\nOptimální sladěnost intenzivní aromatické lahodné hořkosti a střední plnosti, výborný říz a velmi dobrá pěnivost to jsou hlavní charakteristické vlastnosti tohoto piva."
+  },
+  "Литовел Мораван 30 л": {
+    "brewery": "Litovel",
+    "beer_name": "Moravan",
+    "untappd_url": "https://untappd.com/b/litovel-litovel-moravan/291479",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.6%",
+    "description": "This beer has the optimal combination of intensive aromatic luxurious bitterness and average richness, excellent zest and foams extremely well. These are the main characteristics of this beer.\r\n\r\nOptimální sladěnost intenzivní aromatické lahodné hořkosti a střední plnosti, výborný říz a velmi dobrá pěnivost to jsou hlavní charakteristické vlastnosti tohoto piva."
+  },
+  "Литовел Премиум 30 л": {
+    "brewery": "Litovel",
+    "beer_name": "Premium",
+    "untappd_url": "https://untappd.com/b/litovel-litovel-moravan/291479",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "4.6%",
+    "description": "This beer has the optimal combination of intensive aromatic luxurious bitterness and average richness, excellent zest and foams extremely well. These are the main characteristics of this beer.\r\n\r\nOptimální sladěnost intenzivní aromatické lahodné hořkosti a střední plnosti, výborný říz a velmi dobrá pěnivost to jsou hlavní charakteristické vlastnosti tohoto piva."
+  },
+  "Монкс Кафе 20 л": {
+    "brewery": "Van Steenberge",
+    "beer_name": "Monk's Café",
+    "untappd_url": "https://untappd.com/b/brouwerij-van-steenberge-monk-s-cafe-flemish-sour-ale/21927",
+    "style": "Sour - Flanders Red Ale",
+    "abv": "5.5%",
+    "ibu": "15",
+    "description": "That's right, our own private label brewed for us by the family-owned Van Steenberge brewery, just outside Ghent, Belgium. Medium body, red color, somewhat fruity nose, malt flavor with a slight lactic taste. Great Stuff! A real thirst quencher and palate cleanser."
+  },
+  "Нектар 30 л": {
+    "brewery": "Нектар",
+    "beer_name": "Нектар",
+    "untappd_url": "https://untappd.com/b/banjalucka-pivara-nektar-pivo/21163",
+    "style": "Lager - Pale",
+    "abv": "5%",
+    "ibu": "16",
+    "description": "In 1873 in a small place in Banja Luka, beside the Vrbas grove, a brave little Banja Luka brewery was created by the work of a trappist monk from the Marija Zvijezda monastery. The founder of this small brewery was Franz Pfanner, the leader of the Trappist Order in Banja Luka, who together with other monks, besides the brewery, also established a cheese factory to produce the famous Trappista cheese, as well as one of the first power plants in Europe, adhering to his modest lifestyle and chore \"Pray and work\" (\"Ora et labora\")."
+  },
+  "Нишко 30 л": {
+    "brewery": "Niško (Niš Brewery)",
+    "beer_name": "Niško",
+    "untappd_url": "https://untappd.com/b/niska-pivara-nisko-nishko/228208",
+    "style": "Lager - Pale",
+    "abv": "4.7%"
+  },
+  "Островица IPA 20 л": {
+    "brewery": "Островица",
+    "beer_name": "IPA",
+    "untappd_url": "https://untappd.com/b/ostrovica-ipa/1304151",
+    "style": "IPA - American",
+    "abv": "6.2%",
+    "ibu": "55",
+    "description": "Dry hopping: Citra, Simcoe, Galaxy"
+  },
+  "Островица Холи ДИПА 20 л": {
+    "brewery": "Островица",
+    "beer_name": "Holy DIPA",
+    "untappd_url": "https://untappd.com/b/ostrovica-holy-dipa/1962051",
+    "style": "IPA - Imperial / Double",
+    "abv": "8.2%",
+    "ibu": "100",
+    "description": "Hops: Simcoe, Citra, Cascade, Centennial"
+  },
+  "ПП Джаст Хёфевайцен 20 л": {
+    "brewery": "Midnight Project",
+    "beer_name": "Just Hefeweizen",
+    "untappd_url": "https://untappd.com/b/midnight-project-just-hefeweizen/4860101",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "5.8%",
+    "ibu": "11",
+    "description": "Основа всего и вся. Фундамент, на котором держится современное пивоварение. База, как сейчас принято говорить.\r\n\r\nВсе это различные определения одного и того же пива, которое стояло у истоков крафтовой революции. Мы продолжаем линейку, в рамках которой хотим подсветить определенные стили в их первозданном виде.  \r\n\r\nПшеничное пиво с ароматами банана и гвоздики. Узнаваемое и любимое всеми за свой солнечный соломенный цвет, сладковатый пшеничный привкус и красивую пенную шапку. Здесь все выверено, а цель одна – насладиться пивом."
+  },
+  "Палм 20 л": {
+    "brewery": "Palm",
+    "beer_name": "Palm Speciale",
+    "untappd_url": "https://untappd.com/b/brouwerij-palm-palm-speciale/7754",
+    "style": "Pale Ale - Belgian",
+    "abv": "5.2%",
+    "ibu": "18",
+    "description": "NB: The bottles currently in stores saying \"Palm Retro\" are also this entry. The beer is the same, it's just the labels that are in retro style.\r\n\r\nPALM Ale has long been one of Europe’s top-selling specialty beers. Made with English hops, French Barley, and Belgian yeast, PALM represents the best of European beer-making traditions. It’s the roasted Champagne Malt which gives PALM its amber color, but without being heavy. Also available bottle-conditioned as Palm Hergist.\r\nSold as Palm outside of Europe."
+  },
+  "Пауланер Мюнхнер Хель 24 л": {
+    "brewery": "Paulaner",
+    "beer_name": "Münchner Hell",
+    "untappd_url": "https://untappd.com/b/paulaner-brauerei-munchner-hell/3235",
+    "style": "Lager - Helles",
+    "abv": "4.9%",
+    "ibu": "20",
+    "description": "Our Original Munich Lager is a true classic with its clear and bright gold sparkling hue, crowned by a pure white head. A beer which always goes down well: mild, elegant malts, with a hint of sweetness and a soft hint of hops in the background. This Munich beer is ideal to accompany spare ribs and spicy dishes. Just try it!"
+  },
+  "План Б Ковбой Мальборо 20 л": {
+    "brewery": "Plan B Brewery",
+    "beer_name": "Ковбой Мальборо",
+    "untappd_url": "https://untappd.com/b/plan-b-brewery-kovboj-malboro/673144",
+    "style": "IPA - American",
+    "abv": "6.5%",
+    "ibu": "50"
+  },
+  "План Б Райс оф Зомби 20 л": {
+    "brewery": "Plan B Brewery",
+    "beer_name": "Rise of Zombie",
+    "untappd_url": "https://untappd.com/b/plan-b-brewery-rise-of-the-zombies/1443184",
+    "style": "Pale Ale - American",
+    "abv": "6.3%",
+    "ibu": "50",
+    "description": "Мощное пиво, где горечь абсолютно не давит и отлично вписывается в общую хвойно-цитрусовую картину на легком фруктовом фоне."
+  },
+  "Радебергер Пилснер 30 л": {
+    "brewery": "Radeberger",
+    "beer_name": "Pilsner",
+    "untappd_url": "https://untappd.com/b/radeberger-gruppe-radeberger-pilsner/1589",
+    "style": "Pilsner - German",
+    "abv": "4.8%",
+    "ibu": "33",
+    "description": "Crowned the official drink by King Friedrich August III of Saxony, Radeberger, a pilsner style beer brewed near Dresden, is characterized by its dazzling and refreshing taste and has long been enjoyed by German nobility."
+  },
+  "Рей Ривер STOUT": {
+    "brewery": "Rye River",
+    "beer_name": "Stout",
+    "untappd_url": "https://untappd.com/b/rye-river-brewing-company-the-crafty-brewing-company-irish-stout/886417",
+    "style": "Stout - Irish Dry",
+    "abv": "4.5%",
+    "ibu": "40",
+    "description": "This full bodied stout has a discerning coffee and chocolate aroma. The depth of flavour is attributed to a high bittering hop and chocolate malt, an assured favourite with any refined palate. Brewed exclusively for Lidl Ireland."
+  },
+  "Ригеле Коммерциенрат Приват": {
+    "brewery": "Riegele",
+    "beer_name": "Commerzienrat Riegele Privat",
+    "untappd_url": "https://untappd.com/b/brauhaus-riegele-commerzienrat-riegele-privat/40567",
+    "style": "Lager - Helles",
+    "abv": "5.2%",
+    "ibu": "18",
+    "description": "From Germany’s most awarded brewery comes Riegele’s most awarded beer, Privat. Winner of the “Beer of the Decade,” “Beer of the Year,” World Beer Cup,\" 9-time DLG Gold and the 6-Time European Gold Star, Privat sets the benchmark for craft festival lagers. Crisp, elegant, and complex in character, Privat is perfectly balanced with a clean and remarkably smooth finish thanks to the Riegele husk separation process."
+  },
+  "Ригеле Файнес Урхелль": {
+    "brewery": "Riegele",
+    "beer_name": "Feines Urhell",
+    "untappd_url": "https://untappd.com/b/brauhaus-riegele-feines-urhell/8656",
+    "style": "Lager - Helles",
+    "abv": "4.7%",
+    "description": "The classic one – The Feines Urhell is a bright joy! For generations maintained with love, classically brewed, unpasteurized, and matured in peace. Refreshing with a fine, balanced, malty and hoppy taste. Over 8 weeks matured at 0° celsius in the Riegele beer cellars."
+  },
+  "Ригеле Хефевайсбир": {
+    "brewery": "Riegele",
+    "beer_name": "Hefeweissbier",
+    "untappd_url": "https://untappd.com/b/brauhaus-riegele-hefe-weisse/81931",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "5%",
+    "ibu": "15",
+    "description": "Ein klassisches Weißbier – obergärig, unfiltriert und naturtrüb. Ein erfrischender und fruchtiger Klassiker, nicht nur im Biergarten.\r\n\r\n-----\r\n\r\nA classic wheat beer - top-fermented, unfiltered and naturally cloudy. A refreshing and fruity classic, not only in the beer garden."
+  },
+  "Роденбах Гранд Крю 20 л": {
+    "brewery": "Rodenbach",
+    "beer_name": "Grand Cru",
+    "untappd_url": "https://untappd.com/b/brouwerij-rodenbach-rodenbach-grand-cru/8021",
+    "style": "Sour - Flanders Red Ale",
+    "abv": "6%",
+    "ibu": "35",
+    "description": "This is an aged Belgian red ale, which is ‘ripened quietly in oak barrels for two years’, according to the label. It has an extremely pungent aroma of rich grapey fruit, with acidic notes, very much like a slightly sour red wine or possibly a gueuze. In the mouth it is slightly sweet, extremely acidic and fruity, with grapes and even cherries discernible, and very lively. Despite the sweetness it is not at all cloying, even thin, with little or no trace of malt. Finish is sharp and fruity."
+  },
+  "Стародубице Дванактка 30 л": {
+    "brewery": "Starodubice",
+    "beer_name": "Dvanáctka (12°)",
+    "untappd_url": "https://untappd.com/b/svatovaclavsky-pivovar-svatovaclavska-12-deg/475464",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "5%"
+  },
+  "Стародубице Еденактка 30 л": {
+    "brewery": "Starodubice",
+    "beer_name": "Jedenáctka (11°)",
+    "untappd_url": "https://untappd.com/b/svatovaclavsky-pivovar-svatovaclavska-12-deg/475464",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "5%"
+  },
+  "Степь и Ветер Мёд и Виноград 20л": {
+    "brewery": "Степь и Ветер",
+    "beer_name": "Мёд и Виноград",
+    "untappd_url": "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-mead-pyment/5776671",
+    "style": "Mead - Pyment",
+    "abv": "6%",
+    "description": "Шардоне – сорт винограда, что обладает глубокими кремовым и сливочным вкусом, сочетает в себе вкусовые ноты орехов, груши, зеленых яблок и немного (совсем чуть-чуть) тропических фруктов. \r\nМёд шире раскрывает эту палитру, добавляет умеренную сладость и легкий цветочный аромат. Лови идеальный симбиоз."
+  },
+  "Степь и Ветер Мёд и Смородина 20л": {
+    "brewery": "Степь и Ветер",
+    "beer_name": "Мёд и Смородина",
+    "untappd_url": "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-black-currant-mead/2552489",
+    "style": "Mead - Melomel",
+    "abv": "6%",
+    "description": "Луговой мёд с соком чёрной \r\nсмородины, более сладкий, чем \r\nежевика или вишня. Сладость приятная, \r\nне приторная, очень душистый сорт."
+  },
+  "Стинбрюгге Бланш 20 л": {
+    "brewery": "Palm (Steenbrugge)",
+    "beer_name": "Steenbrugge Blanche",
+    "untappd_url": "https://untappd.com/b/brouwerij-palm-steenbrugge-blanche/40022",
+    "style": "Wheat Beer - Witbier / Blanche",
+    "abv": "5%",
+    "ibu": "11"
+  },
+  "Стинбрюгге Блонд 20 л": {
+    "brewery": "Palm (Steenbrugge)",
+    "beer_name": "Steenbrugge Blonde",
+    "untappd_url": "https://untappd.com/b/brouwerij-palm-steenbrugge-blond/7930",
+    "style": "Belgian Blonde",
+    "abv": "6.5%",
+    "ibu": "23",
+    "description": "STEENBRUGGE Blond abbey beer is a blond beer with a warm, full flavour and a fruity, lightly smoked yeast aroma combined with the subtle Bruges “gruut” blend of herbs and spices. Top-fermentation beer with secondary fermentation in the bottle."
+  },
+  "Стинбрюгге Браун 20 л": {
+    "brewery": "Palm (Steenbrugge)",
+    "beer_name": "Steenbrugge Bruin",
+    "untappd_url": "https://untappd.com/b/brouwerij-palm-steenbrugge-dubbel-bruin/16648",
+    "style": "Belgian Dubbel",
+    "abv": "6.5%",
+    "ibu": "23",
+    "description": "Steenbrugge Dubbel Bruin abbey beer is a brown beer with a straightforward, malty-caramel character and a fruity, lightly smoked yeast aroma combined with the subtle Bruges “gruut” blend of herbs and spices, with an emphasis on cinnamon. Topfermentation beer with secondary fermentation in the bottle.\r\n\r\nThe secret of Steenbrugge abbey beer is the unique “gruut” blend of herbs and spices, which gives the beer its delicious flavour. Every town used to have its own beer, each with its own individual character. In Bruges that character was determined by a blend of herbs and spices that brewers were obliged to purchase from the city’s herbs and spices shop, known as the “Gruuthuse”. In Steenbrugge Dubbel Bruin this medieval tradition is continued."
+  },
+  "Страковице Пшеничное": {
+    "brewery": "Strakonice",
+    "beer_name": "Pšeničné",
+    "untappd_url": "https://untappd.com/b/varnitsa-varnica-strakovice-psenice/4108889",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "4.7%"
+  },
+  "Трипортер Фул Мун": {
+    "brewery": "BOM Brewery",
+    "beer_name": "Triporteur Full Moon",
+    "untappd_url": "https://untappd.com/b/bombrewery-triporteur-full-moon-12/904938",
+    "style": "Belgian Quadrupel",
+    "abv": "10.2%",
+    "ibu": "20",
+    "description": "Hell of a 12 with Belgian Oak roasted at full moon. Angels and monks take shelter, here comes the devil! \n\nEen duivelse parodie op de klassieke \"12\" bieren. Een hels bier waarbij de monniken beschutting zoeken bij de engelen. Gebrouwen met door BOM bij volle maan geroosterde Belgische eik. De fijnheid van de eik versmelt in het bier. De man met de hamer zal deze keer de duivel met de kettingzaag zijn, je bent gewaarschuwd!"
+  },
+  "Фердинант лагер (10) 30 л": {
+    "brewery": "Ferdinand",
+    "beer_name": "Lager (10°)",
+    "untappd_url": "https://untappd.com/b/pivovar-ferdinand-lezak-svetly-premium-12/273513",
+    "style": "Pilsner - Czech / Bohemian",
+    "abv": "5%",
+    "description": "Beer with full malt taste, mild harmonious bitterness and strong vigour.\r\n\r\nPivo s plnou sladovou chutí, jemnou harmonickou hořkostí a silným řízem."
+  },
+  "ФестХаус Вайцен": {
+    "brewery": "Festhaus",
+    "beer_name": "Weizen",
+    "untappd_url": "https://untappd.com/b/festhaus-weissbier/6253766",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "5.3%",
+    "description": "The flavor of Festhaus Weizen is dominated by smooth notes of ripe banana and clove, complemented by subtle hints of vanilla and fresh white bread. Its natural fermentation gives it a characteristic cloudiness and a rich, creamy foam that make it especially appealing. Refreshing and slightly fruity, with a delicate tartness and velvety texture, it’s the perfect choice for warm days and friendly gatherings."
+  },
+  "ФестХаус Октобер": {
+    "brewery": "Festhaus",
+    "beer_name": "Oktober",
+    "untappd_url": "https://untappd.com/b/festhaus-oktoberfestbier/6414721",
+    "style": "Festbier",
+    "abv": "5.8%",
+    "ibu": "13",
+    "description": "Golden festival lager of long two-month aging, increased density and strength. With a soft full malt flavor\r\nand a slight hop note. Brewed especially for\r\ncelebrating Oktoberfest according to the authentic Munich recipe!\r\n5.8% ABV  | 13% PL"
+  },
+  "ФестХаус Хеллес": {
+    "brewery": "Festhaus",
+    "beer_name": "Helles",
+    "untappd_url": "https://untappd.com/b/festhaus-weissbier/6253766",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "5.3%",
+    "description": "The flavor of Festhaus Weizen is dominated by smooth notes of ripe banana and clove, complemented by subtle hints of vanilla and fresh white bread. Its natural fermentation gives it a characteristic cloudiness and a rich, creamy foam that make it especially appealing. Refreshing and slightly fruity, with a delicate tartness and velvety texture, it’s the perfect choice for warm days and friendly gatherings."
+  },
+  "ХБ Октоберфест": {
+    "brewery": "Hofbräu München",
+    "beer_name": "Oktoberfestbier",
+    "untappd_url": "https://untappd.com/b/staatliches-hofbrauhaus-munchen-hofbrau-oktoberfestbier/40139",
+    "style": "Festbier",
+    "abv": "6.3%",
+    "ibu": "23",
+    "description": "The Munich Beer Festival, or Oktoberfest, is an event of superlatives - it’s the largest popular festival in the world, staging in the beer metropolis of Munich. Millions of visitors from all over the world flock along every year to enjoy its very special atmosphere. For this occasion, Hofbräu brews a rich, full-bodied beer which goes down ideally with traditional Bavarian cuisine. With its deliciously bitter taste and alcoholic content of 6.3% volume, Hofbräu Oktoberfestbier is as special as the Beer Festival itself."
+  },
+  "Штраффе Хендрик 30л": {
+    "brewery": "De Halve Maan",
+    "beer_name": "Straffe Hendrik",
+    "untappd_url": "https://untappd.com/b/brouwerij-de-halve-maan-straffe-hendrik-brugs-tripel-bier-9-deg/9601",
+    "style": "Belgian Tripel",
+    "abv": "9%",
+    "ibu": "35",
+    "description": "Straffe Hendrik is a Bitter Tripel Ale of 9% abv. The beer was originally from Bruges and brewed in Bruges by brewery De Halve Maan.\r\n\r\nIn 1981, Henri Maes and his daughter Véronique followed the demand of the mayor and created a strong blond beer for the inauguration of the statue of Sint-Arnoldus, the saint of all beer-brewers. However, the beer became so popular, that the demand for the beer continued. It was given the name of Straffe Hendrik (Strong Hendrick), since it was a rich and strong beer.\r\n\r\nToday, Straffe Hendrik is the last authentic Tripel Ale of Bruges."
+  },
+  "Эйбау Хефевайссбир 30 л": {
+    "brewery": "Eibauer",
+    "beer_name": "Hefeweissbier",
+    "untappd_url": "https://untappd.com/b/privatbrauerei-eibau-eibauer-hefeweizen/763095",
+    "style": "Wheat Beer - Hefeweizen",
+    "abv": "5.2%"
+  },
+  "Чехов": {
+    "brewery": "Чехов",
+    "beer_name": "Чехов"
+  },
+  "4Brewers Реверс Гозе": {
+    "brewery": "4Brewers",
+    "beer_name": "Реверс Гозе"
+  },
+  "4brewers Eher Passion Fruit 30 л": {
+    "brewery": "4Brewers",
+    "beer_name": "Eher Passion Fruit"
+  },
+  "Brewlok APA 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "APA"
+  },
+  "Brewlok DOS 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "DOS"
+  },
+  "Brewlok Леший 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "Леший"
+  },
+  "Brewlok Садко 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "Садко"
+  },
+  "Brewlok Хармс 20 л": {
+    "brewery": "Brewlok",
+    "beer_name": "Хармс"
+  },
+  "O'Hara's IPA": {
+    "brewery": "O'Hara's (Carlow)",
+    "beer_name": "IPA"
+  },
+  "Plan B Wave's Tales Anne Bonny": {
+    "brewery": "План Б",
+    "beer_name": "Wave's Tales Anne Bonny"
+  },
+  "Rage Against the Pepin": {
+    "brewery": "Rage Against the Pepin",
+    "beer_name": "Rage Against the Pepin"
+  },
+  "Raspberry Porter by Paradox": {
+    "brewery": "Paradox",
+    "beer_name": "Raspberry Porter"
+  },
+  "Red Rocket DIPA": {
+    "brewery": "Red Rocket",
+    "beer_name": "DIPA"
+  },
+  "Red Rocket Equator": {
+    "brewery": "Red Rocket",
+    "beer_name": "Equator"
+  },
+  "St.Anton смородина 30л": {
+    "brewery": "St. Anton",
+    "beer_name": "Смородина"
+  },
+  "VelkaMorava Morgana 20л": {
+    "brewery": "Velka Morava",
+    "beer_name": "Morgana"
+  },
+  "Wookey Hole Рэд Эль 30 л": {
+    "brewery": "Wookey Hole",
+    "beer_name": "Red Ale"
+  },
+  "XP Brew Тетрахимена 20 л": {
+    "brewery": "XP Brew",
+    "beer_name": "Тетрахимена"
+  },
+  "Zagovor Stoner Nitro": {
+    "brewery": "Zagovor",
+    "beer_name": "Stoner Nitro"
+  },
+  "АФ БРЮ Рэднек 30 л": {
+    "brewery": "AF Brew",
+    "beer_name": "Redneck"
+  },
+  "Августинер Хефевайсбир": {
+    "brewery": "Augustiner",
+    "beer_name": "Hefeweissbier"
+  },
+  "Авербод 30 л": {
+    "brewery": "Huyghe",
+    "beer_name": "Averbode"
+  },
+  "Айингер Браувайс 30 л": {
+    "brewery": "Ayinger",
+    "beer_name": "Bräu-Weisse"
+  },
+  "Айингер Лагер Хель 30 л": {
+    "brewery": "Ayinger",
+    "beer_name": "Lager Hell"
+  },
+  "Айингер Столетнее 30 л": {
+    "brewery": "Ayinger",
+    "beer_name": "Jahrhundert-Bier"
+  },
+  "Айингер Целебратор 30 л": {
+    "brewery": "Ayinger",
+    "beer_name": "Celebrator"
+  },
+  "Айнзидлер Вайсбир 30 л": {
+    "brewery": "Einsiedler",
+    "beer_name": "Weissbier"
+  },
+  "Айнзидлер Клауснер Пилс 30 л": {
+    "brewery": "Einsiedler",
+    "beer_name": "Klausner Pils"
+  },
+  "Андерсон Валли Хоп Оттин ИПА 30 л": {
+    "brewery": "Anderson Valley",
+    "beer_name": "Hop Ottin' IPA"
+  },
+  "Асахи Супер Драй 30 л": {
+    "brewery": "Asahi",
+    "beer_name": "Super Dry"
+  },
+  "Бакунин Молоко+ 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Молоко+"
+  },
+  "Бакунин Нуар 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Нуар",
+    "untappd_url": "https://untappd.com/b/bakunin-brewing-co-nuar-noir/2610479",
+    "style": "Stout - Milk / Sweet",
+    "abv": "4.5%",
+    "ibu": "14",
+    "description": "An unobtrusive milk stout, not unlike Hollywood detectives from the mid-20th century, with a charm brought out with the taut reserve of coconut shavings. Toting a classic, creamy smoothness with notes of chocolate, tropical nuts and the unsuspecting, restrained power and bitterness of burnt malts."
+  },
+  "Бакунин Первый Авиатор 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Первый Авиатор"
+  },
+  "Бакунин Пич Ап 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Peach Up"
+  },
+  "Бакунин Рубин 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Рубин"
+  },
+  "Бакунин Рука Бога 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Рука Бога"
+  },
+  "Бакунин Фибоначчи 20 л": {
+    "brewery": "Бакунин",
+    "beer_name": "Фибоначчи"
+  },
+  "Бахус Флемиш Олд Браун": {
+    "brewery": "Verhaeghe",
+    "beer_name": "Bacchus Flemish Old Brown"
+  },
+  "Бахус Фрамбуа": {
+    "brewery": "Verhaeghe",
+    "beer_name": "Bacchus Framboise"
+  },
+  "Белхевен Скоттиш Стаут 30л": {
+    "brewery": "Belhaven",
+    "beer_name": "Scottish Stout"
+  },
+  "Бельвью Крик 20 л": {
+    "brewery": "Belle-Vue",
+    "beer_name": "Kriek"
+  },
+  "Бишофф Пилснер 30 л": {
+    "brewery": "Bischoff",
+    "beer_name": "Pilsner"
+  },
+  "Борнем Дюбель 20 л": {
+    "brewery": "Van Steenberge",
+    "beer_name": "Bornem Dubbel"
+  },
+  "Бруклин ИПА 30 л": {
+    "brewery": "Brooklyn Brewery",
+    "beer_name": "IPA"
+  },
+  "Бруклин Лагер 30 л": {
+    "brewery": "Brooklyn Brewery",
+    "beer_name": "Lager"
+  },
+  "Брю Дивижн Ай Рай": {
+    "brewery": "Brew Division",
+    "beer_name": "I Rye"
+  },
+  "Брю Дивижн Айс Крим": {
+    "brewery": "Brew Division",
+    "beer_name": "Ice Cream"
+  },
+  "Брю Дивижн Вайсглюк Унзере Хефевайцен": {
+    "brewery": "Brew Division",
+    "beer_name": "Weissglück Unsere Hefeweizen"
+  },
+  "Брю Дивижн Докер Олд Рашн Портер": {
+    "brewery": "Brew Division",
+    "beer_name": "Docker Old Russian Porter"
+  },
+  "Брю Дивижн Майнд Эвер Вин": {
+    "brewery": "Brew Division",
+    "beer_name": "Mind Ever Win"
+  },
+  "Брю Дивижн Он Бейс 30 л": {
+    "brewery": "Brew Division",
+    "beer_name": "On Base"
+  },
+  "Брю Дог Зомби Кейк 20 л": {
+    "brewery": "BrewDog",
+    "beer_name": "Zombie Cake"
+  },
+  "Брю Дог Инди 30 л": {
+    "brewery": "BrewDog",
+    "beer_name": "Indie"
+  },
+  "Брю Фикшн Вайлд Томато Гозе 30 л": {
+    "brewery": "Brew Fiction",
+    "beer_name": "Wild Tomato Gose"
+  },
+  "Будвайзер темное 20л": {
+    "brewery": "Budweiser Budvar",
+    "beer_name": "Dark"
+  },
+  "Бульви Ар эн Берри 30л": {
+    "brewery": "Бюльви",
+    "beer_name": "R&Berry"
+  },
+  "Бульви Брексит 30л": {
+    "brewery": "Бюльви",
+    "beer_name": "Brexit"
+  },
+  "Бульви Грей Ми 30л": {
+    "brewery": "Бюльви",
+    "beer_name": "Grey Me"
+  },
+  "Бульви Розе 30л": {
+    "brewery": "Бюльви",
+    "beer_name": "Rosé"
+  },
+  "Бун Крик Ламбик 30 л": {
+    "brewery": "Boon",
+    "beer_name": "Kriek Lambic"
+  },
+  "Бюльви Рустик полусухой": {
+    "brewery": "Бюльви",
+    "beer_name": "Рустик полусухой"
+  },
+  "ВО Val de Rance, Brut 30 л": {
+    "brewery": "Val de Rance",
+    "beer_name": "Brut"
+  },
+  "Вайнштефан Витус 30 л": {
+    "brewery": "Weihenstephaner",
+    "beer_name": "Vitus"
+  },
+  "Вайнштефан Оригинал 30 л": {
+    "brewery": "Weihenstephaner",
+    "beer_name": "Original"
+  },
+  "Вайнштефан Пилснер 30 л": {
+    "brewery": "Weihenstephaner",
+    "beer_name": "Pilsner"
+  },
+  "Вайнштефан Хефевайс 30 л": {
+    "brewery": "Weihenstephaner",
+    "beer_name": "Hefeweissbier"
+  },
+  "Вайценфельд Вайсс 20 л": {
+    "brewery": "Weizenfeld",
+    "beer_name": "Weiss"
+  },
+  "Варка Лагер 30л": {
+    "brewery": "Warka",
+    "beer_name": "Lager"
+  },
+  "Василеостровское Сидр Брют": {
+    "brewery": "Василеостровская",
+    "beer_name": "Сидр Брют"
+  },
+  "Василеостровское хеллес": {
+    "brewery": "Василеостровская",
+    "beer_name": "Хеллес"
+  },
+  "Василиса": {
+    "brewery": "Василиса",
+    "beer_name": "Василиса"
+  },
+  "Васька Нефильтрованное 30 л": {
+    "brewery": "Васька",
+    "beer_name": "Нефильтрованное"
+  },
+  "Васька Светлое 30 л": {
+    "brewery": "Васька",
+    "beer_name": "Светлое"
+  },
+  "Вату Витбир 30л": {
+    "brewery": "Watou",
+    "beer_name": "Witbier"
+  },
+  "Виктори Арт Брю Селебрэйшн Стаут": {
+    "brewery": "Victory Art Brew",
+    "beer_name": "Celebration Stout"
+  },
+  "Виль-брой Хеллес 30 л": {
+    "brewery": "Will-Bräu",
+    "beer_name": "Helles"
+  },
+  "Виль-брой Хефе Вайцен 30 л": {
+    "brewery": "Will-Bräu",
+    "beer_name": "Hefe Weizen"
+  },
+  "Вильдерен Кларисс Руж 20 л": {
+    "brewery": "Wilderen",
+    "beer_name": "Clarisse Rouge"
+  },
+  "Вильдерен Крик": {
+    "brewery": "Wilderen",
+    "beer_name": "Kriek"
+  },
+  "Винингер Экспорт Гуидобалд 30 л": {
+    "brewery": "Wieninger",
+    "beer_name": "Export Guidobald"
+  },
+  "Вольфас Энгельман Балтик Портер 30 л": {
+    "brewery": "Volfas Engelman",
+    "beer_name": "Baltic Porter"
+  },
+  "Вудбридж Браун Эль 30 л": {
+    "brewery": "Woodbridge",
+    "beer_name": "Brown Ale"
+  },
+  "Вудбридж ИПА 30 л": {
+    "brewery": "Woodbridge",
+    "beer_name": "IPA"
+  },
+  "Вудбридж Стаут 30 л": {
+    "brewery": "Woodbridge",
+    "beer_name": "Stout"
+  },
+  "Гаффель Кельш 30 л": {
+    "brewery": "Gaffel",
+    "beer_name": "Kölsch"
+  },
+  "Гильотина": {
+    "brewery": "Huyghe",
+    "beer_name": "Guillotine"
+  },
+  "Гиннесс 30 л": {
+    "brewery": "Guinness",
+    "beer_name": "Guinness Draught"
+  },
+  "Горьковская пивоварня Богемский Пилс 30 л": {
+    "brewery": "Горьковская пивоварня",
+    "beer_name": "Богемский Пилс"
+  },
+  "Горьковская пивоварня ИПА 30 л": {
+    "brewery": "Горьковская пивоварня",
+    "beer_name": "IPA"
+  },
+  "Гуд Сайдер Сан-Себастьян Брют": {
+    "brewery": "Good Cider",
+    "beer_name": "San Sebastián Brut"
+  },
+  "Делириум Кристмас": {
+    "brewery": "Huyghe",
+    "beer_name": "Delirium Christmas"
+  },
+  "Делириум Рэд": {
+    "brewery": "Huyghe",
+    "beer_name": "Delirium Red"
+  },
+  "Джоус Американский Пэйл Эль": {
+    "brewery": "Jaws",
+    "beer_name": "American Pale Ale"
+  },
+  "Джоус Атомная Прачечная": {
+    "brewery": "Jaws",
+    "beer_name": "Атомная Прачечная"
+  },
+  "Джоус Вайцен": {
+    "brewery": "Jaws",
+    "beer_name": "Weizen"
+  },
+  "Джоус Джаз энд Джус 20 л": {
+    "brewery": "Jaws",
+    "beer_name": "Jazz & Juice"
+  },
+  "Джоус Ищу Человека": {
+    "brewery": "Jaws",
+    "beer_name": "Ищу Человека"
+  },
+  "Джоус Лагер": {
+    "brewery": "Jaws",
+    "beer_name": "Лагер"
+  },
+  "Джоус Лайт Черри 20л": {
+    "brewery": "Jaws",
+    "beer_name": "Light Cherry"
+  },
+  "Джоус Лост Пампкин": {
+    "brewery": "Jaws",
+    "beer_name": "Lost Pumpkin"
+  },
+  "Джоус Марцен": {
+    "brewery": "Jaws",
+    "beer_name": "Märzen"
+  },
+  "Джоус Нитро Стаут": {
+    "brewery": "Jaws",
+    "beer_name": "Nitro Stout"
+  },
+  "Джоус Овсяный Стаут": {
+    "brewery": "Jaws",
+    "beer_name": "Овсяный Стаут"
+  },
+  "Джоус Пилснер": {
+    "brewery": "Jaws",
+    "beer_name": "Пилснер"
+  },
+  "Джоус Рэд Видоу": {
+    "brewery": "Jaws",
+    "beer_name": "Red Widow"
+  },
+  "Джоус Саур Бриз": {
+    "brewery": "Jaws",
+    "beer_name": "Sour Breeze"
+  },
+  "Джоус Цитрайзен": {
+    "brewery": "Jaws",
+    "beer_name": "Citraizen"
+  },
+  "Дрим Тим Вайт Найтс 30 л": {
+    "brewery": "Dream Team",
+    "beer_name": "White Nights"
+  },
+  "Дрим Тим Персиковый Блонд 20 л": {
+    "brewery": "Dream Team",
+    "beer_name": "Peach Blonde"
+  },
+  "Дрим Тим Флэгшип 30 л": {
+    "brewery": "Dream Team",
+    "beer_name": "Flagship"
+  },
+  "Дрим тим Штакеншнейдер 30 л": {
+    "brewery": "Dream Team",
+    "beer_name": "Stackenschneider"
+  },
+  "Дюпон Бирра де Мьель 20 л": {
+    "brewery": "Dupont",
+    "beer_name": "Bière de Miel"
+  },
+  "Дюпон Монкс Стаут 20 л": {
+    "brewery": "Dupont",
+    "beer_name": "Monk's Stout"
+  },
+  "Дюшес Де Бургунь 30 л": {
+    "brewery": "Verhaeghe",
+    "beer_name": "Duchesse de Bourgogne"
+  },
+  "Зубр 30 л": {
+    "brewery": "Dojlidy",
+    "beer_name": "Żubr"
+  },
+  "Кастил Руж": {
+    "brewery": "Van Honsebrouck",
+    "beer_name": "Kasteel Rouge"
+  },
+  "Квак (кега)": {
+    "brewery": "Bosteels",
+    "beer_name": "Pauwel Kwak"
+  },
+  "Квас Василеостровский 30 л": {
+    "brewery": "Василеостровская",
+    "beer_name": "Квас"
+  },
+  "Керел Пинк Империал": {
+    "brewery": "Keirel (Brouwerij Kerkom)",
+    "beer_name": "Pink Imperial"
+  },
+  "Кобленцер Вайс 30 л": {
+    "brewery": "Koblenzer",
+    "beer_name": "Weiss"
+  },
+  "Кобленцер Пилс 30 л": {
+    "brewery": "Koblenzer",
+    "beer_name": "Pils"
+  },
+  "Кона Биг Вейв Голден Эль": {
+    "brewery": "Kona",
+    "beer_name": "Big Wave Golden Ale"
+  },
+  "Кона Лонгборд": {
+    "brewery": "Kona",
+    "beer_name": "Longboard Island Lager"
+  },
+  "Кона Ханалей": {
+    "brewery": "Kona",
+    "beer_name": "Hanalei Island IPA"
+  },
+  "Коникс Бельгийский Дюббель 20 л": {
+    "brewery": "Konix",
+    "beer_name": "Belgian Dubbel"
+  },
+  "Коникс Мюнхен Хеллес 30 л": {
+    "brewery": "Konix",
+    "beer_name": "Munich Helles"
+  },
+  "Коникс Чешский Пилс 30 л": {
+    "brewery": "Konix",
+    "beer_name": "Czech Pils"
+  },
+  "Крик Макс 20 л": {
+    "brewery": "Kriek Max",
+    "beer_name": "Kriek Max"
+  },
+  "Кроненбург 1664 Блан 30 л": {
+    "brewery": "Kronenbourg",
+    "beer_name": "1664 Blanc"
+  },
+  "Кульмбахер Эдельхерб Премиум Пилс 30 л": {
+    "brewery": "Kulmbacher",
+    "beer_name": "Edelherb Premium Pils"
+  },
+  "Курпфальц Брау Урвайцен 30л": {
+    "brewery": "Kurpfalz Bräu",
+    "beer_name": "Urweizen"
+  },
+  "Ла Бранш сидр яблочный": {
+    "brewery": "La Branche",
+    "beer_name": "Cidre"
+  },
+  "Ла Трапп Дюббель 20 л": {
+    "brewery": "La Trappe",
+    "beer_name": "Dubbel"
+  },
+  "Ла Трапп Квадрюпель 20 л": {
+    "brewery": "La Trappe",
+    "beer_name": "Quadrupel"
+  },
+  "Ла Шуф 20 л": {
+    "brewery": "Achouffe",
+    "beer_name": "La Chouffe"
+  },
+  "Лаутербахер Бротцайт": {
+    "brewery": "Lauterbacher",
+    "beer_name": "Brotzeit"
+  },
+  "Лаутербахер Хелл": {
+    "brewery": "Lauterbacher",
+    "beer_name": "Hell"
+  },
+  "ЛеФорт Квадрюпель": {
+    "brewery": "Van Steenberge",
+    "beer_name": "LeFort Quadrupel"
+  },
+  "Лейкейм Хеллес 30 л": {
+    "brewery": "Leikeim",
+    "beer_name": "Helles"
+  },
+  "Леруа Капиттель Патер 30 л": {
+    "brewery": "Leroy",
+    "beer_name": "Kapittel Pater"
+  },
+  "Леруа Сас Пилс 30 л": {
+    "brewery": "Leroy",
+    "beer_name": "Saaz Pils"
+  },
+  "Леффе Блонд 30 л": {
+    "brewery": "Leffe",
+    "beer_name": "Blonde"
+  },
+  "Леффе Брюн 30 л": {
+    "brewery": "Leffe",
+    "beer_name": "Brune"
+  },
+  "Лимбургс Витте 20л": {
+    "brewery": "Limburgse",
+    "beer_name": "Witte"
+  },
+  "Локал Вайцен 30 л": {
+    "brewery": "Local Lager",
+    "beer_name": "Weizen"
+  },
+  "Локи 20 л": {
+    "brewery": "Локи",
+    "beer_name": "Локи"
+  },
+  "Марстонс Ойстер Стаут 30 л": {
+    "brewery": "Marston's",
+    "beer_name": "Oyster Stout"
+  },
+  "Миккелер Ю Эс Элайв 30 л": {
+    "brewery": "Mikkeller",
+    "beer_name": "US Alive"
+  },
+  "Морт Субит Экстрим ПН": {
+    "brewery": "Mort Subite",
+    "beer_name": "Xtreme Kriek"
+  },
+  "Мост Брюверс Вайсс Брюкке": {
+    "brewery": "Мост",
+    "beer_name": "Weiss Brücke"
+  },
+  "Мост Брюверс Лагер": {
+    "brewery": "Мост",
+    "beer_name": "Лагер"
+  },
+  "Мост Пон Руж 20 л": {
+    "brewery": "Мост",
+    "beer_name": "Pont Rouge"
+  },
+  "Ногне О #500 20 л": {
+    "brewery": "Nøgne Ø",
+    "beer_name": "#500"
+  },
+  "Ногне Ту Кэпитанс 20 л": {
+    "brewery": "Nøgne Ø",
+    "beer_name": "Two Captains"
+  },
+  "Он Зе Бонс Строуберрилипс 30 л": {
+    "brewery": "On the Bones",
+    "beer_name": "Strawberrylips"
+  },
+  "Ортодокс Вайцен 20л": {
+    "brewery": "Ортодокс",
+    "beer_name": "Weizen"
+  },
+  "Островица АPA 20 л": {
+    "brewery": "Островица",
+    "beer_name": "APA"
+  },
+  "Островица Б-дэй Лагер": {
+    "brewery": "Островица",
+    "beer_name": "B-day Lager"
+  },
+  "Островица Стриппер 20 л": {
+    "brewery": "Островица",
+    "beer_name": "Stripper"
+  },
+  "ПП White Night Pale ale 20 л": {
+    "brewery": "Paradox Paradigm",
+    "beer_name": "White Night Pale Ale"
+  },
+  "Палм Роял 20 л": {
+    "brewery": "Palm",
+    "beer_name": "Palm Royale"
+  },
+  "Парадокс Сип Сейшн 20 л": {
+    "brewery": "Paradox",
+    "beer_name": "Sip Session"
+  },
+  "Пардубицкий Портер 20 л": {
+    "brewery": "Pardubický",
+    "beer_name": "Porter"
+  },
+  "Перони Настро Аззуро 30 л": {
+    "brewery": "Peroni",
+    "beer_name": "Nastro Azzurro"
+  },
+  "Петрус Ред 30 л": {
+    "brewery": "Petrus (De Brabandere)",
+    "beer_name": "Red"
+  },
+  "Пеш Мель Буш 20 л": {
+    "brewery": "Dubuisson",
+    "beer_name": "Pêche Mel Bush"
+  },
+  "Пикси полусладкий 30 л": {
+    "brewery": "Пикси",
+    "beer_name": "Полусладкий"
+  },
+  "Питон Сидр Домашний 30л": {
+    "brewery": "Питон",
+    "beer_name": "Домашний"
+  },
+  "План B R2-D2H 20 л": {
+    "brewery": "План Б",
+    "beer_name": "R2-D2H"
+  },
+  "План Б Мисти Стандарт 20": {
+    "brewery": "План Б",
+    "beer_name": "Misty Standard"
+  },
+  "План Б Тропикал Пэйнкиллер 20": {
+    "brewery": "План Б",
+    "beer_name": "Tropical Painkiller"
+  },
+  "Полночный Проект Джаст АИПА 20 л": {
+    "brewery": "Полночный Проект",
+    "beer_name": "Just AIPA"
+  },
+  "Полночный Проект Жигуликеллер 20 л": {
+    "brewery": "Полночный Проект",
+    "beer_name": "Жигуликеллер"
+  },
+  "Полночный проект Katana 20 л": {
+    "brewery": "Полночный Проект",
+    "beer_name": "Katana"
+  },
+  "Полночный проект Страна Курляндия 20 л": {
+    "brewery": "Полночный Проект",
+    "beer_name": "Страна Курляндия"
+  },
+  "Ригеле Альте Вайс": {
+    "brewery": "Riegele",
+    "beer_name": "Alte Weisse"
+  },
+  "Ригеле Келлербир": {
+    "brewery": "Riegele",
+    "beer_name": "Kellerbier"
+  },
+  "Ригеле Фестбир": {
+    "brewery": "Riegele",
+    "beer_name": "Festbier"
+  },
+  "Ригеле Херен Пилс": {
+    "brewery": "Riegele",
+    "beer_name": "Herren Pils"
+  },
+  "Ригеле Эхтес Дункель": {
+    "brewery": "Riegele",
+    "beer_name": "Echtes Dunkel"
+  },
+  "Роденбах 20 л": {
+    "brewery": "Rodenbach",
+    "beer_name": "Rodenbach"
+  },
+  "РэдХук Лонг Хаммер ИПА": {
+    "brewery": "Redhook",
+    "beer_name": "Long Hammer IPA"
+  },
+  "С Питерс ИПА 30 л": {
+    "brewery": "St. Peter's",
+    "beer_name": "IPA"
+  },
+  "С Питерс Крим Стаут 30 л": {
+    "brewery": "St. Peter's",
+    "beer_name": "Cream Stout"
+  },
+  "С Питерс Лагер 30 л": {
+    "brewery": "St. Peter's",
+    "beer_name": "Lager"
+  },
+  "С Питерс Пэйл Эль 30 л": {
+    "brewery": "St. Peter's",
+    "beer_name": "Pale Ale"
+  },
+  "Салливанс Пэйл Эль": {
+    "brewery": "Sullivan's",
+    "beer_name": "Pale Ale"
+  },
+  "Салтаир Биттер": {
+    "brewery": "Saltaire",
+    "beer_name": "Bitter"
+  },
+  "Салтаир Нью Ворлд 30 л": {
+    "brewery": "Saltaire",
+    "beer_name": "New World"
+  },
+  "Сан Луи Гёз 20 л": {
+    "brewery": "St. Louis",
+    "beer_name": "Gueuze"
+  },
+  "Сан Луи Крик 20 л": {
+    "brewery": "St. Louis",
+    "beer_name": "Kriek"
+  },
+  "Свинкелс Лагер 20 л": {
+    "brewery": "Swinkels",
+    "beer_name": "Lager"
+  },
+  "Святой домкрат 20л": {
+    "brewery": "Святой домкрат",
+    "beer_name": "Святой домкрат"
+  },
+  "Сейнт Остилл Биг Джоб": {
+    "brewery": "St Austell",
+    "beer_name": "Big Job"
+  },
+  "Сейнт Остилл Корев": {
+    "brewery": "St Austell",
+    "beer_name": "Korev"
+  },
+  "Сейнт Остилл Пропер Джоб": {
+    "brewery": "St Austell",
+    "beer_name": "Proper Job"
+  },
+  "Сейнт Остилл Пропер Крекер": {
+    "brewery": "St Austell",
+    "beer_name": "Proper Cracker"
+  },
+  "Сейнт Остилл Трибьют": {
+    "brewery": "St Austell",
+    "beer_name": "Tribute"
+  },
+  "Сейнт Пи Оптимистик Сити Лагер": {
+    "brewery": "Saint P",
+    "beer_name": "Optimistic City Lager"
+  },
+  "Сен Фёйен Бельджиан Кост ИПА": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Belgian Coast IPA"
+  },
+  "Сен Фёйен Блонд 20 л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Blonde"
+  },
+  "Сен Фёйен Брюн 20 л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Brune"
+  },
+  "Сен Фёйен Гризетт Бланш": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Grisette Blanche"
+  },
+  "Сен Фёйен Гризетт Фру Де Буа": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Grisette Fruits des Bois"
+  },
+  "Сен Фёйен Квадрюпель 20 л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Quadrupel"
+  },
+  "Сен Фёйен Кюве дэ Ноэль": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Cuvée de Noël"
+  },
+  "Сен Фёйен Лагер 20л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Lager"
+  },
+  "Сен Фёйен Сезон 30 л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Saison"
+  },
+  "Сен Фёйен Спешл Бельж": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Spéciale Belge"
+  },
+  "Сен Фёйен Трипл 20 л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Triple"
+  },
+  "Сен Фёйен Файв 30 л": {
+    "brewery": "St-Feuillien",
+    "beer_name": "Five"
+  },
+  "Сент Антон полусухой 30л": {
+    "brewery": "St. Anton",
+    "beer_name": "Полусухой"
+  },
+  "Сидр Лось и Кедр v 2.0 яблочный п/сухой": {
+    "brewery": "Лось и Кедр",
+    "beer_name": "v2.0 яблочный полусухой"
+  },
+  "Сидр Лось и Кедр v 3.0 яблочный п/сухой": {
+    "brewery": "Лось и Кедр",
+    "beer_name": "v3.0 яблочный полусухой"
+  },
+  "Сидр Лось и Кедр v 9.0 яблочный п/сухой": {
+    "brewery": "Лось и Кедр",
+    "beer_name": "v9.0 яблочный полусухой"
+  },
+  "Силли Кюве Эрмитаж": {
+    "brewery": "Silly",
+    "beer_name": "Cuvée Ermitage"
+  },
+  "Силли Руж 20 л": {
+    "brewery": "Silly",
+    "beer_name": "Rouge"
+  },
+  "Синт Гуммарус Дюбель 30 л": {
+    "brewery": "Sint Gummarus",
+    "beer_name": "Dubbel"
+  },
+  "Синт Гуммарус Трипель 30 л": {
+    "brewery": "Sint Gummarus",
+    "beer_name": "Tripel"
+  },
+  "Ст. Остелл Ликвид Саншайн": {
+    "brewery": "St Austell",
+    "beer_name": "Liquid Sunshine"
+  },
+  "Ст. Остелл Мена Ду": {
+    "brewery": "St Austell",
+    "beer_name": "Mena Dhu"
+  },
+  "Ст. Остелл Руби Джек": {
+    "brewery": "St Austell",
+    "beer_name": "Ruby Jack"
+  },
+  "Ст. Остелл Смагглерс": {
+    "brewery": "St Austell",
+    "beer_name": "Smugglers"
+  },
+  "Степь и Ветер Амброзия 20л": {
+    "brewery": "Степь и Ветер",
+    "beer_name": "Амброзия"
+  },
+  "Степь и Ветер Вишня 20л": {
+    "brewery": "Степь и Ветер",
+    "beer_name": "Вишня"
+  },
+  "Тер Долен Крик": {
+    "brewery": "Ter Dolen",
+    "beer_name": "Kriek"
+  },
+  "Тикстон Бариста Стаут 30 л": {
+    "brewery": "Theakston",
+    "beer_name": "Barista Stout"
+  },
+  "Тикстон Лайтфут 30 л": {
+    "brewery": "Theakston",
+    "beer_name": "Lightfoot"
+  },
+  "Тикстон Олд Пикулер 30 л": {
+    "brewery": "Theakston",
+    "beer_name": "Old Peculier"
+  },
+  "Тилькан Кетш Драфт Вёршн 20 л": {
+    "brewery": "Tilquin",
+    "beer_name": "Quetsche Draft Version"
+  },
+  "Трипель Кармелит": {
+    "brewery": "Bosteels",
+    "beer_name": "Tripel Karmeliet"
+  },
+  "Трубадур Магма 30л": {
+    "brewery": "The Musketeers",
+    "beer_name": "Troubadour Magma"
+  },
+  "Фаундерс Центенниал ИПА 29,3 л": {
+    "brewery": "Founders",
+    "beer_name": "Centennial IPA"
+  },
+  "Фердинант лагер (12) 30 л": {
+    "brewery": "Ferdinand",
+    "beer_name": "Lager (12°)"
+  },
+  "Фест Амбер Эль (кега)": {
+    "brewery": "Фёст",
+    "beer_name": "Amber Ale"
+  },
+  "Францискайнер Вайсбир": {
+    "brewery": "Franziskaner",
+    "beer_name": "Weissbier"
+  },
+  "Фуллерс ЕСБ 30 л": {
+    "brewery": "Fuller's",
+    "beer_name": "ESB"
+  },
+  "Фуллерс ИПА 30 л": {
+    "brewery": "Fuller's",
+    "beer_name": "IPA"
+  },
+  "Фуллерс Лондон Блэк Кэб 30 л": {
+    "brewery": "Fuller's",
+    "beer_name": "London Black Cab"
+  },
+  "Фуллерс Лондон Портер 30 л": {
+    "brewery": "Fuller's",
+    "beer_name": "London Porter"
+  },
+  "Фуллерс Лондон Прайд 30 л": {
+    "brewery": "Fuller's",
+    "beer_name": "London Pride"
+  },
+  "Фёст Локал Лагер": {
+    "brewery": "Фёст",
+    "beer_name": "Local Lager"
+  },
+  "Фёст брю прототип аутмил стаут": {
+    "brewery": "Фёст",
+    "beer_name": "Oatmeal Stout Prototype"
+  },
+  "Фёст брю прототип портер": {
+    "brewery": "Фёст",
+    "beer_name": "Porter Prototype"
+  },
+  "ХБ Дункель": {
+    "brewery": "Hofbräu München",
+    "beer_name": "Dunkel"
+  },
+  "ХБ Мюнхенер Вайссе": {
+    "brewery": "Hofbräu München",
+    "beer_name": "Münchner Weisse"
+  },
+  "ХБ Траунштайн Хеллес": {
+    "brewery": "Hofbräu Traunstein",
+    "beer_name": "Helles"
+  },
+  "Хук Нортон Дабл Стаут 30 л": {
+    "brewery": "Hook Norton",
+    "beer_name": "Double Stout"
+  },
+  "Чешский лев": {
+    "brewery": "Чешский лев",
+    "beer_name": "Чешский лев"
+  },
+  "Шимэ Рэд 20 л": {
+    "brewery": "Chimay",
+    "beer_name": "Red (Première)"
+  },
+  "Шнайдер ТАР1 20 л": {
+    "brewery": "Schneider Weisse",
+    "beer_name": "TAP1 (Meine Blonde)"
+  },
+  "Шнайдер ТАР4 20 л": {
+    "brewery": "Schneider Weisse",
+    "beer_name": "TAP4 (Mein Grünes)"
+  },
+  "Шнайдер ТАР5 20 л": {
+    "brewery": "Schneider Weisse",
+    "beer_name": "TAP5 (Meine Hopfenweisse)"
+  },
+  "Шнайдер ТАР6 20 л": {
+    "brewery": "Schneider Weisse",
+    "beer_name": "TAP6 (Unser Aventinus)"
+  },
+  "Шнайдер ТАР7 20 л": {
+    "brewery": "Schneider Weisse",
+    "beer_name": "TAP7 (Unser Original)"
+  },
+  "Шредер Велка Морава 30 л": {
+    "brewery": "Velka Morava",
+    "beer_name": "Schrader"
+  },
+  "Штамм Брюинг Бестие 30 л": {
+    "brewery": "Stamm Brewing",
+    "beer_name": "Bestie"
+  },
+  "Штамм Брюинг Невермонт 30 л": {
+    "brewery": "Stamm Brewing",
+    "beer_name": "Nevermont"
+  },
+  "Штигль Голдброй 25 л": {
+    "brewery": "Stiegl",
+    "beer_name": "Goldbräu"
+  },
+  "Янгс Лондон Стаут 30 л": {
+    "brewery": "Young's",
+    "beer_name": "London Stout"
+  },
+  "Кеги - Аббатское и похожее": {
+    "brewery": "—",
+    "beer_name": "(категория)"
+  }
+}

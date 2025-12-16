@@ -1234,6 +1234,236 @@ def export_taplist():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+def load_beer_info_mapping():
+    """Загружает маппинг информации о пиве из JSON файла"""
+    mapping_file = os.path.join(os.path.dirname(__file__), 'data', 'beer_info_mapping.json')
+    if os.path.exists(mapping_file):
+        try:
+            with open(mapping_file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[ERROR] Ошибка загрузки beer_info_mapping.json: {e}")
+    return {}
+
+
+def find_beer_info(beer_name, mapping):
+    """
+    Ищет информацию о пиве в маппинге.
+    Поддерживает различные форматы названий (с КЕГ и без).
+    """
+    if not beer_name or not mapping:
+        return None
+
+    # Прямое совпадение
+    if beer_name in mapping:
+        return mapping[beer_name]
+
+    # Попробуем убрать "КЕГ " из начала названия на кране
+    if beer_name.startswith('КЕГ '):
+        clean_name = beer_name[4:]  # убираем "КЕГ "
+        if clean_name in mapping:
+            return mapping[clean_name]
+
+    # Попробуем добавить "КЕГ " к названию
+    keg_name = f"КЕГ {beer_name}"
+    if keg_name in mapping:
+        return mapping[keg_name]
+
+    # Попробуем найти частичное совпадение (без учёта литража)
+    beer_name_lower = beer_name.lower()
+    for key in mapping.keys():
+        key_lower = key.lower()
+        # Убираем литраж для сравнения (20 л, 30 л, и т.д.)
+        clean_beer = beer_name_lower.replace(' 20 л', '').replace(' 30 л', '').replace(' л', '').strip()
+        clean_key = key_lower.replace(' 20 л', '').replace(' 30 л', '').replace(' л', '').strip()
+
+        if clean_beer == clean_key:
+            return mapping[key]
+
+        # Также проверяем без "кег "
+        if clean_beer.replace('кег ', '') == clean_key.replace('кег ', ''):
+            return mapping[key]
+
+    return None
+
+
+@app.route('/api/taps/taplist-full', methods=['GET'])
+def get_taplist_full():
+    """
+    Получить полный таплист с расширенной информацией о пиве.
+    Возвращает JSON с данными: пивоварня, название, untappd URL, стиль, ABV, IBU, описание.
+
+    Параметры:
+    - bar_id: фильтр по конкретному бару (опционально)
+    - active_only: true - только активные краны (по умолчанию true)
+    """
+    try:
+        bar_id_filter = request.args.get('bar_id', None)
+        active_only = request.args.get('active_only', 'true').lower() == 'true'
+
+        # Загружаем маппинг
+        beer_mapping = load_beer_info_mapping()
+
+        # Получаем список баров
+        bars = taps_manager.get_bars()
+
+        if bar_id_filter:
+            bars = [bar for bar in bars if bar['bar_id'] == bar_id_filter]
+
+        result = []
+
+        for bar in bars:
+            bar_id = bar['bar_id']
+            bar_name = bar['name']
+
+            bar_data = taps_manager.get_bar_taps(bar_id)
+            if 'error' in bar_data:
+                continue
+
+            for tap in bar_data.get('taps', []):
+                if active_only and tap['status'] != 'active':
+                    continue
+
+                beer_name = tap.get('current_beer')
+                if not beer_name:
+                    continue
+
+                # Ищем расширенную информацию
+                beer_info = find_beer_info(beer_name, beer_mapping)
+
+                tap_data = {
+                    'bar': bar_name,
+                    'bar_id': bar_id,
+                    'tap_number': tap['tap_number'],
+                    'iiko_name': beer_name,
+                    'started_at': tap.get('started_at'),
+                }
+
+                if beer_info:
+                    tap_data.update({
+                        'brewery': beer_info.get('brewery'),
+                        'beer_name': beer_info.get('beer_name'),
+                        'untappd_url': beer_info.get('untappd_url'),
+                        'style': beer_info.get('style'),
+                        'abv': beer_info.get('abv'),
+                        'ibu': beer_info.get('ibu'),
+                        'description': beer_info.get('description'),
+                        'mapped': True
+                    })
+                else:
+                    tap_data['mapped'] = False
+
+                result.append(tap_data)
+
+        return jsonify({
+            'success': True,
+            'count': len(result),
+            'taplist': result
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Ошибка в /api/taps/taplist-full: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/taps/export-taplist-full', methods=['GET'])
+def export_taplist_full():
+    """
+    Экспортировать расширенный таплист в CSV формате.
+    Включает: Бар, Кран, Пивоварня, Название пива, Untappd URL, Стиль, ABV, IBU, Описание
+    """
+    try:
+        from io import StringIO
+        import csv
+
+        bar_id_filter = request.args.get('bar_id', None)
+        active_only = request.args.get('active_only', 'true').lower() == 'true'
+
+        # Загружаем маппинг
+        beer_mapping = load_beer_info_mapping()
+
+        bars = taps_manager.get_bars()
+
+        if bar_id_filter:
+            bars = [bar for bar in bars if bar['bar_id'] == bar_id_filter]
+
+        output = StringIO()
+        writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_ALL)
+
+        # Заголовок
+        writer.writerow(['Бар', 'Кран', 'Пивоварня', 'Название пива', 'Untappd URL', 'Стиль', 'ABV', 'IBU', 'Описание'])
+
+        for bar in bars:
+            bar_id = bar['bar_id']
+            bar_name = bar['name']
+
+            bar_data = taps_manager.get_bar_taps(bar_id)
+            if 'error' in bar_data:
+                continue
+
+            for tap in bar_data.get('taps', []):
+                if active_only and tap['status'] != 'active':
+                    continue
+
+                beer_name = tap.get('current_beer')
+                if not beer_name:
+                    continue
+
+                beer_info = find_beer_info(beer_name, beer_mapping)
+
+                if beer_info:
+                    writer.writerow([
+                        bar_name,
+                        tap['tap_number'],
+                        beer_info.get('brewery', ''),
+                        beer_info.get('beer_name', ''),
+                        beer_info.get('untappd_url', ''),
+                        beer_info.get('style', ''),
+                        beer_info.get('abv', ''),
+                        beer_info.get('ibu', ''),
+                        beer_info.get('description', '')
+                    ])
+                else:
+                    # Если нет маппинга - используем название из iiko
+                    writer.writerow([
+                        bar_name,
+                        tap['tap_number'],
+                        '',
+                        beer_name,
+                        '',
+                        '',
+                        '',
+                        '',
+                        ''
+                    ])
+
+        output.seek(0)
+        csv_content = output.getvalue()
+        output.close()
+
+        if bar_id_filter and bars:
+            filename = f"taplist_full_{bar_id_filter}.csv"
+        else:
+            filename = "taplist_full.csv"
+
+        from flask import make_response
+        from urllib.parse import quote
+        response = make_response(csv_content)
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = f"attachment; filename={filename}; filename*=UTF-8''{quote(filename)}"
+
+        return response
+
+    except Exception as e:
+        print(f"[ERROR] Ошибка в /api/taps/export-taplist-full: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/taps/<bar_id>/stats', methods=['GET'])
 def get_bar_stats(bar_id):
     """Получить краткую статистику для карточки бара"""
