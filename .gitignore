@@ -42,16 +42,26 @@ taps_data*.json
 # Бэкапы
 *.bak
 *.backup
+data/*.backup
 
 # Логи
 *.log
+data/*.log
 
 # Временные файлы
 *.tmp
 *.temp
+data/temp/
+
+# Кэши
+data/cache/
 
 # API ключи и секреты
 апи
 .env
 api_key.txt
 *.key
+
+# Локальные отчеты и экспорты
+data/reports/
+tests/exports/

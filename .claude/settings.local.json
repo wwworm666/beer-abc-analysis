@@ -47,7 +47,12 @@
       "Bash(python3:*)",
       "Bash(start /B python:*)",
       "Bash(product_fields_report.txt)",
-      "Bash(del \"c:\\Users\\1\\Documents\\GitHub\\beer-abc-analysis\\temp_read_excel.py\")"
+      "Bash(del \"c:\\Users\\1\\Documents\\GitHub\\beer-abc-analysis\\temp_read_excel.py\")",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(rmdir:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []
