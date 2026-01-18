@@ -14,6 +14,9 @@ from core.category_analysis import CategoryAnalysis
 from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
 from core.taps_manager import TapsManager
+from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from_waiter_data
+from core.employee_plans import get_employee_plan
+from core.iiko_api import IikoAPI
 from dashboardNovaev.dashboard_analysis import DashboardMetrics
 from dashboardNovaev.plans_manager import PlansManager
 from dashboardNovaev.weeks_generator import WeeksGenerator
@@ -28,6 +31,10 @@ app = Flask(__name__)
 # Формат: {(venue_key, period_key): {'analysis': str, 'timestamp': float}}
 AI_ANALYSIS_CACHE = {}
 AI_CACHE_TTL = 3600  # 1 час
+
+# Кэш для списка сотрудников (не меняется часто)
+EMPLOYEES_CACHE = {'data': None, 'timestamp': 0}
+EMPLOYEES_CACHE_TTL = 300  # 5 минут
 
 # Инициализируем менеджер кранов
 # Если на Render (есть диск /kultura), используем его для постоянного хранения
@@ -162,6 +169,11 @@ def taps():
 def stocks():
     """Страница управления стоками и формирования заказов"""
     return render_template('stocks.html', bars=BARS)
+
+@app.route('/employee')
+def employee_dashboard():
+    """Страница детального дашборда по сотруднику"""
+    return render_template('employee.html', bars=BARS)
 
 @app.route('/dashboard')
 def dashboard():
@@ -1033,6 +1045,163 @@ def analyze_waiters():
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
+
+# ============= API для дашборда сотрудника =============
+
+@app.route('/api/employees', methods=['GET'])
+def get_employees_list():
+    """Получить список всех сотрудников для dropdown"""
+    try:
+        # Используем данные о продажах за последние 30 дней чтобы получить актуальный список сотрудников
+        date_to = datetime.now().strftime("%Y-%m-%d")
+        date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            # Получаем данные разливного с официантами (там точно есть WaiterName)
+            report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, None)
+        finally:
+            olap.disconnect()
+
+        if not report_data:
+            return jsonify({'employees': []})
+
+        # Извлекаем уникальные имена сотрудников
+        employees = get_employees_from_waiter_data(report_data)
+
+        return jsonify({'employees': employees})
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/employees: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employee-analytics', methods=['POST'])
+def employee_analytics():
+    """API endpoint для детальной аналитики по одному сотруднику"""
+    try:
+        data = request.json
+        employee_name = data.get('employee_name')
+        bar_name = data.get('bar')  # None для всех баров
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not employee_name or not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: employee_name, date_from, date_to'}), 400
+
+        print(f"\n[EMPLOYEE] Analiz sotrudnika: {employee_name}")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {date_from} - {date_to}")
+
+        # 1. Получаем данные через OLAP (ПАРАЛЛЕЛЬНО для скорости)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            # Запускаем все OLAP запросы параллельно
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
+                    executor.submit(olap.get_cancelled_orders_by_waiter, date_from, date_to, bar_name): 'cancelled',
+                }
+
+                results = {}
+                for future in as_completed(futures):
+                    key = futures[future]
+                    try:
+                        results[key] = future.result()
+                    except Exception as e:
+                        print(f"   [ERROR] OLAP {key}: {e}")
+                        results[key] = None
+
+            aggregated_data = results.get('aggregated')
+            draft_data = results.get('draft')
+            bottles_data = results.get('bottles')
+            kitchen_data = results.get('kitchen')
+            cancelled_data = results.get('cancelled')
+        finally:
+            olap.disconnect()
+
+        # 2. Данные о сменах через Attendance API (с кэшем сотрудников)
+        attendances = []
+        try:
+            # Проверяем кэш сотрудников
+            now = time.time()
+            if EMPLOYEES_CACHE['data'] and (now - EMPLOYEES_CACHE['timestamp']) < EMPLOYEES_CACHE_TTL:
+                employees_list = EMPLOYEES_CACHE['data']
+                print(f"   [CACHE] Using cached employees list ({len(employees_list)} employees)")
+            else:
+                # Загружаем свежий список
+                iiko_emp = IikoAPI()
+                if iiko_emp.authenticate():
+                    try:
+                        employees_list = iiko_emp.get_employees()
+                        EMPLOYEES_CACHE['data'] = employees_list
+                        EMPLOYEES_CACHE['timestamp'] = now
+                        print(f"   [CACHE] Loaded fresh employees list ({len(employees_list)} employees)")
+                    finally:
+                        iiko_emp.logout()
+                else:
+                    employees_list = []
+
+            # Ищем ID сотрудника
+            employee_id = None
+            for emp in employees_list:
+                if emp.get('name') == employee_name:
+                    employee_id = emp.get('id')
+                    break
+
+            # Загружаем явки только если нашли ID
+            if employee_id:
+                print(f"   Found employee_id: {employee_id}")
+                iiko = IikoAPI()
+                if iiko.authenticate():
+                    try:
+                        attendances = iiko.get_attendance(date_from, date_to, employee_id=employee_id)
+                        print(f"   Loaded {len(attendances)} attendance records")
+                    finally:
+                        iiko.logout()
+            else:
+                print(f"   [WARN] Employee ID not found for: {employee_name}")
+        except Exception as att_error:
+            print(f"   [WARN] Error getting attendance: {att_error}")
+
+        # 3. Получаем план из Excel
+        plan_revenue = get_employee_plan(employee_name, date_from, date_to, bar_name)
+
+        # 4. Рассчитываем все метрики
+        calculator = EmployeeMetricsCalculator()
+        metrics = calculator.calculate(
+            employee_name=employee_name,
+            aggregated_data=aggregated_data,
+            draft_data=draft_data,
+            bottles_data=bottles_data,
+            kitchen_data=kitchen_data,
+            cancelled_data=cancelled_data,
+            attendances=attendances,
+            plan_revenue=plan_revenue,
+            date_from=date_from,
+            date_to=date_to
+        )
+
+        return jsonify(metrics)
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/employee-analytics: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 # ============= API для управления пивными кранами =============
 
@@ -2483,6 +2652,155 @@ def migrate_plans_to_monthly():
 
     except Exception as e:
         print(f"[PLANS API ERROR] Ошибка миграции: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/plans/import-from-excel', methods=['POST'])
+def import_plans_from_excel():
+    """
+    Импорт планов из Excel файла планы_2025_2026.xlsx
+
+    POST /api/plans/import-from-excel
+
+    Returns:
+        JSON: Результат импорта с количеством загруженных планов
+    """
+    try:
+        import openpyxl
+        from datetime import datetime
+
+        print("\n[PLANS API] Запуск импорта планов из Excel...")
+
+        # Маппинг названий баров
+        VENUE_MAPPING = {
+            'Большой пр. В.О': 'bolshoy',
+            'Лиговский': 'ligovskiy',
+            'Кременчугская': 'kremenchugskaya',
+            'Варшавская': 'varshavskaya',
+            'Общая': 'all'
+        }
+
+        # Маппинг метрик
+        METRIC_MAPPING = {
+            'Выручка': 'revenue',
+            'Прибыль': 'profit',
+            'Чеки': 'checks',
+            'Средний чек': 'averageCheck',
+            'Доля розлив': 'draftShare',
+            'Доля фасовка': 'packagedShare',
+            'Доля кухня': 'kitchenShare',
+            'Наценка': 'markupPercent',
+            'Наценка розлив': 'markupDraft',
+            'Наценка фасовка': 'markupPackaged',
+            'Наценка кухня': 'markupKitchen',
+            'Списания баллов': 'loyaltyWriteoffs',
+            'Активность кранов': 'tapActivity'
+        }
+
+        MONTH_NAMES_RU = {
+            'Январь': 1, 'Февраль': 2, 'Март': 3, 'Апрель': 4,
+            'Май': 5, 'Июнь': 6, 'Июль': 7, 'Август': 8,
+            'Сентябрь': 9, 'Октябрь': 10, 'Ноябрь': 11, 'Декабрь': 12
+        }
+
+        def parse_month_header(header_text):
+            parts = header_text.strip().split()
+            if len(parts) != 2:
+                return None, None
+            month_name, year_str = parts
+            try:
+                year = int(year_str)
+            except ValueError:
+                return None, None
+            month = MONTH_NAMES_RU.get(month_name)
+            return (year, month) if month else (None, None)
+
+        # Читаем Excel
+        file_path = 'data/reports/планы_2025_2026.xlsx'
+        if not os.path.exists(file_path):
+            return jsonify({'error': f'Файл не найден: {file_path}'}), 404
+
+        wb = openpyxl.load_workbook(file_path, data_only=True)
+        ws = wb.active
+
+        all_plans = {}
+        current_month_year = None
+        bar_columns = {}
+
+        for row in ws.iter_rows(min_row=1, values_only=False):
+            first_cell = row[0]
+            if first_cell.value and isinstance(first_cell.value, str):
+                year, month = parse_month_header(first_cell.value)
+                if year and month:
+                    current_month_year = (year, month)
+                    print(f"[EXCEL] Найден месяц: {first_cell.value}")
+                    continue
+
+            if first_cell.value == 'Метрика':
+                bar_columns = {}
+                for col_idx, cell in enumerate(row[1:], start=2):
+                    if cell.value in VENUE_MAPPING:
+                        bar_columns[col_idx] = VENUE_MAPPING[cell.value]
+                continue
+
+            if first_cell.value in METRIC_MAPPING and current_month_year and bar_columns:
+                metric_key = METRIC_MAPPING[first_cell.value]
+                year, month = current_month_year
+
+                for col_idx, venue_key in bar_columns.items():
+                    cell_value = row[col_idx - 1].value
+                    if cell_value is not None and cell_value != '':
+                        try:
+                            value = float(cell_value)
+                            month_key = f'{venue_key}_{year}-{month:02d}'
+                            if month_key not in all_plans:
+                                all_plans[month_key] = {}
+                            all_plans[month_key][metric_key] = value
+                        except (ValueError, TypeError):
+                            pass
+
+        # Расчёт выручки по категориям
+        for plan_data in all_plans.values():
+            if 'revenue' in plan_data:
+                revenue = plan_data['revenue']
+                if 'draftShare' in plan_data:
+                    plan_data['revenueDraft'] = revenue * (plan_data['draftShare'] / 100)
+                if 'packagedShare' in plan_data:
+                    plan_data['revenuePackaged'] = revenue * (plan_data['packagedShare'] / 100)
+                if 'kitchenShare' in plan_data:
+                    plan_data['revenueKitchen'] = revenue * (plan_data['kitchenShare'] / 100)
+                if 'loyaltyWriteoffs' not in plan_data:
+                    plan_data['loyaltyWriteoffs'] = revenue * 0.05
+
+        # Сохраняем в JSON
+        output_data = {
+            'plans': all_plans,
+            'metadata': {
+                'lastUpdate': datetime.now().isoformat(),
+                'version': '1.0',
+                'source': 'Excel import from планы_2025_2026.xlsx'
+            }
+        }
+
+        with open('data/plansdashboard.json', 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, ensure_ascii=False, indent=2)
+
+        # Перезагружаем PlansManager
+        plans_manager._initialize_file()
+
+        print(f"[PLANS API] Импортировано планов: {len(all_plans)}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Импортировано {len(all_plans)} планов из Excel',
+            'plans_count': len(all_plans),
+            'plan_keys': sorted(all_plans.keys())
+        })
+
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка импорта из Excel: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

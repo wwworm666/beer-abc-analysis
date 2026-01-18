@@ -658,6 +658,330 @@ class OlapReports:
             print(f"[ERROR] Failed to get orders count: {e}")
             return 0
 
+    # ============ Методы для дашборда сотрудника ============
+
+    def get_bottles_sales_by_waiter_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по продажам фасованного пива с информацией об официантах
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po fasovke s oficiantami...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        # Формируем JSON запрос для OLAP v2 (фасовка + официанты)
+        request_body = self._build_olap_request(date_from, date_to, bar_name, draft=False, include_waiter=True)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request_body,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet po fasovke s oficiantami uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def get_kitchen_sales_by_waiter_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по продажам кухни с информацией об официантах
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po kukhne s oficiantami...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        # Формируем JSON запрос для OLAP v2 (кухня + официанты)
+        request_body = self._build_kitchen_olap_request_with_waiter(date_from, date_to, bar_name)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request_body,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet po kukhne s oficiantami uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def get_cancelled_orders_by_waiter(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по отмененным/возвращенным позициям с информацией об официантах
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu OLAP otchet po otmenam/vozvratam...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        # Формируем JSON запрос для OLAP v2 (отмены + официанты)
+        request_body = self._build_cancelled_orders_request(date_from, date_to, bar_name)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request_body,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet po otmenam/vozvratam uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def _build_kitchen_olap_request_with_waiter(self, date_from, date_to, bar_name=None):
+        """Построить JSON запрос для OLAP отчета по блюдам кухни с информацией об официантах"""
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "DishName",
+                "DishGroup.TopParent",
+                "DishForeignName",
+                "OpenDate.Typed",
+                "WaiterName"  # Добавляем официанта
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId",
+                "UniqOrderId.OrdersCount",
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "DiscountSum",
+                "ProductCostBase.ProductCost",
+                "ProductCostBase.OneItem",
+                "ProductCostBase.MarkUp"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DishGroup.TopParent": {
+                    "filterType": "ExcludeValues",
+                    "values": ["Напитки Фасовка", "Напитки Розлив"]
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return request
+
+    def _build_cancelled_orders_request(self, date_from, date_to, bar_name=None):
+        """Построить JSON запрос для OLAP отчета по отмененным/возвращенным позициям"""
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "WaiterName"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "OrderNum"  # Количество удалённых чеков
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                # Только удаленные/возвращенные позиции (исключаем NOT_DELETED)
+                "DeletedWithWriteoff": {
+                    "filterType": "ExcludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return request
+
+    def get_employee_aggregated_metrics(self, date_from, date_to, bar_name=None):
+        """
+        Получить агрегированные метрики по каждому сотруднику.
+        Группировка только по WaiterName - API сам агрегирует данные.
+
+        Возвращает dict с ключами по именам сотрудников:
+        {
+            "Иван Петров": {
+                "OrderNum": 435,  # количество чеков
+                "DishDiscountSumInt": 752912.00,  # выручка
+                "DiscountSum": 23622.00,  # сумма скидок
+                ...
+            }
+        }
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu agregirovannye metriki po sotrudnikam...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "WaiterName"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "OrderNum",           # Количество чеков
+                "DishDiscountSumInt", # Выручка
+                "DiscountSum",        # Сумма скидок
+                "DishAmountInt"       # Количество блюд
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                print("[OK] Agregirovannye metriki polucheny!")
+
+                # Преобразуем в dict по именам сотрудников
+                employees_data = {}
+                for record in result.get('data', []):
+                    waiter_name = record.get('WaiterName', '')
+                    if waiter_name:
+                        employees_data[waiter_name] = record
+
+                return employees_data
+            else:
+                print(f"[ERROR] Oshibka: {response.status_code}")
+                print(f"   Otvet: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
 
 # Тестовый запуск
 if __name__ == "__main__":

@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Эффективность сотрудника</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            /* Light Theme */
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #e0e0e0;
+            --accent: #0066cc;
+            --accent-hover: #0052a3;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --success: #059669;
+            --warning: #d97706;
+            --danger: #dc2626;
+        }
+
+        [data-theme="dark"] {
+            /* Dark Theme */
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #999999;
+            --text-tertiary: #666666;
+            --border-color: #333333;
+            --accent: #3b82f6;
+            --accent-hover: #60a5fa;
+            --shadow: rgba(0, 0, 0, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 60px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .header-left .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            font-weight: 400;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .nav-link {
+            padding: 8px 20px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link:hover {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .nav-link.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-secondary);
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .theme-btn {
+            background: transparent;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+
+        .theme-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .theme-btn:hover:not(.active) {
+            color: var(--text-primary);
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 32px;
+            margin-bottom: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .card:hover {
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        /* Controls */
+        .controls {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        select, input {
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-secondary);
+        }
+
+        /* Button */
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: var(--text-tertiary);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 60px 32px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .loading p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Results */
+        .results {
+            display: none;
+        }
+
+        .results.active {
+            display: block;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .metric-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .metric-card:hover {
+            border-color: var(--accent);
+        }
+
+        .metric-card .label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .metric-card .unit {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            margin-left: 4px;
+        }
+
+        .metric-card .change {
+            font-size: 0.8rem;
+            margin-top: 4px;
+        }
+
+        .metric-card .change.positive {
+            color: var(--success);
+        }
+
+        .metric-card .change.negative {
+            color: var(--danger);
+        }
+
+        /* Charts Section */
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 24px;
+            margin-top: 30px;
+        }
+
+        .chart-container {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 24px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+
+        .category-legend {
+            margin-top: 16px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .chart-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        /* Table */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+
+        thead {
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 16px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        /* Error */
+        .error {
+            background: var(--danger);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .metrics-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 12px;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+
+            .header-left h1 {
+                font-size: 2rem;
+            }
+
+            .nav-links {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .nav-link {
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metric-card .value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>Эффективность сотрудника</h1>
+                <div class="subtitle">Детальный анализ метрик по одному сотруднику</div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+                <div class="nav-links">
+                    <a href="/" class="nav-link">Дашборд</a>
+                    <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
+                    <a href="/draft" class="nav-link">Разливное</a>
+                    <a href="/waiters" class="nav-link">Бармены</a>
+                    <a href="/employee" class="nav-link active">Сотрудник</a>
+                    <a href="/taps" class="nav-link">Краны</a>
+                    <a href="/stocks" class="nav-link">Остатки</a>
+                </div>
+                <div class="theme-toggle">
+                    <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
+                    <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="controls">
+                <div class="form-group">
+                    <label for="employee-select">Сотрудник</label>
+                    <select id="employee-select" onchange="toggleAnalyzeButton()">
+                        <option value="">Загрузка списка...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="bar-select">Бар</label>
+                    <select id="bar-select">
+                        <option value="">Все бары</option>
+                        {% for bar in bars %}
+                        <option value="{{ bar }}">{{ bar }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="date-from">Дата начала</label>
+                    <input type="date" id="date-from">
+                </div>
+
+                <div class="form-group">
+                    <label for="date-to">Дата окончания</label>
+                    <input type="date" id="date-to">
+                </div>
+
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" id="analyze-btn" onclick="runAnalysis()" disabled>Анализировать</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="error" id="error-message"></div>
+
+        <div class="card loading" id="loading">
+            <div class="spinner"></div>
+            <h2>Загружаем данные...</h2>
+            <p>Анализируем метрики сотрудника</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <script>
+        let employeesList = [];
+        let currentMetrics = null;
+        let categoryChart = null;
+
+        // Theme management
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update chart colors if exists
+            if (categoryChart) {
+                updateChartColors();
+            }
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            if ((savedTheme === 'light' && btn.textContent === 'Светлая') ||
+                (savedTheme === 'dark' && btn.textContent === 'Тёмная')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadEmployees();
+            setDefaultDates();
+        });
+
+        function setDefaultDates() {
+            const today = new Date();
+            const monthAgo = new Date(today);
+            monthAgo.setDate(today.getDate() - 30);
+
+            document.getElementById('date-to').valueAsDate = today;
+            document.getElementById('date-from').valueAsDate = monthAgo;
+        }
+
+        async function loadEmployees() {
+            const select = document.getElementById('employee-select');
+            select.innerHTML = '<option value="">Загрузка списка...</option>';
+
+            try {
+                const response = await fetch('/api/employees');
+                const data = await response.json();
+
+                if (data.employees && data.employees.length > 0) {
+                    employeesList = data.employees;
+                    select.innerHTML = '<option value="">Выберите сотрудника</option>';
+                    data.employees.forEach(name => {
+                        const option = document.createElement('option');
+                        option.value = name;
+                        option.textContent = name;
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">Нет данных о сотрудниках</option>';
+                }
+            } catch (error) {
+                console.error('Error loading employees:', error);
+                select.innerHTML = '<option value="">Ошибка загрузки</option>';
+            }
+
+            toggleAnalyzeButton();
+        }
+
+        function toggleAnalyzeButton() {
+            const employeeSelect = document.getElementById('employee-select');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            analyzeBtn.disabled = !employeeSelect.value;
+        }
+
+        async function runAnalysis() {
+            const employeeName = document.getElementById('employee-select').value;
+            const barName = document.getElementById('bar-select').value;
+            const dateFrom = document.getElementById('date-from').value;
+            const dateTo = document.getElementById('date-to').value;
+
+            if (!employeeName) {
+                showError('Выберите сотрудника');
+                return;
+            }
+
+            if (!dateFrom || !dateTo) {
+                showError('Выберите период');
+                return;
+            }
+
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('error-message').classList.remove('active');
+
+            try {
+                const response = await fetch('/api/employee-analytics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        employee_name: employeeName,
+                        bar: barName || null,
+                        date_from: dateFrom,
+                        date_to: dateTo
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Ошибка при получении данных');
+                }
+
+                const data = await response.json();
+                currentMetrics = data;
+                displayResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Ошибка: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        function displayResults(data) {
+            const resultsDiv = document.getElementById('results');
+
+            if (data.total_revenue === 0) {
+                resultsDiv.innerHTML = `
+                    <div class="card">
+                        <div class="empty-state">
+                            <h3>Нет данных</h3>
+                            <p>За выбранный период нет данных о продажах для этого сотрудника</p>
+                        </div>
+                    </div>
+                `;
+                resultsDiv.classList.add('active');
+                return;
+            }
+
+            const metricsHTML = `
+                <div class="card">
+                    <h3 style="margin-bottom: 24px; font-size: 1.2rem; font-weight: 600;">
+                        ${data.employee_name}
+                    </h3>
+
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="label">Выручка</div>
+                            <div class="value">${formatMoney(data.total_revenue)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">План/Факт</div>
+                            ${data.plan_revenue > 0 ? `
+                                <div class="value" style="color: ${getPlanFactColor(data.plan_fact_percent)}">${data.plan_fact_percent.toFixed(1)}<span class="unit">%</span></div>
+                                <div class="change">План: ${formatMoney(data.plan_revenue)}</div>
+                            ` : `
+                                <div class="value" style="color: var(--text-tertiary)">—</div>
+                                <div class="change">Нет плана</div>
+                            `}
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Смен</div>
+                            <div class="value">${data.shifts_count}<span class="unit">смен</span></div>
+                            <div class="change">${data.work_hours} часов</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Выручка/смена</div>
+                            <div class="value">${formatMoney(data.revenue_per_shift)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Выручка/час</div>
+                            <div class="value">${formatMoney(data.revenue_per_hour)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Кол-во чеков</div>
+                            <div class="value">${formatNumber(data.total_checks)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Средний чек</div>
+                            <div class="value">${formatMoney(data.avg_check)}</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Наценка</div>
+                            <div class="value">${data.avg_markup.toFixed(0)}<span class="unit">%</span></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">% скидок</div>
+                            <div class="value">${data.discount_percent.toFixed(1)}<span class="unit">%</span></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Отмены (удал. чеки)</div>
+                            <div class="value">${formatNumber(data.cancelled_count)}<span class="unit">шт</span></div>
+                        </div>
+                    </div>
+
+                    <div class="charts-section">
+                        <div class="chart-container">
+                            <div class="chart-title">Доли по категориям</div>
+                            <div class="chart-wrapper">
+                                <canvas id="categoryChart"></canvas>
+                            </div>
+                            <div class="category-legend">
+                                <div class="legend-item">
+                                    <span>Разлив:</span>
+                                    <span>${formatMoney(data.draft_revenue)} (${data.draft_share.toFixed(1)}%)</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span>Фасовка:</span>
+                                    <span>${formatMoney(data.bottles_revenue)} (${data.bottles_share.toFixed(1)}%)</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span>Кухня:</span>
+                                    <span>${formatMoney(data.kitchen_revenue)} (${data.kitchen_share.toFixed(1)}%)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chart-container">
+                            <div class="chart-title">Топ продаваемых сортов</div>
+                            ${data.top_beers && data.top_beers.length > 0 ? `
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Название</th>
+                                            <th>Кол-во</th>
+                                            <th>Выручка</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${data.top_beers.map((beer, i) => `
+                                            <tr>
+                                                <td>${i + 1}</td>
+                                                <td><strong>${beer.name}</strong></td>
+                                                <td>${formatNumber(beer.quantity)}</td>
+                                                <td>${formatMoney(beer.revenue)}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            ` : '<p style="color: var(--text-secondary);">Нет данных о продажах пива</p>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            resultsDiv.innerHTML = metricsHTML;
+            resultsDiv.classList.add('active');
+
+            // Create pie chart
+            createCategoryChart(data);
+        }
+
+        function createCategoryChart(data) {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+
+            if (categoryChart) {
+                categoryChart.destroy();
+            }
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+            categoryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Разлив', 'Фасовка', 'Кухня'],
+                    datasets: [{
+                        data: [data.draft_share, data.bottles_share, data.kitchen_share],
+                        backgroundColor: [
+                            '#3b82f6',
+                            '#10b981',
+                            '#f59e0b'
+                        ],
+                        borderColor: isDark ? '#1a1a1a' : '#ffffff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: isDark ? '#e0e0e0' : '#1a1a1a',
+                                padding: 16,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.raw.toFixed(1) + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChartColors() {
+            if (!categoryChart || !currentMetrics) return;
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            categoryChart.data.datasets[0].borderColor = isDark ? '#1a1a1a' : '#ffffff';
+            categoryChart.options.plugins.legend.labels.color = isDark ? '#e0e0e0' : '#1a1a1a';
+            categoryChart.update();
+        }
+
+        function getPlanFactColor(percent) {
+            if (percent >= 100) return 'var(--success)';
+            if (percent >= 80) return 'var(--warning)';
+            return 'var(--danger)';
+        }
+
+        function formatMoney(value) {
+            if (value === undefined || value === null) return '0 ₽';
+            return new Intl.NumberFormat('ru-RU', {
+                style: 'currency',
+                currency: 'RUB',
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        function formatNumber(value) {
+            if (value === undefined || value === null) return '0';
+            return new Intl.NumberFormat('ru-RU').format(value);
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+        }
+    </script>
+</body>
+</html>
