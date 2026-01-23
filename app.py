@@ -15,7 +15,7 @@ from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
 from core.taps_manager import TapsManager
 from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from_waiter_data
-from core.employee_plans import get_employee_plan
+from core.employee_plans import get_employee_plan_by_shifts
 from core.iiko_api import IikoAPI
 from dashboardNovaev.dashboard_analysis import DashboardMetrics
 from dashboardNovaev.plans_manager import PlansManager
@@ -1133,8 +1133,11 @@ def employee_analytics():
         finally:
             olap.disconnect()
 
-        # 2. Данные о сменах через Attendance API (с кэшем сотрудников)
-        attendances = []
+        # 2. Данные из кассовых смен (сотрудник, локация, выручка, часы - всё из одного API)
+        shifts_count = 0
+        shift_locations = {}
+        shifts_revenue = 0.0
+        total_hours = 0.0
         try:
             # Проверяем кэш сотрудников
             now = time.time()
@@ -1162,25 +1165,31 @@ def employee_analytics():
                     employee_id = emp.get('id')
                     break
 
-            # Загружаем явки только если нашли ID
+            # Получаем метрики из кассовых смен (unified метод)
             if employee_id:
                 print(f"   Found employee_id: {employee_id}")
                 iiko = IikoAPI()
                 if iiko.authenticate():
                     try:
-                        attendances = iiko.get_attendance(date_from, date_to, employee_id=employee_id)
-                        print(f"   Loaded {len(attendances)} attendance records")
+                        all_metrics = iiko.get_employee_metrics_from_shifts(date_from, date_to)
+                        emp_metrics = all_metrics.get(employee_id, {})
+                        shifts_count = emp_metrics.get('shifts_count', 0)
+                        shift_locations = emp_metrics.get('shift_locations', {})
+                        shifts_revenue = emp_metrics.get('total_revenue', 0.0)
+                        total_hours = emp_metrics.get('total_hours', 0.0)
+                        print(f"   Loaded {shifts_count} cash shifts, {total_hours:.1f} hours, revenue: {shifts_revenue:.0f}")
                     finally:
                         iiko.logout()
             else:
                 print(f"   [WARN] Employee ID not found for: {employee_name}")
-        except Exception as att_error:
-            print(f"   [WARN] Error getting attendance: {att_error}")
+        except Exception as shift_error:
+            print(f"   [WARN] Error getting cash shifts: {shift_error}")
 
-        # 3. Получаем план из Excel
-        plan_revenue = get_employee_plan(employee_name, date_from, date_to, bar_name)
+        # 3. Рассчитываем план на основе кассовых смен
+        plan_revenue = get_employee_plan_by_shifts(shift_locations)
+        print(f"   Plan calculated from {len(shift_locations)} cash shifts: {plan_revenue:.0f}")
 
-        # 4. Рассчитываем все метрики
+        # 4. Рассчитываем все метрики (используем cash shifts вместо attendance)
         calculator = EmployeeMetricsCalculator()
         metrics = calculator.calculate(
             employee_name=employee_name,
@@ -1189,10 +1198,11 @@ def employee_analytics():
             bottles_data=bottles_data,
             kitchen_data=kitchen_data,
             cancelled_data=cancelled_data,
-            attendances=attendances,
             plan_revenue=plan_revenue,
             date_from=date_from,
-            date_to=date_to
+            date_to=date_to,
+            shifts_count_override=shifts_count,
+            total_hours_override=total_hours
         )
 
         return jsonify(metrics)
@@ -1202,6 +1212,168 @@ def employee_analytics():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/employee-compare', methods=['POST'])
+def employee_compare():
+    """API endpoint для сравнения нескольких сотрудников"""
+    try:
+        data = request.json
+        employee_names = data.get('employee_names', [])
+        bar_name = data.get('bar')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not employee_names or not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: employee_names, date_from, date_to'}), 400
+
+        if len(employee_names) < 2:
+            return jsonify({'error': 'Выберите минимум 2 сотрудников для сравнения'}), 400
+
+        print(f"\n[COMPARE] Sravnenie sotrudnikov: {len(employee_names)} chelovek")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {date_from} - {date_to}")
+
+        # Загружаем данные ОДИН раз для всех (оптимизация)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
+                    executor.submit(olap.get_cancelled_orders_by_waiter, date_from, date_to, bar_name): 'cancelled',
+                }
+
+                all_data = {}
+                for future in as_completed(futures):
+                    key = futures[future]
+                    try:
+                        all_data[key] = future.result()
+                    except Exception as e:
+                        print(f"   [ERROR] OLAP {key}: {e}")
+                        all_data[key] = None
+        finally:
+            olap.disconnect()
+
+        # Получаем список сотрудников и метрики из кассовых смен ОДНИМ запросом (оптимизация)
+        now = time.time()
+        all_employee_metrics = {}
+
+        iiko = IikoAPI()
+        if iiko.authenticate():
+            try:
+                # Список сотрудников (с кэшем)
+                if EMPLOYEES_CACHE['data'] and (now - EMPLOYEES_CACHE['timestamp']) < EMPLOYEES_CACHE_TTL:
+                    employees_list = EMPLOYEES_CACHE['data']
+                    print(f"   [CACHE] Using cached employees ({len(employees_list)})")
+                else:
+                    employees_list = iiko.get_employees()
+                    EMPLOYEES_CACHE['data'] = employees_list
+                    EMPLOYEES_CACHE['timestamp'] = now
+                    print(f"   [CACHE] Fresh employees loaded ({len(employees_list)})")
+
+                # Получаем метрики из кассовых смен для ВСЕХ сотрудников (unified метод)
+                all_employee_metrics = iiko.get_employee_metrics_from_shifts(date_from, date_to)
+                print(f"   [SHIFTS] Loaded metrics for {len(all_employee_metrics)} employees from cash shifts")
+            finally:
+                iiko.logout()
+        else:
+            employees_list = []
+            all_employee_metrics = {}
+            print("   [ERROR] Failed to authenticate to iiko")
+
+        # Хелпер для нормализации имен (игнорируем порядок слов)
+        def normalize_name(name):
+            if not name:
+                return set()
+            return set(name.lower().strip().split())
+
+        # Создаём маппинг employee_id -> employee для быстрого поиска
+        emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
+
+        # DEBUG: показываем имена для сопоставления
+        print(f"   [DEBUG] OLAP names to compare: {employee_names}")
+        iiko_names = [emp.get('name') for emp in employees_list]
+        print(f"   [DEBUG] iiko employee names: {iiko_names[:10]}...")  # первые 10
+
+        # Рассчитываем метрики для каждого сотрудника
+        calculator = EmployeeMetricsCalculator()
+        results = []
+
+        for emp_name in employee_names:
+            # Находим ID сотрудника с нормализацией имени
+            employee_id = None
+            emp_name_normalized = normalize_name(emp_name)
+
+            for emp in employees_list:
+                iiko_name = emp.get('name')
+                # Сначала пробуем точное совпадение
+                if iiko_name == emp_name:
+                    employee_id = emp.get('id')
+                    break
+                # Потом пробуем нормализованное (те же слова в любом порядке)
+                if normalize_name(iiko_name) == emp_name_normalized:
+                    employee_id = emp.get('id')
+                    print(f"   [MATCH] '{emp_name}' -> '{iiko_name}' (normalized)")
+                    break
+
+            # Получаем метрики из кассовых смен по employee_id
+            emp_metrics = {}
+            shifts_count = 0
+            shift_locations = {}
+            total_hours = 0.0
+            if employee_id:
+                emp_metrics = all_employee_metrics.get(employee_id, {})
+                shifts_count = emp_metrics.get('shifts_count', 0)
+                shift_locations = emp_metrics.get('shift_locations', {})
+                total_hours = emp_metrics.get('total_hours', 0.0)
+                print(f"   [SHIFTS] {emp_name}: {shifts_count} shifts, {total_hours:.1f}h (employee_id: {employee_id[:8]}...)")
+            else:
+                print(f"   [WARNING] {emp_name}: employee_id NOT FOUND in iiko!")
+
+            # Рассчитываем план на основе кассовых смен
+            plan_revenue = get_employee_plan_by_shifts(shift_locations)
+
+            # Рассчитываем метрики (используем cash shifts вместо attendance)
+            metrics = calculator.calculate(
+                employee_name=emp_name,
+                aggregated_data=all_data.get('aggregated'),
+                draft_data=all_data.get('draft'),
+                bottles_data=all_data.get('bottles'),
+                kitchen_data=all_data.get('kitchen'),
+                cancelled_data=all_data.get('cancelled'),
+                plan_revenue=plan_revenue,
+                date_from=date_from,
+                date_to=date_to,
+                shifts_count_override=shifts_count,
+                total_hours_override=total_hours
+            )
+
+            results.append({
+                'name': emp_name,
+                **metrics
+            })
+
+        print(f"[OK] Sravnenie zaversheno dlya {len(results)} sotrudnikov")
+
+        return jsonify({
+            'employees': results,
+            'period': {'from': date_from, 'to': date_to}
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/employee-compare: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 # ============= API для управления пивными кранами =============
 

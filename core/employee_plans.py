@@ -1,93 +1,76 @@
 """
-Модуль для чтения планов сотрудников из Excel файла.
+Модуль для расчёта планов сотрудников на основе явок.
+
+План сотрудника = сумма планов ТТ за те дни, когда он работал.
+Данные берутся из data/bar_plans.json
 """
-import pandas as pd
-from datetime import datetime, date
+import json
+from datetime import datetime
 from typing import Optional, Dict, List
 import os
 
 
-# Маппинг инициалов на полные имена сотрудников
-INITIALS_TO_NAME = {
-    'АН': 'Артемий Новаев',
-    'НВ': 'Васильев Никита',
-    'ДК': 'Кизатов Дамир',
-    'ДКС': 'Дарья Коновцова',
-    'ЕБ': 'Егор Бобриков',
-    'ЕВ': 'Егор Верещагин',
-    'ТМ': 'Макарова Татьяна',
-    'тм': 'Макарова Татьяна',  # lowercase вариант
-    'МП': 'Максим Поляков',
-    'КД': 'Кизатов Дамир',
-    # Старые сотрудники (для истории)
-    'АЛЯ': None,
-    'Аля': None,
-    'ВМ': None,
-    'вм': None,
-    'ВН': None,
-    'СС': None,
-}
+# Маппинг названий баров из iiko API на названия в планах
+# Используем нормализованные ключи (lower, strip)
+# ВАЖНО: Данные о реальной точке работы берутся из кассовых смен (/v2/cashshifts),
+# а не из attendance API (который возвращает только "Пивная культура").
+BAR_NAME_MAPPING = {
+    # === ИЗ КАССОВЫХ СМЕН (группы iiko) ===
+    # "Пивная культура" - это Кременчугская (основная точка, она же доставка)
+    'пивная культура': 'Кременчугская',
+    # Большой пр. В.О (в iiko с точкой после В.О)
+    'большой пр. в.о': 'Большой пр В.О.',
+    # Варшавская
+    'варшавская': 'Варшавская',
+    # Лиговский
+    'лиговский': 'Лиговский',
+    # Планерная (новая точка - пока без плана)
+    'планерная': 'Планерная',
 
-# Маппинг месяцев
-MONTH_NAMES = {
-    'октябрь': 10,
-    'ноябрь': 11,
-    'декабрь': 12,
-    'январь': 1,
-    'февраль': 2,
-    'март': 3,
-    'апрель': 4,
-    'май': 5,
-    'июнь': 6,
-    'июль': 7,
-    'август': 8,
-    'сентябрь': 9,
-}
-
-# Бары и их индексы колонок в Excel
-BARS = {
-    'Кременчугская': (1, 2),      # бармен col 1, план col 2
-    'Варшавская': (3, 4),         # бармен col 3, план col 4
-    'Большой пр В.О.': (5, 6),    # бармен col 5, план col 6
-    'Лиговский': (7, 8),          # бармен col 7, план col 8
+    # === LEGACY (из attendance API и других источников) ===
+    # Кременчугская варианты
+    'пивной бутик': 'Кременчугская',
+    'пивной бутик кременчугская': 'Кременчугская',
+    'кременчугская': 'Кременчугская',
+    'кременчуг': 'Кременчугская',
+    # Варшавская варианты
+    'варшавка': 'Варшавская',
+    'пивной бутик варшавская': 'Варшавская',
+    # Большой пр В.О. варианты
+    'большой пр в.о.': 'Большой пр В.О.',
+    'большой': 'Большой пр В.О.',
+    'большой пр': 'Большой пр В.О.',
+    'большой проспект': 'Большой пр В.О.',
+    'пивной бутик большой': 'Большой пр В.О.',
+    'в.о.': 'Большой пр В.О.',
+    'во': 'Большой пр В.О.',
+    # Лиговский варианты
+    'лиговка': 'Лиговский',
+    'пивной бутик лиговский': 'Лиговский',
 }
 
 
-class EmployeePlansReader:
-    """Класс для чтения планов из Excel файла."""
+def normalize_bar_name(name: str) -> str:
+    """Нормализует название бара для поиска в маппинге."""
+    if not name:
+        return ''
+    return name.lower().strip()
+
+
+class BarPlansReader:
+    """Класс для чтения планов ТТ из JSON файла."""
 
     def __init__(self, filepath: str = None):
         if filepath is None:
-            # Путь по умолчанию
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            filepath = os.path.join(base_dir, 'план для сайта.xlsx')
+            filepath = os.path.join(base_dir, 'data', 'bar_plans.json')
 
         self.filepath = filepath
         self._plans_cache = None
-
-    def _parse_month_year(self, month_str: str) -> tuple:
-        """Парсит строку месяца типа 'Октябрь 2025' -> (10, 2025)."""
-        if not isinstance(month_str, str):
-            return None, None
-
-        parts = month_str.lower().strip().split()
-        if len(parts) != 2:
-            return None, None
-
-        month_name, year_str = parts
-        month = MONTH_NAMES.get(month_name)
-        try:
-            year = int(year_str)
-        except ValueError:
-            return None, None
-
-        return month, year
+        self._metadata = None
 
     def _load_plans(self) -> Dict:
-        """
-        Загружает и парсит Excel файл.
-        Возвращает структуру: {(year, month, day, bar): {initials: plan_value}}
-        """
+        """Загружает JSON файл с планами."""
         if self._plans_cache is not None:
             return self._plans_cache
 
@@ -95,139 +78,227 @@ class EmployeePlansReader:
             print(f"[PLANS] Fayl ne nayden: {self.filepath}")
             return {}
 
-        df = pd.read_excel(self.filepath, header=None)
-        plans = {}
+        try:
+            with open(self.filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-        current_month = None
-        current_year = None
+            self._metadata = data.get('metadata', {})
+            self._plans_cache = data.get('plans', {})
 
-        for idx, row in df.iterrows():
-            # Проверяем, является ли строка заголовком месяца
-            cell = row[1]
-            if isinstance(cell, str):
-                month, year = self._parse_month_year(cell)
-                if month and year:
-                    current_month = month
-                    current_year = year
-                    continue
+            print(f"[PLANS] Zagruzheno {len(self._plans_cache)} dney planov TT")
+            return self._plans_cache
 
-            # Пропускаем строки без номера дня
-            day = row[0]
-            if pd.isna(day) or not isinstance(day, (int, float)):
-                continue
+        except Exception as e:
+            print(f"[PLANS] Oshibka chteniya JSON: {e}")
+            return {}
 
-            day = int(day)
-
-            # Если нет текущего месяца, пропускаем
-            if current_month is None or current_year is None:
-                continue
-
-            # Читаем данные по каждому бару
-            for bar_name, (bartender_col, plan_col) in BARS.items():
-                bartender = row[bartender_col]
-                plan_value = row[plan_col]
-
-                if pd.isna(bartender) or pd.isna(plan_value):
-                    continue
-
-                bartender = str(bartender).strip().upper()
-
-                try:
-                    plan_value = float(plan_value)
-                except (ValueError, TypeError):
-                    continue
-
-                key = (current_year, current_month, day, bar_name)
-                if key not in plans:
-                    plans[key] = {}
-                plans[key][bartender] = plan_value
-
-        self._plans_cache = plans
-        print(f"[PLANS] Zagruzheno {len(plans)} zapisey planov")
-        return plans
-
-    def get_employee_plan(
-        self,
-        employee_name: str,
-        date_from: str,
-        date_to: str,
-        bar_name: Optional[str] = None
-    ) -> float:
+    def get_bar_plan(self, date_str: str, bar_name: str) -> float:
         """
-        Получает план сотрудника за период.
+        Получает план для конкретного бара на дату.
 
         Args:
-            employee_name: Полное имя сотрудника
-            date_from: Дата начала (YYYY-MM-DD)
-            date_to: Дата окончания (YYYY-MM-DD)
-            bar_name: Название бара (опционально)
+            date_str: Дата в формате YYYY-MM-DD
+            bar_name: Название бара
 
         Returns:
-            Сумма плана за период
+            План на день (или 0 если не найден)
         """
         plans = self._load_plans()
+        day_plans = plans.get(date_str, {})
 
-        if not plans:
-            return 0.0
+        # Пробуем найти бар напрямую или через маппинг
+        if bar_name in day_plans:
+            return day_plans[bar_name]
 
-        # Находим инициалы для сотрудника
-        employee_initials = []
-        for initials, name in INITIALS_TO_NAME.items():
-            if name == employee_name:
-                employee_initials.append(initials.upper())
+        mapped_name = BAR_NAME_MAPPING.get(bar_name)
+        if mapped_name and mapped_name in day_plans:
+            return day_plans[mapped_name]
 
-        if not employee_initials:
-            print(f"[PLANS] Ne naydeny inicialy dlya: {employee_name}")
-            return 0.0
+        return 0.0
 
-        # Парсим даты
-        try:
-            start = datetime.strptime(date_from, '%Y-%m-%d').date()
-            end = datetime.strptime(date_to, '%Y-%m-%d').date()
-        except ValueError:
-            print(f"[PLANS] Neverny format dat: {date_from}, {date_to}")
+    def calculate_employee_plan(self, attendances: List[Dict]) -> float:
+        """
+        Рассчитывает план сотрудника на основе его явок.
+
+        Args:
+            attendances: Список явок [{date, department_name, ...}]
+
+        Returns:
+            Суммарный план за все смены
+        """
+        if not attendances:
             return 0.0
 
         total_plan = 0.0
+        plans = self._load_plans()
 
-        # Перебираем все дни в диапазоне
-        current = start
-        while current <= end:
-            year = current.year
-            month = current.month
-            day = current.day
+        details = []
+        unmatched = []
 
-            # Собираем план по барам
-            bars_to_check = [bar_name] if bar_name else list(BARS.keys())
+        for att in attendances:
+            date_str = att.get('date')
+            bar_name = att.get('department_name', '')
 
-            for bar in bars_to_check:
-                key = (year, month, day, bar)
-                day_plans = plans.get(key, {})
+            if not date_str or not bar_name:
+                unmatched.append(f"Missing: date={date_str}, bar={bar_name}")
+                continue
 
-                for initials in employee_initials:
-                    if initials in day_plans:
-                        total_plan += day_plans[initials]
+            # Получаем план для этого бара на эту дату
+            day_plans = plans.get(date_str, {})
 
-            # Следующий день
-            current = date(year, month, day)
-            current = date.fromordinal(current.toordinal() + 1)
+            if not day_plans:
+                unmatched.append(f"No plans for date {date_str}")
+                continue
 
-        print(f"[PLANS] Plan dlya {employee_name}: {total_plan:.0f} rub ({date_from} - {date_to})")
+            # Пробуем найти бар
+            plan = 0.0
+            mapped_name = None
+            normalized = normalize_bar_name(bar_name)
+
+            # 1. Точное совпадение
+            if bar_name in day_plans:
+                plan = day_plans[bar_name]
+                mapped_name = bar_name
+            # 2. Через нормализованный маппинг
+            elif normalized in BAR_NAME_MAPPING:
+                mapped_name = BAR_NAME_MAPPING[normalized]
+                if mapped_name in day_plans:
+                    plan = day_plans[mapped_name]
+            # 3. Поиск по подстроке (если ничего не нашли)
+            else:
+                for key, val in BAR_NAME_MAPPING.items():
+                    if key in normalized or normalized in key:
+                        mapped_name = val
+                        if mapped_name in day_plans:
+                            plan = day_plans[mapped_name]
+                            break
+
+            if plan == 0.0 and bar_name:
+                unmatched.append(f"{date_str}: '{bar_name}'")
+
+            if plan > 0:
+                details.append(f"{date_str}: {mapped_name} = {plan:.0f}")
+            total_plan += plan
+
+        # Логируем только если есть проблемы
+        if unmatched and not details:
+            print(f"[PLANS] WARNING: No plan matched for {len(unmatched)} attendances")
+            for u in unmatched[:3]:
+                print(f"   {u}")
+
         return total_plan
+
+    def get_bars(self) -> list:
+        """Возвращает список баров."""
+        self._load_plans()
+        return self._metadata.get('bars', [])
 
     def clear_cache(self):
         """Очищает кэш планов."""
         self._plans_cache = None
+        self._metadata = None
+
+    def calculate_plan_from_shifts(self, shift_locations: Dict[str, str]) -> float:
+        """
+        Рассчитывает план сотрудника на основе кассовых смен.
+
+        Args:
+            shift_locations: Dict {date: location_name} из кассовых смен
+
+        Returns:
+            Суммарный план за все смены
+        """
+        if not shift_locations:
+            return 0.0
+
+        total_plan = 0.0
+        plans = self._load_plans()
+
+        for date_str, location in shift_locations.items():
+            day_plans = plans.get(date_str, {})
+
+            if not day_plans:
+                continue
+
+            # Нормализуем название и ищем через маппинг
+            normalized = normalize_bar_name(location)
+            mapped_name = BAR_NAME_MAPPING.get(normalized, location)
+
+            # Ищем план
+            plan = day_plans.get(mapped_name, 0.0)
+
+            # Если не нашли, пробуем точное совпадение
+            if plan == 0.0 and location in day_plans:
+                plan = day_plans[location]
+
+            total_plan += plan
+
+        return total_plan
 
 
-# Глобальный экземпляр для переиспользования
+# Глобальный экземпляр
 _reader = None
 
-def get_employee_plan(employee_name: str, date_from: str, date_to: str, bar_name: str = None) -> float:
+
+def get_employee_plan_by_attendance(attendances: List[Dict]) -> float:
     """
-    Удобная функция для получения плана сотрудника.
+    DEPRECATED: Используйте get_employee_plan_by_shifts() вместо этого.
+
+    Attendance API возвращает только "Пивная культура" для всех сотрудников,
+    что не позволяет корректно определить место работы для расчёта плана.
+
+    Args:
+        attendances: Список явок сотрудника
+
+    Returns:
+        Суммарный план
     """
     global _reader
     if _reader is None:
-        _reader = EmployeePlansReader()
-    return _reader.get_employee_plan(employee_name, date_from, date_to, bar_name)
+        _reader = BarPlansReader()
+    return _reader.calculate_employee_plan(attendances)
+
+
+def get_bar_plan(date_str: str, bar_name: str) -> float:
+    """
+    Получает план бара на дату.
+    """
+    global _reader
+    if _reader is None:
+        _reader = BarPlansReader()
+    return _reader.get_bar_plan(date_str, bar_name)
+
+
+# Для обратной совместимости (старая функция)
+def get_employee_plan(employee_name: str, date_from: str, date_to: str, bar_name: str = None) -> float:
+    """
+    DEPRECATED: Используйте get_employee_plan_by_attendance()
+
+    Эта функция оставлена для обратной совместимости.
+    Возвращает 0, т.к. без явок не можем рассчитать план.
+    """
+    print(f"[PLANS] WARNING: get_employee_plan() deprecated, use get_employee_plan_by_attendance()")
+    return 0.0
+
+
+def clear_plans_cache():
+    """Очищает кэш планов."""
+    global _reader
+    if _reader is not None:
+        _reader.clear_cache()
+
+
+def get_employee_plan_by_shifts(shift_locations: Dict[str, str]) -> float:
+    """
+    Рассчитывает план сотрудника на основе кассовых смен.
+
+    Args:
+        shift_locations: Dict {date: location_name} из iiko cashshifts API
+
+    Returns:
+        Суммарный план
+    """
+    global _reader
+    if _reader is None:
+        _reader = BarPlansReader()
+    return _reader.calculate_plan_from_shifts(shift_locations)

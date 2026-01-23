@@ -23,10 +23,12 @@ class EmployeeMetricsCalculator:
         bottles_data: Optional[dict],
         kitchen_data: Optional[dict],
         cancelled_data: Optional[dict],
-        attendances: Optional[List[dict]],
+        attendances: Optional[List[dict]] = None,
         plan_revenue: float = 0.0,
         date_from: str = None,
-        date_to: str = None
+        date_to: str = None,
+        shifts_count_override: int = None,
+        total_hours_override: float = None
     ) -> dict:
         """
         Рассчитать все метрики для сотрудника
@@ -38,9 +40,12 @@ class EmployeeMetricsCalculator:
             bottles_data: Данные фасовки (OLAP)
             kitchen_data: Данные кухни (OLAP)
             cancelled_data: Данные отмен/возвратов (OLAP)
-            attendances: Данные о сменах (iiko API)
+            attendances: Данные о сменах (iiko attendance API) - deprecated
+            plan_revenue: План выручки
             date_from: Дата начала периода (YYYY-MM-DD)
             date_to: Дата окончания периода (YYYY-MM-DD)
+            shifts_count_override: Количество смен из кассовых смен
+            total_hours_override: Часы работы из кассовых смен
 
         Returns:
             dict с метриками
@@ -80,36 +85,32 @@ class EmployeeMetricsCalculator:
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
-        # 3. Данные о сменах (фильтруем по дате НАЧАЛА смены)
+        # 3. Данные о сменах
         shifts_count = 0
         total_hours = 0.0
-        if attendances:
-            # Фильтруем смены по дате начала (смена считается за день её начала)
+
+        # Приоритет: override параметры (из кассовых смен) > attendances (deprecated)
+        if shifts_count_override is not None:
+            shifts_count = shifts_count_override
+        if total_hours_override is not None:
+            total_hours = total_hours_override
+
+        if shifts_count_override is not None or total_hours_override is not None:
+            print(f"[DEBUG] Cash shifts: {shifts_count} shifts, {total_hours:.1f} hours", flush=True)
+        elif attendances:
+            # DEPRECATED: fallback на attendance API
             filtered_attendances = []
             for a in attendances:
                 shift_date = a.get('date')
                 if shift_date and date_from and date_to:
-                    # Смена входит в диапазон если её дата начала >= date_from и <= date_to
                     if date_from <= shift_date <= date_to:
                         filtered_attendances.append(a)
                 else:
-                    # Если нет дат фильтрации - берём все
                     filtered_attendances.append(a)
 
             shifts_count = len([a for a in filtered_attendances if a.get('duration_minutes')])
-            total_hours = sum(a.get('duration_minutes', 0) for a in filtered_attendances) / 60
-            # Debug: pokazat daty smen
-            print(f"[DEBUG] Attendance records (filtered {len(filtered_attendances)} of {len(attendances)}, {shifts_count} shifts, {total_hours:.1f} hours):", flush=True)
-            print(f"   Date range filter: {date_from} - {date_to}", flush=True)
-            for a in attendances:
-                date = a.get('date', 'N/A')
-                start_time = a.get('start_time', 'N/A')
-                end_time = a.get('end_time', 'N/A')
-                mins = a.get('duration_minutes', 0)
-                dept = a.get('department_name', 'N/A')
-                in_range = date_from <= date <= date_to if (date and date_from and date_to) else True
-                marker = "[OK]" if in_range else "[SKIP]"
-                print(f"   {marker} {date} {start_time}-{end_time} ({mins} min) @ {dept}", flush=True)
+            total_hours = sum((a.get('duration_minutes') or 0) for a in filtered_attendances) / 60
+            print(f"[DEBUG] Attendance (deprecated): {shifts_count} shifts, {total_hours:.1f} hours", flush=True)
 
         # 4. Выручка/смена и выручка/час
         revenue_per_shift = (total_revenue / shifts_count) if shifts_count > 0 else 0

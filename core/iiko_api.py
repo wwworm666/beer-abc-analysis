@@ -62,7 +62,8 @@ class IikoAPI:
             pass
 
     # =====================================================
-    # ATTENDANCE API (Явки сотрудников)
+    # ATTENDANCE API (Явки сотрудников) - DEPRECATED
+    # Используйте get_employee_metrics_from_shifts() вместо этого
     # =====================================================
 
     def get_attendance(
@@ -73,6 +74,12 @@ class IikoAPI:
         employee_id: Optional[str] = None
     ) -> List[Dict]:
         """
+        DEPRECATED: Используйте get_employee_metrics_from_shifts() для получения данных о сменах.
+
+        Attendance API возвращает только "Пивная культура" для всех сотрудников,
+        что не позволяет корректно определить место работы.
+        Cash Shifts API (/v2/cashshifts) содержит точные данные о локации.
+
         Получить явки сотрудников за период.
 
         Args:
@@ -197,6 +204,251 @@ class IikoAPI:
             return datetime.fromisoformat(iso_str)
         except:
             return None
+
+    # =====================================================
+    # CASH SHIFTS API (Кассовые смены v2)
+    # =====================================================
+
+    def get_cash_shifts(
+        self,
+        date_from: str,
+        date_to: str,
+        department_id: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> List[Dict]:
+        """
+        Получить кассовые смены за период.
+
+        Args:
+            date_from: Дата начала (YYYY-MM-DD)
+            date_to: Дата окончания (YYYY-MM-DD)
+            department_id: UUID подразделения (опционально)
+            status: Статус смены: OPEN, CLOSED (опционально)
+
+        Returns:
+            Список кассовых смен с полями: id, departmentId, pointOfSale, etc.
+        """
+        if not self.token:
+            print("[ERROR] Нужна авторизация")
+            return []
+
+        # V2 API для кассовых смен (возвращает JSON)
+        url = f"{self.base_url}/v2/cashshifts/list"
+
+        params = {
+            "key": self.token,
+            "openDateFrom": date_from,
+            "openDateTo": date_to
+        }
+
+        if department_id:
+            params["departmentId"] = department_id
+        if status:
+            params["status"] = status
+
+        print(f"[CASHSHIFTS] Загружаю кассовые смены с {date_from} по {date_to}...")
+
+        try:
+            response = requests.get(url, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                shifts = data if isinstance(data, list) else data.get('response', [])
+                print(f"[OK] Загружено {len(shifts)} кассовых смен")
+                return shifts
+            else:
+                print(f"[ERROR] Ошибка получения кассовых смен: {response.status_code}")
+                print(f"   Ответ: {response.text[:500]}")
+                return []
+
+        except Exception as e:
+            print(f"[ERROR] Ошибка запроса: {e}")
+            return []
+
+    def get_groups_with_pos(self) -> Dict[str, str]:
+        """
+        Получить маппинг pointOfSaleId -> название группы (торговой точки).
+
+        Returns:
+            Dict {point_of_sale_id: group_name}
+        """
+        if not self.token:
+            print("[ERROR] Нужна авторизация")
+            return {}
+
+        url = f"{self.base_url}/corporation/groups"
+        params = {"key": self.token}
+
+        print("[GROUPS] Загружаю группы (торговые точки)...")
+
+        try:
+            response = requests.get(url, params=params)
+
+            if response.status_code == 200:
+                pos_mapping = {}
+                root = ET.fromstring(response.text)
+
+                for group in root.findall('.//groupDto'):
+                    name = group.find('name').text if group.find('name') is not None else 'Unknown'
+
+                    for pos in group.findall('.//pointOfSaleDto'):
+                        pos_id = pos.find('id').text if pos.find('id') is not None else None
+                        if pos_id:
+                            pos_mapping[pos_id] = name
+
+                print(f"[OK] Загружено {len(pos_mapping)} точек продаж")
+                return pos_mapping
+            else:
+                print(f"[ERROR] Ошибка: {response.status_code}")
+                return {}
+
+        except Exception as e:
+            print(f"[ERROR] {e}")
+            return {}
+
+    def get_employee_locations_from_shifts(
+        self,
+        date_from: str,
+        date_to: str
+    ) -> Dict[str, Dict[str, str]]:
+        """
+        Получить места работы сотрудников по кассовым сменам.
+
+        Returns:
+            Dict {employee_id: {date: location_name}}
+        """
+        pos_mapping = self.get_groups_with_pos()
+        shifts = self.get_cash_shifts(date_from, date_to, status='CLOSED')
+
+        employee_locations = {}
+
+        for shift in shifts:
+            emp_id = shift.get('responsibleUserId')
+            pos_id = shift.get('pointOfSaleId')
+            open_date = shift.get('openDate', '')[:10]  # YYYY-MM-DD
+
+            if not emp_id or not open_date:
+                continue
+
+            location = pos_mapping.get(pos_id, 'Неизвестная точка')
+
+            if emp_id not in employee_locations:
+                employee_locations[emp_id] = {}
+
+            employee_locations[emp_id][open_date] = location
+
+        print(f"[OK] Определены точки для {len(employee_locations)} сотрудников")
+        return employee_locations
+
+    def get_employee_metrics_from_shifts(
+        self,
+        date_from: str,
+        date_to: str
+    ) -> Dict[str, Dict]:
+        """
+        Получить агрегированные данные по сотрудникам из кассовых смен.
+
+        Unified метод: сотрудник, локация, дата, выручка, часы - всё из одного API.
+
+        Args:
+            date_from: Дата начала (YYYY-MM-DD)
+            date_to: Дата окончания (YYYY-MM-DD)
+
+        Returns:
+            Dict {employee_id: {
+                'shifts_count': int,           # Количество смен
+                'dates': [str],                # Даты смен
+                'locations': {str: int},       # Локация -> кол-во смен
+                'shift_locations': {str: str}, # Дата -> локация (для расчёта плана)
+                'total_revenue': float,        # Выручка (salesCard + salesCash)
+                'revenue_card': float,         # Выручка картой
+                'revenue_cash': float,         # Выручка наличными
+                'total_hours': float           # Часы работы (из openDate/closeDate)
+            }}
+        """
+        if not self.token:
+            print("[ERROR] Нужна авторизация")
+            return {}
+
+        # Получаем маппинг точек продаж
+        pos_mapping = self.get_groups_with_pos()
+
+        # Получаем закрытые кассовые смены
+        shifts = self.get_cash_shifts(date_from, date_to, status='CLOSED')
+
+        if not shifts:
+            return {}
+
+        employee_data = {}
+
+        for shift in shifts:
+            emp_id = shift.get('responsibleUserId')
+            if not emp_id:
+                continue
+
+            pos_id = shift.get('pointOfSaleId')
+            open_date_str = shift.get('openDate', '')
+            close_date_str = shift.get('closeDate', '')
+            open_date = open_date_str[:10] if open_date_str else ''  # YYYY-MM-DD
+
+            # Рассчитываем длительность смены в часах
+            shift_hours = 0.0
+            if open_date_str and close_date_str:
+                try:
+                    open_dt = self._parse_iso_datetime(open_date_str)
+                    close_dt = self._parse_iso_datetime(close_date_str)
+                    if open_dt and close_dt:
+                        delta = close_dt - open_dt
+                        shift_hours = delta.total_seconds() / 3600
+                        # Защита от отрицательных или слишком больших значений
+                        if shift_hours < 0 or shift_hours > 24:
+                            shift_hours = 0.0
+                except:
+                    pass
+
+            # Выручка
+            sales_card = float(shift.get('payOrders', 0) or 0)
+            sales_cash = float(shift.get('payOrdersCash', 0) or 0)
+
+            location = pos_mapping.get(pos_id, 'Неизвестная точка')
+
+            # Инициализируем данные сотрудника
+            if emp_id not in employee_data:
+                employee_data[emp_id] = {
+                    'shifts_count': 0,
+                    'dates': [],
+                    'locations': {},
+                    'shift_locations': {},
+                    'total_revenue': 0.0,
+                    'revenue_card': 0.0,
+                    'revenue_cash': 0.0,
+                    'total_hours': 0.0
+                }
+
+            emp = employee_data[emp_id]
+
+            # Агрегируем данные
+            emp['shifts_count'] += 1
+            emp['total_hours'] += shift_hours
+
+            if open_date and open_date not in emp['dates']:
+                emp['dates'].append(open_date)
+
+            if location:
+                emp['locations'][location] = emp['locations'].get(location, 0) + 1
+                if open_date:
+                    emp['shift_locations'][open_date] = location
+
+            emp['total_revenue'] += sales_card + sales_cash
+            emp['revenue_card'] += sales_card
+            emp['revenue_cash'] += sales_cash
+
+        # Сортируем даты
+        for emp_id in employee_data:
+            employee_data[emp_id]['dates'].sort()
+
+        print(f"[OK] Получены метрики из смен для {len(employee_data)} сотрудников")
+        return employee_data
 
     def get_employees(self) -> List[Dict]:
         """Получить список сотрудников."""
