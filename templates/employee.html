@@ -438,6 +438,213 @@
             color: var(--text-primary);
         }
 
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            padding: 16px 32px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Comparison Section */
+        .employees-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 4px;
+        }
+
+        .employee-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .employee-checkbox:hover {
+            border-color: var(--accent);
+        }
+
+        .employee-checkbox.selected {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .employee-checkbox input {
+            display: none;
+        }
+
+        .employee-checkbox .checkmark {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .employee-checkbox.selected .checkmark {
+            background: white;
+            border-color: white;
+        }
+
+        .employee-checkbox.selected .checkmark::after {
+            content: '✓';
+            color: var(--accent);
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .employee-checkbox .name {
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .selected-count {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .selected-count strong {
+            color: var(--accent);
+        }
+
+        /* Comparison Results */
+        .comparison-results {
+            display: none;
+        }
+
+        .comparison-results.active {
+            display: block;
+        }
+
+        .radar-container {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .radar-wrapper {
+            position: relative;
+            height: 350px;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* Comparison Table */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comparison-table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .comparison-table td {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .comparison-table tr:hover td {
+            background: var(--bg-tertiary);
+        }
+
+        .best-value {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .best-value::after {
+            content: ' ★';
+            font-size: 0.8em;
+        }
+
+        .compare-controls {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .compare-controls .form-group {
+            flex: 0 0 auto;
+        }
+
+        .compare-controls .btn {
+            width: auto;
+            padding: 12px 40px;
+        }
+
         /* Responsive */
         @media (max-width: 1200px) {
             .metrics-grid {
@@ -519,10 +726,18 @@
             </div>
         </div>
 
-        <div class="card">
-            <div class="controls">
-                <div class="form-group">
-                    <label for="employee-select">Сотрудник</label>
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('analysis')">Анализ</button>
+            <button class="tab-btn" onclick="switchTab('compare')">Сравнение</button>
+        </div>
+
+        <!-- Tab: Analysis (existing) -->
+        <div id="tab-analysis" class="tab-content active">
+            <div class="card">
+                <div class="controls">
+                    <div class="form-group">
+                        <label for="employee-select">Сотрудник</label>
                     <select id="employee-select" onchange="toggleAnalyzeButton()">
                         <option value="">Загрузка списка...</option>
                     </select>
@@ -553,23 +768,93 @@
                     <button class="btn" id="analyze-btn" onclick="runAnalysis()" disabled>Анализировать</button>
                 </div>
             </div>
-        </div>
+            </div>
 
-        <div class="error" id="error-message"></div>
+            <div class="error" id="error-message"></div>
 
-        <div class="card loading" id="loading">
-            <div class="spinner"></div>
-            <h2>Загружаем данные...</h2>
-            <p>Анализируем метрики сотрудника</p>
-        </div>
+            <div class="card loading" id="loading">
+                <div class="spinner"></div>
+                <h2>Загружаем данные...</h2>
+                <p>Анализируем метрики сотрудника</p>
+            </div>
 
-        <div class="results" id="results"></div>
+            <div class="results" id="results"></div>
+        </div><!-- /tab-analysis -->
+
+        <!-- Tab: Compare -->
+        <div id="tab-compare" class="tab-content">
+            <div class="card">
+                <h3 style="margin-bottom: 16px; font-size: 1.1rem; font-weight: 600;">Выберите сотрудников для сравнения</h3>
+                <p class="selected-count">Выбрано: <strong id="selected-count">0</strong> (минимум 2)</p>
+                <div class="employees-grid" id="employees-grid">
+                    <div style="color: var(--text-secondary);">Загрузка списка сотрудников...</div>
+                </div>
+
+                <div class="compare-controls">
+                    <div class="form-group">
+                        <label for="compare-date-from">Дата начала</label>
+                        <input type="date" id="compare-date-from">
+                    </div>
+                    <div class="form-group">
+                        <label for="compare-date-to">Дата окончания</label>
+                        <input type="date" id="compare-date-to">
+                    </div>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button class="btn" id="compare-btn" onclick="runComparison()" disabled>Сравнить</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="error" id="compare-error-message"></div>
+
+            <div class="card loading" id="compare-loading">
+                <div class="spinner"></div>
+                <h2>Сравниваем сотрудников...</h2>
+                <p>Загружаем метрики для выбранных сотрудников</p>
+            </div>
+
+            <div class="comparison-results" id="comparison-results">
+                <div class="card">
+                    <div class="radar-container">
+                        <div class="chart-title">Сравнение показателей</div>
+                        <div class="radar-wrapper">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-title" style="margin-bottom: 16px;">Детальное сравнение</div>
+                    <div style="overflow-x: auto;">
+                        <table class="comparison-table" id="comparison-table">
+                            <thead id="comparison-thead"></thead>
+                            <tbody id="comparison-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-compare -->
     </div>
 
     <script>
         let employeesList = [];
         let currentMetrics = null;
         let categoryChart = null;
+        let radarChart = null;
+        let selectedEmployees = new Set();
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+
+            // Load employees for compare tab if needed
+            if (tab === 'compare' && document.getElementById('employees-grid').children.length <= 1) {
+                loadEmployeesForCompare();
+            }
+        }
 
         // Theme management
         function setTheme(theme) {
@@ -584,6 +869,9 @@
             // Update chart colors if exists
             if (categoryChart) {
                 updateChartColors();
+            }
+            if (radarChart) {
+                updateRadarChartColors();
             }
         }
 
@@ -912,6 +1200,319 @@
             const errorDiv = document.getElementById('error-message');
             errorDiv.textContent = message;
             errorDiv.classList.add('active');
+        }
+
+        // ============= COMPARISON FUNCTIONS =============
+
+        function loadEmployeesForCompare() {
+            const grid = document.getElementById('employees-grid');
+
+            if (employeesList.length > 0) {
+                renderEmployeeCheckboxes(employeesList);
+                return;
+            }
+
+            grid.innerHTML = '<div style="color: var(--text-secondary);">Загрузка списка...</div>';
+
+            fetch('/api/employees')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.employees && data.employees.length > 0) {
+                        employeesList = data.employees;
+                        renderEmployeeCheckboxes(data.employees);
+                    } else {
+                        grid.innerHTML = '<div style="color: var(--text-secondary);">Нет данных о сотрудниках</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    grid.innerHTML = '<div style="color: var(--danger);">Ошибка загрузки</div>';
+                });
+
+            // Set default dates for compare
+            setCompareDates();
+        }
+
+        function setCompareDates() {
+            const today = new Date();
+            const monthAgo = new Date(today);
+            monthAgo.setDate(today.getDate() - 30);
+
+            document.getElementById('compare-date-to').valueAsDate = today;
+            document.getElementById('compare-date-from').valueAsDate = monthAgo;
+        }
+
+        function renderEmployeeCheckboxes(employees) {
+            const grid = document.getElementById('employees-grid');
+            grid.innerHTML = employees.map(name => {
+                const safeName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                return `
+                    <div class="employee-checkbox" data-name="${safeName}">
+                        <span class="checkmark"></span>
+                        <span class="name">${name}</span>
+                    </div>
+                `;
+            }).join('');
+
+            // Add click handlers
+            grid.querySelectorAll('.employee-checkbox').forEach(el => {
+                el.addEventListener('click', function() {
+                    const name = this.dataset.name.replace(/&quot;/g, '"');
+                    toggleEmployee(name, this);
+                });
+            });
+        }
+
+        function toggleEmployee(name, element) {
+            if (selectedEmployees.has(name)) {
+                selectedEmployees.delete(name);
+                element.classList.remove('selected');
+            } else {
+                selectedEmployees.add(name);
+                element.classList.add('selected');
+            }
+
+            document.getElementById('selected-count').textContent = selectedEmployees.size;
+            document.getElementById('compare-btn').disabled = selectedEmployees.size < 2;
+        }
+
+        async function runComparison() {
+            const dateFrom = document.getElementById('compare-date-from').value;
+            const dateTo = document.getElementById('compare-date-to').value;
+
+            if (selectedEmployees.size < 2) {
+                showCompareError('Выберите минимум 2 сотрудников');
+                return;
+            }
+
+            if (!dateFrom || !dateTo) {
+                showCompareError('Выберите период');
+                return;
+            }
+
+            document.getElementById('compare-loading').classList.add('active');
+            document.getElementById('comparison-results').classList.remove('active');
+            document.getElementById('compare-error-message').classList.remove('active');
+
+            try {
+                const response = await fetch('/api/employee-compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        employee_names: Array.from(selectedEmployees),
+                        date_from: dateFrom,
+                        date_to: dateTo
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Ошибка при получении данных');
+                }
+
+                const data = await response.json();
+                displayComparisonResults(data);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showCompareError('Ошибка: ' + error.message);
+            } finally {
+                document.getElementById('compare-loading').classList.remove('active');
+            }
+        }
+
+        function displayComparisonResults(data) {
+            const employees = data.employees;
+            if (!employees || employees.length < 2) {
+                showCompareError('Недостаточно данных для сравнения');
+                return;
+            }
+
+            // Create radar chart
+            createRadarChart(employees);
+
+            // Create comparison table
+            createComparisonTable(employees);
+
+            document.getElementById('comparison-results').classList.add('active');
+        }
+
+        function createRadarChart(employees) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+
+            if (radarChart) {
+                radarChart.destroy();
+            }
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+            // Normalize data for radar (0-100 scale)
+            const metrics = ['avg_check', 'revenue_per_hour', 'draft_share', 'plan_fact_percent', 'total_checks'];
+            const labels = ['Ср. чек', 'Выручка/час', 'Разлив %', 'План/Факт %', 'Чеков'];
+
+            // Find max values for normalization
+            const maxValues = {};
+            metrics.forEach(metric => {
+                maxValues[metric] = Math.max(...employees.map(e => e[metric] || 0));
+            });
+
+            const datasets = employees.map((emp, i) => ({
+                label: emp.name,
+                data: metrics.map(metric => {
+                    const value = emp[metric] || 0;
+                    const max = maxValues[metric] || 1;
+                    // For percentage metrics, use as-is (capped at 100)
+                    if (metric === 'draft_share' || metric === 'plan_fact_percent') {
+                        return Math.min(value, 100);
+                    }
+                    // Normalize to 0-100 scale
+                    return (value / max) * 100;
+                }),
+                backgroundColor: colors[i % colors.length] + '33',
+                borderColor: colors[i % colors.length],
+                borderWidth: 2,
+                pointBackgroundColor: colors[i % colors.length],
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: colors[i % colors.length]
+            }));
+
+            radarChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                stepSize: 20,
+                                color: isDark ? '#999' : '#666',
+                                backdropColor: 'transparent'
+                            },
+                            grid: {
+                                color: isDark ? '#333' : '#e0e0e0'
+                            },
+                            angleLines: {
+                                color: isDark ? '#333' : '#e0e0e0'
+                            },
+                            pointLabels: {
+                                color: isDark ? '#e0e0e0' : '#1a1a1a',
+                                font: { size: 12, weight: '500' }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: isDark ? '#e0e0e0' : '#1a1a1a',
+                                padding: 20,
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const metric = metrics[context.dataIndex];
+                                    const emp = employees[context.datasetIndex];
+                                    const value = emp[metric] || 0;
+                                    if (metric === 'avg_check' || metric === 'revenue_per_hour') {
+                                        return `${context.dataset.label}: ${formatMoney(value)}`;
+                                    }
+                                    if (metric === 'draft_share' || metric === 'plan_fact_percent') {
+                                        return `${context.dataset.label}: ${value.toFixed(1)}%`;
+                                    }
+                                    return `${context.dataset.label}: ${formatNumber(value)}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createComparisonTable(employees) {
+            const thead = document.getElementById('comparison-thead');
+            const tbody = document.getElementById('comparison-tbody');
+
+            // Header
+            thead.innerHTML = `
+                <tr>
+                    <th>Метрика</th>
+                    ${employees.map(e => `<th>${e.name}</th>`).join('')}
+                </tr>
+            `;
+
+            // Metrics to compare
+            const metricsConfig = [
+                { key: 'total_revenue', label: 'Выручка', format: 'money', higher: true },
+                { key: 'avg_check', label: 'Средний чек', format: 'money', higher: true },
+                { key: 'total_checks', label: 'Чеков', format: 'number', higher: true },
+                { key: 'shifts_count', label: 'Смен', format: 'number', higher: true },
+                { key: 'work_hours', label: 'Часов', format: 'hours', higher: true },
+                { key: 'revenue_per_shift', label: 'Выручка/смена', format: 'money', higher: true },
+                { key: 'revenue_per_hour', label: 'Выручка/час', format: 'money', higher: true },
+                { key: 'draft_share', label: 'Разлив %', format: 'percent', higher: true },
+                { key: 'bottles_share', label: 'Фасовка %', format: 'percent', higher: false },
+                { key: 'kitchen_share', label: 'Кухня %', format: 'percent', higher: false },
+                { key: 'plan_fact_percent', label: 'План/Факт', format: 'percent', higher: true },
+                { key: 'cancelled_count', label: 'Отмены', format: 'number', higher: false }
+            ];
+
+            tbody.innerHTML = metricsConfig.map(metric => {
+                const values = employees.map(e => e[metric.key] || 0);
+                const bestIndex = metric.higher
+                    ? values.indexOf(Math.max(...values))
+                    : values.indexOf(Math.min(...values));
+
+                return `
+                    <tr>
+                        <td><strong>${metric.label}</strong></td>
+                        ${employees.map((e, i) => {
+                            const value = e[metric.key] || 0;
+                            const isBest = i === bestIndex && values.filter(v => v === values[bestIndex]).length === 1;
+                            const formatted = formatMetricValue(value, metric.format);
+                            return `<td class="${isBest ? 'best-value' : ''}">${formatted}</td>`;
+                        }).join('')}
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function formatMetricValue(value, format) {
+            switch (format) {
+                case 'money': return formatMoney(value);
+                case 'percent': return value.toFixed(1) + '%';
+                case 'hours': return value.toFixed(1) + ' ч';
+                case 'number': return formatNumber(value);
+                default: return value;
+            }
+        }
+
+        function showCompareError(message) {
+            const errorDiv = document.getElementById('compare-error-message');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+        }
+
+        // Update radar chart colors on theme change
+        function updateRadarChartColors() {
+            if (!radarChart) return;
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+            radarChart.options.scales.r.ticks.color = isDark ? '#999' : '#666';
+            radarChart.options.scales.r.grid.color = isDark ? '#333' : '#e0e0e0';
+            radarChart.options.scales.r.angleLines.color = isDark ? '#333' : '#e0e0e0';
+            radarChart.options.scales.r.pointLabels.color = isDark ? '#e0e0e0' : '#1a1a1a';
+            radarChart.options.plugins.legend.labels.color = isDark ? '#e0e0e0' : '#1a1a1a';
+            radarChart.update();
         }
     </script>
 </body>
