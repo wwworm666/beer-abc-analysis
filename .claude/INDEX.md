@@ -21,10 +21,11 @@ Beer ABC/XYZ Analysis
 
 | Файл | Описание | Статус |
 |------|----------|--------|
+| [context.md](context.md) | Быстрый контекст для Claude | ✅ актуально |
 | [overview.md](docs/overview.md) | Архитектура, технологии, структура кода | ✅ актуально |
 | [employee.md](docs/employee.md) | Employee Dashboard — аналитика сотрудников | ✅ актуально |
 | [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
-| [dashboard.md](docs/dashboard.md) | Дашборд План/Факт | 📝 TODO |
+| [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
 | [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
 
@@ -32,14 +33,19 @@ Beer ABC/XYZ Analysis
 
 ## Quick Links
 
+**Быстрый контекст для Claude** → [context.md](context.md)
+
 **Нужно понять как работает проект?** → [overview.md](docs/overview.md)
 
 **Словил баг?** → [lessons.md](docs/lessons.md)
 
 **Работаешь с Employee?** → [employee.md](docs/employee.md)
 
+**Работаешь с Dashboard?** → [dashboard.md](docs/dashboard.md)
+
 ---
 
 ## Changelog
 
+- 2026-01-26: Обновлены overview.md, dashboard.md. Добавлен context.md
 - 2026-01-25: Создана модульная структура документации
