@@ -52,7 +52,8 @@
       "Bash(mkdir:*)",
       "Bash(rmdir:*)",
       "Bash(mv:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git fetch:*)"
     ],
     "deny": [],
     "ask": []
