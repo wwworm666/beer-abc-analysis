@@ -1375,6 +1375,153 @@ def employee_compare():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/employee-metrics-breakdown', methods=['POST'])
+def employee_metrics_breakdown():
+    """
+    API endpoint для получения разбивки метрик по сотрудникам.
+    Используется для раскрытия карточек на дашборде.
+    """
+    try:
+        data = request.json
+        venue_key = data.get('venue_key', 'all')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: date_from, date_to'}), 400
+
+        print(f"\n[BREAKDOWN] Razbiyka metrik po sotrudnikam")
+        print(f"   Venue: {venue_key}, Period: {date_from} - {date_to}")
+
+        # Маппинг venue_key -> bar_name для iiko
+        venue_to_bar = {
+            'bolshoy': 'Большой пр. В.О',
+            'ligovskiy': 'Лиговский',
+            'kremenchugskaya': 'Кременчугская',
+            'varshavskaya': 'Варшавская',
+            'all': None
+        }
+        bar_name = venue_to_bar.get(venue_key)
+
+        # Загружаем данные OLAP для всех сотрудников
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
+                }
+
+                all_data = {}
+                for future in as_completed(futures):
+                    key = futures[future]
+                    try:
+                        all_data[key] = future.result()
+                    except Exception as e:
+                        print(f"   [ERROR] OLAP {key}: {e}")
+                        all_data[key] = None
+        finally:
+            olap.disconnect()
+
+        # Собираем метрики по сотрудникам
+        # aggregated - это dict {name: {metrics}}, draft/bottles/kitchen - OLAP ответы {'data': [...]}
+        aggregated = all_data.get('aggregated') or {}
+        draft_raw = all_data.get('draft') or {}
+        bottles_raw = all_data.get('bottles') or {}
+        kitchen_raw = all_data.get('kitchen') or {}
+        draft = draft_raw.get('data', []) if isinstance(draft_raw, dict) else []
+        bottles = bottles_raw.get('data', []) if isinstance(bottles_raw, dict) else []
+        kitchen = kitchen_raw.get('data', []) if isinstance(kitchen_raw, dict) else []
+
+        # Строим breakdown для каждой метрики
+        employees_data = {}
+
+        # Из aggregated получаем выручку, чеки (это dict с ключами = имена)
+        if isinstance(aggregated, dict):
+            for name, metrics in aggregated.items():
+                if not name or name == 'Итого':
+                    continue
+                employees_data[name] = {
+                    'name': name,
+                    'revenue': float(metrics.get('DishDiscountSumInt', 0) or 0),
+                    'checks': int(metrics.get('OrderNum', 0) or 0),
+                    'draft_revenue': 0,
+                    'bottles_revenue': 0,
+                    'kitchen_revenue': 0
+                }
+
+        # Добавляем выручку по категориям из OLAP данных
+        # Ключ имени официанта в OLAP: WaiterName
+        for row in draft:
+            if isinstance(row, dict):
+                name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
+                if name and name != 'Итого' and name in employees_data:
+                    employees_data[name]['draft_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
+
+        for row in bottles:
+            if isinstance(row, dict):
+                name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
+                if name and name != 'Итого' and name in employees_data:
+                    employees_data[name]['bottles_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
+
+        for row in kitchen:
+            if isinstance(row, dict):
+                name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
+                if name and name != 'Итого' and name in employees_data:
+                    employees_data[name]['kitchen_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
+
+        # Рассчитываем производные метрики
+        result = []
+        for name, data in employees_data.items():
+            total_revenue = data['revenue']
+            checks = data['checks']
+
+            # Средний чек
+            avg_check = total_revenue / checks if checks > 0 else 0
+
+            # Доли
+            draft_share = (data['draft_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
+            bottles_share = (data['bottles_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
+            kitchen_share = (data['kitchen_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
+
+            result.append({
+                'name': name,
+                'revenue': round(total_revenue, 0),
+                'checks': checks,
+                'averageCheck': round(avg_check, 0),
+                'draftShare': round(draft_share, 1),
+                'packagedShare': round(bottles_share, 1),
+                'kitchenShare': round(kitchen_share, 1),
+                'revenueDraft': round(data['draft_revenue'], 0),
+                'revenuePackaged': round(data['bottles_revenue'], 0),
+                'revenueKitchen': round(data['kitchen_revenue'], 0)
+            })
+
+        # Сортируем по выручке
+        result.sort(key=lambda x: x['revenue'], reverse=True)
+
+        print(f"[OK] Razbiyka: {len(result)} sotrudnikov")
+
+        return jsonify({
+            'employees': result,
+            'period': {'from': date_from, 'to': date_to},
+            'venue': venue_key
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/employee-metrics-breakdown: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 # ============= API для управления пивными кранами =============
 
 @app.route('/api/taps/bars', methods=['GET'])

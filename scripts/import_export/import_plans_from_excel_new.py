@@ -147,6 +147,9 @@ def read_excel_plans(file_path):
 
                 if cell_value is not None and cell_value != '':
                     try:
+                        # Обработка строк с неразрывными пробелами и запятыми (напр. "1 380,00")
+                        if isinstance(cell_value, str):
+                            cell_value = cell_value.replace('\xa0', '').replace(' ', '').replace(',', '.')
                         value = float(cell_value)
 
                         # Создаем МЕСЯЧНЫЙ ключ: venue_2025-12
@@ -189,6 +192,11 @@ if __name__ == '__main__':
             # Выручка кухня = Выручка * (Доля кухня / 100)
             if 'kitchenShare' in plan_data:
                 plan_data['revenueKitchen'] = revenue * (plan_data['kitchenShare'] / 100)
+                calculated_count += 1
+
+            # Средний чек = Выручка / Чеки (если не задано явно)
+            if 'averageCheck' not in plan_data and 'checks' in plan_data and plan_data['checks'] > 0:
+                plan_data['averageCheck'] = round(revenue / plan_data['checks'], 2)
                 calculated_count += 1
 
             # Списания баллов = 5% от выручки (если не задано явно)

@@ -223,13 +223,28 @@ export async function saveComment(venueKey, periodKey, comment) {
     });
 }
 
+/**
+ * Получить разбивку метрик по сотрудникам
+ * Используется для раскрытия карточек на дашборде
+ */
+export async function getEmployeeBreakdown(venueKey, dateFrom, dateTo) {
+    return await fetchAPI('/api/employee-metrics-breakdown', {
+        method: 'POST',
+        body: JSON.stringify({
+            venue_key: venueKey || 'all',
+            date_from: dateFrom,
+            date_to: dateTo
+        })
+    });
+}
+
 // Экспортируем объект api со всеми функциями для удобного импорта
 export const api = {
     getVenues,
     getVenue,
     getWeeks,
     getPlan,
-    calculatePlan,  // Новая функция для расчёта плана на произвольный период
+    calculatePlan,
     savePlan,
     deletePlan,
     getAllPlans,
@@ -240,5 +255,6 @@ export const api = {
     exportToExcel,
     exportToPDF,
     getComment,
-    saveComment
+    saveComment,
+    getEmployeeBreakdown
 };

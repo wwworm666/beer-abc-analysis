@@ -208,3 +208,122 @@
     color: var(--text-tertiary);
     margin-bottom: var(--spacing-lg);
 }
+
+/* Раскрывающиеся карточки */
+.metric-card.expandable {
+    cursor: pointer;
+}
+
+.metric-card.expandable::after {
+    content: '▼';
+    position: absolute;
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    transition: transform 0.2s ease;
+}
+
+.metric-card.expanded::after {
+    transform: rotate(180deg);
+}
+
+.metric-card.loading::after {
+    content: '⟳';
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Секция с разбивкой по сотрудникам */
+.metric-breakdown {
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 300px;
+    }
+}
+
+.breakdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-sm);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.breakdown-close {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.breakdown-close:hover {
+    background: var(--bg-tertiary);
+}
+
+.breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+
+.breakdown-rank {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.breakdown-name {
+    flex: 1;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.breakdown-value {
+    font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.breakdown-empty {
+    padding: var(--spacing-sm);
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+}
