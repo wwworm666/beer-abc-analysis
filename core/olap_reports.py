@@ -982,6 +982,110 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return None
 
+    def get_new_loyalty_cards_by_waiter(self, date_from, date_to, bar_name=None):
+        """
+        Получить количество новых зарегистрированных карт лояльности по сотрудникам.
+
+        Логика: если дата создания клиента попадает в выбранный период,
+        значит клиент был зарегистрирован в этот период (по телефону).
+
+        Args:
+            date_from: str - начальная дата в формате YYYY-MM-DD
+            date_to: str - конечная дата в формате YYYY-MM-DD
+            bar_name: str - название бара или None для всех баров
+
+        Returns:
+            dict - {waiter_name: count_of_new_cards}
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return {}
+
+        print(f"\n[OLAP] Zaprashivayu novye karty loyalnosti (po telefonu)...")
+        print(f"   Period: {date_from} - {date_to}")
+
+        # Запрос: группируем по официанту и телефону клиента,
+        # фильтруем по дате создания клиента
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "WaiterName",
+                "Delivery.CustomerPhone"  # Телефон клиента (идентификатор карты лояльности)
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId.OrdersCount"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                # Фильтр: дата создания клиента в пределах периода
+                "Delivery.CustomerCreatedDateTyped": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request,
+                headers=headers,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                print("[OK] Danye po kartam loyalnosti polucheny!")
+
+                # Считаем уникальные телефоны по сотрудникам
+                waiter_cards = {}
+                for record in result.get('data', []):
+                    waiter_name = record.get('WaiterName', '')
+                    phone = record.get('Delivery.CustomerPhone', '')
+
+                    if waiter_name and phone:
+                        if waiter_name not in waiter_cards:
+                            waiter_cards[waiter_name] = set()
+                        waiter_cards[waiter_name].add(phone)
+
+                # Преобразуем set в count
+                return {name: len(cards) for name, cards in waiter_cards.items()}
+            else:
+                print(f"[ERROR] Oshibka: {response.status_code}")
+                print(f"   Otvet: {response.text}")
+                return {}
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return {}
+
 
 # Тестовый запуск
 if __name__ == "__main__":

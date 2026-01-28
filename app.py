@@ -1107,13 +1107,14 @@ def employee_analytics():
 
         try:
             # Запускаем все OLAP запросы параллельно
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=6) as executor:
                 futures = {
                     executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
                     executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
                     executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
                     executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
                     executor.submit(olap.get_cancelled_orders_by_waiter, date_from, date_to, bar_name): 'cancelled',
+                    executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, date_to, bar_name): 'loyalty_cards',
                 }
 
                 results = {}
@@ -1130,6 +1131,7 @@ def employee_analytics():
             bottles_data = results.get('bottles')
             kitchen_data = results.get('kitchen')
             cancelled_data = results.get('cancelled')
+            loyalty_cards_data = results.get('loyalty_cards', {})
         finally:
             olap.disconnect()
 
@@ -1138,6 +1140,7 @@ def employee_analytics():
         shift_locations = {}
         shifts_revenue = 0.0
         total_hours = 0.0
+        late_count = 0
         try:
             # Проверяем кэш сотрудников
             now = time.time()
@@ -1158,11 +1161,24 @@ def employee_analytics():
                 else:
                     employees_list = []
 
-            # Ищем ID сотрудника
+            # Ищем ID сотрудника (с нормализацией имени)
+            def normalize_name(name):
+                if not name:
+                    return set()
+                return set(name.lower().strip().split())
+
             employee_id = None
+            employee_name_normalized = normalize_name(employee_name)
             for emp in employees_list:
-                if emp.get('name') == employee_name:
+                iiko_name = emp.get('name')
+                # Сначала точное совпадение
+                if iiko_name == employee_name:
                     employee_id = emp.get('id')
+                    break
+                # Потом нормализованное (те же слова в любом порядке)
+                if normalize_name(iiko_name) == employee_name_normalized:
+                    employee_id = emp.get('id')
+                    print(f"   [MATCH] '{employee_name}' -> '{iiko_name}' (normalized)")
                     break
 
             # Получаем метрики из кассовых смен (unified метод)
@@ -1177,7 +1193,8 @@ def employee_analytics():
                         shift_locations = emp_metrics.get('shift_locations', {})
                         shifts_revenue = emp_metrics.get('total_revenue', 0.0)
                         total_hours = emp_metrics.get('total_hours', 0.0)
-                        print(f"   Loaded {shifts_count} cash shifts, {total_hours:.1f} hours, revenue: {shifts_revenue:.0f}")
+                        late_count = emp_metrics.get('late_count', 0)
+                        print(f"   Loaded {shifts_count} cash shifts, {total_hours:.1f} hours, revenue: {shifts_revenue:.0f}, late: {late_count}")
                     finally:
                         iiko.logout()
             else:
@@ -1202,7 +1219,9 @@ def employee_analytics():
             date_from=date_from,
             date_to=date_to,
             shifts_count_override=shifts_count,
-            total_hours_override=total_hours
+            total_hours_override=total_hours,
+            late_count_override=late_count,
+            loyalty_cards_count=loyalty_cards_data.get(employee_name, 0)
         )
 
         return jsonify(metrics)
@@ -1242,13 +1261,14 @@ def employee_compare():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
         try:
-            with ThreadPoolExecutor(max_workers=5) as executor:
+            with ThreadPoolExecutor(max_workers=6) as executor:
                 futures = {
                     executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
                     executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
                     executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
                     executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
                     executor.submit(olap.get_cancelled_orders_by_waiter, date_from, date_to, bar_name): 'cancelled',
+                    executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, date_to, bar_name): 'loyalty_cards',
                 }
 
                 all_data = {}
@@ -1329,12 +1349,14 @@ def employee_compare():
             shifts_count = 0
             shift_locations = {}
             total_hours = 0.0
+            late_count = 0
             if employee_id:
                 emp_metrics = all_employee_metrics.get(employee_id, {})
                 shifts_count = emp_metrics.get('shifts_count', 0)
                 shift_locations = emp_metrics.get('shift_locations', {})
                 total_hours = emp_metrics.get('total_hours', 0.0)
-                print(f"   [SHIFTS] {emp_name}: {shifts_count} shifts, {total_hours:.1f}h (employee_id: {employee_id[:8]}...)")
+                late_count = emp_metrics.get('late_count', 0)
+                print(f"   [SHIFTS] {emp_name}: {shifts_count} shifts, {total_hours:.1f}h, late: {late_count} (employee_id: {employee_id[:8]}...)")
             else:
                 print(f"   [WARNING] {emp_name}: employee_id NOT FOUND in iiko!")
 
@@ -1342,6 +1364,7 @@ def employee_compare():
             plan_revenue = get_employee_plan_by_shifts(shift_locations)
 
             # Рассчитываем метрики (используем cash shifts вместо attendance)
+            loyalty_cards_data = all_data.get('loyalty_cards', {})
             metrics = calculator.calculate(
                 employee_name=emp_name,
                 aggregated_data=all_data.get('aggregated'),
@@ -1353,7 +1376,9 @@ def employee_compare():
                 date_from=date_from,
                 date_to=date_to,
                 shifts_count_override=shifts_count,
-                total_hours_override=total_hours
+                total_hours_override=total_hours,
+                late_count_override=late_count,
+                loyalty_cards_count=loyalty_cards_data.get(emp_name, 0)
             )
 
             results.append({

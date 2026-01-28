@@ -28,7 +28,9 @@ class EmployeeMetricsCalculator:
         date_from: str = None,
         date_to: str = None,
         shifts_count_override: int = None,
-        total_hours_override: float = None
+        total_hours_override: float = None,
+        late_count_override: int = 0,
+        loyalty_cards_count: int = 0
     ) -> dict:
         """
         Рассчитать все метрики для сотрудника
@@ -179,7 +181,13 @@ class EmployeeMetricsCalculator:
 
             # План/факт
             'plan_revenue': round(plan_revenue, 2),
-            'plan_fact_percent': round(plan_fact_percent, 1)
+            'plan_fact_percent': round(plan_fact_percent, 1),
+
+            # Опоздания (смены открытые позже 14:35)
+            'late_count': late_count_override,
+
+            # Новые карты лояльности
+            'loyalty_cards_count': loyalty_cards_count
         }
 
     def _filter_by_employee(self, data: Optional[dict], employee_name: str) -> List[dict]:

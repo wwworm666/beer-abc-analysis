@@ -75,7 +75,7 @@
         }
 
         .container {
-            max-width: 1100px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 48px 40px;
         }
@@ -187,31 +187,26 @@
 
         /* Controls */
         .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr auto;
+            gap: 16px;
             margin-bottom: 16px;
             align-items: end;
-        }
-
-        .controls .form-group:first-child {
-            flex: 2;
-            min-width: 200px;
-        }
-
-        .controls .form-group:not(:first-child):not(:last-child) {
-            flex: 1;
-            min-width: 120px;
-        }
-
-        .controls .form-group:last-child {
-            flex: 0 0 auto;
         }
 
         .form-group {
             display: flex;
             flex-direction: column;
             gap: 8px;
+        }
+
+        .form-group label {
+            text-align: left;
+        }
+
+        .form-group select,
+        .form-group input {
+            width: 100%;
         }
 
         label {
@@ -318,8 +313,8 @@
         /* Metrics Grid */
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
             margin-bottom: 30px;
         }
 
@@ -327,7 +322,7 @@
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 24px 28px;
+            padding: 16px 20px;
             transition: all 150ms ease;
         }
 
@@ -345,7 +340,7 @@
         }
 
         .metric-card .value {
-            font-size: 1.75rem;
+            font-size: 1.5rem;
             font-weight: 600;
             color: var(--text-primary);
             font-variant-numeric: tabular-nums;
@@ -687,6 +682,7 @@
 
         .compare-controls .form-group {
             flex: 0 0 auto;
+            min-width: 160px;
         }
 
         .compare-controls .btn {
@@ -694,22 +690,41 @@
             padding: 14px 40px;
         }
 
+        .section-title {
+            margin-bottom: 24px;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 16px;
+        }
+
+        /* Focus states for keyboard navigation */
+        button:focus-visible,
+        a:focus-visible,
+        select:focus-visible,
+        input:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
         /* Responsive */
         @media (max-width: 1200px) {
-            .metrics-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
             .charts-section {
                 grid-template-columns: 1fr;
             }
         }
 
         @media (max-width: 900px) {
-            .controls .form-group:first-child {
-                flex: 1 1 100%;
+            .controls {
+                grid-template-columns: 1fr 1fr;
             }
-            .controls .form-group:not(:first-child):not(:last-child) {
-                flex: 1 1 calc(50% - 10px);
+            .controls .form-group:first-child {
+                grid-column: 1 / -1;
             }
         }
 
@@ -718,12 +733,8 @@
                 padding: 20px 16px;
             }
 
-            .controls .form-group {
-                flex: 1 1 100% !important;
-            }
-
-            .metrics-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .controls {
+                grid-template-columns: 1fr;
             }
 
             .header {
@@ -733,14 +744,20 @@
                 margin-bottom: 30px;
             }
 
+            .header-right {
+                align-items: flex-start;
+                width: 100%;
+            }
+
             .header-left h1 {
-                font-size: 2rem;
+                font-size: 1.6rem;
             }
 
             .nav-links {
                 overflow-x: auto;
                 flex-wrap: nowrap;
                 -webkit-overflow-scrolling: touch;
+                width: 100%;
             }
 
             .nav-link {
@@ -750,12 +767,12 @@
         }
 
         @media (max-width: 480px) {
-            .metrics-grid {
-                grid-template-columns: 1fr;
+            .metric-card .value {
+                font-size: 1.3rem;
             }
 
-            .metric-card .value {
-                font-size: 1.6rem;
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
         }
     </style>
@@ -767,7 +784,7 @@
                 <h1>Эффективность сотрудника</h1>
                 <div class="subtitle">Детальный анализ метрик по одному сотруднику</div>
             </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+            <div class="header-right">
                 <div class="nav-links">
                     <a href="/" class="nav-link">Дашборд</a>
                     <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
@@ -796,36 +813,36 @@
                 <div class="controls">
                     <div class="form-group">
                         <label for="employee-select">Сотрудник</label>
-                    <select id="employee-select" onchange="toggleAnalyzeButton()">
-                        <option value="">Загрузка списка...</option>
-                    </select>
-                </div>
+                        <select id="employee-select" onchange="toggleAnalyzeButton()">
+                            <option value="">Загрузка списка...</option>
+                        </select>
+                    </div>
 
-                <div class="form-group">
-                    <label for="bar-select">Бар</label>
-                    <select id="bar-select">
-                        <option value="">Все бары</option>
-                        {% for bar in bars %}
-                        <option value="{{ bar }}">{{ bar }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                    <div class="form-group">
+                        <label for="bar-select">Бар</label>
+                        <select id="bar-select">
+                            <option value="">Все бары</option>
+                            {% for bar in bars %}
+                            <option value="{{ bar }}">{{ bar }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
 
-                <div class="form-group">
-                    <label for="date-from">Дата начала</label>
-                    <input type="date" id="date-from">
-                </div>
+                    <div class="form-group">
+                        <label for="date-from">Дата начала</label>
+                        <input type="date" id="date-from">
+                    </div>
 
-                <div class="form-group">
-                    <label for="date-to">Дата окончания</label>
-                    <input type="date" id="date-to">
-                </div>
+                    <div class="form-group">
+                        <label for="date-to">Дата окончания</label>
+                        <input type="date" id="date-to">
+                    </div>
 
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn" id="analyze-btn" onclick="runAnalysis()" disabled>Анализировать</button>
+                    <div class="form-group">
+                        <label>&nbsp;</label>
+                        <button class="btn" id="analyze-btn" onclick="runAnalysis()" disabled>Анализировать</button>
+                    </div>
                 </div>
-            </div>
             </div>
 
             <div class="error" id="error-message"></div>
@@ -842,7 +859,7 @@
         <!-- Tab: Compare -->
         <div id="tab-compare" class="tab-content">
             <div class="card">
-                <h3 style="margin-bottom: 16px; font-size: 1.1rem; font-weight: 600;">Выберите сотрудников для сравнения</h3>
+                <h3 class="section-title">Выберите сотрудников для сравнения</h3>
                 <p class="selected-count">Выбрано: <strong id="selected-count">0</strong> (минимум 2)</p>
                 <div class="employees-grid" id="employees-grid">
                     <div style="color: var(--text-secondary);">Загрузка списка сотрудников...</div>
@@ -1063,9 +1080,7 @@
 
             const metricsHTML = `
                 <div class="card">
-                    <h3 style="margin-bottom: 24px; font-size: 1.2rem; font-weight: 600;">
-                        ${data.employee_name}
-                    </h3>
+                    <h3 class="section-title">${data.employee_name}</h3>
 
                     <div class="metrics-grid">
                         <div class="metric-card">
@@ -1112,8 +1127,16 @@
                             <div class="value">${data.discount_percent.toFixed(1)}<span class="unit">%</span></div>
                         </div>
                         <div class="metric-card">
-                            <div class="label">Отмены (удал. чеки)</div>
+                            <div class="label">Отмены</div>
                             <div class="value">${formatNumber(data.cancelled_count)}<span class="unit">шт</span></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Опоздания</div>
+                            <div class="value" style="color: ${data.late_count > 0 ? 'var(--danger)' : 'var(--success)'}">${data.late_count}<span class="unit">из ${data.shifts_count}</span></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="label">Новые карты</div>
+                            <div class="value">${data.loyalty_cards_count || 0}<span class="unit">шт</span></div>
                         </div>
                     </div>
 
@@ -1142,6 +1165,7 @@
                         <div class="chart-container">
                             <div class="chart-title">Топ продаваемых сортов</div>
                             ${data.top_beers && data.top_beers.length > 0 ? `
+                                <div style="overflow-x: auto;">
                                 <table>
                                     <thead>
                                         <tr>
@@ -1162,6 +1186,7 @@
                                         `).join('')}
                                     </tbody>
                                 </table>
+                                </div>
                             ` : '<p style="color: var(--text-secondary);">Нет данных о продажах пива</p>'}
                         </div>
                     </div>
