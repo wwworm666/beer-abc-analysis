@@ -47,5 +47,6 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- 2026-01-28: Обновлены employee.md (12 метрик, карты лояльности), overview.md, context.md, lessons.md
 - 2026-01-26: Обновлены overview.md, dashboard.md. Добавлен context.md
 - 2026-01-25: Создана модульная структура документации

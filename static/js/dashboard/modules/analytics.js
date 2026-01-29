@@ -51,6 +51,7 @@ class Analytics {
      * Загрузить данные аналитики
      */
     async loadAnalytics() {
+        this.employeeData = null;  // Сбрасываем кэш сотрудников при смене бара/периода
         console.log('[Analytics] loadAnalytics вызван. state.currentPeriod:', state.currentPeriod);
 
         if (!state.currentVenue || !state.currentPeriod) {

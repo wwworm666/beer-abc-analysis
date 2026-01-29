@@ -1,7 +1,7 @@
 import hashlib
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from config import IIKO_BASE_URL, IIKO_LOGIN, IIKO_PASSWORD
 
@@ -196,13 +196,16 @@ class IikoAPI:
             return []
 
     def _parse_iso_datetime(self, iso_str: str) -> Optional[datetime]:
-        """Парсинг ISO datetime строки."""
+        """Парсинг ISO datetime строки. Если есть таймзона — конвертируем в МСК (UTC+3)."""
+        MOSCOW_TZ = timezone(timedelta(hours=3))
         try:
-            # Убираем timezone часть для простоты
-            if '+' in iso_str:
-                iso_str = iso_str.split('+')[0]
-            return datetime.fromisoformat(iso_str)
-        except:
+            dt = datetime.fromisoformat(iso_str)
+            if dt.tzinfo is not None:
+                # Конвертируем в московское время и убираем tzinfo
+                dt = dt.astimezone(MOSCOW_TZ).replace(tzinfo=None)
+            return dt
+        except Exception as e:
+            print(f"[WARN] _parse_iso_datetime failed for '{iso_str}': {e}")
             return None
 
     # =====================================================
@@ -380,14 +383,19 @@ class IikoAPI:
             return {}
 
         employee_data = {}
+        _late_debug_count = 0
 
-        for shift in shifts:
+        for i, shift in enumerate(shifts):
             emp_id = shift.get('responsibleUserId')
             if not emp_id:
                 continue
 
             pos_id = shift.get('pointOfSaleId')
             open_date_str = shift.get('openDate', '')
+
+            # Диагностика: логируем первые 3 смены для отладки формата дат
+            if i < 3:
+                print(f"   [DEBUG] shift[{i}] openDate raw: '{open_date_str}', type: {type(open_date_str).__name__}")
             close_date_str = shift.get('closeDate', '')
             open_date = open_date_str[:10] if open_date_str else ''  # YYYY-MM-DD
 
@@ -403,6 +411,18 @@ class IikoAPI:
                         # Защита от отрицательных или слишком больших значений
                         if shift_hours < 0 or shift_hours > 24:
                             shift_hours = 0.0
+                except:
+                    pass
+
+            # Опоздание = смена открыта позже 14:35
+            is_late = False
+            if open_date_str:
+                try:
+                    open_dt_check = self._parse_iso_datetime(open_date_str)
+                    if open_dt_check:
+                        if open_dt_check.hour > 14 or (open_dt_check.hour == 14 and open_dt_check.minute > 35):
+                            is_late = True
+                            _late_debug_count += 1
                 except:
                     pass
 
@@ -422,7 +442,8 @@ class IikoAPI:
                     'total_revenue': 0.0,
                     'revenue_card': 0.0,
                     'revenue_cash': 0.0,
-                    'total_hours': 0.0
+                    'total_hours': 0.0,
+                    'late_count': 0
                 }
 
             emp = employee_data[emp_id]
@@ -430,6 +451,8 @@ class IikoAPI:
             # Агрегируем данные
             emp['shifts_count'] += 1
             emp['total_hours'] += shift_hours
+            if is_late:
+                emp['late_count'] += 1
 
             if open_date and open_date not in emp['dates']:
                 emp['dates'].append(open_date)
@@ -447,7 +470,7 @@ class IikoAPI:
         for emp_id in employee_data:
             employee_data[emp_id]['dates'].sort()
 
-        print(f"[OK] Получены метрики из смен для {len(employee_data)} сотрудников")
+        print(f"[OK] Получены метрики из смен для {len(employee_data)} сотрудников (late shifts total: {_late_debug_count}/{len(shifts)})")
         return employee_data
 
     def get_employees(self) -> List[Dict]:

@@ -31,11 +31,12 @@
 beer-abc-analysis/
 ├── app.py                 ← Мозг. 70+ API endpoints.
 ├── core/                  ← Бизнес-логика (12 модулей)
-│   ├── iiko_api.py        ← Подключение к iiko (авторизация, токены)
-│   ├── olap_reports.py    ← OLAP-запросы (продажи, остатки)
+│   ├── iiko_api.py        ← Подключение к iiko (авторизация, токены, кассовые смены)
+│   ├── olap_reports.py    ← OLAP-запросы (продажи, остатки, карты лояльности)
+│   ├── employee_analysis.py ← 12 метрик эффективности сотрудника
+│   ├── employee_plans.py  ← План/Факт сотрудников (по кассовым сменам)
 │   ├── abc_analysis.py    ← ABC-анализ (80/20 по выручке)
 │   ├── xyz_analysis.py    ← XYZ-анализ (стабильность спроса)
-│   ├── employee_plans.py  ← План/Факт сотрудников
 │   └── taps_manager.py    ← Управление пивными кранами
 ├── dashboardNovaev/       ← Новый дашборд (план/факт по неделям)
 ├── templates/             ← HTML-страницы (10 основных)
@@ -70,7 +71,7 @@ data = olap.get_beer_sales_report(date_from, date_to, bar)
 | `/dashboard` | План/Факт по неделям с AI-анализом |
 | `/packaging` | ABC/XYZ фасованного пива |
 | `/draft` | Анализ разливного (литры, кеги) |
-| `/employee` | Детальная аналитика барменов |
+| `/employee` | 12 метрик эффективности барменов + сравнение |
 | `/taps` | Управление 60 пивными кранами |
 | `/stocks` | Остатки и заказы |
 
@@ -86,5 +87,6 @@ data = olap.get_beer_sales_report(date_from, date_to, bar)
 
 ## Changelog
 
+- 2026-01-28: Добавлен employee_analysis.py в карту файлов, обновлены описания
 - 2026-01-26: Полностью переписан согласно CLAUDE.md
 - 2026-01-25: Создан placeholder
