@@ -1050,7 +1050,7 @@
             const hasBeers = waiter.beers && waiter.beers.length > 0;
 
             const beersTable = hasBeers ? `
-                <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">Топ-10 сортов пива</h3>
+                <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">Сорта пива</h3>
                 <table style="font-size: 0.85rem;">
                     <thead>
                         <tr>
@@ -1058,6 +1058,7 @@
                             <th>Литры</th>
                             <th>Порции</th>
                             ${hasRevenue ? '<th>Выручка</th>' : ''}
+                            <th>Доля</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1067,6 +1068,7 @@
                                 <td>${beer.TotalLiters.toFixed(1)} L</td>
                                 <td>${formatNumber(beer.TotalPortions)}</td>
                                 ${hasRevenue && beer.TotalRevenue ? `<td>${formatMoney(beer.TotalRevenue)}</td>` : ''}
+                                <td>${(beer.TotalLiters / waiter.TotalLiters * 100).toFixed(1)}%</td>
                             </tr>
                         `).join('')}
                     </tbody>

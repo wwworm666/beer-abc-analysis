@@ -1018,13 +1018,11 @@ def analyze_waiters():
         # Для каждого официанта получаем детали о том, какое пиво он пролил
         for waiter_record in waiters:
             waiter_name = waiter_record['WaiterName']
-            waiter_bar = waiter_record['Bar'] if bar_name else None
-
-            # Получаем детали по пиву
-            beer_details = waiter_analyzer.get_waiter_beer_details(waiter_name, waiter_bar)
+            # Передаём bar_name из запроса (None = все бары суммируются, иначе конкретный бар)
+            beer_details = waiter_analyzer.get_waiter_beer_details(waiter_name, bar_name)
             if not beer_details.empty:
                 beer_details_formatted = waiter_analyzer.format_beer_details_for_display(beer_details)
-                waiter_record['beers'] = beer_details_formatted[:10]  # Топ-10 сортов
+                waiter_record['beers'] = beer_details_formatted  # Все сорта
             else:
                 waiter_record['beers'] = []
 

@@ -135,10 +135,8 @@ class WaiterAnalysis:
         if bar_name:
             df = df[df['Store.Name'] == bar_name]
 
-        # Группируем по официанту
+        # Группируем только по официанту (при "Все бары" суммируем данные)
         group_cols = ['WaiterName']
-        if not bar_name:
-            group_cols.append('Store.Name')
 
         agg_dict = {
             'VolumeInLiters': 'sum',
@@ -169,14 +167,13 @@ class WaiterAnalysis:
             'Margin': 'TotalMargin'
         }
 
-        if not bar_name:
-            col_mapping['Store.Name'] = 'Bar'
-
         summary = summary.rename(columns=col_mapping)
 
-        # Добавляем бар если не было группировки по бару
+        # Добавляем колонку Bar
         if bar_name:
             summary['Bar'] = bar_name
+        else:
+            summary['Bar'] = 'Все бары'
 
         # Примерное количество кег
         summary['Kegs30L'] = (summary['TotalLiters'] / 30).round(2)
