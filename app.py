@@ -4,6 +4,7 @@ import json
 import os
 import time
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 import google.generativeai as genai
 from core.olap_reports import OlapReports
@@ -24,8 +25,24 @@ from dashboardNovaev.backend.venues_manager import VenuesManager
 from dashboardNovaev.backend.comparison_calculator import ComparisonCalculator
 from dashboardNovaev.backend.trends_analyzer import TrendsAnalyzer
 from dashboardNovaev.backend.export_manager import ExportManager
+import subprocess
+
+def get_git_commit_hash():
+    """Получить короткий хеш текущего git commit для версионирования"""
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            stderr=subprocess.DEVNULL
+        ).decode('ascii').strip()
+    except Exception:
+        # Fallback на timestamp для случаев когда git недоступен
+        from datetime import datetime
+        return datetime.now().strftime('%Y%m%d%H%M')
 
 app = Flask(__name__)
+
+# Определяется при старте приложения
+APP_VERSION = get_git_commit_hash()
 
 # Кэш для AI анализов (чтобы не превышать квоту Gemini API)
 # Формат: {(venue_key, period_key): {'analysis': str, 'timestamp': float}}
@@ -178,7 +195,7 @@ def employee_dashboard():
 @app.route('/dashboard')
 def dashboard():
     """Страница аналитического дашборда"""
-    return render_template('dashboard.html', bars=BARS)
+    return render_template('dashboard.html', bars=BARS, app_version=APP_VERSION)
 
 @app.route('/taps/<bar_id>')
 def taps_bar(bar_id):
@@ -2724,26 +2741,63 @@ def dashboard_analytics():
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        # 1. Получаем СЫРЫЕ данные по разливному пиву
-        print("   [1/3] Получение данных разливного...")
-        draft_data = olap.get_draft_sales_report(date_from, date_to_inclusive, bar_name)
-        if draft_data:
-            print(f"   [OK] Разливное: {len(draft_data.get('data', []))} записей")
+        # 1-3. Получаем СЫРЫЕ данные ПАРАЛЛЕЛЬНО (оптимизация скорости)
+        print("   [1-3/5] Запуск параллельных OLAP запросов...")
+        start_time = time.time()
 
-        # 2. Получаем СЫРЫЕ данные по фасовке
-        print("   [2/3] Получение данных фасовки...")
-        bottles_data = olap.get_beer_sales_report(date_from, date_to_inclusive, bar_name)
-        if bottles_data:
-            print(f"   [OK] Фасовка: {len(bottles_data.get('data', []))} записей")
+        draft_data = None
+        bottles_data = None
+        kitchen_data = None
 
-        # 3. Получаем СЫРЫЕ данные по кухне (через OLAP, а не storeOperations)
-        print("   [3/3] Получение данных кухни...")
-        kitchen_data = olap.get_kitchen_sales_report(date_from, date_to_inclusive, bar_name)
-        if kitchen_data:
-            print(f"   [OK] Кухня: {len(kitchen_data.get('data', []))} записей")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Запускаем все запросы параллельно
+            future_draft = executor.submit(
+                olap.get_draft_sales_report, date_from, date_to_inclusive, bar_name
+            )
+            future_bottles = executor.submit(
+                olap.get_beer_sales_report, date_from, date_to_inclusive, bar_name
+            )
+            future_kitchen = executor.submit(
+                olap.get_kitchen_sales_report, date_from, date_to_inclusive, bar_name
+            )
+
+            # Собираем результаты с обработкой ошибок
+            futures = {
+                'draft': future_draft,
+                'bottles': future_bottles,
+                'kitchen': future_kitchen
+            }
+
+            for name, future in futures.items():
+                try:
+                    result = future.result(timeout=30)
+                    if name == 'draft':
+                        draft_data = result
+                        if draft_data:
+                            print(f"   [OK] Разливное: {len(draft_data.get('data', []))} записей")
+                    elif name == 'bottles':
+                        bottles_data = result
+                        if bottles_data:
+                            print(f"   [OK] Фасовка: {len(bottles_data.get('data', []))} записей")
+                    elif name == 'kitchen':
+                        kitchen_data = result
+                        if kitchen_data:
+                            print(f"   [OK] Кухня: {len(kitchen_data.get('data', []))} записей")
+                except Exception as e:
+                    print(f"   [ERROR] Ошибка в запросе {name}: {e}")
+                    # Возвращаем пустые данные для graceful degradation
+                    if name == 'draft':
+                        draft_data = {'data': []}
+                    elif name == 'bottles':
+                        bottles_data = {'data': []}
+                    elif name == 'kitchen':
+                        kitchen_data = {'data': []}
+
+        elapsed = time.time() - start_time
+        print(f"   [OK] Параллельные запросы выполнены за {elapsed:.2f}s")
 
         # Создаем калькулятор метрик и рассчитываем из СЫРЫХ данных
-        print("   [4/4] Расчет метрик из сырых OLAP данных...")
+        print("   [4/5] Расчет метрик из сырых OLAP данных...")
         calculator = DashboardMetrics()
 
         # ВАЖНО: передаем olap объект для корректного подсчета количества чеков

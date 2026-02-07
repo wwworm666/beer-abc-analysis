@@ -179,7 +179,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:
@@ -225,7 +226,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:
@@ -271,7 +273,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:
@@ -317,7 +320,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:
@@ -691,7 +695,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:
@@ -737,7 +742,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:
@@ -783,7 +789,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request_body,
-                headers=headers
+                headers=headers,
+                timeout=30
             )
 
             if response.status_code == 200:

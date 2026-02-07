@@ -247,9 +247,9 @@ window.dashboardCheckApi = async function() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         window.dashboardCheckApi();
-        setInterval(window.dashboardCheckApi, 60000); // Каждую минуту
+        setInterval(window.dashboardCheckApi, 300000); // Каждые 5 минут
     });
 } else {
     window.dashboardCheckApi();
-    setInterval(window.dashboardCheckApi, 60000);
+    setInterval(window.dashboardCheckApi, 300000); // Каждые 5 минут
 }

@@ -14,8 +14,13 @@
     <link rel="stylesheet" href="/static/dashboard/styles/animations.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
 
-    <!-- Chart.js Library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Preload критических JavaScript модулей -->
+    <link rel="modulepreload" href="/static/js/dashboard/main.js?v={{ app_version }}">
+    <link rel="modulepreload" href="/static/js/dashboard/core/state.js?v={{ app_version }}">
+    <link rel="modulepreload" href="/static/js/dashboard/modules/analytics.js?v={{ app_version }}">
+
+    <!-- Chart.js Library (локальная копия для ускорения загрузки) -->
+    <script src="/static/libs/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -24,15 +29,15 @@
 
     <!-- JavaScript модули (ES6 modules) -->
     <script type="module">
-        // Cache busting version - динамический timestamp для обхода кэша
-        const v = Date.now();
+        // Версия приложения для кэширования модулей
+        const APP_VERSION = "{{ app_version }}";
 
         // Импортируем главный файл
-        import(`/static/js/dashboard/main.js?v=${v}`).then(() => {
+        import(`/static/js/dashboard/main.js?v=${APP_VERSION}`).then(() => {
             // Импортируем дополнительные модули
             return Promise.all([
-                import(`/static/js/dashboard/modules/export.js?v=${v}`),
-                import(`/static/js/dashboard/modules/comparison.js?v=${v}`)
+                import(`/static/js/dashboard/modules/export.js?v=${APP_VERSION}`),
+                import(`/static/js/dashboard/modules/comparison.js?v=${APP_VERSION}`)
             ]);
         }).then(([exportMod, comparisonMod]) => {
             // Инициализируем дополнительные модули
