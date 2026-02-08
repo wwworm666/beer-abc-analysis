@@ -33,30 +33,56 @@
         </div>
     </div>
 
-    <!-- Venue Selector -->
-    {% include 'dashboard/components/venue_selector.html' %}
+    <!-- Dashboard Controls - Единый блок управления -->
+    <div class="dashboard-controls">
+        <div class="controls-row">
+            <!-- Venue Selector -->
+            <div class="control-group">
+                <label for="venue-selector">Бар</label>
+                <select id="venue-selector" class="control-input">
+                    <option value="">Загрузка...</option>
+                </select>
+            </div>
 
-    <!-- Week Selector -->
-    {% include 'dashboard/components/week_selector.html' %}
+            <!-- Period Picker -->
+            <div class="control-group">
+                <label for="flexi-range-picker">Период анализа</label>
+                <input
+                    type="text"
+                    id="flexi-range-picker"
+                    class="control-input"
+                    placeholder="Выберите период"
+                    readonly
+                >
+            </div>
 
-    <!-- Export Buttons -->
-    {% include 'dashboard/components/export_buttons.html' %}
+            <!-- Export Button -->
+            <div class="control-group control-group-button">
+                <label>&nbsp;</label>
+                <button id="btn-export-pdf" class="btn btn-secondary" title="Экспорт в PDF">
+                    PDF
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Tabs Navigation -->
     <div class="tabs-container">
         <div class="tabs-nav">
-            <button class="tab-button active" data-tab="tab-analytics">
-                📊 Аналитика
-            </button>
-            <button class="tab-button" data-tab="tab-charts" style="display: none;">
-                📈 Графики
-            </button>
-            <button class="tab-button" data-tab="tab-comparison">
-                ⚖️ Сравнение
-            </button>
-            <button class="tab-button" data-tab="tab-plans">
-                ⚙️ Плановые показатели
-            </button>
+            <div class="tabs-buttons">
+                <button class="tab-button active" data-tab="tab-analytics">
+                    Аналитика
+                </button>
+                <button class="tab-button" data-tab="tab-charts" style="display: none;">
+                    Графики
+                </button>
+                <button class="tab-button" data-tab="tab-comparison">
+                    Сравнение
+                </button>
+            </div>
+            <div class="completion-badge" id="completion-badge">
+                <span class="completion-value" id="stat-avg-completion">—</span>
+            </div>
         </div>
 
         <!-- Tab Contents -->
@@ -70,10 +96,6 @@
 
         <div id="tab-comparison" class="tab-content">
             {% include 'dashboard/comparison_tab.html' %}
-        </div>
-
-        <div id="tab-plans" class="tab-content">
-            {% include 'dashboard/plans_tab.html' %}
         </div>
     </div>
 </div>

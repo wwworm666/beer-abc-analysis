@@ -1,103 +1,61 @@
-<!-- Селектор недель и периодов -->
+<!-- Селектор периодов -->
 <div class="week-selector-container">
-    <div class="week-navigation">
-        <button id="btn-prev-week" class="btn btn-secondary nav-btn" title="Предыдущая неделя">
-            ←
-        </button>
-
-        <div class="control-group week-dropdown-group">
-            <label for="week-selector">
-                <span class="icon">📅</span>
-                Период
-            </label>
-            <select id="week-selector" class="week-select">
-                <option value="">Загрузка...</option>
-            </select>
-        </div>
-
-        <button id="btn-current-week" class="btn btn-secondary nav-btn" title="Текущая неделя">
-            Сегодня
-        </button>
-
-        <button id="btn-next-week" class="btn btn-secondary nav-btn" title="Следующая неделя">
-            →
-        </button>
-    </div>
-
-    <!-- Опция "Произвольный период" -->
-    <div class="custom-period hidden" id="custom-period">
-        <div class="control-group">
-            <label for="date-from">С</label>
-            <input type="date" id="date-from" class="date-input">
-        </div>
-        <div class="control-group">
-            <label for="date-to">По</label>
-            <input type="date" id="date-to" class="date-input">
-        </div>
-        <button id="btn-apply-custom" class="btn btn-secondary">Применить</button>
+    <div class="period-picker-wrapper">
+        <label for="flexi-range-picker">Период анализа:</label>
+        <input
+            type="text"
+            id="flexi-range-picker"
+            class="period-input"
+            placeholder="Выберите период"
+            readonly
+        >
     </div>
 </div>
 
 <style>
 .week-selector-container {
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
 }
 
-.week-navigation {
-    display: flex;
-    gap: var(--spacing-sm);
-    align-items: flex-end;
-    flex-wrap: wrap;
+.period-picker-wrapper {
+    max-width: 400px;
 }
 
-.nav-btn {
-    padding: 12px 16px;
-    min-width: 80px;
+.period-picker-wrapper label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
 }
 
-.week-dropdown-group {
-    flex: 1;
-    min-width: 250px;
-}
-
-.week-select {
+.period-input {
     width: 100%;
-    padding: 12px 16px;
+    padding: 14px 20px;
     font-size: 1rem;
-}
-
-.custom-period {
-    margin-top: var(--spacing-md);
-    padding: var(--spacing-md);
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius);
+    font-family: var(--font-family);
+    font-weight: 500;
     border: 1px solid var(--border-color);
-    display: flex;
-    gap: var(--spacing-md);
-    align-items: flex-end;
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
-.date-input {
-    padding: 10px 12px;
+.period-input:hover {
+    border-color: var(--accent);
+}
+
+.period-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 @media (max-width: 768px) {
-    .week-navigation {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .nav-btn {
-        width: 100%;
-    }
-
-    .week-dropdown-group {
-        min-width: 100%;
-    }
-
-    .custom-period {
-        flex-direction: column;
-        align-items: stretch;
+    .period-picker-wrapper {
+        max-width: 100%;
     }
 }
 </style>

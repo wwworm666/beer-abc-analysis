@@ -7,7 +7,6 @@
 export const METRICS = [
     {
         id: 'revenue',
-        icon: '💰',
         name: 'Выручка',
         planKey: 'revenue',
         actualKey: 'revenue',  // ИСПРАВЛЕНО: было total_revenue
@@ -16,7 +15,6 @@ export const METRICS = [
     },
     {
         id: 'checks',
-        icon: '🧾',
         name: 'Чеки',
         planKey: 'checks',
         actualKey: 'checks',  // ИСПРАВЛЕНО: было total_checks
@@ -25,7 +23,6 @@ export const METRICS = [
     },
     {
         id: 'averageCheck',
-        icon: '💵',
         name: 'Средний чек',
         planKey: 'averageCheck',
         actualKey: 'averageCheck',  // ИСПРАВЛЕНО: было avg_check
@@ -34,7 +31,6 @@ export const METRICS = [
     },
     {
         id: 'draftShare',
-        icon: '🍺',
         name: 'Доля розлива',
         planKey: 'draftShare',
         actualKey: 'draftShare',  // ИСПРАВЛЕНО: было draft_share
@@ -43,7 +39,6 @@ export const METRICS = [
     },
     {
         id: 'packagedShare',
-        icon: '🍾',
         name: 'Доля фасовки',
         planKey: 'packagedShare',
         actualKey: 'packagedShare',  // ИСПРАВЛЕНО: было bottles_share
@@ -52,7 +47,6 @@ export const METRICS = [
     },
     {
         id: 'kitchenShare',
-        icon: '🍽️',
         name: 'Доля кухни',
         planKey: 'kitchenShare',
         actualKey: 'kitchenShare',  // ИСПРАВЛЕНО: было kitchen_share
@@ -61,7 +55,6 @@ export const METRICS = [
     },
     {
         id: 'revenueDraft',
-        icon: '💰',
         name: 'Выручка розлив',
         planKey: 'revenueDraft',
         actualKey: 'revenueDraft',  // ИСПРАВЛЕНО: было draft_revenue
@@ -70,7 +63,6 @@ export const METRICS = [
     },
     {
         id: 'revenuePackaged',
-        icon: '💰',
         name: 'Выручка фасовка',
         planKey: 'revenuePackaged',
         actualKey: 'revenuePackaged',  // ИСПРАВЛЕНО: было bottles_revenue
@@ -79,7 +71,6 @@ export const METRICS = [
     },
     {
         id: 'revenueKitchen',
-        icon: '💰',
         name: 'Выручка кухня',
         planKey: 'revenueKitchen',
         actualKey: 'revenueKitchen',  // ИСПРАВЛЕНО: было kitchen_revenue
@@ -88,7 +79,6 @@ export const METRICS = [
     },
     {
         id: 'markupPercent',
-        icon: '📈',
         name: '% наценки',
         planKey: 'markupPercent',
         actualKey: 'markupPercent',  // ИСПРАВЛЕНО: было avg_markup
@@ -97,7 +87,6 @@ export const METRICS = [
     },
     {
         id: 'profit',
-        icon: '💹',
         name: 'Прибыль',
         planKey: 'profit',
         actualKey: 'profit',  // ИСПРАВЛЕНО: было total_margin
@@ -106,7 +95,6 @@ export const METRICS = [
     },
     {
         id: 'markupDraft',
-        icon: '📈',
         name: 'Наценка розлив',
         planKey: 'markupDraft',
         actualKey: 'markupDraft',  // ИСПРАВЛЕНО: было draft_markup
@@ -115,7 +103,6 @@ export const METRICS = [
     },
     {
         id: 'markupPackaged',
-        icon: '📈',
         name: 'Наценка фасовка',
         planKey: 'markupPackaged',
         actualKey: 'markupPackaged',  // ИСПРАВЛЕНО: было bottles_markup
@@ -124,7 +111,6 @@ export const METRICS = [
     },
     {
         id: 'markupKitchen',
-        icon: '📈',
         name: 'Наценка кухня',
         planKey: 'markupKitchen',
         actualKey: 'markupKitchen',  // ИСПРАВЛЕНО: было kitchen_markup
@@ -133,7 +119,6 @@ export const METRICS = [
     },
     {
         id: 'loyaltyWriteoffs',
-        icon: '💳',
         name: 'Списания баллов',
         planKey: 'loyaltyWriteoffs',
         actualKey: 'loyaltyWriteoffs',  // ИСПРАВЛЕНО: было loyalty_points_written_off
@@ -142,7 +127,6 @@ export const METRICS = [
     },
     {
         id: 'tapActivity',
-        icon: '🚰',
         name: 'Активность кранов',
         planKey: 'tapActivity',
         actualKey: 'tapActivity',

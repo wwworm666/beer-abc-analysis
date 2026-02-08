@@ -53,7 +53,13 @@
       "Bash(rmdir:*)",
       "Bash(mv:*)",
       "Bash(rm:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "WebFetch(domain:api-ru.iiko.services)",
+      "WebFetch(domain:documenter.getpostman.com)",
+      "Bash(del \"c:\\\\Users\\\\wwwor\\\\OneDrive\\\\Документы\\\\GitHub\\\\beer-abc-analysis\\\\loyalty_test.json\")",
+      "Bash(wc:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(unzip:*)"
     ],
     "deny": [],
     "ask": []

@@ -29,7 +29,7 @@ class CommentsManager {
         });
 
         this.initialized = true;
-        console.log('[Comments] ✅ Модуль комментариев инициализирован');
+        console.log('[Comments] Модуль комментариев инициализирован');
     }
 
     /**

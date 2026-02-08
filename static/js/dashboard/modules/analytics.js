@@ -16,13 +16,14 @@ import {
 class Analytics {
     constructor() {
         this.metricsGrid = document.getElementById('metrics-grid');
-        this.statsBar = document.getElementById('stats-bar');
+        // this.statsBar = document.getElementById('stats-bar'); // Удалено: stats-bar заменён на completion-badge
         this.noPlanState = document.getElementById('no-plan-state');
         this.loadingState = document.getElementById('loading-state');
 
         this.initialized = false;
         this.employeeData = null;  // Кэш данных по сотрудникам
         this.expandedCard = null;  // Текущая раскрытая карточка
+        this.isProcessing = false; // Флаг для предотвращения множественных кликов
     }
 
     /**
@@ -215,7 +216,10 @@ class Analytics {
 
         if (expandableMetrics.includes(metric.id)) {
             card.classList.add('expandable');
-            card.addEventListener('click', () => this.handleCardClick(card, metric));
+            card.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.handleCardClick(card, metric);
+            });
         }
 
         // Форматируем значения
@@ -223,47 +227,30 @@ class Analytics {
         const formattedActual = formatValue(actualValue, metric.format);
         const formattedDiff = planValue !== null ? formatValue(Math.abs(diff), metric.format) : '—';
 
-        // HTML карточки
-        card.innerHTML = `
+        // HTML карточки (минималистичный дизайн с диодом-индикатором)
+        card.innerHTML = planValue !== null ? `
+            <div class="status-indicator ${status}"></div>
             <div class="metric-header">
-                <span class="metric-icon">${metric.icon}</span>
-                <span class="metric-name">${metric.name}</span>
+                <span class="metric-name">${metric.name.toUpperCase()}</span>
             </div>
-
-            <div class="metric-values">
-                <div class="metric-row">
-                    <span class="metric-label">План:</span>
-                    <span class="metric-value plan">${formattedPlan}</span>
-                </div>
-                <div class="metric-row">
-                    <span class="metric-label">Факт:</span>
-                    <span class="metric-value actual">${formattedActual}</span>
-                </div>
+            <div class="metric-value">${formattedActual}</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" style="width: ${Math.min(percent, 100)}%"></div>
             </div>
-
-            ${planValue !== null ? `
-            <div class="metric-progress">
-                <div class="progress-bar-container">
-                    <div class="progress-bar ${status}" style="width: ${Math.min(percent, 100)}%"></div>
-                </div>
-                <div class="progress-text">
-                    <span class="progress-percent ${status}">${percent.toFixed(1)}%</span>
-                    <span class="progress-diff">${diff >= 0 ? '+' : ''}${formattedDiff}</span>
-                </div>
-            </div>
-
             <div class="metric-footer">
-                <span class="metric-status ${status}">
-                    ${this.getStatusText(status, percent)}
-                </span>
+                <span class="metric-percentage">${percent.toFixed(0)}%</span>
+                <span class="metric-deviation ${diff >= 0 ? 'positive' : 'negative'}">${diff >= 0 ? '+' : ''}${formattedDiff}</span>
+                <span class="metric-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
             </div>
-            ` : `
+        ` : `
+            <div class="status-indicator neutral"></div>
+            <div class="metric-header">
+                <span class="metric-name">${metric.name.toUpperCase()}</span>
+            </div>
+            <div class="metric-value">${formattedActual}</div>
             <div class="metric-footer">
-                <span class="metric-status neutral">
-                    План не задан
-                </span>
+                <span class="metric-status neutral">План не задан</span>
             </div>
-            `}
         `;
 
         return card;
@@ -283,14 +270,45 @@ class Analytics {
     }
 
     /**
+     * Форматировать план в сокращенном виде (252 077 → 252К)
+     */
+    formatPlanShort(value, format) {
+        if (value === null || value === undefined) return '—';
+
+        if (format === 'money') {
+            // Для денег: сокращаем тысячи до К
+            if (Math.abs(value) >= 1000) {
+                return (value / 1000).toFixed(0) + 'К';
+            }
+            return Math.round(value) + '₽';
+        } else if (format === 'number') {
+            // Для чисел: сокращаем тысячи до К
+            if (Math.abs(value) >= 1000) {
+                return (value / 1000).toFixed(1) + 'К';
+            }
+            return Math.round(value);
+        } else if (format === 'percent') {
+            return value.toFixed(0) + '%';
+        }
+
+        return value.toString();
+    }
+
+    /**
      * Обновить статистику
      */
     updateStats(total, completed, avgPercent) {
-        document.getElementById('stat-total-metrics').textContent = total;
-        document.getElementById('stat-completed-plans').textContent = completed;
-        document.getElementById('stat-avg-completion').textContent = avgPercent.toFixed(1) + '%';
+        // Обновляем только процент выполнения в tabs-nav
+        const completionElement = document.getElementById('stat-avg-completion');
+        if (completionElement) {
+            completionElement.textContent = avgPercent.toFixed(1) + '%';
+        }
 
-        this.statsBar?.classList.remove('hidden');
+        // Показываем completion badge
+        const completionBadge = document.getElementById('completion-badge');
+        if (completionBadge) {
+            completionBadge.style.display = 'flex';
+        }
     }
 
     /**
@@ -363,6 +381,9 @@ class Analytics {
      * Обработчик клика по карточке — раскрытие/закрытие
      */
     async handleCardClick(card, metric) {
+        // Защита от множественных кликов
+        if (this.isProcessing) return;
+
         // Метрики для которых показываем разбивку по сотрудникам
         const expandableMetrics = [
             'revenue', 'checks', 'averageCheck',
@@ -378,20 +399,30 @@ class Analytics {
             return;
         }
 
-        // Закрываем предыдущую раскрытую карточку
-        if (this.expandedCard) {
-            this.collapseCard(this.expandedCard);
-        }
+        // Устанавливаем флаг обработки
+        this.isProcessing = true;
 
-        // Загружаем данные если ещё не загружены
-        if (!this.employeeData) {
-            card.classList.add('loading');
-            await this.loadEmployeeData();
-            card.classList.remove('loading');
-        }
+        try {
+            // Закрываем предыдущую раскрытую карточку
+            if (this.expandedCard) {
+                this.collapseCard(this.expandedCard);
+            }
 
-        // Раскрываем карточку
-        this.expandCard(card, metric);
+            // Загружаем данные если ещё не загружены
+            if (!this.employeeData) {
+                card.classList.add('loading');
+                await this.loadEmployeeData();
+                card.classList.remove('loading');
+            }
+
+            // Раскрываем карточку
+            this.expandCard(card, metric);
+        } finally {
+            // Снимаем флаг после небольшой задержки
+            setTimeout(() => {
+                this.isProcessing = false;
+            }, 300);
+        }
     }
 
     /**

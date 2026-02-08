@@ -335,7 +335,65 @@ class OlapReports:
         except Exception as e:
             print(f"[ERROR] Oshibka: {e}")
             return None
-    
+
+    def get_all_sales_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить КОМПЛЕКСНЫЙ OLAP отчет по всем продажам (розлив + фасовка + кухня) за ОДИН запрос.
+        Оптимизация: 1 HTTP запрос вместо 3 параллельных.
+
+        Args:
+            date_from: дата начала (строка 'YYYY-MM-DD')
+            date_to: дата окончания (строка 'YYYY-MM-DD')
+            bar_name: название бара (если None, то все бары)
+
+        Returns:
+            dict с полем 'data' содержащим все записи.
+            Каждая запись содержит поле 'DishGroup.TopParent' для разделения категорий:
+            - "Напитки Розлив" - разливное пиво
+            - "Напитки Фасовка" - фасованное пиво
+            - прочие - кухня
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu kompleksny OLAP otchet (razliv + fasovka + kukhnya)...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        # Формируем JSON запрос БЕЗ фильтрации по категориям (получим всё сразу)
+        request_body = self._build_all_sales_olap_request(date_from, date_to, bar_name)
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request_body,
+                headers=headers,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                total_records = len(data.get('data', []))
+                print(f"[OK] Kompleksny otchet uspeshno poluchen! ({total_records} zapisey)")
+                return data
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
     def get_store_operations_report(self, date_from, date_to, bar_name=None):
         """
         Получить отчет по складским операциям с детализацией по товарам
@@ -476,6 +534,60 @@ class OlapReports:
                     "filterType": "ExcludeValues",
                     "values": ["Напитки Фасовка", "Напитки Розлив"]
                 },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        # Если указан конкретный бар, добавляем фильтр
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return request
+
+    def _build_all_sales_olap_request(self, date_from, date_to, bar_name=None):
+        """
+        Построить JSON запрос для комплексного OLAP отчета (все категории за один запрос).
+        НЕ фильтрует по DishGroup.TopParent - получаем всё: розлив + фасовку + кухню.
+        """
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "DishName",
+                "DishGroup.TopParent",  # ВАЖНО: нужно для разделения категорий
+                "DishForeignName",
+                "OpenDate.Typed",
+                "UniqOrderId.Id"  # КЛЮЧЕВОЕ: уникальный ID заказа для подсчета чеков
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId.OrdersCount",  # Количество уникальных заказов (чеков)
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "DiscountSum",  # Сумма скидки (для списаний баллов)
+                "ProductCostBase.ProductCost",
+                "ProductCostBase.OneItem",  # Себестоимость единицы товара
+                "ProductCostBase.MarkUp"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                # НЕ фильтруем по DishGroup.TopParent - получаем ВСЁ
                 "DeletedWithWriteoff": {
                     "filterType": "IncludeValues",
                     "values": ["NOT_DELETED"]

@@ -10,7 +10,7 @@ class VenueSelector {
     constructor() {
         this.selectElement = document.getElementById('venue-selector');
         this.venueInfo = document.getElementById('venue-info');
-        this.venueIcon = document.getElementById('venue-icon');
+        // this.venueIcon = document.getElementById('venue-icon'); // Удалено: иконки больше нет
         this.venueName = document.getElementById('venue-name');
         this.venueTaps = document.getElementById('venue-taps');
 
@@ -56,6 +56,14 @@ class VenueSelector {
     }
 
     /**
+     * Удалить эмодзи из текста
+     */
+    removeEmojis(text) {
+        // Удаляем эмодзи и лишние пробелы
+        return text.replace(/[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim();
+    }
+
+    /**
      * Заполнить select элемент
      */
     populateSelect(venues) {
@@ -64,7 +72,8 @@ class VenueSelector {
         venues.forEach(venue => {
             const option = document.createElement('option');
             option.value = venue.key;
-            option.textContent = venue.label;
+            // Удаляем эмодзи из названия бара
+            option.textContent = this.removeEmojis(venue.label);
 
             // Отметить текущую опцию
             if (venue.key === state.currentVenue) {
@@ -123,8 +132,8 @@ class VenueSelector {
         // Получаем полную информацию о заведении из state.venues
         const fullVenue = state.venues.find(v => v.key === venueKey);
 
-        if (fullVenue && this.venueIcon && this.venueName && this.venueTaps) {
-            this.venueIcon.textContent = fullVenue.icon || '🍺';
+        if (fullVenue && this.venueName && this.venueTaps) {
+            // this.venueIcon.textContent = fullVenue.icon || ''; // Удалено: иконки больше нет
             this.venueName.textContent = fullVenue.name || venue.name;
 
             // Показываем количество кранов (нужно будет добавить в API)

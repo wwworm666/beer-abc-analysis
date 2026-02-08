@@ -11,27 +11,40 @@ class DashboardMetrics:
         """Инициализация калькулятора метрик"""
         pass
 
-    def calculate_metrics(self, draft_data, bottles_data, kitchen_data, olap, bar_name, date_from, date_to):
+    def calculate_metrics(self, all_sales_data):
         """
-        Рассчитать все 15 метрик из сырых OLAP данных
+        Рассчитать все 15 метрик из комплексных OLAP данных.
+        Один запрос содержит все категории (розлив + фасовка + кухня).
 
         Args:
-            draft_data: dict - сырой ответ от get_draft_sales_report()
-            bottles_data: dict - сырой ответ от get_beer_sales_report()
-            kitchen_data: dict - сырой ответ от _build_kitchen_olap_request()
-            olap: OlapReports - объект для работы с OLAP API (должен быть подключен)
-            bar_name: str - название бара или None для всех баров
-            date_from: str - начальная дата в формате YYYY-MM-DD
-            date_to: str - конечная дата в формате YYYY-MM-DD
+            all_sales_data: dict - сырой ответ от get_all_sales_report()
+                Содержит поле 'data' со всеми записями.
+                Каждая запись имеет поле 'DishGroup.TopParent':
+                - "Напитки Розлив" - разливное
+                - "Напитки Фасовка" - фасовка
+                - прочие - кухня
 
         Returns:
             dict с 15 метриками
         """
 
-        # Извлекаем массивы данных
-        draft_records = draft_data.get('data', []) if draft_data else []
-        bottles_records = bottles_data.get('data', []) if bottles_data else []
-        kitchen_records = kitchen_data.get('data', []) if kitchen_data else []
+        # Извлекаем все записи
+        all_records = all_sales_data.get('data', []) if all_sales_data else []
+
+        # Разделяем по категориям на основе DishGroup.TopParent
+        draft_records = []
+        bottles_records = []
+        kitchen_records = []
+
+        for record in all_records:
+            category = record.get('DishGroup.TopParent', '')
+            if category == 'Напитки Розлив':
+                draft_records.append(record)
+            elif category == 'Напитки Фасовка':
+                bottles_records.append(record)
+            else:
+                # Всё остальное - кухня
+                kitchen_records.append(record)
 
         # 1-3. Выручка по категориям
         draft_revenue = self._sum_revenue(draft_records)
@@ -45,8 +58,8 @@ class DashboardMetrics:
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
-        # 7. Количество чеков - ПРАВИЛЬНЫЙ метод через отдельный OLAP запрос БЕЗ группировки по товарам
-        total_checks = olap.get_orders_count(bar_name, date_from, date_to)
+        # 7. Количество чеков - считаем из уже полученных данных (без дополнительного OLAP запроса)
+        total_checks = self._count_unique_orders(draft_records, bottles_records, kitchen_records)
 
         # 8. Средний чек
         avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
@@ -228,3 +241,31 @@ class DashboardMetrics:
                 except (ValueError, TypeError):
                     continue
         return total
+
+    def _count_unique_orders(self, draft_records, bottles_records, kitchen_records):
+        """
+        Посчитать количество уникальных заказов (чеков) из уже полученных OLAP данных.
+        Избегает дополнительного OLAP запроса get_orders_count().
+
+        Args:
+            draft_records: list - записи разливного пива
+            bottles_records: list - записи фасованного пива
+            kitchen_records: list - записи кухни
+
+        Returns:
+            int - количество уникальных заказов
+        """
+        unique_order_ids = set()
+
+        # Объединяем все записи
+        all_records = draft_records + bottles_records + kitchen_records
+
+        # Собираем уникальные ID заказов из OLAP данных
+        for record in all_records:
+            # КЛЮЧЕВОЕ: используем UniqOrderId.Id (уникальный UUID заказа из iiko)
+            # Это поле добавлено в groupByRowFields OLAP запроса
+            order_id = record.get('UniqOrderId.Id')
+
+            if order_id:
+                unique_order_ids.add(str(order_id))
+        return len(unique_order_ids)

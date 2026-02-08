@@ -30,7 +30,7 @@ class TrendsModule {
         });
 
         this.initialized = true;
-        console.log('[Trends] ✅ Модуль трендов инициализирован');
+        console.log('[Trends] Модуль трендов инициализирован');
     }
 
     /**
@@ -75,7 +75,7 @@ class TrendsModule {
             this.displayWeeksTable(historicalData);
             this.showResults();
 
-            console.log('[Trends] ✅ Анализ трендов завершен');
+            console.log('[Trends] Анализ трендов завершен');
 
         } catch (error) {
             console.error('[Trends] Ошибка загрузки данных:', error);
@@ -202,8 +202,8 @@ class TrendsModule {
 
         const trendIcon = document.getElementById('trends-trend-icon');
         if (trendIcon) {
-            trendIcon.textContent = forecast.trend === 'рост' ? '📈' :
-                                    forecast.trend === 'снижение' ? '📉' : '➡️';
+            trendIcon.textContent = forecast.trend === 'рост' ? '↗' :
+                                    forecast.trend === 'снижение' ? '↘' : '→';
         }
     }
 
