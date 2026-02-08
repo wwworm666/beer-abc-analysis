@@ -4,8 +4,8 @@ import json
 import os
 import time
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-import google.generativeai as genai
 from core.olap_reports import OlapReports
 from core.data_processor import BeerDataProcessor
 from core.abc_analysis import ABCAnalysis
@@ -24,17 +24,32 @@ from dashboardNovaev.backend.venues_manager import VenuesManager
 from dashboardNovaev.backend.comparison_calculator import ComparisonCalculator
 from dashboardNovaev.backend.trends_analyzer import TrendsAnalyzer
 from dashboardNovaev.backend.export_manager import ExportManager
+import subprocess
+
+def get_git_commit_hash():
+    """Получить короткий хеш текущего git commit для версионирования"""
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            stderr=subprocess.DEVNULL
+        ).decode('ascii').strip()
+    except Exception:
+        # Fallback на timestamp для случаев когда git недоступен
+        from datetime import datetime
+        return datetime.now().strftime('%Y%m%d%H%M')
 
 app = Flask(__name__)
 
-# Кэш для AI анализов (чтобы не превышать квоту Gemini API)
-# Формат: {(venue_key, period_key): {'analysis': str, 'timestamp': float}}
-AI_ANALYSIS_CACHE = {}
-AI_CACHE_TTL = 3600  # 1 час
+# Определяется при старте приложения
+APP_VERSION = get_git_commit_hash()
 
 # Кэш для списка сотрудников (не меняется часто)
 EMPLOYEES_CACHE = {'data': None, 'timestamp': 0}
 EMPLOYEES_CACHE_TTL = 300  # 5 минут
+
+# Кэш для OLAP запросов дашборда (ключ: venue_bar_dateFrom_dateTo)
+DASHBOARD_OLAP_CACHE = {}
+DASHBOARD_OLAP_CACHE_TTL = 600  # 10 минут
 
 # Инициализируем менеджер кранов
 # Если на Render (есть диск /kultura), используем его для постоянного хранения
@@ -73,29 +88,6 @@ try:
 except Exception as e:
     print(f"[TELEGRAM] Ошибка инициализации бота: {e}")
     TELEGRAM_BOT_ENABLED = False
-
-# Инициализируем Gemini API
-try:
-    # Сначала пытаемся получить из переменной окружения (для Render)
-    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-
-    if GEMINI_API_KEY:
-        print("[GEMINI] API ключ загружен из переменной окружения")
-    else:
-        # Если нет в env, читаем из файла (для локальной разработки)
-        with open('апи', 'r', encoding='utf-8') as f:
-            GEMINI_API_KEY = f.read().strip()
-        print("[GEMINI] API ключ загружен из файла")
-
-    genai.configure(api_key=GEMINI_API_KEY)
-    print("[GEMINI] API инициализирован успешно")
-except FileNotFoundError:
-    print("[GEMINI ERROR] Файл 'апи' не найден и переменная окружения GEMINI_API_KEY не установлена.")
-    print("[GEMINI ERROR] Установите переменную окружения или создайте файл 'апи' с API ключом.")
-    GEMINI_API_KEY = None
-except Exception as e:
-    print(f"[GEMINI ERROR] Ошибка инициализации: {e}")
-    GEMINI_API_KEY = None
 
 # Кэш для номенклатуры (15 минут TTL)
 nomenclature_cache = {
@@ -178,7 +170,7 @@ def employee_dashboard():
 @app.route('/dashboard')
 def dashboard():
     """Страница аналитического дашборда"""
-    return render_template('dashboard.html', bars=BARS)
+    return render_template('dashboard.html', bars=BARS, app_version=APP_VERSION)
 
 @app.route('/taps/<bar_id>')
 def taps_bar(bar_id):
@@ -2717,44 +2709,65 @@ def dashboard_analytics():
         if not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
 
-        # Подключаемся к iiko API
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+        # Проверяем кеш OLAP данных
+        cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
+        now = time.time()
 
-        # 1. Получаем СЫРЫЕ данные по разливному пиву
-        print("   [1/3] Получение данных разливного...")
-        draft_data = olap.get_draft_sales_report(date_from, date_to_inclusive, bar_name)
-        if draft_data:
-            print(f"   [OK] Разливное: {len(draft_data.get('data', []))} записей")
+        if cache_key in DASHBOARD_OLAP_CACHE:
+            cached_entry = DASHBOARD_OLAP_CACHE[cache_key]
+            if (now - cached_entry['timestamp']) < DASHBOARD_OLAP_CACHE_TTL:
+                all_sales_data = cached_entry['data']
+                ttl_remaining = DASHBOARD_OLAP_CACHE_TTL - (now - cached_entry['timestamp'])
+                print(f"   [CACHE] Использую кешированные OLAP данные (истекает через {int(ttl_remaining // 60)} мин {int(ttl_remaining % 60)} сек)")
+            else:
+                # Кеш устарел, удаляем
+                del DASHBOARD_OLAP_CACHE[cache_key]
+                all_sales_data = None
+        else:
+            all_sales_data = None
 
-        # 2. Получаем СЫРЫЕ данные по фасовке
-        print("   [2/3] Получение данных фасовки...")
-        bottles_data = olap.get_beer_sales_report(date_from, date_to_inclusive, bar_name)
-        if bottles_data:
-            print(f"   [OK] Фасовка: {len(bottles_data.get('data', []))} записей")
+        # Если данных нет в кеше - запрашиваем из iiko API
+        if not all_sales_data:
+            # Подключаемся к iiko API
+            olap = OlapReports()
+            if not olap.connect():
+                return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
-        # 3. Получаем СЫРЫЕ данные по кухне (через OLAP, а не storeOperations)
-        print("   [3/3] Получение данных кухни...")
-        kitchen_data = olap.get_kitchen_sales_report(date_from, date_to_inclusive, bar_name)
-        if kitchen_data:
-            print(f"   [OK] Кухня: {len(kitchen_data.get('data', []))} записей")
+            # 1. Получаем ВСЕ данные ОДНИМ запросом (оптимизация: 1 запрос вместо 3)
+            print("   [1/5] Запуск комплексного OLAP запроса...")
+            start_time = time.time()
 
-        # Создаем калькулятор метрик и рассчитываем из СЫРЫХ данных
-        print("   [4/4] Расчет метрик из сырых OLAP данных...")
+            all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
+
+            if not all_sales_data or not all_sales_data.get('data'):
+                olap.disconnect()
+                return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
+
+            elapsed = time.time() - start_time
+            print(f"   [OK] Комплексный запрос выполнен за {elapsed:.2f}s")
+
+            # Отключаемся от iiko API
+            olap.disconnect()
+
+            # Сохраняем в кеш
+            DASHBOARD_OLAP_CACHE[cache_key] = {
+                'data': all_sales_data,
+                'timestamp': now
+            }
+            print(f"   [CACHE] Данные закешированы на {DASHBOARD_OLAP_CACHE_TTL // 60} минут")
+
+        # 2. Создаем калькулятор метрик и рассчитываем из СЫРЫХ данных
+        print("   [2/5] Расчет метрик из сырых OLAP данных...")
         calculator = DashboardMetrics()
 
-        # ВАЖНО: передаем olap объект для корректного подсчета количества чеков
-        metrics = calculator.calculate_metrics(draft_data, bottles_data, kitchen_data, olap, bar_name, date_from, date_to_inclusive)
+        # Считаем метрики из единого отчета
+        metrics = calculator.calculate_metrics(all_sales_data)
         table_data = calculator.get_table_data(metrics)
-
-        # Отключаемся от iiko API только ПОСЛЕ расчета всех метрик
-        olap.disconnect()
 
         print(f"   [OK] Метрики рассчитаны успешно!")
 
-        # Добавляем метрику активности кранов за период
-        print("   [5/5] Расчет активности кранов...")
+        # 3. Добавляем метрику активности кранов за период
+        print("   [3/5] Расчет активности кранов...")
 
         # Маппинг venue_key -> bar_id для TapsManager
         VENUE_TO_BAR_MAPPING = {
@@ -3473,257 +3486,6 @@ def save_comment(venue_key, period_key):
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/analyze-period/<venue_key>/<path:period_key>', methods=['GET'])
-def analyze_period_with_ai(venue_key, period_key):
-    """
-    Сгенерировать AI анализ для периода с использованием Gemini
-
-    Args:
-        venue_key: Ключ заведения
-        period_key: Ключ периода (формат: YYYY-MM-DD_YYYY-MM-DD или просто YYYY-MM-DD)
-
-    Returns:
-        JSON: {'analysis': 'текст анализа'}
-    """
-    try:
-        # Проверяем кэш
-        cache_key = (venue_key, period_key)
-        current_time = time.time()
-
-        if cache_key in AI_ANALYSIS_CACHE:
-            cached = AI_ANALYSIS_CACHE[cache_key]
-            age = current_time - cached['timestamp']
-
-            if age < AI_CACHE_TTL:
-                print(f"[AI ANALYSIS] Возврат из кэша (возраст: {int(age)}с)")
-                return jsonify({
-                    'success': True,
-                    'analysis': cached['analysis'],
-                    'from_cache': True
-                })
-            else:
-                # Устаревший кэш, удаляем
-                del AI_ANALYSIS_CACHE[cache_key]
-                print("[AI ANALYSIS] Кэш устарел, генерируем заново")
-
-        # Проверяем, что API ключ загружен
-        if not GEMINI_API_KEY:
-            print("[AI ANALYSIS ERROR] Gemini API ключ не установлен")
-            return jsonify({
-                'error': 'Gemini API не настроен. Установите переменную окружения GEMINI_API_KEY или создайте файл "апи".'
-            }), 503
-
-        print(f"\n[AI ANALYSIS] Генерация анализа для {venue_key} / {period_key}")
-
-        # Парсим period_key
-        if '_' in period_key:
-            # Формат: YYYY-MM-DD_YYYY-MM-DD
-            date_parts = period_key.split('_')
-            date_from = date_parts[0]
-            date_to = date_parts[1]
-        else:
-            # Формат: YYYY-MM-DD (неделя)
-            period_date = datetime.strptime(period_key, '%Y-%m-%d')
-            end_date = period_date + timedelta(days=6)
-            date_from = period_date.strftime('%Y-%m-%d')
-            date_to = end_date.strftime('%Y-%m-%d')
-
-        print(f"[AI ANALYSIS] Загрузка данных: {date_from} - {date_to}")
-
-        # Подключаемся к iiko API и получаем данные
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        try:
-            # Запрашиваем данные для заведения (bar_name = None для всех баров)
-            report_data = olap.get_beer_sales_report(date_from, date_to, None)
-        finally:
-            olap.disconnect()
-
-        if not report_data or not report_data.get('data'):
-            return jsonify({'error': 'Нет данных за выбранный период'}), 404
-
-        # Обрабатываем данные
-        processor = BeerDataProcessor(report_data)
-        if not processor.prepare_dataframe():
-            return jsonify({'error': 'Ошибка обработки данных'}), 500
-
-        data = processor.aggregate_by_beer_and_bar()
-
-        # Подготавливаем текст для анализа
-        analysis_text = _prepare_analysis_text(data, venue_key, period_key)
-
-        print(f"[AI ANALYSIS] Отправка запроса в Gemini...")
-
-        # Запрашиваем анализ у Gemini
-        model = genai.GenerativeModel(
-            'gemini-2.5-flash',
-            system_instruction="""Ты — опытный финансовый аналитик сети пивных баров "Культура" с 15-летним опытом в HoReCa бизнесе.
-
-Специализация:
-- Пиво на розлив (основной доход)
-- Фасованное пиво (высокая маржа)
-- Кухня: снеки, колбасы, закуски
-
-Твой стиль анализа:
-- Конкретные цифры в рублях и штуках
-- Измеримые рекомендации с расчётом финансового эффекта
-- Приоритизация по срочности и влиянию на выручку
-- Практичные инсайты без воды"""
-        )
-
-        prompt = f"""Ты финансовый аналитик сети пивных баров "Культура" (8 лет на рынке).
-
-СПЕЦИАЛИЗАЦИЯ БАРА:
-- Пиво на розлив (основная категория, высокая проходимость)
-- Фасованное пиво (премиум сегмент, высокая маржа)
-- Кухня: римская пицца, колбасы собственного производства
-
-АНАЛИЗИРУЙ ЭТИ ДАННЫЕ:
-{analysis_text}
-
-ТВОЙ ОТЧЁТ:
-
-🔴 КРИТИЧЕСКИЕ ПРОБЛЕМЫ (2-3):
-- Какие товары/категории показывают худшие результаты
-- Конкретные цифры продаж, выручки, наценки
-- Вероятная причина проблемы
-
-💡 РЕКОМЕНДАЦИИ:
-- Конкретное действие (что именно делать)
-- Кто это делает (персонал/менеджер/закупки)
-- Ожидаемый результат в рублях или %
-
-📈 ПРОГНОЗ:
-- При текущих темпах что будет дальше
-- Какие риски есть
-- Где потенциал для роста
-
-ТРЕБОВАНИЯ:
-- До 1000 символов
-- Только практичные инсайты
-- Конкретные цифры в каждом пункте
-- Эмодзи для структуры
-- Никакой воды"""
-
-        response = model.generate_content(prompt)
-
-        # Получаем текст из ответа
-        analysis = ""
-        if hasattr(response, 'text'):
-            analysis = response.text
-        elif hasattr(response, 'parts') and response.parts:
-            analysis = str(response.parts[0])
-        elif hasattr(response, 'candidates') and response.candidates:
-            analysis = str(response.candidates[0])
-
-        if not analysis or not analysis.strip():
-            print("[AI ANALYSIS] ERROR: Analysis is empty or whitespace only")
-            return jsonify({
-                'error': 'Gemini вернул пустой ответ. Попробуйте позже.'
-            }), 500
-
-        # Логируем только базовую информацию (без содержимого с emoji/Unicode)
-        try:
-            print(f"[AI ANALYSIS] OK: Analysis generated, length={len(analysis)}")
-        except:
-            pass  # Ignore encoding errors in logging
-
-        # Сохраняем в кэш
-        AI_ANALYSIS_CACHE[cache_key] = {
-            'analysis': analysis,
-            'timestamp': current_time
-        }
-        print(f"[AI ANALYSIS] Сохранено в кэш (ключ: {cache_key})")
-
-        return jsonify({
-            'success': True,
-            'analysis': analysis
-        })
-
-    except Exception as e:
-        try:
-            error_type = type(e).__name__
-            print(f"[AI ANALYSIS ERROR] Exception: {error_type}")
-
-            # Специальная обработка для ResourceExhausted (превышение квоты API)
-            if 'ResourceExhausted' in error_type or 'RESOURCE_EXHAUSTED' in str(e):
-                return jsonify({
-                    'error': 'Превышен лимит запросов к Gemini API. Попробуйте через несколько минут.'
-                }), 429
-
-            # Обработка других ошибок квоты
-            if 'quota' in str(e).lower() or 'rate limit' in str(e).lower():
-                return jsonify({
-                    'error': 'Превышен лимит запросов к Gemini API. Попробуйте через несколько минут.'
-                }), 429
-
-        except:
-            print("[AI ANALYSIS ERROR] Exception occurred")
-
-        return jsonify({'error': 'Ошибка при генерации анализа. Попробуйте позже.'}), 500
-
-
-def _prepare_analysis_text(data, venue_key, period_key):
-    """Подготовить детальный текст данных для передачи в AI"""
-
-    if data.empty:
-        return "Нет данных"
-
-    try:
-        # Базовая статистика
-        text = f"Заведение: {venue_key}\nПериод: {period_key}\n"
-        text += "=" * 50 + "\n\n"
-
-        # Общие показатели
-        total_qty = int(data['TotalQty'].sum())
-        total_revenue = int(data['TotalRevenue'].sum())
-        avg_check = total_revenue / total_qty if total_qty > 0 else 0
-
-        text += "ОБЩИЕ ПОКАЗАТЕЛИ:\n"
-        text += f"- Всего продано: {total_qty} шт\n"
-        text += f"- Общая выручка: {total_revenue}р\n"
-        text += f"- Средний чек: {avg_check:.0f}р\n"
-        text += f"- Ассортимент: {len(data)} наименований\n\n"
-
-        # Топ 10 по выручке
-        text += "ТОП 10 ПО ВЫРУЧКЕ:\n"
-        top_revenue = data.nlargest(10, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
-        revenue_sum = top_revenue['TotalRevenue'].sum()
-        revenue_share = (revenue_sum / total_revenue * 100) if total_revenue > 0 else 0
-        text += f"(Доля в выручке: {revenue_share:.1f}%)\n"
-
-        for idx, row in top_revenue.iterrows():
-            markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
-            item_share = (row['TotalRevenue'] / total_revenue * 100) if total_revenue > 0 else 0
-            text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}р ({item_share:.1f}%, наценка {markup_pct:.0f}%)\n"
-
-        # Аутсайдеры (низкая выручка)
-        text += "\nАУТСАЙДЕРЫ (низкая выручка):\n"
-        bottom_revenue = data.nsmallest(5, 'TotalRevenue')[['Beer', 'TotalQty', 'TotalRevenue', 'AvgMarkupPercent']]
-        for idx, row in bottom_revenue.iterrows():
-            markup_pct = row['AvgMarkupPercent'] * 100 if pd.notna(row['AvgMarkupPercent']) else 0
-            text += f"- {row['Beer']}: {int(row['TotalQty'])} шт, {int(row['TotalRevenue'])}р (наценка {markup_pct:.0f}%)\n"
-
-        # Статистика наценки
-        text += "\nАНАЛИЗ НАЦЕНОК:\n"
-        markup_values = data['AvgMarkupPercent'].dropna() * 100
-        if not markup_values.empty:
-            text += f"- Минимальная: {markup_values.min():.0f}%\n"
-            text += f"- Средняя: {markup_values.mean():.0f}%\n"
-            text += f"- Максимальная: {markup_values.max():.0f}%\n"
-
-        return text
-
-    except Exception as e:
-        try:
-            print(f"[PREPARE_TEXT ERROR] {type(e).__name__}")
-        except:
-            print("[PREPARE_TEXT ERROR] Exception occurred")
-        return "Ошибка подготовки данных"
-
-
 # ============================================================================
 # END OF DASHBOARD PLANS API
 # ============================================================================
@@ -3789,17 +3551,15 @@ def get_dashboard_analytics_data(bar, date_from, date_to):
         raise Exception('Не удалось подключиться к iiko API')
 
     try:
-        # Получаем СЫРЫЕ данные
-        draft_data = olap.get_draft_sales_report(date_from, date_to_inclusive, bar_name)
-        bottles_data = olap.get_beer_sales_report(date_from, date_to_inclusive, bar_name)
-        kitchen_data = olap.get_kitchen_sales_report(date_from, date_to_inclusive, bar_name)
+        # Получаем комплексный отчет со всеми данными
+        all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
+
+        if not all_sales_data or not all_sales_data.get('data'):
+            raise Exception('Не удалось получить данные из OLAP')
 
         # Создаем калькулятор и рассчитываем метрики
         calculator = DashboardMetrics()
-        metrics = calculator.calculate_metrics(
-            draft_data, bottles_data, kitchen_data,
-            olap, bar_name, date_from, date_to_inclusive
-        )
+        metrics = calculator.calculate_metrics(all_sales_data)
 
         return metrics
 

@@ -85,7 +85,7 @@
 }
 
 .progress-bar {
-    animation: progressFill 0.8s ease-out;
+    animation: progressFill 600ms ease-out;
 }
 
 /* Bounce */
@@ -112,7 +112,7 @@
 }
 
 .shake {
-    animation: shake 0.3s ease;
+    animation: shake 200ms ease;
 }
 
 /* Rotate (для loading) */
@@ -148,25 +148,26 @@
 
 /* Apply animations */
 .animate-fade-in {
-    animation: fadeIn 0.3s ease;
+    animation: fadeIn 150ms ease;
 }
 
 .animate-slide-in-right {
-    animation: slideInRight 0.3s ease;
+    animation: slideInRight 200ms ease;
 }
 
 .animate-slide-in-bottom {
-    animation: slideInBottom 0.3s ease;
+    animation: slideInBottom 150ms ease;
 }
 
 .animate-scale-up {
-    animation: scaleUp 0.3s ease;
+    animation: scaleUp 200ms ease;
 }
 
 .animate-pulse {
     animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* Избегать использования bounce — слишком агрессивная анимация */
 .animate-bounce {
-    animation: bounce 0.6s ease;
+    animation: bounce 400ms ease;
 }

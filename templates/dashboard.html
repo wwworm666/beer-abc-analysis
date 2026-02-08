@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Дашборд - Аналитика план vs факт</title>
 
+    <!-- IBM Plex Mono шрифты -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+
     <!-- CSS Стили (модульный подход) -->
     <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
     <link rel="stylesheet" href="/static/dashboard/styles/base.css">
@@ -14,8 +17,20 @@
     <link rel="stylesheet" href="/static/dashboard/styles/animations.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
 
-    <!-- Chart.js Library -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Flatpickr Datepicker -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+
+    <!-- Preload критических JavaScript модулей -->
+    <link rel="modulepreload" href="/static/js/dashboard/main.js?v={{ app_version }}">
+    <link rel="modulepreload" href="/static/js/dashboard/core/state.js?v={{ app_version }}">
+    <link rel="modulepreload" href="/static/js/dashboard/modules/analytics.js?v={{ app_version }}">
+
+    <!-- Chart.js Library (локальная копия для ускорения загрузки) -->
+    <script src="/static/libs/chart.umd.min.js"></script>
+
+    <!-- Flatpickr Library + Russian locale -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
 </head>
 <body>
 
@@ -24,23 +39,27 @@
 
     <!-- JavaScript модули (ES6 modules) -->
     <script type="module">
-        // Cache busting version - динамический timestamp для обхода кэша
-        const v = Date.now();
+        // Версия приложения для кэширования модулей
+        const APP_VERSION = "{{ app_version }}";
 
         // Импортируем главный файл
-        import(`/static/js/dashboard/main.js?v=${v}`).then(() => {
+        import(`/static/js/dashboard/main.js?v=${APP_VERSION}`).then(() => {
             // Импортируем дополнительные модули
             return Promise.all([
-                import(`/static/js/dashboard/modules/export.js?v=${v}`),
-                import(`/static/js/dashboard/modules/comparison.js?v=${v}`)
+                import(`/static/js/dashboard/modules/export.js?v=${APP_VERSION}`),
+                import(`/static/js/dashboard/modules/comparison.js?v=${APP_VERSION}`),
+                import(`/static/js/dashboard/modules/datepicker.js?v=${APP_VERSION}`)
             ]);
-        }).then(([exportMod, comparisonMod]) => {
+        }).then(([exportMod, comparisonMod, datepickerMod]) => {
             // Инициализируем дополнительные модули
             if (exportMod && exportMod.exportModule) {
                 exportMod.exportModule.init();
             }
             if (comparisonMod && comparisonMod.comparisonModule) {
                 comparisonMod.comparisonModule.init();
+            }
+            if (datepickerMod && datepickerMod.datepickerModule) {
+                datepickerMod.datepickerModule.init();
             }
             console.log('✅ Dashboard loaded successfully!');
         }).catch(err => {

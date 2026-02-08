@@ -6,9 +6,8 @@
 import { state } from './core/state.js';
 import { themeManager } from './modules/theme.js';
 import { venueSelector } from './modules/venue_selector.js';
-import { weekSelector } from './modules/week_selector.js';
 import { analytics } from './modules/analytics.js';
-import { plansViewer } from './modules/plans.js';
+// import { plansViewer } from './modules/plans.js'; // Отключено: вкладка "Планы" удалена
 import { chartsModule } from './modules/charts.js';
 import { trendsModule } from './modules/trends.js';
 import { commentsManager } from './modules/comments.js';
@@ -24,53 +23,50 @@ class Dashboard {
     async init() {
         if (this.initialized) return;
 
-        console.log('🚀 Инициализация дашборда...');
+        console.log('Инициализация дашборда...');
 
         try {
             // 1. Инициализируем тему (синхронно, должно быть первым)
             themeManager.init();
-            console.log('✅ Тема инициализирована');
+            console.log(' Тема инициализирована');
 
             // 2. Инициализируем селекторы (последовательно)
             await venueSelector.init();
-            console.log('✅ Селектор заведений инициализирован');
-
-            await weekSelector.init();
-            console.log('✅ Селектор периодов инициализирован');
+            console.log(' Селектор заведений инициализирован');
 
             // 3. Инициализируем модули данных
             analytics.init();
-            console.log('✅ Модуль аналитики инициализирован');
+            console.log(' Модуль аналитики инициализирован');
 
             chartsModule.init();
-            console.log('✅ Модуль графиков инициализирован');
+            console.log(' Модуль графиков инициализирован');
 
             trendsModule.init();
-            console.log('✅ Модуль трендов инициализирован');
+            console.log(' Модуль трендов инициализирован');
 
-            plansViewer.init();
-            console.log('✅ Модуль просмотра планов инициализирован');
+            // plansViewer.init();
+            // console.log(' Модуль просмотра планов инициализирован');
 
             commentsManager.init();
-            console.log('✅ Модуль комментариев инициализирован');
+            console.log(' Модуль комментариев инициализирован');
 
             // 4. Настраиваем вкладки
             this.setupTabs();
-            console.log('✅ Вкладки настроены');
+            console.log(' Вкладки настроены');
 
             // 5. Настраиваем сообщения
             this.setupMessages();
-            console.log('✅ Система сообщений настроена');
+            console.log(' Система сообщений настроена');
 
             // 6. Загружаем начальные данные
             await this.loadInitialData();
-            console.log('✅ Начальные данные загружены');
+            console.log(' Начальные данные загружены');
 
             this.initialized = true;
-            console.log('🎉 Дашборд успешно инициализирован!');
+            console.log('Дашборд успешно инициализирован!');
 
         } catch (error) {
-            console.error('❌ Ошибка инициализации дашборда:', error);
+            console.error('Ошибка инициализации дашборда:', error);
             this.showError('Не удалось инициализировать дашборд');
         }
     }
@@ -101,9 +97,11 @@ class Dashboard {
                     if (tabId === 'tab-charts') {
                         chartsModule.loadChartsData();
                         trendsModule.loadTrendsData();
-                    } else if (tabId === 'tab-plans') {
-                        plansViewer.loadData();
                     }
+                    // Plans tab removed:
+                    // else if (tabId === 'tab-plans') {
+                    //     plansViewer.loadData();
+                    // }
                 }
             });
         });
@@ -171,12 +169,12 @@ class Dashboard {
      */
     getMessageIcon(type) {
         const icons = {
-            success: '✅',
-            error: '❌',
-            warning: '⚠️',
-            info: 'ℹ️'
+            success: '✓',
+            error: '✕',
+            warning: '!',
+            info: 'i'
         };
-        return icons[type] || 'ℹ️';
+        return icons[type] || 'i';
     }
 
     /**
@@ -247,9 +245,9 @@ window.dashboardCheckApi = async function() {
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         window.dashboardCheckApi();
-        setInterval(window.dashboardCheckApi, 60000); // Каждую минуту
+        setInterval(window.dashboardCheckApi, 300000); // Каждые 5 минут
     });
 } else {
     window.dashboardCheckApi();
-    setInterval(window.dashboardCheckApi, 60000);
+    setInterval(window.dashboardCheckApi, 300000); // Каждые 5 минут
 }

@@ -1,0 +1,150 @@
+{
+  "data": [
+    {
+      "Delivery.CustomerPhone": "+779021581543",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779046093123",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779111213811",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779111354608",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779111711932",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779112905101",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779118628032",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779200700771",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779217703115",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779217954795",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779262189119",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779313416224",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779326006572",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779602242735",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779681942137",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779833433231",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779870381827",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779934840656",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779939665623",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779964599989",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779992429327",
+      "UniqOrderId.OrdersCount": 3,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779996006737",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Васильев Никита"
+    },
+    {
+      "Delivery.CustomerPhone": "+779095859978",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Дарья Коновцова"
+    },
+    {
+      "Delivery.CustomerPhone": "+779118628032",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Дарья Коновцова"
+    },
+    {
+      "Delivery.CustomerPhone": "+779217552689",
+      "UniqOrderId.OrdersCount": 4,
+      "WaiterName": "Дарья Коновцова"
+    },
+    {
+      "Delivery.CustomerPhone": "+779217946220",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Дарья Коновцова"
+    },
+    {
+      "Delivery.CustomerPhone": "+779218562304",
+      "UniqOrderId.OrdersCount": 3,
+      "WaiterName": "Дарья Коновцова"
+    },
+    {
+      "Delivery.CustomerPhone": "+779650630832",
+      "UniqOrderId.OrdersCount": 2,
+      "WaiterName": "Дарья Коновцова"
+    },
+    {
+      "Delivery.CustomerPhone": "+779994567645",
+      "UniqOrderId.OrdersCount": 1,
+      "WaiterName": "Дарья Коновцова"
+    }
+  ],
+  "summary": []
+}

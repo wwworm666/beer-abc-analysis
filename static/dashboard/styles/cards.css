@@ -1,170 +1,189 @@
-/* Стили карточек метрик */
+/* Стили карточек метрик — Финтех 2026 Minimal Design */
+
+/* ============================================
+   METRICS GRID
+   ============================================ */
 
 .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: var(--spacing-md);
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
     margin-bottom: var(--spacing-xl);
 }
 
+@media (max-width: 1400px) {
+    .metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+}
+
+/* ============================================
+   METRIC CARD — Минималистичный дизайн
+   ============================================ */
+
 .metric-card {
+    position: relative;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    padding: var(--spacing-lg);
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
+    border-radius: 14px;
+    padding: 20px;
+    transition: all var(--transition-fast);
+    overflow: visible;
 }
 
 .metric-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px var(--shadow);
+    box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
 }
 
-/* Цветная полоска слева в зависимости от статуса */
-.metric-card.success {
-    border-left: 4px solid var(--success);
+/* ============================================
+   STATUS INDICATOR — Единственный цветной элемент
+   ============================================ */
+
+.status-indicator {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transition: all var(--transition-fast);
 }
 
-.metric-card.warning {
-    border-left: 4px solid var(--warning);
+/* Цвета индикатора */
+.status-indicator.success {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
-.metric-card.danger {
-    border-left: 4px solid var(--danger);
+.status-indicator.warning {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
 }
 
-/* Заголовок карточки */
+.status-indicator.danger {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.status-indicator.neutral {
+    background: var(--text-tertiary);
+}
+
+/* ============================================
+   METRIC HEADER
+   ============================================ */
+
 .metric-header {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-}
-
-.metric-icon {
-    font-size: 1.5rem;
+    margin-bottom: 12px;
 }
 
 .metric-name {
-    font-size: 0.9rem;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
     color: var(--text-secondary);
-    font-weight: 500;
+    font-family: var(--font-family);
+    text-transform: uppercase;
 }
 
-/* Значения */
-.metric-values {
-    margin-bottom: var(--spacing-md);
-}
-
-.metric-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: var(--spacing-xs);
-}
-
-.metric-label {
-    font-size: 0.8rem;
-    color: var(--text-tertiary);
-}
+/* ============================================
+   METRIC VALUE — Крупное жирное значение
+   ============================================ */
 
 .metric-value {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 30px;
+    font-weight: 700;
     color: var(--text-primary);
+    font-family: var(--font-family);
+    line-height: 1.2;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
 }
 
-.metric-value.plan {
-    color: var(--text-secondary);
-    font-weight: 400;
-}
-
-/* Прогресс бар */
-.metric-progress {
-    margin-bottom: var(--spacing-md);
-}
+/* ============================================
+   PROGRESS BAR — Тонкий серый
+   ============================================ */
 
 .progress-bar-container {
-    height: 8px;
+    height: 5px;
     background: var(--bg-tertiary);
-    border-radius: 4px;
+    border-radius: 999px;
     overflow: hidden;
-    margin-bottom: var(--spacing-xs);
+    margin-bottom: 12px;
 }
 
 .progress-bar {
     height: 100%;
-    transition: width 0.5s ease, background-color 0.3s ease;
-    border-radius: 4px;
+    background: var(--accent); /* Терракотовый цвет */
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.progress-bar.success {
-    background: var(--success);
-}
+/* ============================================
+   METRIC FOOTER — Процент, отклонение, план
+   ============================================ */
 
-.progress-bar.warning {
-    background: var(--warning);
-}
-
-.progress-bar.danger {
-    background: var(--danger);
-}
-
-.progress-text {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-}
-
-.progress-percent {
-    font-weight: 600;
-}
-
-.progress-percent.success {
-    color: var(--success);
-}
-
-.progress-percent.warning {
-    color: var(--warning);
-}
-
-.progress-percent.danger {
-    color: var(--danger);
-}
-
-.progress-diff {
-    color: var(--text-tertiary);
-}
-
-/* Футер карточки */
 .metric-footer {
-    padding-top: var(--spacing-sm);
-    border-top: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 0.8rem;
+    font-size: 12px;
+    font-family: var(--font-family);
+    color: var(--text-secondary);
+    gap: 8px;
 }
 
-.metric-status {
+.metric-percentage {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.metric-deviation {
     font-weight: 500;
+    color: var(--text-secondary);
 }
 
-.metric-status.success {
-    color: var(--success);
+.metric-deviation.positive {
+    color: var(--text-secondary);
 }
 
-.metric-status.warning {
-    color: var(--warning);
+.metric-deviation.negative {
+    color: var(--text-secondary);
 }
 
-.metric-status.danger {
-    color: var(--danger);
+.metric-plan {
+    color: var(--text-tertiary);
+    font-size: 11px;
+    white-space: nowrap;
 }
 
-/* Статистика */
+/* ============================================
+   NO PLAN STATE — Карточка без плана
+   ============================================ */
+
+.metric-status.neutral {
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+
+/* ============================================
+   STATS BAR — Общая статистика
+   ============================================ */
+
 .stats-bar {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -192,7 +211,10 @@
     color: var(--text-secondary);
 }
 
-/* Состояние без плана */
+/* ============================================
+   NO PLAN STATE — Пустое состояние
+   ============================================ */
+
 .no-plan-state {
     padding: 60px 20px;
     text-align: center;
@@ -209,7 +231,10 @@
     margin-bottom: var(--spacing-lg);
 }
 
-/* Раскрывающиеся карточки */
+/* ============================================
+   EXPANDABLE CARDS — Раскрытие по сотрудникам
+   ============================================ */
+
 .metric-card.expandable {
     cursor: pointer;
 }
@@ -217,10 +242,10 @@
 .metric-card.expandable::after {
     content: '▼';
     position: absolute;
-    top: var(--spacing-md);
-    right: var(--spacing-md);
-    font-size: 0.7rem;
-    color: var(--text-tertiary);
+    bottom: 16px;
+    right: 16px;
+    font-size: 10px;
+    color: var(--border-color);
     transition: transform 0.2s ease;
 }
 
@@ -238,7 +263,10 @@
     to { transform: rotate(360deg); }
 }
 
-/* Секция с разбивкой по сотрудникам */
+/* ============================================
+   METRIC BREAKDOWN — Разбивка по сотрудникам
+   ============================================ */
+
 .metric-breakdown {
     margin-top: var(--spacing-md);
     padding-top: var(--spacing-md);
@@ -290,7 +318,7 @@
     gap: var(--spacing-sm);
     padding: var(--spacing-xs) var(--spacing-sm);
     background: var(--bg-tertiary);
-    border-radius: 4px;
+    border-radius: 8px;
     font-size: 0.85rem;
 }
 
@@ -326,4 +354,37 @@
     text-align: center;
     color: var(--text-tertiary);
     font-size: 0.85rem;
+}
+
+/* ============================================
+   DARK THEME OVERRIDES
+   ============================================ */
+
+[data-theme="dark"] .metric-card {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .metric-name {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .metric-value {
+    color: var(--text-primary);
+}
+
+[data-theme="dark"] .progress-bar-container {
+    background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .progress-bar {
+    background: var(--accent); /* Терракотовый цвет и в тёмной теме */
+}
+
+[data-theme="dark"] .metric-footer {
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .metric-percentage {
+    color: var(--text-primary);
 }

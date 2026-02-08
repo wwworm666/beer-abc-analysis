@@ -1,56 +1,104 @@
-/* CSS переменные для тем и общих стилей */
+/* Финтех-палитра 2026 - тёплые минималистичные тона */
 
 :root {
-    /* Light Theme */
-    --bg-primary: #fafafa;
-    --bg-secondary: #ffffff;
-    --bg-tertiary: #f5f5f5;
-    --text-primary: #1a1a1a;
-    --text-secondary: #666666;
-    --text-tertiary: #999999;
-    --border-color: #e0e0e0;
-    --accent: #0066cc;
-    --accent-hover: #0052a3;
-    --shadow: rgba(0, 0, 0, 0.08);
+    /* === LIGHT THEME === */
+
+    /* Фоны - тёплые кремовые */
+    --bg-primary: #FAF9F7;           /* Основной фон */
+    --bg-secondary: #FFFFFF;         /* Карточки */
+    --bg-tertiary: #F4F3F0;          /* Hover элементы */
+    --bg-hover: #EEECEA;             /* Hover состояние */
+
+    /* Текст */
+    --text-primary: #1a1a1a;         /* Основной текст */
+    --text-secondary: #666666;       /* Вторичный */
+    --text-tertiary: #999999;        /* Подписи */
+
+    /* Акцент - терракотовый/оранжевый */
+    --accent: #D97757;               /* Основной акцент */
+    --accent-hover: #C2664A;         /* Hover (темнее 15%) */
+    --accent-light: #F5E8E3;         /* Светлый фон для акцента */
+
+    /* Границы - едва заметные */
+    --border-color: #E8E6E3;
+    --border-light: #F0EFED;
+
+    /* Тени - мягкие */
+    --shadow-sm: 0 2px 8px rgba(26, 26, 26, 0.04);
+    --shadow-md: 0 4px 16px rgba(26, 26, 26, 0.06);
+    --shadow-lg: 0 8px 32px rgba(26, 26, 26, 0.08);
+    --shadow: rgba(26, 26, 26, 0.06);  /* Совместимость */
 
     /* Статусы */
     --success: #059669;
-    --success-bg: #d1fae5;
-    --warning: #d97706;
-    --warning-bg: #fed7aa;
-    --danger: #dc2626;
-    --danger-bg: #fecaca;
+    --success-bg: #ECFDF5;
+    --warning: #D97706;
+    --warning-bg: #FFFBEB;
+    --danger: #DC2626;
+    --danger-bg: #FEF2F2;
 
-    /* Шрифты */
-    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    /* Типографика */
+    --font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    --font-size-base: 15px;
+    --line-height-base: 1.6;
 
-    /* Размеры */
-    --border-radius: 8px;
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    --spacing-xl: 32px;
+    /* Радиусы - большие, мягкие */
+    --border-radius: 24px;           /* Основной */
+    --border-radius-sm: 16px;        /* Мелкие элементы */
+    --border-radius-lg: 32px;        /* Крупные блоки */
+    --border-radius-pill: 999px;     /* Pill-shape */
+
+    /* Отступы - щедрые */
+    --spacing-xs: 6px;
+    --spacing-sm: 12px;
+    --spacing-md: 20px;
+    --spacing-lg: 32px;
+    --spacing-xl: 48px;
+    --spacing-xxl: 64px;
+
+    /* Переходы - быстрые, плавные */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Layout */
+    --max-width-content: 750px;
+    --max-width-wide: 1400px;
 }
 
 [data-theme="dark"] {
-    /* Dark Theme */
-    --bg-primary: #0f0f0f;
-    --bg-secondary: #1a1a1a;
-    --bg-tertiary: #2a2a2a;
-    --text-primary: #e0e0e0;
-    --text-secondary: #999999;
-    --text-tertiary: #666666;
-    --border-color: #333333;
-    --accent: #3b82f6;
-    --accent-hover: #60a5fa;
+    /* === DARK THEME === */
+
+    /* Фоны - тёплые тёмно-коричневые (не чистый чёрный) */
+    --bg-primary: #1C1917;           /* Основной фон */
+    --bg-secondary: #292524;         /* Карточки */
+    --bg-tertiary: #333130;          /* Hover элементы */
+    --bg-hover: #3D3A39;             /* Hover состояние */
+
+    /* Текст - светлый кремовый */
+    --text-primary: #FAF9F7;         /* Основной текст */
+    --text-secondary: #A8A29E;       /* Вторичный */
+    --text-tertiary: #78716C;        /* Подписи */
+
+    /* Акцент - светлее для контраста на тёмном */
+    --accent: #E89779;               /* Основной акцент */
+    --accent-hover: #F0AB91;         /* Hover */
+    --accent-light: #3D2A23;         /* Тёмный фон для акцента */
+
+    /* Границы */
+    --border-color: #3D3A39;
+    --border-light: #333130;
+
+    /* Тени - более заметные */
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
     --shadow: rgba(0, 0, 0, 0.3);
 
     /* Статусы dark */
-    --success: #10b981;
-    --success-bg: #064e3b;
-    --warning: #f59e0b;
-    --warning-bg: #78350f;
-    --danger: #ef4444;
-    --danger-bg: #7f1d1d;
+    --success: #10B981;
+    --success-bg: #1C3930;
+    --warning: #F59E0B;
+    --warning-bg: #3D2E1F;
+    --danger: #EF4444;
+    --danger-bg: #3D1F1F;
 }

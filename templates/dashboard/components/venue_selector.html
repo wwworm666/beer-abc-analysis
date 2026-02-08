@@ -1,76 +1,56 @@
 <!-- Селектор заведений -->
 <div class="venue-selector-container">
     <div class="control-group">
-        <label for="venue-selector">
-            <span class="icon">🏪</span>
-            Заведение
-        </label>
+        <label for="venue-selector">Заведение</label>
         <select id="venue-selector" class="venue-select">
             <option value="">Загрузка...</option>
         </select>
-    </div>
-
-    <div class="venue-info hidden" id="venue-info">
-        <div class="venue-details">
-            <span class="venue-icon" id="venue-icon"></span>
-            <div>
-                <div class="venue-name" id="venue-name"></div>
-                <div class="venue-meta">
-                    <span id="venue-taps"></span> кранов
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
 <style>
 .venue-selector-container {
-    display: flex;
-    gap: var(--spacing-md);
-    align-items: flex-end;
+    margin-bottom: var(--spacing-xl);
+}
+
+.venue-selector-container .control-group {
+    max-width: 400px;
+}
+
+.venue-selector-container label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-sm);
 }
 
 .venue-select {
-    min-width: 300px;
+    width: 100%;
+    padding: 14px 20px;
     font-size: 1rem;
-    padding: 12px 16px;
-}
-
-.venue-info {
-    padding: 12px 16px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius);
+    font-weight: 500;
     border: 1px solid var(--border-color);
-}
-
-.venue-details {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-}
-
-.venue-icon {
-    font-size: 1.5rem;
-}
-
-.venue-name {
-    font-weight: 600;
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-secondary);
     color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
 }
 
-.venue-meta {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+.venue-select:hover {
+    border-color: var(--accent);
+}
+
+.venue-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
 }
 
 @media (max-width: 768px) {
-    .venue-selector-container {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .venue-select {
-        min-width: 100%;
+    .venue-selector-container .control-group {
+        max-width: 100%;
     }
 }
 </style>

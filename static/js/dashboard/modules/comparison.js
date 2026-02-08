@@ -225,14 +225,14 @@ class ComparisonModule {
         if (!tbody) return;
 
         const metrics = [
-            { key: 'revenue', label: '💰 Выручка', formatter: formatMoney, altKey: 'total_revenue' },
-            { key: 'checks', label: '🧾 Чеки', formatter: (v) => Math.round(v), altKey: 'total_checks' },
-            { key: 'averageCheck', label: '💵 Средний чек', formatter: formatMoney, altKey: 'avg_check' },
-            { key: 'draftShare', label: '🍺 Доля розлива', formatter: formatPercent, altKey: 'draft_share' },
-            { key: 'packagedShare', label: '🍾 Доля фасовки', formatter: formatPercent, altKey: 'bottles_share' },
-            { key: 'kitchenShare', label: '🍽️ Доля кухни', formatter: formatPercent, altKey: 'kitchen_share' },
-            { key: 'profit', label: '💹 Прибыль', formatter: formatMoney, altKey: 'total_margin' },
-            { key: 'markupPercent', label: '📈 % наценки', formatter: (v) => `${(v * 100).toFixed(1)}%`, altKey: 'avg_markup' }
+            { key: 'revenue', label: 'Выручка', formatter: formatMoney, altKey: 'total_revenue' },
+            { key: 'checks', label: 'Чеки', formatter: (v) => Math.round(v), altKey: 'total_checks' },
+            { key: 'averageCheck', label: 'Средний чек', formatter: formatMoney, altKey: 'avg_check' },
+            { key: 'draftShare', label: 'Доля розлива', formatter: formatPercent, altKey: 'draft_share' },
+            { key: 'packagedShare', label: 'Доля фасовки', formatter: formatPercent, altKey: 'bottles_share' },
+            { key: 'kitchenShare', label: 'Доля кухни', formatter: formatPercent, altKey: 'kitchen_share' },
+            { key: 'profit', label: 'Прибыль', formatter: formatMoney, altKey: 'total_margin' },
+            { key: 'markupPercent', label: '% наценки', formatter: (v) => `${(v * 100).toFixed(1)}%`, altKey: 'avg_markup' }
         ];
 
         tbody.innerHTML = '';
@@ -311,7 +311,7 @@ class ComparisonModule {
         if (Math.abs(revenuePercent) > 5) {
             insights.push({
                 type: revenuePercent > 0 ? 'positive' : 'negative',
-                icon: revenuePercent > 0 ? '📈' : '📉',
+                icon: revenuePercent > 0 ? '↗' : '↘',
                 text: `Выручка ${revenuePercent > 0 ? 'выросла' : 'упала'} на ${Math.abs(revenuePercent).toFixed(1)}%`
             });
         }

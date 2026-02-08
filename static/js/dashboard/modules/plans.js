@@ -195,7 +195,7 @@ class PlansViewer {
 
         // HTML строки
         row.innerHTML = `
-            <td class="metric-name">${metric.icon} ${metric.name}</td>
+            <td class="metric-name">${metric.name}</td>
             <td class="value-col plan-col">${formattedPlan}</td>
             <td class="value-col fact-col">${formattedActual}</td>
             <td class="value-col diff-col ${diffClass}">${diffPrefix}${formattedDiff}</td>

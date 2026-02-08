@@ -110,7 +110,7 @@ class ExportModule {
 
         const lines = [];
 
-        lines.push('📊 ОТЧЁТ ПО АНАЛИТИКЕ');
+        lines.push('ОТЧЁТ ПО АНАЛИТИКЕ');
         lines.push('='.repeat(40));
         lines.push('');
         lines.push(`Заведение: ${venueName}`);
@@ -127,7 +127,7 @@ class ExportModule {
 
         if (actual.total_revenue) {
             lines.push('');
-            lines.push(`💰 Выручка: ${actual.total_revenue.toLocaleString('ru-RU')} ₽`);
+            lines.push(`Выручка: ${actual.total_revenue.toLocaleString('ru-RU')} ₽`);
             if (plan.revenue) {
                 lines.push(`   План: ${plan.revenue.toLocaleString('ru-RU')} ₽`);
             }
@@ -135,7 +135,7 @@ class ExportModule {
 
         if (actual.total_checks) {
             lines.push('');
-            lines.push(`🧾 Чеки: ${actual.total_checks.toLocaleString('ru-RU')} шт`);
+            lines.push(`Чеки: ${actual.total_checks.toLocaleString('ru-RU')} шт`);
             if (plan.checks) {
                 lines.push(`   План: ${plan.checks.toLocaleString('ru-RU')} шт`);
             }
@@ -143,7 +143,7 @@ class ExportModule {
 
         if (actual.avg_check) {
             lines.push('');
-            lines.push(`💵 Средний чек: ${actual.avg_check.toLocaleString('ru-RU')} ₽`);
+            lines.push(`Средний чек: ${actual.avg_check.toLocaleString('ru-RU')} ₽`);
             if (plan.averageCheck) {
                 lines.push(`   План: ${plan.averageCheck.toLocaleString('ru-RU')} ₽`);
             }
