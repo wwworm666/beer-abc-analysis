@@ -348,6 +348,7 @@
       "loyaltyWriteoffs": 45540.0,
       "profit": 582223.27,
       "checks": 660.0,
+      "averageCheck": 1380.0,
       "draftShare": 60.0,
       "packagedShare": 25.0,
       "kitchenShare": 15.0,
@@ -357,14 +358,14 @@
       "markupKitchen": 180.0,
       "revenueDraft": 546480.0,
       "revenuePackaged": 227700.0,
-      "revenueKitchen": 136620.0,
-      "averageCheck": 1380.0
+      "revenueKitchen": 136620.0
     },
     "kremenchugskaya_2026-01": {
       "revenue": 1302400.0,
       "loyaltyWriteoffs": 65120.0,
       "profit": 864977.78,
       "checks": 740.0,
+      "averageCheck": 1760.0,
       "draftShare": 60.0,
       "packagedShare": 25.0,
       "kitchenShare": 15.0,
@@ -374,14 +375,14 @@
       "markupKitchen": 170.0,
       "revenueDraft": 781440.0,
       "revenuePackaged": 325600.0,
-      "revenueKitchen": 195360.0,
-      "averageCheck": 1760.0
+      "revenueKitchen": 195360.0
     },
     "varshavskaya_2026-01": {
       "revenue": 910800.0,
       "loyaltyWriteoffs": 45540.0,
       "profit": 612584.13,
       "checks": 660.0,
+      "averageCheck": 1380.0,
       "draftShare": 60.0,
       "packagedShare": 23.0,
       "kitchenShare": 17.0,
@@ -391,8 +392,7 @@
       "markupKitchen": 180.0,
       "revenueDraft": 546480.0,
       "revenuePackaged": 209484.0,
-      "revenueKitchen": 154836.0,
-      "averageCheck": 1380.0
+      "revenueKitchen": 154836.0
     },
     "all_2026-01": {
       "revenue": 4034800.0,
@@ -410,10 +410,95 @@
       "revenueDraft": 2420880.0,
       "revenuePackaged": 988526.0,
       "revenueKitchen": 625394.0
+    },
+    "bolshoy_2026-02": {
+      "revenue": 889952.0,
+      "loyaltyWriteoffs": 44497.600000000006,
+      "profit": 595421.9496955256,
+      "checks": 585.4947368421052,
+      "averageCheck": 1520.0,
+      "draftShare": 60.0,
+      "packagedShare": 22.0,
+      "kitchenShare": 18.0,
+      "markupPercent": 202.16,
+      "markupDraft": 260.0,
+      "markupPackaged": 120.0,
+      "markupKitchen": 180.0,
+      "revenueDraft": 533971.2,
+      "revenuePackaged": 195789.44,
+      "revenueKitchen": 160191.36
+    },
+    "ligovskiy_2026-02": {
+      "revenue": 889952.0,
+      "loyaltyWriteoffs": 44497.600000000006,
+      "profit": 595421.9496955256,
+      "checks": 585.4947368421052,
+      "averageCheck": 1520.0,
+      "draftShare": 60.0,
+      "packagedShare": 22.0,
+      "kitchenShare": 18.0,
+      "markupPercent": 202.16,
+      "markupDraft": 260.0,
+      "markupPackaged": 120.0,
+      "markupKitchen": 180.0,
+      "revenueDraft": 533971.2,
+      "revenuePackaged": 195789.44,
+      "revenueKitchen": 160191.36
+    },
+    "kremenchugskaya_2026-02": {
+      "revenue": 1249812.0,
+      "loyaltyWriteoffs": 62490.600000000006,
+      "profit": 836186.1064336775,
+      "checks": 739.5337278106509,
+      "averageCheck": 1690.0,
+      "draftShare": 60.0,
+      "packagedShare": 22.0,
+      "kitchenShare": 18.0,
+      "markupPercent": 202.16,
+      "markupDraft": 260.0,
+      "markupPackaged": 120.0,
+      "markupKitchen": 180.0,
+      "revenueDraft": 749887.2,
+      "revenuePackaged": 274958.64,
+      "revenueKitchen": 224966.16
+    },
+    "varshavskaya_2026-02": {
+      "revenue": 869968.0,
+      "loyaltyWriteoffs": 43498.4,
+      "profit": 582051.6642838231,
+      "checks": 572.3473684210526,
+      "averageCheck": 1520.0,
+      "draftShare": 60.0,
+      "packagedShare": 22.0,
+      "kitchenShare": 18.0,
+      "markupPercent": 202.16,
+      "markupDraft": 260.0,
+      "markupPackaged": 120.0,
+      "markupKitchen": 180.0,
+      "revenueDraft": 521980.8,
+      "revenuePackaged": 191392.96,
+      "revenueKitchen": 156594.24
+    },
+    "all_2026-02": {
+      "revenue": 3899684.0,
+      "loyaltyWriteoffs": 194984.2,
+      "profit": 2609081.6701085516,
+      "checks": 2482.870569915914,
+      "averageCheck": 1562.5,
+      "draftShare": 60.0,
+      "packagedShare": 22.0,
+      "kitchenShare": 18.0,
+      "markupPercent": 202.16,
+      "markupDraft": 260.0,
+      "markupPackaged": 120.0,
+      "markupKitchen": 180.0,
+      "revenueDraft": 2339810.4,
+      "revenuePackaged": 857930.48,
+      "revenueKitchen": 701943.12
     }
   },
   "metadata": {
-    "lastUpdate": "2026-01-27T12:54:00.763815",
+    "lastUpdate": "2026-02-08T18:19:27.116875",
     "version": "1.0",
     "source": "Excel import from планы_2025_2026.xlsx"
   }

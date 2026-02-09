@@ -29,7 +29,7 @@ function initFlatpickr() {
         mode: 'range',
         dateFormat: 'd.m.Y',
         locale: 'ru',  // Русская локаль (подключена через l10n/ru.js)
-        maxDate: 'today',  // Нельзя выбрать будущие даты
+        maxDate: '2026-12-31',  // Разрешаем выбор будущих дат для просмотра планов
         defaultDate: defaultRange,  // Устанавливаем прошлую неделю по умолчанию
         onChange: function(selectedDates, dateStr, instance) {
             console.log('Flatpickr onChange:', selectedDates, dateStr);
