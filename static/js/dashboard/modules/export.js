@@ -125,25 +125,25 @@ class ExportModule {
         const actual = state.currentActual || {};
         const plan = state.currentPlan || {};
 
-        if (actual.total_revenue) {
+        if (actual.revenue) {
             lines.push('');
-            lines.push(`Выручка: ${actual.total_revenue.toLocaleString('ru-RU')} ₽`);
+            lines.push(`Выручка: ${actual.revenue.toLocaleString('ru-RU')} ₽`);
             if (plan.revenue) {
                 lines.push(`   План: ${plan.revenue.toLocaleString('ru-RU')} ₽`);
             }
         }
 
-        if (actual.total_checks) {
+        if (actual.checks) {
             lines.push('');
-            lines.push(`Чеки: ${actual.total_checks.toLocaleString('ru-RU')} шт`);
+            lines.push(`Чеки: ${actual.checks.toLocaleString('ru-RU')} шт`);
             if (plan.checks) {
                 lines.push(`   План: ${plan.checks.toLocaleString('ru-RU')} шт`);
             }
         }
 
-        if (actual.avg_check) {
+        if (actual.averageCheck) {
             lines.push('');
-            lines.push(`Средний чек: ${actual.avg_check.toLocaleString('ru-RU')} ₽`);
+            lines.push(`Средний чек: ${actual.averageCheck.toLocaleString('ru-RU')} ₽`);
             if (plan.averageCheck) {
                 lines.push(`   План: ${plan.averageCheck.toLocaleString('ru-RU')} ₽`);
             }

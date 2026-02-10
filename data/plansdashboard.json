@@ -413,9 +413,9 @@
     },
     "bolshoy_2026-02": {
       "revenue": 889952.0,
-      "loyaltyWriteoffs": 44497.600000000006,
-      "profit": 595421.9496955256,
-      "checks": 585.4947368421052,
+      "loyaltyWriteoffs": 44497.6,
+      "profit": 595421.9497,
+      "checks": 585.4947368,
       "averageCheck": 1520.0,
       "draftShare": 60.0,
       "packagedShare": 22.0,
@@ -430,9 +430,9 @@
     },
     "ligovskiy_2026-02": {
       "revenue": 889952.0,
-      "loyaltyWriteoffs": 44497.600000000006,
-      "profit": 595421.9496955256,
-      "checks": 585.4947368421052,
+      "loyaltyWriteoffs": 44497.6,
+      "profit": 595421.9497,
+      "checks": 585.4947368,
       "averageCheck": 1520.0,
       "draftShare": 60.0,
       "packagedShare": 22.0,
@@ -447,9 +447,9 @@
     },
     "kremenchugskaya_2026-02": {
       "revenue": 1249812.0,
-      "loyaltyWriteoffs": 62490.600000000006,
-      "profit": 836186.1064336775,
-      "checks": 739.5337278106509,
+      "loyaltyWriteoffs": 62490.6,
+      "profit": 836186.1064,
+      "checks": 739.5337278,
       "averageCheck": 1690.0,
       "draftShare": 60.0,
       "packagedShare": 22.0,
@@ -465,8 +465,8 @@
     "varshavskaya_2026-02": {
       "revenue": 869968.0,
       "loyaltyWriteoffs": 43498.4,
-      "profit": 582051.6642838231,
-      "checks": 572.3473684210526,
+      "profit": 582051.6643,
+      "checks": 572.3473684,
       "averageCheck": 1520.0,
       "draftShare": 60.0,
       "packagedShare": 22.0,
@@ -482,8 +482,8 @@
     "all_2026-02": {
       "revenue": 3899684.0,
       "loyaltyWriteoffs": 194984.2,
-      "profit": 2609081.6701085516,
-      "checks": 2482.870569915914,
+      "profit": 2609081.67,
+      "checks": 2482.87057,
       "averageCheck": 1562.5,
       "draftShare": 60.0,
       "packagedShare": 22.0,
@@ -498,7 +498,7 @@
     }
   },
   "metadata": {
-    "lastUpdate": "2026-02-09T18:37:28.355596",
+    "lastUpdate": "2026-02-09T18:46:33.308402",
     "version": "1.0",
     "source": "Excel import from планы_2025_2026.xlsx"
   }

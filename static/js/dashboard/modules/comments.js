@@ -123,7 +123,7 @@ class CommentsManager {
      */
     async handleSaveComment() {
         const venueKey = state.currentVenue;
-        const periodKey = state.currentPeriod;
+        const periodKey = state.currentPeriod?.key;
 
         if (!venueKey || !periodKey) {
             state.addMessage('warning', 'Выберите заведение и период', 3000);

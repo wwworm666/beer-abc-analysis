@@ -7,20 +7,20 @@
             <div class="subtitle">Аналитика план vs факт</div>
         </div>
 
-        <div class="header-right" style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
+        <div class="header-right">
             <!-- Navigation Links -->
-            <div class="nav-links" style="display: flex; gap: 12px; align-items: center;">
-                <a href="/" class="nav-link active" style="padding: 8px 16px; background: var(--accent); border: 1px solid var(--accent); border-radius: 6px; color: white; text-decoration: none; font-size: 0.9rem; font-weight: 500;">Дашборд</a>
-                <a href="/packaging" class="nav-link" style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">ABC/XYZ фасовки</a>
-                <a href="/draft" class="nav-link" style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Разливное</a>
-                <a href="/waiters" class="nav-link" style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Бармены</a>
-                <a href="/employee" class="nav-link" style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Сотрудник</a>
-                <a href="/taps" class="nav-link" style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Краны</a>
-                <a href="/stocks" class="nav-link" style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: all 0.2s ease;">Остатки</a>
+            <div class="nav-links">
+                <a href="/" class="nav-link active">Дашборд</a>
+                <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
+                <a href="/draft" class="nav-link">Разливное</a>
+                <a href="/waiters" class="nav-link">Бармены</a>
+                <a href="/employee" class="nav-link">Сотрудник</a>
+                <a href="/taps" class="nav-link">Краны</a>
+                <a href="/stocks" class="nav-link">Остатки</a>
             </div>
 
             <!-- API Status and Theme Toggle -->
-            <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="header-actions">
                 <div class="api-status checking" id="api-status" onclick="window.dashboardCheckApi()" title="Нажмите для проверки подключения">
                     <div class="api-status-indicator"></div>
                     <span class="api-status-text">Проверка подключения...</span>

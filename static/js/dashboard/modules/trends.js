@@ -47,15 +47,15 @@ class TrendsModule {
 
         try {
             const venueKey = state.currentVenue;
-            const periodKey = state.currentPeriod;
+            const period = state.currentPeriod;
 
-            if (!periodKey) {
+            if (!period || !period.start) {
                 this.showNoData();
                 return;
             }
 
             // Получаем 12 недель данных
-            const historicalData = await this.load12WeeksData(venueKey, periodKey);
+            const historicalData = await this.load12WeeksData(venueKey, period);
 
             if (historicalData.length === 0) {
                 this.showNoData();
@@ -87,32 +87,56 @@ class TrendsModule {
     /**
      * Загрузить данные за 12 недель
      */
-    async load12WeeksData(venueKey, currentPeriodKey) {
+    async load12WeeksData(venueKey, currentPeriod) {
         const weeksResponse = await api.getWeeks();
         const weeks = weeksResponse.weeks || [];
 
-        const currentIndex = weeks.findIndex(w => w.key === currentPeriodKey);
-        if (currentIndex === -1) return [];
+        // currentPeriod — объект с полями key, start, end
+        const periodKey = currentPeriod.key;
+        let currentIndex = weeks.findIndex(w => w.key === periodKey);
+
+        // Если период кастомный (datepicker), ищем ближайшую неделю по дате
+        if (currentIndex === -1 && currentPeriod.start) {
+            currentIndex = weeks.findIndex(w => w.start === currentPeriod.start);
+        }
+        // Если всё ещё не найден — берём последнюю неделю
+        if (currentIndex === -1) {
+            currentIndex = weeks.length - 1;
+        }
 
         const startIndex = Math.max(0, currentIndex - 11);
         const last12Weeks = weeks.slice(startIndex, currentIndex + 1);
 
+        console.log(`[Trends] Загрузка данных для ${last12Weeks.length} недель (параллельно)`);
+
+        // Загружаем все недели параллельно
+        const results = await Promise.allSettled(
+            last12Weeks.map(week =>
+                api.getAnalytics(venueKey, week.start, week.end)
+                    .then(analytics => ({
+                        week: week.label,
+                        weekKey: week.key,
+                        revenue: analytics.revenue || 0,
+                        checks: analytics.checks || 0,
+                        averageCheck: analytics.averageCheck || 0,
+                        profit: analytics.profit || 0
+                    }))
+            )
+        );
+
         const data = [];
-        for (const week of last12Weeks) {
-            try {
-                const analytics = await api.getAnalytics(venueKey, week.key);
+        results.forEach((result, i) => {
+            if (result.status === 'fulfilled') {
+                data.push(result.value);
+            } else {
+                console.warn(`[Trends] Нет данных для ${last12Weeks[i].label}`);
                 data.push({
-                    week: week.label,
-                    weekKey: week.key,
-                    revenue: analytics.actual?.revenue || 0,
-                    checks: analytics.actual?.checks || 0,
-                    averageCheck: analytics.actual?.averageCheck || 0,
-                    profit: analytics.actual?.profit || 0
+                    week: last12Weeks[i].label,
+                    weekKey: last12Weeks[i].key,
+                    revenue: 0, checks: 0, averageCheck: 0, profit: 0
                 });
-            } catch (error) {
-                console.warn(`[Trends] Нет данных для ${week.label}`);
             }
-        }
+        });
 
         return data;
     }

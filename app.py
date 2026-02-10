@@ -2692,6 +2692,9 @@ def dashboard_analytics():
         date_from = data.get('date_from')  # YYYY-MM-DD
         date_to = data.get('date_to')      # YYYY-MM-DD
 
+        if not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
+
         # Преобразуем venue_key в название для iiko API
         bar_name = venues_manager.get_iiko_name(venue_key) if venue_key and venue_key != 'all' else None
 
@@ -2705,9 +2708,6 @@ def dashboard_analytics():
         print(f"   Bar name (iiko): {bar_name if bar_name else 'ВСЕ'}")
         print(f"   Period (requested): {date_from} - {date_to}")
         print(f"   Period (iiko API): {date_from} - {date_to_inclusive}")
-
-        if not date_from or not date_to:
-            return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
 
         # Проверяем кеш OLAP данных
         cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
