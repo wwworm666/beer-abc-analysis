@@ -244,16 +244,17 @@ def analyze():
 
         try:
             # Запрашиваем данные
-            date_to = datetime.now().strftime("%Y-%m-%d")
-            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to_obj = datetime.now()
+            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = (date_to_obj + timedelta(days=1)).strftime("%Y-%m-%d")  # OLAP exclusive
 
             report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
         finally:
             olap.disconnect()
-        
+
         if not report_data or not report_data.get('data'):
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
-        
+
         # Обрабатываем данные
         processor = BeerDataProcessor(report_data)
         if not processor.prepare_dataframe():
@@ -498,8 +499,9 @@ def analyze_categories():
         try:
             # Запрашиваем данные
             print("   [2/8] Zapros dannykh iz OLAP...")
-            date_to = datetime.now().strftime("%Y-%m-%d")
-            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to_obj = datetime.now()
+            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = (date_to_obj + timedelta(days=1)).strftime("%Y-%m-%d")  # OLAP exclusive
 
             report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
 
@@ -619,12 +621,15 @@ def analyze_draft():
 
         # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем
         if not date_from or not date_to:
-            # Вычисляем даты на основе дней
-            date_to = datetime.now().strftime("%Y-%m-%d")
-            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to_obj = datetime.now()
+            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = date_to_obj.strftime("%Y-%m-%d")
             print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
+
+        # OLAP to-дата exclusive → +1 день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -632,7 +637,7 @@ def analyze_draft():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
         try:
-            report_data = olap.get_draft_sales_report(date_from, date_to, bar_name)
+            report_data = olap.get_draft_sales_report(date_from, olap_date_to, bar_name)
 
             if not report_data or not report_data.get('data'):
                 return jsonify({'error': 'Нет данных за выбранный период'}), 404
@@ -968,12 +973,15 @@ def analyze_waiters():
 
         # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем
         if not date_from or not date_to:
-            # Вычисляем даты на основе дней
-            date_to = datetime.now().strftime("%Y-%m-%d")
-            date_from = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to_obj = datetime.now()
+            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = date_to_obj.strftime("%Y-%m-%d")
             print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
+
+        # OLAP to-дата exclusive → +1 день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         # Подключаемся к iiko API
         olap = OlapReports()
@@ -982,7 +990,7 @@ def analyze_waiters():
 
         try:
             # Запрашиваем данные разливного с официантами
-            report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, bar_name)
+            report_data = olap.get_draft_sales_by_waiter_report(date_from, olap_date_to, bar_name)
 
             if not report_data or not report_data.get('data'):
                 return jsonify({'error': 'Нет данных за выбранный период'}), 404
@@ -1048,8 +1056,9 @@ def get_employees_list():
     """Получить список всех сотрудников для dropdown"""
     try:
         # Используем данные о продажах за последние 30 дней чтобы получить актуальный список сотрудников
-        date_to = datetime.now().strftime("%Y-%m-%d")
-        date_from = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        date_to_obj = datetime.now()
+        date_from = (date_to_obj - timedelta(days=30)).strftime("%Y-%m-%d")
+        date_to = (date_to_obj + timedelta(days=1)).strftime("%Y-%m-%d")  # OLAP exclusive
 
         olap = OlapReports()
         if not olap.connect():
@@ -1093,6 +1102,10 @@ def employee_analytics():
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
         print(f"   Period: {date_from} - {date_to}")
 
+        # OLAP трактует to-дату как exclusive → добавляем +1 день чтобы включить весь последний день
+        # (бар работает до 2-4 ночи, чеки после полуночи попадают на следующий календарный день)
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
         # 1. Получаем данные через OLAP (ПАРАЛЛЕЛЬНО для скорости)
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1104,12 +1117,12 @@ def employee_analytics():
             # Запускаем все OLAP запросы параллельно
             with ThreadPoolExecutor(max_workers=6) as executor:
                 futures = {
-                    executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
-                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
-                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
-                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
-                    executor.submit(olap.get_cancelled_orders_by_waiter, date_from, date_to, bar_name): 'cancelled',
-                    executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, date_to, bar_name): 'loyalty_cards',
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, bar_name): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'kitchen',
+                    executor.submit(olap.get_cancelled_orders_by_waiter, date_from, olap_date_to, bar_name): 'cancelled',
+                    executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, olap_date_to, bar_name): 'loyalty_cards',
                 }
 
                 results = {}
@@ -1257,6 +1270,9 @@ def employee_compare():
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
         print(f"   Period: {date_from} - {date_to}")
 
+        # OLAP трактует to-дату как exclusive → +1 день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
         # Загружаем данные ОДИН раз для всех (оптимизация)
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -1267,12 +1283,12 @@ def employee_compare():
         try:
             with ThreadPoolExecutor(max_workers=6) as executor:
                 futures = {
-                    executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
-                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
-                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
-                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
-                    executor.submit(olap.get_cancelled_orders_by_waiter, date_from, date_to, bar_name): 'cancelled',
-                    executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, date_to, bar_name): 'loyalty_cards',
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, bar_name): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'kitchen',
+                    executor.submit(olap.get_cancelled_orders_by_waiter, date_from, olap_date_to, bar_name): 'cancelled',
+                    executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, olap_date_to, bar_name): 'loyalty_cards',
                 }
 
                 all_data = {}
@@ -1591,6 +1607,9 @@ def employee_metrics_breakdown():
         # Загружаем данные OLAP для всех сотрудников
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
+        # OLAP to-дата exclusive → +1 день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
         olap = OlapReports()
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
@@ -1598,10 +1617,10 @@ def employee_metrics_breakdown():
         try:
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {
-                    executor.submit(olap.get_employee_aggregated_metrics, date_from, date_to, bar_name): 'aggregated',
-                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, date_to, bar_name): 'draft',
-                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, date_to, bar_name): 'bottles',
-                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, date_to, bar_name): 'kitchen',
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, bar_name): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'kitchen',
                 }
 
                 all_data = {}

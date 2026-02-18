@@ -159,7 +159,7 @@ def rank_releases(movie, releases):
         f"Размер: {r.get('size', '?')} | "
         f"Сиды: {r.get('seeds', 0)} | "
         f"Трекер: {r.get('tracker', '?')}"
-        for i, r in enumerate(releases[:20])
+        for i, r in enumerate(releases[:30])
     ])
 
     series_criteria = ""
@@ -189,7 +189,7 @@ def rank_releases(movie, releases):
 Верни JSON:
 {{"ranked": [3, 1, 7], "top_reason": "почему топ-1 лучший"}}
 
-Индексы 1-based, от лучшего к худшему. Максимум 5. Только JSON."""}]
+Индексы 1-based, от лучшего к худшему. Максимум 10. Только JSON."""}]
     )
 
     try:

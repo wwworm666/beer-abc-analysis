@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Проливы разливного пива</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
     <style>
         :root {
             /* Light Theme */
@@ -599,23 +602,16 @@
             color: var(--warning);
         }
 
-        /* Date Range Display */
-        .date-range-display {
-            padding: 12px 16px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            text-align: center;
-            margin-top: 16px;
-            font-weight: 500;
-        }
-
-        .date-range-display .dates {
-            color: var(--accent);
-            font-weight: 600;
-        }
+        input[readonly] { cursor: pointer; }
+        .flatpickr-calendar { border-radius: 6px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+        [data-theme="dark"] .flatpickr-calendar { background: var(--bg-secondary); border-color: var(--border-color); }
+        [data-theme="dark"] .flatpickr-months, [data-theme="dark"] .flatpickr-weekdays, [data-theme="dark"] .flatpickr-month { background: var(--bg-secondary); }
+        [data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months, [data-theme="dark"] .flatpickr-current-month input.cur-year, [data-theme="dark"] .flatpickr-weekday, [data-theme="dark"] .flatpickr-month .flatpickr-prev-month, [data-theme="dark"] .flatpickr-month .flatpickr-next-month { color: var(--text-primary); fill: var(--text-primary); }
+        [data-theme="dark"] .flatpickr-day { color: var(--text-primary); }
+        [data-theme="dark"] .flatpickr-day:hover { background: var(--bg-tertiary); border-color: var(--bg-tertiary); }
+        .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange { background: var(--accent) !important; border-color: var(--accent) !important; }
+        .flatpickr-day.inRange { background: rgba(217,119,87,0.15) !important; border-color: transparent !important; box-shadow: -5px 0 0 rgba(217,119,87,0.15), 5px 0 0 rgba(217,119,87,0.15); }
+        [data-theme="dark"] .flatpickr-day.inRange { background: rgba(217,119,87,0.25) !important; box-shadow: -5px 0 0 rgba(217,119,87,0.25), 5px 0 0 rgba(217,119,87,0.25); }
 
         /* Responsive - Tablet */
         @media (max-width: 1024px) {
@@ -813,44 +809,14 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="period-select">Период</label>
-                    <select id="period-select" onchange="toggleCustomPeriod(); updateDateRangeDisplay();">
-                        <option value="7">Неделя</option>
-                        <option value="14">2 недели</option>
-                        <option value="30" selected>Месяц</option>
-                        <option value="60">2 месяца</option>
-                        <option value="90">Квартал</option>
-                        <option value="180">Полгода</option>
-                        <option value="365">Год</option>
-                        <option value="custom">Свой период</option>
-                    </select>
+                    <label for="date-range">Период</label>
+                    <input type="text" id="date-range" placeholder="Выберите период" readonly>
                 </div>
 
                 <div class="form-group">
                     <label>&nbsp;</label>
                     <button class="btn" onclick="runAnalysis()">Запустить анализ</button>
                 </div>
-            </div>
-
-            <div class="controls" id="custom-period-controls" style="display: none; margin-top: 16px;">
-                <div class="form-group">
-                    <label for="date-from">Дата начала</label>
-                    <input type="date" id="date-from" onchange="updateDateRangeDisplay()">
-                </div>
-
-                <div class="form-group">
-                    <label for="date-to">Дата окончания</label>
-                    <input type="date" id="date-to" onchange="updateDateRangeDisplay()">
-                </div>
-
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                </div>
-            </div>
-
-            <!-- Отображение диапазона дат -->
-            <div class="date-range-display" id="date-range-display" style="display: none;">
-                Период анализа: <span class="dates" id="date-range-text"></span>
             </div>
         </div>
 
@@ -922,96 +888,51 @@
         // Check connection on page load
         document.addEventListener('DOMContentLoaded', function() {
             checkApiConnection();
-            // Recheck connection every 60 seconds
             setInterval(checkApiConnection, 60000);
-            // Показываем диапазон дат при загрузке страницы
-            updateDateRangeDisplay();
+            initDatePicker();
         });
 
-        function toggleCustomPeriod() {
-            const periodSelect = document.getElementById('period-select').value;
-            const customControls = document.getElementById('custom-period-controls');
+        let datePicker = null;
 
-            if (periodSelect === 'custom') {
-                customControls.style.display = 'grid';
-                // Устанавливаем значения по умолчанию
-                const today = new Date();
-                const monthAgo = new Date(today);
-                monthAgo.setDate(today.getDate() - 30);
-
-                document.getElementById('date-to').valueAsDate = today;
-                document.getElementById('date-from').valueAsDate = monthAgo;
-            } else {
-                customControls.style.display = 'none';
-            }
-            // Обновляем отображение диапазона дат
-            updateDateRangeDisplay();
-        }
-
-        function formatDate(date) {
-            const day = date.getDate().toString().padStart(2, '0');
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}.${month}.${year}`;
-        }
-
-        function updateDateRangeDisplay() {
-            const periodSelect = document.getElementById('period-select').value;
-            const dateRangeDisplay = document.getElementById('date-range-display');
-            const dateRangeText = document.getElementById('date-range-text');
-
-            let startDate, endDate;
+        function initDatePicker() {
             const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const dayOfWeek = today.getDay();
+            const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            const lastMonday = new Date(today);
+            lastMonday.setDate(today.getDate() - daysFromMonday - 7);
+            const lastSunday = new Date(lastMonday);
+            lastSunday.setDate(lastMonday.getDate() + 6);
 
-            if (periodSelect === 'custom') {
-                const dateFromInput = document.getElementById('date-from').value;
-                const dateToInput = document.getElementById('date-to').value;
+            datePicker = flatpickr('#date-range', {
+                mode: 'range',
+                dateFormat: 'd.m.Y',
+                locale: 'ru',
+                maxDate: '2026-12-31',
+                defaultDate: [lastMonday, lastSunday]
+            });
+        }
 
-                if (dateFromInput && dateToInput) {
-                    startDate = new Date(dateFromInput);
-                    endDate = new Date(dateToInput);
-                } else {
-                    dateRangeDisplay.style.display = 'none';
-                    return;
-                }
-            } else {
-                const days = parseInt(periodSelect);
-                endDate = new Date(today);
-                startDate = new Date(today);
-                startDate.setDate(today.getDate() - days);
-            }
-
-            dateRangeText.textContent = `${formatDate(startDate)} — ${formatDate(endDate)}`;
-            dateRangeDisplay.style.display = 'block';
+        function getPickerDates() {
+            if (!datePicker || !datePicker.selectedDates || datePicker.selectedDates.length < 2) return null;
+            const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            return { from: fmt(datePicker.selectedDates[0]), to: fmt(datePicker.selectedDates[1]) };
         }
 
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
-            const periodSelect = document.getElementById('period-select').value;
+            const dates = getPickerDates();
 
-            let days;
-            let dateFrom, dateTo;
-
-            if (periodSelect === 'custom') {
-                // Используем выбранные даты
-                const dateFromInput = document.getElementById('date-from').value;
-                const dateToInput = document.getElementById('date-to').value;
-
-                if (!dateFromInput || !dateToInput) {
-                    showError('Пожалуйста, выберите обе даты');
-                    return;
-                }
-
-                dateFrom = dateFromInput;
-                dateTo = dateToInput;
-
-                // Вычисляем количество дней для API
-                const from = new Date(dateFromInput);
-                const to = new Date(dateToInput);
-                days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
-            } else {
-                days = periodSelect;
+            if (!dates) {
+                showError('Пожалуйста, выберите период');
+                return;
             }
+
+            const dateFrom = dates.from;
+            const dateTo = dates.to;
+            const from = new Date(dateFrom);
+            const to = new Date(dateTo);
+            const days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');

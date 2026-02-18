@@ -1014,7 +1014,7 @@ class OlapReports:
         Возвращает dict с ключами по именам сотрудников:
         {
             "Иван Петров": {
-                "OrderNum": 435,  # количество чеков
+                "UniqOrderId": 435,  # количество уникальных чеков
                 "DishDiscountSumInt": 752912.00,  # выручка
                 "DiscountSum": 23622.00,  # сумма скидок
                 ...
@@ -1035,14 +1035,15 @@ class OlapReports:
         request = {
             "reportType": "SALES",
             "groupByRowFields": [
-                "WaiterName"
+                "AuthUser"  # "Авторизовал" — кто пробил чек
             ],
             "groupByColFields": [],
             "aggregateFields": [
-                "OrderNum",           # Количество чеков
-                "DishDiscountSumInt", # Выручка
-                "DiscountSum",        # Сумма скидок
-                "DishAmountInt"       # Количество блюд
+                "UniqOrderId",              # ID заказа (нужен для OrdersCount)
+                "UniqOrderId.OrdersCount",  # Количество уникальных чеков
+                "DishDiscountSumInt",        # Выручка
+                "DiscountSum",              # Сумма скидок
+                "DishAmountInt"             # Количество блюд
             ],
             "filters": {
                 "OpenDate.Typed": {
@@ -1084,12 +1085,12 @@ class OlapReports:
                 result = response.json()
                 print("[OK] Agregirovannye metriki polucheny!")
 
-                # Преобразуем в dict по именам сотрудников
+                # Преобразуем в dict по именам сотрудников (AuthUser = "Авторизовал")
                 employees_data = {}
                 for record in result.get('data', []):
-                    waiter_name = record.get('WaiterName', '')
-                    if waiter_name:
-                        employees_data[waiter_name] = record
+                    auth_user = record.get('AuthUser', '')
+                    if auth_user:
+                        employees_data[auth_user] = record
 
                 return employees_data
             else:
@@ -1100,6 +1101,84 @@ class OlapReports:
         except Exception as e:
             print(f"[ERROR] Oshibka: {e}")
             return None
+
+    def debug_employee_field_names(self, date_from, date_to, employee_name):
+        """
+        Диагностика: пробует разные поля для группировки по сотруднику,
+        чтобы найти правильное название поля для 'Авторизовал'.
+        """
+        if not self.token:
+            return {}
+
+        candidates = [
+            "WaiterName",
+            "OpenUser", "OpenUser.Name",
+            "CloseUser", "CloseUser.Name",
+            "Waiter", "Waiter.Name",
+            "Employee", "Employee.Name",
+            "AuthUser", "OrderCloseUser",
+            "User", "User.Name",
+        ]
+        results = {}
+
+        for field in candidates:
+            request = {
+                "reportType": "SALES",
+                "groupByRowFields": [field],
+                "groupByColFields": [],
+                "aggregateFields": [
+                    "UniqOrderId",
+                    "UniqOrderId.OrdersCount",
+                    "DishDiscountSumInt",
+                ],
+                "filters": {
+                    "OpenDate.Typed": {
+                        "filterType": "DateRange",
+                        "periodType": "CUSTOM",
+                        "from": date_from,
+                        "to": date_to
+                    },
+                    "DeletedWithWriteoff": {"filterType": "IncludeValues", "values": ["NOT_DELETED"]},
+                    "OrderDeleted": {"filterType": "IncludeValues", "values": ["NOT_DELETED"]}
+                }
+            }
+
+            try:
+                import requests as req
+                response = req.post(
+                    f"{self.api.base_url}/v2/reports/olap",
+                    params={"key": self.token},
+                    json=request,
+                    headers={"Content-Type": "application/json"}
+                )
+                if response.status_code == 200:
+                    data = response.json().get('data', [])
+                    # Ищем запись для нашего сотрудника
+                    found = False
+                    for record in data:
+                        name = record.get(field, '')
+                        if employee_name.lower() in (str(name) or '').lower():
+                            results[field] = {
+                                'found': True,
+                                'name_value': name,
+                                'UniqOrderId.OrdersCount': record.get('UniqOrderId.OrdersCount'),
+                                'DishDiscountSumInt': record.get('DishDiscountSumInt'),
+                            }
+                            found = True
+                            break
+                    if not found:
+                        # Показываем все значения поля чтобы понять формат
+                        results[field] = {
+                            'found': False,
+                            'total_records': len(data),
+                            'all_values': [r.get(field) for r in data]
+                        }
+                else:
+                    results[field] = {'error': f'HTTP {response.status_code}', 'detail': response.text[:200]}
+            except Exception as e:
+                results[field] = {'error': str(e)}
+
+        return results
 
     def get_employee_daily_revenue(self, date_from, date_to):
         """

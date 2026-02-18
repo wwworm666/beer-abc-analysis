@@ -292,7 +292,7 @@ def register_handlers(bot):
         _show_results(bot, chat_id, message, status_msg, movie, ranked)
 
     def _show_results(bot, chat_id, message, status_msg, movie, ranked):
-        top = ranked[:5]
+        top = ranked[:10]
 
         key = hashlib.md5(f"{chat_id}:{message.message_id}".encode()).hexdigest()[:8]
         _results_cache[key] = top

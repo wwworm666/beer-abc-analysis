@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Эффективность сотрудника</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
     <style>
         /* IBM Plex Mono */
         @font-face {
@@ -188,7 +191,7 @@
         /* Controls */
         .controls {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr auto;
+            grid-template-columns: 2fr 1fr 1.5fr auto;
             gap: 16px;
             margin-bottom: 16px;
             align-items: end;
@@ -232,6 +235,65 @@
             outline: none;
             border-color: var(--accent);
             background: var(--bg-secondary);
+        }
+
+        input[readonly] {
+            cursor: pointer;
+        }
+
+        /* Flatpickr overrides */
+        .flatpickr-calendar {
+            font-family: 'IBM Plex Mono', monospace;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+
+        [data-theme="dark"] .flatpickr-calendar {
+            background: var(--bg-secondary);
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .flatpickr-months,
+        [data-theme="dark"] .flatpickr-weekdays,
+        [data-theme="dark"] .flatpickr-month {
+            background: var(--bg-secondary);
+        }
+
+        [data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months,
+        [data-theme="dark"] .flatpickr-current-month input.cur-year,
+        [data-theme="dark"] .flatpickr-weekday,
+        [data-theme="dark"] .flatpickr-month .flatpickr-prev-month,
+        [data-theme="dark"] .flatpickr-month .flatpickr-next-month {
+            color: var(--text-primary);
+            fill: var(--text-primary);
+        }
+
+        [data-theme="dark"] .flatpickr-day {
+            color: var(--text-primary);
+        }
+
+        [data-theme="dark"] .flatpickr-day:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--bg-tertiary);
+        }
+
+        .flatpickr-day.selected,
+        .flatpickr-day.startRange,
+        .flatpickr-day.endRange {
+            background: var(--accent) !important;
+            border-color: var(--accent) !important;
+        }
+
+        .flatpickr-day.inRange {
+            background: rgba(217, 119, 87, 0.15) !important;
+            border-color: transparent !important;
+            box-shadow: -5px 0 0 rgba(217, 119, 87, 0.15), 5px 0 0 rgba(217, 119, 87, 0.15);
+        }
+
+        [data-theme="dark"] .flatpickr-day.inRange {
+            background: rgba(217, 119, 87, 0.25) !important;
+            box-shadow: -5px 0 0 rgba(217, 119, 87, 0.25), 5px 0 0 rgba(217, 119, 87, 0.25);
         }
 
         /* Button */
@@ -830,13 +892,8 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="date-from">Дата начала</label>
-                        <input type="date" id="date-from">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="date-to">Дата окончания</label>
-                        <input type="date" id="date-to">
+                        <label for="date-range">Период</label>
+                        <input type="text" id="date-range" placeholder="Выберите период" readonly>
                     </div>
 
                     <div class="form-group">
@@ -868,12 +925,8 @@
 
                 <div class="compare-controls">
                     <div class="form-group">
-                        <label for="compare-date-from">Дата начала</label>
-                        <input type="date" id="compare-date-from">
-                    </div>
-                    <div class="form-group">
-                        <label for="compare-date-to">Дата окончания</label>
-                        <input type="date" id="compare-date-to">
+                        <label for="compare-date-range">Период</label>
+                        <input type="text" id="compare-date-range" placeholder="Выберите период" readonly>
                     </div>
                     <div class="form-group">
                         <label>&nbsp;</label>
@@ -963,19 +1016,52 @@
             }
         });
 
+        let analysisDatePicker = null;
+        let compareDatePicker = null;
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadEmployees();
-            setDefaultDates();
+            initDatePickers();
         });
 
-        function setDefaultDates() {
+        function initDatePickers() {
+            // Прошлая неделя по умолчанию (пн-вс)
             const today = new Date();
-            const monthAgo = new Date(today);
-            monthAgo.setDate(today.getDate() - 30);
+            today.setHours(0, 0, 0, 0);
+            const dayOfWeek = today.getDay();
+            const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            const lastMonday = new Date(today);
+            lastMonday.setDate(today.getDate() - daysFromMonday - 7);
+            const lastSunday = new Date(lastMonday);
+            lastSunday.setDate(lastMonday.getDate() + 6);
 
-            document.getElementById('date-to').valueAsDate = today;
-            document.getElementById('date-from').valueAsDate = monthAgo;
+            const fpConfig = {
+                mode: 'range',
+                dateFormat: 'd.m.Y',
+                locale: 'ru',
+                maxDate: '2026-12-31',
+                defaultDate: [lastMonday, lastSunday]
+            };
+
+            // Analysis tab picker
+            analysisDatePicker = flatpickr('#date-range', fpConfig);
+
+            // Compare tab picker
+            compareDatePicker = flatpickr('#compare-date-range', fpConfig);
+        }
+
+        function getPickerDates(picker) {
+            if (!picker || !picker.selectedDates || picker.selectedDates.length < 2) {
+                return null;
+            }
+            const fmt = d => {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${dd}`;
+            };
+            return { from: fmt(picker.selectedDates[0]), to: fmt(picker.selectedDates[1]) };
         }
 
         async function loadEmployees() {
@@ -1015,18 +1101,20 @@
         async function runAnalysis() {
             const employeeName = document.getElementById('employee-select').value;
             const barName = document.getElementById('bar-select').value;
-            const dateFrom = document.getElementById('date-from').value;
-            const dateTo = document.getElementById('date-to').value;
+            const dates = getPickerDates(analysisDatePicker);
 
             if (!employeeName) {
                 showError('Выберите сотрудника');
                 return;
             }
 
-            if (!dateFrom || !dateTo) {
+            if (!dates) {
                 showError('Выберите период');
                 return;
             }
+
+            const dateFrom = dates.from;
+            const dateTo = dates.to;
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');
@@ -1313,17 +1401,6 @@
                     grid.innerHTML = '<div style="color: var(--danger);">Ошибка загрузки</div>';
                 });
 
-            // Set default dates for compare
-            setCompareDates();
-        }
-
-        function setCompareDates() {
-            const today = new Date();
-            const monthAgo = new Date(today);
-            monthAgo.setDate(today.getDate() - 30);
-
-            document.getElementById('compare-date-to').valueAsDate = today;
-            document.getElementById('compare-date-from').valueAsDate = monthAgo;
         }
 
         function renderEmployeeCheckboxes(employees) {
@@ -1361,18 +1438,20 @@
         }
 
         async function runComparison() {
-            const dateFrom = document.getElementById('compare-date-from').value;
-            const dateTo = document.getElementById('compare-date-to').value;
+            const dates = getPickerDates(compareDatePicker);
 
             if (selectedEmployees.size < 2) {
                 showCompareError('Выберите минимум 2 сотрудников');
                 return;
             }
 
-            if (!dateFrom || !dateTo) {
+            if (!dates) {
                 showCompareError('Выберите период');
                 return;
             }
+
+            const dateFrom = dates.from;
+            const dateTo = dates.to;
 
             document.getElementById('compare-loading').classList.add('active');
             document.getElementById('comparison-results').classList.remove('active');
@@ -1548,7 +1627,8 @@
                 { key: 'bottles_share', label: 'Фасовка %', format: 'percent', higher: false },
                 { key: 'kitchen_share', label: 'Кухня %', format: 'percent', higher: false },
                 { key: 'plan_fact_percent', label: 'План/Факт', format: 'percent', higher: true },
-                { key: 'cancelled_count', label: 'Отмены', format: 'number', higher: false }
+                { key: 'cancelled_count', label: 'Отмены', format: 'number', higher: false },
+                { key: 'late_count', label: 'Опоздания', format: 'number', higher: false }
             ];
 
             tbody.innerHTML = metricsConfig.map(metric => {

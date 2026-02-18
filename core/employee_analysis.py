@@ -53,30 +53,34 @@ class EmployeeMetricsCalculator:
         Returns:
             dict с метриками
         """
-        # Получаем агрегированные данные для сотрудника (напрямую от API)
+        # Получаем агрегированные данные для сотрудника
+        # aggregated_data теперь keyed по AuthUser ("Авторизовал") — формат может отличаться от employee_name
         emp_aggregated = {}
-        if aggregated_data and employee_name in aggregated_data:
-            emp_aggregated = aggregated_data[employee_name]
+        if aggregated_data:
+            # 1. Точное совпадение
+            if employee_name in aggregated_data:
+                emp_aggregated = aggregated_data[employee_name]
+            else:
+                # 2. Поиск по словам (Артемий Новаев ↔ Новаев Артемий)
+                emp_words = set(employee_name.lower().split())
+                for auth_name, data in aggregated_data.items():
+                    auth_words = set(auth_name.lower().split())
+                    if emp_words == auth_words or (len(emp_words) >= 2 and emp_words.issubset(auth_words)):
+                        emp_aggregated = data
+                        break
 
-        # DEBUG: Выводим сырые данные из API
-        print(f"\n[DEBUG] Raw API data for {employee_name}:", flush=True)
-        print(f"   OrderNum (raw): {emp_aggregated.get('OrderNum')}", flush=True)
-        print(f"   DishDiscountSumInt (raw): {emp_aggregated.get('DishDiscountSumInt')}", flush=True)
-        print(f"   DiscountSum (raw): {emp_aggregated.get('DiscountSum')}", flush=True)
-
-        # Количество чеков и выручка
-        total_checks = int(emp_aggregated.get('OrderNum', 0) or 0)
+        # Количество чеков — уникальные заказы из OLAP
+        total_checks = int(emp_aggregated.get('UniqOrderId.OrdersCount', 0) or 0)
         discount_sum = float(emp_aggregated.get('DiscountSum', 0) or 0)
 
         # Выручка: приоритет — кассовые смены (override), fallback — OLAP
         if total_revenue_override is not None:
             total_revenue = total_revenue_override
-            print(f"   Revenue from cash shifts (override): {total_revenue}", flush=True)
         else:
             total_revenue = float(emp_aggregated.get('DishDiscountSumInt', 0) or 0)
-            print(f"   Revenue from OLAP: {total_revenue}", flush=True)
 
-        print(f"   OrderNum: {total_checks}, Avg check: {total_revenue / total_checks if total_checks > 0 else 0:.2f}", flush=True)
+        # Средний чек — считаем из OLAP (выручка OLAP / чеки OLAP), не мешая с кассовыми сменами
+        olap_revenue = float(emp_aggregated.get('DishDiscountSumInt', 0) or 0)
 
         # Фильтруем записи по сотруднику для расчёта по категориям
         draft_records = self._filter_by_employee(draft_data, employee_name)
@@ -103,9 +107,7 @@ class EmployeeMetricsCalculator:
         if total_hours_override is not None:
             total_hours = total_hours_override
 
-        if shifts_count_override is not None or total_hours_override is not None:
-            print(f"[DEBUG] Cash shifts: {shifts_count} shifts, {total_hours:.1f} hours", flush=True)
-        elif attendances:
+        if shifts_count_override is None and total_hours_override is None and attendances:
             # DEPRECATED: fallback на attendance API
             filtered_attendances = []
             for a in attendances:
@@ -118,14 +120,13 @@ class EmployeeMetricsCalculator:
 
             shifts_count = len([a for a in filtered_attendances if a.get('duration_minutes')])
             total_hours = sum((a.get('duration_minutes') or 0) for a in filtered_attendances) / 60
-            print(f"[DEBUG] Attendance (deprecated): {shifts_count} shifts, {total_hours:.1f} hours", flush=True)
 
         # 4. Выручка/смена и выручка/час
         revenue_per_shift = (total_revenue / shifts_count) if shifts_count > 0 else 0
         revenue_per_hour = (total_revenue / total_hours) if total_hours > 0 else 0
 
-        # 5. Средний чек
-        avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
+        # 5. Средний чек — из OLAP (оба значения из одного источника)
+        avg_check = (olap_revenue / total_checks) if total_checks > 0 else 0
 
         # 6. Топ сортов пива (только напитки)
         drink_records = draft_records + bottles_records
