@@ -1527,20 +1527,20 @@ def bonus_calculate():
                 day_over = max(0, day_revenue - day_plan) if day_plan > 0 else 0
                 total_overperformance += day_over
 
+                # Бонус за смену: 1000 + перевыполнение × 5% (только если план выполнен)
+                day_bonus = (1000 + day_over * 0.05) if day_over > 0 else 0
+
                 days_detail.append({
                     'date': date_str,
                     'revenue': round(day_revenue, 2),
                     'plan': round(day_plan, 2),
-                    'overperformance': round(day_over, 2)
+                    'overperformance': round(day_over, 2),
+                    'day_bonus': round(day_bonus, 2)
                 })
 
-            # Формула бонуса
+            # Формула бонуса: 1000 за каждую успешную смену + 5% от перевыполнения
             plan_percent = (total_revenue / total_plan * 100) if total_plan > 0 else 0
-
-            if total_overperformance > 0:
-                bonus = 1000 + (total_overperformance * 0.05)
-            else:
-                bonus = 0
+            bonus = sum(d['day_bonus'] for d in days_detail)
 
             total_bonus += bonus
 

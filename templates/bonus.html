@@ -660,9 +660,8 @@
 
             <!-- Formula reminder -->
             <div class="formula-card">
-                <strong>Формула (по дням):</strong> на каждый рабочий день сравниваем выручку с планом ТТ.
-                Суммируем только дни с перевыполнением. Бонус = <code>1 000 + (сумма перевыполнений × 5%)</code>.
-                Если перевыполнений нет — бонус 0.
+                <strong>Формула (посменно):</strong> за каждую смену где выручка ≥ плана ТТ → бонус = <code>1 000 + перевыполнение × 5%</code>.
+                Итоговый бонус = сумма бонусов по всем успешным сменам. Если ни одна смена не выполнена — бонус 0.
             </div>
 
             <!-- Table -->
@@ -855,6 +854,7 @@
                                 <td class="right">${formatMoney(day.plan)}</td>
                                 <td class="right">${formatMoney(day.revenue)}</td>
                                 <td class="right">${isOver ? '+' + formatMoney(day.overperformance) : '—'}</td>
+                                <td class="right">${isOver ? formatMoney(day.day_bonus) : '—'}</td>
                             </tr>
                         `;
                     });
@@ -869,6 +869,7 @@
                                             <th class="right">План ТТ</th>
                                             <th class="right">Выручка</th>
                                             <th class="right">Перевыполнение</th>
+                                            <th class="right">Бонус</th>
                                         </tr>
                                     </thead>
                                     <tbody>${daysRows}</tbody>
