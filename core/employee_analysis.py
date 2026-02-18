@@ -30,7 +30,8 @@ class EmployeeMetricsCalculator:
         shifts_count_override: int = None,
         total_hours_override: float = None,
         late_count_override: int = 0,
-        loyalty_cards_count: int = 0
+        loyalty_cards_count: int = 0,
+        total_revenue_override: float = None
     ) -> dict:
         """
         Рассчитать все метрики для сотрудника
@@ -63,14 +64,19 @@ class EmployeeMetricsCalculator:
         print(f"   DishDiscountSumInt (raw): {emp_aggregated.get('DishDiscountSumInt')}", flush=True)
         print(f"   DiscountSum (raw): {emp_aggregated.get('DiscountSum')}", flush=True)
 
-        # Количество чеков и выручка напрямую от API
+        # Количество чеков и выручка
         total_checks = int(emp_aggregated.get('OrderNum', 0) or 0)
-        total_revenue = float(emp_aggregated.get('DishDiscountSumInt', 0) or 0)
         discount_sum = float(emp_aggregated.get('DiscountSum', 0) or 0)
 
-        print(f"   OrderNum (parsed int): {total_checks}", flush=True)
-        print(f"   DishDiscountSumInt (parsed float): {total_revenue}", flush=True)
-        print(f"   Avg check calc: {total_revenue} / {total_checks} = {total_revenue / total_checks if total_checks > 0 else 0}", flush=True)
+        # Выручка: приоритет — кассовые смены (override), fallback — OLAP
+        if total_revenue_override is not None:
+            total_revenue = total_revenue_override
+            print(f"   Revenue from cash shifts (override): {total_revenue}", flush=True)
+        else:
+            total_revenue = float(emp_aggregated.get('DishDiscountSumInt', 0) or 0)
+            print(f"   Revenue from OLAP: {total_revenue}", flush=True)
+
+        print(f"   OrderNum: {total_checks}, Avg check: {total_revenue / total_checks if total_checks > 0 else 0:.2f}", flush=True)
 
         # Фильтруем записи по сотруднику для расчёта по категориям
         draft_records = self._filter_by_employee(draft_data, employee_name)

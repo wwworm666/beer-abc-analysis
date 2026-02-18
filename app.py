@@ -167,6 +167,11 @@ def employee_dashboard():
     """Страница детального дашборда по сотруднику"""
     return render_template('employee.html', bars=BARS)
 
+@app.route('/bonus')
+def bonus_page():
+    """Страница расчёта бонусов сотрудников"""
+    return render_template('bonus.html')
+
 @app.route('/dashboard')
 def dashboard():
     """Страница аналитического дашборда"""
@@ -1161,14 +1166,22 @@ def employee_analytics():
             employee_name_normalized = normalize_name(employee_name)
             for emp in employees_list:
                 iiko_name = emp.get('name')
+                if not iiko_name:
+                    continue
                 # Сначала точное совпадение
                 if iiko_name == employee_name:
                     employee_id = emp.get('id')
                     break
+                iiko_normalized = normalize_name(iiko_name)
                 # Потом нормализованное (те же слова в любом порядке)
-                if normalize_name(iiko_name) == employee_name_normalized:
+                if iiko_normalized == employee_name_normalized:
                     employee_id = emp.get('id')
-                    print(f"   [MATCH] '{employee_name}' -> '{iiko_name}' (normalized)")
+                    print(f"   [MATCH] '{employee_name}' -> '{iiko_name}' (exact set)")
+                    break
+                # OLAP даёт "Имя Отчество", iiko — "Фамилия Имя Отчество"
+                if employee_name_normalized and employee_name_normalized.issubset(iiko_normalized) and len(employee_name_normalized) >= 2:
+                    employee_id = emp.get('id')
+                    print(f"   [MATCH] '{employee_name}' -> '{iiko_name}' (subset)")
                     break
 
             # Получаем метрики из кассовых смен (unified метод)
@@ -1196,7 +1209,7 @@ def employee_analytics():
         plan_revenue = get_employee_plan_by_shifts(shift_locations)
         print(f"   Plan calculated from {len(shift_locations)} cash shifts: {plan_revenue:.0f}")
 
-        # 4. Рассчитываем все метрики (используем cash shifts вместо attendance)
+        # 4. Рассчитываем все метрики (выручка из кассовых смен, категории из OLAP)
         calculator = EmployeeMetricsCalculator()
         metrics = calculator.calculate(
             employee_name=employee_name,
@@ -1211,7 +1224,8 @@ def employee_analytics():
             shifts_count_override=shifts_count,
             total_hours_override=total_hours,
             late_count_override=late_count,
-            loyalty_cards_count=loyalty_cards_data.get(employee_name, 0)
+            loyalty_cards_count=loyalty_cards_data.get(employee_name, 0),
+            total_revenue_override=shifts_revenue if employee_id else None
         )
 
         return jsonify(metrics)
@@ -1324,14 +1338,23 @@ def employee_compare():
 
             for emp in employees_list:
                 iiko_name = emp.get('name')
+                if not iiko_name:
+                    continue
                 # Сначала пробуем точное совпадение
                 if iiko_name == emp_name:
                     employee_id = emp.get('id')
                     break
+                iiko_normalized = normalize_name(iiko_name)
                 # Потом пробуем нормализованное (те же слова в любом порядке)
-                if normalize_name(iiko_name) == emp_name_normalized:
+                if iiko_normalized == emp_name_normalized:
                     employee_id = emp.get('id')
-                    print(f"   [MATCH] '{emp_name}' -> '{iiko_name}' (normalized)")
+                    print(f"   [MATCH] '{emp_name}' -> '{iiko_name}' (exact set)")
+                    break
+                # OLAP даёт "Имя Отчество", iiko — "Фамилия Имя Отчество"
+                # Проверяем что OLAP-имя является подмножеством iiko-имени
+                if emp_name_normalized and emp_name_normalized.issubset(iiko_normalized) and len(emp_name_normalized) >= 2:
+                    employee_id = emp.get('id')
+                    print(f"   [MATCH] '{emp_name}' -> '{iiko_name}' (subset)")
                     break
 
             # Получаем метрики из кассовых смен по employee_id
@@ -1340,20 +1363,22 @@ def employee_compare():
             shift_locations = {}
             total_hours = 0.0
             late_count = 0
+            cash_revenue = 0.0
             if employee_id:
                 emp_metrics = all_employee_metrics.get(employee_id, {})
                 shifts_count = emp_metrics.get('shifts_count', 0)
                 shift_locations = emp_metrics.get('shift_locations', {})
                 total_hours = emp_metrics.get('total_hours', 0.0)
                 late_count = emp_metrics.get('late_count', 0)
-                print(f"   [SHIFTS] {emp_name}: {shifts_count} shifts, {total_hours:.1f}h, late: {late_count} (employee_id: {employee_id[:8]}...)")
+                cash_revenue = emp_metrics.get('total_revenue', 0.0)
+                print(f"   [SHIFTS] {emp_name}: {shifts_count} shifts, {total_hours:.1f}h, revenue: {cash_revenue:.0f}, late: {late_count} (employee_id: {employee_id[:8]}...)")
             else:
                 print(f"   [WARNING] {emp_name}: employee_id NOT FOUND in iiko!")
 
             # Рассчитываем план на основе кассовых смен
             plan_revenue = get_employee_plan_by_shifts(shift_locations)
 
-            # Рассчитываем метрики (используем cash shifts вместо attendance)
+            # Рассчитываем метрики (выручка из кассовых смен, категории из OLAP)
             loyalty_cards_data = all_data.get('loyalty_cards', {})
             metrics = calculator.calculate(
                 employee_name=emp_name,
@@ -1368,7 +1393,8 @@ def employee_compare():
                 shifts_count_override=shifts_count,
                 total_hours_override=total_hours,
                 late_count_override=late_count,
-                loyalty_cards_count=loyalty_cards_data.get(emp_name, 0)
+                loyalty_cards_count=loyalty_cards_data.get(emp_name, 0),
+                total_revenue_override=cash_revenue if employee_id else None
             )
 
             results.append({
@@ -1385,6 +1411,150 @@ def employee_compare():
 
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/employee-compare: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/bonus-calculate', methods=['POST'])
+def bonus_calculate():
+    """
+    API endpoint для расчёта бонусов всех сотрудников.
+
+    Формула (считается ПО ДНЯМ):
+    - На каждый рабочий день: если выручка сотрудника > плана ТТ → перевыполнение
+    - Суммируются только положительные дни
+    - Бонус = 1 000 + (сумма дневных перевыполнений × 5%)
+    - Если суммарное перевыполнение = 0 → бонус = 0
+    """
+    try:
+        data = request.json
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: date_from, date_to'}), 400
+
+        print(f"\n[BONUS] Raschyot bonusov za period: {date_from} - {date_to}")
+
+        # 1. iiko: кассовые смены — выручка, локация, дата (единый источник)
+        now = time.time()
+        all_employee_metrics = {}
+
+        iiko = IikoAPI()
+        if iiko.authenticate():
+            try:
+                if EMPLOYEES_CACHE['data'] and (now - EMPLOYEES_CACHE['timestamp']) < EMPLOYEES_CACHE_TTL:
+                    employees_list = EMPLOYEES_CACHE['data']
+                    print(f"   [CACHE] Using cached employees ({len(employees_list)})")
+                else:
+                    employees_list = iiko.get_employees()
+                    EMPLOYEES_CACHE['data'] = employees_list
+                    EMPLOYEES_CACHE['timestamp'] = now
+                    print(f"   [CACHE] Fresh employees loaded ({len(employees_list)})")
+
+                all_employee_metrics = iiko.get_employee_metrics_from_shifts(date_from, date_to)
+                print(f"   [SHIFTS] Loaded metrics for {len(all_employee_metrics)} employees")
+            finally:
+                iiko.logout()
+        else:
+            employees_list = []
+            print("   [ERROR] Failed to authenticate to iiko")
+
+        if not all_employee_metrics:
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        # 2. Подготовка: планы ТТ (всегда свежие данные с диска)
+        from core.employee_plans import BarPlansReader, normalize_bar_name, BAR_NAME_MAPPING, clear_plans_cache
+        clear_plans_cache()
+        plans_reader = BarPlansReader()
+
+        # Маппинг employee_id -> имя
+        emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
+
+        system_users = EmployeeMetricsCalculator.SYSTEM_USERS + ['']
+
+        # 3. Расчёт по дням для каждого сотрудника (данные из кассовых смен)
+        results = []
+        total_bonus = 0.0
+
+        for emp_id, emp_metrics in all_employee_metrics.items():
+            emp_name = emp_id_to_name.get(emp_id, '')
+            if not emp_name or emp_name in system_users:
+                continue
+
+            shift_locations = emp_metrics.get('shift_locations', {})
+            shift_revenues = emp_metrics.get('shift_revenues', {})
+            shifts_count = emp_metrics.get('shifts_count', 0)
+
+            # Считаем по дням
+            total_revenue = 0.0
+            total_plan = 0.0
+            total_overperformance = 0.0
+            days_detail = []
+
+            for date_str in sorted(set(list(shift_locations.keys()) + list(shift_revenues.keys()))):
+                day_revenue = shift_revenues.get(date_str, 0.0)
+                total_revenue += day_revenue
+
+                # План на этот день
+                location = shift_locations.get(date_str, '')
+                day_plan = 0.0
+                if location:
+                    normalized = normalize_bar_name(location)
+                    mapped_name = BAR_NAME_MAPPING.get(normalized, location)
+                    day_plan = plans_reader.get_bar_plan(date_str, mapped_name)
+
+                total_plan += day_plan
+
+                # Перевыполнение: только положительная разница
+                day_over = max(0, day_revenue - day_plan) if day_plan > 0 else 0
+                total_overperformance += day_over
+
+                days_detail.append({
+                    'date': date_str,
+                    'revenue': round(day_revenue, 2),
+                    'plan': round(day_plan, 2),
+                    'overperformance': round(day_over, 2)
+                })
+
+            # Формула бонуса
+            plan_percent = (total_revenue / total_plan * 100) if total_plan > 0 else 0
+
+            if total_overperformance > 0:
+                bonus = 1000 + (total_overperformance * 0.05)
+            else:
+                bonus = 0
+
+            total_bonus += bonus
+
+            # Сортируем дни по дате
+            days_detail.sort(key=lambda x: x['date'])
+
+            results.append({
+                'name': emp_name,
+                'plan_revenue': round(total_plan, 2),
+                'total_revenue': round(total_revenue, 2),
+                'plan_percent': round(plan_percent, 1),
+                'overperformance': round(total_overperformance, 2),
+                'bonus': round(bonus, 2),
+                'shifts_count': shifts_count,
+                'days': days_detail
+            })
+
+        # Сортируем: сначала с бонусом (по убыванию), потом без
+        results.sort(key=lambda x: x['bonus'], reverse=True)
+
+        print(f"[OK] Bonus calculated for {len(results)} employees, total: {total_bonus:.0f}")
+
+        return jsonify({
+            'employees': results,
+            'total_bonus': round(total_bonus, 2),
+            'period': {'from': date_from, 'to': date_to}
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/bonus-calculate: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

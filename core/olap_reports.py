@@ -1101,6 +1101,99 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return None
 
+    def get_employee_daily_revenue(self, date_from, date_to):
+        """
+        Получить дневную выручку по каждому сотруднику.
+        Группировка по WaiterName + OpenDate.Typed.
+
+        Возвращает dict:
+        {
+            "Иван Петров": {
+                "2026-01-05": 85000.0,
+                "2026-01-06": 72000.0,
+                ...
+            }
+        }
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu dnevnuyu vyruchku po sotrudnikam...")
+        print(f"   Period: {date_from} - {date_to}")
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "WaiterName",
+                "OpenDate.Typed"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishDiscountSumInt"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request,
+                headers=headers
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                print(f"[OK] Dnevnaya vyruchka poluchena: {len(result.get('data', []))} zapisey")
+
+                # Преобразуем в dict {name: {date: revenue}}
+                employees_daily = {}
+                for record in result.get('data', []):
+                    waiter_name = record.get('WaiterName', '')
+                    date_str = record.get('OpenDate.Typed', '')
+                    revenue = float(record.get('DishDiscountSumInt', 0) or 0)
+
+                    if waiter_name and date_str:
+                        # Нормализуем дату (может прийти как "01.01.2026" или "2026-01-01")
+                        if '.' in date_str:
+                            parts = date_str.split('.')
+                            if len(parts) == 3:
+                                date_str = f"{parts[2]}-{parts[1]}-{parts[0]}"
+
+                        if waiter_name not in employees_daily:
+                            employees_daily[waiter_name] = {}
+                        employees_daily[waiter_name][date_str] = revenue
+
+                return employees_daily
+            else:
+                print(f"[ERROR] Oshibka: {response.status_code}")
+                print(f"   Otvet: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
     def get_new_loyalty_cards_by_waiter(self, date_from, date_to, bar_name=None):
         """
         Получить количество новых зарегистрированных карт лояльности по сотрудникам.

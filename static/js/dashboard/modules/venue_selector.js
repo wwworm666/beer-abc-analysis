@@ -116,6 +116,9 @@ class VenueSelector {
      * Обновить информацию о заведении
      */
     updateInfo(venueKey) {
+        // Элемент venue-info может отсутствовать в HTML — пропускаем
+        if (!this.venueInfo) return;
+
         const venue = state.venues.find(v => v.key === venueKey);
 
         if (!venue) {

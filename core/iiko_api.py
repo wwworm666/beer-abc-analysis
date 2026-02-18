@@ -363,6 +363,7 @@ class IikoAPI:
                 'dates': [str],                # Даты смен
                 'locations': {str: int},       # Локация -> кол-во смен
                 'shift_locations': {str: str}, # Дата -> локация (для расчёта плана)
+                'shift_revenues': {str: float},# Дата -> выручка за день
                 'total_revenue': float,        # Выручка (salesCard + salesCash)
                 'revenue_card': float,         # Выручка картой
                 'revenue_cash': float,         # Выручка наличными
@@ -439,6 +440,7 @@ class IikoAPI:
                     'dates': [],
                     'locations': {},
                     'shift_locations': {},
+                    'shift_revenues': {},
                     'total_revenue': 0.0,
                     'revenue_card': 0.0,
                     'revenue_cash': 0.0,
@@ -462,9 +464,12 @@ class IikoAPI:
                 if open_date:
                     emp['shift_locations'][open_date] = location
 
-            emp['total_revenue'] += sales_card + sales_cash
+            shift_revenue = sales_card + sales_cash
+            emp['total_revenue'] += shift_revenue
             emp['revenue_card'] += sales_card
             emp['revenue_cash'] += sales_cash
+            if open_date:
+                emp['shift_revenues'][open_date] = emp['shift_revenues'].get(open_date, 0.0) + shift_revenue
 
         # Сортируем даты
         for emp_id in employee_data:
