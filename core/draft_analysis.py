@@ -327,6 +327,9 @@ class DraftAnalysis:
             # Добавляем финансовые поля если есть
             if 'TotalRevenue' in row:
                 record['TotalRevenue'] = float(row['TotalRevenue'])
+                # Цена за литр = выручка / литры
+                total_liters = float(row['TotalLiters'])
+                record['PricePerLiter'] = float(row['TotalRevenue']) / total_liters if total_liters > 0 else 0.0
             if 'TotalCost' in row:
                 record['TotalCost'] = float(row['TotalCost'])
             if 'AvgMarkupPercent' in row:
