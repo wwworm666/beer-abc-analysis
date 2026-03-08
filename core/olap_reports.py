@@ -1377,6 +1377,144 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return {}
 
+    def get_discount_names(self, date_from, date_to):
+        """
+        Лёгкий OLAP запрос — только список названий скидок за период.
+        Без деталей по блюдам/чекам/гостям — работает быстро.
+        """
+        if not self.token:
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu spisok skidok...")
+        print(f"   Period: {date_from} - {date_to}")
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": ["ItemSaleEventDiscountType"],
+            "groupByColFields": [],
+            "aggregateFields": ["DishDiscountSumInt"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(url, params=params, json=request, headers=headers, timeout=30)
+            if response.status_code == 200:
+                print("[OK] Spisok skidok poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def get_discount_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет по скидкам с детализацией по гостям.
+
+        Один запрос возвращает все данные: кто использовал какую скидку,
+        какие блюда, суммы со скидкой и суммы скидок.
+
+        Агрегация (визиты, суммы per customer) делается в Python.
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu otchet po skidkam...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "Delivery.CustomerCardNumber",
+                "Delivery.CustomerName",
+                "OrderNum",
+                "DishName",
+                "ItemSaleEventDiscountType"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishDiscountSumInt",
+                "DiscountSum"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request,
+                headers=headers,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet po skidkam uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
 
 # Тестовый запуск
 if __name__ == "__main__":
@@ -1416,60 +1554,3 @@ if __name__ == "__main__":
     # Отключаемся
     olap.disconnect()
     print("\n✅ Готово!")
-    def get_orders_count_report(self, date_from, date_to, bar_name=None):
-        """
-        Получить OLAP отчет с подсчётом уникальных заказов (чеков)
-        Без группировки по товарам - только общее количество заказов
-
-        date_from: дата начала (строка 'YYYY-MM-DD')
-        date_to: дата окончания (строка 'YYYY-MM-DD')
-        bar_name: название бара (если None, то все бары)
-        """
-        if not self.token:
-            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
-            return None
-
-        print(f"\n[OLAP] Zaprashivayu OLAP otchet po kolichestvu chekov...")
-        print(f"   Period: {date_from} - {date_to}")
-        if bar_name:
-            print(f"   Bar: {bar_name}")
-
-        # Запрос без группировки по DishName - только Store.Name и OpenDate.Typed
-        # Это даст общее количество уникальных заказов за каждый день
-        request = {
-            "reportType": "SALES",
-            "groupByRowFields": [
-                "Store.Name",
-                "OpenDate.Typed"
-            ],
-            "groupByColFields": [],
-            "aggregateFields": [
-                "UniqOrderId.OrdersCount"  # Количество уникальных заказов
-            ],
-            "filters": {
-                "OpenDate.Typed": {
-                    "filterType": "DateRange",
-                    "periodType": "CUSTOM",
-                    "from": f"{date_from}",
-                    "to": f"{date_to}"
-                },
-                "DeletedWithWriteoff": {
-                    "filterType": "IncludeValues",
-                    "values": ["NOT_DELETED"]
-                },
-                "OrderDeleted": {
-                    "filterType": "IncludeValues",
-                    "values": ["NOT_DELETED"]
-                }
-            }
-        }
-
-        # Если указан конкретный бар, добавляем фильтр
-        if bar_name:
-            request["filters"]["Store.Name"] = {
-                "filterType": "IncludeValues",
-                "values": [bar_name]
-            }
-
-        # Выполняем запрос к OLAP v2
-        return self._execute_olap_request(request)

@@ -11,6 +11,7 @@ import { analytics } from './modules/analytics.js';
 import { chartsModule } from './modules/charts.js';
 import { trendsModule } from './modules/trends.js';
 import { commentsManager } from './modules/comments.js';
+import { exportModule } from './modules/export.js';
 
 class Dashboard {
     constructor() {
@@ -49,6 +50,9 @@ class Dashboard {
 
             commentsManager.init();
             console.log(' Модуль комментариев инициализирован');
+
+            exportModule.init();
+            console.log(' Модуль экспорта инициализирован');
 
             // 4. Настраиваем вкладки
             this.setupTabs();

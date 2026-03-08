@@ -11,6 +11,7 @@ Beer ABC/XYZ Analysis
 ├── Дашборд План/Факт     → dashboard.md
 ├── Employee Dashboard    → employee.md
 ├── ABC/XYZ Анализ        → analytics.md
+├── Анализ скидок          → discounts.md
 ├── Управление кранами    → taps.md
 └── Общее                 → overview.md
 ```
@@ -27,6 +28,7 @@ Beer ABC/XYZ Analysis
 | [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
 | [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
 | [optimization-dashboard.md](docs/optimization-dashboard.md) | План оптимизации производительности /dashboard | ✅ актуально |
+| [discounts.md](docs/discounts.md) | Анализ скидок — кто, сколько, как часто | ✅ актуально |
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
 | [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
 
@@ -48,6 +50,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- 2026-03-03: Добавлен discounts.md — модуль анализа скидок
 - 2026-02-07: Добавлен optimization-dashboard.md — план оптимизации производительности
 - 2026-01-28: Обновлены employee.md (12 метрик, карты лояльности), overview.md, context.md, lessons.md
 - 2026-01-26: Обновлены overview.md, dashboard.md. Добавлен context.md

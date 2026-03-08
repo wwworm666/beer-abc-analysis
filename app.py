@@ -156,6 +156,11 @@ def waiters():
     """Страница анализа по официантам"""
     return render_template('waiters.html', bars=BARS)
 
+@app.route('/discounts')
+def discounts():
+    """Страница анализа скидок"""
+    return render_template('discounts.html', bars=BARS)
+
 @app.route('/taps')
 def taps():
     """Главная страница управления кранами - выбор бара"""
@@ -1055,6 +1060,204 @@ def analyze_waiters():
 
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/waiter-analyze: {e}")
+        import traceback
+        traceback.print_exc()
+        error_detail = f"{type(e).__name__}: {str(e)}"
+        return jsonify({'error': error_detail}), 500
+
+# ============= API для анализа скидок =============
+
+@app.route('/api/discount-names', methods=['GET'])
+def get_discount_names():
+    """Лёгкий API — список названий скидок за последний год"""
+    try:
+        date_to = datetime.now()
+        date_from = date_to - timedelta(days=365)
+        olap_date_to = (date_to + timedelta(days=1)).strftime('%Y-%m-%d')
+        date_from_str = date_from.strftime('%Y-%m-%d')
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            result = olap.get_discount_names(date_from_str, olap_date_to)
+        finally:
+            olap.disconnect()
+
+        if not result or not result.get('data'):
+            return jsonify({'names': []})
+
+        names = sorted(set(
+            r.get('ItemSaleEventDiscountType', '') for r in result['data']
+            if r.get('ItemSaleEventDiscountType')
+        ))
+
+        return jsonify({'names': names})
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/discount-names: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/discount-analyze', methods=['POST'])
+def analyze_discounts():
+    """API endpoint для анализа скидок — один OLAP, агрегация в Python"""
+    try:
+        data = request.json
+        bar_name = data.get('bar')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'Укажите период'}), 400
+
+        print(f"\n[DISCOUNT] Zapusk analiza skidok...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+        print(f"   Period: {date_from} - {date_to}")
+
+        # OLAP to-дата exclusive → +1 день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            report_data = olap.get_discount_report(date_from, olap_date_to, bar_name)
+
+            if not report_data or not report_data.get('data'):
+                return jsonify({'error': 'Нет данных за выбранный период'}), 404
+        finally:
+            olap.disconnect()
+
+        rows = report_data['data']
+        print(f"[INFO] Vsego zapisey: {len(rows)}")
+
+        # Извлекаем уникальные названия скидок
+        discount_names = sorted(set(
+            r.get('ItemSaleEventDiscountType', '') for r in rows
+            if r.get('ItemSaleEventDiscountType')
+        ))
+
+        # Агрегируем данные по каждому гостю для каждой скидки
+        # Структура: { discount_name: { card_number: { name, visits, sum_with_discount, discount_sum, dishes } } }
+        discounts_data = {}
+
+        for row in rows:
+            discount_name = row.get('ItemSaleEventDiscountType', '')
+            if not discount_name:
+                continue
+
+            card_number = row.get('Delivery.CustomerCardNumber', '') or 'Без карты'
+            customer_name = row.get('Delivery.CustomerName', '') or ''
+            order_num = row.get('OrderNum', '')
+            dish_name = row.get('DishName', '')
+            store_name = row.get('Store.Name', '')
+            sum_with_discount = float(row.get('DishDiscountSumInt', 0) or 0)
+            discount_sum = float(row.get('DiscountSum', 0) or 0)
+
+            if discount_name not in discounts_data:
+                discounts_data[discount_name] = {}
+
+            guests = discounts_data[discount_name]
+            if card_number not in guests:
+                guests[card_number] = {
+                    'card_number': card_number,
+                    'customer_name': customer_name,
+                    'orders': set(),
+                    'sum_with_discount': 0,
+                    'discount_sum': 0,
+                    'dishes': [],
+                    'stores': set()
+                }
+
+            guest = guests[card_number]
+            if order_num:
+                guest['orders'].add(order_num)
+            guest['sum_with_discount'] += sum_with_discount
+            guest['discount_sum'] += discount_sum
+            if dish_name:
+                guest['dishes'].append({
+                    'name': dish_name,
+                    'sum_with_discount': sum_with_discount,
+                    'discount_sum': discount_sum,
+                    'store': store_name,
+                    'order_num': order_num
+                })
+            if store_name:
+                guest['stores'].add(store_name)
+
+        # Агрегируем сводку по барам для каждой скидки
+        stores_summary = {}
+        for row in rows:
+            discount_name = row.get('ItemSaleEventDiscountType', '')
+            if not discount_name:
+                continue
+            store_name = row.get('Store.Name', '') or 'Неизвестно'
+            order_num = row.get('OrderNum', '')
+            card_number = row.get('Delivery.CustomerCardNumber', '')
+            sum_with_discount = float(row.get('DishDiscountSumInt', 0) or 0)
+            discount_sum = float(row.get('DiscountSum', 0) or 0)
+
+            if discount_name not in stores_summary:
+                stores_summary[discount_name] = {}
+            if store_name not in stores_summary[discount_name]:
+                stores_summary[discount_name][store_name] = {
+                    'orders': set(),
+                    'cards': set(),
+                    'sum_with_discount': 0,
+                    'discount_sum': 0
+                }
+
+            s = stores_summary[discount_name][store_name]
+            if order_num:
+                s['orders'].add(order_num)
+            if card_number:
+                s['cards'].add(card_number)
+            s['sum_with_discount'] += sum_with_discount
+            s['discount_sum'] += discount_sum
+
+        # Преобразуем сводку по барам в сериализуемый формат
+        stores_result = {}
+        for disc_name, stores in stores_summary.items():
+            store_list = []
+            for store_name, s in stores.items():
+                store_list.append({
+                    'store': store_name,
+                    'orders_count': len(s['orders']),
+                    'guests_count': len(s['cards']),
+                    'sum_with_discount': round(s['sum_with_discount'], 2),
+                    'discount_sum': round(s['discount_sum'], 2)
+                })
+            store_list.sort(key=lambda x: x['discount_sum'], reverse=True)
+            stores_result[disc_name] = store_list
+
+        # Преобразуем гостей в сериализуемый формат
+        result = {}
+        for disc_name, guests in discounts_data.items():
+            guest_list = []
+            for card, g in guests.items():
+                guest_list.append({
+                    'card_number': g['card_number'],
+                    'customer_name': g['customer_name'],
+                    'visits': len(g['orders']),
+                    'sum_with_discount': round(g['sum_with_discount'], 2),
+                    'discount_sum': round(g['discount_sum'], 2),
+                    'stores': sorted(g['stores']),
+                    'dishes': g['dishes']
+                })
+            guest_list.sort(key=lambda x: x['visits'], reverse=True)
+            result[disc_name] = guest_list
+
+        return jsonify({
+            'discount_names': discount_names,
+            'discounts': result,
+            'stores_summary': stores_result,
+            'total_rows': len(rows)
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/discount-analyze: {e}")
         import traceback
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"

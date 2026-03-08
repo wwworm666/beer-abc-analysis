@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Анализ скидок</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
+    <style>
+        @font-face { font-family: 'IBM Plex Mono'; src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf') format('truetype'); font-weight: 400; }
+        @font-face { font-family: 'IBM Plex Mono'; src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf') format('truetype'); font-weight: 500; }
+        @font-face { font-family: 'IBM Plex Mono'; src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf') format('truetype'); font-weight: 600; }
+        @font-face { font-family: 'IBM Plex Mono'; src: url('/static/fonts/ibm-plex-mono/IBMPlexMono-Bold.ttf') format('truetype'); font-weight: 700; }
+
+        :root {
+            --bg-primary: #FAF9F7;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #e0ddd8;
+            --accent: #D97757;
+            --accent-hover: #C4654A;
+            --accent-light: rgba(217, 119, 87, 0.1);
+            --shadow: rgba(0, 0, 0, 0.06);
+            --shadow-sm: rgba(0, 0, 0, 0.03);
+            --success: #059669;
+            --success-bg: #d1fae5;
+            --warning: #d97706;
+            --warning-bg: #fed7aa;
+            --danger: #dc2626;
+            --danger-bg: #fecaca;
+            --font-family: 'IBM Plex Mono', monospace;
+            --border-radius: 8px;
+            --border-radius-pill: 24px;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1C1917;
+            --bg-secondary: #231F1D;
+            --bg-tertiary: #2C2724;
+            --text-primary: #E7E5E4;
+            --text-secondary: #A8A29E;
+            --text-tertiary: #78716C;
+            --border-color: #3D3835;
+            --accent: #D97757;
+            --accent-hover: #E8947A;
+            --accent-light: rgba(217, 119, 87, 0.15);
+            --shadow: rgba(0, 0, 0, 0.3);
+            --shadow-sm: rgba(0, 0, 0, 0.15);
+            --success: #10b981;
+            --success-bg: #064e3b;
+            --warning: #f59e0b;
+            --warning-bg: #78350f;
+            --danger: #ef4444;
+            --danger-bg: #7f1d1d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-left h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            line-height: 1;
+        }
+
+        .header-left .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            font-weight: 400;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 16px;
+        }
+
+        /* Navigation */
+        .nav-links { display: flex; gap: 12px; align-items: center; }
+
+        .nav-link {
+            padding: 8px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            font-family: var(--font-family);
+        }
+
+        .nav-link:hover { border-color: var(--accent); color: var(--text-primary); }
+        .nav-link.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+        /* Header actions */
+        .header-actions { display: flex; align-items: center; gap: 16px; }
+
+        .theme-toggle {
+            display: flex; align-items: center;
+            background: var(--bg-secondary); padding: 6px;
+            border-radius: 6px; border: 1px solid var(--border-color);
+        }
+
+        .theme-btn {
+            background: transparent; border: none;
+            padding: 6px 14px; border-radius: 4px;
+            cursor: pointer; font-size: 0.85rem;
+            color: var(--text-secondary); transition: all 0.2s ease;
+            font-weight: 500; font-family: var(--font-family);
+        }
+
+        .theme-btn.active { background: var(--accent); color: white; }
+        .theme-btn:hover:not(.active) { color: var(--text-primary); }
+
+        /* API Status */
+        .api-status {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; background: var(--bg-secondary);
+            border: 1px solid var(--border-color); border-radius: 6px;
+            font-size: 0.85rem; font-weight: 500;
+            transition: all 0.3s ease; cursor: pointer;
+        }
+
+        .api-status:hover { border-color: var(--accent); }
+
+        .api-status-indicator {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-tertiary); transition: all 0.3s ease;
+        }
+
+        .api-status.checking .api-status-indicator { background: var(--warning); animation: pulse 1.5s ease-in-out infinite; }
+        .api-status.connected .api-status-indicator { background: var(--success); box-shadow: 0 0 6px var(--success); }
+        .api-status.error .api-status-indicator { background: var(--danger); }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .api-status-text { color: var(--text-secondary); }
+        .api-status.connected .api-status-text { color: var(--success); }
+        .api-status.error .api-status-text { color: var(--danger); }
+
+        /* Controls */
+        .dashboard-controls {
+            margin-bottom: 32px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 24px;
+            box-shadow: 0 1px 3px var(--shadow-sm);
+        }
+
+        .controls-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 16px;
+            align-items: end;
+        }
+
+        .control-group { display: flex; flex-direction: column; }
+
+        .control-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .control-input {
+            padding: 12px 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-pill);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .control-input:focus, .control-input:hover {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .control-input:focus { box-shadow: 0 0 0 3px var(--accent-light); }
+        .control-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: var(--border-radius-pill);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--accent);
+            color: white;
+            font-family: var(--font-family);
+            white-space: nowrap;
+        }
+
+        .btn:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        /* Loading */
+        .loading { display: none; text-align: center; padding: 60px 32px; }
+        .loading.active { display: block; }
+
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 24px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; }
+        .loading p { color: var(--text-secondary); font-size: 0.85rem; }
+
+        /* Results */
+        .results { display: none; }
+        .results.active { display: block; }
+
+        /* Metric cards grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 24px;
+            transition: all 0.2s ease;
+            border-left: 4px solid var(--accent);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .metric-card .metric-name {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .metric-card .metric-unit {
+            font-size: 0.9rem;
+            color: var(--text-tertiary);
+            margin-left: 4px;
+            font-weight: 400;
+        }
+
+        /* Section title */
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 32px 0 16px 0;
+            color: var(--text-primary);
+        }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        thead { border-bottom: 2px solid var(--border-color); }
+
+        th {
+            text-align: left;
+            padding: 14px 16px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .clickable-row { cursor: pointer; transition: background 0.15s ease; }
+        .clickable-row:hover { background: var(--bg-tertiary); }
+
+        /* Table card wrapper */
+        .table-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 24px;
+            box-shadow: 0 1px 3px var(--shadow-sm);
+            overflow-x: auto;
+        }
+
+        /* Error */
+        .error-msg {
+            background: var(--danger-bg);
+            color: var(--danger);
+            padding: 14px 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .error-msg.active { display: block; }
+
+        /* Modal */
+        .modal {
+            display: none; position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000; padding: 20px; overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex; justify-content: center;
+            align-items: flex-start; padding-top: 40px;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 32px;
+            max-width: 900px; width: 100%;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex; justify-content: space-between;
+            align-items: flex-start; margin-bottom: 24px;
+            padding-bottom: 16px; border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-header h2 { font-size: 1.3rem; font-weight: 700; }
+
+        .modal-close {
+            background: none; border: none;
+            font-size: 1.8rem; cursor: pointer;
+            color: var(--text-secondary); line-height: 1;
+            transition: color 0.2s ease; padding: 0;
+        }
+
+        .modal-close:hover { color: var(--text-primary); }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px; margin-bottom: 24px;
+        }
+
+        .detail-item {
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border-radius: var(--border-radius);
+        }
+
+        .detail-item .label { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; }
+        .detail-item .value { font-size: 1.15rem; font-weight: 600; }
+
+        input[readonly] { cursor: pointer; }
+
+        /* Flatpickr */
+        .flatpickr-calendar { font-family: var(--font-family); border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+        [data-theme="dark"] .flatpickr-calendar { background: var(--bg-secondary); border-color: var(--border-color); }
+        [data-theme="dark"] .flatpickr-months, [data-theme="dark"] .flatpickr-weekdays, [data-theme="dark"] .flatpickr-month { background: var(--bg-secondary); }
+        [data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months,
+        [data-theme="dark"] .flatpickr-current-month input.cur-year,
+        [data-theme="dark"] .flatpickr-weekday,
+        [data-theme="dark"] .flatpickr-month .flatpickr-prev-month,
+        [data-theme="dark"] .flatpickr-month .flatpickr-next-month { color: var(--text-primary); fill: var(--text-primary); }
+        [data-theme="dark"] .flatpickr-day { color: var(--text-primary); }
+        [data-theme="dark"] .flatpickr-day:hover { background: var(--bg-tertiary); border-color: var(--bg-tertiary); }
+        .flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange { background: var(--accent) !important; border-color: var(--accent) !important; }
+        .flatpickr-day.inRange { background: rgba(217,119,87,0.15) !important; border-color: transparent !important; box-shadow: -5px 0 0 rgba(217,119,87,0.15), 5px 0 0 rgba(217,119,87,0.15); }
+        [data-theme="dark"] .flatpickr-day.inRange { background: rgba(217,119,87,0.25) !important; box-shadow: -5px 0 0 rgba(217,119,87,0.25), 5px 0 0 rgba(217,119,87,0.25); }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .controls-row { grid-template-columns: 1fr 1fr; }
+            .metrics-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 20px 12px; }
+            .controls-row { grid-template-columns: 1fr; }
+            .metrics-grid { grid-template-columns: 1fr; }
+            .header { flex-direction: column; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
+            .header-left h1 { font-size: 2rem; }
+            .nav-links {
+                display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch;
+                scrollbar-width: none; white-space: nowrap; gap: 8px;
+            }
+            .nav-links::-webkit-scrollbar { display: none; }
+            .nav-link { flex-shrink: 0; padding: 6px 12px; font-size: 0.8rem; }
+            .table-card { padding: 16px; }
+            table { min-width: 500px; font-size: 0.8rem; }
+            th, td { padding: 10px 8px; }
+            .modal-content { padding: 20px; max-width: 95%; }
+            .detail-grid { grid-template-columns: 1fr; }
+            .metric-card .metric-value { font-size: 1.4rem; }
+        }
+
+        @media (max-width: 480px) {
+            .header-left h1 { font-size: 1.5rem; }
+            .metric-card .metric-value { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>Анализ скидок</h1>
+                <div class="subtitle">Кто пользуется, сколько тратит, как часто приходит</div>
+            </div>
+            <div class="header-right">
+                <div class="nav-links">
+                    <a href="/" class="nav-link">Дашборд</a>
+                    <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
+                    <a href="/draft" class="nav-link">Разливное</a>
+                    <a href="/waiters" class="nav-link">Бармены</a>
+                    <a href="/employee" class="nav-link">Сотрудник</a>
+                    <a href="/bonus" class="nav-link">Бонусы</a>
+                    <a href="/discounts" class="nav-link active">Скидки</a>
+                    <a href="/taps" class="nav-link">Краны</a>
+                    <a href="/stocks" class="nav-link">Остатки</a>
+                </div>
+                <div class="header-actions">
+                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Проверка подключения">
+                        <div class="api-status-indicator"></div>
+                        <span class="api-status-text">Проверка...</span>
+                    </div>
+                    <div class="theme-toggle">
+                        <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
+                        <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="bar-select">Бар</label>
+                    <select id="bar-select" class="control-input">
+                        <option value="">Все бары</option>
+                        {% for bar in bars %}
+                        <option value="{{ bar }}">{{ bar }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="date-range">Период</label>
+                    <input type="text" id="date-range" class="control-input" placeholder="Выберите период" readonly>
+                </div>
+
+                <div class="control-group">
+                    <label for="discount-select">Скидка</label>
+                    <select id="discount-select" class="control-input">
+                        <option value="">Загрузка...</option>
+                    </select>
+                </div>
+
+                <div class="control-group" style="justify-content: flex-end;">
+                    <button class="btn" id="btn-load" onclick="loadData()">Анализировать</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="error-msg" id="error-message"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <h2>Загружаем данные из iiko...</h2>
+            <p>Это может занять несколько секунд</p>
+        </div>
+
+        <div class="results" id="results"></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="guest-modal" onclick="if(event.target===this)closeModal()">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Детали гостя</h2>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        let allData = null;
+        let datePicker = null;
+
+        // === Theme ===
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            if ((savedTheme === 'light' && btn.textContent === 'Светлая') ||
+                (savedTheme === 'dark' && btn.textContent === 'Тёмная')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        // === API Status ===
+        async function checkApiConnection() {
+            const el = document.getElementById('api-status');
+            const text = el.querySelector('.api-status-text');
+            el.className = 'api-status checking';
+            text.textContent = 'Проверка...';
+            try {
+                const r = await fetch('/api/connection-status');
+                const d = await r.json();
+                if (r.ok && d.status === 'connected') {
+                    el.className = 'api-status connected';
+                    text.textContent = 'iiko подключен';
+                } else {
+                    el.className = 'api-status error';
+                    text.textContent = 'Нет связи';
+                }
+            } catch {
+                el.className = 'api-status error';
+                text.textContent = 'Нет связи';
+            }
+        }
+
+        // === Date Picker ===
+        function initDatePicker() {
+            const today = new Date();
+            const startOfYear = new Date(today.getFullYear(), 0, 1);
+            datePicker = flatpickr('#date-range', {
+                mode: 'range',
+                dateFormat: 'd.m.Y',
+                locale: 'ru',
+                maxDate: '2026-12-31',
+                defaultDate: [startOfYear, today]
+            });
+        }
+
+        function getPickerDates() {
+            if (!datePicker || !datePicker.selectedDates || datePicker.selectedDates.length < 2) return null;
+            const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            return { from: fmt(datePicker.selectedDates[0]), to: fmt(datePicker.selectedDates[1]) };
+        }
+
+        // === Init ===
+        document.addEventListener('DOMContentLoaded', function() {
+            checkApiConnection();
+            setInterval(checkApiConnection, 60000);
+            initDatePicker();
+            loadDiscountNames();
+        });
+
+        // === Load discount names on page open (light query) ===
+        async function loadDiscountNames() {
+            const sel = document.getElementById('discount-select');
+            try {
+                const r = await fetch('/api/discount-names');
+                const d = await r.json();
+                const names = d.names || [];
+                sel.innerHTML = '<option value="">Все скидки</option>';
+                names.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    sel.appendChild(opt);
+                });
+            } catch {
+                sel.innerHTML = '<option value="">Не удалось загрузить</option>';
+            }
+        }
+
+        // === Load Data (main analysis) ===
+        async function loadData() {
+            const bar = document.getElementById('bar-select').value;
+            const dates = getPickerDates();
+            const discountName = document.getElementById('discount-select').value;
+            if (!dates) { showError('Выберите период'); return; }
+
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+            document.getElementById('error-message').classList.remove('active');
+            document.getElementById('btn-load').disabled = true;
+
+            try {
+                const response = await fetch('/api/discount-analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bar: bar || null, date_from: dates.from, date_to: dates.to })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Ошибка при получении данных');
+                }
+                allData = await response.json();
+
+                // Показываем результат
+                if (bar) {
+                    displayGuestResults(discountName);
+                } else {
+                    displayStoresSummary(discountName);
+                }
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('btn-load').disabled = false;
+            }
+        }
+
+        // === Helpers: merge stores/guests across discounts ===
+        function getStores(discountName) {
+            if (discountName) return allData.stores_summary[discountName] || [];
+            // Merge all discounts by store
+            const merged = {};
+            for (const stores of Object.values(allData.stores_summary)) {
+                for (const st of stores) {
+                    if (!merged[st.store]) {
+                        merged[st.store] = { store: st.store, orders_count: 0, guests_count: 0, sum_with_discount: 0, discount_sum: 0 };
+                    }
+                    merged[st.store].orders_count += st.orders_count;
+                    merged[st.store].guests_count += st.guests_count;
+                    merged[st.store].sum_with_discount += st.sum_with_discount;
+                    merged[st.store].discount_sum += st.discount_sum;
+                }
+            }
+            return Object.values(merged).sort((a, b) => b.discount_sum - a.discount_sum);
+        }
+
+        function getGuests(discountName) {
+            if (discountName) return allData.discounts[discountName] || [];
+            // Merge all discounts by card_number
+            const merged = {};
+            for (const guests of Object.values(allData.discounts)) {
+                for (const g of guests) {
+                    const key = g.card_number;
+                    if (!merged[key]) {
+                        merged[key] = { ...g, dishes: [...g.dishes], stores: [...g.stores] };
+                    } else {
+                        merged[key].visits += g.visits;
+                        merged[key].sum_with_discount += g.sum_with_discount;
+                        merged[key].discount_sum += g.discount_sum;
+                        merged[key].dishes = merged[key].dishes.concat(g.dishes);
+                        merged[key].stores = [...new Set([...merged[key].stores, ...g.stores])];
+                    }
+                }
+            }
+            return Object.values(merged).sort((a, b) => b.visits - a.visits);
+        }
+
+        // === Display: Сводка по барам (Все бары) ===
+        function displayStoresSummary(discountName) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            const stores = getStores(discountName);
+            const totalOrders = stores.reduce((s, st) => s + st.orders_count, 0);
+            const totalGuests = stores.reduce((s, st) => s + st.guests_count, 0);
+            const totalSumWith = stores.reduce((s, st) => s + st.sum_with_discount, 0);
+            const totalDiscount = stores.reduce((s, st) => s + st.discount_sum, 0);
+            const title = discountName ? esc(discountName) : 'Все скидки';
+
+            resultsDiv.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-name">Точек</div>
+                        <div class="metric-value">${stores.length}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Всего чеков</div>
+                        <div class="metric-value">${fmtNum(totalOrders)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Уникальных гостей</div>
+                        <div class="metric-value">${fmtNum(totalGuests)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Сумма со скидкой</div>
+                        <div class="metric-value">${fmtMoney(totalSumWith)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Сумма скидки</div>
+                        <div class="metric-value">${fmtMoney(totalDiscount)}</div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3 class="section-title">Сводка по барам — ${title}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Бар</th>
+                                <th>Чеков</th>
+                                <th>Гостей (с картой)</th>
+                                <th>Сумма со скидкой</th>
+                                <th>Сумма скидки</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${stores.map(st => `
+                                <tr>
+                                    <td><strong>${esc(st.store)}</strong></td>
+                                    <td>${fmtNum(st.orders_count)}</td>
+                                    <td>${fmtNum(st.guests_count)}</td>
+                                    <td>${fmtMoney(st.sum_with_discount)}</td>
+                                    <td>${fmtMoney(st.discount_sum)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            resultsDiv.classList.add('active');
+        }
+
+        // === Display: Детализация по гостям (конкретный бар) ===
+        function displayGuestResults(discountName) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            const guests = getGuests(discountName);
+            const totalPeople = guests.length;
+            const totalVisits = guests.reduce((s, g) => s + g.visits, 0);
+            const totalSumWith = guests.reduce((s, g) => s + g.sum_with_discount, 0);
+            const totalDiscount = guests.reduce((s, g) => s + g.discount_sum, 0);
+            const avgVisits = totalPeople > 0 ? (totalVisits / totalPeople).toFixed(1) : '0';
+            const title = discountName ? esc(discountName) : 'Все скидки';
+
+            resultsDiv.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-name">Людей</div>
+                        <div class="metric-value">${totalPeople}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Всего визитов</div>
+                        <div class="metric-value">${fmtNum(totalVisits)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Сумма со скидкой</div>
+                        <div class="metric-value">${fmtMoney(totalSumWith)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Сумма скидки</div>
+                        <div class="metric-value">${fmtMoney(totalDiscount)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Ср. визитов на гостя</div>
+                        <div class="metric-value">${avgVisits}</div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3 class="section-title">Гости — ${title}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Гость</th>
+                                <th>Карта</th>
+                                <th>Визитов</th>
+                                <th>Сумма со скидкой</th>
+                                <th>Сумма скидки</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${guests.map((g, i) => `
+                                <tr class="clickable-row" onclick='showGuestDetails(${JSON.stringify(g).replace(/'/g, "&#39;")})'>
+                                    <td>${i + 1}</td>
+                                    <td>${esc(g.customer_name || 'Без имени')}</td>
+                                    <td>${esc(g.card_number)}</td>
+                                    <td><strong>${g.visits}</strong></td>
+                                    <td>${fmtMoney(g.sum_with_discount)}</td>
+                                    <td>${fmtMoney(g.discount_sum)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            resultsDiv.classList.add('active');
+        }
+
+        // === Guest Details Modal ===
+        function showGuestDetails(guest) {
+            document.getElementById('modal-title').textContent = guest.customer_name || guest.card_number;
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="label">Карта</div>
+                        <div class="value">${esc(guest.card_number)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Визитов</div>
+                        <div class="value">${guest.visits}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Сумма со скидкой</div>
+                        <div class="value">${fmtMoney(guest.sum_with_discount)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Сумма скидки</div>
+                        <div class="value">${fmtMoney(guest.discount_sum)}</div>
+                    </div>
+                </div>
+                ${guest.dishes && guest.dishes.length > 0 ? `
+                    <h3 class="section-title">Блюда со скидкой</h3>
+                    <table>
+                        <thead>
+                            <tr><th>Блюдо</th><th>Чек</th><th>Точка</th><th>Со скидкой</th><th>Скидка</th></tr>
+                        </thead>
+                        <tbody>
+                            ${guest.dishes.map(d => `
+                                <tr>
+                                    <td>${esc(d.name)}</td>
+                                    <td>${esc(String(d.order_num))}</td>
+                                    <td>${esc(d.store)}</td>
+                                    <td>${fmtMoney(d.sum_with_discount)}</td>
+                                    <td>${fmtMoney(d.discount_sum)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                ` : ''}
+            `;
+            document.getElementById('guest-modal').classList.add('active');
+        }
+
+        function closeModal() { document.getElementById('guest-modal').classList.remove('active'); }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+        // === Helpers ===
+        function fmtNum(n) { return new Intl.NumberFormat('ru-RU').format(Math.round(n)); }
+        function fmtMoney(n) { return new Intl.NumberFormat('ru-RU').format(Math.round(n)) + ' \u20BD'; }
+        function esc(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+        function showError(msg) { const el = document.getElementById('error-message'); el.textContent = msg; el.classList.add('active'); }
+    </script>
+</body>
+</html>

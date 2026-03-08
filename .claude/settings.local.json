@@ -59,7 +59,12 @@
       "Bash(del \"c:\\\\Users\\\\wwwor\\\\OneDrive\\\\Документы\\\\GitHub\\\\beer-abc-analysis\\\\loyalty_test.json\")",
       "Bash(wc:*)",
       "WebFetch(domain:github.com)",
-      "Bash(unzip:*)"
+      "Bash(unzip:*)",
+      "Bash(ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no root@103.85.115.227 \"bash -s\" << 'SCRIPT'\n# 1. Генерируем ключи сервера\nwg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key\nchmod 600 /etc/wireguard/server_private.key\n\n# 2. Генерируем ключи клиента \\(для твоего ПК\\)\nwg genkey | tee /etc/wireguard/client_private.key | wg pubkey > /etc/wireguard/client_public.key\nchmod 600 /etc/wireguard/client_private.key\n\n# 3. Генерируем ключи для телефона\nwg genkey | tee /etc/wireguard/phone_private.key | wg pubkey > /etc/wireguard/phone_public.key\nchmod 600 /etc/wireguard/phone_private.key\n\nSERVER_PRIV=$\\(cat /etc/wireguard/server_private.key\\)\nCLIENT_PUB=$\\(cat /etc/wireguard/client_public.key\\)\nPHONE_PUB=$\\(cat /etc/wireguard/phone_public.key\\)\n\n# 4. Создаём конфиг сервера\ncat > /etc/wireguard/wg0.conf << EOF\n[Interface]\nAddress = 10.0.0.1/24\nListenPort = 51820\nPrivateKey = $SERVER_PRIV\nPostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE\nPostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE\n\n# PC\n[Peer]\nPublicKey = $CLIENT_PUB\nAllowedIPs = 10.0.0.2/32\n\n# Phone\n[Peer]\nPublicKey = $PHONE_PUB\nAllowedIPs = 10.0.0.3/32\nEOF\n\nchmod 600 /etc/wireguard/wg0.conf\n\n# 5. Включаем IP forwarding\necho 'net.ipv4.ip_forward = 1' > /etc/sysctl.d/99-wireguard.conf\nsysctl -p /etc/sysctl.d/99-wireguard.conf\n\n# 6. Запускаем WireGuard\nsystemctl enable wg-quick@wg0\nsystemctl start wg-quick@wg0\n\necho \"=== STATUS ===\"\nwg show\nSCRIPT)",
+      "Bash(ssh:*)",
+      "Bash(scp:*)",
+      "Bash(sshpass:*)",
+      "Bash(cmd /c:*)"
     ],
     "deny": [],
     "ask": []

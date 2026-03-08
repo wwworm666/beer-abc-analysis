@@ -40,11 +40,7 @@
             --border-color: #44403C;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'IBM Plex Mono', monospace;
@@ -53,7 +49,6 @@
             min-height: 100vh;
         }
 
-        /* Header */
         .header {
             background: var(--bg-secondary);
             border-bottom: 1px solid var(--border-color);
@@ -66,22 +61,9 @@
             z-index: 100;
         }
 
-        .header h1 {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        /* Navigation */
-        .nav-links {
-            display: flex;
-            gap: 8px;
-        }
+        .header h1 { font-size: 1.25rem; font-weight: 600; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
+        .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
 
         .nav-links a {
             color: var(--text-secondary);
@@ -92,15 +74,8 @@
             transition: all 150ms ease;
         }
 
-        .nav-links a:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        .nav-links a.active {
-            background: var(--accent);
-            color: white;
-        }
+        .nav-links a:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-links a.active { background: var(--accent); color: white; }
 
         /* Month Navigation */
         .month-nav {
@@ -123,29 +98,68 @@
             transition: all 150ms ease;
         }
 
-        .month-nav button:hover {
+        .month-nav button:hover { background: var(--accent); color: white; border-color: var(--accent); }
+        .month-nav .current-month { font-size: 1.1rem; font-weight: 600; min-width: 180px; text-align: center; }
+
+        /* Employee Paint Toolbar */
+        .paint-toolbar {
+            background: var(--bg-secondary);
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .paint-toolbar .label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .paint-toolbar .employee-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            flex: 1;
+        }
+
+        .emp-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 2px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 150ms ease;
+            user-select: none;
+        }
+
+        .emp-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        .emp-btn.selected {
             background: var(--accent);
             color: white;
             border-color: var(--accent);
         }
 
-        .month-nav .current-month {
-            font-size: 1.1rem;
-            font-weight: 600;
-            min-width: 180px;
-            text-align: center;
+        .emp-btn.eraser { background: transparent; border-style: dashed; }
+
+        .emp-btn.eraser.selected {
+            background: var(--danger);
+            color: white;
+            border-color: var(--danger);
+            border-style: solid;
         }
 
-        .month-nav .actions {
-            margin-left: auto;
-            display: flex;
-            gap: 8px;
-        }
+        .paint-hint { font-size: 0.8rem; color: var(--text-muted); padding: 4px 0; }
 
         /* Main Content */
-        .main-content {
-            padding: 24px;
-        }
+        .main-content { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
 
         /* Schedule Grid */
         .schedule-container {
@@ -161,9 +175,7 @@
             min-width: 800px;
         }
 
-        .schedule-header {
-            display: contents;
-        }
+        .schedule-header { display: contents; }
 
         .schedule-header > div {
             background: var(--bg-tertiary);
@@ -175,26 +187,16 @@
             top: 0;
         }
 
-        .schedule-row {
-            display: contents;
-        }
-
-        .schedule-row:hover > div {
-            background: var(--bg-tertiary);
-        }
-
         .schedule-cell {
-            padding: 12px 8px;
+            padding: 0;
             border-bottom: 1px solid var(--border-color);
             border-right: 1px solid var(--border-color);
-            min-height: 80px;
+            min-height: 44px;
             position: relative;
             transition: background 150ms ease;
         }
 
-        .schedule-cell:last-child {
-            border-right: none;
-        }
+        .schedule-cell:last-child { border-right: none; }
 
         .schedule-cell.date-cell {
             background: var(--bg-tertiary);
@@ -204,106 +206,63 @@
             justify-content: center;
             align-items: center;
             cursor: pointer;
+            padding: 6px;
         }
 
-        .schedule-cell.date-cell:hover {
-            background: var(--accent);
-            color: white;
-        }
+        .schedule-cell.date-cell:hover { background: var(--accent); color: white; }
 
-        .schedule-cell.date-cell .day-name {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
+        .schedule-cell.date-cell .day-name { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 1px; }
+        .schedule-cell.date-cell:hover .day-name { color: rgba(255,255,255,0.8); }
+        .schedule-cell.date-cell .day-number { font-size: 0.9rem; }
 
-        .schedule-cell.date-cell:hover .day-name {
-            color: rgba(255,255,255,0.8);
-        }
+        .schedule-cell.weekend { background: rgba(217, 119, 87, 0.05); }
 
-        .schedule-cell.date-cell .day-number {
-            font-size: 1rem;
-        }
+        .schedule-cell.shift-cell { cursor: pointer; }
+        .schedule-cell.shift-cell:hover { background: rgba(217, 119, 87, 0.08); }
 
-        .schedule-cell.weekend {
-            background: rgba(217, 119, 87, 0.05);
-        }
+        body.paint-mode .schedule-cell.shift-cell { cursor: crosshair; }
+        body.paint-mode .schedule-cell.shift-cell:hover { background: rgba(217, 119, 87, 0.15); }
+        body.eraser-mode .schedule-cell.shift-cell { cursor: not-allowed; }
 
-        .schedule-cell.shift-cell {
-            cursor: pointer;
-        }
-
-        .schedule-cell.shift-cell:hover {
-            background: rgba(217, 119, 87, 0.1);
-        }
-
-        /* Shifts inside cells */
+        /* Shift badge — fills the cell, centered */
         .shift-badge {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 4px;
-            padding: 4px 8px;
-            border-radius: 6px;
+            justify-content: center;
+            padding: 4px 6px;
             font-size: 0.8rem;
-            margin-bottom: 4px;
             color: white;
-        }
-
-        .shift-badge.role-barman {
-            background: var(--role-barman);
-        }
-
-        .shift-badge.role-second {
-            background: var(--role-second);
-        }
-
-        .shift-badge.role-trainee {
-            background: var(--role-trainee);
-        }
-
-        .shift-badge .hours {
-            opacity: 0.9;
-            font-size: 0.7rem;
-        }
-
-        .add-shift-btn {
-            width: 100%;
-            padding: 8px;
-            border: 2px dashed var(--border-color);
-            border-radius: var(--radius-sm);
-            background: transparent;
-            color: var(--text-muted);
             cursor: pointer;
-            font-family: inherit;
-            font-size: 0.85rem;
-            transition: all 150ms ease;
-            opacity: 0;
+            transition: opacity 150ms;
+            text-align: center;
+            min-height: 40px;
         }
 
-        .schedule-cell:hover .add-shift-btn {
-            opacity: 1;
-        }
+        .shift-badge:hover { opacity: 0.85; }
 
-        .add-shift-btn:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-        }
+        .shift-badge.role-barman { background: var(--role-barman); }
+        .shift-badge.role-second { background: var(--role-second); }
+        .shift-badge.role-trainee { background: var(--role-trainee); }
+
+        /* Multiple shifts stacked */
+        .shift-badge + .shift-badge { border-top: 1px solid rgba(255,255,255,0.3); }
 
         /* Day-off marker */
         .dayoff-marker {
             position: absolute;
-            top: 4px;
-            right: 4px;
-            width: 20px;
-            height: 20px;
+            top: 2px;
+            right: 2px;
+            width: 16px;
+            height: 16px;
             background: var(--warning);
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.7rem;
+            font-size: 0.6rem;
             cursor: help;
+            z-index: 2;
         }
 
         /* Revenue Panel */
@@ -314,9 +273,7 @@
             display: none;
         }
 
-        .revenue-panel.active {
-            display: block;
-        }
+        .revenue-panel.active { display: block; }
 
         .revenue-panel h3 {
             margin-bottom: 16px;
@@ -339,23 +296,9 @@
             border: 1px solid var(--border-color);
         }
 
-        .revenue-card .location {
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
-        .revenue-card .field {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-
-        .revenue-card .field label {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            width: 50px;
-        }
+        .revenue-card .location { font-weight: 600; margin-bottom: 12px; }
+        .revenue-card .field { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .revenue-card .field label { font-size: 0.8rem; color: var(--text-secondary); width: 50px; }
 
         .revenue-card .field input {
             flex: 1;
@@ -368,15 +311,59 @@
             font-size: 0.9rem;
         }
 
-        .revenue-card .fact-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--success);
+        .revenue-card .fact-value { font-size: 1.1rem; font-weight: 600; color: var(--success); }
+        .revenue-card .fact-value.empty { color: var(--text-muted); }
+
+        /* ==================== Wishes Board ==================== */
+        .wishes-board {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            padding: 20px 24px;
         }
 
-        .revenue-card .fact-value.empty {
-            color: var(--text-muted);
+        .wishes-board h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-secondary);
         }
+
+        .wishes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .wish-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            border: 1px solid var(--border-color);
+        }
+
+        .wish-card .emp-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
+        .wish-card textarea {
+            width: 100%;
+            min-height: 50px;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+
+        .wish-card textarea:focus { outline: none; border-color: var(--accent); }
+
+        .wish-card textarea::placeholder { color: var(--text-muted); }
 
         /* Modal */
         .modal-overlay {
@@ -389,9 +376,7 @@
             z-index: 1000;
         }
 
-        .modal-overlay.active {
-            display: flex;
-        }
+        .modal-overlay.active { display: flex; }
 
         .modal {
             background: var(--bg-secondary);
@@ -402,24 +387,11 @@
             box-shadow: var(--shadow-md);
         }
 
-        .modal h2 {
-            margin-bottom: 20px;
-            font-size: 1.1rem;
-        }
+        .modal h2 { margin-bottom: 20px; font-size: 1.1rem; }
+        .modal .form-group { margin-bottom: 16px; }
+        .modal .form-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; }
 
-        .modal .form-group {
-            margin-bottom: 16px;
-        }
-
-        .modal .form-group label {
-            display: block;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-        }
-
-        .modal .form-group select,
-        .modal .form-group input {
+        .modal .form-group select {
             width: 100%;
             padding: 12px 16px;
             border: 1px solid var(--border-color);
@@ -430,11 +402,7 @@
             font-size: 0.95rem;
         }
 
-        .modal .form-group select:focus,
-        .modal .form-group input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
+        .modal .form-group select:focus { outline: none; border-color: var(--accent); }
 
         .modal .warning-box {
             background: rgba(245, 158, 11, 0.1);
@@ -446,16 +414,11 @@
             color: var(--warning);
         }
 
-        .modal .actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-            margin-top: 24px;
-        }
+        .modal .actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
 
         /* Buttons */
         .btn {
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: var(--radius-sm);
             border: none;
             font-family: inherit;
@@ -464,36 +427,13 @@
             transition: all 150ms ease;
         }
 
-        .btn-primary {
-            background: var(--accent);
-            color: white;
-        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--border-color); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
 
-        .btn-primary:hover {
-            background: var(--accent-hover);
-        }
-
-        .btn-secondary {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            border: 1px solid var(--border-color);
-        }
-
-        .btn-secondary:hover {
-            background: var(--border-color);
-        }
-
-        .btn-danger {
-            background: var(--danger);
-            color: white;
-        }
-
-        .btn-success {
-            background: var(--success);
-            color: white;
-        }
-
-        /* Theme Toggle */
         .theme-toggle {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
@@ -505,18 +445,10 @@
             font-size: 0.85rem;
         }
 
-        /* Loading */
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 48px;
-            color: var(--text-muted);
-        }
+        .loading { display: flex; align-items: center; justify-content: center; padding: 48px; color: var(--text-muted); }
 
         .spinner {
-            width: 24px;
-            height: 24px;
+            width: 24px; height: 24px;
             border: 2px solid var(--border-color);
             border-top-color: var(--accent);
             border-radius: 50%;
@@ -524,98 +456,99 @@
             margin-right: 12px;
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--success);
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            box-shadow: var(--shadow-md);
+            z-index: 2000;
+            transition: opacity 300ms, transform 300ms;
+            opacity: 0;
+            transform: translateY(20px);
         }
 
-        /* Responsive */
+        .toast.show { opacity: 1; transform: translateY(0); }
+
         @media (max-width: 900px) {
-            .schedule-grid {
-                grid-template-columns: 80px repeat(4, 1fr);
-            }
-
-            .revenue-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .header {
-                flex-direction: column;
-                gap: 12px;
-            }
+            .schedule-grid { grid-template-columns: 80px repeat(4, 1fr); }
+            .revenue-grid { grid-template-columns: repeat(2, 1fr); }
+            .header { flex-direction: column; gap: 12px; }
+            .wishes-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
         }
 
         @media (max-width: 600px) {
-            .schedule-container {
-                overflow-x: auto;
-            }
-
-            .revenue-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .month-nav {
-                flex-wrap: wrap;
-                gap: 8px;
-            }
-
-            .month-nav .actions {
-                width: 100%;
-                justify-content: center;
-            }
+            .schedule-container { overflow-x: auto; }
+            .revenue-grid { grid-template-columns: 1fr; }
+            .month-nav { flex-wrap: wrap; gap: 8px; }
+            .wishes-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
     <header class="header">
         <h1>График смен</h1>
         <div class="header-actions">
             <nav class="nav-links">
                 <a href="/">Дашборд</a>
-                <a href="/employee">Сотрудники</a>
-                <a href="/schedule" class="active">График</a>
+                <a href="/packaging">ABC/XYZ фасовки</a>
+                <a href="/draft">Разливное</a>
+                <a href="/waiters">Бармены</a>
+                <a href="/employee">Сотрудник</a>
+                <a href="/bonus">Бонусы</a>
                 <a href="/taps">Краны</a>
+                <a href="/stocks">Остатки</a>
+                <a href="/schedule" class="active">График</a>
             </nav>
             <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
         </div>
     </header>
 
-    <!-- Month Navigation -->
     <div class="month-nav">
         <button onclick="prevMonth()">← Пред</button>
-        <div class="current-month" id="currentMonth">Январь 2026</div>
+        <div class="current-month" id="currentMonth">Февраль 2026</div>
         <button onclick="nextMonth()">След →</button>
-        <div class="actions">
-            <button class="btn btn-secondary" onclick="openEmployeeModal()">+ Сотрудник</button>
-            <button class="btn btn-secondary" onclick="openDayOffModal()">📅 Выходные</button>
-        </div>
     </div>
 
-    <!-- Main Content -->
+    <div class="paint-toolbar" id="paintToolbar">
+        <span class="label">Кисть:</span>
+        <div class="employee-buttons" id="employeeButtons"></div>
+        <button class="emp-btn eraser" id="eraserBtn" onclick="selectEraser()">✕ Ластик</button>
+        <span class="paint-hint" id="paintHint">Выбери сотрудника, потом кликай по ячейкам</span>
+    </div>
+
     <main class="main-content">
         <div class="schedule-container">
             <div class="schedule-grid" id="scheduleGrid">
-                <!-- Header -->
                 <div class="schedule-header">
                     <div>Дата</div>
-                    <div>Варшавская</div>
-                    <div>ВО</div>
-                    <div>Кременчугская</div>
-                    <div>Лиговский</div>
+                    <div id="loc-header-0"></div>
+                    <div id="loc-header-1"></div>
+                    <div id="loc-header-2"></div>
+                    <div id="loc-header-3"></div>
                 </div>
-                <!-- Rows will be generated by JS -->
             </div>
 
-            <!-- Revenue Panel (hidden by default) -->
             <div class="revenue-panel" id="revenuePanel">
                 <h3>
                     <span>Выручка за <span id="revenuePanelDate">01.01.2026</span></span>
                     <button class="btn btn-success" onclick="syncRevenueFromIiko()">🔄 Sync iiko</button>
                 </h3>
-                <div class="revenue-grid" id="revenueGrid">
-                    <!-- Revenue cards will be generated by JS -->
-                </div>
+                <div class="revenue-grid" id="revenueGrid"></div>
             </div>
+        </div>
+
+        <!-- Wishes Board -->
+        <div class="wishes-board">
+            <h2>Пожелания</h2>
+            <div class="wishes-grid" id="wishesGrid"></div>
         </div>
 
         <div class="loading" id="loading" style="display: none;">
@@ -624,44 +557,21 @@
         </div>
     </main>
 
-    <!-- Shift Modal -->
+    <!-- Edit Shift Modal (role change only) -->
     <div class="modal-overlay" id="shiftModal">
         <div class="modal">
-            <h2 id="shiftModalTitle">Добавить смену</h2>
+            <h2 id="shiftModalTitle">Редактировать смену</h2>
             <div class="warning-box" id="dayoffWarning" style="display: none;">
                 ⚠️ Сотрудник просил выходной на эту дату
             </div>
             <form id="shiftForm">
                 <input type="hidden" id="shiftId">
-                <input type="hidden" id="shiftDate">
-                <input type="hidden" id="shiftLocationId">
-
-                <div class="form-group">
-                    <label>Сотрудник</label>
-                    <select id="shiftEmployee" required onchange="checkDayOffConflict()">
-                        <option value="">Выберите сотрудника</option>
-                    </select>
-                </div>
-
                 <div class="form-group">
                     <label>Роль</label>
-                    <select id="shiftRole" required>
-                        <option value="">Выберите роль</option>
-                    </select>
+                    <select id="shiftRole" required></select>
                 </div>
-
-                <div class="form-group">
-                    <label>Плановые часы</label>
-                    <input type="number" id="shiftHours" min="0" max="24" step="0.5" value="12">
-                </div>
-
-                <div class="form-group">
-                    <label>Заметки</label>
-                    <input type="text" id="shiftNotes" placeholder="Опционально">
-                </div>
-
                 <div class="actions">
-                    <button type="button" class="btn btn-danger" id="deleteShiftBtn" onclick="deleteShift()" style="display: none;">Удалить</button>
+                    <button type="button" class="btn btn-danger" onclick="deleteShift()">Удалить</button>
                     <button type="button" class="btn btn-secondary" onclick="closeShiftModal()">Отмена</button>
                     <button type="submit" class="btn btn-primary">Сохранить</button>
                 </div>
@@ -669,83 +579,22 @@
         </div>
     </div>
 
-    <!-- Employee Modal -->
-    <div class="modal-overlay" id="employeeModal">
-        <div class="modal">
-            <h2>Добавить сотрудника</h2>
-            <form id="employeeForm">
-                <div class="form-group">
-                    <label>ФИО</label>
-                    <input type="text" id="employeeName" required placeholder="Иванов Иван">
-                </div>
-
-                <div class="form-group">
-                    <label>Короткое имя (для сетки)</label>
-                    <input type="text" id="employeeShortName" placeholder="ИИ">
-                </div>
-
-                <div class="form-group">
-                    <label>Роль по умолчанию</label>
-                    <select id="employeeDefaultRole">
-                        <option value="бармен">Бармен</option>
-                        <option value="второй бармен">Второй бармен</option>
-                        <option value="стажёр">Стажёр</option>
-                    </select>
-                </div>
-
-                <div class="actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeEmployeeModal()">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Добавить</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Day Off Modal -->
-    <div class="modal-overlay" id="dayOffModal">
-        <div class="modal">
-            <h2>Пожелание выходного</h2>
-            <form id="dayOffForm">
-                <div class="form-group">
-                    <label>Сотрудник</label>
-                    <select id="dayOffEmployee" required>
-                        <option value="">Выберите сотрудника</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Дата с</label>
-                    <input type="date" id="dayOffFrom" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Дата по</label>
-                    <input type="date" id="dayOffTo" required>
-                </div>
-
-                <div class="form-group">
-                    <label>Причина (опционально)</label>
-                    <input type="text" id="dayOffReason" placeholder="Причина">
-                </div>
-
-                <div class="actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeDayOffModal()">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
-                </div>
-            </form>
-        </div>
-    </div>
+    <div class="toast" id="toast"></div>
 
     <script>
-        // State
+        // ==================== STATE ====================
         let currentYear = new Date().getFullYear();
-        let currentMonth = new Date().getMonth() + 1; // 1-based
+        let currentMonth = new Date().getMonth() + 1;
         let employees = [];
         let roles = [];
         let locations = [];
         let shifts = [];
         let dayOffRequests = [];
         let selectedDate = null;
+
+        let selectedEmployeeName = null;
+        let eraserMode = false;
+        let defaultRoleId = null;
 
         const MONTH_NAMES = [
             'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
@@ -754,16 +603,23 @@
 
         const DAY_NAMES = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
-        // Initialize
+        // ==================== INIT ====================
         document.addEventListener('DOMContentLoaded', () => {
             loadData();
             setupForms();
         });
 
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                deselectAll();
+                closeShiftModal();
+            }
+        });
+
+        // ==================== DATA LOADING ====================
         async function loadData() {
             showLoading(true);
             try {
-                // Load reference data
                 const [empRes, rolesRes, locRes] = await Promise.all([
                     fetch('/api/schedule/employees'),
                     fetch('/api/schedule/roles'),
@@ -774,15 +630,19 @@
                 roles = await rolesRes.json();
                 locations = await locRes.json();
 
-                // Populate selects
-                populateEmployeeSelects();
-                populateRoleSelects();
+                const barmanRole = roles.find(r => r.name === 'бармен');
+                defaultRoleId = barmanRole ? barmanRole.id : (roles[0] ? roles[0].id : 1);
 
-                // Load month data
+                await loadWishes();
+                renderEmployeeToolbar();
+                populateSelects();
+                renderLocationHeaders();
+                renderWishesBoard();
+
                 await loadMonth();
             } catch (err) {
                 console.error('Error loading data:', err);
-                alert('Ошибка загрузки данных');
+                showToast('Ошибка загрузки данных');
             }
             showLoading(false);
         }
@@ -790,11 +650,9 @@
         async function loadMonth() {
             showLoading(true);
             try {
-                // Load shifts
                 const shiftsRes = await fetch(`/api/schedule/${currentYear}/${currentMonth}`);
                 shifts = await shiftsRes.json();
 
-                // Load day-off requests
                 const firstDay = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;
                 const lastDay = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
                 const dayOffRes = await fetch(`/api/schedule/dayoff?date_from=${firstDay}&date_to=${lastDay}`);
@@ -808,6 +666,65 @@
             showLoading(false);
         }
 
+        // ==================== EMPLOYEE TOOLBAR ====================
+        function renderEmployeeToolbar() {
+            const container = document.getElementById('employeeButtons');
+            container.innerHTML = employees.map(emp => {
+                const shortName = emp.name.split(' ').slice(0, 2).join(' ');
+                return `<button class="emp-btn" data-emp-name="${emp.name}" onclick="selectEmployee('${emp.name.replace(/'/g, "\\'")}')">${shortName}</button>`;
+            }).join('');
+
+            if (employees.length === 0) {
+                container.innerHTML = '<span class="paint-hint">Загрузка сотрудников из iiko...</span>';
+            }
+        }
+
+        function selectEmployee(empName) {
+            if (selectedEmployeeName === empName) { deselectAll(); return; }
+
+            selectedEmployeeName = empName;
+            eraserMode = false;
+
+            document.querySelectorAll('.emp-btn').forEach(btn => btn.classList.remove('selected'));
+            const btn = document.querySelector(`.emp-btn[data-emp-name="${empName}"]`);
+            if (btn) btn.classList.add('selected');
+            document.getElementById('eraserBtn').classList.remove('selected');
+
+            document.body.classList.add('paint-mode');
+            document.body.classList.remove('eraser-mode');
+
+            const shortName = empName.split(' ').slice(0, 2).join(' ');
+            document.getElementById('paintHint').textContent = `${shortName}: кликай по ячейкам`;
+        }
+
+        function selectEraser() {
+            if (eraserMode) { deselectAll(); return; }
+            eraserMode = true;
+            selectedEmployeeName = null;
+            document.querySelectorAll('.emp-btn').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById('eraserBtn').classList.add('selected');
+            document.body.classList.remove('paint-mode');
+            document.body.classList.add('eraser-mode');
+            document.getElementById('paintHint').textContent = 'Ластик: кликай по бейджам';
+        }
+
+        function deselectAll() {
+            selectedEmployeeName = null;
+            eraserMode = false;
+            document.querySelectorAll('.emp-btn').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById('eraserBtn').classList.remove('selected');
+            document.body.classList.remove('paint-mode', 'eraser-mode');
+            document.getElementById('paintHint').textContent = 'Выбери сотрудника, потом кликай по ячейкам';
+        }
+
+        // ==================== GRID ====================
+        function renderLocationHeaders() {
+            locations.forEach((loc, i) => {
+                const el = document.getElementById(`loc-header-${i}`);
+                if (el) el.textContent = loc.short_name || loc.name;
+            });
+        }
+
         function updateMonthDisplay() {
             document.getElementById('currentMonth').textContent =
                 `${MONTH_NAMES[currentMonth - 1]} ${currentYear}`;
@@ -817,7 +734,6 @@
             const grid = document.getElementById('scheduleGrid');
             const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
 
-            // Keep header, remove rows
             const header = grid.querySelector('.schedule-header');
             grid.innerHTML = '';
             grid.appendChild(header);
@@ -828,7 +744,6 @@
                 const dayOfWeek = date.getDay();
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-                // Date cell
                 const dateCell = document.createElement('div');
                 dateCell.className = `schedule-cell date-cell ${isWeekend ? 'weekend' : ''}`;
                 dateCell.innerHTML = `
@@ -838,42 +753,34 @@
                 dateCell.onclick = () => toggleRevenuePanel(dateStr);
                 grid.appendChild(dateCell);
 
-                // Location cells
+                const dayOffEmployees = getDayOffEmployees(dateStr);
+
                 locations.forEach(location => {
                     const cell = document.createElement('div');
                     cell.className = `schedule-cell shift-cell ${isWeekend ? 'weekend' : ''}`;
-                    cell.dataset.date = dateStr;
-                    cell.dataset.locationId = location.id;
 
-                    // Find shifts for this cell
                     const cellShifts = shifts.filter(s =>
                         s.date === dateStr && s.location_id === location.id
                     );
 
-                    // Check for day-off conflicts
-                    const dayOffEmployees = getDayOffEmployees(dateStr);
-
-                    // Render shifts
                     cellShifts.forEach(shift => {
                         const roleClass = getRoleClass(shift.role_name);
-                        const hasDayOff = dayOffEmployees.includes(shift.employee_id);
+                        const badge = document.createElement('div');
+                        badge.className = `shift-badge ${roleClass}`;
+                        badge.textContent = shift.employee_name.split(' ').slice(0, 2).join(' ');
+                        badge.onclick = (e) => { e.stopPropagation(); onBadgeClick(shift.id); };
+                        cell.appendChild(badge);
 
-                        cell.innerHTML += `
-                            <div class="shift-badge ${roleClass}" onclick="event.stopPropagation(); editShift(${shift.id})">
-                                ${shift.employee_short || shift.employee_name.split(' ')[0]}
-                                (${shift.role_short})
-                                ${shift.planned_hours ? `<span class="hours">${shift.planned_hours}ч</span>` : ''}
-                            </div>
-                        `;
-
-                        if (hasDayOff) {
-                            cell.innerHTML += `<span class="dayoff-marker" title="${shift.employee_name} просил выходной">⚠</span>`;
+                        if (dayOffEmployees.includes(shift.employee_name)) {
+                            const marker = document.createElement('span');
+                            marker.className = 'dayoff-marker';
+                            marker.title = `${shift.employee_name} просил выходной`;
+                            marker.textContent = '⚠';
+                            cell.appendChild(marker);
                         }
                     });
 
-                    // Add button
-                    cell.innerHTML += `<button class="add-shift-btn" onclick="event.stopPropagation(); openShiftModal('${dateStr}', ${location.id})">+ Добавить</button>`;
-
+                    cell.onclick = () => onCellClick(dateStr, location.id, cellShifts);
                     grid.appendChild(cell);
                 });
             }
@@ -889,30 +796,66 @@
         function getDayOffEmployees(dateStr) {
             return dayOffRequests
                 .filter(r => dateStr >= r.date_from && dateStr <= r.date_to)
-                .map(r => r.employee_id);
+                .map(r => r.employee_name);
         }
 
-        // Month navigation
+        // ==================== PAINT MODE ACTIONS ====================
+        async function onCellClick(dateStr, locationId, cellShifts) {
+            if (!selectedEmployeeName) return;
+
+            const existing = cellShifts.find(s => s.employee_name === selectedEmployeeName);
+            if (existing) {
+                await fetch(`/api/schedule/shift/${existing.id}`, { method: 'DELETE' });
+                showToast('Удалено');
+            } else {
+                const dayOffEmps = getDayOffEmployees(dateStr);
+                if (dayOffEmps.includes(selectedEmployeeName)) {
+                    if (!confirm(`${selectedEmployeeName} просил выходной на ${formatDate(dateStr)}. Всё равно назначить?`)) return;
+                }
+
+                await fetch('/api/schedule/shift', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: dateStr,
+                        employee_name: selectedEmployeeName,
+                        location_id: locationId,
+                        role_id: defaultRoleId
+                    })
+                });
+                showToast('Назначено');
+            }
+            await loadMonth();
+        }
+
+        async function onBadgeClick(shiftId) {
+            if (eraserMode) {
+                await fetch(`/api/schedule/shift/${shiftId}`, { method: 'DELETE' });
+                showToast('Удалено');
+                await loadMonth();
+                return;
+            }
+            if (selectedEmployeeName) return;
+            editShift(shiftId);
+        }
+
+        // ==================== MONTH NAV ====================
         function prevMonth() {
             currentMonth--;
-            if (currentMonth < 1) {
-                currentMonth = 12;
-                currentYear--;
-            }
+            if (currentMonth < 1) { currentMonth = 12; currentYear--; }
             loadMonth();
         }
 
         function nextMonth() {
             currentMonth++;
-            if (currentMonth > 12) {
-                currentMonth = 1;
-                currentYear++;
-            }
+            if (currentMonth > 12) { currentMonth = 1; currentYear++; }
             loadMonth();
         }
 
-        // Revenue Panel
+        // ==================== REVENUE ====================
         function toggleRevenuePanel(dateStr) {
+            if (selectedEmployeeName || eraserMode) return;
+
             const panel = document.getElementById('revenuePanel');
             if (selectedDate === dateStr && panel.classList.contains('active')) {
                 panel.classList.remove('active');
@@ -926,19 +869,16 @@
 
         async function loadRevenueForDate(dateStr) {
             document.getElementById('revenuePanelDate').textContent = formatDate(dateStr);
-
             try {
                 const res = await fetch(`/api/schedule/revenue/${dateStr}`);
                 const data = await res.json();
-
-                const grid = document.getElementById('revenueGrid');
-                grid.innerHTML = data.map(r => `
+                document.getElementById('revenueGrid').innerHTML = data.map(r => `
                     <div class="revenue-card">
                         <div class="location">${r.location_name}</div>
                         <div class="field">
                             <label>План</label>
                             <input type="number" value="${r.plan_revenue || ''}"
-                                   onchange="updateRevenue('${dateStr}', ${r.location_id}, this.value, null)">
+                                   onchange="updateRevenue('${dateStr}', ${r.location_id}, this.value)">
                         </div>
                         <div class="field">
                             <label>Факт</label>
@@ -953,59 +893,83 @@
             }
         }
 
-        async function updateRevenue(dateStr, locationId, plan, fact) {
-            try {
-                await fetch(`/api/schedule/revenue/${dateStr}/${locationId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ plan_revenue: parseFloat(plan) || 0 })
-                });
-            } catch (err) {
-                console.error('Error updating revenue:', err);
-            }
+        async function updateRevenue(dateStr, locationId, plan) {
+            await fetch(`/api/schedule/revenue/${dateStr}/${locationId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ plan_revenue: parseFloat(plan) || 0 })
+            });
         }
 
         async function syncRevenueFromIiko() {
             if (!selectedDate) return;
-
             try {
-                const res = await fetch(`/api/schedule/revenue/sync/${selectedDate}`, {
-                    method: 'POST'
-                });
+                const res = await fetch(`/api/schedule/revenue/sync/${selectedDate}`, { method: 'POST' });
                 const result = await res.json();
-                alert(`Синхронизировано: ${result.updated} точек`);
+                showToast(`Синхронизировано: ${result.updated} точек`);
                 loadRevenueForDate(selectedDate);
             } catch (err) {
-                console.error('Error syncing revenue:', err);
-                alert('Ошибка синхронизации');
+                showToast('Ошибка синхронизации');
             }
         }
 
-        // Shift Modal
-        function openShiftModal(dateStr, locationId, shiftId = null) {
-            document.getElementById('shiftId').value = shiftId || '';
-            document.getElementById('shiftDate').value = dateStr;
-            document.getElementById('shiftLocationId').value = locationId;
-            document.getElementById('shiftModalTitle').textContent =
-                shiftId ? 'Редактировать смену' : 'Добавить смену';
-            document.getElementById('deleteShiftBtn').style.display =
-                shiftId ? 'block' : 'none';
-            document.getElementById('dayoffWarning').style.display = 'none';
+        // ==================== WISHES BOARD ====================
+        let wishes = {};
+        let wishTimers = {};
 
-            if (shiftId) {
-                const shift = shifts.find(s => s.id === shiftId);
-                if (shift) {
-                    document.getElementById('shiftEmployee').value = shift.employee_id;
-                    document.getElementById('shiftRole').value = shift.role_id;
-                    document.getElementById('shiftHours').value = shift.planned_hours || '';
-                    document.getElementById('shiftNotes').value = shift.notes || '';
-                }
-            } else {
-                document.getElementById('shiftEmployee').value = '';
-                document.getElementById('shiftRole').value = '';
-                document.getElementById('shiftHours').value = '12';
-                document.getElementById('shiftNotes').value = '';
+        async function loadWishes() {
+            try {
+                const res = await fetch('/api/schedule/wishes');
+                const data = await res.json();
+                wishes = {};
+                data.forEach(w => { wishes[w.employee_name] = w.text; });
+            } catch (err) {
+                console.error('Error loading wishes:', err);
             }
+        }
+
+        function renderWishesBoard() {
+            const grid = document.getElementById('wishesGrid');
+            grid.innerHTML = employees.map(emp => {
+                const shortName = emp.name.split(' ').slice(0, 2).join(' ');
+                const savedWish = wishes[emp.name] || '';
+                return `
+                    <div class="wish-card">
+                        <div class="emp-name">${shortName}</div>
+                        <textarea
+                            placeholder="2,3 выходной&#10;без понедельников"
+                            oninput="saveWish('${emp.name.replace(/'/g, "\\'")}', this.value)"
+                        >${savedWish}</textarea>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function saveWish(empName, text) {
+            // Debounce: сохраняем через 500мс после последнего ввода
+            clearTimeout(wishTimers[empName]);
+            wishTimers[empName] = setTimeout(async () => {
+                await fetch('/api/schedule/wishes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ employee_name: empName, text })
+                });
+            }, 500);
+        }
+
+        // ==================== EDIT SHIFT MODAL ====================
+        function editShift(shiftId) {
+            const shift = shifts.find(s => s.id === shiftId);
+            if (!shift) return;
+
+            document.getElementById('shiftId').value = shiftId;
+            document.getElementById('shiftRole').value = shift.role_id;
+            document.getElementById('shiftModalTitle').textContent =
+                `${shift.employee_name} — ${formatDate(shift.date)}`;
+
+            const dayOffEmps = getDayOffEmployees(shift.date);
+            document.getElementById('dayoffWarning').style.display =
+                dayOffEmps.includes(shift.employee_name) ? 'block' : 'none';
 
             document.getElementById('shiftModal').classList.add('active');
         }
@@ -1014,169 +978,38 @@
             document.getElementById('shiftModal').classList.remove('active');
         }
 
-        function editShift(shiftId) {
-            const shift = shifts.find(s => s.id === shiftId);
-            if (shift) {
-                openShiftModal(shift.date, shift.location_id, shiftId);
-            }
-        }
-
-        async function checkDayOffConflict() {
-            const employeeId = document.getElementById('shiftEmployee').value;
-            const dateStr = document.getElementById('shiftDate').value;
-
-            if (employeeId && dateStr) {
-                const hasConflict = getDayOffEmployees(dateStr).includes(parseInt(employeeId));
-                document.getElementById('dayoffWarning').style.display =
-                    hasConflict ? 'block' : 'none';
-            }
-        }
-
         async function deleteShift() {
             const shiftId = document.getElementById('shiftId').value;
             if (!shiftId) return;
-
-            if (!confirm('Удалить эту смену?')) return;
-
-            try {
-                await fetch(`/api/schedule/shift/${shiftId}`, { method: 'DELETE' });
-                closeShiftModal();
-                loadMonth();
-            } catch (err) {
-                console.error('Error deleting shift:', err);
-                alert('Ошибка удаления');
-            }
+            await fetch(`/api/schedule/shift/${shiftId}`, { method: 'DELETE' });
+            closeShiftModal();
+            showToast('Удалено');
+            await loadMonth();
         }
 
-        // Employee Modal
-        function openEmployeeModal() {
-            document.getElementById('employeeName').value = '';
-            document.getElementById('employeeShortName').value = '';
-            document.getElementById('employeeDefaultRole').value = 'бармен';
-            document.getElementById('employeeModal').classList.add('active');
-        }
-
-        function closeEmployeeModal() {
-            document.getElementById('employeeModal').classList.remove('active');
-        }
-
-        // Day Off Modal
-        function openDayOffModal() {
-            document.getElementById('dayOffEmployee').value = '';
-            document.getElementById('dayOffFrom').value = '';
-            document.getElementById('dayOffTo').value = '';
-            document.getElementById('dayOffReason').value = '';
-            document.getElementById('dayOffModal').classList.add('active');
-        }
-
-        function closeDayOffModal() {
-            document.getElementById('dayOffModal').classList.remove('active');
-        }
-
-        // Form submissions
+        // ==================== FORMS ====================
         function setupForms() {
-            // Shift form
             document.getElementById('shiftForm').onsubmit = async (e) => {
                 e.preventDefault();
                 const shiftId = document.getElementById('shiftId').value;
-                const data = {
-                    date: document.getElementById('shiftDate').value,
-                    employee_id: parseInt(document.getElementById('shiftEmployee').value),
-                    location_id: parseInt(document.getElementById('shiftLocationId').value),
-                    role_id: parseInt(document.getElementById('shiftRole').value),
-                    planned_hours: parseFloat(document.getElementById('shiftHours').value) || 0,
-                    notes: document.getElementById('shiftNotes').value || null
-                };
+                const roleId = parseInt(document.getElementById('shiftRole').value);
 
-                try {
-                    if (shiftId) {
-                        await fetch(`/api/schedule/shift/${shiftId}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(data)
-                        });
-                    } else {
-                        await fetch('/api/schedule/shift', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(data)
-                        });
-                    }
-                    closeShiftModal();
-                    loadMonth();
-                } catch (err) {
-                    console.error('Error saving shift:', err);
-                    alert('Ошибка сохранения');
-                }
-            };
+                await fetch(`/api/schedule/shift/${shiftId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role_id: roleId })
+                });
 
-            // Employee form
-            document.getElementById('employeeForm').onsubmit = async (e) => {
-                e.preventDefault();
-                const data = {
-                    name: document.getElementById('employeeName').value,
-                    short_name: document.getElementById('employeeShortName').value || null,
-                    default_role: document.getElementById('employeeDefaultRole').value
-                };
-
-                try {
-                    await fetch('/api/schedule/employees', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    closeEmployeeModal();
-                    loadData(); // Reload all
-                } catch (err) {
-                    console.error('Error adding employee:', err);
-                    alert('Ошибка добавления');
-                }
-            };
-
-            // Day-off form
-            document.getElementById('dayOffForm').onsubmit = async (e) => {
-                e.preventDefault();
-                const data = {
-                    employee_id: parseInt(document.getElementById('dayOffEmployee').value),
-                    date_from: document.getElementById('dayOffFrom').value,
-                    date_to: document.getElementById('dayOffTo').value,
-                    reason: document.getElementById('dayOffReason').value || null
-                };
-
-                try {
-                    await fetch('/api/schedule/dayoff', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    closeDayOffModal();
-                    loadMonth();
-                } catch (err) {
-                    console.error('Error creating day-off request:', err);
-                    alert('Ошибка сохранения');
-                }
+                closeShiftModal();
+                showToast('Роль обновлена');
+                await loadMonth();
             };
         }
 
-        // Helpers
-        function populateEmployeeSelects() {
-            const options = employees.map(e =>
-                `<option value="${e.id}">${e.name}</option>`
-            ).join('');
-
-            document.getElementById('shiftEmployee').innerHTML =
-                '<option value="">Выберите сотрудника</option>' + options;
-            document.getElementById('dayOffEmployee').innerHTML =
-                '<option value="">Выберите сотрудника</option>' + options;
-        }
-
-        function populateRoleSelects() {
-            const options = roles.map(r =>
-                `<option value="${r.id}">${r.name}</option>`
-            ).join('');
-
-            document.getElementById('shiftRole').innerHTML =
-                '<option value="">Выберите роль</option>' + options;
+        // ==================== HELPERS ====================
+        function populateSelects() {
+            const roleOptions = roles.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            document.getElementById('shiftRole').innerHTML = roleOptions;
         }
 
         function showLoading(show) {
@@ -1192,7 +1025,14 @@
             return new Intl.NumberFormat('ru-RU').format(Math.round(num));
         }
 
-        // Theme
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // ==================== THEME ====================
         function toggleTheme() {
             const body = document.body;
             const btn = document.querySelector('.theme-toggle');
@@ -1207,7 +1047,6 @@
             }
         }
 
-        // Load saved theme
         if (localStorage.getItem('theme') === 'dark') {
             document.body.setAttribute('data-theme', 'dark');
             document.querySelector('.theme-toggle').textContent = '☀️';

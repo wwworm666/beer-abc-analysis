@@ -122,6 +122,30 @@ body {
     background: var(--bg-secondary);
 }
 
+/* Export buttons group */
+.export-btn-group {
+    display: flex;
+    gap: 6px;
+}
+
+.export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.export-btn svg {
+    flex-shrink: 0;
+}
+
 /* Инпуты */
 input, select, textarea {
     padding: 10px 12px;

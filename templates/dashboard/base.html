@@ -16,8 +16,10 @@
                 <a href="/waiters" class="nav-link">Бармены</a>
                 <a href="/employee" class="nav-link">Сотрудник</a>
                 <a href="/bonus" class="nav-link">Бонусы</a>
+                <a href="/discounts" class="nav-link">Скидки</a>
                 <a href="/taps" class="nav-link">Краны</a>
                 <a href="/stocks" class="nav-link">Остатки</a>
+                <a href="/schedule" class="nav-link">График</a>
             </div>
 
             <!-- API Status and Theme Toggle -->
@@ -57,12 +59,19 @@
                 >
             </div>
 
-            <!-- Export Button -->
+            <!-- Export Buttons -->
             <div class="control-group control-group-button">
                 <label>&nbsp;</label>
-                <button id="btn-export-pdf" class="btn btn-secondary" title="Экспорт в PDF">
-                    PDF
-                </button>
+                <div class="export-btn-group">
+                    <button id="btn-export-excel" class="btn btn-secondary export-btn" title="Экспорт в Excel">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                        Excel
+                    </button>
+                    <button id="btn-export-pdf" class="btn btn-secondary export-btn" title="Экспорт в PDF">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                        PDF
+                    </button>
+                </div>
             </div>
         </div>
     </div>
