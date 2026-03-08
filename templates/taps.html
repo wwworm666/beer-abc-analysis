@@ -772,14 +772,14 @@
         // Загрузить список баров
         async function loadBars() {
             try {
-                const response = await fetch('/api/taps/bars');
+                const response = await fetch('/api/taps/bars', { cache: 'no-store' });
                 const bars = await response.json();
 
                 const grid = document.getElementById('barsGrid');
                 grid.innerHTML = '';
 
                 for (const bar of bars) {
-                    const barData = await fetch(`/api/taps/${bar.bar_id}`).then(r => r.json());
+                    const barData = await fetch(`/api/taps/${bar.bar_id}`, { cache: 'no-store' }).then(r => r.json());
 
                     const card = document.createElement('div');
                     card.className = 'bar-card';
@@ -835,7 +835,7 @@
             selectedTap = tapNumber;
 
             try {
-                const response = await fetch(`/api/taps/${barId}`);
+                const response = await fetch(`/api/taps/${barId}`, { cache: 'no-store' });
                 const barData = await response.json();
                 const tap = barData.taps.find(t => t.tap_number === tapNumber);
 
@@ -847,7 +847,7 @@
                 document.getElementById('tapKeg').textContent = tap.current_keg_id || '-';
 
                 // Загрузить историю
-                const historyResponse = await fetch(`/api/taps/${barId}/${tapNumber}/history`);
+                const historyResponse = await fetch(`/api/taps/${barId}/${tapNumber}/history`, { cache: 'no-store' });
                 const historyData = await historyResponse.json();
                 loadTapHistory(historyData.history);
 
@@ -999,7 +999,7 @@
         // Загрузить статистику
         async function loadStatistics() {
             try {
-                const response = await fetch('/api/taps/statistics');
+                const response = await fetch('/api/taps/statistics', { cache: 'no-store' });
                 const stats = await response.json();
 
                 document.getElementById('totalTaps').textContent = stats.total_taps;
@@ -1008,7 +1008,7 @@
                 document.getElementById('activePercentage').textContent = stats.active_percentage + '%';
 
                 // Загрузить события
-                const eventsResponse = await fetch('/api/taps/events/all?limit=50');
+                const eventsResponse = await fetch('/api/taps/events/all?limit=50', { cache: 'no-store' });
                 const eventsData = await eventsResponse.json();
                 loadEvents(eventsData.events);
 
@@ -1048,7 +1048,7 @@
             const overviewContent = document.getElementById('overviewContent');
 
             try {
-                const barsResponse = await fetch('/api/taps/bars');
+                const barsResponse = await fetch('/api/taps/bars', { cache: 'no-store' });
                 const bars = await barsResponse.json();
 
                 let html = '<div class="bars-grid">';

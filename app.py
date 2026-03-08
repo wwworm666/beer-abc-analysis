@@ -1942,6 +1942,16 @@ def employee_metrics_breakdown():
 
 # ============= API для управления пивными кранами =============
 
+@app.after_request
+def add_taps_no_cache(response):
+    """Запрет кэширования для API кранов — Safari на iOS агрессивно кэширует GET-ответы,
+    из-за чего сотрудники видят устаревшие данные кранов"""
+    if request.path.startswith('/api/taps'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 @app.route('/api/taps/bars', methods=['GET'])
 def get_bars_list():
     """Получить список всех баров"""

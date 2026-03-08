@@ -923,7 +923,7 @@
         // Load taps data
         async function loadTaps() {
             try {
-                const response = await fetch(`/api/taps/${barId}`);
+                const response = await fetch(`/api/taps/${barId}`, { cache: 'no-store' });
                 const data = await response.json();
                 tapsData = data.taps || [];
                 renderTaps();
@@ -1037,7 +1037,7 @@
 
             // Load 7-day activity
             try {
-                const response = await fetch(`/api/taps/{{ bar_id }}/stats`);
+                const response = await fetch(`/api/taps/{{ bar_id }}/stats`, { cache: 'no-store' });
                 if (response.ok) {
                     const data = await response.json();
                     const activity7d = data.activity_7d || 0;
@@ -1427,7 +1427,7 @@
         // Load history
         async function loadHistory() {
             try {
-                const response = await fetch(`/api/taps/events/all?bar_id=${barId}&limit=50`);
+                const response = await fetch(`/api/taps/events/all?bar_id=${barId}&limit=50`, { cache: 'no-store' });
                 const data = await response.json();
                 const events = data.events || [];
 

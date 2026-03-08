@@ -453,7 +453,7 @@
                 // Try to load stats from API
                 let activity7d = 0;
                 try {
-                    const response = await fetch(`/api/taps/${bar.id}/stats`);
+                    const response = await fetch(`/api/taps/${bar.id}/stats`, { cache: 'no-store' });
                     if (response.ok) {
                         const data = await response.json();
                         active = data.active || 0;
