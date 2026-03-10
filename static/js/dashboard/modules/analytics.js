@@ -8,6 +8,8 @@ import { calculatePlan, getAnalytics, getEmployeeBreakdown } from '../core/api.j
 import { METRICS } from '../core/config.js';
 import {
     formatValue,
+    formatMoney,
+    formatNumber,
     calculatePercent,
     calculateDiff,
     getStatus
@@ -276,17 +278,9 @@ class Analytics {
         if (value === null || value === undefined) return '—';
 
         if (format === 'money') {
-            // Для денег: сокращаем тысячи до К
-            if (Math.abs(value) >= 1000) {
-                return (value / 1000).toFixed(0) + 'К';
-            }
-            return Math.round(value) + '₽';
+            return formatMoney(value);
         } else if (format === 'number') {
-            // Для чисел: сокращаем тысячи до К
-            if (Math.abs(value) >= 1000) {
-                return (value / 1000).toFixed(1) + 'К';
-            }
-            return Math.round(value);
+            return formatNumber(value);
         } else if (format === 'percent') {
             return value.toFixed(0) + '%';
         }
