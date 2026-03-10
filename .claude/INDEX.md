@@ -28,7 +28,7 @@ Beer ABC/XYZ Analysis
 | [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
 | [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
 | [optimization-dashboard.md](docs/optimization-dashboard.md) | План оптимизации производительности /dashboard | ✅ актуально |
-| [discounts.md](docs/discounts.md) | Анализ скидок — кто, сколько, как часто | ✅ актуально |
+| [discounts.md](docs/discounts.md) | Анализ скидок — ROI, сегментация гостей, drill-down по барам | ✅ актуально |
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
 | [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
 
