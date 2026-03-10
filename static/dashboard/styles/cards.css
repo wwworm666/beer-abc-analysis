@@ -9,6 +9,7 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
     margin-bottom: var(--spacing-xl);
+    align-items: start;
 }
 
 @media (max-width: 1400px) {

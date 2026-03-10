@@ -1869,31 +1869,25 @@ def employee_metrics_breakdown():
                 employees_data[name] = {
                     'name': name,
                     'revenue': float(metrics.get('DishDiscountSumInt', 0) or 0),
-                    'checks': int(metrics.get('OrderNum', 0) or 0),
-                    'draft_revenue': 0,
-                    'bottles_revenue': 0,
-                    'kitchen_revenue': 0
+                    'checks': int(metrics.get('UniqOrderId.OrdersCount', 0) or 0),
+                    'loyaltyWriteoffs': float(metrics.get('DiscountSum', 0) or 0),
+                    'draft_revenue': 0, 'draft_cost': 0,
+                    'bottles_revenue': 0, 'bottles_cost': 0,
+                    'kitchen_revenue': 0, 'kitchen_cost': 0
                 }
 
-        # Добавляем выручку по категориям из OLAP данных
-        # Ключ имени официанта в OLAP: WaiterName
-        for row in draft:
-            if isinstance(row, dict):
-                name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
-                if name and name != 'Итого' and name in employees_data:
-                    employees_data[name]['draft_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
-
-        for row in bottles:
-            if isinstance(row, dict):
-                name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
-                if name and name != 'Итого' and name in employees_data:
-                    employees_data[name]['bottles_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
-
-        for row in kitchen:
-            if isinstance(row, dict):
-                name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
-                if name and name != 'Итого' and name in employees_data:
-                    employees_data[name]['kitchen_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
+        # Добавляем выручку и себестоимость по категориям из OLAP данных
+        for category, cat_key, cost_key in [
+            (draft, 'draft', 'draft'),
+            (bottles, 'bottles', 'bottles'),
+            (kitchen, 'kitchen', 'kitchen')
+        ]:
+            for row in category:
+                if isinstance(row, dict):
+                    name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
+                    if name and name != 'Итого' and name in employees_data:
+                        employees_data[name][f'{cat_key}_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
+                        employees_data[name][f'{cat_key}_cost'] += float(row.get('ProductCostBase.ProductCost', 0) or 0)
 
         # Рассчитываем производные метрики
         result = []
@@ -1909,6 +1903,16 @@ def employee_metrics_breakdown():
             bottles_share = (data['bottles_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
             kitchen_share = (data['kitchen_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
 
+            # Себестоимость и прибыль
+            total_cost = data['draft_cost'] + data['bottles_cost'] + data['kitchen_cost']
+            profit = total_revenue - total_cost
+
+            # Наценки по категориям: (выручка / себестоимость - 1) * 100
+            markup_draft = ((data['draft_revenue'] / data['draft_cost'] - 1) * 100) if data['draft_cost'] > 0 else 0
+            markup_packaged = ((data['bottles_revenue'] / data['bottles_cost'] - 1) * 100) if data['bottles_cost'] > 0 else 0
+            markup_kitchen = ((data['kitchen_revenue'] / data['kitchen_cost'] - 1) * 100) if data['kitchen_cost'] > 0 else 0
+            markup_percent = ((total_revenue / total_cost - 1) * 100) if total_cost > 0 else 0
+
             result.append({
                 'name': name,
                 'revenue': round(total_revenue, 0),
@@ -1919,7 +1923,13 @@ def employee_metrics_breakdown():
                 'kitchenShare': round(kitchen_share, 1),
                 'revenueDraft': round(data['draft_revenue'], 0),
                 'revenuePackaged': round(data['bottles_revenue'], 0),
-                'revenueKitchen': round(data['kitchen_revenue'], 0)
+                'revenueKitchen': round(data['kitchen_revenue'], 0),
+                'profit': round(profit, 0),
+                'markupPercent': round(markup_percent, 1),
+                'markupDraft': round(markup_draft, 1),
+                'markupPackaged': round(markup_packaged, 1),
+                'markupKitchen': round(markup_kitchen, 1),
+                'loyaltyWriteoffs': round(data['loyaltyWriteoffs'], 0)
             })
 
         # Сортируем по выручке

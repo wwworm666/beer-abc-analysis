@@ -13,7 +13,7 @@
 
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange
 from typing import Dict, Optional, List, Tuple
@@ -382,12 +382,32 @@ class PlansManager:
         """Парсинг даты из строки YYYY-MM-DD"""
         return datetime.strptime(date_str, '%Y-%m-%d').date()
 
-    def _get_months_in_period(self, start_date: date, end_date: date) -> List[Tuple[int, int, int, int]]:
+    # Вес дня для расчёта плана: пт/сб приносят ~2x выручки
+    WEEKEND_WEIGHT = 2.0
+    WEEKDAY_WEIGHT = 1.0
+
+    def _day_weight(self, d: date) -> float:
+        """Вес дня: пт(4)/сб(5) = 2x, остальные = 1x"""
+        return self.WEEKEND_WEIGHT if d.weekday() in (4, 5) else self.WEEKDAY_WEIGHT
+
+    def _weighted_days(self, start: date, end: date) -> float:
+        """Сумма весов дней в диапазоне [start, end]"""
+        total = 0.0
+        d = start
+        while d <= end:
+            total += self._day_weight(d)
+            d += timedelta(days=1)
+        return total
+
+    def _get_months_in_period(self, start_date: date, end_date: date) -> list:
         """
-        Получить список месяцев в периоде с количеством дней в каждом
+        Получить список месяцев в периоде с взвешенными долями
+
+        Пт/Сб имеют вес 2x, остальные дни — 1x.
+        ratio = взвешенные_дни_периода_в_месяце / взвешенные_дни_месяца
 
         Returns:
-            List of tuples: (year, month, days_in_period, total_days_in_month)
+            List of tuples: (year, month, ratio)
         """
         months = []
         current = start_date.replace(day=1)
@@ -397,15 +417,17 @@ class PlansManager:
             month = current.month
             days_in_month = monthrange(year, month)[1]
 
-            # Определяем первый и последний день периода в этом месяце
+            # Границы периода внутри этого месяца
             period_start = max(start_date, current)
             month_end = current.replace(day=days_in_month)
             period_end = min(end_date, month_end)
 
-            # Количество дней периода в этом месяце
-            days_in_period = (period_end - period_start).days + 1
+            # Взвешенная доля: сколько «веса» периода vs весь месяц
+            period_weight = self._weighted_days(period_start, period_end)
+            month_weight = self._weighted_days(current, month_end)
+            ratio = period_weight / month_weight if month_weight > 0 else 0
 
-            months.append((year, month, days_in_period, days_in_month))
+            months.append((year, month, ratio))
 
             # Переходим к следующему месяцу
             if month == 12:
@@ -484,8 +506,7 @@ class PlansManager:
             # Если venue_key пустой - суммируем по всем заведениям
             venues_to_check = [venue_key] if venue_key else ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
 
-            for year, month, days_in_period, days_in_month in months_data:
-                ratio = days_in_period / days_in_month
+            for year, month, ratio in months_data:
 
                 for venue in venues_to_check:
                     month_plan = self.get_monthly_plan(venue, year, month)

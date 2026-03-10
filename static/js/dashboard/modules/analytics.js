@@ -213,7 +213,9 @@ class Analytics {
         const expandableMetrics = [
             'revenue', 'checks', 'averageCheck',
             'draftShare', 'packagedShare', 'kitchenShare',
-            'revenueDraft', 'revenuePackaged', 'revenueKitchen'
+            'revenueDraft', 'revenuePackaged', 'revenueKitchen',
+            'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
+            'loyaltyWriteoffs'
         ];
 
         if (expandableMetrics.includes(metric.id)) {
@@ -382,7 +384,9 @@ class Analytics {
         const expandableMetrics = [
             'revenue', 'checks', 'averageCheck',
             'draftShare', 'packagedShare', 'kitchenShare',
-            'revenueDraft', 'revenuePackaged', 'revenueKitchen'
+            'revenueDraft', 'revenuePackaged', 'revenueKitchen',
+            'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
+            'loyaltyWriteoffs'
         ];
 
         if (!expandableMetrics.includes(metric.id)) return;
@@ -484,7 +488,13 @@ class Analytics {
             'kitchenShare': 'kitchenShare',
             'revenueDraft': 'revenueDraft',
             'revenuePackaged': 'revenuePackaged',
-            'revenueKitchen': 'revenueKitchen'
+            'revenueKitchen': 'revenueKitchen',
+            'profit': 'profit',
+            'markupPercent': 'markupPercent',
+            'markupDraft': 'markupDraft',
+            'markupPackaged': 'markupPackaged',
+            'markupKitchen': 'markupKitchen',
+            'loyaltyWriteoffs': 'loyaltyWriteoffs'
         };
 
         const key = keyMap[metric.id];
