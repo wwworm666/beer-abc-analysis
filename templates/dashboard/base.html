@@ -1,40 +1,10 @@
 <!-- Базовый layout дашборда -->
+
+{% set page_title = "Дашборд" %}
+{% set page_subtitle = "Аналитика план vs факт" %}
+
 <div class="container">
-    <!-- Header -->
-    <div class="header">
-        <div class="header-left">
-            <h1>Дашборд</h1>
-            <div class="subtitle">Аналитика план vs факт</div>
-        </div>
-
-        <div class="header-right">
-            <!-- Navigation Links -->
-            <div class="nav-links">
-                <a href="/" class="nav-link active">Дашборд</a>
-                <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
-                <a href="/draft" class="nav-link">Разливное</a>
-                <a href="/waiters" class="nav-link">Бармены</a>
-                <a href="/employee" class="nav-link">Сотрудник</a>
-                <a href="/bonus" class="nav-link">Бонусы</a>
-                <a href="/discounts" class="nav-link">Скидки</a>
-                <a href="/taps" class="nav-link">Краны</a>
-                <a href="/stocks" class="nav-link">Остатки</a>
-                <a href="/schedule" class="nav-link">График</a>
-            </div>
-
-            <!-- API Status and Theme Toggle -->
-            <div class="header-actions">
-                <div class="api-status checking" id="api-status" onclick="window.dashboardCheckApi()" title="Нажмите для проверки подключения">
-                    <div class="api-status-indicator"></div>
-                    <span class="api-status-text">Проверка подключения...</span>
-                </div>
-                <div class="theme-toggle">
-                    <button class="theme-btn active" onclick="window.dashboardSetTheme('light')">Светлая</button>
-                    <button class="theme-btn" onclick="window.dashboardSetTheme('dark')">Тёмная</button>
-                </div>
-            </div>
-        </div>
-    </div>
+    {% include 'shared/nav.html' %}
 
     <!-- Dashboard Controls - Единый блок управления -->
     <div class="dashboard-controls">

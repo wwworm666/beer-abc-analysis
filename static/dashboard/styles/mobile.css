@@ -25,57 +25,8 @@
         padding: 20px 12px;
     }
 
-    .header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: var(--spacing-md);
-    }
-
-    .header-left h1 {
-        font-size: 2rem;
-    }
-
-    .header-right {
-        width: 100%;
-        align-items: stretch !important;
-    }
-
-    /* Nav links - horizontal scroll */
-    .nav-links {
-        display: flex !important;
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-        white-space: nowrap;
-        padding-bottom: 8px;
-        gap: 8px !important;
-        margin-bottom: 12px;
-    }
-
-    .nav-links::-webkit-scrollbar {
-        display: none;
-    }
-
-    .nav-links .nav-link {
-        display: inline-block;
-        padding: 8px 12px !important;
-        font-size: 0.8rem !important;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
-
-    .header-right > div:last-child {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .api-status {
-        flex: 1;
-    }
-
-    .theme-toggle {
-        flex-shrink: 0;
+    .header-with-sidebar {
+        gap: 12px;
     }
 
     .tabs-nav {
@@ -192,12 +143,7 @@
         font-size: 1.5rem;
     }
 
-    .nav-links .nav-link {
-        padding: 6px 10px !important;
-        font-size: 0.75rem !important;
-    }
-
-    .metric-value {
+.metric-value {
         font-size: 1rem;
     }
 
@@ -240,48 +186,3 @@
     }
 }
 
-/* Hamburger menu для мобильных */
-@media (max-width: 768px) {
-    .burger-menu {
-        display: block;
-        width: 30px;
-        height: 24px;
-        cursor: pointer;
-        position: relative;
-    }
-
-    .burger-menu span {
-        display: block;
-        width: 100%;
-        height: 3px;
-        background: var(--text-primary);
-        position: absolute;
-        transition: all 0.3s ease;
-    }
-
-    .burger-menu span:nth-child(1) {
-        top: 0;
-    }
-
-    .burger-menu span:nth-child(2) {
-        top: 10px;
-    }
-
-    .burger-menu span:nth-child(3) {
-        bottom: 0;
-    }
-
-    .burger-menu.active span:nth-child(1) {
-        transform: rotate(45deg);
-        top: 10px;
-    }
-
-    .burger-menu.active span:nth-child(2) {
-        opacity: 0;
-    }
-
-    .burger-menu.active span:nth-child(3) {
-        transform: rotate(-45deg);
-        bottom: 11px;
-    }
-}

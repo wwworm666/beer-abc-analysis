@@ -1,127 +1,26 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление кранами - {{ bar_name }}</title>
+
+    <!-- Shared CSS -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+
     <style>
-        :root {
-            /* Light Theme */
-            --bg-primary: #fafafa;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #f5f5f5;
-            --text-primary: #1a1a1a;
-            --text-secondary: #666666;
-            --text-tertiary: #999999;
-            --border-color: #e0e0e0;
-            --accent: #0066cc;
-            --accent-hover: #0052a3;
-            --shadow: rgba(0, 0, 0, 0.08);
-            --success: #059669;
-            --warning: #d97706;
-            --danger: #dc2626;
-        }
-
-        [data-theme="dark"] {
-            /* Dark Theme */
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-tertiary: #2a2a2a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #999999;
-            --text-tertiary: #666666;
-            --border-color: #333333;
-            --accent: #3b82f6;
-            --accent-hover: #60a5fa;
-            --shadow: rgba(0, 0, 0, 0.3);
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 60px;
-            padding-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .header-left h1 {
-            font-size: 4rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            line-height: 1;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-
-        .header-left .subtitle {
-            font-size: 0.9rem;
-            color: var(--text-tertiary);
-            font-weight: 400;
-            letter-spacing: 0.02em;
-            margin-top: 4px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-
-        .nav-link {
-            padding: 8px 20px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link:hover {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-
-        .nav-link.active {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-
         /* Header controls */
         .header-controls {
             display: flex;
             gap: 12px;
             align-items: center;
+            margin-bottom: 24px;
         }
 
         /* Refresh button */
@@ -158,38 +57,6 @@
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: var(--bg-secondary);
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-
-        .theme-btn {
-            background: transparent;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-
-        .theme-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .theme-btn:hover:not(.active) {
-            color: var(--text-primary);
         }
 
         /* Card */
@@ -632,24 +499,6 @@
 
         /* Responsive */
         @media (max-width: 768px) {
-            .container {
-                padding: 12px;
-            }
-
-            .header {
-                margin-bottom: 16px;
-                flex-direction: column;
-                gap: 12px;
-            }
-
-            .header-left h1 {
-                font-size: 1.8rem;
-            }
-
-            .header-left .subtitle {
-                font-size: 0.8rem;
-            }
-
             .header-controls {
                 width: 100%;
                 flex-direction: column;
@@ -660,11 +509,7 @@
                 justify-content: center;
             }
 
-            .theme-toggle {
-                width: 100%;
-            }
-
-            /* Компактная статистика */
+            /* Compact stats */
             .stats-grid {
                 grid-template-columns: repeat(4, 1fr);
                 gap: 8px;
@@ -685,7 +530,7 @@
                 font-size: 1.5rem;
             }
 
-            /* Компактная сетка кранов */
+            /* Compact taps grid */
             .taps-grid {
                 grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
                 gap: 12px;
@@ -707,7 +552,7 @@
                 font-size: 0.75rem;
             }
 
-            /* Модальное окно */
+            /* Modal */
             .modal-content {
                 padding: 20px;
                 width: 95%;
@@ -726,7 +571,7 @@
                 font-size: 0.95rem;
             }
 
-            /* История */
+            /* History */
             .history-section {
                 margin-top: 24px;
             }
@@ -748,47 +593,24 @@
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-left">
-                <h1>{{ bar_name }}</h1>
-                <div class="subtitle">Активность кранов</div>
-            </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
-                <div class="nav-links">
-                    <a href="/" class="nav-link">Дашборд</a>
-                    <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
-                    <a href="/draft" class="nav-link">Разливное</a>
-                    <a href="/waiters" class="nav-link">Бармены</a>
-                    <a href="/employee" class="nav-link">Сотрудник</a>
-                    <a href="/bonus" class="nav-link">Бонусы</a>
-                    <a href="/discounts" class="nav-link">Скидки</a>
-                    <a href="/taps" class="nav-link active">Краны</a>
-                    <a href="/stocks" class="nav-link">Остатки</a>
-                </div>
-                <div class="header-controls">
-                <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения" style="margin-right: 10px;">
-                    <div class="api-status-indicator"></div>
-                    <span class="api-status-text">Проверка подключения...</span>
-                </div>
-                <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 5px;">
-                    <span>📥</span>
-                    <span>Таплист</span>
-                </button>
-                <button class="refresh-btn" onclick="downloadBarTaplistFull()" style="margin-right: 10px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);">
-                    <span>📥</span>
-                    <span>Таплист V2</span>
-                </button>
-                <button class="refresh-btn" onclick="refreshBeersList()" id="refresh-btn">
-                    <span id="refresh-icon">🔄</span>
-                    <span>Обновить списки</span>
-                </button>
-                <div class="theme-toggle">
-                    <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
-                    <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
-                </div>
-                </div>
-            </div>
+        {% set page_title = "Краны — " + bar_name %}
+        {% set page_subtitle = "Управление кранами бара" %}
+        {% include 'shared/nav.html' %}
+
+        <!-- Header Controls -->
+        <div class="header-controls">
+            <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 5px;">
+                <span>📥</span>
+                <span>Таплист</span>
+            </button>
+            <button class="refresh-btn" onclick="downloadBarTaplistFull()" style="margin-right: 10px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);">
+                <span>📥</span>
+                <span>Таплист V2</span>
+            </button>
+            <button class="refresh-btn" onclick="refreshBeersList()" id="refresh-btn">
+                <span id="refresh-icon">🔄</span>
+                <span>Обновить списки</span>
+            </button>
         </div>
 
         <!-- Stats -->
@@ -863,32 +685,10 @@
         let beersData = [];
         let currentTap = null;
 
-        // Theme management
-        function setTheme(theme) {
-            document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('theme', theme);
-
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-        }
-
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            if ((savedTheme === 'light' && btn.textContent === 'Светлая') ||
-                (savedTheme === 'dark' && btn.textContent === 'Тёмная')) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-
         // API Connection Status Check
-        async function checkApiConnection() {
+        window.dashboardCheckApi = async function() {
             const statusElement = document.getElementById('api-status');
+            if (!statusElement) return;
             const textElement = statusElement.querySelector('.api-status-text');
 
             statusElement.className = 'api-status checking';
@@ -911,13 +711,12 @@
                 textElement.textContent = 'Ошибка подключения';
                 console.error('API connection error:', error);
             }
-        }
+        };
 
         // Check connection on page load
         document.addEventListener('DOMContentLoaded', function() {
-            checkApiConnection();
-            // Recheck connection every 60 seconds
-            setInterval(checkApiConnection, 60000);
+            window.dashboardCheckApi();
+            setInterval(window.dashboardCheckApi, 60000);
         });
 
         // Load taps data
@@ -949,13 +748,13 @@
             const btn = document.getElementById('refresh-btn');
             const icon = document.getElementById('refresh-icon');
 
-            // Показываем состояние загрузки
+            // Show loading state
             btn.classList.add('loading');
             btn.disabled = true;
             icon.style.animation = 'spin 1s linear infinite';
 
             try {
-                // Запрашиваем обновление номенклатуры на сервере
+                // Request nomenclature update on server
                 const updateResponse = await fetch('/api/update-nomenclature', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
@@ -965,16 +764,16 @@
                     throw new Error('Failed to update nomenclature');
                 }
 
-                // Перезагружаем список кег
+                // Reload kegs list
                 await loadBeers();
 
-                // Показываем уведомление об успехе
+                // Show success notification
                 alert('Список кег успешно обновлен!');
             } catch (error) {
                 console.error('Error refreshing beers:', error);
                 alert('Ошибка при обновлении списка кег');
             } finally {
-                // Убираем состояние загрузки
+                // Remove loading state
                 btn.classList.remove('loading');
                 btn.disabled = false;
                 icon.style.animation = '';
@@ -1065,7 +864,7 @@
 
             if (tap.status === 'empty') {
                 actionButtons.innerHTML = '';
-                // Сразу показываем форму для подключения
+                // Show connection form immediately
                 setTimeout(() => showStartForm(), 0);
             } else if (tap.status === 'active') {
                 actionButtons.innerHTML = `
@@ -1074,7 +873,7 @@
                 `;
                 document.getElementById('form-container').innerHTML = '';
 
-                // Добавляем обработчики событий после создания кнопок
+                // Add event handlers after creating buttons
                 setTimeout(() => {
                     const replaceBtn = document.getElementById('replace-btn');
                     const stopBtn = document.getElementById('stop-btn');
@@ -1130,7 +929,7 @@
 
                 const filtered = beersData.filter(beer =>
                     beer.name.toLowerCase().includes(value)
-                ).slice(0, 10); // Показываем первые 10 результатов
+                ).slice(0, 10); // Show first 10 results
 
                 if (filtered.length === 0) {
                     listDiv.classList.remove('active');
@@ -1141,16 +940,16 @@
                     const div = document.createElement('div');
                     div.className = 'autocomplete-item';
 
-                    // Подсвечиваем совпадение
+                    // Highlight match
                     const regex = new RegExp(`(${value})`, 'gi');
                     const highlighted = beer.name.replace(regex, '<mark>$1</mark>');
                     div.innerHTML = highlighted;
 
                     div.addEventListener('click', function() {
                         input.value = beer.name;
-                        input.dataset.beerNum = beer.num || ''; // Сохраняем артикул
+                        input.dataset.beerNum = beer.num || ''; // Save article number
                         listDiv.classList.remove('active');
-                        // Автоматически заполняем поле артикула
+                        // Auto-fill article field
                         const artikulInput = document.getElementById('artikul');
                         if (artikulInput && beer.num) {
                             artikulInput.value = beer.num;
@@ -1179,8 +978,8 @@
                     e.preventDefault();
                     const selectedBeer = filtered[selectedIndex];
                     input.value = selectedBeer.name;
-                    input.dataset.beerNum = selectedBeer.num || ''; // Сохраняем артикул
-                    // Автоматически заполняем поле артикула
+                    input.dataset.beerNum = selectedBeer.num || ''; // Save article number
+                    // Auto-fill article field
                     const artikulInput = document.getElementById('artikul');
                     if (artikulInput && selectedBeer.num) {
                         artikulInput.value = selectedBeer.num;
@@ -1229,7 +1028,7 @@
             setTimeout(() => {
                 setupBeerAutocomplete('beer-input');
 
-                // Добавляем обработчик для кнопки "Подключить"
+                // Add handler for "Connect" button
                 const startSubmitBtn = document.getElementById('start-submit-btn');
                 if (startSubmitBtn) {
                     startSubmitBtn.addEventListener('click', function() {
@@ -1274,7 +1073,7 @@
                 console.log('Setting up autocomplete and button handler');
                 setupBeerAutocomplete('beer-input');
 
-                // Добавляем обработчик для кнопки "Заменить"
+                // Add handler for "Replace" button
                 const replaceSubmitBtn = document.getElementById('replace-submit-btn');
                 if (replaceSubmitBtn) {
                     replaceSubmitBtn.addEventListener('click', function() {
@@ -1522,5 +1321,6 @@
         loadTaps();
         loadHistory();
     </script>
+    <script src="/static/logo.js"></script>
 </body>
 </html>

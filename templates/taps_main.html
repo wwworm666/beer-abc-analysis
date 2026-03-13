@@ -1,224 +1,20 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Активность кранов</title>
+
+    <!-- Shared CSS -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+
     <style>
-        :root {
-            /* Light Theme */
-            --bg-primary: #fafafa;
-            --bg-secondary: #ffffff;
-            --bg-tertiary: #f5f5f5;
-            --text-primary: #1a1a1a;
-            --text-secondary: #666666;
-            --text-tertiary: #999999;
-            --border-color: #e0e0e0;
-            --accent: #0066cc;
-            --accent-hover: #0052a3;
-            --shadow: rgba(0, 0, 0, 0.08);
-            --success: #059669;
-            --warning: #d97706;
-            --danger: #dc2626;
-        }
-
-        [data-theme="dark"] {
-            /* Dark Theme */
-            --bg-primary: #0f0f0f;
-            --bg-secondary: #1a1a1a;
-            --bg-tertiary: #2a2a2a;
-            --text-primary: #e0e0e0;
-            --text-secondary: #999999;
-            --text-tertiary: #666666;
-            --border-color: #333333;
-            --accent: #3b82f6;
-            --accent-hover: #60a5fa;
-            --shadow: rgba(0, 0, 0, 0.3);
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-
-        /* Header */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 60px;
-            padding-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .header-left h1 {
-            font-size: 4rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-            line-height: 1;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-
-        .header-left .subtitle {
-            font-size: 0.9rem;
-            color: var(--text-tertiary);
-            font-weight: 400;
-            letter-spacing: 0.02em;
-            margin-top: 4px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-
-        .nav-link {
-            padding: 8px 20px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .nav-link:hover {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-
-        .nav-link.active {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-
-        /* Theme Toggle */
-        .theme-toggle {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            background: var(--bg-secondary);
-            padding: 8px;
-            border-radius: 6px;
-            border: 1px solid var(--border-color);
-        }
-
-        .theme-btn {
-            background: transparent;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-
-        .theme-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-
-        .theme-btn:hover:not(.active) {
-            color: var(--text-primary);
-        }
-
-        /* API Status */
-        .api-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-
-        .api-status:hover {
-            border-color: var(--accent);
-            transform: translateY(-1px);
-        }
-
-        .api-status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--text-tertiary);
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .api-status.checking .api-status-indicator {
-            background: var(--warning);
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
-        .api-status.connected .api-status-indicator {
-            background: var(--success);
-            box-shadow: 0 0 8px var(--success);
-        }
-
-        .api-status.error .api-status-indicator {
-            background: var(--danger);
-        }
-
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.5;
-                transform: scale(0.9);
-            }
-        }
-
-        .api-status-text {
-            color: var(--text-secondary);
-        }
-
-        .api-status.connected .api-status-text {
-            color: var(--success);
-        }
-
-        .api-status.error .api-status-text {
-            color: var(--danger);
-        }
-
-        .api-status.checking .api-status-text {
-            color: var(--warning);
-        }
-
         /* Bars Grid */
         .bars-grid {
             display: grid;
@@ -299,18 +95,6 @@
 
         /* Responsive */
         @media (max-width: 768px) {
-            .container {
-                padding: 12px;
-            }
-
-            .header {
-                margin-bottom: 20px;
-            }
-
-            .header-left h1 {
-                font-size: 1.8rem;
-            }
-
             .bars-grid {
                 grid-template-columns: 1fr;
                 gap: 16px;
@@ -327,50 +111,14 @@
             .status-value {
                 font-size: 1.3rem;
             }
-
-            .theme-toggle {
-                gap: 4px;
-            }
-
-            .theme-btn {
-                padding: 6px 12px;
-                font-size: 0.85rem;
-            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-left">
-                <h1>Активность кранов</h1>
-                <div class="subtitle">Мониторинг использования кранов по барам</div>
-            </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 16px;">
-                <div class="nav-links">
-                    <a href="/" class="nav-link">Дашборд</a>
-                    <a href="/packaging" class="nav-link">ABC/XYZ фасовки</a>
-                    <a href="/draft" class="nav-link">Разливное</a>
-                    <a href="/waiters" class="nav-link">Бармены</a>
-                    <a href="/employee" class="nav-link">Сотрудник</a>
-                    <a href="/bonus" class="nav-link">Бонусы</a>
-                    <a href="/discounts" class="nav-link">Скидки</a>
-                    <a href="/taps" class="nav-link active">Краны</a>
-                    <a href="/stocks" class="nav-link">Остатки</a>
-                </div>
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <div class="api-status checking" id="api-status" onclick="checkApiConnection()" title="Нажмите для проверки подключения">
-                        <div class="api-status-indicator"></div>
-                        <span class="api-status-text">Проверка подключения...</span>
-                    </div>
-                    <div class="theme-toggle">
-                        <button class="theme-btn active" onclick="setTheme('light')">Светлая</button>
-                        <button class="theme-btn" onclick="setTheme('dark')">Тёмная</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% set page_title = "Активность кранов" %}
+        {% set page_subtitle = "Мониторинг по барам" %}
+        {% include 'shared/nav.html' %}
 
         <!-- Bars Grid -->
         <div class="bars-grid" id="bars-grid">
@@ -386,33 +134,10 @@
             { id: 'bar4', name: 'Варшавская', taps: 12 }
         ];
 
-        // Theme toggle
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const theme = btn.dataset.theme;
-                document.documentElement.setAttribute('data-theme', theme);
-                document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                localStorage.setItem('theme', theme);
-            });
-        });
-
-        // Load saved theme
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            if (btn.dataset.theme === savedTheme) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
-        });
-
-        // Check API Connection
-        async function checkApiConnection() {
+        // API Connection Status Check
+        window.dashboardCheckApi = async function() {
             const statusElement = document.getElementById('api-status');
             if (!statusElement) return;
-
             const textElement = statusElement.querySelector('.api-status-text');
 
             statusElement.className = 'api-status checking';
@@ -435,11 +160,13 @@
                 textElement.textContent = 'Ошибка подключения';
                 console.error('API connection error:', error);
             }
-        }
+        };
 
         // Check connection on page load
-        checkApiConnection();
-        setInterval(checkApiConnection, 60000); // Every minute
+        document.addEventListener('DOMContentLoaded', function() {
+            window.dashboardCheckApi();
+            setInterval(window.dashboardCheckApi, 60000);
+        });
 
         // Load bars status
         async function loadBarsStatus() {
@@ -503,5 +230,6 @@
         // Initial load
         loadBarsStatus();
     </script>
+    <script src="/static/logo.js"></script>
 </body>
 </html>

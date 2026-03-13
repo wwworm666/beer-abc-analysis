@@ -1,81 +1,25 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>График смен — Пивная культура</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Shared CSS -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
     <style>
         :root {
-            --bg-primary: #FAF9F7;
-            --bg-secondary: #FFFFFF;
-            --bg-tertiary: #F5F5F0;
-            --text-primary: #1a1a1a;
-            --text-secondary: #666666;
-            --text-muted: #999999;
-            --border-color: #E5E5E0;
-            --accent: #D97757;
-            --accent-hover: #C56647;
-            --success: #059669;
-            --warning: #F59E0B;
-            --danger: #DC2626;
             --role-barman: #4CAF50;
             --role-second: #2196F3;
             --role-trainee: #FF9800;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
             --radius: 12px;
             --radius-sm: 8px;
         }
-
-        [data-theme="dark"] {
-            --bg-primary: #1C1917;
-            --bg-secondary: #292524;
-            --bg-tertiary: #3D3835;
-            --text-primary: #FAF9F7;
-            --text-secondary: #A8A29E;
-            --text-muted: #78716C;
-            --border-color: #44403C;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'IBM Plex Mono', monospace;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-        }
-
-        .header {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border-color);
-            padding: 16px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header h1 { font-size: 1.25rem; font-weight: 600; }
-        .header-actions { display: flex; gap: 12px; align-items: center; }
-        .nav-links { display: flex; gap: 8px; flex-wrap: wrap; }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            padding: 8px 12px;
-            border-radius: var(--radius-sm);
-            font-size: 0.85rem;
-            transition: all 150ms ease;
-        }
-
-        .nav-links a:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-        .nav-links a.active { background: var(--accent); color: white; }
 
         /* Month Navigation */
         .month-nav {
@@ -156,7 +100,7 @@
             border-style: solid;
         }
 
-        .paint-hint { font-size: 0.8rem; color: var(--text-muted); padding: 4px 0; }
+        .paint-hint { font-size: 0.8rem; color: var(--text-tertiary); padding: 4px 0; }
 
         /* Main Content */
         .main-content { padding: 24px; display: flex; flex-direction: column; gap: 24px; }
@@ -211,7 +155,7 @@
 
         .schedule-cell.date-cell:hover { background: var(--accent); color: white; }
 
-        .schedule-cell.date-cell .day-name { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 1px; }
+        .schedule-cell.date-cell .day-name { font-size: 0.7rem; color: var(--text-tertiary); margin-bottom: 1px; }
         .schedule-cell.date-cell:hover .day-name { color: rgba(255,255,255,0.8); }
         .schedule-cell.date-cell .day-number { font-size: 0.9rem; }
 
@@ -312,7 +256,7 @@
         }
 
         .revenue-card .fact-value { font-size: 1.1rem; font-weight: 600; color: var(--success); }
-        .revenue-card .fact-value.empty { color: var(--text-muted); }
+        .revenue-card .fact-value.empty { color: var(--text-tertiary); }
 
         /* ==================== Wishes Board ==================== */
         .wishes-board {
@@ -363,7 +307,7 @@
 
         .wish-card textarea:focus { outline: none; border-color: var(--accent); }
 
-        .wish-card textarea::placeholder { color: var(--text-muted); }
+        .wish-card textarea::placeholder { color: var(--text-tertiary); }
 
         /* Modal */
         .modal-overlay {
@@ -434,18 +378,7 @@
         .btn-danger { background: var(--danger); color: white; }
         .btn-success { background: var(--success); color: white; }
 
-        .theme-toggle {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            padding: 8px 12px;
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 0.85rem;
-        }
-
-        .loading { display: flex; align-items: center; justify-content: center; padding: 48px; color: var(--text-muted); }
+        .loading { display: flex; align-items: center; justify-content: center; padding: 48px; color: var(--text-tertiary); }
 
         .spinner {
             width: 24px; height: 24px;
@@ -480,7 +413,6 @@
         @media (max-width: 900px) {
             .schedule-grid { grid-template-columns: 80px repeat(4, 1fr); }
             .revenue-grid { grid-template-columns: repeat(2, 1fr); }
-            .header { flex-direction: column; gap: 12px; }
             .wishes-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
         }
 
@@ -493,23 +425,11 @@
     </style>
 </head>
 <body>
-    <header class="header">
-        <h1>График смен</h1>
-        <div class="header-actions">
-            <nav class="nav-links">
-                <a href="/">Дашборд</a>
-                <a href="/packaging">ABC/XYZ фасовки</a>
-                <a href="/draft">Разливное</a>
-                <a href="/waiters">Бармены</a>
-                <a href="/employee">Сотрудник</a>
-                <a href="/bonus">Бонусы</a>
-                <a href="/taps">Краны</a>
-                <a href="/stocks">Остатки</a>
-                <a href="/schedule" class="active">График</a>
-            </nav>
-            <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
-        </div>
-    </header>
+    <div class="container">
+        {% set page_title = "График" %}
+        {% set page_subtitle = "Планирование смен" %}
+        {% include 'shared/nav.html' %}
+    </div>
 
     <div class="month-nav">
         <button onclick="prevMonth()">← Пред</button>
@@ -1031,26 +951,7 @@
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
         }
-
-        // ==================== THEME ====================
-        function toggleTheme() {
-            const body = document.body;
-            const btn = document.querySelector('.theme-toggle');
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.removeAttribute('data-theme');
-                btn.textContent = '🌙';
-                localStorage.setItem('theme', 'light');
-            } else {
-                body.setAttribute('data-theme', 'dark');
-                btn.textContent = '☀️';
-                localStorage.setItem('theme', 'dark');
-            }
-        }
-
-        if (localStorage.getItem('theme') === 'dark') {
-            document.body.setAttribute('data-theme', 'dark');
-            document.querySelector('.theme-toggle').textContent = '☀️';
-        }
     </script>
+    <script src="/static/logo.js"></script>
 </body>
 </html>

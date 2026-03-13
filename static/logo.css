@@ -1,0 +1,54 @@
+/* ===== kultura.os — Site Logo ===== */
+
+.site-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 500;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    margin-bottom: 6px;
+    color: var(--text-primary, #1a1a1a);
+    transition: opacity 0.2s;
+}
+
+.site-logo:hover {
+    opacity: 0.7;
+}
+
+.site-logo .prompt {
+    color: #D97757;
+    margin-right: 6px;
+}
+
+.site-logo .logo-text {
+    display: inline;
+    white-space: nowrap;
+}
+
+.site-logo .cursor {
+    display: inline-block;
+    margin-left: 2px;
+    color: #D97757;
+    animation: logoBlink 0.8s step-end infinite;
+}
+
+/* During typewriter — cursor solid, no blink */
+.site-logo.typing .cursor,
+.header-bar-logo.typing .cursor {
+    animation: none;
+    opacity: 1;
+}
+
+@keyframes logoBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* Dark theme */
+[data-theme="dark"] .site-logo {
+    color: #e0e0e0;
+}

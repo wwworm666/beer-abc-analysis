@@ -1,56 +1,28 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление пивными кранами</title>
+    <!-- Shared CSS -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-
-        header h1 {
-            color: #333;
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        header p {
-            color: #666;
-            font-size: 16px;
-        }
-
         .stats-bar {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
             margin-top: 20px;
+            margin-bottom: 30px;
         }
 
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--accent);
             color: white;
             padding: 20px;
             border-radius: 8px;
@@ -76,9 +48,9 @@
         }
 
         .bar-card {
-            background: white;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             overflow: hidden;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -86,11 +58,11 @@
 
         .bar-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 12px var(--shadow);
         }
 
         .bar-card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--accent);
             color: white;
             padding: 20px;
         }
@@ -120,7 +92,7 @@
 
         .tap {
             aspect-ratio: 1;
-            border: 2px solid #ddd;
+            border: 2px solid var(--border-color);
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -137,9 +109,9 @@
         }
 
         .tap.empty {
-            background: #f0f0f0;
-            color: #999;
-            border-color: #ddd;
+            background: var(--bg-tertiary);
+            color: var(--text-tertiary);
+            border-color: var(--border-color);
         }
 
         .tap.active {
@@ -166,7 +138,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: white;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             padding: 30px;
@@ -195,9 +168,9 @@
         }
 
         .tap-popup h2 {
-            color: #333;
+            color: var(--text-primary);
             margin-bottom: 20px;
-            border-bottom: 2px solid #667eea;
+            border-bottom: 2px solid var(--accent);
             padding-bottom: 10px;
         }
 
@@ -208,7 +181,7 @@
         .form-group label {
             display: block;
             margin-bottom: 5px;
-            color: #333;
+            color: var(--text-primary);
             font-weight: 500;
         }
 
@@ -216,16 +189,18 @@
         .form-group select {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
             font-size: 14px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
 
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(217, 119, 87, 0.1);
         }
 
         .button-group {
@@ -246,12 +221,12 @@
         }
 
         .btn-primary {
-            background: #667eea;
+            background: var(--accent);
             color: white;
         }
 
         .btn-primary:hover {
-            background: #5568d3;
+            background: var(--accent-hover);
         }
 
         .btn-success {
@@ -282,12 +257,12 @@
         }
 
         .btn-secondary {
-            background: #999;
+            background: var(--text-tertiary);
             color: white;
         }
 
         .btn-secondary:hover {
-            background: #777;
+            background: var(--text-secondary);
         }
 
         .btn-small {
@@ -304,23 +279,24 @@
         .action-button {
             padding: 12px;
             text-align: left;
-            border: 1px solid #ddd;
-            background: #f9f9f9;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
             cursor: pointer;
             border-radius: 6px;
             transition: all 0.3s ease;
+            color: var(--text-primary);
         }
 
         .action-button:hover {
-            background: #f0f0f0;
-            border-color: #667eea;
+            background: var(--bg-hover, var(--bg-tertiary));
+            border-color: var(--accent);
         }
 
         .tabs {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
-            border-bottom: 2px solid #ddd;
+            border-bottom: 2px solid var(--border-color);
         }
 
         .tab-btn {
@@ -328,15 +304,15 @@
             background: none;
             border: none;
             border-bottom: 3px solid transparent;
-            color: #666;
+            color: var(--text-secondary);
             cursor: pointer;
             font-weight: 600;
             transition: all 0.3s ease;
         }
 
         .tab-btn.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
+            color: var(--accent);
+            border-bottom-color: var(--accent);
         }
 
         .tab-content {
@@ -350,16 +326,17 @@
         .history-list {
             max-height: 400px;
             overflow-y: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
         }
 
         .history-item {
             padding: 12px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            color: var(--text-primary);
         }
 
         .history-item:last-child {
@@ -392,19 +369,19 @@
 
         .history-time {
             font-size: 12px;
-            color: #999;
+            color: var(--text-tertiary);
         }
 
         .events-list {
             max-height: 500px;
             overflow-y: auto;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
         }
 
         .event-item {
             padding: 15px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-color);
             display: grid;
             grid-template-columns: auto 1fr auto;
             gap: 15px;
@@ -441,25 +418,25 @@
 
         .event-info h4 {
             margin-bottom: 5px;
-            color: #333;
+            color: var(--text-primary);
         }
 
         .event-info p {
             font-size: 12px;
-            color: #666;
+            color: var(--text-secondary);
             margin: 3px 0;
         }
 
         .event-time {
             font-size: 12px;
-            color: #999;
+            color: var(--text-tertiary);
             text-align: right;
         }
 
         .loading {
             text-align: center;
             padding: 40px;
-            color: #999;
+            color: var(--text-tertiary);
         }
 
         .alert {
@@ -490,23 +467,14 @@
             width: 100%;
         }
 
+        .bottom-section {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 30px;
+            border-radius: 12px;
+        }
+
         @media (max-width: 768px) {
-            body {
-                padding: 12px;
-            }
-
-            header {
-                padding: 16px;
-            }
-
-            header h1 {
-                font-size: 1.75rem;
-            }
-
-            header p {
-                font-size: 0.85rem;
-            }
-
             .bars-grid {
                 grid-template-columns: 1fr;
                 gap: 16px;
@@ -586,14 +554,6 @@
 
         /* Extra small screens */
         @media (max-width: 480px) {
-            body {
-                padding: 8px;
-            }
-
-            header h1 {
-                font-size: 1.4rem;
-            }
-
             .stats-bar {
                 grid-template-columns: 1fr;
             }
@@ -641,28 +601,28 @@
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>Активность кранов</h1>
-            <p>Отслеживание состояния кранов в реальном времени</p>
-            <div class="stats-bar" id="statsBar">
-                <div class="stat-card">
-                    <h3 id="totalTaps">0</h3>
-                    <p>Всего кранов</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="activeTaps">0</h3>
-                    <p>Активных кранов</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="emptyTaps">0</h3>
-                    <p>Пустых кранов</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="activePercentage">0%</h3>
-                    <p>Активность</p>
-                </div>
+        {% set page_title = "Краны" %}
+        {% set page_subtitle = "Управление кранами" %}
+        {% include 'shared/nav.html' %}
+
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-card">
+                <h3 id="totalTaps">0</h3>
+                <p>Всего кранов</p>
             </div>
-        </header>
+            <div class="stat-card">
+                <h3 id="activeTaps">0</h3>
+                <p>Активных кранов</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="emptyTaps">0</h3>
+                <p>Пустых кранов</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="activePercentage">0%</h3>
+                <p>Активность</p>
+            </div>
+        </div>
 
         <div class="bars-grid" id="barsGrid"></div>
 
@@ -671,7 +631,7 @@
         <div class="tap-popup" id="tapModal">
             <h2>Управление краном <span id="modalTapNumber"></span></h2>
 
-            <div id="tapInfo" style="margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-radius: 6px;">
+            <div id="tapInfo" style="margin-bottom: 20px; padding: 15px; background: var(--bg-tertiary); border-radius: 6px;">
                 <p><strong>Статус:</strong> <span id="tapStatus"></span></p>
                 <p><strong>Пиво:</strong> <span id="tapBeer">-</span></p>
                 <p><strong>Кега:</strong> <span id="tapKeg">-</span></p>
@@ -695,7 +655,7 @@
                     </button>
                 </div>
 
-                <div id="startForm" style="display: none; margin-top: 20px; padding: 20px; background: #f9f9f9; border-radius: 6px;">
+                <div id="startForm" style="display: none; margin-top: 20px; padding: 20px; background: var(--bg-tertiary); border-radius: 6px;">
                     <h3 style="margin-bottom: 15px;">Подключение кеги</h3>
                     <div class="form-group">
                         <label>Название пива:</label>
@@ -711,7 +671,7 @@
                     </div>
                 </div>
 
-                <div id="replaceForm" style="display: none; margin-top: 20px; padding: 20px; background: #f9f9f9; border-radius: 6px;">
+                <div id="replaceForm" style="display: none; margin-top: 20px; padding: 20px; background: var(--bg-tertiary); border-radius: 6px;">
                     <h3 style="margin-bottom: 15px;">Замена кеги</h3>
                     <div class="form-group">
                         <label>Название пива:</label>
@@ -736,7 +696,7 @@
         </div>
 
         <!-- Секция со статистикой и событиями -->
-        <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <div class="bottom-section">
             <div class="tabs" style="margin-bottom: 30px;">
                 <button class="tab-btn active" onclick="switchMainTab('overview')">Обзор</button>
                 <button class="tab-btn" onclick="switchMainTab('events')">События</button>
@@ -863,7 +823,7 @@
         function loadTapHistory(history) {
             const historyList = document.getElementById('historyList');
             if (history.length === 0) {
-                historyList.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">История пуста</div>';
+                historyList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">История пуста</div>';
                 return;
             }
 
@@ -1023,7 +983,7 @@
         function loadEvents(events) {
             const eventsList = document.getElementById('eventsList');
             if (events.length === 0) {
-                eventsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">Нет событий</div>';
+                eventsList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-tertiary);">Нет событий</div>';
                 return;
             }
 
@@ -1185,5 +1145,6 @@
             init();
         });
     </script>
+    <script src="/static/logo.js"></script>
 </body>
 </html>

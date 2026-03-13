@@ -1,0 +1,378 @@
+/* ============================================
+   SIDEBAR NAVIGATION - Боковой слайдер
+   ============================================ */
+
+/* Backdrop overlay */
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 26, 0.3);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 900;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+
+.sidebar-backdrop.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Sidebar panel */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 320px;
+    height: 100vh;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    z-index: 950;
+    transform: translateX(-100%);
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.sidebar.open {
+    transform: translateX(0);
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .sidebar.open {
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Sidebar header */
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 24px 20px;
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: var(--text-primary);
+}
+
+.sidebar-brand .prompt {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 1.2rem;
+}
+
+.sidebar-brand .brand-text {
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.03em;
+}
+
+.sidebar-close {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.sidebar-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--accent);
+}
+
+.sidebar-close svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Navigation section */
+.sidebar-nav {
+    padding: 16px 12px;
+    flex: 1;
+}
+
+.sidebar-section-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-tertiary);
+    padding: 8px 12px 6px;
+    margin-top: 8px;
+}
+
+.sidebar-section-label:first-child {
+    margin-top: 0;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+    margin-bottom: 2px;
+}
+
+.sidebar-link:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.sidebar-link.active {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.sidebar-link-icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0.7;
+}
+
+.sidebar-link.active .sidebar-link-icon {
+    opacity: 1;
+}
+
+.sidebar-link svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Sidebar footer — theme + api status */
+.sidebar-footer {
+    padding: 16px 16px 24px;
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sidebar-footer .api-status {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+
+.sidebar-footer .theme-toggle {
+    width: 100%;
+    border-radius: 12px;
+    justify-content: center;
+}
+
+/* ============================================
+   HEADER BAR - Единая горизонтальная полоса
+   ============================================ */
+
+.header-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding: 16px 24px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Menu button — заметная кнопка с акцентом */
+.header-bar-menu {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent);
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    color: white;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.header-bar-menu:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(217, 119, 87, 0.3);
+}
+
+.header-bar-menu:active {
+    transform: scale(0.95);
+}
+
+.header-bar-menu svg {
+    width: 24px;
+    height: 24px;
+}
+
+/* Title — центральная часть */
+.header-bar-title {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+
+.header-bar-page {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.header-bar-sep {
+    color: var(--border-color);
+    font-size: 1.1rem;
+    font-weight: 300;
+}
+
+.header-bar-sub {
+    font-size: 0.85rem;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Logo — справа, крупный */
+.header-bar-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    font-family: var(--font-family);
+    font-size: 1.65rem;
+    font-weight: 500;
+    text-decoration: none;
+    letter-spacing: 0.5px;
+    line-height: 1;
+    color: var(--text-primary);
+    transition: opacity 0.2s;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.header-bar-logo:hover {
+    opacity: 0.7;
+}
+
+.header-bar-logo .prompt {
+    color: var(--accent);
+    margin-right: 6px;
+    font-weight: 700;
+}
+
+.header-bar-logo .logo-text {
+    display: inline;
+    white-space: nowrap;
+}
+
+.header-bar-logo .cursor {
+    display: inline-block;
+    margin-left: 2px;
+    color: var(--accent);
+    animation: logoBlink 0.8s step-end infinite;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 85vw;
+        max-width: 320px;
+    }
+
+    .header-bar {
+        padding: 12px 16px;
+        gap: 12px;
+    }
+
+    .header-bar-menu {
+        width: 40px;
+        height: 40px;
+    }
+
+    .header-bar-sub {
+        display: none;
+    }
+
+    .header-bar-sep {
+        display: none;
+    }
+
+    .header-bar-page {
+        font-size: 1.1rem;
+    }
+
+    .header-bar-logo {
+        font-size: 1.3rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        width: 100vw;
+        max-width: none;
+    }
+
+    .header-bar {
+        padding: 10px 12px;
+        gap: 10px;
+        border-radius: var(--border-radius-sm);
+    }
+
+    .header-bar-menu {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+    }
+
+    .header-bar-menu svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .header-bar-page {
+        font-size: 1rem;
+    }
+
+    .header-bar-logo {
+        font-size: 1.1rem;
+    }
+}

@@ -1,0 +1,193 @@
+<!-- Shared Navigation: Sidebar + Header Bar -->
+{# Usage: set page_title = "Page", page_subtitle = "Sub", then include 'shared/nav.html' #}
+
+<!-- Sidebar Navigation -->
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<nav class="sidebar" id="sidebar">
+    <!-- Sidebar Header -->
+    <div class="sidebar-header">
+        <a href="/" class="sidebar-brand">
+            <span class="prompt">&gt;</span>
+            <span class="brand-text">beer analytics_</span>
+        </a>
+        <button class="sidebar-close" id="sidebar-close" title="Закрыть (Esc)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Navigation Links -->
+    <div class="sidebar-nav">
+        <div class="sidebar-section-label">Аналитика</div>
+        <a href="/" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </span>
+            Дашборд
+        </a>
+        <a href="/packaging" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </span>
+            ABC/XYZ фасовки
+        </a>
+        <a href="/draft" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
+            </span>
+            Разливное
+        </a>
+        <a href="/discounts" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="9" r="2"/><circle cx="15" cy="15" r="2"/><line x1="7" y1="17" x2="17" y2="7"/></svg>
+            </span>
+            Скидки
+        </a>
+
+        <div class="sidebar-section-label">Команда</div>
+        <a href="/waiters" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </span>
+            Бармены
+        </a>
+        <a href="/employee" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            Сотрудник
+        </a>
+        <a href="/bonus" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </span>
+            Бонусы
+        </a>
+        <a href="/schedule" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            График
+        </a>
+
+        <div class="sidebar-section-label">Управление</div>
+        <a href="/taps" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/></svg>
+            </span>
+            Краны
+        </a>
+        <a href="/stocks" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </span>
+            Остатки
+        </a>
+    </div>
+
+    <!-- Sidebar Footer -->
+    <div class="sidebar-footer">
+        <div class="api-status checking" id="api-status" onclick="window.dashboardCheckApi && window.dashboardCheckApi()" title="Нажмите для проверки подключения">
+            <div class="api-status-indicator"></div>
+            <span class="api-status-text">Проверка подключения...</span>
+        </div>
+        <div class="theme-toggle">
+            <button class="theme-btn active" onclick="window.dashboardSetTheme('light')">Светлая</button>
+            <button class="theme-btn" onclick="window.dashboardSetTheme('dark')">Тёмная</button>
+        </div>
+    </div>
+</nav>
+
+<!-- Header Bar -->
+<div class="header-bar">
+    <button class="header-bar-menu" id="sidebar-toggle" title="Меню (M)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="15" y2="12"/>
+            <line x1="3" y1="18" x2="19" y2="18"/>
+        </svg>
+    </button>
+
+    <div class="header-bar-title">
+        <span class="header-bar-page">{{ page_title | default('Страница') }}</span>
+        {% if page_subtitle %}
+        <span class="header-bar-sep">/</span>
+        <span class="header-bar-sub">{{ page_subtitle }}</span>
+        {% endif %}
+    </div>
+
+    <a href="/" class="header-bar-logo">
+        <span class="prompt">&gt;</span>
+        <span class="logo-text"></span>
+        <span class="cursor">_</span>
+    </a>
+</div>
+
+<!-- Sidebar Script -->
+<script>
+(function() {
+    const sidebar = document.getElementById('sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+    const toggleBtn = document.getElementById('sidebar-toggle');
+    const closeBtn = document.getElementById('sidebar-close');
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        backdrop.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        backdrop.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    toggleBtn.addEventListener('click', openSidebar);
+    closeBtn.addEventListener('click', closeSidebar);
+    backdrop.addEventListener('click', closeSidebar);
+
+    // Keyboard: Esc to close, M to open
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+            closeSidebar();
+        }
+        if (e.key === 'm' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            var tag = document.activeElement.tagName.toLowerCase();
+            if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+                e.preventDefault();
+                sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+            }
+        }
+    });
+
+    // Mark active link based on current path
+    var currentPath = window.location.pathname;
+    document.querySelectorAll('.sidebar-link').forEach(function(link) {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === currentPath ||
+            (currentPath === '/' && link.getAttribute('href') === '/')) {
+            link.classList.add('active');
+        }
+    });
+
+    // Theme management
+    window.dashboardSetTheme = function(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        document.querySelectorAll('.theme-btn').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        var btns = document.querySelectorAll('.theme-btn');
+        if (theme === 'light' && btns[0]) btns[0].classList.add('active');
+        if (theme === 'dark' && btns[1]) btns[1].classList.add('active');
+    };
+
+    // Apply saved theme
+    var savedTheme = localStorage.getItem('theme') || 'light';
+    if (savedTheme !== 'light') {
+        window.dashboardSetTheme(savedTheme);
+    }
+})();
+</script>
