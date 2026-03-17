@@ -2819,24 +2819,40 @@ def get_taplist_stocks():
 
 @app.route('/api/stocks/kitchen', methods=['GET'])
 def get_kitchen_stocks():
-    """API endpoint для получения товаров с остатками"""
+    """API endpoint для получения товаров с реальными остатками из iiko"""
     try:
         bar = request.args.get('bar', '')
 
         if not bar:
             return jsonify({'error': 'Требуется параметр bar'}), 400
 
+        # Маппинг баров на склады iiko (store_id)
+        bar_id_map = {
+            'Большой пр. В.О': 'bar1',
+            'Лиговский': 'bar2',
+            'Кременчугская': 'bar3',
+            'Варшавская': 'bar4',
+            'Общая': None
+        }
+
+        store_id_map = {
+            'bar1': 'a4c88d1c-be9a-4366-9aca-68ddaf8be40d',
+            'bar2': '91d7d070-875b-4d98-a81c-ae628eca45fd',
+            'bar3': '1239d270-1bbe-f64f-b7ea-5f00518ef508',
+            'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',
+        }
+
+        # Определяем склад для фильтрации
+        target_store_id = None
+        if bar != 'Общая':
+            bar_id = bar_id_map.get(bar)
+            if bar_id:
+                target_store_id = store_id_map.get(bar_id)
+
         # Подключаемся к iiko API
         olap = OlapReports()
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        # Получаем складские операции за последние 30 дней
-        # API требует формат DD.MM.YYYY
-        date_to_obj = datetime.now()
-        date_from_obj = datetime.now() - timedelta(days=30)
-        date_to = date_to_obj.strftime("%d.%m.%Y")
-        date_from = date_from_obj.strftime("%d.%m.%Y")
 
         try:
             # Получаем номенклатуру товаров (GUID -> название)
@@ -2845,85 +2861,96 @@ def get_kitchen_stocks():
             if not nomenclature:
                 return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
 
-            # Получаем отчет по складским операциям с товарами
+            # Получаем РЕАЛЬНЫЕ остатки на складах (текущий момент)
+            balances = olap.get_store_balances()
+            if not balances:
+                return jsonify({'error': 'Не удалось получить остатки'}), 500
+
+            # Также получаем операции за 30 дней для расчёта средних продаж
+            date_to_obj = datetime.now()
+            date_from_obj = datetime.now() - timedelta(days=30)
+            date_to = date_to_obj.strftime("%d.%m.%Y")
+            date_from = date_from_obj.strftime("%d.%m.%Y")
+
             bar_name = bar if bar != 'Общая' else None
             store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
-
-            if not store_data:
-                return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
         finally:
             olap.disconnect()
 
-        # Обрабатываем данные о товарах
+        # Белый список категорий (поставщики кухни)
+        food_categories = [
+            'Метро', 'ООО "Май"', 'ООО "КВГ"', 'ГС Маркет',
+            'ИП Тихомиров', 'ООО "Кулинарпродторг"',
+            'ИП Новиков', 'ООО МП Арсенал', 'Лента',
+            'ООО "МП-Арсенал АО"', 'Криспи',
+            'ООО "ВУРСТХАУСМАНУФАКТУР"', 'ООО "Арбореал"'
+        ]
+
+        beer_keywords = ['пиво', 'beer', 'ipa', 'лагер', 'эль', 'стаут']
+
+        def is_kitchen_product(product_info):
+            """Проверяет, является ли товар продуктом кухни"""
+            if not product_info:
+                return False
+            if product_info.get('type') == 'DISH':
+                return False
+            category = product_info.get('category', '') or ''
+            if not category or not any(fc in category for fc in food_categories):
+                return False
+            product_name = product_info.get('name', '')
+            if any(kw in product_name.lower() for kw in beer_keywords):
+                return False
+            return True
+
+        # Шаг 1: Реальные остатки из get_store_balances
         products_dict = {}
 
-        for record in store_data:
-            product_id = record.get('product')
-            if not product_id:
+        for balance in balances:
+            product_id = balance.get('product')
+            amount = balance.get('amount', 0)
+            store_id = balance.get('store')
+
+            # Фильтруем по складу
+            if target_store_id and store_id != target_store_id:
                 continue
 
-            # Получаем информацию о товаре из номенклатуры
             product_info = nomenclature.get(product_id)
-            if not product_info:
-                continue  # Товар не найден в номенклатуре
-
-            # Фильтруем товары: исключаем пиво и напитки
-            # Пропускаем DISH (блюда - это разливное пиво)
-            if product_info.get('type') == 'DISH':
+            if not is_kitchen_product(product_info):
                 continue
 
-            # Используем белый список категорий для еды/продуктов
-            # Остальное (пиво, напитки) исключаем
-            category = product_info.get('category', '') or ''
-
-            # Белый список - только эти категории попадают в стоки
-            food_categories = [
-                'Метро', 'ООО "Май"', 'ООО "КВГ"', 'ГС Маркет',
-                'ИП Тихомиров', 'ООО "Кулинарпродторг"',
-                'ИП Новиков', 'ООО МП Арсенал', 'Лента',
-                'ООО "МП-Арсенал АО"', 'Криспи',
-                'ООО "ВУРСТХАУСМАНУФАКТУР"', 'ООО "Арбореал"'
-            ]
-
-            # Если категория не указана или не в белом списке - пропускаем
-            if not category or not any(food_cat in category for food_cat in food_categories):
-                continue
-
-            # Дополнительно фильтруем по названию (на случай если категория не указана)
             product_name = product_info.get('name', product_id)
-            if any(keyword in product_name.lower() for keyword in ['пиво', 'beer', 'ipa', 'лагер', 'эль', 'стаут']):
-                continue
+            category = product_info.get('category', '') or 'Товары'
 
             if product_id not in products_dict:
                 products_dict[product_id] = {
-                    'id': product_id,
                     'name': product_name,
-                    'category': category or 'Товары',
-                    'incoming': 0,
+                    'category': category,
+                    'stock': 0,
                     'outgoing': 0,
-                    'operations_count': 0
                 }
 
-            # Учитываем приход и расход
-            amount = float(record.get('amount', 0) or 0)
-            is_incoming = record.get('incoming', 'false') == 'true'
+            products_dict[product_id]['stock'] += amount
 
-            products_dict[product_id]['operations_count'] += 1
+        # Шаг 2: Средние продажи из операций за 30 дней (если данные есть)
+        if store_data:
+            for record in store_data:
+                product_id = record.get('product')
+                if not product_id or product_id not in products_dict:
+                    continue
 
-            if is_incoming:
-                products_dict[product_id]['incoming'] += amount
-            else:
-                products_dict[product_id]['outgoing'] += abs(amount)
+                amount = float(record.get('amount', 0) or 0)
+                is_incoming = record.get('incoming', 'false') == 'true'
 
-        # Формируем список товаров с остатками
+                if not is_incoming:
+                    products_dict[product_id]['outgoing'] += abs(amount)
+
+        # Шаг 3: Формируем итоговый список
         items = []
-        for product_id, product_data in products_dict.items():
-            # Рассчитываем текущий остаток
-            current_stock = product_data['incoming'] - product_data['outgoing']
+        days_in_period = 30
 
-            # Рассчитываем средний расход в день
-            days_in_period = 30
-            avg_consumption = product_data['outgoing'] / days_in_period if days_in_period > 0 else 0
+        for product_id, data in products_dict.items():
+            current_stock = data['stock']
+            avg_consumption = data['outgoing'] / days_in_period if days_in_period > 0 else 0
 
             # Определяем уровень остатков (сколько дней хватит)
             if avg_consumption > 0:
@@ -2938,8 +2965,8 @@ def get_kitchen_stocks():
                 stock_level = 'high'
 
             items.append({
-                'category': product_data['category'],
-                'name': product_data['name'],
+                'category': data['category'],
+                'name': data['name'],
                 'stock': round(current_stock, 1),
                 'avg_sales': round(avg_consumption, 2),
                 'stock_level': stock_level
@@ -2964,23 +2991,40 @@ def get_kitchen_stocks():
 
 @app.route('/api/stocks/bottles', methods=['GET'])
 def get_bottles_stocks():
-    """API endpoint для получения фасованного пива с остатками"""
+    """API endpoint для получения фасованного пива с реальными остатками из iiko"""
     try:
         bar = request.args.get('bar', '')
 
         if not bar:
             return jsonify({'error': 'Требуется параметр bar'}), 400
 
+        # Маппинг баров на склады iiko (store_id)
+        bar_id_map = {
+            'Большой пр. В.О': 'bar1',
+            'Лиговский': 'bar2',
+            'Кременчугская': 'bar3',
+            'Варшавская': 'bar4',
+            'Общая': None
+        }
+
+        store_id_map = {
+            'bar1': 'a4c88d1c-be9a-4366-9aca-68ddaf8be40d',
+            'bar2': '91d7d070-875b-4d98-a81c-ae628eca45fd',
+            'bar3': '1239d270-1bbe-f64f-b7ea-5f00518ef508',
+            'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',
+        }
+
+        # Определяем склад для фильтрации
+        target_store_id = None
+        if bar != 'Общая':
+            bar_id = bar_id_map.get(bar)
+            if bar_id:
+                target_store_id = store_id_map.get(bar_id)
+
         # Подключаемся к iiko API
         olap = OlapReports()
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        # Получаем складские операции за последние 30 дней
-        date_to_obj = datetime.now()
-        date_from_obj = datetime.now() - timedelta(days=30)
-        date_to = date_to_obj.strftime("%d.%m.%Y")
-        date_from = date_from_obj.strftime("%d.%m.%Y")
 
         try:
             # Получаем номенклатуру товаров
@@ -2996,75 +3040,75 @@ def get_bottles_stocks():
             fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
             print(f"[BOTTLES DEBUG] Товаров в группе 'Напитки Фасовка': {len(fasovka_product_ids)}")
 
-            # Получаем отчет по складским операциям
+            # Получаем РЕАЛЬНЫЕ остатки на складах (текущий момент)
+            balances = olap.get_store_balances()
+            if not balances:
+                return jsonify({'error': 'Не удалось получить остатки'}), 500
+
+            # Также получаем операции за 30 дней для расчёта средних продаж
+            date_to_obj = datetime.now()
+            date_from_obj = datetime.now() - timedelta(days=30)
+            date_to = date_to_obj.strftime("%d.%m.%Y")
+            date_from = date_from_obj.strftime("%d.%m.%Y")
+
             bar_name = bar if bar != 'Общая' else None
             store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
-
-            if not store_data:
-                return jsonify({'error': 'Не удалось получить данные о товарах'}), 500
         finally:
             olap.disconnect()
 
-        # Обрабатываем данные о фасовке
+        # Шаг 1: Реальные остатки из get_store_balances
         products_dict = {}
-        checked_products = 0
-        matched_products = 0
 
-        for record in store_data:
-            product_id = record.get('product')
-            if not product_id:
+        for balance in balances:
+            product_id = balance.get('product')
+            amount = balance.get('amount', 0)
+            store_id = balance.get('store')
+
+            # Фильтруем по складу
+            if target_store_id and store_id != target_store_id:
                 continue
-
-            # Получаем информацию о товаре из номенклатуры
-            product_info = nomenclature.get(product_id)
-            if not product_info:
-                continue
-
-            checked_products += 1
 
             # Фильтруем по группе "Напитки Фасовка"
             if product_id not in fasovka_product_ids:
                 continue
 
+            product_info = nomenclature.get(product_id)
+            if not product_info:
+                continue
+
             product_name = product_info.get('name', product_id)
-
-            matched_products += 1
             supplier = product_info.get('category', 'Без поставщика')
-
-            # Отладочный вывод
-            if matched_products <= 5:
-                print(f"[DEBUG] Найдена фасовка: {product_name}, категория: {supplier}")
 
             if product_id not in products_dict:
                 products_dict[product_id] = {
-                    'id': product_id,
                     'name': product_name,
                     'category': supplier,
-                    'incoming': 0,
+                    'stock': 0,
                     'outgoing': 0,
-                    'operations_count': 0
                 }
 
-            # Учитываем приход и расход
-            amount = float(record.get('amount', 0) or 0)
-            is_incoming = record.get('incoming', 'false') == 'true'
+            products_dict[product_id]['stock'] += amount
 
-            products_dict[product_id]['operations_count'] += 1
+        # Шаг 2: Средние продажи из операций за 30 дней (если данные есть)
+        if store_data:
+            for record in store_data:
+                product_id = record.get('product')
+                if not product_id or product_id not in products_dict:
+                    continue
 
-            if is_incoming:
-                products_dict[product_id]['incoming'] += amount
-            else:
-                products_dict[product_id]['outgoing'] += abs(amount)
+                amount = float(record.get('amount', 0) or 0)
+                is_incoming = record.get('incoming', 'false') == 'true'
 
-        # Формируем список товаров с остатками
+                if not is_incoming:
+                    products_dict[product_id]['outgoing'] += abs(amount)
+
+        # Шаг 3: Формируем итоговый список
         items = []
-        for product_id, product_data in products_dict.items():
-            # Рассчитываем текущий остаток
-            current_stock = product_data['incoming'] - product_data['outgoing']
+        days_in_period = 30
 
-            # Рассчитываем средний расход в день
-            days_in_period = 30
-            avg_consumption = product_data['outgoing'] / days_in_period if days_in_period > 0 else 0
+        for product_id, data in products_dict.items():
+            current_stock = data['stock']
+            avg_consumption = data['outgoing'] / days_in_period if days_in_period > 0 else 0
 
             # Определяем уровень остатков (сколько дней хватит)
             if avg_consumption > 0:
@@ -3079,8 +3123,8 @@ def get_bottles_stocks():
                 stock_level = 'high'
 
             items.append({
-                'category': product_data['category'],
-                'name': product_data['name'],
+                'category': data['category'],
+                'name': data['name'],
                 'stock': round(current_stock, 1),
                 'avg_sales': round(avg_consumption, 2),
                 'stock_level': stock_level
@@ -3091,12 +3135,7 @@ def get_bottles_stocks():
 
         low_stock_count = len([item for item in items if item['stock_level'] == 'low'])
 
-        # Отладочная информация
-        print(f"\n[BOTTLES DEBUG]")
-        print(f"   Проверено товаров: {checked_products}")
-        print(f"   Найдено фасовки: {matched_products}")
-        print(f"   Итого позиций: {len(items)}")
-        print(f"   Требуют пополнения: {low_stock_count}")
+        print(f"\n[BOTTLES DEBUG] Итого позиций: {len(items)}, требуют пополнения: {low_stock_count}")
 
         return jsonify({
             'total_items': len(items),
