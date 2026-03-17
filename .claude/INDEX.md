@@ -13,6 +13,7 @@ Beer ABC/XYZ Analysis
 ├── ABC/XYZ Анализ        → analytics.md
 ├── Анализ скидок          → discounts.md
 ├── Управление кранами    → taps.md
+├── Design System         → design-system.md
 └── Общее                 → overview.md
 ```
 
@@ -30,6 +31,7 @@ Beer ABC/XYZ Analysis
 | [optimization-dashboard.md](docs/optimization-dashboard.md) | План оптимизации производительности /dashboard | ✅ актуально |
 | [discounts.md](docs/discounts.md) | Анализ скидок — ROI, сегментация гостей, drill-down по барам | ✅ актуально |
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
+| [design-system.md](docs/design-system.md) | Дизайн-система: CSS стек, навигация, скелет новой страницы | ✅ актуально |
 | [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
 
 ---
@@ -50,6 +52,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- 2026-03-17: Добавлена страница /wiki — встроенная вики с TOC sidebar (12 разделов). Удалён gitbook/
 - 2026-03-03: Добавлен discounts.md — модуль анализа скидок
 - 2026-02-07: Добавлен optimization-dashboard.md — план оптимизации производительности
 - 2026-01-28: Обновлены employee.md (12 метрик, карты лояльности), overview.md, context.md, lessons.md

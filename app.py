@@ -18,6 +18,7 @@ from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from
 from core.employee_plans import get_employee_plan_by_shifts
 from core.iiko_api import IikoAPI
 from core.shifts_manager import get_shifts_manager
+from core.meeting_notes import MeetingNotesManager
 from dashboardNovaev.dashboard_analysis import DashboardMetrics
 from dashboardNovaev.plans_manager import PlansManager
 from dashboardNovaev.weeks_generator import WeeksGenerator
@@ -66,6 +67,9 @@ taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
 
 # Инициализируем менеджер планов (использует ту же логику /kultura)
 plans_manager = PlansManager()
+
+# Инициализируем менеджер заметок с собраний
+notes_manager = MeetingNotesManager()
 
 # Инициализируем менеджер заведений
 venues_manager = VenuesManager()
@@ -4038,9 +4042,8 @@ def export_excel():
         # Получаем фактические данные
         actual_data = get_dashboard_analytics_data(bar, date_from, date_to)
 
-        # Получаем плановые данные
-        plan_key = f"{bar}_{date_from}"
-        plan_data = plans_manager.get_plan(plan_key) or {}
+        # Получаем плановые данные (пропорционально по периоду)
+        plan_data = plans_manager.calculate_plan_for_period(bar, date_from, date_to) or {}
 
         # Пробуем использовать openpyxl если установлен
         try:
@@ -4064,27 +4067,31 @@ def export_excel():
                 cell.font = Font(bold=True)
                 cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
 
-            # Данные метрик с маппингом между plan и actual
+            # Данные метрик (все 16 показателей)
+            # (название, ключ плана camelCase, ключ факта snake_case)
             metrics = [
                 ('Выручка (₽)', 'revenue', 'total_revenue'),
                 ('Чеки (шт)', 'checks', 'total_checks'),
                 ('Средний чек (₽)', 'averageCheck', 'avg_check'),
-                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
-                ('Прибыль (₽)', 'profit', 'total_margin'),
-                ('% наценки', 'markupPercent', 'avg_markup'),
                 ('Доля розлива (%)', 'draftShare', 'draft_share'),
                 ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
                 ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
+                ('Выручка розлив (₽)', 'revenueDraft', 'draft_revenue'),
+                ('Выручка фасовка (₽)', 'revenuePackaged', 'bottles_revenue'),
+                ('Выручка кухня (₽)', 'revenueKitchen', 'kitchen_revenue'),
+                ('Наценка (%)', 'markupPercent', 'avg_markup'),
+                ('Прибыль (₽)', 'profit', 'total_margin'),
+                ('Наценка розлив (%)', 'markupDraft', 'draft_markup'),
+                ('Наценка фасовка (%)', 'markupPackaged', 'bottles_markup'),
+                ('Наценка кухня (%)', 'markupKitchen', 'kitchen_markup'),
+                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
+                ('Активность кранов (%)', 'tapActivity', 'tap_activity'),
             ]
 
             row = 5
             for metric_name, plan_key, actual_key in metrics:
                 plan_value = plan_data.get(plan_key, 0) or 0
                 actual_value = actual_data.get(actual_key, 0) or 0
-
-                # Для наценки конвертируем (API возвращает дробь, план в процентах)
-                if 'markup' in actual_key.lower():
-                    actual_value = actual_value * 100
 
                 ws.cell(row=row, column=1, value=metric_name)
                 ws.cell(row=row, column=2, value=round(plan_value, 2))
@@ -4169,9 +4176,8 @@ def export_pdf():
         # Получаем фактические данные
         actual_data = get_dashboard_analytics_data(bar, date_from, date_to)
 
-        # Получаем плановые данные
-        plan_key = f"{bar}_{date_from}"
-        plan_data = plans_manager.get_plan(plan_key) or {}
+        # Получаем плановые данные (пропорционально по периоду)
+        plan_data = plans_manager.calculate_plan_for_period(bar, date_from, date_to) or {}
 
         # Пробуем использовать reportlab если установлен
         try:
@@ -4197,33 +4203,37 @@ def export_pdf():
             elements.append(subtitle)
             elements.append(Spacer(1, 20))
 
-            # Таблица метрик
+            # Таблица метрик (все 16 показателей)
+            # (название, ключ плана camelCase, ключ факта snake_case, единица)
             data_table = [['Метрика', 'План', 'Факт', '% плана', 'Разница']]
 
             metrics = [
-                ('Выручка (₽)', 'revenue', 'total_revenue'),
-                ('Чеки (шт)', 'checks', 'total_checks'),
-                ('Средний чек (₽)', 'averageCheck', 'avg_check'),
-                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
-                ('Прибыль (₽)', 'profit', 'total_margin'),
-                ('% наценки', 'markupPercent', 'avg_markup'),
-                ('Доля розлива (%)', 'draftShare', 'draft_share'),
-                ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
-                ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
+                ('Выручка', 'revenue', 'total_revenue', '₽'),
+                ('Чеки', 'checks', 'total_checks', 'шт'),
+                ('Средний чек', 'averageCheck', 'avg_check', '₽'),
+                ('Доля розлива', 'draftShare', 'draft_share', '%'),
+                ('Доля фасовки', 'packagedShare', 'bottles_share', '%'),
+                ('Доля кухни', 'kitchenShare', 'kitchen_share', '%'),
+                ('Выручка розлив', 'revenueDraft', 'draft_revenue', '₽'),
+                ('Выручка фасовка', 'revenuePackaged', 'bottles_revenue', '₽'),
+                ('Выручка кухня', 'revenueKitchen', 'kitchen_revenue', '₽'),
+                ('Наценка', 'markupPercent', 'avg_markup', '%'),
+                ('Прибыль', 'profit', 'total_margin', '₽'),
+                ('Наценка розлив', 'markupDraft', 'draft_markup', '%'),
+                ('Наценка фасовка', 'markupPackaged', 'bottles_markup', '%'),
+                ('Наценка кухня', 'markupKitchen', 'kitchen_markup', '%'),
+                ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
+                ('Активность кранов', 'tapActivity', 'tap_activity', '%'),
             ]
 
-            for metric_name, plan_key, actual_key in metrics:
+            for metric_name, plan_key, actual_key, unit in metrics:
                 plan_value = plan_data.get(plan_key, 0) or 0
                 actual_value = actual_data.get(actual_key, 0) or 0
-
-                # Для наценки конвертируем (API возвращает дробь, план в процентах)
-                if 'markup' in actual_key.lower():
-                    actual_value = actual_value * 100
 
                 percent = (actual_value / plan_value * 100) if plan_value > 0 else 0
                 diff = actual_value - plan_value
                 data_table.append([
-                    metric_name,
+                    f"{metric_name} ({unit})",
                     f"{plan_value:,.2f}",
                     f"{actual_value:,.2f}",
                     f"{percent:.1f}%",
@@ -4257,27 +4267,31 @@ def export_pdf():
             # Fallback to HTML if reportlab not available
             print("[EXPORT PDF] reportlab не установлен, используем HTML")
 
-            # Создаем карточки метрик для HTML
+            # Создаем карточки метрик для HTML (все 16 показателей)
+            # (название, ключ плана camelCase, ключ факта snake_case, единица)
             metrics = [
                 ('Выручка', 'revenue', 'total_revenue', '₽'),
                 ('Чеки', 'checks', 'total_checks', 'шт'),
                 ('Средний чек', 'averageCheck', 'avg_check', '₽'),
-                ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
-                ('Прибыль', 'profit', 'total_margin', '₽'),
-                ('Наценка', 'markupPercent', 'avg_markup', '%'),
                 ('Доля розлива', 'draftShare', 'draft_share', '%'),
                 ('Доля фасовки', 'packagedShare', 'bottles_share', '%'),
                 ('Доля кухни', 'kitchenShare', 'kitchen_share', '%'),
+                ('Выручка розлив', 'revenueDraft', 'draft_revenue', '₽'),
+                ('Выручка фасовка', 'revenuePackaged', 'bottles_revenue', '₽'),
+                ('Выручка кухня', 'revenueKitchen', 'kitchen_revenue', '₽'),
+                ('Наценка', 'markupPercent', 'avg_markup', '%'),
+                ('Прибыль', 'profit', 'total_margin', '₽'),
+                ('Наценка розлив', 'markupDraft', 'draft_markup', '%'),
+                ('Наценка фасовка', 'markupPackaged', 'bottles_markup', '%'),
+                ('Наценка кухня', 'markupKitchen', 'kitchen_markup', '%'),
+                ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
+                ('Активность кранов', 'tapActivity', 'tap_activity', '%'),
             ]
 
             cards = []
             for name, plan_key, actual_key, unit in metrics:
                 plan_val = plan_data.get(plan_key, 0) or 0
                 actual_val = actual_data.get(actual_key, 0) or 0
-
-                # Для наценки конвертируем
-                if 'markup' in actual_key.lower():
-                    actual_val = actual_val * 100
 
                 percent = (actual_val / plan_val * 100) if plan_val > 0 else 0
                 diff = actual_val - plan_val
@@ -4449,6 +4463,55 @@ def export_pdf():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/wiki')
+def wiki():
+    """Вики — документация системы (один markdown-файл → HTML-секции)"""
+    import markdown
+    import re
+
+    wiki_path = os.path.join(os.path.dirname(__file__), 'wiki', 'content.md')
+    with open(wiki_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # Разбиваем по заголовкам первого уровня (# Заголовок)
+    parts = re.split(r'^# ', content, flags=re.MULTILINE)
+    sections = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        title = part.split('\n', 1)[0].strip()
+        body = part.split('\n', 1)[1] if '\n' in part else ''
+        # ID из заголовка: кириллица → транслит не нужен, используем маппинг
+        section_id = _wiki_slug(title)
+        html_content = markdown.markdown(body, extensions=['tables', 'fenced_code'])
+        sections.append({'id': section_id, 'title': title, 'html': html_content})
+
+    return render_template('wiki.html', sections=sections)
+
+
+# Маппинг заголовков вики → anchor id
+_WIKI_SLUGS = {
+    'О системе': 'about',
+    'Дашборд': 'dashboard',
+    'Дашборд сотрудника': 'employee',
+    'ABC/XYZ анализ': 'abc-xyz',
+    'Анализ проливов': 'draft',
+    'Анализ акций': 'discounts',
+    'Мониторинг кранов': 'taps',
+    'Инструкция для барменов': 'taps-bartender',
+    'Заказы и остатки': 'stocks',
+    'График': 'schedule',
+    'Расчёт премий': 'bonus',
+    'Telegram-бот': 'telegram',
+}
+
+
+def _wiki_slug(title):
+    """Возвращает anchor id для заголовка вики-секции."""
+    return _WIKI_SLUGS.get(title, title.lower().replace(' ', '-'))
 
 
 @app.route('/test_modules')
@@ -4816,6 +4879,47 @@ def schedule_save_wish():
         text=data.get('text', '')
     )
     return jsonify({'ok': True})
+
+
+# ============================================
+# Meeting Notes API
+# ============================================
+
+@app.route('/api/meeting-notes', methods=['GET'])
+def get_meeting_note():
+    """Получить заметку для бара и периода."""
+    venue = request.args.get('venue', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    if not venue or not date_from or not date_to:
+        return jsonify({'text': ''})
+    note = notes_manager.get(venue, date_from, date_to)
+    return jsonify({'text': note['text'] if note else ''})
+
+
+@app.route('/api/meeting-notes', methods=['POST'])
+def save_meeting_note():
+    """Сохранить заметку."""
+    data = request.json
+    venue = data.get('venue', '')
+    date_from = data.get('date_from', '')
+    date_to = data.get('date_to', '')
+    text = data.get('text', '')
+    if not venue or not date_from or not date_to:
+        return jsonify({'error': 'venue, date_from, date_to required'}), 400
+    notes_manager.save(venue, date_from, date_to, text)
+    return jsonify({'ok': True})
+
+
+@app.route('/api/meeting-notes/history', methods=['GET'])
+def meeting_notes_history():
+    """Список заметок для бара (все периоды, новые первые)."""
+    venue = request.args.get('venue', '')
+    if not venue:
+        return jsonify([])
+    limit = request.args.get('limit', 10, type=int)
+    notes = notes_manager.list_by_venue(venue, limit=limit)
+    return jsonify(notes)
 
 
 if __name__ == '__main__':

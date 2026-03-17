@@ -6,32 +6,37 @@
     var SESSION_KEY = 'kultura_logo_typed';
 
     function initLogo() {
-        var logo = document.querySelector('.site-logo') || document.querySelector('.header-bar-logo');
-        var textEl = logo ? logo.querySelector('.logo-text') : null;
-        if (!logo || !textEl) return;
+        var logos = document.querySelectorAll('.site-logo, .header-bar-logo, .sidebar-brand');
+        if (!logos.length) return;
 
-        // If already typed this session — show instantly
-        if (sessionStorage.getItem(SESSION_KEY)) {
-            textEl.textContent = FULL_TEXT;
-            return;
-        }
+        var alreadyTyped = sessionStorage.getItem(SESSION_KEY);
 
-        // Typewriter effect
-        logo.classList.add('typing');
-        textEl.textContent = '';
-        var i = 0;
+        logos.forEach(function (logo) {
+            var textEl = logo.querySelector('.logo-text');
+            if (!textEl) return;
 
-        setTimeout(function () {
-            var timer = setInterval(function () {
-                textEl.textContent = FULL_TEXT.slice(0, i + 1);
-                i++;
-                if (i >= FULL_TEXT.length) {
-                    clearInterval(timer);
-                    logo.classList.remove('typing');
-                    sessionStorage.setItem(SESSION_KEY, '1');
-                }
-            }, CHAR_DELAY);
-        }, START_DELAY);
+            if (alreadyTyped) {
+                textEl.textContent = FULL_TEXT;
+                return;
+            }
+
+            // Typewriter effect
+            logo.classList.add('typing');
+            textEl.textContent = '';
+            var i = 0;
+
+            setTimeout(function () {
+                var timer = setInterval(function () {
+                    textEl.textContent = FULL_TEXT.slice(0, i + 1);
+                    i++;
+                    if (i >= FULL_TEXT.length) {
+                        clearInterval(timer);
+                        logo.classList.remove('typing');
+                        sessionStorage.setItem(SESSION_KEY, '1');
+                    }
+                }, CHAR_DELAY);
+            }, START_DELAY);
+        });
     }
 
     // Run when DOM is ready

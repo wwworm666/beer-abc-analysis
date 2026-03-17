@@ -614,8 +614,8 @@
 </head>
 <body>
     <div class="container">
-        {% set page_title = "ABC/XYZ фасовки" %}
-        {% set page_subtitle = "Анализ ассортимента" %}
+        {% set page_title = "ABC/XYZ анализ" %}
+        {% set page_subtitle = "Классификация ассортимента по выручке и стабильности" %}
         {% include 'shared/nav.html' %}
 
         <div class="card">
@@ -696,8 +696,8 @@
 
         // Check connection on page load
         document.addEventListener('DOMContentLoaded', function() {
-            checkApiConnection();
-            setInterval(checkApiConnection, 60000);
+            window.dashboardCheckApi();
+            setInterval(window.dashboardCheckApi, 60000);
             initDatePicker();
         });
 

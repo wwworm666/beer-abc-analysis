@@ -12,6 +12,7 @@ import { chartsModule } from './modules/charts.js';
 import { trendsModule } from './modules/trends.js';
 import { commentsManager } from './modules/comments.js';
 import { exportModule } from './modules/export.js';
+import { meetingNotes } from './modules/meeting_notes.js';
 
 class Dashboard {
     constructor() {
@@ -50,6 +51,9 @@ class Dashboard {
 
             commentsManager.init();
             console.log(' Модуль комментариев инициализирован');
+
+            meetingNotes.init();
+            console.log(' Модуль заметок инициализирован');
 
             exportModule.init();
             console.log(' Модуль экспорта инициализирован');
@@ -191,6 +195,8 @@ class Dashboard {
         if (state.currentVenue && state.currentPeriod) {
             // Загружаем аналитику
             await analytics.loadAnalytics();
+            // Загружаем заметки
+            meetingNotes.load();
         }
     }
 

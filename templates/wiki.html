@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вики — KULT Analytics</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+        /* Wiki layout */
+        .wiki-layout {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            gap: 0;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* TOC Sidebar */
+        .wiki-toc {
+            position: sticky;
+            top: 24px;
+            height: fit-content;
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
+            padding: 20px 0;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .wiki-toc::-webkit-scrollbar { width: 3px; }
+        .wiki-toc::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+        .wiki-toc-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-tertiary);
+            padding: 0 20px 12px;
+        }
+
+        .wiki-toc a {
+            display: block;
+            padding: 7px 20px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 400;
+            border-left: 2px solid transparent;
+            transition: all var(--transition-fast);
+            line-height: 1.4;
+        }
+
+        .wiki-toc a:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+        .wiki-toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; background: var(--accent-light); }
+        .wiki-toc a.sub { padding-left: 36px; font-size: 0.8rem; }
+
+        /* Content area */
+        .wiki-content { padding: 20px 40px 80px; min-width: 0; }
+
+        /* Sections */
+        .wiki-section { margin-bottom: 64px; scroll-margin-top: 24px; }
+        .wiki-section:last-child { margin-bottom: 120px; }
+
+        .wiki-section h1 { font-size: 1.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--accent); }
+        .wiki-section h2 { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin: 32px 0 12px; }
+        .wiki-section h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin: 24px 0 8px; }
+        .wiki-section p { color: var(--text-secondary); line-height: 1.7; margin-bottom: 12px; }
+
+        /* Tables */
+        .wiki-section table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 0.88rem; }
+        .wiki-section th { text-align: left; padding: 10px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-color); font-weight: 600; color: var(--text-primary); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+        .wiki-section td { padding: 10px 14px; border: 1px solid var(--border-color); color: var(--text-secondary); vertical-align: top; }
+        .wiki-section tr:hover td { background: var(--bg-tertiary); }
+
+        /* Code blocks */
+        .wiki-section code { background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-size: 0.88em; color: var(--accent); }
+        .wiki-section pre { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px 20px; overflow-x: auto; margin: 16px 0; font-size: 0.85rem; line-height: 1.5; }
+        .wiki-section pre code { background: none; padding: 0; color: var(--text-primary); }
+
+        /* Lists */
+        .wiki-section ul, .wiki-section ol { padding-left: 24px; margin-bottom: 16px; color: var(--text-secondary); }
+        .wiki-section li { margin-bottom: 6px; line-height: 1.6; }
+        .wiki-section li strong { color: var(--text-primary); }
+
+        /* Blockquotes as callouts */
+        .wiki-section blockquote {
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin: 16px 0;
+            border-left: 3px solid var(--accent);
+            background: var(--accent-light);
+            color: var(--text-primary);
+        }
+
+        .wiki-section blockquote strong { display: block; margin-bottom: 4px; }
+        .wiki-section blockquote p { color: var(--text-primary); margin-bottom: 4px; }
+        .wiki-section blockquote p:last-child { margin-bottom: 0; }
+
+        /* Dividers between major sections */
+        .wiki-divider { border: none; border-top: 1px solid var(--border-color); margin: 48px 0; }
+
+        /* Mobile TOC toggle */
+        .wiki-toc-toggle {
+            display: none;
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 48px;
+            height: 48px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: var(--shadow-md);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wiki-toc-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.3); backdrop-filter: blur(4px); z-index: 200; }
+
+        @media (max-width: 900px) {
+            .wiki-layout { grid-template-columns: 1fr; }
+            .wiki-toc { position: fixed; top: 0; left: 0; width: 280px; height: 100vh; max-height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border-color); z-index: 300; transform: translateX(-100%); transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1); padding-top: 60px; box-shadow: none; }
+            .wiki-toc.open { transform: translateX(0); box-shadow: 8px 0 32px rgba(0,0,0,0.15); }
+            .wiki-toc-backdrop.active { display: block; }
+            .wiki-toc-toggle { display: flex; }
+            .wiki-content { padding: 16px 20px 80px; }
+            .wiki-section h1 { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    {% set page_title = "Вики" %}
+    {% set page_subtitle = "Документация и справочные материалы" %}
+    {% include 'shared/nav.html' %}
+
+    <div class="wiki-layout">
+        {# TOC Sidebar #}
+        <div class="wiki-toc-backdrop" id="wiki-toc-backdrop"></div>
+        <nav class="wiki-toc" id="wiki-toc">
+            <div class="wiki-toc-title">Содержание</div>
+            {% for section in sections %}
+            <a href="#{{ section.id }}"{% if section.id not in ['about', 'taps', 'telegram'] %} class="sub"{% endif %}>{{ section.title }}</a>
+            {% endfor %}
+        </nav>
+
+        {# Content — rendered from wiki/*.md #}
+        <div class="wiki-content">
+            {% for section in sections %}
+            <section class="wiki-section" id="{{ section.id }}">
+                {{ section.html | safe }}
+            </section>
+            {% if not loop.last %}
+            <hr class="wiki-divider">
+            {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{# Mobile TOC toggle #}
+<button class="wiki-toc-toggle" id="wiki-toc-toggle" title="Содержание">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="10" y2="18"/></svg>
+</button>
+
+<script>
+{# API check #}
+window.dashboardCheckApi = async function() {
+    const s = document.getElementById('api-status');
+    const t = s.querySelector('.api-status-text');
+    s.className = 'api-status checking'; t.textContent = 'Проверка подключения...';
+    try {
+        const r = await fetch('/api/connection-status');
+        const d = await r.json();
+        if (r.ok && d.status === 'connected') { s.className = 'api-status connected'; t.textContent = 'iiko API подключен'; }
+        else { s.className = 'api-status error'; t.textContent = 'Ошибка подключения'; }
+    } catch(e) { s.className = 'api-status error'; t.textContent = 'Ошибка подключения'; }
+};
+document.addEventListener('DOMContentLoaded', function() { window.dashboardCheckApi(); setInterval(window.dashboardCheckApi, 60000); });
+</script>
+
+<script>
+(function() {
+    const sections = document.querySelectorAll('.wiki-section');
+    const tocLinks = document.querySelectorAll('.wiki-toc a');
+    const toc = document.getElementById('wiki-toc');
+    const tocBackdrop = document.getElementById('wiki-toc-backdrop');
+    const tocToggle = document.getElementById('wiki-toc-toggle');
+
+    // Intersection Observer for active section
+    const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+            if (entry.isIntersecting) {
+                const id = entry.target.getAttribute('id');
+                tocLinks.forEach(function(link) {
+                    link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+                });
+            }
+        });
+    }, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s) { observer.observe(s); });
+
+    // Smooth scroll
+    tocLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            var target = document.getElementById(this.getAttribute('href').substring(1));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (window.innerWidth <= 900) closeToc();
+        });
+    });
+
+    // Mobile TOC
+    function openToc() { toc.classList.add('open'); tocBackdrop.classList.add('active'); document.body.style.overflow = 'hidden'; }
+    function closeToc() { toc.classList.remove('open'); tocBackdrop.classList.remove('active'); document.body.style.overflow = ''; }
+    if (tocToggle) tocToggle.addEventListener('click', function() { toc.classList.contains('open') ? closeToc() : openToc(); });
+    if (tocBackdrop) tocBackdrop.addEventListener('click', closeToc);
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && toc.classList.contains('open')) closeToc(); });
+})();
+</script>
+<script src="/static/logo.js"></script>
+
+</body>
+</html>

@@ -36,9 +36,23 @@
     animation: logoBlink 0.8s step-end infinite;
 }
 
+/* Sidebar brand logo */
+.sidebar-brand .logo-text {
+    display: inline;
+    white-space: nowrap;
+}
+
+.sidebar-brand .cursor {
+    display: inline-block;
+    margin-left: 2px;
+    color: var(--accent);
+    animation: logoBlink 0.8s step-end infinite;
+}
+
 /* During typewriter — cursor solid, no blink */
 .site-logo.typing .cursor,
-.header-bar-logo.typing .cursor {
+.header-bar-logo.typing .cursor,
+.sidebar-brand.typing .cursor {
     animation: none;
     opacity: 1;
 }
