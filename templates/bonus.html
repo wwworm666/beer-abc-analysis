@@ -4,7 +4,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Бонусы сотрудников</title>
+    <title>Расчёт ЗП</title>
 
     <!-- Shared CSS -->
     <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
@@ -20,8 +20,6 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
 
     <style>
-        /* Page-specific styles */
-
         /* Card */
         .card {
             background: var(--bg-secondary);
@@ -33,22 +31,9 @@
         }
 
         /* Controls */
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 16px;
-            align-items: end;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .form-group label {
-            text-align: left;
-        }
+        .controls { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { text-align: left; }
 
         input[readonly] { cursor: pointer; }
         .flatpickr-calendar { border-radius: 12px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.12); font-family: 'IBM Plex Mono', monospace; }
@@ -62,103 +47,38 @@
         [data-theme="dark"] .flatpickr-day.inRange { background: rgba(217,119,87,0.25) !important; box-shadow: -5px 0 0 rgba(217,119,87,0.25), 5px 0 0 rgba(217,119,87,0.25); }
 
         /* Loading */
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 60px 32px;
-        }
-
-        .loading.active {
-            display: block;
-        }
-
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 2px solid var(--border-color);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 24px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading h2 {
-            font-size: 1.3rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-
-        .loading p {
-            color: var(--text-secondary);
-            font-size: 1rem;
-        }
+        .loading { display: none; text-align: center; padding: 60px 32px; }
+        .loading.active { display: block; }
+        .spinner { width: 40px; height: 40px; border: 2px solid var(--border-color); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 24px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; color: var(--text-primary); }
+        .loading p { color: var(--text-secondary); font-size: 1rem; }
 
         /* Results */
-        .results {
-            display: none;
-        }
-
-        .results.active {
-            display: block;
-        }
+        .results { display: none; }
+        .results.active { display: block; }
 
         /* Error */
-        .error {
-            background: var(--danger);
-            color: white;
-            padding: 16px 20px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            display: none;
-            font-weight: 500;
-            font-size: 1rem;
-        }
-
-        .error.active {
-            display: block;
-        }
+        .error { background: var(--danger); color: white; padding: 16px 20px; border-radius: 12px; margin-bottom: 20px; display: none; font-weight: 500; font-size: 1rem; }
+        .error.active { display: block; }
 
         /* Summary cards */
-        .summary-grid {
+        .summary-row {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
-
         .summary-card {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
             border-radius: 12px;
-            padding: 20px 24px;
+            padding: 16px 20px;
+            text-align: center;
         }
-
-        .summary-card .label {
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-        }
-
-        .summary-card .value {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            font-variant-numeric: tabular-nums;
-        }
-
-        .summary-card .value.accent {
-            color: var(--accent);
-        }
-
-        .summary-card .value.success {
-            color: var(--success);
-        }
+        .summary-label { font-size: 0.8rem; color: var(--text-tertiary); margin-bottom: 6px; }
+        .summary-value { font-size: 1.2rem; font-weight: 600; color: var(--text-primary); }
+        .summary-value.accent { color: var(--accent); }
 
         /* Formula */
         .formula-card {
@@ -169,213 +89,296 @@
             margin-bottom: 24px;
             font-size: 0.9rem;
             color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .formula-card strong { color: var(--text-primary); }
+        .formula-card code { background: var(--bg-secondary); padding: 2px 8px; border-radius: 6px; font-family: inherit; color: var(--accent); }
+
+        /* ====== Employee cards ====== */
+        .emp-cards { display: flex; flex-direction: column; gap: 16px; }
+
+        .emp-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+            transition: border-color 150ms ease;
+        }
+        .emp-card:hover { border-color: var(--accent); }
+
+        .emp-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            cursor: default;
         }
 
-        .formula-card strong {
+        .emp-card-name {
+            font-size: 1.1rem;
+            font-weight: 600;
             color: var(--text-primary);
         }
+        .emp-card-shifts {
+            font-size: 0.8rem;
+            font-weight: 400;
+            color: var(--text-tertiary);
+            margin-left: 8px;
+        }
 
-        .formula-card code {
-            background: var(--bg-secondary);
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-family: inherit;
+        .emp-card-total {
+            font-size: 1.2rem;
+            font-weight: 700;
             color: var(--accent);
         }
 
-        /* Table */
-        .bonus-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.95rem;
+        /* Salary breakdown rows */
+        .emp-card-body { padding: 0 24px 20px; }
+
+        .salary-rows {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4px 16px;
+            font-size: 0.9rem;
+            padding-bottom: 16px;
         }
 
-        .bonus-table thead {
-            border-bottom: 2px solid var(--border-color);
+        .sal-label { color: var(--text-secondary); padding: 4px 0; }
+        .sal-value { text-align: right; font-variant-numeric: tabular-nums; padding: 4px 0; font-weight: 500; }
+        .sal-value.positive { color: var(--success); }
+        .sal-value.negative { color: var(--danger); }
+        .sal-value.neutral { color: var(--text-tertiary); }
+
+        .sal-divider {
+            grid-column: 1 / -1;
+            border-top: 1px solid var(--border-color);
+            margin: 4px 0;
         }
 
-        .bonus-table th {
-            text-align: left;
-            padding: 14px 16px;
-            font-weight: 500;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
+        .sal-total-label { font-weight: 600; color: var(--text-primary); padding: 6px 0; font-size: 0.95rem; }
+        .sal-total-value { text-align: right; font-weight: 700; color: var(--accent); padding: 6px 0; font-size: 1.05rem; }
 
-        .bonus-table th.right {
-            text-align: right;
+        /* Hours input inside card */
+        .hours-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-end;
         }
-
-        .bonus-table td {
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-primary);
-        }
-
-        .bonus-table td.right {
-            text-align: right;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .bonus-table td.name {
-            font-weight: 500;
-        }
-
-        .bonus-table tr.has-bonus {
-            background: rgba(5, 150, 105, 0.06);
-        }
-
-        [data-theme="dark"] .bonus-table tr.has-bonus {
-            background: rgba(16, 185, 129, 0.08);
-        }
-
-        .bonus-table tr.no-bonus {
-            opacity: 0.6;
-        }
-
-        .bonus-table tr.total-row {
-            font-weight: 600;
+        .hours-input {
+            width: 56px;
+            padding: 4px 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
             background: var(--bg-tertiary);
-            border-top: 2px solid var(--accent);
+            color: var(--text-primary);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.85rem;
+            text-align: center;
+            outline: none;
+            transition: border-color 150ms ease;
+        }
+        .hours-input:focus { border-color: var(--accent); }
+        .hours-input::placeholder { color: var(--text-tertiary); }
+        .hours-mul { font-size: 0.8rem; color: var(--text-tertiary); }
+
+        /* Detail toggle buttons */
+        .detail-toggles {
+            display: flex;
+            gap: 8px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
         }
 
-        .bonus-table tr.total-row td {
-            border-bottom: none;
-            padding: 16px;
+        .detail-toggle {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-family: inherit;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 150ms ease;
         }
+        .detail-toggle:hover { border-color: var(--accent); color: var(--accent); }
+        .detail-toggle.active { background: var(--accent); color: white; border-color: var(--accent); }
 
-        .bonus-value {
-            font-weight: 600;
-            color: var(--success);
+        /* Detail panel (inside card) */
+        .emp-details {
+            display: none;
+            padding: 16px 24px 20px;
+            border-top: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
         }
+        .emp-details.active { display: block; }
 
-        .bonus-zero {
-            color: var(--text-tertiary);
-        }
+        /* Shifts table */
+        .days-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .days-table th { padding: 8px 10px; font-size: 0.75rem; color: var(--text-tertiary); border-bottom: 1px solid var(--border-color); font-weight: 500; text-align: left; }
+        .days-table th.right { text-align: right; }
+        .days-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); }
+        .days-table td.right { text-align: right; font-variant-numeric: tabular-nums; }
+        .days-table tr.day-over td { color: var(--success); }
+        .days-table tr.day-under td { color: var(--text-tertiary); }
 
-        .plan-percent {
+        .penalty-value { font-weight: 600; color: var(--danger); }
+        .bonus-value { font-weight: 600; color: var(--success); }
+
+        .late-badge {
+            display: inline-block;
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 4px;
             font-weight: 500;
         }
+        [data-theme="dark"] .late-badge { background: rgba(239, 68, 68, 0.25); }
 
-        .plan-percent.over {
-            color: var(--success);
+        /* KPI detail inside card */
+        .kpi-detail-cards { display: flex; flex-direction: column; gap: 12px; }
+
+        .kpi-detail-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
         }
 
-        .plan-percent.under {
-            color: var(--danger);
+        .kpi-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .kpi-detail-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+        .kpi-detail-premium { font-weight: 600; font-size: 0.9rem; }
+
+        .kpi-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .kpi-metric-item { text-align: center; }
+        .kpi-metric-label { font-size: 0.7rem; color: var(--text-tertiary); margin-bottom: 2px; }
+        .kpi-metric-val { font-size: 0.85rem; font-weight: 500; }
+
+        .kpi-ratio-bar {
+            height: 6px;
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .kpi-ratio-fill { height: 100%; border-radius: 3px; transition: width 300ms ease; }
+
+        /* Location breakdown mini-table */
+        .loc-breakdown { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+        .loc-breakdown th { padding: 4px 8px; color: var(--text-tertiary); font-weight: 500; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .loc-breakdown td { padding: 4px 8px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); }
+        .loc-breakdown .loc-weighted td { font-weight: 600; color: var(--text-primary); }
+
+        /* Premium calc summary */
+        .kpi-calc-summary {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .kpi-calc-summary strong { color: var(--text-primary); }
+
+        /* ====== KPI Targets editor (collapsible) ====== */
+        .targets-section {
+            margin-top: 8px;
         }
 
-        .plan-percent.warning {
-            color: var(--warning);
+        .targets-toggle-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            transition: all 150ms ease;
         }
+        .targets-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-        /* Expandable row */
-        .bonus-table tr.expandable {
+        .targets-content {
+            display: none;
+            margin-top: 16px;
+        }
+        .targets-content.active { display: block; }
+
+        .targets-month-selector { display: grid; grid-template-columns: auto auto 1fr; gap: 12px; align-items: end; margin-bottom: 20px; }
+        .defaults-row { display: grid; grid-template-columns: repeat(3, auto); gap: 12px; margin-bottom: 20px; }
+        .defaults-row .form-group label { font-size: 0.85rem; }
+        .defaults-row input { width: 100px; }
+
+        .kpi-config-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+        .kpi-config-card { background: var(--bg-tertiary); border-radius: 10px; padding: 14px; }
+        .kpi-config-label { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+        .kpi-config-card select, .kpi-config-card input { width: 100%; margin-top: 6px; }
+        .kpi-name-input { font-size: 0.8rem; }
+
+        .targets-grid {
+            display: grid;
+            grid-template-columns: 140px repeat(4, 1fr);
+            gap: 4px;
+            margin-bottom: 20px;
+        }
+        .tg-cell { padding: 6px 8px; }
+        .tg-header { font-weight: 600; font-size: 0.8rem; text-align: center; color: var(--text-primary); }
+        .tg-label { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; }
+        .tg-input-group { display: flex; align-items: center; gap: 2px; }
+        .tg-input { width: 60px; padding: 4px; text-align: center; font-size: 0.8rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-family: inherit; }
+        .tg-sep { color: var(--text-tertiary); font-size: 0.8rem; }
+
+        .targets-actions { display: flex; gap: 12px; }
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px 20px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
             cursor: pointer;
         }
-
-        .bonus-table tr.expandable:hover {
-            background: var(--bg-tertiary);
-        }
-
-        .bonus-table tr.expandable td:first-child::before {
-            content: '▸ ';
-            color: var(--text-tertiary);
-            font-size: 0.8rem;
-        }
-
-        .bonus-table tr.expandable.expanded td:first-child::before {
-            content: '▾ ';
-            color: var(--accent);
-        }
-
-        .days-row {
-            display: none;
-        }
-
-        .days-row.visible {
-            display: table-row;
-        }
-
-        .days-row td {
-            padding: 0 16px 16px 16px;
-            border-bottom: 2px solid var(--border-color);
-        }
-
-        .days-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.8rem;
-            margin-top: 4px;
-        }
-
-        .days-table th {
-            padding: 8px 10px;
-            font-size: 0.75rem;
-            color: var(--text-tertiary);
-            border-bottom: 1px solid var(--border-color);
-            font-weight: 500;
-        }
-
-        .days-table td {
-            padding: 6px 10px;
-            border-bottom: 1px solid var(--border-color);
-            color: var(--text-secondary);
-        }
-
-        .days-table tr.day-over td {
-            color: var(--success);
-        }
-
-        .days-table tr.day-under td {
-            color: var(--text-tertiary);
-        }
+        .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+        .success-msg { display: none; color: var(--success); padding: 12px; font-weight: 500; margin-bottom: 12px; }
+        .success-msg.active { display: block; }
 
         /* Responsive */
-        @media (max-width: 900px) {
-            .controls {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
         @media (max-width: 768px) {
-            .controls {
-                grid-template-columns: 1fr;
-            }
-
-            .card {
-                padding: 20px 16px;
-            }
-
-            .bonus-table {
-                font-size: 0.8rem;
-            }
-
-            .bonus-table th,
-            .bonus-table td {
-                padding: 10px 8px;
-            }
-
-            .summary-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 480px) {
-            .summary-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .summary-card .value {
-                font-size: 1.3rem;
-            }
+            .controls { grid-template-columns: 1fr; }
+            .card { padding: 20px 16px; }
+            .emp-card-header { padding: 16px; flex-wrap: wrap; gap: 8px; }
+            .emp-card-body { padding: 0 16px 16px; }
+            .emp-details { padding: 12px 16px 16px; }
+            .summary-row { grid-template-columns: repeat(2, 1fr); }
+            .kpi-metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .kpi-config-grid { grid-template-columns: 1fr; }
+            .targets-grid { grid-template-columns: 100px repeat(4, 1fr); }
+            .tg-input { width: 44px; }
+            .defaults-row { grid-template-columns: 1fr; }
+            .targets-month-selector { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        {% set page_title = "Расчёт премий" %}
-        {% set page_subtitle = "Мотивация по плану выручки и KPI" %}
+        {% set page_title = "Расчёт ЗП" %}
+        {% set page_subtitle = "Премии, штрафы, KPI, ставка" %}
         {% include 'shared/nav.html' %}
 
         <!-- Controls -->
@@ -387,7 +390,7 @@
                 </div>
                 <div class="form-group">
                     <label>&nbsp;</label>
-                    <button class="btn" id="calc-btn" onclick="calculateBonuses()">Рассчитать</button>
+                    <button class="btn" id="calc-btn" onclick="calculate()">Рассчитать</button>
                 </div>
             </div>
         </div>
@@ -396,100 +399,165 @@
 
         <div class="card loading" id="loading">
             <div class="spinner"></div>
-            <h2>Считаем бонусы...</h2>
+            <h2>Считаем...</h2>
             <p>Загружаем данные по всем сотрудникам</p>
         </div>
 
         <!-- Results -->
         <div class="results" id="results">
-            <!-- Summary -->
-            <div class="summary-grid" id="summary"></div>
-
-            <!-- Formula reminder -->
+            <!-- Formula -->
             <div class="formula-card">
-                <strong>Формула (посменно):</strong> за каждую смену где выручка ≥ плана ТТ → бонус = <code>1 000 + перевыполнение × 5%</code>.
-                Итоговый бонус = сумма бонусов по всем успешным сменам. Если ни одна смена не выполнена — бонус 0.
+                <strong>Премия за план:</strong> за каждую смену где выручка >= плана ТТ <code>1 000 + перевыполнение x 5%</code><br>
+                <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
+                <strong>KPI-премия:</strong> <code>множитель x смены x (база / норма)</code> за каждую из 3 метрик<br>
+                <strong>Ставка:</strong> <code>часы x 300</code>
             </div>
 
-            <!-- Table -->
-            <div class="card" style="padding: 0; overflow-x: auto;">
-                <table class="bonus-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Сотрудник</th>
-                            <th class="right">Смены</th>
-                            <th class="right">План</th>
-                            <th class="right">Факт</th>
-                            <th class="right">%</th>
-                            <th class="right">Перевыполнение</th>
-                            <th class="right">Бонус</th>
-                        </tr>
-                    </thead>
-                    <tbody id="bonus-tbody"></tbody>
-                </table>
+            <!-- Summary -->
+            <div class="summary-row" id="summary"></div>
+
+            <!-- Employee cards -->
+            <div class="emp-cards" id="emp-cards"></div>
+
+            <!-- KPI Targets editor -->
+            <div class="targets-section">
+                <button class="targets-toggle-btn" onclick="toggleTargets()">&#9881; Настройка KPI-целей</button>
+                <div class="targets-content" id="targets-content">
+                    <div class="card">
+                        <div class="targets-month-selector">
+                            <div class="form-group">
+                                <label for="target-month">Месяц</label>
+                                <input type="month" id="target-month" onchange="loadTargetsMonth()">
+                            </div>
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <button class="btn-secondary" onclick="copyFromPreviousMonth()">Копировать из пред.</button>
+                            </div>
+                        </div>
+
+                        <div class="defaults-row">
+                            <div class="form-group">
+                                <label>Норма смен</label>
+                                <input type="number" id="def-norm" value="15" min="1" max="31">
+                            </div>
+                            <div class="form-group">
+                                <label>База /KPI</label>
+                                <input type="number" id="def-base" value="5000" min="0" step="500">
+                            </div>
+                            <div class="form-group">
+                                <label>Макс. множитель</label>
+                                <input type="number" id="def-max-ratio" value="2" min="1" max="5" step="0.5">
+                            </div>
+                        </div>
+
+                        <div class="kpi-config-section" id="kpi-config-section"></div>
+                        <div id="targets-grid-container"></div>
+
+                        <div class="success-msg" id="save-success">Цели сохранены</div>
+                        <div class="error" id="save-error"></div>
+
+                        <div class="targets-actions">
+                            <button class="btn" onclick="saveTargets()">Сохранить</button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // ===================== STATE =====================
         let datePicker = null;
+        let mergedEmployees = [];
+        let bonusData = null;
+        let kpiData = null;
+        let targetsData = null;
 
+        const HOURLY_RATE = 300;
+        const LOCATIONS = ['Кременчугская', 'Варшавская', 'Лиговский', 'Большой пр В.О.'];
+        const LOC_SHORT = {'Кременчугская': 'Крем', 'Варшавская': 'Варш', 'Лиговский': 'Лиг', 'Большой пр В.О.': 'ВО'};
+        const KPI_KEYS = ['kpi1', 'kpi2', 'kpi3'];
+        let availableMetrics = {};
+
+        // ===================== INIT =====================
         document.addEventListener('DOMContentLoaded', function() {
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const dayOfWeek = today.getDay();
-            const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-            const lastMonday = new Date(today);
-            lastMonday.setDate(today.getDate() - daysFromMonday - 7);
-            const lastSunday = new Date(lastMonday);
-            lastSunday.setDate(lastMonday.getDate() + 6);
+            const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
 
             datePicker = flatpickr('#date-range', {
                 mode: 'range',
                 dateFormat: 'd.m.Y',
                 locale: 'ru',
-                maxDate: '2026-12-31',
-                defaultDate: [lastMonday, lastSunday]
+                maxDate: '2027-12-31',
+                defaultDate: [firstDay, lastDay]
             });
+
+            loadTargets();
         });
 
+        // ===================== HELPERS =====================
         function getPickerDates() {
             if (!datePicker || !datePicker.selectedDates || datePicker.selectedDates.length < 2) return null;
             const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             return { from: fmt(datePicker.selectedDates[0]), to: fmt(datePicker.selectedDates[1]) };
         }
 
-        // Format money
-        function formatMoney(value) {
-            if (value === undefined || value === null) return '0 ₽';
-            return new Intl.NumberFormat('ru-RU', {
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0
-            }).format(value) + ' ₽';
+        function formatMoney(v) {
+            if (v === undefined || v === null) return '0';
+            return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v) + ' ₽';
         }
 
-        function showError(message) {
+        function formatNum(v, decimals = 1) {
+            if (v === undefined || v === null) return '0';
+            return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(v);
+        }
+
+        function showError(msg) {
             const el = document.getElementById('error-message');
-            el.textContent = message;
+            el.textContent = msg;
             el.classList.add('active');
         }
+        function hideError() { document.getElementById('error-message').classList.remove('active'); }
 
-        function hideError() {
-            document.getElementById('error-message').classList.remove('active');
+        function firstName(name) {
+            const parts = name.trim().split(/\s+/);
+            if (parts.length >= 2) return parts[1] + ' ' + parts[0][0] + '.';
+            return name;
         }
 
-        // Main calculation
-        async function calculateBonuses() {
+        function formatDate(dateStr) {
+            const [y, m, d] = dateStr.split('-');
+            return `${d}.${m}.${y}`;
+        }
+
+        function ratioColor(ratio) {
+            if (ratio >= 1) return 'var(--success)';
+            if (ratio >= 0.5) return 'var(--warning)';
+            if (ratio > 0) return 'var(--accent)';
+            return 'var(--danger)';
+        }
+
+        // ===================== NAME MATCHING =====================
+        function nameWords(name) {
+            return new Set(name.toLowerCase().trim().split(/\s+/));
+        }
+
+        function namesMatch(a, b) {
+            const wa = nameWords(a);
+            const wb = nameWords(b);
+            if (wa.size === 0 || wb.size === 0) return false;
+            // Check if one is subset of the other
+            let aInB = true, bInA = true;
+            for (const w of wa) { if (!wb.has(w)) { aInB = false; break; } }
+            for (const w of wb) { if (!wa.has(w)) { bInA = false; break; } }
+            return aInB || bInA;
+        }
+
+        // ===================== CALCULATE =====================
+        async function calculate() {
             const dates = getPickerDates();
-
-            if (!dates) {
-                showError('Выберите период');
-                return;
-            }
-
-            const dateFrom = dates.from;
-            const dateTo = dates.to;
+            if (!dates) { showError('Выберите период'); return; }
 
             hideError();
             document.getElementById('results').classList.remove('active');
@@ -497,20 +565,24 @@
             document.getElementById('calc-btn').disabled = true;
 
             try {
-                const response = await fetch('/api/bonus-calculate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date_from: dateFrom, date_to: dateTo })
-                });
+                const body = JSON.stringify({ date_from: dates.from, date_to: dates.to });
+                const headers = { 'Content-Type': 'application/json' };
 
-                const data = await response.json();
+                const [bonusRes, kpiRes] = await Promise.all([
+                    fetch('/api/bonus-calculate', { method: 'POST', headers, body }),
+                    fetch('/api/kpi-calculate', { method: 'POST', headers, body })
+                ]);
 
-                if (!response.ok) {
-                    throw new Error(data.error || 'Ошибка сервера');
-                }
+                const bData = await bonusRes.json();
+                const kData = await kpiRes.json();
 
-                renderResults(data);
+                if (!bonusRes.ok) throw new Error(bData.error || 'Ошибка bonus API');
+                if (!kpiRes.ok) throw new Error(kData.error || 'Ошибка KPI API');
 
+                bonusData = bData;
+                kpiData = kData;
+
+                mergeAndRender();
             } catch (error) {
                 console.error('Error:', error);
                 showError('Ошибка: ' + error.message);
@@ -520,117 +592,527 @@
             }
         }
 
-        function renderResults(data) {
-            const employees = data.employees;
-            const withBonus = employees.filter(e => e.bonus > 0);
-            const withoutBonus = employees.filter(e => e.bonus === 0);
+        function mergeAndRender() {
+            const bonusEmps = bonusData.employees || [];
+            const kpiEmps = kpiData.employees || [];
 
-            // Summary cards
-            document.getElementById('summary').innerHTML = `
-                <div class="summary-card">
-                    <div class="label">Итого бонусов</div>
-                    <div class="value accent">${formatMoney(data.total_bonus)}</div>
-                </div>
-                <div class="summary-card">
-                    <div class="label">Получают бонус</div>
-                    <div class="value success">${withBonus.length} из ${employees.length}</div>
-                </div>
-                <div class="summary-card">
-                    <div class="label">Средний бонус</div>
-                    <div class="value">${withBonus.length > 0 ? formatMoney(data.total_bonus / withBonus.length) : '—'}</div>
-                </div>
-                <div class="summary-card">
-                    <div class="label">Период</div>
-                    <div class="value" style="font-size: 1rem;">${formatDate(data.period.from)} — ${formatDate(data.period.to)}</div>
-                </div>
-            `;
+            // Pre-calc late ordinals
+            bonusEmps.forEach(emp => {
+                let ord = 0;
+                if (emp.days) emp.days.forEach(d => { if (d.is_late) { ord++; d.late_penalty = 250 * ord; } });
+            });
 
-            // Table
-            const tbody = document.getElementById('bonus-tbody');
-            let rows = '';
+            // Merge: start with bonus employees, then add unmatched KPI employees
+            mergedEmployees = [];
+            const kpiUsed = new Set();
 
-            employees.forEach((emp, i) => {
-                const hasBonus = emp.bonus > 0;
-                const percentClass = emp.plan_percent >= 100 ? 'over' : emp.plan_percent >= 80 ? 'warning' : 'under';
-                const hasDays = emp.days && emp.days.length > 0;
+            bonusEmps.forEach(be => {
+                const merged = {
+                    name: be.name,
+                    bonus: be,
+                    kpi: null
+                };
+                // Find matching KPI employee
+                for (let i = 0; i < kpiEmps.length; i++) {
+                    if (!kpiUsed.has(i) && namesMatch(be.name, kpiEmps[i].employee_name)) {
+                        merged.kpi = kpiEmps[i];
+                        kpiUsed.add(i);
+                        break;
+                    }
+                }
+                mergedEmployees.push(merged);
+            });
 
-                rows += `
-                    <tr class="${hasBonus ? 'has-bonus' : 'no-bonus'} ${hasDays ? 'expandable' : ''}" ${hasDays ? `onclick="toggleDays(${i})"` : ''}>
-                        <td>${i + 1}</td>
-                        <td class="name">${emp.name}</td>
-                        <td class="right">${emp.shifts_count}</td>
-                        <td class="right">${formatMoney(emp.plan_revenue)}</td>
-                        <td class="right">${formatMoney(emp.total_revenue)}</td>
-                        <td class="right"><span class="plan-percent ${percentClass}">${emp.plan_percent.toFixed(1)}%</span></td>
-                        <td class="right">${emp.overperformance > 0 ? formatMoney(emp.overperformance) : '—'}</td>
-                        <td class="right">${hasBonus ? '<span class="bonus-value">' + formatMoney(emp.bonus) + '</span>' : '<span class="bonus-zero">0 ₽</span>'}</td>
-                    </tr>
-                `;
-
-                // Скрытая строка с детализацией по дням
-                if (hasDays) {
-                    let daysRows = '';
-                    emp.days.forEach(day => {
-                        const isOver = day.overperformance > 0;
-                        daysRows += `
-                            <tr class="${isOver ? 'day-over' : 'day-under'}">
-                                <td>${formatDate(day.date)}</td>
-                                <td class="right">${formatMoney(day.plan)}</td>
-                                <td class="right">${formatMoney(day.revenue)}</td>
-                                <td class="right">${isOver ? '+' + formatMoney(day.overperformance) : '—'}</td>
-                                <td class="right">${isOver ? formatMoney(day.day_bonus) : '—'}</td>
-                            </tr>
-                        `;
-                    });
-
-                    rows += `
-                        <tr class="days-row" id="days-${i}">
-                            <td colspan="8">
-                                <table class="days-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Дата</th>
-                                            <th class="right">План ТТ</th>
-                                            <th class="right">Выручка</th>
-                                            <th class="right">Перевыполнение</th>
-                                            <th class="right">Бонус</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>${daysRows}</tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    `;
+            // Add unmatched KPI employees
+            kpiEmps.forEach((ke, i) => {
+                if (!kpiUsed.has(i)) {
+                    mergedEmployees.push({ name: ke.employee_name, bonus: null, kpi: ke });
                 }
             });
 
-            // Total row
-            rows += `
-                <tr class="total-row">
-                    <td colspan="7" class="right">Итого бонусов:</td>
-                    <td class="right"><span class="bonus-value">${formatMoney(data.total_bonus)}</span></td>
-                </tr>
-            `;
+            // Calculate totals and sort
+            mergedEmployees.forEach(emp => {
+                const bonusNet = emp.bonus ? Math.max(0, emp.bonus.bonus - emp.bonus.penalty) : 0;
+                const kpiPremium = emp.kpi ? emp.kpi.total_premium : 0;
+                emp.baseSalary = bonusNet + kpiPremium;  // before hours
+            });
 
-            tbody.innerHTML = rows;
+            mergedEmployees.sort((a, b) => b.baseSalary - a.baseSalary);
+
+            renderSummary();
+            renderCards();
+        }
+
+        // ===================== RENDER SUMMARY =====================
+        function renderSummary() {
+            const totalBonus = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.bonus : 0), 0);
+            const totalPenalty = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.penalty : 0), 0);
+            const totalKpi = mergedEmployees.reduce((s, e) => s + (e.kpi ? e.kpi.total_premium : 0), 0);
+            const totalBase = mergedEmployees.reduce((s, e) => s + e.baseSalary, 0);
+
+            document.getElementById('summary').innerHTML = `
+                <div class="summary-card">
+                    <div class="summary-label">Итого ЗП (без часов)</div>
+                    <div class="summary-value accent" id="summary-total">${formatMoney(totalBase)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Премии за план</div>
+                    <div class="summary-value" style="color:var(--success);">${formatMoney(totalBonus)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Штрафы</div>
+                    <div class="summary-value" style="color:${totalPenalty > 0 ? 'var(--danger)' : 'var(--text-tertiary)'};">${totalPenalty > 0 ? '-' + formatMoney(totalPenalty) : '0 ₽'}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">KPI-премия</div>
+                    <div class="summary-value" style="color:var(--success);">${formatMoney(totalKpi)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Сотрудников</div>
+                    <div class="summary-value">${mergedEmployees.length}</div>
+                </div>
+            `;
+        }
+
+        // ===================== RENDER CARDS =====================
+        function renderCards() {
+            let html = '';
+
+            mergedEmployees.forEach((emp, i) => {
+                const b = emp.bonus;
+                const k = emp.kpi;
+                const bonusVal = b ? b.bonus : 0;
+                const penaltyVal = b ? b.penalty : 0;
+                const lateCount = b ? b.late_count : 0;
+                const kpiPremium = k ? k.total_premium : 0;
+                const planPct = b ? b.plan_percent : 0;
+                const shifts = b ? b.shifts_count : (k ? k.total_shifts : 0);
+
+                html += `<div class="emp-card" id="card-${i}">`;
+                html += `<div class="emp-card-header">`;
+                html += `<div><span class="emp-card-name">${emp.name}</span><span class="emp-card-shifts">${shifts} смен${planPct > 0 ? ' / план ' + planPct.toFixed(0) + '%' : ''}</span></div>`;
+                html += `<div class="emp-card-total" id="card-total-${i}">${formatMoney(emp.baseSalary)}</div>`;
+                html += `</div>`;
+
+                html += `<div class="emp-card-body">`;
+                html += `<div class="salary-rows">`;
+
+                // Bonus row
+                if (b) {
+                    html += `<div class="sal-label">Премия за план</div>`;
+                    html += `<div class="sal-value ${bonusVal > 0 ? 'positive' : 'neutral'}">${bonusVal > 0 ? formatMoney(bonusVal) : '—'}</div>`;
+
+                    // Penalty row
+                    html += `<div class="sal-label">Штраф${lateCount > 0 ? ' (' + lateCount + ' опозд.)' : ''}</div>`;
+                    html += `<div class="sal-value ${penaltyVal > 0 ? 'negative' : 'neutral'}">${penaltyVal > 0 ? '-' + formatMoney(penaltyVal) : '—'}</div>`;
+                }
+
+                // KPI row
+                if (k) {
+                    html += `<div class="sal-label">KPI-премия</div>`;
+                    html += `<div class="sal-value ${kpiPremium > 0 ? 'positive' : 'neutral'}">${kpiPremium > 0 ? formatMoney(kpiPremium) : '—'}</div>`;
+                }
+
+                // Hours row
+                html += `<div class="sal-label">Часы</div>`;
+                html += `<div class="sal-value"><div class="hours-row"><input type="number" class="hours-input" id="hours-${i}" placeholder="0" min="0" max="999" step="1" oninput="onHoursChange()"><span class="hours-mul">x ${HOURLY_RATE} ₽ = </span><span id="hourly-${i}">0 ₽</span></div></div>`;
+
+                // Divider + Total
+                html += `<div class="sal-divider"></div>`;
+                html += `<div class="sal-total-label">Итого</div>`;
+                html += `<div class="sal-total-value" id="emp-total-${i}">${formatMoney(emp.baseSalary)}</div>`;
+
+                html += `</div>`;  // .salary-rows
+
+                // Detail toggles
+                html += `<div class="detail-toggles">`;
+                if (b && b.days && b.days.length > 0) {
+                    html += `<button class="detail-toggle" onclick="toggleDetail(${i}, 'shifts')">Смены</button>`;
+                }
+                if (k && k.kpis) {
+                    html += `<button class="detail-toggle" onclick="toggleDetail(${i}, 'kpi')">KPI</button>`;
+                }
+                html += `</div>`;
+
+                html += `</div>`;  // .emp-card-body
+
+                // Hidden detail panels
+                html += `<div class="emp-details" id="detail-shifts-${i}"></div>`;
+                html += `<div class="emp-details" id="detail-kpi-${i}"></div>`;
+
+                html += `</div>`;  // .emp-card
+            });
+
+            document.getElementById('emp-cards').innerHTML = html;
             document.getElementById('results').classList.add('active');
         }
 
-        function toggleDays(index) {
-            const row = document.getElementById(`days-${index}`);
-            const mainRow = row.previousElementSibling;
-            if (row.classList.contains('visible')) {
-                row.classList.remove('visible');
-                mainRow.classList.remove('expanded');
-            } else {
-                row.classList.add('visible');
-                mainRow.classList.add('expanded');
+        // ===================== HOURS =====================
+        function onHoursChange() {
+            let totalSalary = 0;
+
+            mergedEmployees.forEach((emp, i) => {
+                const input = document.getElementById(`hours-${i}`);
+                const hours = parseFloat(input ? input.value : 0) || 0;
+                const hourlyPay = hours * HOURLY_RATE;
+                const total = emp.baseSalary + hourlyPay;
+
+                document.getElementById(`hourly-${i}`).textContent = hourlyPay > 0 ? formatMoney(hourlyPay) : '0 ₽';
+                document.getElementById(`emp-total-${i}`).textContent = formatMoney(total);
+                document.getElementById(`card-total-${i}`).textContent = formatMoney(total);
+
+                totalSalary += total;
+            });
+
+            // Update summary total
+            const summaryTotal = document.getElementById('summary-total');
+            if (summaryTotal) summaryTotal.textContent = formatMoney(totalSalary);
+        }
+
+        // ===================== DETAIL TOGGLES =====================
+        function toggleDetail(index, type) {
+            const panel = document.getElementById(`detail-${type}-${index}`);
+            const isActive = panel.classList.contains('active');
+
+            // Close all details in this card
+            const card = document.getElementById(`card-${index}`);
+            card.querySelectorAll('.emp-details').forEach(el => el.classList.remove('active'));
+            card.querySelectorAll('.detail-toggle').forEach(el => el.classList.remove('active'));
+
+            if (!isActive) {
+                // Render content if empty
+                if (!panel.innerHTML) {
+                    if (type === 'shifts') renderShiftsDetail(index);
+                    else if (type === 'kpi') renderKpiDetail(index);
+                }
+                panel.classList.add('active');
+                // Mark button active
+                const btns = card.querySelectorAll('.detail-toggle');
+                btns.forEach(btn => { if (btn.textContent.trim() === (type === 'shifts' ? 'Смены' : 'KPI')) btn.classList.add('active'); });
+                panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
 
-        function formatDate(dateStr) {
-            const [y, m, d] = dateStr.split('-');
-            return `${d}.${m}.${y}`;
+        // ===================== SHIFTS DETAIL =====================
+        function renderShiftsDetail(index) {
+            const emp = mergedEmployees[index];
+            const b = emp.bonus;
+            if (!b || !b.days) return;
+
+            let rows = '';
+            b.days.forEach(day => {
+                const isOver = day.overperformance > 0;
+                rows += `<tr class="${isOver ? 'day-over' : 'day-under'}">
+                    <td>${formatDate(day.date)}${day.is_late ? ' <span class="late-badge">опоздание</span>' : ''}</td>
+                    <td class="right">${formatMoney(day.plan)}</td>
+                    <td class="right">${formatMoney(day.revenue)}</td>
+                    <td class="right">${isOver ? '+' + formatMoney(day.overperformance) : '—'}</td>
+                    <td class="right">${isOver ? formatMoney(day.day_bonus) : '—'}</td>
+                    <td class="right">${day.is_late ? '<span class="penalty-value">-' + formatMoney(day.late_penalty) + '</span>' : ''}</td>
+                </tr>`;
+            });
+
+            document.getElementById(`detail-shifts-${index}`).innerHTML = `
+                <table class="days-table">
+                    <thead><tr>
+                        <th>Дата</th>
+                        <th class="right">План ТТ</th>
+                        <th class="right">Выручка</th>
+                        <th class="right">Перевыполнение</th>
+                        <th class="right">Бонус</th>
+                        <th class="right">Штраф</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            `;
+        }
+
+        // ===================== KPI DETAIL =====================
+        function renderKpiDetail(index) {
+            const emp = mergedEmployees[index];
+            const k = emp.kpi;
+            if (!k || !k.kpis) return;
+
+            const monthTargets = kpiData.month_targets || {};
+            const locs = Object.entries(k.shifts_per_location || {});
+            const totalShifts = locs.reduce((s, [, c]) => s + c, 0);
+            const fmtKpi = (key, v) => key === 'kpi3' ? formatNum(v, 0) : formatNum(v, 1);
+
+            let html = '<div class="kpi-detail-cards">';
+
+            KPI_KEYS.forEach(key => {
+                const kpi = k.kpis[key];
+                if (!kpi) return;
+                const color = ratioColor(kpi.capped_ratio);
+                const premColor = kpi.premium > 0 ? 'var(--success)' : 'var(--text-tertiary)';
+                const pct = Math.min(kpi.capped_ratio / 2 * 100, 100);
+
+                html += `<div class="kpi-detail-card">
+                    <div class="kpi-detail-header">
+                        <span class="kpi-detail-name">${kpi.name}</span>
+                        <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(kpi.premium)}</span>
+                    </div>
+
+                    <div class="kpi-metrics-grid">
+                        <div class="kpi-metric-item">
+                            <div class="kpi-metric-label">Факт</div>
+                            <div class="kpi-metric-val" style="color:${color};">${fmtKpi(key, kpi.fact)}</div>
+                        </div>
+                        <div class="kpi-metric-item">
+                            <div class="kpi-metric-label">Цель (взвеш.)</div>
+                            <div class="kpi-metric-val">${fmtKpi(key, kpi.target)}</div>
+                        </div>
+                        <div class="kpi-metric-item">
+                            <div class="kpi-metric-label">Минимум</div>
+                            <div class="kpi-metric-val">${fmtKpi(key, kpi.min)}</div>
+                        </div>
+                        <div class="kpi-metric-item">
+                            <div class="kpi-metric-label">Множитель</div>
+                            <div class="kpi-metric-val">x${formatNum(kpi.capped_ratio, 2)}${kpi.ratio > kpi.capped_ratio ? ' (cap)' : ''}</div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-ratio-bar">
+                        <div class="kpi-ratio-fill" style="width:${pct}%;background:${color};"></div>
+                    </div>
+
+                    <table class="loc-breakdown">
+                        <thead><tr><th>Точка</th><th>Смены</th><th>Вес</th><th>Цель ТТ</th><th>Мін ТТ</th></tr></thead>
+                        <tbody>`;
+
+                locs.forEach(([loc, cnt]) => {
+                    const locTargets = (monthTargets[loc] || {})[key] || {};
+                    const weight = totalShifts > 0 ? (cnt / totalShifts * 100) : 0;
+                    const t = locTargets.target !== undefined ? locTargets.target : '—';
+                    const m = locTargets.min !== undefined ? locTargets.min : '—';
+                    html += `<tr>
+                        <td>${loc}</td>
+                        <td>${cnt}</td>
+                        <td>${formatNum(weight, 0)}%</td>
+                        <td>${typeof t === 'number' ? fmtKpi(key, t) : t}</td>
+                        <td>${typeof m === 'number' ? fmtKpi(key, m) : m}</td>
+                    </tr>`;
+                });
+
+                html += `<tr class="loc-weighted">
+                    <td>Взвешенное</td><td>${totalShifts}</td><td>100%</td>
+                    <td>${fmtKpi(key, kpi.target)}</td><td>${fmtKpi(key, kpi.min)}</td>
+                </tr>`;
+
+                html += `</tbody></table></div>`;
+            });
+
+            // Premium calc summary
+            html += `<div class="kpi-calc-summary"><strong>Расчёт:</strong><br>`;
+            KPI_KEYS.forEach(key => {
+                const kpi = k.kpis[key];
+                if (!kpi) return;
+                html += `${kpi.name}: x${formatNum(kpi.capped_ratio, 2)} x ${totalShifts} смен x (${formatNum(kpiData.defaults.base_premium, 0)} / ${kpiData.defaults.norm_shifts}) = <strong>${formatMoney(kpi.premium)}</strong><br>`;
+            });
+            html += `<br><strong>Итого KPI: ${formatMoney(k.total_premium)}</strong></div>`;
+
+            html += '</div>';
+            document.getElementById(`detail-kpi-${index}`).innerHTML = html;
+        }
+
+        // ===================== KPI TARGETS EDITOR =====================
+        function toggleTargets() {
+            const content = document.getElementById('targets-content');
+            content.classList.toggle('active');
+        }
+
+        async function loadTargets() {
+            try {
+                const resp = await fetch('/api/kpi-targets');
+                targetsData = await resp.json();
+                availableMetrics = targetsData.available_metrics || {};
+                populateMonthSelector();
+                loadDefaults();
+                loadTargetsMonth();
+            } catch (e) {
+                console.error('Failed to load targets:', e);
+            }
+        }
+
+        function populateMonthSelector() {
+            const input = document.getElementById('target-month');
+            const months = Object.keys(targetsData.months || {}).sort();
+            if (months.length > 0) {
+                input.value = months[months.length - 1];
+            } else {
+                const now = new Date();
+                input.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+        }
+
+        function loadDefaults() {
+            const d = targetsData.defaults || {};
+            document.getElementById('def-norm').value = d.norm_shifts || 15;
+            document.getElementById('def-base').value = d.base_premium || 5000;
+            document.getElementById('def-max-ratio').value = d.max_ratio || 2;
+        }
+
+        function loadTargetsMonth() {
+            const month = document.getElementById('target-month').value;
+            if (!month) return;
+            if (!targetsData.months) targetsData.months = {};
+
+            if (!targetsData.months[month]) {
+                targetsData.months[month] = {
+                    kpi_config: {
+                        kpi1: {metric: 'kitchen_share', name: 'Доля кухни (%)'},
+                        kpi2: {metric: 'draft_share', name: 'Доля розлива (%)'},
+                        kpi3: {metric: 'avg_check', name: 'Средний чек (₽)'},
+                    }
+                };
+                LOCATIONS.forEach(loc => {
+                    targetsData.months[month][loc] = {};
+                    KPI_KEYS.forEach(k => {
+                        targetsData.months[month][loc][k] = { target: 0, min: 0 };
+                    });
+                });
+            }
+
+            const monthData = targetsData.months[month];
+            renderKpiConfig(monthData.kpi_config || {});
+            renderTargetsGrid(monthData);
+        }
+
+        function renderKpiConfig(kpiConfig) {
+            const defaultConfig = {
+                kpi1: {metric: 'kitchen_share', name: 'Доля кухни (%)'},
+                kpi2: {metric: 'draft_share', name: 'Доля розлива (%)'},
+                kpi3: {metric: 'avg_check', name: 'Средний чек (₽)'},
+            };
+
+            let html = '<h4 style="margin-bottom:12px;">Метрики KPI</h4><div class="kpi-config-grid">';
+
+            KPI_KEYS.forEach((k, i) => {
+                const conf = kpiConfig[k] || defaultConfig[k] || {};
+                const currentMetric = conf.metric || '';
+                const currentName = conf.name || '';
+
+                html += `<div class="kpi-config-card">
+                    <div class="kpi-config-label">KPI #${i + 1}</div>
+                    <select id="kpi-metric-${k}" onchange="onMetricChange('${k}')">`;
+
+                for (const [metricKey, metricInfo] of Object.entries(availableMetrics)) {
+                    const selected = metricKey === currentMetric ? ' selected' : '';
+                    html += `<option value="${metricKey}"${selected}>${metricInfo.name} (${metricInfo.unit})</option>`;
+                }
+
+                html += `</select>
+                    <input type="text" class="kpi-name-input" id="kpi-name-${k}" value="${currentName}" placeholder="Название">
+                </div>`;
+            });
+
+            html += '</div>';
+            document.getElementById('kpi-config-section').innerHTML = html;
+        }
+
+        function onMetricChange(kpiKey) {
+            const sel = document.getElementById('kpi-metric-' + kpiKey);
+            const metric = sel.value;
+            const info = availableMetrics[metric] || {};
+            const nameInput = document.getElementById('kpi-name-' + kpiKey);
+            nameInput.value = info.name + (info.unit ? ' (' + info.unit + ')' : '');
+        }
+
+        function renderTargetsGrid(monthData) {
+            const kpiConfig = monthData.kpi_config || {};
+            let html = '<div class="targets-grid">';
+
+            html += '<div class="tg-cell tg-header"></div>';
+            LOCATIONS.forEach(loc => {
+                html += `<div class="tg-cell tg-header">${LOC_SHORT[loc] || loc}</div>`;
+            });
+
+            KPI_KEYS.forEach(k => {
+                const conf = kpiConfig[k] || {};
+                const label = conf.name || document.getElementById('kpi-name-' + k)?.value || k;
+                html += `<div class="tg-cell tg-label">${label}</div>`;
+                LOCATIONS.forEach(loc => {
+                    const vals = (monthData[loc] || {})[k] || {};
+                    html += `<div class="tg-cell">
+                        <div class="tg-input-group">
+                            <input type="number" class="tg-input" id="tg-${k}-${loc}-target" value="${vals.target || ''}" placeholder="Цель" step="any">
+                            <span class="tg-sep">/</span>
+                            <input type="number" class="tg-input" id="tg-${k}-${loc}-min" value="${vals.min || ''}" placeholder="Min" step="any">
+                        </div>
+                    </div>`;
+                });
+            });
+
+            html += '</div>';
+            document.getElementById('targets-grid-container').innerHTML = html;
+        }
+
+        function copyFromPreviousMonth() {
+            const currentMonth = document.getElementById('target-month').value;
+            if (!currentMonth) { alert('Выберите месяц'); return; }
+
+            const [y, m] = currentMonth.split('-').map(Number);
+            const prevDate = new Date(y, m - 2, 1);
+            const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+            const prevData = (targetsData.months || {})[prevMonth];
+            if (!prevData) { alert(`Нет данных за ${prevMonth}`); return; }
+
+            renderKpiConfig(prevData.kpi_config || {});
+            renderTargetsGrid(prevData);
+        }
+
+        async function saveTargets() {
+            const month = document.getElementById('target-month').value;
+            if (!month) { alert('Выберите месяц'); return; }
+
+            targetsData.defaults = {
+                norm_shifts: parseInt(document.getElementById('def-norm').value) || 15,
+                base_premium: parseInt(document.getElementById('def-base').value) || 5000,
+                max_ratio: parseFloat(document.getElementById('def-max-ratio').value) || 2,
+            };
+
+            const kpiConfig = {};
+            KPI_KEYS.forEach(k => {
+                const metricSel = document.getElementById('kpi-metric-' + k);
+                const nameInput = document.getElementById('kpi-name-' + k);
+                if (metricSel && nameInput) {
+                    kpiConfig[k] = { metric: metricSel.value, name: nameInput.value || k };
+                }
+            });
+
+            if (!targetsData.months) targetsData.months = {};
+            targetsData.months[month] = { kpi_config: kpiConfig };
+
+            LOCATIONS.forEach(loc => {
+                targetsData.months[month][loc] = {};
+                KPI_KEYS.forEach(k => {
+                    const target = parseFloat(document.getElementById(`tg-${k}-${loc}-target`).value) || 0;
+                    const min = parseFloat(document.getElementById(`tg-${k}-${loc}-min`).value) || 0;
+                    targetsData.months[month][loc][k] = { target, min };
+                });
+            });
+
+            try {
+                const {available_metrics, ...dataToSave} = targetsData;
+                const resp = await fetch('/api/kpi-targets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dataToSave)
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Ошибка');
+
+                document.getElementById('save-error').classList.remove('active');
+                const msg = document.getElementById('save-success');
+                msg.classList.add('active');
+                setTimeout(() => msg.classList.remove('active'), 2000);
+            } catch (e) {
+                document.getElementById('save-success').classList.remove('active');
+                const el = document.getElementById('save-error');
+                el.textContent = 'Ошибка: ' + e.message;
+                el.classList.add('active');
+            }
         }
     </script>
     <script src="/static/logo.js"></script>

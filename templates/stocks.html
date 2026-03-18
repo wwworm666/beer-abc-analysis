@@ -713,7 +713,8 @@
     </div>
 
     <script>
-        let currentOrder = [];
+        // Заказ хранится по барам: { "Лиговский": [ {type, name, quantity}, ... ], ... }
+        let ordersByBar = {};
         let currentBar = '';
 
         // Escape HTML entities
@@ -835,18 +836,23 @@
                     const row = document.createElement('tr');
                     const remainingDisplay = tap.remaining_liters !== undefined ?
                         tap.remaining_liters.toFixed(1) : '—';
+                    const escapedBeerName = escapeHtml(tap.beer_name || '—');
 
                     row.innerHTML = `
                         <td>${tap.tap_numbers || '—'}</td>
-                        <td>${tap.beer_name || '—'}</td>
+                        <td>${escapedBeerName}</td>
                         <td style="${tap.remaining_liters < 0 ? 'color: #991b1b; font-weight: 700;' : ''}">${remainingDisplay}</td>
                         <td><span class="badge ${getStockBadge(tap.stock_level)}">${getStockLabel(tap.stock_level)}</span></td>
                         <td>
                             <input type="number" min="0" value="0"
-                                onchange="addToOrder('draft', '${tap.beer_name}', this.value)"
+                                data-type="draft" data-name="${escapedBeerName}"
                                 style="width: 80px;">
                         </td>
                     `;
+                    // Безопасный обработчик (без inline JS)
+                    row.querySelector('input').addEventListener('change', function() {
+                        addToOrder('draft', tap.beer_name, this.value);
+                    });
                     tbody.appendChild(row);
                 });
 
@@ -905,25 +911,6 @@
                     group.className = 'supplier-group';
 
                     const items = groupedItems[supplier];
-
-                    let tableRows = '';
-                    items.forEach(item => {
-                        const escapedName = escapeHtml(item.name);
-                        tableRows += `
-                            <tr>
-                                <td>${escapedName}</td>
-                                <td>${item.stock || 0}</td>
-                                <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
-                                <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
-                                <td>
-                                    <input type="number" min="0" value="0"
-                                        onchange="addToOrder('bottles', \`${escapedName}\`, this.value)"
-                                        style="width: 80px;">
-                                </td>
-                            </tr>
-                        `;
-                    });
-
                     const escapedSupplier = escapeHtml(supplier);
 
                     group.innerHTML = `
@@ -938,9 +925,25 @@
                                     <th>Для заказа</th>
                                 </tr>
                             </thead>
-                            <tbody>${tableRows}</tbody>
+                            <tbody></tbody>
                         </table>
                     `;
+
+                    const tbody = group.querySelector('tbody');
+                    items.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${escapeHtml(item.name)}</td>
+                            <td>${item.stock || 0}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
+                            <td><input type="number" min="0" value="0" style="width: 80px;"></td>
+                        `;
+                        row.querySelector('input').addEventListener('change', function() {
+                            addToOrder('bottles', item.name, this.value);
+                        });
+                        tbody.appendChild(row);
+                    });
 
                     container.appendChild(group);
                 });
@@ -999,25 +1002,6 @@
                     group.className = 'supplier-group';
 
                     const items = groupedItems[supplier];
-
-                    let tableRows = '';
-                    items.forEach(item => {
-                        const escapedName = escapeHtml(item.name);
-                        tableRows += `
-                            <tr>
-                                <td>${escapedName}</td>
-                                <td>${item.stock || 0}</td>
-                                <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
-                                <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
-                                <td>
-                                    <input type="number" min="0" value="0"
-                                        onchange="addToOrder('kitchen', \`${escapedName}\`, this.value)"
-                                        style="width: 80px;">
-                                </td>
-                            </tr>
-                        `;
-                    });
-
                     const escapedSupplier = escapeHtml(supplier);
 
                     group.innerHTML = `
@@ -1032,9 +1016,25 @@
                                     <th>Для заказа</th>
                                 </tr>
                             </thead>
-                            <tbody>${tableRows}</tbody>
+                            <tbody></tbody>
                         </table>
                     `;
+
+                    const tbody = group.querySelector('tbody');
+                    items.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${escapeHtml(item.name)}</td>
+                            <td>${item.stock || 0}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
+                            <td><input type="number" min="0" value="0" style="width: 80px;"></td>
+                        `;
+                        row.querySelector('input').addEventListener('change', function() {
+                            addToOrder('kitchen', item.name, this.value);
+                        });
+                        tbody.appendChild(row);
+                    });
 
                     container.appendChild(group);
                 });
@@ -1048,33 +1048,50 @@
             }
         }
 
-        // Add to order
+        // Add to order (привязка к текущему бару)
         function addToOrder(type, itemName, quantity) {
             quantity = parseInt(quantity);
-            if (quantity <= 0) return;
+            if (!currentBar) return;
 
-            const existingIndex = currentOrder.findIndex(
+            // Инициализируем массив для бара если нет
+            if (!ordersByBar[currentBar]) {
+                ordersByBar[currentBar] = [];
+            }
+
+            const barOrder = ordersByBar[currentBar];
+            const existingIndex = barOrder.findIndex(
                 item => item.type === type && item.name === itemName
             );
 
-            if (existingIndex >= 0) {
-                currentOrder[existingIndex].quantity = quantity;
+            if (quantity <= 0) {
+                // Удаляем позицию если количество 0
+                if (existingIndex >= 0) {
+                    barOrder.splice(existingIndex, 1);
+                }
+            } else if (existingIndex >= 0) {
+                barOrder[existingIndex].quantity = quantity;
             } else {
-                currentOrder.push({
+                barOrder.push({
                     type: type,
                     name: itemName,
                     quantity: quantity
                 });
             }
 
+            // Убираем пустые бары
+            if (barOrder.length === 0) {
+                delete ordersByBar[currentBar];
+            }
+
             updateOrderSummary();
         }
 
-        // Update order summary
+        // Update order summary — показывает заказы по каждому бару отдельно
         function updateOrderSummary() {
             const summary = document.getElementById('order-summary');
+            const bars = Object.keys(ordersByBar);
 
-            if (currentOrder.length === 0) {
+            if (bars.length === 0) {
                 summary.innerHTML = `
                     <h3>Заказ пуст</h3>
                     <p style="color: var(--text-secondary);">Добавьте позиции из таплиста или меню кухни</p>
@@ -1082,68 +1099,84 @@
                 return;
             }
 
-            const draftItems = currentOrder.filter(item => item.type === 'draft');
-            const kitchenItems = currentOrder.filter(item => item.type === 'kitchen');
-
             let html = '<h3>Заказ</h3>';
 
-            if (draftItems.length > 0) {
-                html += '<h4 style="margin-top: 16px; color: var(--text-secondary);">Разливное:</h4>';
-                draftItems.forEach(item => {
-                    html += `
-                        <div class="order-item">
-                            <span>${item.name}</span>
-                            <span>${item.quantity} кег</span>
-                        </div>
-                    `;
-                });
-            }
+            bars.forEach(barName => {
+                const barItems = ordersByBar[barName];
+                if (!barItems || barItems.length === 0) return;
 
-            if (kitchenItems.length > 0) {
-                html += '<h4 style="margin-top: 16px; color: var(--text-secondary);">Кухня:</h4>';
-                kitchenItems.forEach(item => {
-                    html += `
-                        <div class="order-item">
-                            <span>${item.name}</span>
-                            <span>${item.quantity} шт</span>
-                        </div>
-                    `;
-                });
-            }
+                html += `<div style="margin-top: 20px; padding: 16px; border: 1px solid var(--border-color); border-radius: 8px;">`;
+                html += `<h4 style="margin-bottom: 12px; color: var(--accent);">${escapeHtml(barName)}</h4>`;
+
+                const draftItems = barItems.filter(item => item.type === 'draft');
+                const kitchenItems = barItems.filter(item => item.type === 'kitchen');
+
+                if (draftItems.length > 0) {
+                    html += '<h4 style="margin-top: 8px; color: var(--text-secondary); font-size: 0.85rem;">Разливное:</h4>';
+                    draftItems.forEach(item => {
+                        html += `
+                            <div class="order-item">
+                                <span>${escapeHtml(item.name)}</span>
+                                <span>${item.quantity} кег</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                if (kitchenItems.length > 0) {
+                    html += '<h4 style="margin-top: 8px; color: var(--text-secondary); font-size: 0.85rem;">Кухня:</h4>';
+                    kitchenItems.forEach(item => {
+                        html += `
+                            <div class="order-item">
+                                <span>${escapeHtml(item.name)}</span>
+                                <span>${item.quantity} шт</span>
+                            </div>
+                        `;
+                    });
+                }
+
+                html += '</div>';
+            });
 
             summary.innerHTML = html;
         }
 
-        // Export order
+        // Export order — отдельный CSV для каждого бара
         function exportOrder() {
-            if (currentOrder.length === 0) {
+            const bars = Object.keys(ordersByBar);
+            if (bars.length === 0) {
                 alert('Заказ пуст');
                 return;
             }
 
-            // Create CSV content
-            let csv = 'Тип,Название,Количество\n';
-            currentOrder.forEach(item => {
-                const type = item.type === 'draft' ? 'Разливное' : 'Кухня';
-                csv += `"${type}","${item.name}","${item.quantity}"\n`;
-            });
+            const today = new Date().toISOString().split('T')[0];
 
-            // Download CSV
-            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `order_${currentBar}_${new Date().toISOString().split('T')[0]}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            bars.forEach(barName => {
+                const barItems = ordersByBar[barName];
+                if (!barItems || barItems.length === 0) return;
+
+                let csv = `Бар: ${barName}\nТип,Название,Количество\n`;
+                barItems.forEach(item => {
+                    const type = item.type === 'draft' ? 'Разливное' : 'Кухня';
+                    csv += `"${type}","${item.name}","${item.quantity}"\n`;
+                });
+
+                const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `order_${barName}_${today}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
         }
 
         // Clear order
         function clearOrder() {
             if (confirm('Очистить текущий заказ?')) {
-                currentOrder = [];
+                ordersByBar = {};
                 updateOrderSummary();
 
                 // Reset all input fields

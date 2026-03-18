@@ -415,13 +415,13 @@ class IikoAPI:
                 except:
                     pass
 
-            # Опоздание = смена открыта позже 14:35
+            # Опоздание = смена открыта позже 14:30
             is_late = False
             if open_date_str:
                 try:
                     open_dt_check = self._parse_iso_datetime(open_date_str)
                     if open_dt_check:
-                        if open_dt_check.hour > 14 or (open_dt_check.hour == 14 and open_dt_check.minute > 35):
+                        if open_dt_check.hour > 14 or (open_dt_check.hour == 14 and open_dt_check.minute > 30):
                             is_late = True
                             _late_debug_count += 1
                 except:
@@ -445,7 +445,8 @@ class IikoAPI:
                     'revenue_card': 0.0,
                     'revenue_cash': 0.0,
                     'total_hours': 0.0,
-                    'late_count': 0
+                    'late_count': 0,
+                    'late_dates': set()
                 }
 
             emp = employee_data[emp_id]
@@ -455,6 +456,8 @@ class IikoAPI:
             emp['total_hours'] += shift_hours
             if is_late:
                 emp['late_count'] += 1
+                if open_date:
+                    emp['late_dates'].add(open_date)
 
             if open_date and open_date not in emp['dates']:
                 emp['dates'].append(open_date)
@@ -471,9 +474,10 @@ class IikoAPI:
             if open_date:
                 emp['shift_revenues'][open_date] = emp['shift_revenues'].get(open_date, 0.0) + shift_revenue
 
-        # Сортируем даты
+        # Сортируем даты, конвертируем set -> sorted list
         for emp_id in employee_data:
             employee_data[emp_id]['dates'].sort()
+            employee_data[emp_id]['late_dates'] = sorted(employee_data[emp_id]['late_dates'])
 
         print(f"[OK] Получены метрики из смен для {len(employee_data)} сотрудников (late shifts total: {_late_debug_count}/{len(shifts)})")
         return employee_data

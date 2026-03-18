@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect
 import pandas as pd
 import json
 import os
@@ -16,6 +16,7 @@ from core.waiter_analysis import WaiterAnalysis
 from core.taps_manager import TapsManager
 from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from_waiter_data
 from core.employee_plans import get_employee_plan_by_shifts
+from core.kpi_calculator import KpiCalculator, KpiTargetsReader, clear_kpi_cache, AVAILABLE_METRICS
 from core.iiko_api import IikoAPI
 from core.shifts_manager import get_shifts_manager
 from core.meeting_notes import MeetingNotesManager
@@ -180,10 +181,18 @@ def employee_dashboard():
     """Страница детального дашборда по сотруднику"""
     return render_template('employee.html', bars=BARS)
 
-@app.route('/bonus')
-def bonus_page():
-    """Страница расчёта бонусов сотрудников"""
+@app.route('/salary')
+def salary_page():
+    """Страница расчёта ЗП сотрудников (премии + штрафы + KPI + часы)"""
     return render_template('bonus.html')
+
+@app.route('/bonus')
+def bonus_redirect():
+    return redirect('/salary')
+
+@app.route('/kpi')
+def kpi_redirect():
+    return redirect('/salary')
 
 @app.route('/dashboard')
 def dashboard():
@@ -1711,6 +1720,8 @@ def bonus_calculate():
         # 3. Расчёт по дням для каждого сотрудника (данные из кассовых смен)
         results = []
         total_bonus = 0.0
+        total_penalty = 0
+        total_net = 0.0
 
         for emp_id, emp_metrics in all_employee_metrics.items():
             emp_name = emp_id_to_name.get(emp_id, '')
@@ -1720,6 +1731,8 @@ def bonus_calculate():
             shift_locations = emp_metrics.get('shift_locations', {})
             shift_revenues = emp_metrics.get('shift_revenues', {})
             shifts_count = emp_metrics.get('shifts_count', 0)
+            late_count = emp_metrics.get('late_count', 0)
+            late_dates_set = set(emp_metrics.get('late_dates', []))
 
             # Считаем по дням
             total_revenue = 0.0
@@ -1753,14 +1766,21 @@ def bonus_calculate():
                     'revenue': round(day_revenue, 2),
                     'plan': round(day_plan, 2),
                     'overperformance': round(day_over, 2),
-                    'day_bonus': round(day_bonus, 2)
+                    'day_bonus': round(day_bonus, 2),
+                    'is_late': date_str in late_dates_set
                 })
 
             # Формула бонуса: 1000 за каждую успешную смену + 5% от перевыполнения
             plan_percent = (total_revenue / total_plan * 100) if total_plan > 0 else 0
             bonus = sum(d['day_bonus'] for d in days_detail)
 
+            # Штраф за опоздания: прогрессивная шкала 250, 500, 750...
+            penalty = 250 * late_count * (late_count + 1) // 2
+            net = max(0, bonus - penalty)
+
             total_bonus += bonus
+            total_penalty += penalty
+            total_net += net
 
             # Сортируем дни по дате
             days_detail.sort(key=lambda x: x['date'])
@@ -1773,17 +1793,22 @@ def bonus_calculate():
                 'overperformance': round(total_overperformance, 2),
                 'bonus': round(bonus, 2),
                 'shifts_count': shifts_count,
+                'late_count': late_count,
+                'penalty': penalty,
+                'net': round(net, 2),
                 'days': days_detail
             })
 
-        # Сортируем: сначала с бонусом (по убыванию), потом без
-        results.sort(key=lambda x: x['bonus'], reverse=True)
+        # Сортируем: сначала с наибольшей итоговой суммой
+        results.sort(key=lambda x: x['net'], reverse=True)
 
-        print(f"[OK] Bonus calculated for {len(results)} employees, total: {total_bonus:.0f}")
+        print(f"[OK] Bonus calculated for {len(results)} employees, total bonus: {total_bonus:.0f}, penalty: {total_penalty}, net: {total_net:.0f}")
 
         return jsonify({
             'employees': results,
             'total_bonus': round(total_bonus, 2),
+            'total_penalty': total_penalty,
+            'total_net': round(total_net, 2),
             'period': {'from': date_from, 'to': date_to}
         })
 
@@ -1791,6 +1816,206 @@ def bonus_calculate():
         print(f"[ERROR] Oshibka v /api/bonus-calculate: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/kpi-calculate', methods=['POST'])
+def kpi_calculate():
+    """
+    API endpoint для расчёта KPI-бонусов всех сотрудников.
+
+    Формула:
+    - ratio = (Факт - Мін) / (Цель - Мін), capped [0, 2]
+    - Премия_kpi = ratio × Смен × (5000 / 15)
+    - Цели взвешены по сменам на точках
+    """
+    try:
+        data = request.json
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: date_from, date_to'}), 400
+
+        month = date_from[:7]  # "YYYY-MM"
+        print(f"\n[KPI] Raschyot KPI-bonusov za period: {date_from} - {date_to}, month: {month}")
+
+        # 1. Проверяем наличие целей за месяц
+        clear_kpi_cache()
+        kpi_calc = KpiCalculator()
+        month_targets = kpi_calc.reader.get_targets_for_month(month)
+        if not month_targets:
+            return jsonify({'error': f'Нет KPI-целей за месяц {month}. Настройте цели во вкладке "Настройка целей".'}), 404
+
+        # 2. iiko: список сотрудников + кассовые смены
+        now = time.time()
+        all_employee_metrics = {}
+
+        iiko = IikoAPI()
+        if iiko.authenticate():
+            try:
+                if EMPLOYEES_CACHE['data'] and (now - EMPLOYEES_CACHE['timestamp']) < EMPLOYEES_CACHE_TTL:
+                    employees_list = EMPLOYEES_CACHE['data']
+                    print(f"   [CACHE] Using cached employees ({len(employees_list)})")
+                else:
+                    employees_list = iiko.get_employees()
+                    EMPLOYEES_CACHE['data'] = employees_list
+                    EMPLOYEES_CACHE['timestamp'] = now
+                    print(f"   [CACHE] Fresh employees loaded ({len(employees_list)})")
+
+                all_employee_metrics = iiko.get_employee_metrics_from_shifts(date_from, date_to)
+                print(f"   [SHIFTS] Loaded metrics for {len(all_employee_metrics)} employees")
+            finally:
+                iiko.logout()
+        else:
+            employees_list = []
+            print("   [ERROR] Failed to authenticate to iiko")
+
+        if not all_employee_metrics:
+            return jsonify({'error': 'Нет данных о сменах за выбранный период'}), 404
+
+        # 3. OLAP: агрегированные метрики + категории (для всех баров)
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko OLAP'}), 500
+
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {
+                    executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, None): 'aggregated',
+                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, olap_date_to, None): 'draft',
+                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, olap_date_to, None): 'bottles',
+                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, olap_date_to, None): 'kitchen',
+                }
+
+                olap_results = {}
+                for future in as_completed(futures):
+                    key = futures[future]
+                    try:
+                        olap_results[key] = future.result()
+                    except Exception as e:
+                        print(f"   [ERROR] OLAP {key}: {e}")
+                        olap_results[key] = None
+
+            aggregated_data = olap_results.get('aggregated')
+            draft_data = olap_results.get('draft')
+            bottles_data = olap_results.get('bottles')
+            kitchen_data = olap_results.get('kitchen')
+        finally:
+            olap.disconnect()
+
+        # 4. Маппинг employee_id -> имя
+        emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
+        system_users = EmployeeMetricsCalculator.SYSTEM_USERS + ['']
+
+        # 5. Расчёт KPI для каждого сотрудника
+        results = []
+        total_premium = 0.0
+
+        for emp_id, emp_shifts in all_employee_metrics.items():
+            emp_name = emp_id_to_name.get(emp_id, '')
+            if not emp_name or emp_name in system_users:
+                continue
+
+            shift_locations = emp_shifts.get('shift_locations', {})
+            shifts_count = emp_shifts.get('shifts_count', 0)
+            shifts_revenue = emp_shifts.get('total_revenue', 0.0)
+            total_hours = emp_shifts.get('total_hours', 0.0)
+
+            if shifts_count == 0:
+                continue
+
+            # Рассчитываем метрики через EmployeeMetricsCalculator
+            calculator = EmployeeMetricsCalculator()
+            metrics = calculator.calculate(
+                employee_name=emp_name,
+                aggregated_data=aggregated_data,
+                draft_data=draft_data,
+                bottles_data=bottles_data,
+                kitchen_data=kitchen_data,
+                cancelled_data=None,
+                plan_revenue=0,
+                date_from=date_from,
+                date_to=date_to,
+                shifts_count_override=shifts_count,
+                total_hours_override=total_hours,
+                total_revenue_override=shifts_revenue,
+            )
+
+            # Рассчитываем KPI-бонус
+            kpi_result = kpi_calc.calculate_employee(
+                employee_name=emp_name,
+                metrics=metrics,
+                shift_locations=shift_locations,
+                month=month,
+            )
+
+            if kpi_result:
+                results.append(kpi_result)
+                total_premium += kpi_result['total_premium']
+
+        # Сортируем по убыванию премии
+        results.sort(key=lambda x: x['total_premium'], reverse=True)
+
+        defaults = kpi_calc.reader.get_defaults()
+        kpi_config = kpi_calc.reader.get_kpi_config_for_month(month)
+
+        # kpi_names из конфига месяца
+        kpi_names = {k: v.get('name', k) for k, v in kpi_config.items()}
+
+        print(f"[OK] KPI calculated for {len(results)} employees, total premium: {total_premium:.0f}")
+
+        return jsonify({
+            'employees': results,
+            'total_premium': round(total_premium, 2),
+            'employee_count': len(results),
+            'avg_premium': round(total_premium / len(results), 2) if results else 0,
+            'period': {'from': date_from, 'to': date_to},
+            'month': month,
+            'defaults': defaults,
+            'kpi_names': kpi_names,
+            'kpi_config': kpi_config,
+            'month_targets': month_targets,
+            'available_metrics': AVAILABLE_METRICS,
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/kpi-calculate: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/kpi-targets', methods=['GET'])
+def kpi_targets_get():
+    """Получить текущие KPI-цели для редактора."""
+    try:
+        clear_kpi_cache()
+        reader = KpiTargetsReader()
+        data = reader.get_all_data()
+        data['available_metrics'] = AVAILABLE_METRICS
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/kpi-targets', methods=['POST'])
+def kpi_targets_save():
+    """Сохранить KPI-цели."""
+    try:
+        new_data = request.json
+        if not new_data or 'months' not in new_data:
+            return jsonify({'error': 'Неверный формат данных'}), 400
+
+        clear_kpi_cache()
+        reader = KpiTargetsReader()
+        reader.save_targets(new_data)
+        return jsonify({'status': 'ok'})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 

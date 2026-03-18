@@ -1,0 +1,153 @@
+{
+  "defaults": {
+    "norm_shifts": 15,
+    "base_premium": 5000,
+    "max_ratio": 2
+  },
+  "months": {
+    "2026-02": {
+      "kpi_config": {
+        "kpi1": {
+          "metric": "kitchen_share",
+          "name": "Доля кухни (%)"
+        },
+        "kpi2": {
+          "metric": "draft_share",
+          "name": "Доля розлива (%)"
+        },
+        "kpi3": {
+          "metric": "avg_check",
+          "name": "Средний чек (₽)"
+        }
+      },
+      "Большой пр В.О.": {
+        "kpi1": {
+          "min": 13,
+          "target": 18
+        },
+        "kpi2": {
+          "min": 17,
+          "target": 25
+        },
+        "kpi3": {
+          "min": 1390,
+          "target": 1520
+        }
+      },
+      "Варшавская": {
+        "kpi1": {
+          "min": 14,
+          "target": 18
+        },
+        "kpi2": {
+          "min": 44,
+          "target": 50
+        },
+        "kpi3": {
+          "min": 1390,
+          "target": 1520
+        }
+      },
+      "Кременчугская": {
+        "kpi1": {
+          "min": 10,
+          "target": 18
+        },
+        "kpi2": {
+          "min": 59,
+          "target": 65
+        },
+        "kpi3": {
+          "min": 1520,
+          "target": 1690
+        }
+      },
+      "Лиговский": {
+        "kpi1": {
+          "min": 14,
+          "target": 18
+        },
+        "kpi2": {
+          "min": 40,
+          "target": 50
+        },
+        "kpi3": {
+          "min": 1390,
+          "target": 1520
+        }
+      }
+    },
+    "2026-03": {
+      "kpi_config": {
+        "kpi1": {
+          "metric": "kitchen_share",
+          "name": "Доля кухни (%)"
+        },
+        "kpi2": {
+          "metric": "draft_share",
+          "name": "Доля розлива (%)"
+        },
+        "kpi3": {
+          "metric": "avg_check",
+          "name": "Средний чек (₽)"
+        }
+      },
+      "Кременчугская": {
+        "kpi1": {
+          "target": 18,
+          "min": 13
+        },
+        "kpi2": {
+          "target": 61,
+          "min": 57
+        },
+        "kpi3": {
+          "target": 1690,
+          "min": 1520
+        }
+      },
+      "Варшавская": {
+        "kpi1": {
+          "target": 18,
+          "min": 13
+        },
+        "kpi2": {
+          "target": 61,
+          "min": 57
+        },
+        "kpi3": {
+          "target": 1520,
+          "min": 1390
+        }
+      },
+      "Лиговский": {
+        "kpi1": {
+          "target": 18,
+          "min": 13
+        },
+        "kpi2": {
+          "target": 61,
+          "min": 57
+        },
+        "kpi3": {
+          "target": 1520,
+          "min": 1390
+        }
+      },
+      "Большой пр В.О.": {
+        "kpi1": {
+          "target": 18,
+          "min": 13
+        },
+        "kpi2": {
+          "target": 61,
+          "min": 57
+        },
+        "kpi3": {
+          "target": 1520,
+          "min": 1390
+        }
+      }
+    }
+  }
+}
