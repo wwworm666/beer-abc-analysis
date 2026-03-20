@@ -65,3 +65,10 @@ api_key.txt
 # Локальные отчеты и экспорты
 data/reports/
 tests/exports/
+
+# Артефакты анализов
+data/*.csv
+data/*.db
+
+# Архив скриптов
+archive/
