@@ -62,6 +62,10 @@ data/cache/
 api_key.txt
 *.key
 
+# Временные тестовые файлы
+loyalty_raw.json
+loyalty_test.json
+
 # Локальные отчеты и экспорты
 data/reports/
 tests/exports/
