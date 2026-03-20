@@ -11,7 +11,7 @@
               │
               ▼
      ┌────────────────┐
-     │   Flask app    │  ← app.py (монолит на 4000+ строк)
+     │   Flask app    │  ← app.py (31 строка) + 8 blueprints
      └───────┬────────┘
              │
     ┌────────┼────────┬──────────────┐
@@ -23,22 +23,38 @@
 └───────┘ └──────┘ └───────┘ └────────────┘
 ```
 
-**Почему монолит?** Потому что для 4 баров микросервисы — это как стрелять из пушки по воробьям. Один файл `app.py` содержит 70+ endpoints, и это нормально.
+**Модульная архитектура.** Проект разбит на Flask Blueprints — 8 модулей по функциональности (pages, analysis, employee, taps, stocks, dashboard, schedule, misc). `app.py` — всего 31 строка, только инициализация и регистрация blueprints.
 
 ## Файлы — Карта проекта
 
 ```
 beer-abc-analysis/
-├── app.py                 ← Мозг. 70+ API endpoints.
-├── core/                  ← Бизнес-логика (12 модулей)
+├── app.py                 ← Точка входа (31 строка): Flask init + register blueprints
+├── config.py              ← Конфигурация (читает из .env)
+├── extensions.py          ← Общие синглтоны (менеджеры, кэши)
+├── routes/                ← Flask Blueprints (92 endpoint'а)
+│   ├── pages.py           ← 13 HTML-страниц
+│   ├── analysis.py        ← ABC/XYZ/категории/разливное
+│   ├── employee.py        ← Аналитика сотрудников, KPI, бонусы
+│   ├── taps.py            ← Управление кранами
+│   ├── stocks.py          ← Остатки и заказы
+│   ├── dashboard.py       ← План/Факт дашборд, экспорты
+│   ├── schedule.py        ← Расписание смен
+│   └── misc.py            ← Health check, wiki, тесты
+├── core/                  ← Бизнес-логика (22 модуля)
 │   ├── iiko_api.py        ← Подключение к iiko (авторизация, токены, кассовые смены)
 │   ├── olap_reports.py    ← OLAP-запросы (продажи, остатки, карты лояльности)
 │   ├── employee_analysis.py ← 12 метрик эффективности сотрудника
 │   ├── employee_plans.py  ← План/Факт сотрудников (по кассовым сменам)
 │   ├── abc_analysis.py    ← ABC-анализ (80/20 по выручке)
 │   ├── xyz_analysis.py    ← XYZ-анализ (стабильность спроса)
-│   └── taps_manager.py    ← Управление пивными кранами
-├── dashboardNovaev/       ← Новый дашборд (план/факт по неделям)
+│   ├── taps_manager.py    ← Управление пивными кранами
+│   ├── dashboard_analysis.py ← Метрики дашборда (план/факт по неделям)
+│   ├── plans_manager.py   ← Работа с планами из JSON
+│   ├── venues_manager.py  ← Управление заведениями
+│   ├── comparison_calculator.py ← Сравнение периодов
+│   ├── trends_analyzer.py ← Анализ трендов
+│   └── export_manager.py  ← Экспорт в PDF/Excel
 ├── templates/             ← HTML-страницы (10 основных)
 ├── data/                  ← JSON-данные (планы, маппинги, кеги)
 └── .claude/               ← Эта документация
@@ -87,6 +103,7 @@ data = olap.get_beer_sales_report(date_from, date_to, bar)
 
 ## Changelog
 
+- 2026-03-21: Обновлена архитектура после рефакторинга (Flask Blueprints, routes/, extensions.py)
 - 2026-01-28: Добавлен employee_analysis.py в карту файлов, обновлены описания
 - 2026-01-26: Полностью переписан согласно CLAUDE.md
 - 2026-01-25: Создан placeholder

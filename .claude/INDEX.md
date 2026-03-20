@@ -52,6 +52,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- 2026-03-21: Рефакторинг проекта — Flask Blueprints (app.py: 5199→31 строка). Обновлены overview.md, context.md, lessons.md
 - 2026-03-17: Добавлена страница /wiki — встроенная вики с TOC sidebar (12 разделов). Удалён gitbook/
 - 2026-03-03: Добавлен discounts.md — модуль анализа скидок
 - 2026-02-07: Добавлен optimization-dashboard.md — план оптимизации производительности
