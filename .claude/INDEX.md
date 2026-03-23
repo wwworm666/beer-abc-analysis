@@ -28,6 +28,9 @@ Beer ABC/XYZ Analysis
 | [employee.md](docs/employee.md) | Employee Dashboard — аналитика сотрудников | ✅ актуально |
 | [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
 | [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
+| [comparison-redesign.md](docs/comparison-redesign.md) | Comparison Module — Modern Fintech Redesign | ✅ актуально |
+| [comparison-fixes-final.md](docs/comparison-fixes-final.md) | Comparison Module — Final Fixes (progress bars, percentages, clarity) | ✅ актуально |
+| [comparison-percentage-fix.md](docs/comparison-percentage-fix.md) | Comparison Module — Percentage Display Fix (19300% → 193%) | ✅ актуально |
 | [optimization-dashboard.md](docs/optimization-dashboard.md) | План оптимизации производительности /dashboard | ✅ актуально |
 | [discounts.md](docs/discounts.md) | Анализ скидок — ROI, сегментация гостей, drill-down по барам | ✅ актуально |
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
@@ -52,6 +55,8 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- 2026-03-24: Comparison Module финальные фиксы — progress bars привязаны к данным, проценты правильные, clarity улучшен
+- 2026-03-24: Редизайн Comparison Module — modern fintech UX, AI insights, metric cards, comparison slider
 - 2026-03-21: Рефакторинг проекта — Flask Blueprints (app.py: 5199→31 строка). Обновлены overview.md, context.md, lessons.md
 - 2026-03-17: Добавлена страница /wiki — встроенная вики с TOC sidebar (12 разделов). Удалён gitbook/
 - 2026-03-03: Добавлен discounts.md — модуль анализа скидок

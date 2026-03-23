@@ -1,75 +1,103 @@
-<!-- Вкладка "Сравнение периодов" -->
+<!-- Вкладка "Сравнение периодов" — Modern Fintech Design -->
 
 <div class="comparison-container">
-    <div class="comparison-header">
-        <h2>Сравнение периодов</h2>
-        <p class="subtitle">Анализ изменений между двумя периодами</p>
-    </div>
-
-    <!-- Селекторы периодов -->
-    <div class="comparison-selectors">
-        <div class="period-selector-group">
-            <label for="comparison-period-1">Период 1</label>
-            <select id="comparison-period-1" class="form-select">
-                <option value="">Загрузка...</option>
-            </select>
+    <!-- Hero Section — Smart Period Selection -->
+    <div class="comparison-hero">
+        <div class="comparison-hero-title">
+            Сравнение периодов
+        </div>
+        <div class="comparison-hero-subtitle">
+            Анализ изменений ключевых метрик между периодами
         </div>
 
-        <div class="vs-icon">vs</div>
+        <!-- Comparison Mode Tabs -->
+        <div class="comparison-mode-tabs">
+            <button class="comparison-mode-tab active" data-mode="week">
+                Week-over-Week
+            </button>
+            <button class="comparison-mode-tab" data-mode="month">
+                Month-over-Month
+            </button>
+            <button class="comparison-mode-tab" data-mode="year">
+                Year-over-Year
+            </button>
+        </div>
 
-        <div class="period-selector-group">
-            <label for="comparison-period-2">Период 2</label>
-            <select id="comparison-period-2" class="form-select">
-                <option value="">Загрузка...</option>
-            </select>
+        <!-- Period Selectors -->
+        <div class="comparison-periods">
+            <div class="period-selector">
+                <div class="period-label">Период 1</div>
+                <select id="comparison-period-1" class="period-select">
+                    <option value="">Загрузка...</option>
+                </select>
+            </div>
+
+            <div class="vs-divider">vs</div>
+
+            <div class="period-selector">
+                <div class="period-label">Период 2</div>
+                <select id="comparison-period-2" class="period-select">
+                    <option value="">Загрузка...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Compare Action -->
+        <div class="comparison-actions">
+            <button id="btn-compare" class="btn-compare">
+                Сравнить периоды
+            </button>
         </div>
     </div>
 
-    <!-- Кнопки быстрого сравнения -->
-    <div class="quick-compare-buttons">
-        <button id="btn-compare-prev-week" class="btn btn-secondary btn-sm">
-            vs предыдущая неделя
-        </button>
-        <button id="btn-compare-prev-month" class="btn btn-secondary btn-sm">
-            vs месяц назад
-        </button>
-        <button id="btn-compare-prev-year" class="btn btn-secondary btn-sm">
-            vs прошлый год
-        </button>
+    <!-- Loading State -->
+    <div id="comparison-loading" class="comparison-loading hidden">
+        <div class="comparison-loading-spinner"></div>
+        <div class="comparison-loading-text">Загрузка данных...</div>
     </div>
 
-    <!-- Кнопка сравнения -->
-    <div class="compare-action">
-        <button id="btn-compare" class="btn">
-            Сравнить
-        </button>
+    <!-- Empty State -->
+    <div id="comparison-empty" class="comparison-empty">
+        <div class="comparison-empty-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+        </div>
+        <div class="comparison-empty-title">Выберите периоды для сравнения</div>
+        <div class="comparison-empty-text">
+            Используйте селекторы выше или переключите режим сравнения
+        </div>
     </div>
 
-    <!-- Состояние загрузки -->
-    <div id="comparison-loading" class="loading-container hidden">
-        <div class="loading-spinner"></div>
-        <p>Загрузка данных...</p>
-    </div>
-
-    <!-- Состояние "Нет данных" -->
-    <div id="comparison-no-data" class="no-data-state hidden">
-        <h3>Выберите периоды для сравнения</h3>
-        <p>Используйте селекторы выше или кнопки быстрого сравнения</p>
-    </div>
-
-    <!-- Результаты сравнения -->
+    <!-- Results Container -->
     <div id="comparison-results" class="comparison-results hidden">
-        <!-- Ключевые изменения -->
-        <div class="key-changes-section">
-            <h3>Ключевые изменения</h3>
-            <div id="key-changes-list" class="key-changes-list">
+
+        <!-- Top 3 Changes Panel -->
+        <div class="comparison-top-changes">
+            <div class="comparison-top-changes-header">
+                <div class="comparison-top-changes-title">Топ-3 изменения</div>
+                <div class="comparison-top-changes-subtitle">Метрики с наибольшими отклонениями</div>
+            </div>
+            <div id="comparison-top-changes-list" class="comparison-top-changes-list">
                 <!-- Заполняется через JS -->
             </div>
         </div>
 
-        <!-- Таблица сравнения -->
+        <!-- Metric Cards Grid -->
+        <div id="comparison-metrics-grid" class="comparison-metrics-grid">
+            <!-- Заполняется через JS -->
+        </div>
+
+        <!-- Detailed Comparison Table -->
         <div class="comparison-table-section">
-            <h3>Детальное сравнение</h3>
+            <div class="comparison-table-header">
+                <div class="comparison-table-title">Детальное сравнение</div>
+                <button id="btn-export-comparison" class="comparison-table-export">
+                    Экспорт ↓
+                </button>
+            </div>
             <div class="table-wrapper">
                 <table class="comparison-table">
                     <thead>
@@ -77,8 +105,9 @@
                             <th>Метрика</th>
                             <th>Период 1</th>
                             <th>Период 2</th>
-                            <th>Разница</th>
-                            <th>Изменение (%)</th>
+                            <th>Δ</th>
+                            <th>Δ%</th>
+                            <th>Тренд</th>
                         </tr>
                     </thead>
                     <tbody id="comparison-table-body">
@@ -88,222 +117,5 @@
             </div>
         </div>
 
-        <!-- График сравнения -->
-        <div class="comparison-chart-section">
-            <h3>Визуализация сравнения</h3>
-            <div class="chart-wrapper">
-                <canvas id="comparison-chart"></canvas>
-            </div>
-        </div>
     </div>
 </div>
-
-<style>
-.comparison-container {
-    max-width: 1200px;
-}
-
-.comparison-header {
-    margin-bottom: var(--spacing-lg);
-}
-
-.comparison-selectors {
-    display: flex;
-    gap: var(--spacing-md);
-    align-items: flex-end;
-    margin-bottom: var(--spacing-md);
-}
-
-.period-selector-group {
-    flex: 1;
-}
-
-.period-selector-group label {
-    display: block;
-    margin-bottom: var(--spacing-xs);
-    font-weight: 500;
-    color: var(--text-secondary);
-}
-
-.vs-icon {
-    font-size: 1.5rem;
-    font-weight: bold;
-    color: var(--accent);
-    padding-bottom: var(--spacing-sm);
-}
-
-.quick-compare-buttons {
-    display: flex;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-    flex-wrap: wrap;
-}
-
-.btn-sm {
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: 0.9rem;
-}
-
-.compare-action {
-    margin-bottom: var(--spacing-xl);
-}
-
-.comparison-results {
-    margin-top: var(--spacing-xl);
-}
-
-.key-changes-section {
-    margin-bottom: var(--spacing-xl);
-    padding: var(--spacing-lg);
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
-}
-
-.key-changes-list {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-md);
-}
-
-.insight-item {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border-radius: var(--border-radius);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-weight: 500;
-}
-
-.insight-item.positive {
-    background: rgba(76, 175, 80, 0.1);
-    border-left: 4px solid var(--success);
-}
-
-.insight-item.negative {
-    background: rgba(244, 67, 54, 0.1);
-    border-left: 4px solid var(--error);
-}
-
-.insight-icon {
-    font-size: 1.2rem;
-}
-
-.comparison-table-section {
-    margin-bottom: var(--spacing-xl);
-}
-
-.table-wrapper {
-    overflow-x: auto;
-    margin-top: var(--spacing-md);
-}
-
-.comparison-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    overflow: hidden;
-}
-
-.comparison-table thead {
-    background: var(--accent);
-    color: white;
-}
-
-.comparison-table th,
-.comparison-table td {
-    padding: var(--spacing-sm) var(--spacing-md);
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.comparison-table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-.comparison-table tbody tr:hover {
-    background: var(--bg-hover);
-}
-
-.comparison-table .positive {
-    color: var(--success);
-    font-weight: 600;
-}
-
-.comparison-table .negative {
-    color: var(--error);
-    font-weight: 600;
-}
-
-.comparison-chart-section {
-    margin-bottom: var(--spacing-xl);
-}
-
-.chart-wrapper {
-    height: 400px;
-    margin-top: var(--spacing-md);
-    padding: var(--spacing-md);
-    background: var(--bg-secondary);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
-}
-
-.no-data-state {
-    text-align: center;
-    padding: var(--spacing-xl);
-    color: var(--text-secondary);
-}
-
-@media (max-width: 768px) {
-    .comparison-selectors {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .vs-icon {
-        text-align: center;
-        padding: var(--spacing-xs) 0;
-    }
-
-    .quick-compare-buttons {
-        flex-direction: column;
-    }
-
-    .btn-sm {
-        width: 100%;
-    }
-}
-</style>
-
-<script type="module">
-    // Загрузить список недель в селекторы
-    import { api } from '/static/js/dashboard/core/api.js';
-
-    async function loadWeeksIntoSelectors() {
-        try {
-            const weeksData = await api.getWeeks();
-            const weeks = weeksData.weeks || [];
-
-            const select1 = document.getElementById('comparison-period-1');
-            const select2 = document.getElementById('comparison-period-2');
-
-            if (select1 && select2) {
-                const options = weeks.map(week =>
-                    `<option value="${week.key}">${week.label}</option>`
-                ).join('');
-
-                select1.innerHTML = '<option value="">Выберите период</option>' + options;
-                select2.innerHTML = '<option value="">Выберите период</option>' + options;
-            }
-        } catch (error) {
-            console.error('[Comparison] Ошибка загрузки недель:', error);
-        }
-    }
-
-    // Загружаем при открытии вкладки
-    document.querySelector('[data-tab="tab-comparison"]')?.addEventListener('click', () => {
-        loadWeeksIntoSelectors();
-    });
-</script>

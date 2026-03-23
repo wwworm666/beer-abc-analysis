@@ -1,0 +1,562 @@
+/* Comparison Module — Modern Fintech Design */
+
+/* ============================================
+   HERO SECTION — Smart Period Selection
+   ============================================ */
+
+.comparison-hero {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.comparison-hero-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.comparison-hero-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+}
+
+/* ============================================
+   COMPARISON MODE TABS
+   ============================================ */
+
+.comparison-mode-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    padding: 4px;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+}
+
+.comparison-mode-tab {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: center;
+}
+
+.comparison-mode-tab:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.comparison-mode-tab.active {
+    background: var(--bg-secondary);
+    color: var(--accent);
+    box-shadow: var(--shadow-sm);
+}
+
+/* ============================================
+   PERIOD SELECTORS — Modern Design
+   ============================================ */
+
+.comparison-periods {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: var(--spacing-md);
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.period-selector {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.period-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.period-select {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.period-select:hover {
+    border-color: var(--accent);
+}
+
+.period-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.vs-divider {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--accent);
+    padding-bottom: 20px;
+}
+
+/* ============================================
+   COMPARISON ACTIONS
+   ============================================ */
+
+.comparison-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: center;
+}
+
+.btn-compare {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.btn-compare:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(217, 119, 87, 0.3);
+}
+
+.btn-compare:active {
+    transform: translateY(0);
+}
+
+/* ============================================
+   METRIC CARDS GRID — Comparison Results
+   ============================================ */
+
+.comparison-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: var(--spacing-xl);
+    align-items: start;
+}
+
+@media (max-width: 1400px) {
+    .comparison-metrics-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    .comparison-metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .comparison-metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+}
+
+/* Comparison cards now use dashboard card classes from cards.css */
+/* Status indicators for comparison context */
+.comparison-metrics-grid .metric-card.success .status-indicator {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.comparison-metrics-grid .metric-card.danger .status-indicator {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.comparison-metrics-grid .metric-card.neutral .status-indicator {
+    background: var(--text-tertiary);
+}
+
+/* ============================================
+   TOP 3 CHANGES PANEL
+   ============================================ */
+
+.comparison-top-changes {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.comparison-top-changes-header {
+    margin-bottom: var(--spacing-lg);
+}
+
+.comparison-top-changes-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.comparison-top-changes-subtitle {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.comparison-top-changes-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.comparison-top-change-item {
+    padding: var(--spacing-md);
+    border-radius: 12px;
+    border-left: 4px solid;
+    background: var(--bg-tertiary);
+    transition: all var(--transition-fast);
+}
+
+.comparison-top-change-item:hover {
+    transform: translateX(4px);
+}
+
+.comparison-top-change-item.positive {
+    border-color: var(--success);
+    background: var(--success-bg);
+}
+
+.comparison-top-change-item.negative {
+    border-color: var(--danger);
+    background: var(--danger-bg);
+}
+
+.comparison-top-change-item.neutral {
+    border-color: var(--text-tertiary);
+    background: var(--bg-tertiary);
+}
+
+.comparison-top-change-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-xs);
+}
+
+.comparison-top-change-metric {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.comparison-top-change-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.comparison-top-change-badge.positive {
+    color: var(--success);
+    background: var(--success-bg);
+}
+
+.comparison-top-change-badge.negative {
+    color: var(--danger);
+    background: var(--danger-bg);
+}
+
+.comparison-top-change-values {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.comparison-top-change-diff {
+    font-weight: 600;
+    margin-left: var(--spacing-xs);
+}
+
+.comparison-top-change-diff.positive {
+    color: var(--success);
+}
+
+.comparison-top-change-diff.negative {
+    color: var(--danger);
+}
+
+/* ============================================
+   DETAILED TABLE
+   ============================================ */
+
+.comparison-table-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.comparison-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+}
+
+.comparison-table-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.comparison-table-export {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-family: var(--font-family);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.comparison-table-export:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.comparison-table thead {
+    background: var(--bg-tertiary);
+}
+
+.comparison-table th {
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.comparison-table td {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.comparison-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+.comparison-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.comparison-table .metric-icon {
+    margin-right: var(--spacing-xs);
+}
+
+.comparison-table .value-positive {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.comparison-table .value-negative {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+.comparison-sparkline-mini {
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+    letter-spacing: 1px;
+}
+
+/* ============================================
+   LOADING & EMPTY STATES
+   ============================================ */
+
+.comparison-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xxl);
+    gap: var(--spacing-md);
+}
+
+.comparison-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.comparison-loading-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.comparison-empty {
+    text-align: center;
+    padding: var(--spacing-xxl);
+}
+
+.comparison-empty-icon {
+    margin-bottom: var(--spacing-md);
+    opacity: 0.3;
+    color: var(--text-tertiary);
+}
+
+.comparison-empty-icon svg {
+    width: 64px;
+    height: 64px;
+}
+
+.comparison-empty-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: var(--spacing-xs);
+}
+
+.comparison-empty-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* ============================================
+   SKELETON LOADERS
+   ============================================ */
+
+.comparison-skeleton {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.comparison-skeleton-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: var(--spacing-lg);
+    height: 200px;
+}
+
+.comparison-skeleton-line {
+    height: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.comparison-skeleton-line.large {
+    height: 32px;
+    width: 60%;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 768px) {
+    .comparison-periods {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .vs-divider {
+        text-align: center;
+        padding: var(--spacing-xs) 0;
+    }
+
+    .comparison-mode-tabs {
+        flex-direction: column;
+    }
+
+    .comparison-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+}
+
+/* ============================================
+   DARK THEME
+   ============================================ */
+
+[data-theme="dark"] .comparison-hero {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="dark"] .comparison-mode-tab.active {
+    background: var(--bg-primary);
+}
+
+[data-theme="dark"] .period-select {
+    background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .comparison-metrics-grid .metric-card {
+    background: var(--bg-secondary);
+}
+
+[data-theme="dark"] .comparison-top-changes {
+    background: var(--bg-secondary);
+}

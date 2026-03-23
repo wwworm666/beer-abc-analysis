@@ -364,6 +364,7 @@ class IikoAPI:
                 'locations': {str: int},       # Локация -> кол-во смен
                 'shift_locations': {str: str}, # Дата -> локация (для расчёта плана)
                 'shift_revenues': {str: float},# Дата -> выручка за день
+                'shift_times': {str: dict},    # Дата -> {'open': time_str, 'close': time_str}
                 'total_revenue': float,        # Выручка (salesCard + salesCash)
                 'revenue_card': float,         # Выручка картой
                 'revenue_cash': float,         # Выручка наличными
@@ -441,6 +442,7 @@ class IikoAPI:
                     'locations': {},
                     'shift_locations': {},
                     'shift_revenues': {},
+                    'shift_times': {},
                     'total_revenue': 0.0,
                     'revenue_card': 0.0,
                     'revenue_cash': 0.0,
@@ -473,6 +475,34 @@ class IikoAPI:
             emp['revenue_cash'] += sales_cash
             if open_date:
                 emp['shift_revenues'][open_date] = emp['shift_revenues'].get(open_date, 0.0) + shift_revenue
+
+                # Сохраняем время открытия/закрытия смены (HH:MM)
+                open_time = ''
+                close_time = ''
+                if open_date_str:
+                    try:
+                        open_dt = self._parse_iso_datetime(open_date_str)
+                        if open_dt:
+                            open_time = open_dt.strftime('%H:%M')
+                    except:
+                        pass
+                if close_date_str:
+                    try:
+                        close_dt = self._parse_iso_datetime(close_date_str)
+                        if close_dt:
+                            close_time = close_dt.strftime('%H:%M')
+                    except:
+                        pass
+
+                # Если на эту дату уже есть смена, берём самое раннее открытие и самое позднее закрытие
+                if open_date in emp['shift_times']:
+                    existing = emp['shift_times'][open_date]
+                    if open_time and (not existing['open'] or open_time < existing['open']):
+                        existing['open'] = open_time
+                    if close_time and (not existing['close'] or close_time > existing['close']):
+                        existing['close'] = close_time
+                else:
+                    emp['shift_times'][open_date] = {'open': open_time, 'close': close_time}
 
         # Сортируем даты, конвертируем set -> sorted list
         for emp_id in employee_data:

@@ -802,8 +802,10 @@
             let rows = '';
             b.days.forEach(day => {
                 const isOver = day.overperformance > 0;
+                const timeStr = (day.open_time && day.close_time) ? `${day.open_time}–${day.close_time}` : '—';
                 rows += `<tr class="${isOver ? 'day-over' : 'day-under'}">
                     <td>${formatDate(day.date)}${day.is_late ? ' <span class="late-badge">опоздание</span>' : ''}</td>
+                    <td>${timeStr}</td>
                     <td class="right">${formatMoney(day.plan)}</td>
                     <td class="right">${formatMoney(day.revenue)}</td>
                     <td class="right">${isOver ? '+' + formatMoney(day.overperformance) : '—'}</td>
@@ -816,6 +818,7 @@
                 <table class="days-table">
                     <thead><tr>
                         <th>Дата</th>
+                        <th>Время</th>
                         <th class="right">План ТТ</th>
                         <th class="right">Выручка</th>
                         <th class="right">Перевыполнение</th>

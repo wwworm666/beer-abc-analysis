@@ -181,7 +181,8 @@ def employee_analytics():
         plan_revenue = get_employee_plan_by_shifts(shift_locations)
         print(f"   Plan calculated from {len(shift_locations)} cash shifts: {plan_revenue:.0f}")
 
-        # 4. Рассчитываем все метрики (выручка из кассовых смен, категории из OLAP)
+        # 4. Рассчитываем все метрики (используем OLAP для консистентности с dashboard)
+        # Кассовые смены используем только для смен/часов/опозданий/локаций/плана
         calculator = EmployeeMetricsCalculator()
         metrics = calculator.calculate(
             employee_name=employee_name,
@@ -197,7 +198,7 @@ def employee_analytics():
             total_hours_override=total_hours,
             late_count_override=late_count,
             loyalty_cards_count=loyalty_cards_data.get(employee_name, 0),
-            total_revenue_override=shifts_revenue if employee_id else None
+            total_revenue_override=None  # Используем OLAP выручку для консистентности
         )
 
         return jsonify(metrics)
@@ -351,7 +352,8 @@ def employee_compare():
             # Рассчитываем план на основе кассовых смен
             plan_revenue = get_employee_plan_by_shifts(shift_locations)
 
-            # Рассчитываем метрики (выручка из кассовых смен, категории из OLAP)
+            # Рассчитываем метрики (используем OLAP для консистентности с dashboard)
+            # Кассовые смены используем только для смен/часов/опозданий/локаций
             loyalty_cards_data = all_data.get('loyalty_cards', {})
             metrics = calculator.calculate(
                 employee_name=emp_name,
@@ -367,7 +369,7 @@ def employee_compare():
                 total_hours_override=total_hours,
                 late_count_override=late_count,
                 loyalty_cards_count=loyalty_cards_data.get(emp_name, 0),
-                total_revenue_override=cash_revenue if employee_id else None
+                total_revenue_override=None  # Используем OLAP выручку для консистентности
             )
 
             results.append({
@@ -460,6 +462,7 @@ def bonus_calculate():
 
             shift_locations = emp_metrics.get('shift_locations', {})
             shift_revenues = emp_metrics.get('shift_revenues', {})
+            shift_times = emp_metrics.get('shift_times', {})
             shifts_count = emp_metrics.get('shifts_count', 0)
             late_count = emp_metrics.get('late_count', 0)
             late_dates_set = set(emp_metrics.get('late_dates', []))
@@ -491,13 +494,20 @@ def bonus_calculate():
                 # Бонус за смену: 1000 + перевыполнение × 5% (только если план выполнен)
                 day_bonus = (1000 + day_over * 0.05) if day_over > 0 else 0
 
+                # Время открытия/закрытия смены
+                times = shift_times.get(date_str, {})
+                open_time = times.get('open', '')
+                close_time = times.get('close', '')
+
                 days_detail.append({
                     'date': date_str,
                     'revenue': round(day_revenue, 2),
                     'plan': round(day_plan, 2),
                     'overperformance': round(day_over, 2),
                     'day_bonus': round(day_bonus, 2),
-                    'is_late': date_str in late_dates_set
+                    'is_late': date_str in late_dates_set,
+                    'open_time': open_time,
+                    'close_time': close_time
                 })
 
             # Формула бонуса: 1000 за каждую успешную смену + 5% от перевыполнения
@@ -658,6 +668,8 @@ def kpi_calculate():
                 continue
 
             # Рассчитываем метрики через EmployeeMetricsCalculator
+            # ВАЖНО: НЕ используем shifts_revenue (total_revenue_override), чтобы быть консистентными с dashboard
+            # Dashboard использует только OLAP данные, мы делаем так же для KPI
             calculator = EmployeeMetricsCalculator()
             metrics = calculator.calculate(
                 employee_name=emp_name,
@@ -671,7 +683,7 @@ def kpi_calculate():
                 date_to=date_to,
                 shifts_count_override=shifts_count,
                 total_hours_override=total_hours,
-                total_revenue_override=shifts_revenue,
+                total_revenue_override=None,  # Используем OLAP выручку, не кассовые смены
             )
 
             # Рассчитываем KPI-бонус
