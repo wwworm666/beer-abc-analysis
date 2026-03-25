@@ -1,0 +1,28 @@
+{
+  "name": "Beer ABC Dashboard",
+  "short_name": "Beer ABC",
+  "description": "Дашборд выручки по барам",
+  "start_url": "/dashboard/widget",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#D97757",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance"],
+  "lang": "ru-RU",
+  "dir": "ltr"
+}

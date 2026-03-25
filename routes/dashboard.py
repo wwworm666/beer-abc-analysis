@@ -676,6 +676,322 @@ def get_dashboard_analytics_data(bar, date_from, date_to):
         olap.disconnect()
 
 
+@dashboard_bp.route('/api/revenue-metrics', methods=['POST'])
+def revenue_metrics():
+    """
+    API для вкладки 'Выручка' — 4 ключевые метрики + таблица по барам
+    Использует тот же OLAP запрос что и дашборд
+    """
+    try:
+        data = request.json
+        venue_key = data.get('bar')
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
+
+        print(f"\n[REVENUE-METRICS] Zapros metrik...")
+        print(f"   Bar: {venue_key if venue_key else 'OBSSHAYA'}")
+        print(f"   Period: {date_from} - {date_to}")
+
+        # Получаем данные так же как dashboard_analytics (вся выручка, не только напитки)
+        bar_name = venues_manager.get_iiko_name(venue_key) if venue_key and venue_key != 'all' else None
+        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+        date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
+        now = time.time()
+
+        # Очищаем кеш для отладки
+        DASHBOARD_OLAP_CACHE.clear()
+
+        all_sales_data = None
+        if cache_key in DASHBOARD_OLAP_CACHE:
+            cached_entry = DASHBOARD_OLAP_CACHE[cache_key]
+            if (now - cached_entry['timestamp']) < DASHBOARD_OLAP_CACHE_TTL:
+                all_sales_data = cached_entry['data']
+                print(f"   [CACHE] Using cached OLAP data")
+            else:
+                print(f"   [CACHE] Cache expired, fetching new")
+        else:
+            print(f"   [CACHE] Cache miss, fetching new")
+
+        if not all_sales_data:
+            olap = OlapReports()
+            if not olap.connect():
+                return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+            print(f"   [DEBUG] Calling get_all_sales_report...")
+            all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
+            print(f"   [DEBUG] Got {len(all_sales_data.get('data', [])) if all_sales_data else 0} records")
+            olap.disconnect()
+
+            DASHBOARD_OLAP_CACHE[cache_key] = {
+                'data': all_sales_data,
+                'timestamp': now
+            }
+
+        # Считаем метрики из сырых OLAP данных
+        calculator = DashboardMetrics()
+        metrics = calculator.calculate_metrics(all_sales_data)
+
+        # Применяем маппинг как в dashboard_analytics
+        frontend_mapping = {
+            'total_revenue': 'revenue',
+            'total_checks': 'checks',
+            'avg_check': 'averageCheck',
+            'draft_share': 'draftShare',
+            'bottles_share': 'packagedShare',
+            'kitchen_share': 'kitchenShare',
+            'draft_revenue': 'revenueDraft',
+            'bottles_revenue': 'revenuePackaged',
+            'kitchen_revenue': 'revenueKitchen',
+            'avg_markup': 'markupPercent',
+            'total_margin': 'profit',
+            'draft_markup': 'markupDraft',
+            'bottles_markup': 'markupPackaged',
+            'kitchen_markup': 'markupKitchen',
+            'tap_activity': 'tapActivity',
+            'loyalty_points_written_off': 'loyaltyWriteoffs'
+        }
+
+        mapped = {}
+        for old_key, new_key in frontend_mapping.items():
+            if old_key in metrics:
+                value = metrics[old_key]
+                # Наценку умножаем на 100
+                if new_key in ['markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen']:
+                    value = value * 100
+                mapped[new_key] = value
+
+        # 'revenue' = вся выручка после маппинга
+        actual_revenue = mapped.get('revenue', 0)
+
+        # Получаем план за ВЕСЬ месяц из plansdashboard.json
+        plan_revenue = 0.0
+
+        # Определяем ключ для плана (например, "all_2026-03" или "bolshoy_2026-03")
+        month_key = f"{venue_key if venue_key else 'all'}_{datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m')}"
+
+        # Читаем plansdashboard.json
+        try:
+            with open('data/plansdashboard.json', 'r', encoding='utf-8') as f:
+                plans_data = json.load(f)
+            plans = plans_data.get('plans', {})
+
+            # Берём готовый план на месяц
+            month_plan = plans.get(month_key, {})
+            plan_revenue = month_plan.get('revenue', 0.0)
+
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"   [WARN] Не удалось прочитать data/plansdashboard.json: {e}")
+            plan_revenue = 0.0
+
+        # Расчёт метрик
+        start = datetime.strptime(date_from, '%Y-%m-%d')
+        end = datetime.strptime(date_to, '%Y-%m-%d')
+        total_days = (end - start).days + 1  # Дней с 1-го по сегодня (для средней)
+
+        # Дней в месяце (для прогноза)
+        if start.month == 12:
+            days_in_month = 31
+        else:
+            next_month = datetime(start.year, start.month + 1, 1)
+            days_in_month = (next_month - datetime(start.year, start.month, 1)).days
+
+        # Средняя в день (факт / прошедшие дни)
+        average_daily = actual_revenue / total_days if total_days > 0 else 0
+
+        # Ожидаемая (прогноз на конец месяца)
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        days_elapsed = min((today - start).days + 1, days_in_month)
+
+        if days_elapsed > 0 and days_elapsed < days_in_month:
+            # Экстраполируем среднюю на весь месяц
+            expected = average_daily * days_in_month
+        else:
+            # Месяц закончился — ожидаемая = факт
+            expected = actual_revenue
+
+        # % выполнения
+        completion = (actual_revenue / plan_revenue * 100) if plan_revenue > 0 else 0
+
+        result = {
+            'current': round(actual_revenue, 2),
+            'plan': round(plan_revenue, 2),
+            'expected': round(expected, 2),
+            'average': round(average_daily, 2),
+            'period_days': total_days,
+            'days_in_month': days_in_month,
+            'completion_percent': round(completion, 1)
+        }
+
+        print(f"   [OK] Metriki rasschitany: current={result['current']}, plan={result['plan']}")
+        return jsonify(result)
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/revenue-metrics: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+# Кэш для widget API (5 минут)
+WIDGET_CACHE = {}
+WIDGET_CACHE_TTL = 300  # 5 минут
+
+
+@dashboard_bp.route('/api/widget/revenue', methods=['GET'])
+def widget_revenue():
+    """
+    API для PWA виджета — 5 баров с процентами выполнения
+    Возвращает упрощённые данные только с completion_percent
+    """
+    try:
+        # Проверяем кэш
+        now = time.time()
+        cache_key = 'widget_revenue'
+
+        if cache_key in WIDGET_CACHE:
+            cached_entry = WIDGET_CACHE[cache_key]
+            if (now - cached_entry['timestamp']) < WIDGET_CACHE_TTL:
+                print(f"[WIDGET] Using cached data")
+                return jsonify(cached_entry['data'])
+
+        print(f"\n[WIDGET] Generatsiya dannykh dlya vidzheta...")
+
+        # Период: с 1-го числа по сегодня
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        month_start = today.replace(day=1)
+        date_from = month_start.strftime('%Y-%m-%d')
+        date_to = today.strftime('%Y-%m-%d')
+
+        print(f"   Period: {date_from} - {date_to}")
+
+        # Список баров
+        bars = [
+            ('', 'Общая'),
+            ('bolshoy', 'Большой пр. В.О'),
+            ('ligovskiy', 'Лиговский'),
+            ('kremenchugskaya', 'Кременчугская'),
+            ('varshavskaya', 'Варшавская')
+        ]
+
+        results = []
+
+        for bar_key, bar_name in bars:
+            # Получаем данные так же как в revenue_metrics
+            iiko_bar_name = venues_manager.get_iiko_name(bar_key) if bar_key and bar_key != 'all' else None
+
+            cache_key_olap = f"{bar_key}_{date_from}_{date_to}"
+
+            # Очищаем кеш OLAP для отладки
+            DASHBOARD_OLAP_CACHE.clear()
+
+            all_sales_data = None
+            if cache_key_olap in DASHBOARD_OLAP_CACHE:
+                cached_entry = DASHBOARD_OLAP_CACHE[cache_key_olap]
+                if (now - cached_entry['timestamp']) < DASHBOARD_OLAP_CACHE_TTL:
+                    all_sales_data = cached_entry['data']
+                    print(f"   [CACHE] Using cached OLAP data for {bar_name}")
+
+            if not all_sales_data:
+                olap = OlapReports()
+                if not olap.connect():
+                    print(f"   [WARN] Не удалось подключиться к iiko API для {bar_name}")
+                    # Добавляем бар с нулевыми данными
+                    results.append({
+                        'bar': bar_key,
+                        'name': bar_name,
+                        'completion': 0.0
+                    })
+                    continue
+
+                date_to_inclusive = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+                all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, iiko_bar_name)
+                olap.disconnect()
+
+                DASHBOARD_OLAP_CACHE[cache_key_olap] = {
+                    'data': all_sales_data,
+                    'timestamp': now
+                }
+
+            # Считаем метрики
+            calculator = DashboardMetrics()
+            metrics = calculator.calculate_metrics(all_sales_data)
+
+            # Маппинг как в dashboard_analytics
+            frontend_mapping = {
+                'total_revenue': 'revenue',
+                'total_checks': 'checks',
+                'avg_check': 'averageCheck',
+                'draft_share': 'draftShare',
+                'bottles_share': 'packagedShare',
+                'kitchen_share': 'kitchenShare',
+                'draft_revenue': 'revenueDraft',
+                'bottles_revenue': 'revenuePackaged',
+                'kitchen_revenue': 'revenueKitchen',
+                'avg_markup': 'markupPercent',
+                'total_margin': 'profit',
+                'draft_markup': 'markupDraft',
+                'bottles_markup': 'markupPackaged',
+                'kitchen_markup': 'markupKitchen',
+                'tap_activity': 'tapActivity',
+                'loyalty_points_written_off': 'loyaltyWriteoffs'
+            }
+
+            mapped = {}
+            for old_key, new_key in frontend_mapping.items():
+                if old_key in metrics:
+                    value = metrics[old_key]
+                    if new_key in ['markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen']:
+                        value = value * 100
+                    mapped[new_key] = value
+
+            actual_revenue = mapped.get('revenue', 0)
+
+            # Получаем план из plansdashboard.json
+            plan_revenue = 0.0
+            month_key = f"{bar_key if bar_key else 'all'}_{month_start.strftime('%Y-%m')}"
+
+            try:
+                with open('data/plansdashboard.json', 'r', encoding='utf-8') as f:
+                    plans_data = json.load(f)
+                plans = plans_data.get('plans', {})
+                month_plan = plans.get(month_key, {})
+                plan_revenue = month_plan.get('revenue', 0.0)
+            except (FileNotFoundError, json.JSONDecodeError) as e:
+                print(f"   [WARN] Не удалось прочитать plansdashboard.json: {e}")
+                plan_revenue = 0.0
+
+            # Расчёт % выполнения
+            completion = (actual_revenue / plan_revenue * 100) if plan_revenue > 0 else 0
+
+            results.append({
+                'bar': bar_key,
+                'name': bar_name,
+                'completion': round(completion, 1)
+            })
+
+            print(f"   {bar_name}: {completion:.1f}%")
+
+        # Кэшируем результат
+        WIDGET_CACHE[cache_key] = {
+            'data': results,
+            'timestamp': now
+        }
+
+        print(f"   [OK] Widget data generated")
+        return jsonify(results)
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/widget/revenue: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 @dashboard_bp.route('/api/export/text', methods=['POST'])
 def export_text():
     """API для экспорта в текстовый формат"""

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#D97757">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Beer ABC">
+
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" type="image/jpeg" href="/logo.jpg">
+    <link rel="apple-touch-icon" href="/logo.jpg">
+
+    <title>Выручка — Beer ABC</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/widget.css">
+</head>
+<body class="widget-body">
+
+    <!-- Loading State -->
+    <div id="loading" class="widget-loading">
+        <div class="widget-loading-spinner"></div>
+        <span class="widget-loading-text">Загрузка...</span>
+    </div>
+
+    <!-- Error State -->
+    <div id="error" class="widget-error hidden">
+        <svg class="widget-error-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+        </svg>
+        <h3 class="widget-error-title">Ошибка загрузки</h3>
+        <p class="widget-error-text">Проверьте подключение к интернету</p>
+        <button class="widget-error-button" id="retry-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+            </svg>
+            Повторить
+        </button>
+    </div>
+
+    <!-- Main View: 5 bars with completion percentages -->
+    <div id="main-view" class="widget-main-view hidden">
+        <header class="widget-header">
+            <h1 class="widget-title">Выручка</h1>
+            <button class="widget-refresh-btn" id="refresh-btn" aria-label="Обновить">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 4v6h-6M1 20v-6h6"/>
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                </svg>
+            </button>
+        </header>
+
+        <div class="widget-date-range" id="date-range">
+            <!-- JS renders date range here -->
+        </div>
+
+        <main class="widget-cards-container">
+            <div class="widget-cards-grid" id="cards-grid">
+                <!-- JS renders 5 cards here -->
+            </div>
+        </main>
+
+        <!-- Install Prompt -->
+        <div id="install-prompt" class="widget-install-prompt hidden">
+            <div class="widget-install-content">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M2 12h20"/>
+                </svg>
+                <span>Установите на главный экран</span>
+            </div>
+            <div class="widget-install-actions">
+                <button class="widget-install-btn" id="install-btn">Установить</button>
+                <button class="widget-install-dismiss" id="dismiss-install">Позже</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail View: 4 metrics for selected bar -->
+    <div id="detail-view" class="widget-detail-view hidden">
+        <header class="widget-detail-header">
+            <button class="widget-back-btn" id="back-btn" aria-label="Назад">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+            </button>
+            <h2 class="widget-detail-title" id="detail-title">Бар</h2>
+            <div class="widget-detail-spacer"></div>
+        </header>
+
+        <main class="widget-detail-container">
+            <div class="widget-detail-cards" id="detail-cards">
+                <!-- JS renders 4 cards here -->
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="/static/js/widget/revenue_widget.js"></script>
+</body>
+</html>

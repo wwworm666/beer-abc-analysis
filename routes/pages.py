@@ -98,3 +98,9 @@ def taps_bar(bar_id):
 def schedule():
     """Страница графика смен"""
     return render_template('schedule.html')
+
+
+@pages_bp.route('/dashboard/widget')
+def widget():
+    """Страница PWA виджета выручки"""
+    return render_template('widget/revenue_widget.html')

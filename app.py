@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, send_from_directory
 from routes import register_blueprints
 import subprocess
 from datetime import datetime
@@ -26,6 +26,13 @@ app.jinja_env.globals['app_version'] = APP_VERSION
 
 # Регистрируем все blueprints
 register_blueprints(app)
+
+
+@app.route('/static/manifest.json')
+def serve_manifest():
+    """Отдача manifest.json для PWA"""
+    return send_from_directory('static', 'manifest.json')
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
