@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="/static/dashboard/styles/base.css">
     <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/cards.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/expiry.css">
     <link rel="stylesheet" href="/static/logo.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -421,6 +423,92 @@
             display: block;
         }
 
+        /* Revenue Metrics Cards */
+        .revenue-metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .metric-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .metric-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .metric-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .metric-card.current::before { background: #3b82f6; }
+        .metric-card.plan::before { background: #10b981; }
+        .metric-card.expected::before { background: #f59e0b; }
+        .metric-card.average::before { background: #8b5cf6; }
+
+        .metric-card .metric-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .metric-card .metric-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            margin-bottom: 4px;
+        }
+
+        .metric-card .metric-sub {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+        }
+
+        .metric-card .metric-sub.positive { color: #10b981; }
+        .metric-card .metric-sub.negative { color: #ef4444; }
+
+        /* Completion bar */
+        .completion-bar {
+            height: 4px;
+            background: var(--bg-secondary);
+            border-radius: 2px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .completion-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+            border-radius: 2px;
+            transition: width 0.5s ease;
+        }
+
         /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
@@ -466,6 +554,15 @@
         @media (max-width: 768px) {
             .container {
                 padding: 20px 12px;
+            }
+
+            .revenue-metrics {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+
+            .metric-card .metric-value {
+                font-size: 1.25rem;
             }
 
             .controls {
@@ -536,6 +633,9 @@
                 padding: 16px 8px;
             }
 
+            .revenue-metrics {
+                grid-template-columns: 1fr;
+            }
 
             .abc-matrix {
                 grid-template-columns: repeat(2, 1fr);
@@ -618,6 +718,33 @@
         {% set page_subtitle = "Классификация ассортимента по выручке и стабильности" %}
         {% include 'shared/nav.html' %}
 
+        <!-- Карточки метрик выручки -->
+        <div class="revenue-metrics" id="revenue-metrics">
+            <div class="metric-card current">
+                <div class="metric-label">Текущая выручка</div>
+                <div class="metric-value" id="metric-current">—</div>
+                <div class="metric-sub" id="metric-current-sub">За выбранный период</div>
+            </div>
+            <div class="metric-card plan">
+                <div class="metric-label">План</div>
+                <div class="metric-value" id="metric-plan">—</div>
+                <div class="metric-sub" id="metric-plan-sub">Плановая выручка</div>
+                <div class="completion-bar">
+                    <div class="completion-fill" id="completion-fill" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="metric-card expected">
+                <div class="metric-label">Ожидаемая</div>
+                <div class="metric-value" id="metric-expected">—</div>
+                <div class="metric-sub" id="metric-expected-sub">Прогноз по тренду</div>
+            </div>
+            <div class="metric-card average">
+                <div class="metric-label">Средняя</div>
+                <div class="metric-value" id="metric-average">—</div>
+                <div class="metric-sub" id="metric-average-sub">В день</div>
+            </div>
+        </div>
+
         <div class="card">
             <!-- Переключатель режима анализа -->
             <div style="margin-bottom: 24px;">
@@ -699,6 +826,15 @@
             window.dashboardCheckApi();
             setInterval(window.dashboardCheckApi, 60000);
             initDatePicker();
+
+            // Загружаем метрики выручки при загрузке страницы (прошлая неделя)
+            setTimeout(() => {
+                const dates = getPickerDates();
+                if (dates) {
+                    const bar = document.getElementById('bar-select').value;
+                    loadRevenueMetrics(bar, dates.from, dates.to);
+                }
+            }, 500);
         });
 
         let datePicker = null;
@@ -743,6 +879,57 @@
             }
         }
 
+        // Revenue Metrics
+        async function loadRevenueMetrics(bar, dateFrom, dateTo) {
+            try {
+                const response = await fetch('/api/revenue-metrics', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ bar, date_from: dateFrom, date_to: dateTo })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Ошибка загрузки метрик');
+                }
+
+                const metrics = await response.json();
+                updateRevenueMetrics(metrics);
+            } catch (error) {
+                console.error('Error loading revenue metrics:', error);
+                // Скрываем метрики при ошибке
+                document.getElementById('metric-current').textContent = '—';
+                document.getElementById('metric-plan').textContent = '—';
+                document.getElementById('metric-expected').textContent = '—';
+                document.getElementById('metric-average').textContent = '—';
+            }
+        }
+
+        function updateRevenueMetrics(metrics) {
+            // Текущая выручка
+            document.getElementById('metric-current').textContent = formatMoney(metrics.current);
+            document.getElementById('metric-current-sub').textContent = `За ${metrics.period_days} дн.`;
+
+            // План
+            document.getElementById('metric-plan').textContent = formatMoney(metrics.plan);
+            document.getElementById('metric-plan-sub').textContent = `${metrics.completion_percent}% выполнения`;
+
+            // Полоска выполнения плана
+            const completionPercent = Math.min(metrics.completion_percent, 100);
+            document.getElementById('completion-fill').style.width = completionPercent + '%';
+
+            // Ожидаемая
+            document.getElementById('metric-expected').textContent = formatMoney(metrics.expected);
+            const expectedSub = metrics.expected >= metrics.plan ? 'План будет выполнен' : 'Недостаточно для плана';
+            const expectedEl = document.getElementById('metric-expected-sub');
+            expectedEl.textContent = expectedSub;
+            expectedEl.className = 'metric-sub ' + (metrics.expected >= metrics.plan ? 'positive' : 'negative');
+
+            // Средняя
+            document.getElementById('metric-average').textContent = formatMoney(metrics.average);
+            document.getElementById('metric-average-sub').textContent = 'В день';
+        }
 
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
@@ -762,6 +949,9 @@
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');
             document.getElementById('error-message').classList.remove('active');
+
+            // Загружаем метрики выручки (не блокируя основной анализ)
+            loadRevenueMetrics(bar, dateFrom, dateTo);
 
             try {
                 // Выбираем endpoint в зависимости от режима

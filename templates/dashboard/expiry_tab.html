@@ -1,0 +1,107 @@
+<!-- Вкладка "Сроки годности" — Отслеживание остатков пива через Честный ЗНАК -->
+
+<!-- Loading State -->
+<div id="expiry-loading" class="loading-container hidden">
+    <div class="loading-spinner"></div>
+    <span class="loading-text">Загрузка данных о сроках годности...</span>
+</div>
+
+<!-- No Data State -->
+<div id="expiry-no-data" class="no-data-state hidden">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2v20M2 12h20"/>
+    </svg>
+    <h3>Нет данных</h3>
+    <p>Не удалось загрузить данные о сроках годности</p>
+</div>
+
+<!-- Error State -->
+<div id="expiry-error" class="no-data-state hidden">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <h3>Ошибка подключения</h3>
+    <p id="expiry-error-message">Не удалось подключиться к API Честный ЗНАК</p>
+</div>
+
+<!-- Main Container -->
+<div id="expiry-container" class="expiry-container hidden">
+    <!-- Header с суммарной статистикой -->
+    <div class="expiry-summary">
+        <div class="summary-card summary-card--critical">
+            <div class="summary-value" id="summary-expired">0</div>
+            <div class="summary-label">Просрочено</div>
+        </div>
+        <div class="summary-card summary-card--warning">
+            <div class="summary-value" id="summary-expiring-soon">0</div>
+            <div class="summary-label">Истекает скоро</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value" id="summary-total">0</div>
+            <div class="summary-label">Всего кодов</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value" id="summary-gtin">0</div>
+            <div class="summary-label">Уникальных GTIN</div>
+        </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="expiry-controls">
+        <div class="control-group">
+            <label for="expiry-inn-input">ИНН участника</label>
+            <input
+                type="text"
+                id="expiry-inn-input"
+                class="control-input"
+                placeholder="7777777777"
+                value="7777777777"
+            >
+        </div>
+        <div class="control-group">
+            <label for="expiry-days-input">Порог (дней)</label>
+            <input
+                type="number"
+                id="expiry-days-input"
+                class="control-input"
+                min="1"
+                max="365"
+                value="30"
+            >
+        </div>
+        <div class="control-group" style="justify-content: flex-end;">
+            <label>&nbsp;</label>
+            <button id="btn-refresh-expiry" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                Обновить
+            </button>
+        </div>
+    </div>
+
+    <!-- Table Container -->
+    <div class="expiry-table-container">
+        <table class="expiry-table">
+            <thead>
+                <tr>
+                    <th>Статус</th>
+                    <th>Код маркировки</th>
+                    <th>GTIN</th>
+                    <th>Дата производства</th>
+                    <th>Срок годности</th>
+                    <th>Дней осталось</th>
+                    <th>Производитель</th>
+                    <th>Владелец</th>
+                </tr>
+            </thead>
+            <tbody id="expiry-table-body">
+                <!-- JS renders rows here -->
+            </tbody>
+        </table>
+    </div>
+</div>

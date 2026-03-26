@@ -8,7 +8,7 @@ import { API } from './config.js';
 /**
  * Базовая функция для HTTP запросов
  */
-async function fetchAPI(url, options = {}) {
+export async function fetchAPI(url, options = {}) {
     const defaultOptions = {
         headers: {
             'Content-Type': 'application/json'

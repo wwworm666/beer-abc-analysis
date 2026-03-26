@@ -64,29 +64,30 @@ class WidgetController {
     /**
      * Инициализация виджета
      */
-    async init() {
+    init() {
         this.cacheElements();
         this.setupNavigation();
         this.setupInstallPrompt();
+
+        // Регистрируем SW асинхронно (не блокирует UI)
         this.registerServiceWorker();
 
-        // Загрузка данных
-        await this.loadRevenueData();
+        // Загружаем данные сразу (не блокируем await)
+        this.loadRevenueData();
     }
 
     /**
-     * Регистрация Service Worker
+     * Регистрация Service Worker (фоновая, не блокирует)
      */
-    async registerServiceWorker() {
+    registerServiceWorker() {
         if ('serviceWorker' in navigator) {
-            try {
-                const registration = await navigator.serviceWorker.register('/static/service-worker.js', {
-                    scope: '/'
-                });
-                console.log('[Widget] Service Worker registered:', registration.scope);
-            } catch (error) {
-                console.error('[Widget] Service Worker registration failed:', error);
-            }
+            navigator.serviceWorker.register('/static/service-worker.js', {
+                scope: '/'
+            }).then(reg => {
+                console.log('[Widget] SW registered:', reg.scope);
+            }).catch(err => {
+                console.error('[Widget] SW registration failed:', err);
+            });
         }
     }
 

@@ -886,9 +886,6 @@ def widget_revenue():
 
             cache_key_olap = f"{bar_key}_{date_from}_{date_to}"
 
-            # Очищаем кеш OLAP для отладки
-            DASHBOARD_OLAP_CACHE.clear()
-
             all_sales_data = None
             if cache_key_olap in DASHBOARD_OLAP_CACHE:
                 cached_entry = DASHBOARD_OLAP_CACHE[cache_key_olap]

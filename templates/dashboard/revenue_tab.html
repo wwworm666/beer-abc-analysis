@@ -1,0 +1,43 @@
+<!-- Вкладка "Выручка" — 5 ключевых метрик за месяц -->
+
+<!-- Loading State -->
+<div id="revenue-loading" class="loading-container hidden">
+    <div class="loading-spinner"></div>
+    <span class="loading-text">Загрузка метрик...</span>
+</div>
+
+<!-- No Data State -->
+<div id="revenue-no-data" class="no-data-state hidden">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M12 2v20M2 12h20"/>
+    </svg>
+    <h3>Нет данных</h3>
+    <p>Не удалось загрузить метрики выручки за выбранный период</p>
+</div>
+
+<!-- Revenue Metrics Container -->
+<div id="revenue-metrics-container" class="revenue-metrics-container hidden">
+    <!-- Header с названиями метрик (один на все ряды) -->
+    <div class="revenue-metrics-header">
+        <div class="revenue-metric-column">
+            <span class="metric-column-title">Выручка</span>
+        </div>
+        <div class="revenue-metric-column">
+            <span class="metric-column-title">План</span>
+        </div>
+        <div class="revenue-metric-column">
+            <span class="metric-column-title">Ожидаемая</span>
+        </div>
+        <div class="revenue-metric-column">
+            <span class="metric-column-title">Средняя</span>
+        </div>
+        <div class="revenue-metric-column">
+            <span class="metric-column-title">Выполнение</span>
+        </div>
+    </div>
+
+    <!-- Контейнер для рядов карточек (5 баров) -->
+    <div class="revenue-metrics-rows" id="revenue-metrics-rows">
+        <!-- JS renders row for each bar here -->
+    </div>
+</div>

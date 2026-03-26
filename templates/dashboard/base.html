@@ -53,11 +53,21 @@
                 <button class="tab-button active" data-tab="tab-analytics">
                     Аналитика
                 </button>
-                <button class="tab-button" data-tab="tab-charts" style="display: none;">
-                    Графики
-                </button>
                 <button class="tab-button" data-tab="tab-comparison">
                     Сравнение
+                </button>
+                <button class="tab-button" data-tab="tab-revenue">
+                    Выручка
+                </button>
+                <button class="tab-button" data-tab="tab-expiry">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: text-bottom;">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    Сроки
+                </button>
+                <button class="tab-button" data-tab="tab-charts" style="display: none;">
+                    Графики
                 </button>
             </div>
             <div class="completion-badge" id="completion-badge">
@@ -76,6 +86,14 @@
 
         <div id="tab-comparison" class="tab-content">
             {% include 'dashboard/comparison_tab.html' %}
+        </div>
+
+        <div id="tab-revenue" class="tab-content">
+            {% include 'dashboard/revenue_tab.html' %}
+        </div>
+
+        <div id="tab-expiry" class="tab-content">
+            {% include 'dashboard/expiry_tab.html' %}
         </div>
     </div>
 </div>

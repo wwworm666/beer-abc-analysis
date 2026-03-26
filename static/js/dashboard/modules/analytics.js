@@ -103,6 +103,15 @@ class Analytics {
             // Всегда показываем факт, план опционален
             this.displayComparison(plan, actual);
 
+            // Отправляем событие для модуля метрик выручки
+            document.dispatchEvent(new CustomEvent('dashboard:dataLoaded', {
+                detail: {
+                    bar: state.currentVenue,
+                    dateFrom: state.currentPeriod.start,
+                    dateTo: state.currentPeriod.end
+                }
+            }));
+
         } catch (error) {
             console.error('Ошибка загрузки аналитики:', error);
             state.addMessage('error', 'Не удалось загрузить данные аналитики');

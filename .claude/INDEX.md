@@ -13,6 +13,7 @@ Beer ABC/XYZ Analysis
 ├── ABC/XYZ Анализ        → analytics.md
 ├── Анализ скидок          → discounts.md
 ├── Управление кранами    → taps.md
+├── PWA Виджет Выручки    → pwa-widget.md
 ├── Design System         → design-system.md
 └── Общее                 → overview.md
 ```
@@ -34,6 +35,7 @@ Beer ABC/XYZ Analysis
 | [optimization-dashboard.md](docs/optimization-dashboard.md) | План оптимизации производительности /dashboard | ✅ актуально |
 | [discounts.md](docs/discounts.md) | Анализ скидок — ROI, сегментация гостей, drill-down по барам | ✅ актуально |
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
+| [pwa-widget.md](docs/pwa-widget.md) | PWA виджет выручки — 5 баров с %, установка на главный экран | ✅ актуально |
 | [design-system.md](docs/design-system.md) | Дизайн-система: CSS стек, навигация, скелет новой страницы | ✅ актуально |
 | [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
 
@@ -55,6 +57,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- **2026-03-26:** PWA виджет выручки — 5 карточек с % выполнения, установка на главный экран (Android/iOS), service worker для офлайн-работы
 - 2026-03-24: Comparison Module финальные фиксы — progress bars привязаны к данным, проценты правильные, clarity улучшен
 - 2026-03-24: Редизайн Comparison Module — modern fintech UX, AI insights, metric cards, comparison slider
 - 2026-03-21: Рефакторинг проекта — Flask Blueprints (app.py: 5199→31 строка). Обновлены overview.md, context.md, lessons.md

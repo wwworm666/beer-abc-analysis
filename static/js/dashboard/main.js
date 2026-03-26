@@ -13,6 +13,8 @@ import { trendsModule } from './modules/trends.js';
 import { commentsManager } from './modules/comments.js';
 import { exportModule } from './modules/export.js';
 import { meetingNotes } from './modules/meeting_notes.js';
+import { revenueMetricsModule } from './modules/revenue_metrics.js';
+import { CZ } from './modules/expiry.js';
 
 class Dashboard {
     constructor() {
@@ -57,6 +59,12 @@ class Dashboard {
 
             exportModule.init();
             console.log(' Модуль экспорта инициализирован');
+
+            revenueMetricsModule.init();
+            console.log(' Модуль метрик выручки инициализирован');
+
+            CZ.init();
+            console.log(' Модуль Честный ЗНАК инициализирован');
 
             // 4. Настраиваем вкладки
             this.setupTabs();
@@ -105,6 +113,12 @@ class Dashboard {
                     if (tabId === 'tab-charts') {
                         chartsModule.loadChartsData();
                         trendsModule.loadTrendsData();
+                    } else if (tabId === 'tab-revenue') {
+                        // При переключении на вкладку Выручка — загружаем данные
+                        revenueMetricsModule.loadAllMetrics();
+                    } else if (tabId === 'tab-expiry') {
+                        // При переключении на вкладку Сроки годности — проверяем подключение
+                        CZ.checkConnection();
                     }
                     // Plans tab removed:
                     // else if (tabId === 'tab-plans') {

@@ -14,15 +14,44 @@
 
     <title>Выручка — Beer ABC</title>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Критические стили inline для мгновенной отрисовки -->
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --bg-tertiary: #e0e0e0;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #e5e5e5;
+            --accent: #D97757;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #0d0d0d;
+                --bg-secondary: #1a1a1a;
+                --bg-tertiary: #2a2a2a;
+                --text-primary: #ffffff;
+                --text-secondary: #a0a0a0;
+                --text-muted: #666666;
+                --border-color: #2a2a2a;
+            }
+        }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); }
+        .widget-loading { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; background: var(--bg-primary); z-index: 1000; }
+        .widget-loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border-color); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .widget-loading-text { margin-top: 16px; font-size: 14px; color: var(--text-secondary); }
+        .hidden { display: none !important; }
+    </style>
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/widget.css">
+    <!-- Основные стили с preload -->
+    <link rel="preload" href="/static/dashboard/styles/widget.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="stylesheet" href="/static/dashboard/styles/widget.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="/static/dashboard/styles/widget.css"></noscript>
 </head>
 <body class="widget-body">
 

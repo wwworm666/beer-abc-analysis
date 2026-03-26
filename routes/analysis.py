@@ -9,6 +9,7 @@ from core.xyz_analysis import XYZAnalysis
 from core.category_analysis import CategoryAnalysis
 from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
+from core.revenue_metrics import RevenueMetricsCalculator
 from extensions import BARS
 
 analysis_bp = Blueprint('analysis', __name__)
