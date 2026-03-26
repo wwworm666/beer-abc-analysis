@@ -371,28 +371,44 @@ class OlapReports:
         params = {"key": self.token}
         headers = {"Content-Type": "application/json"}
 
-        try:
-            response = requests.post(
-                url,
-                params=params,
-                json=request_body,
-                headers=headers,
-                timeout=30
-            )
+        # Retry logic для нестабильного iiko API
+        max_retries = 3
+        timeout = 120  # Увеличенный timeout для большого запроса
 
-            if response.status_code == 200:
-                data = response.json()
-                total_records = len(data.get('data', []))
-                print(f"[OK] Kompleksny otchet uspeshno poluchen! ({total_records} zapisey)")
-                return data
-            else:
-                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
-                print(f"   Otvet servera: {response.text}")
+        for attempt in range(max_retries):
+            try:
+                print(f"   [Popitka {attempt + 1}/{max_retries}]...")
+                response = requests.post(
+                    url,
+                    params=params,
+                    json=request_body,
+                    headers=headers,
+                    timeout=timeout
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    total_records = len(data.get('data', []))
+                    print(f"[OK] Kompleksny otchet uspeshno poluchen! ({total_records} zapisey)")
+                    return data
+                else:
+                    print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                    print(f"   Otvet servera: {response.text}")
+                    return None
+
+            except requests.exceptions.ReadTimeout as e:
+                print(f"[WARN] Timeout na popitke {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2)  # Pauza pered povtorom
+                else:
+                    print(f"[ERROR] Timeout posle {max_retries} popytok")
+                    return None
+            except Exception as e:
+                print(f"[ERROR] Oshibka: {e}")
                 return None
 
-        except Exception as e:
-            print(f"[ERROR] Oshibka: {e}")
-            return None
+        return None
 
     def get_store_operations_report(self, date_from, date_to, bar_name=None):
         """
