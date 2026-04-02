@@ -204,7 +204,12 @@ class EmployeeMetricsCalculator:
         return [r for r in data['data'] if r.get('WaiterName') == employee_name]
 
     def _sum_revenue(self, records: List[dict]) -> float:
-        """Суммирование выручки (DishDiscountSumInt)"""
+        """
+        Суммирование выручки (DishDiscountSumInt).
+
+        ВАЖНО: OLAP API v2 возвращает DishDiscountSumInt в РУБЛЯХ (float),
+        а не в копейках. Это подтверждается документацией iiko (тип MONEY).
+        """
         total = 0.0
         for r in records:
             try:

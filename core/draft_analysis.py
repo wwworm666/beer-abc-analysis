@@ -25,72 +25,175 @@ class DraftAnalysis:
         """
         self.df = df.copy()
 
-    def extract_beer_info(self, dish_name):
+    def _clean_beer_name(self, name: str) -> str:
+        """
+        Очистка названия пива от лишних символов и слов
+
+        Удаляет:
+        - "с собой", "to go", "take away"
+        - Лишние пробелы, дефисы в начале/конце
+        """
+        name = name.strip()
+        # Удаляем "с собой" и аналоги
+        name = re.sub(r'\s*(с\s+собой|to\s+go|take\s+away)\s*$', '', name, flags=re.IGNORECASE)
+        # Удаляем лишние пробелы
+        name = re.sub(r'\s+', ' ', name)
+        # Удаляем дефисы в начале/конце
+        name = name.strip('- ')
+        return name
+
+    def _estimate_volume(self, dish_name: str) -> float:
+        """
+        Эвристика для оценки объема порции если не удалось распарсить
+
+        Логика:
+        - Если в названии есть "0.5" или "0,5" → 0.5л
+        - Если есть "1.0" или "1,0" → 1.0л
+        - Если есть "500" (без мл) → 0.5л
+        - Если есть "1000" или "1л" → 1.0л
+        - Иначе → 0.5л (стандартная порция)
+        """
+        name_lower = dish_name.lower()
+
+        # Ищем явные указания объема в тексте
+        if re.search(r'0[,\.]5', name_lower):
+            return 0.5
+        if re.search(r'1[,\.]0', name_lower) or re.search(r'\b1л\b', name_lower):
+            return 1.0
+        if re.search(r'\b500\b', name_lower):
+            return 0.5
+        if re.search(r'\b1000\b', name_lower):
+            return 1.0
+
+        # Стандартная порция по умолчанию
+        return 0.5
+
+    def extract_beer_info(self, dish_name: str) -> tuple[str, float]:
         """
         Извлекает название пива и объем порции из DishName
 
-        Примеры:
-        "ФестХаус Хеллес (0,5)" -> ("ФестХаус Хеллес", 0.5)
-        "Блек Шип (0,25)" -> ("Блек Шип", 0.25)
-        "ФестХаус Вайцен (1,0)" -> ("ФестХаус Вайцен", 1.0)
-        "ХБ Октоберфест (1,0) с собой" -> ("ХБ Октоберфест", 1.0)
-        "Пиво (2)" -> ("Пиво", 2.0)
-        "Пиво (500мл)" -> ("Пиво", 0.5)
+        Поддерживаемые форматы:
+        - "ФестХаус Хеллес (0,5)" → ("фестхаус хеллес", 0.5)
+        - "Блек Шип (0,25)" → ("блек шип", 0.25)
+        - "ФестХаус Вайцен (1,0)" → ("фестхаус вайцен", 1.0)
+        - "ХБ Октоберфест (1,0) с собой" → ("хб октоберфест", 1.0)
+        - "Пиво (2)" → ("пиво", 2.0)
+        - "Пиво (500мл)" → ("пиво", 0.5)
+        - "Пиво 0.5л" → ("пиво", 0.5) [НОВЫЙ: без скобок]
+        - "ФестХаус 500мл с собой" → ("фестхаус", 0.5) [НОВЫЙ]
+        - "Пиво 0,5 л" → ("пиво", 0.5) [НОВЫЙ: пробел перед единицей]
+
+        Возвращает:
+        - (название_пива, объем_в_литрах)
+        - Если не распознано → (очищенное_название, 0.0)
         """
-        # Паттерн 1: дробные числа в литрах (0,5 или 0.5)
+        original = dish_name.strip()
+
+        # Паттерн 1: дробные числа в скобках (0,5 или 0.5)
         pattern_liters = r'\((\d+[,\.]\d+)\s*(?:л|l)?\)'
-        match = re.search(pattern_liters, dish_name.strip(), re.IGNORECASE)
+        match = re.search(pattern_liters, original, re.IGNORECASE)
 
         if match:
             volume_str = match.group(1).replace(',', '.')
             volume = float(volume_str)
-            beer_name = dish_name[:match.start()].strip()
-            return beer_name, volume
+            beer_name = original[:match.start()].strip()
+            return self._clean_beer_name(beer_name), volume
 
-        # Паттерн 2: целые числа в литрах (2)
+        # Паттерн 2: целые числа в скобках (2)
         pattern_whole_liters = r'\((\d+)\s*(?:л|l)?\)'
-        match = re.search(pattern_whole_liters, dish_name.strip(), re.IGNORECASE)
+        match = re.search(pattern_whole_liters, original, re.IGNORECASE)
 
         if match:
             volume = float(match.group(1))
-            beer_name = dish_name[:match.start()].strip()
-            return beer_name, volume
+            beer_name = original[:match.start()].strip()
+            return self._clean_beer_name(beer_name), volume
 
-        # Паттерн 3: миллилитры (500мл, 500ml)
+        # Паттерн 3: миллилитры в скобках (500мл, 500ml)
         pattern_ml = r'\((\d+)\s*(?:мл|ml)\)'
-        match = re.search(pattern_ml, dish_name.strip(), re.IGNORECASE)
+        match = re.search(pattern_ml, original, re.IGNORECASE)
 
         if match:
             volume_ml = float(match.group(1))
             volume = volume_ml / 1000  # Конвертируем в литры
-            beer_name = dish_name[:match.start()].strip()
-            return beer_name, volume
+            beer_name = original[:match.start()].strip()
+            return self._clean_beer_name(beer_name), volume
 
-        # Если не удалось распарсить, возвращаем как есть
-        return dish_name, 0.0
+        # ПАТТЕРН 4: НОВЫЙ - дробные литры без скобок (Пиво 0.5л)
+        pattern_liters_no_brackets = r'(\d+[,\.]\d+)\s*(?:л|l)(?:\s|$|с)'
+        match = re.search(pattern_liters_no_brackets, original, re.IGNORECASE)
 
-    def prepare_draft_data(self):
-        """Подготовка данных для анализа разливного пива"""
-        # Извлекаем название пива и объем порции
+        if match:
+            volume_str = match.group(1).replace(',', '.')
+            volume = float(volume_str)
+            beer_name = original[:match.start()].strip()
+            return self._clean_beer_name(beer_name), volume
+
+        # ПАТТЕРН 5: НОВЫЙ - миллилитры без скобок (Пиво 500мл)
+        pattern_ml_no_brackets = r'(\d+)\s*(?:мл|ml)(?:\s|$|с)'
+        match = re.search(pattern_ml_no_brackets, original, re.IGNORECASE)
+
+        if match:
+            volume_ml = float(match.group(1))
+            volume = volume_ml / 1000  # Конвертируем в литры
+            beer_name = original[:match.start()].strip()
+            return self._clean_beer_name(beer_name), volume
+
+        # НЕ РАСПОЗНАНО: применяем эвристику вместо возврата 0.0
+        # Это предотвращает потерю данных
+        estimated_volume = self._estimate_volume(original)
+        return self._clean_beer_name(original), estimated_volume
+
+    def prepare_draft_data(self, preserve_original_for_mapping=True):
+        """
+        Подготовка данных для анализа разливного пива
+
+        preserve_original_for_mapping: если True, сохраняем оригинальный регистр
+                                       для маппинга с dish_to_keg_mapping.json
+        """
+        # Этап 1: Извлекаем BeerName и PortionVolume
         beer_info = self.df['DishName'].apply(self.extract_beer_info)
         self.df['BeerName'] = beer_info.apply(lambda x: x[0])
         self.df['PortionVolume'] = beer_info.apply(lambda x: x[1])
 
-        # НОРМАЛИЗАЦИЯ: убираем лишние пробелы и приводим к единому регистру
-        # Это критично для правильной группировки!
-        # Пример: "ФестХаус  Хеллес" (два пробела) → "фестхаус хеллес"
-        self.df['BeerName'] = self.df['BeerName'].str.strip().str.replace(r'\s+', ' ', regex=True).str.lower()
+        # Этап 2: Сохраняем оригинальное название для маппинга (если нужно)
+        if preserve_original_for_mapping:
+            self.df['BeerNameOriginal'] = self.df['BeerName'].str.strip()
 
-        # Фильтруем записи с нулевым объёмом (не удалось распарсить)
-        zero_volume_count = (self.df['PortionVolume'] == 0).sum()
+        # Этап 3: Создаем нормализованную версию для группировки
+        # Двухэтапная нормализация:
+        # - BeerNameOriginal: сохраняет регистр для маппинга с dish_to_keg_mapping.json
+        # - BeerNameNorm: lowercase для группировки одинаковых позиций
+        self.df['BeerNameNorm'] = (
+            self.df['BeerName']
+            .str.strip()
+            .str.replace(r'\s+', ' ', regex=True)
+            .str.lower()
+        )
+
+        # Этап 4: Обработка записей с нулевым объемом — ЭВРИСТИКА вместо удаления
+        zero_volume_mask = self.df['PortionVolume'] == 0
+        zero_volume_count = zero_volume_mask.sum()
+
         if zero_volume_count > 0:
-            print(f"[WARNING] Isklyucheno {zero_volume_count} zapisey s nulevym obyomom (ne udalos rasparsit)")
-        self.df = self.df[self.df['PortionVolume'] > 0]
+            print(f"[WARNING] Naideno {zero_volume_count} zapisey s neraspoznannym obyomom")
+            print(f"[INFO] Primyayem evristiku dlya vosstanovleniya...")
 
-        # Вычисляем объем в литрах (количество * объем порции)
+            # Применяем эвристику вместо удаления
+            self.df.loc[zero_volume_mask, 'PortionVolume'] = (
+                self.df.loc[zero_volume_mask, 'DishName']
+                .apply(self._estimate_volume)
+            )
+
+            recovered = (self.df.loc[zero_volume_mask, 'PortionVolume'] > 0).sum()
+            print(f"[OK] Vosstanovleno {recovered} zapisey, {(zero_volume_count - recovered)} udaleno")
+
+            # Теперь удаляем только те, где эвристика не помогла
+            self.df = self.df[self.df['PortionVolume'] > 0]
+
+        # Этап 5: Расчет литров
         self.df['VolumeInLiters'] = self.df['DishAmountInt'] * self.df['PortionVolume']
 
-        # Добавляем неделю - ИСПРАВЛЕНО: используем OpenDate.Typed
+        # Этап 6: Недели
         if 'OpenDate.Typed' in self.df.columns:
             self.df['Week'] = pd.to_datetime(self.df['OpenDate.Typed']).dt.to_period('W')
         elif 'OpenDate' in self.df.columns:
@@ -103,7 +206,8 @@ class DraftAnalysis:
         Получить объемы продаж разливного пива по неделям
 
         Возвращает DataFrame с колонками:
-        - BeerName: название пива (без объема порции)
+        - BeerName: название пива (оригинальный регистр, для отображения)
+        - BeerNameNorm: нормализованное название (для группировки)
         - Week: неделя
         - Bar: название бара
         - TotalLiters: общий объем в литрах
@@ -116,16 +220,18 @@ class DraftAnalysis:
         if bar_name:
             df = df[df['Store.Name'] == bar_name]
 
-        # Группируем по пиву, неделе и бару
-        grouped = df.groupby(['BeerName', 'Week', 'Store.Name']).agg({
+        # Группируем по нормализованному имени пива, неделе и бару
+        grouped = df.groupby(['BeerNameNorm', 'Week', 'Store.Name']).agg({
             'VolumeInLiters': 'sum',
             'DishAmountInt': 'sum',
-            'PortionVolume': 'mean'
+            'PortionVolume': 'mean',
+            'BeerNameOriginal': 'first'  # Берем первое оригинальное название для отображения
         }).reset_index()
 
         grouped.columns = [
-            'BeerName', 'Week', 'Bar',
-            'TotalLiters', 'TotalPortions', 'AvgPortionSize'
+            'BeerNameNorm', 'Week', 'Bar',
+            'TotalLiters', 'TotalPortions', 'AvgPortionSize',
+            'BeerName'  # Оригинальное название для отображения
         ]
 
         # Сортируем по объему (по убыванию)
@@ -138,16 +244,20 @@ class DraftAnalysis:
         Сводка по каждому пиву за весь период
 
         Возвращает DataFrame с колонками:
-        - BeerName: название пива
+        - BeerName: название пива (оригинальный регистр, для отображения)
+        - BeerNameNorm: нормализованное название (для группировки)
         - Bar: бар
         - TotalLiters: общий объем в литрах
         - TotalPortions: количество порций
         - WeeksActive: количество недель с продажами
         - AvgLitersPerWeek: средний объем за неделю
-        - BeerSharePercent: доля пива от общего объема в %
+        - BeerSharePercent: доля пива от общего объема в % (рассчитывается ДЛЯ КАЖДОГО бара отдельно)
         - Kegs30L: примерное количество кег 30л
         - Kegs50L: примерное количество кег 50л
         - (опционально) TotalRevenue, TotalCost, AvgMarkupPercent, TotalMargin
+
+        ВАЖНО: BeerSharePercent рассчитывается ПОСЛЕ фильтрации по бару,
+               поэтому сумма процентов для каждого бара = 100%
         """
         df = self.prepare_draft_data()
 
@@ -155,12 +265,13 @@ class DraftAnalysis:
         if bar_name:
             df = df[df['Store.Name'] == bar_name]
 
-        # Группируем для объемов
+        # Группируем для объемов — используем BeerNameNorm для группировки
         agg_dict = {
             'VolumeInLiters': 'sum',
             'DishAmountInt': 'sum',
             'PortionVolume': 'mean',
-            'Week': 'nunique'
+            'Week': 'nunique',
+            'BeerNameOriginal': 'first'  # Сохраняем оригинальное название
         }
 
         # Добавляем финансовые данные если нужно
@@ -174,15 +285,18 @@ class DraftAnalysis:
             if 'Margin' in df.columns:
                 agg_dict['Margin'] = 'sum'
 
-        summary = df.groupby(['BeerName', 'Store.Name']).agg(agg_dict).reset_index()
+        # Группировка по нормализованному имени и бару
+        summary = df.groupby(['BeerNameNorm', 'Store.Name']).agg(agg_dict).reset_index()
 
         # Переименовываем колонки
         col_mapping = {
+            'BeerNameNorm': 'BeerNameNorm',  # Оставляем как есть
             'Store.Name': 'Bar',
             'VolumeInLiters': 'TotalLiters',
             'DishAmountInt': 'TotalPortions',
             'PortionVolume': 'AvgPortionSize',
-            'Week': 'WeeksActive'
+            'Week': 'WeeksActive',
+            'BeerNameOriginal': 'BeerName'  # Оригинальное название для отображения
         }
 
         if include_financials:
@@ -199,11 +313,17 @@ class DraftAnalysis:
         summary['AvgLitersPerWeek'] = summary['TotalLiters'] / summary['WeeksActive']
 
         # Вычисляем долю пива в % от общего объема
-        total_liters = summary['TotalLiters'].sum()
-        if total_liters > 0:
-            summary['BeerSharePercent'] = (summary['TotalLiters'] / total_liters * 100)
-        else:
-            summary['BeerSharePercent'] = 0.0
+        # ВАЖНО: Считаем ДЛЯ КАЖДОГО бара отдельно, поэтому сумма = 100%
+        for bar in summary['Bar'].unique():
+            bar_mask = summary['Bar'] == bar
+            bar_total = summary.loc[bar_mask, 'TotalLiters'].sum()
+
+            if bar_total > 0:
+                summary.loc[bar_mask, 'BeerSharePercent'] = (
+                    summary.loc[bar_mask, 'TotalLiters'] / bar_total * 100
+                )
+            else:
+                summary.loc[bar_mask, 'BeerSharePercent'] = 0.0
 
         # Примерное количество кег (30л и 50л)
         summary['Kegs30L'] = (summary['TotalLiters'] / 30).round(2)

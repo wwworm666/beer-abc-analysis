@@ -1475,7 +1475,8 @@ class OlapReports:
                 "Delivery.CustomerName",
                 "OrderNum",
                 "DishName",
-                "ItemSaleEventDiscountType"
+                "ItemSaleEventDiscountType",
+                "OpenDate.Typed"  # Дата визита для RFM-анализа
             ],
             "groupByColFields": [],
             "aggregateFields": [
@@ -1521,6 +1522,91 @@ class OlapReports:
 
             if response.status_code == 200:
                 print("[OK] Otchet po skidkam uspeshno poluchen!")
+                return response.json()
+            else:
+                print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
+                print(f"   Otvet servera: {response.text}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
+    def get_rfm_report(self, date_from, date_to, bar_name=None):
+        """
+        Получить OLAP отчет для RFM-сегментации.
+
+        Аналогичен get_discount_report, но без фильтра по ItemSaleEventDiscountType.
+        Возвращает все транзакции гостей за период.
+
+        date_from: дата начала (строка 'YYYY-MM-DD')
+        date_to: дата окончания (строка 'YYYY-MM-DD')
+        bar_name: название бара (если None, то все бары)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu otchet dlya RFM...")
+        print(f"   Period: {date_from} - {date_to}")
+        if bar_name:
+            print(f"   Bar: {bar_name}")
+        else:
+            print(f"   Bar: VSE")
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "Delivery.CustomerCardNumber",
+                "Delivery.CustomerName",
+                "OrderNum",
+                "OpenDate.Typed"
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishDiscountSumInt",
+                "DiscountSum"
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url,
+                params=params,
+                json=request,
+                headers=headers,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                print("[OK] Otchet dlya RFM uspeshno poluchen!")
                 return response.json()
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")

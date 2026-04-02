@@ -133,6 +133,72 @@ def fetch_olap_data(olap, date_from, date_to):
         return None
 
 
+def build_optimized_mappings(dish_to_keg: dict, keg_to_supplier: dict) -> tuple[dict, dict]:
+    """
+    Построить оптимизированные маппинги для O(1) поиска поставщиков
+
+    Вместо O(n²) цикла для каждой строки, создаем предварительно обработанные словари:
+    - dish_to_keg_lower: {lowercase_dish: keg}
+    - keg_to_supplier_lower: {lowercase_keg: supplier}
+
+    Возвращает:
+        (dish_to_keg_lower, keg_to_supplier_lower)
+    """
+    # Создаем lowercase версию dish_to_keg один раз
+    dish_to_keg_lower = {}
+
+    # Прямые ключи + с префиксом ВО
+    for dish, keg in dish_to_keg.items():
+        dish_lower = dish.strip().lower()
+        dish_to_keg_lower[dish_lower] = keg
+        dish_to_keg_lower[f'во {dish_lower}'] = keg
+
+    # Создаем lowercase версию keg_to_supplier
+    keg_to_supplier_lower = {}
+    for keg, supplier in keg_to_supplier.items():
+        keg_lower = keg.strip().lower()
+        keg_to_supplier_lower[keg_lower] = supplier
+
+        # Также добавляем вариант без размера порции
+        clean_name = keg.split('(')[0].strip().lower()
+        keg_to_supplier_lower[clean_name] = supplier
+        keg_to_supplier_lower[f'во {clean_name}'] = supplier
+
+    return dish_to_keg_lower, keg_to_supplier_lower
+
+
+def get_supplier_optimized(beer_name: str, dish_to_keg_lower: dict,
+                           keg_to_supplier_lower: dict) -> str:
+    """
+    O(1) поиск поставщика вместо O(n²)
+
+    Логика:
+    1. Прямой lowercase маппинг блюдо → кег
+    2. С префиксом "во"
+    3. Прямой поиск кег → поставщик
+    """
+    beer_lower = beer_name.strip().lower()
+
+    # 1. Прямой lowercase маппинг блюдо → кег
+    keg_name = dish_to_keg_lower.get(beer_lower)
+    if keg_name:
+        supplier = keg_to_supplier_lower.get(keg_name.lower(), '')
+        if supplier:
+            return supplier
+
+    # 2. Прямой поиск в keg_to_supplier (lowercase)
+    supplier = keg_to_supplier_lower.get(beer_lower, '')
+    if supplier:
+        return supplier
+
+    # 3. С префиксом "во"
+    supplier = keg_to_supplier_lower.get(f'во {beer_lower}', '')
+    if supplier:
+        return supplier
+
+    return ''
+
+
 def process_data(df, dish_to_keg, keg_to_supplier):
     """Обработать данные: парсинг, расчёт литров, джойн поставщика"""
 
@@ -160,39 +226,21 @@ def process_data(df, dish_to_keg, keg_to_supplier):
     df['OpenDate'] = pd.to_datetime(df['OpenDate.Typed'])
     df['YearMonth'] = df['OpenDate'].dt.to_period('M')
 
-    # Джойн поставщика через маппинг
-    def get_supplier(beer_name):
-        # Пробуем найти напрямую в маппинге блюдо → кег
-        keg_name = dish_to_keg.get(beer_name)
-        if not keg_name:
-            # Пробуем с префиксом ВО
-            keg_name = dish_to_keg.get(f'ВО {beer_name}')
-        if not keg_name:
-            # Пробуем без учёта регистра
-            for dish, keg in dish_to_keg.items():
-                if dish.lower() == beer_name.lower():
-                    keg_name = keg
-                    break
+    # ОПТИМИЗАЦИЯ: Строим маппинги один раз для O(1) поиска
+    print(f"\n[MAPPING] Stroim optimizirovannye mappingi...")
+    dish_to_keg_lower, keg_to_supplier_lower = build_optimized_mappings(dish_to_keg, keg_to_supplier)
+    print(f"[OK] Mappingi postroeny: {len(dish_to_keg_lower)} dish→keg, {len(keg_to_supplier_lower)} keg→supplier")
 
-        if keg_name:
-            # Ищем поставщика по кегу
-            supplier = keg_to_supplier.get(keg_name, '')
-            if supplier:
-                return supplier
+    # Джойн поставщика через оптимизированный маппинг
+    print(f"[INFO] Primyayem mappingi postavshchikov...")
+    df['Supplier'] = df['BeerNameNorm'].apply(
+        lambda x: get_supplier_optimized(x, dish_to_keg_lower, keg_to_supplier_lower)
+    )
 
-        # Если не нашли через кег, пробуем напрямую по названию блюда
-        for product_name, supplier in keg_to_supplier.items():
-            # Убираем размер порции и сравниваем
-            clean_name = product_name.split('(')[0].strip()
-            if clean_name.lower() == beer_name.lower():
-                return supplier
-            # С префиксом ВО
-            if clean_name.lower() == f'во {beer_name}'.lower():
-                return supplier
-
-        return ''
-
-    df['Supplier'] = df['BeerNameNorm'].apply(get_supplier)
+    # Статистика по поставщикам
+    suppliers_found = (df['Supplier'] != '').sum()
+    total_records = len(df)
+    print(f"[OK] Postavshchiki naideny dlya {suppliers_found} iz {total_records} zapisey ({suppliers_found/total_records*100:.1f}%)")
 
     # Фильтруем записи с нулевым объёмом
     df = df[df['PortionVolume'] > 0]

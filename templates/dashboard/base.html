@@ -59,12 +59,8 @@
                 <button class="tab-button" data-tab="tab-revenue">
                     Выручка
                 </button>
-                <button class="tab-button" data-tab="tab-expiry">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px; vertical-align: text-bottom;">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 6v6l4 2"/>
-                    </svg>
-                    Сроки
+                <button class="tab-button" data-tab="tab-plans">
+                    Планы
                 </button>
                 <button class="tab-button" data-tab="tab-charts" style="display: none;">
                     Графики
@@ -92,8 +88,8 @@
             {% include 'dashboard/revenue_tab.html' %}
         </div>
 
-        <div id="tab-expiry" class="tab-content">
-            {% include 'dashboard/expiry_tab.html' %}
+        <div id="tab-plans" class="tab-content">
+            {% include 'dashboard/plans_tab.html' %}
         </div>
     </div>
 </div>

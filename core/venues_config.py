@@ -9,7 +9,7 @@ VENUES = {
         'key': 'bolshoy',
         'name': 'Большой пр. В.О',
         'full_name': 'Культура - Большой пр. В.О',
-        'icon': '🍺',
+        'icon': '',  # Эмодзи удалены для совместимости с Windows
         'address': 'Большой пр. В.О',
         'taps': 24,
         'order': 1
@@ -18,7 +18,7 @@ VENUES = {
         'key': 'ligovskiy',
         'name': 'Лиговский',
         'full_name': 'Культура - Лиговский',
-        'icon': '🍺',
+        'icon': '',
         'address': 'Лиговский пр.',
         'taps': 12,
         'order': 2
@@ -27,7 +27,7 @@ VENUES = {
         'key': 'kremenchugskaya',
         'name': 'Кременчугская',
         'full_name': 'Культура - Кременчугская',
-        'icon': '🍺',
+        'icon': '',
         'address': 'ул. Кременчугская',
         'taps': 12,
         'order': 3
@@ -36,7 +36,7 @@ VENUES = {
         'key': 'varshavskaya',
         'name': 'Варшавская',
         'full_name': 'Культура - Варшавская',
-        'icon': '🍺',
+        'icon': '',
         'address': 'ул. Варшавская',
         'taps': 12,
         'order': 4
@@ -45,7 +45,7 @@ VENUES = {
         'key': 'all',
         'name': 'Все заведения',
         'full_name': 'Все заведения (сводно)',
-        'icon': '📊',
+        'icon': '',
         'address': 'Все бары',
         'taps': 60,  # Сумма всех кранов
         'order': 0

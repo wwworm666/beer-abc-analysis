@@ -408,6 +408,7 @@
             <!-- Formula -->
             <div class="formula-card">
                 <strong>Премия за план:</strong> за каждую смену где выручка >= плана ТТ <code>1 000 + перевыполнение x 5%</code><br>
+                <strong>За передачу смены:</strong> <code>500 x смены</code><br>
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
                 <strong>KPI-премия:</strong> <code>множитель x смены x (база / норма)</code> за каждую из 3 метрик<br>
                 <strong>Ставка:</strong> <code>часы x 300</code>
@@ -632,12 +633,22 @@
 
             // Calculate totals and sort
             mergedEmployees.forEach(emp => {
-                const bonusNet = emp.bonus ? Math.max(0, emp.bonus.bonus - emp.bonus.penalty) : 0;
-                const kpiPremium = emp.kpi ? emp.kpi.total_premium : 0;
-                emp.baseSalary = bonusNet + kpiPremium;  // before hours
+                const b = emp.bonus;
+                const k = emp.kpi;
+                // Авто-часы из API (приоритет bonus, потом kpi)
+                emp.autoHours = b?.total_hours ?? k?.total_hours ?? 0;
+                emp.hours = emp.autoHours;
+                // База без часов
+                const bonusPlan = b?.bonus || 0;
+                const handover = b?.shift_handover_bonus || 0;
+                const penalty = b?.penalty || 0;
+                const kpiPrem = k?.total_premium || 0;
+                emp.baseSalary = bonusPlan + handover - penalty + kpiPrem;
+                // Итого с часами
+                emp.totalSalary = emp.baseSalary + (emp.hours * HOURLY_RATE);
             });
 
-            mergedEmployees.sort((a, b) => b.baseSalary - a.baseSalary);
+            mergedEmployees.sort((a, b) => b.totalSalary - a.totalSalary);
 
             renderSummary();
             renderCards();
@@ -646,18 +657,24 @@
         // ===================== RENDER SUMMARY =====================
         function renderSummary() {
             const totalBonus = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.bonus : 0), 0);
+            const totalHandover = mergedEmployees.reduce((s, e) => s + (e.bonus?.shift_handover_bonus || 0), 0);
             const totalPenalty = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.penalty : 0), 0);
             const totalKpi = mergedEmployees.reduce((s, e) => s + (e.kpi ? e.kpi.total_premium : 0), 0);
-            const totalBase = mergedEmployees.reduce((s, e) => s + e.baseSalary, 0);
+            const totalHoursPay = mergedEmployees.reduce((s, e) => s + ((e.hours || 0) * HOURLY_RATE), 0);
+            const totalSalary = mergedEmployees.reduce((s, e) => s + e.totalSalary, 0);
 
             document.getElementById('summary').innerHTML = `
                 <div class="summary-card">
-                    <div class="summary-label">Итого ЗП (без часов)</div>
-                    <div class="summary-value accent" id="summary-total">${formatMoney(totalBase)}</div>
+                    <div class="summary-label">Итого ЗП</div>
+                    <div class="summary-value accent" id="summary-total">${formatMoney(totalSalary)}</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-label">Премии за план</div>
                     <div class="summary-value" style="color:var(--success);">${formatMoney(totalBonus)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">За передачу смены</div>
+                    <div class="summary-value" style="color:var(--success);">${formatMoney(totalHandover)}</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-label">Штрафы</div>
@@ -666,6 +683,10 @@
                 <div class="summary-card">
                     <div class="summary-label">KPI-премия</div>
                     <div class="summary-value" style="color:var(--success);">${formatMoney(totalKpi)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Оплата часов</div>
+                    <div class="summary-value" style="color:var(--success);" id="summary-hours-pay">${formatMoney(totalHoursPay)}</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-label">Сотрудников</div>
@@ -691,36 +712,39 @@
                 html += `<div class="emp-card" id="card-${i}">`;
                 html += `<div class="emp-card-header">`;
                 html += `<div><span class="emp-card-name">${emp.name}</span><span class="emp-card-shifts">${shifts} смен${planPct > 0 ? ' / план ' + planPct.toFixed(0) + '%' : ''}</span></div>`;
-                html += `<div class="emp-card-total" id="card-total-${i}">${formatMoney(emp.baseSalary)}</div>`;
+                html += `<div class="emp-card-total" id="card-total-${i}">${formatMoney(emp.totalSalary)}</div>`;
                 html += `</div>`;
 
                 html += `<div class="emp-card-body">`;
                 html += `<div class="salary-rows">`;
 
-                // Bonus row
-                if (b) {
-                    html += `<div class="sal-label">Премия за план</div>`;
-                    html += `<div class="sal-value ${bonusVal > 0 ? 'positive' : 'neutral'}">${bonusVal > 0 ? formatMoney(bonusVal) : '—'}</div>`;
+                // Bonus row - показываем всегда, даже если 0
+                html += `<div class="sal-label">Премия за план</div>`;
+                html += `<div class="sal-value ${bonusVal > 0 ? 'positive' : 'neutral'}">${bonusVal > 0 ? formatMoney(bonusVal) : '—'}</div>`;
 
-                    // Penalty row
-                    html += `<div class="sal-label">Штраф${lateCount > 0 ? ' (' + lateCount + ' опозд.)' : ''}</div>`;
-                    html += `<div class="sal-value ${penaltyVal > 0 ? 'negative' : 'neutral'}">${penaltyVal > 0 ? '-' + formatMoney(penaltyVal) : '—'}</div>`;
-                }
+                // Shift handover bonus: 500 ₽ × shifts
+                const handoverBonus = b?.shift_handover_bonus || 0;
+                html += `<div class="sal-label">За передачу смены</div>`;
+                html += `<div class="sal-value ${handoverBonus > 0 ? 'positive' : 'neutral'}">${handoverBonus > 0 ? formatMoney(handoverBonus) : '—'}</div>`;
 
-                // KPI row
-                if (k) {
-                    html += `<div class="sal-label">KPI-премия</div>`;
-                    html += `<div class="sal-value ${kpiPremium > 0 ? 'positive' : 'neutral'}">${kpiPremium > 0 ? formatMoney(kpiPremium) : '—'}</div>`;
-                }
+                // Penalty row
+                html += `<div class="sal-label">Штраф${lateCount > 0 ? ' (' + lateCount + ' опозд.)' : ''}</div>`;
+                html += `<div class="sal-value ${penaltyVal > 0 ? 'negative' : 'neutral'}">${penaltyVal > 0 ? '-' + formatMoney(penaltyVal) : '—'}</div>`;
+
+                // KPI row - показываем всегда
+                html += `<div class="sal-label">KPI-премия</div>`;
+                html += `<div class="sal-value ${kpiPremium > 0 ? 'positive' : 'neutral'}">${kpiPremium > 0 ? formatMoney(kpiPremium) : '—'}</div>`;
 
                 // Hours row
-                html += `<div class="sal-label">Часы</div>`;
-                html += `<div class="sal-value"><div class="hours-row"><input type="number" class="hours-input" id="hours-${i}" placeholder="0" min="0" max="999" step="1" oninput="onHoursChange()"><span class="hours-mul">x ${HOURLY_RATE} ₽ = </span><span id="hourly-${i}">0 ₽</span></div></div>`;
+                const autoHours = emp.autoHours || 0;
+                const hoursLabel = autoHours > 0 ? `<span style="font-size:0.75rem;color:var(--text-tertiary);margin-right:6px;">${autoHours} ч (авт)</span>` : '';
+                html += `<div class="sal-label">Часы ${hoursLabel}</div>`;
+                html += `<div class="sal-value"><div class="hours-row"><input type="number" class="hours-input" id="hours-${i}" value="${autoHours > 0 ? autoHours : ''}" placeholder="0" min="0" max="999" step="1" oninput="onHoursChange(${i})"><span class="hours-mul">x ${HOURLY_RATE} ₽ = </span><span id="hourly-${i}">${autoHours > 0 ? formatMoney(autoHours * HOURLY_RATE) : '0 ₽'}</span></div></div>`;
 
                 // Divider + Total
                 html += `<div class="sal-divider"></div>`;
                 html += `<div class="sal-total-label">Итого</div>`;
-                html += `<div class="sal-total-value" id="emp-total-${i}">${formatMoney(emp.baseSalary)}</div>`;
+                html += `<div class="sal-total-value" id="emp-total-${i}">${formatMoney(emp.totalSalary)}</div>`;
 
                 html += `</div>`;  // .salary-rows
 
@@ -748,25 +772,42 @@
         }
 
         // ===================== HOURS =====================
-        function onHoursChange() {
+        function onHoursChange(changedIndex = null) {
             let totalSalary = 0;
+            let totalHoursPay = 0;
 
             mergedEmployees.forEach((emp, i) => {
                 const input = document.getElementById(`hours-${i}`);
                 const hours = parseFloat(input ? input.value : 0) || 0;
-                const hourlyPay = hours * HOURLY_RATE;
-                const total = emp.baseSalary + hourlyPay;
+
+                // Обновляем часы сотрудника только если это поле было изменено
+                if (changedIndex === i || changedIndex === null) {
+                    emp.hours = hours;
+                }
+
+                // Пересчитываем общую ЗП сотрудника
+                const bonus = emp.bonus?.bonus || 0;
+                const penalty = emp.bonus?.penalty || 0;
+                const handoverBonus = emp.bonus?.shift_handover_bonus || 0;
+                const kpiPremium = emp.kpi ? emp.kpi.total_premium : 0;
+                const hourlyPay = emp.hours * HOURLY_RATE;
+                emp.totalSalary = bonus + handoverBonus + kpiPremium - penalty + hourlyPay;
 
                 document.getElementById(`hourly-${i}`).textContent = hourlyPay > 0 ? formatMoney(hourlyPay) : '0 ₽';
-                document.getElementById(`emp-total-${i}`).textContent = formatMoney(total);
-                document.getElementById(`card-total-${i}`).textContent = formatMoney(total);
+                document.getElementById(`emp-total-${i}`).textContent = formatMoney(emp.totalSalary);
+                document.getElementById(`card-total-${i}`).textContent = formatMoney(emp.totalSalary);
 
-                totalSalary += total;
+                totalSalary += emp.totalSalary;
+                totalHoursPay += hourlyPay;
             });
 
-            // Update summary total
+            // Обновляем итоговую сумму в summary
             const summaryTotal = document.getElementById('summary-total');
             if (summaryTotal) summaryTotal.textContent = formatMoney(totalSalary);
+
+            // Обновляем оплату часов в summary
+            const summaryHoursPay = document.getElementById('summary-hours-pay');
+            if (summaryHoursPay) summaryHoursPay.textContent = formatMoney(totalHoursPay);
         }
 
         // ===================== DETAIL TOGGLES =====================

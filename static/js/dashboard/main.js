@@ -6,6 +6,7 @@
 import { state } from './core/state.js';
 import { themeManager } from './modules/theme.js';
 import { venueSelector } from './modules/venue_selector.js';
+import { weekSelector } from './modules/week_selector.js';
 import { analytics } from './modules/analytics.js';
 // import { plansViewer } from './modules/plans.js'; // Отключено: вкладка "Планы" удалена
 import { chartsModule } from './modules/charts.js';
@@ -14,7 +15,7 @@ import { commentsManager } from './modules/comments.js';
 import { exportModule } from './modules/export.js';
 import { meetingNotes } from './modules/meeting_notes.js';
 import { revenueMetricsModule } from './modules/revenue_metrics.js';
-import { CZ } from './modules/expiry.js';
+import { plansViewer } from './modules/plans.js';
 
 class Dashboard {
     constructor() {
@@ -37,6 +38,9 @@ class Dashboard {
             // 2. Инициализируем селекторы (последовательно)
             await venueSelector.init();
             console.log(' Селектор заведений инициализирован');
+
+            await weekSelector.init();
+            console.log(' Селектор недель инициализирован');
 
             // 3. Инициализируем модули данных
             analytics.init();
@@ -63,8 +67,8 @@ class Dashboard {
             revenueMetricsModule.init();
             console.log(' Модуль метрик выручки инициализирован');
 
-            CZ.init();
-            console.log(' Модуль Честный ЗНАК инициализирован');
+            plansViewer.init();
+            console.log(' Модуль просмотра планов инициализирован');
 
             // 4. Настраиваем вкладки
             this.setupTabs();
@@ -116,14 +120,10 @@ class Dashboard {
                     } else if (tabId === 'tab-revenue') {
                         // При переключении на вкладку Выручка — загружаем данные
                         revenueMetricsModule.loadAllMetrics();
-                    } else if (tabId === 'tab-expiry') {
-                        // При переключении на вкладку Сроки годности — проверяем подключение
-                        CZ.checkConnection();
+                    } else if (tabId === 'tab-plans') {
+                        // При переключении на вкладку Планы — загружаем данные
+                        plansViewer.loadData();
                     }
-                    // Plans tab removed:
-                    // else if (tabId === 'tab-plans') {
-                    //     plansViewer.loadData();
-                    // }
                 }
             });
         });

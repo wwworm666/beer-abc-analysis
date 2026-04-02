@@ -1,109 +1,198 @@
-# Overview — Как устроен проект
+# Архитектура проекта
 
 ## Что это
 
-Система аналитики для сети из 4 пивных баров. Представь себе центр управления полётами, только вместо ракет — пивные краны, а вместо траекторий — графики продаж. Flask-приложение берёт сырые данные из iiko (POS-система баров) и превращает их в понятные отчёты: кто из барменов продаёт больше, какое пиво летит, а какое киснет.
+Beer ABC Analysis — Flask веб-приложение для аналитики баров с интеграцией iiko API. Предоставляет дашборды, ABC/XYZ анализ, управление сотрудниками, кранами, остатками.
 
-## Архитектура
+## Файлы
 
+### Точка входа
+- [`app.py`](../../app.py) — инициализация Flask, регистрация blueprint'ов, версионирование
+
+### Конфигурация
+- [`config.py`](../../config.py) — iiko API настройки (SERVER, LOGIN, PASSWORD)
+- [`requirements.txt`](../../requirements.txt) — зависимости: Flask, pandas, numpy, requests, aiogram
+- [`extensions.py`](../../extensions.py) — глобальные синглтоны (taps_manager, plans_manager, venues_manager, кэши)
+
+### Backend структура
 ```
-         Браузер (ты)
-              │
-              ▼
-     ┌────────────────┐
-     │   Flask app    │  ← app.py (31 строка) + 8 blueprints
-     └───────┬────────┘
-             │
-    ┌────────┼────────┬──────────────┐
-    │        │        │              │
-    ▼        ▼        ▼              ▼
-┌───────┐ ┌──────┐ ┌───────┐ ┌────────────┐
-│ iiko  │ │ JSON │ │Gemini │ │  Telegram  │
-│  API  │ │файлы │ │  AI   │ │    Bot     │
-└───────┘ └──────┘ └───────┘ └────────────┘
-```
+core/                    # Бизнес-логика
+├── iiko_api.py         # iiko authentication, cashshifts, сотрудники
+├── olap_reports.py     # OLAP отчёты (all_sales, beer, draft, kitchen)
+├── dashboard_analysis.py  # 15 метрик дашборда
+├── employee_analysis.py   # Метрики сотрудников
+├── kpi_calculator.py   # KPI бонусы
+├── plans_manager.py    # Планы выручки
+├── taps_manager.py     # Управление кранами
+├── abc_analysis.py     # ABC анализ
+├── xyz_analysis.py     # XYZ анализ
+└── ... (20+ модулей)
 
-**Модульная архитектура.** Проект разбит на Flask Blueprints — 8 модулей по функциональности (pages, analysis, employee, taps, stocks, dashboard, schedule, misc). `app.py` — всего 31 строка, только инициализация и регистрация blueprints.
+routes/                  # Flask blueprint'ы
+├── pages.py            # Статические страницы
+├── analysis.py         # ABC/XYZ, категории, разливное
+├── employee.py         # Сотрудники, сравнение, бонусы
+├── taps.py             # Краны API
+├── dashboard.py        # Дашборд API
+├── stocks.py           # Остатки API
+├── schedule.py         # График смен
+└── misc.py             # Тесты, wiki, Telegram
 
-## Файлы — Карта проекта
+templates/              # HTML шаблоны
+├── dashboard.html
+├── employee.html
+├── taps.html
+└── ...
 
-```
-beer-abc-analysis/
-├── app.py                 ← Точка входа (31 строка): Flask init + register blueprints
-├── config.py              ← Конфигурация (читает из .env)
-├── extensions.py          ← Общие синглтоны (менеджеры, кэши)
-├── routes/                ← Flask Blueprints (92 endpoint'а)
-│   ├── pages.py           ← 13 HTML-страниц
-│   ├── analysis.py        ← ABC/XYZ/категории/разливное
-│   ├── employee.py        ← Аналитика сотрудников, KPI, бонусы
-│   ├── taps.py            ← Управление кранами
-│   ├── stocks.py          ← Остатки и заказы
-│   ├── dashboard.py       ← План/Факт дашборд, экспорты
-│   ├── schedule.py        ← Расписание смен
-│   └── misc.py            ← Health check, wiki, тесты
-├── core/                  ← Бизнес-логика (22 модуля)
-│   ├── iiko_api.py        ← Подключение к iiko (авторизация, токены, кассовые смены)
-│   ├── olap_reports.py    ← OLAP-запросы (продажи, остатки, карты лояльности)
-│   ├── employee_analysis.py ← 12 метрик эффективности сотрудника
-│   ├── employee_plans.py  ← План/Факт сотрудников (по кассовым сменам)
-│   ├── abc_analysis.py    ← ABC-анализ (80/20 по выручке)
-│   ├── xyz_analysis.py    ← XYZ-анализ (стабильность спроса)
-│   ├── taps_manager.py    ← Управление пивными кранами
-│   ├── dashboard_analysis.py ← Метрики дашборда (план/факт по неделям)
-│   ├── plans_manager.py   ← Работа с планами из JSON
-│   ├── venues_manager.py  ← Управление заведениями
-│   ├── comparison_calculator.py ← Сравнение периодов
-│   ├── trends_analyzer.py ← Анализ трендов
-│   └── export_manager.py  ← Экспорт в PDF/Excel
-├── templates/             ← HTML-страницы (10 основных)
-├── data/                  ← JSON-данные (планы, маппинги, кеги)
-└── .claude/               ← Эта документация
+static/js/dashboard/    # JavaScript модули
+├── core/
+│   ├── state.js       # Централизованное состояние
+│   ├── api.js         # HTTP клиент
+│   └── utils.js
+├── modules/
+│   ├── analytics.js
+│   ├── charts.js
+│   ├── trends.js
+│   └── ... (15+ модулей)
 ```
 
-## Как работает — Поток данных
+### Данные
+- [`data/bar_plans.json`](../../data/bar_plans.json) — планы выручки по точкам на каждый день
+- [`data/kpi_targets.json`](../../data/kpi_targets.json) — KPI цели по месяцам
+- [`data/taps_data.json`](../../data/taps_data.json) — состояние кранов
+- [`data/plansdashboard.json`](../../data/plansdashboard.json) — планы для дашборда
 
-**Пример: "Покажи продажи Carlsberg за неделю"**
+---
 
-```python
-# 1. Браузер → Flask
-POST /api/analyze {"date_from": "2026-01-01", "date_to": "2026-01-07", "bar": "all"}
+## Как работает
 
-# 2. Flask → iiko API
-olap = OlapReports()
-olap.connect()  # Получаем токен (живёт 15 минут)
-data = olap.get_beer_sales_report(date_from, date_to, bar)
+### Архитектурная схема
 
-# 3. iiko возвращает XML/JSON с сырыми данными
-# 4. DataProcessor превращает в pandas DataFrame
-# 5. ABCAnalysis считает категории (A/B/C)
-# 6. Flask возвращает JSON → браузер рисует таблицу
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Frontend                                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ dashboard   │  │ employee    │  │ taps        │          │
+│  │ .html       │  │ .html       │  │ .html       │          │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘          │
+│         │                │                │                  │
+│  ┌──────┴────────────────┴────────────────┴──────┐          │
+│  │         JavaScript Modules (15+)              │          │
+│  │  state.js │ api.js │ charts.js │ trends.js   │          │
+│  └─────────────────────┬─────────────────────────┘          │
+└────────────────────────┼────────────────────────────────────┘
+                         │ HTTP/JSON API
+┌────────────────────────┼────────────────────────────────────┐
+│                      Backend                                 │
+│  ┌────────────────────┴─────────────────────────┐           │
+│  │        Flask App (app.py)                    │           │
+│  │  /api/dashboard-analytics                    │           │
+│  │  /api/employee-analytics                     │           │
+│  │  /api/taps/*                                 │           │
+│  │  /api/stocks/*                               │           │
+│  └────────────────────┬─────────────────────────┘           │
+│                       │                                      │
+│  ┌────────────────────┴─────────────────────────┐           │
+│  │        Routes (8 blueprints)                 │           │
+│  │  pages │ analysis │ employee │ taps │ ...    │           │
+│  └────────────────────┬─────────────────────────┘           │
+│                       │                                      │
+│  ┌────────────────────┴─────────────────────────┐           │
+│  │        Core (20+ модулей)                    │           │
+│  │  iiko_api.py │ olap_reports.py │ ...         │           │
+│  └────────────────────┬─────────────────────────┘           │
+└────────────────────────┼────────────────────────────────────┘
+                         │
+┌────────────────────────┼────────────────────────────────────┐
+│                 Внешние API                                  │
+│  ┌────────────────────┴─────────────────────────┐           │
+│  │  iiko API                                    │           │
+│  │  - auth (SHA-1)                              │           │
+│  │  - OLAP v2 (продажи)                         │           │
+│  │  - cashshifts v2 (смены)                     │           │
+│  │  - attendance (явки)                         │           │
+│  └──────────────────────────────────────────────┘           │
+│  ┌──────────────────────────────────────────────┐           │
+│  │  Честный ЗНАК API                            │           │
+│  │  - balance                                   │           │
+│  │  - search                                    │           │
+│  │  - expiring codes                            │           │
+│  └──────────────────────────────────────────────┘           │
+│  ┌──────────────────────────────────────────────┐           │
+│  │  Telegram Bot (aiogram)                      │           │
+│  └──────────────────────────────────────────────┘           │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Страницы приложения
+### Основные endpoint'ы
 
-| URL | Что делает |
-|-----|-----------|
-| `/` | Главная (редирект на /dashboard) |
-| `/dashboard` | План/Факт по неделям с AI-анализом |
-| `/packaging` | ABC/XYZ фасованного пива |
-| `/draft` | Анализ разливного (литры, кеги) |
-| `/employee` | 12 метрик эффективности барменов + сравнение |
-| `/taps` | Управление 60 пивными кранами |
-| `/stocks` | Остатки и заказы |
+#### Dashboard
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/dashboard-analytics` | POST | 15 метрик за период |
+| `/api/venues` | GET | Список заведений |
+| `/api/weeks` | GET | Недели для селектора |
+| `/api/plans/*` | GET/POST/DELETE | CRUD планов |
+| `/api/compare/periods` | POST | Сравнение периодов |
+| `/api/trends/:venue/:metric` | GET | Тренды по неделям |
+| `/api/export/excel` | POST | Экспорт в Excel |
+| `/api/export/pdf` | POST | Экспорт в PDF |
 
-## Технологии
+#### Сотрудники
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/employees` | GET | Список сотрудников |
+| `/api/employee-analytics` | POST | Детальная аналитика |
+| `/api/employee-compare` | POST | Сравнение нескольких |
+| `/api/bonus-calculate` | POST | Расчёт бонуса |
+| `/api/kpi-calculate` | POST | Расчёт KPI |
 
-| Что | Почему именно это |
-|-----|------------------|
-| Flask | Простой, хватает для наших задач |
-| pandas | Стандарт для таблиц, все знают |
-| iiko API | Единственный источник правды (POS) |
-| Gemini AI | Бесплатный tier, умеет в русский |
-| Render | Дешёвый хостинг с persistent disk |
+#### Краны
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/taps/bars` | GET | Список баров |
+| `/api/taps/:bar_id` | GET | Краны бара |
+| `/api/taps/:bar_id/start` | POST | Подключить кегу |
+| `/api/taps/:bar_id/stop` | POST | Остановить кран |
+| `/api/taps/:bar_id/replace` | POST | Заменить кегу |
+| `/api/taps/export-taplist` | GET | CSV экспорт |
+
+#### Анализ
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/analyze` | POST | ABC/XYZ анализ |
+| `/api/categories` | POST | Анализ по категориям |
+| `/api/draft-analyze` | POST | Анализ разливного |
+| `/api/waiter-analyze` | POST | Анализ по официантам |
+| `/api/discount-analyze` | POST | Анализ скидок |
+
+#### Остатки
+| Endpoint | Метод | Описание |
+|----------|-------|----------|
+| `/api/stocks/taplist` | GET | Кеги на кранах |
+| `/api/stocks/kitchen` | GET | Остатки кухни |
+| `/api/stocks/bottles` | GET | Фасовка |
+
+---
+
+## Зависимости
+
+### Внешние
+- **iiko API** — основные данные: продажи (OLAP), кассовые смены, сотрудники
+- **Честный ЗНАК API** — маркировка товаров, остатки, сроки годности
+- **Telegram Bot** — уведомления, виджет для Android
+
+### Внутренние
+```
+iiko API → core/iiko_api.py → core/olap_reports.py
+                ↓                    ↓
+        core/dashboard_analysis.py → routes/dashboard.py → Frontend
+        core/employee_analysis.py → routes/employee.py → Frontend
+        core/taps_manager.py → routes/taps.py → Frontend
+```
+
+---
 
 ## Changelog
 
-- 2026-03-21: Обновлена архитектура после рефакторинга (Flask Blueprints, routes/, extensions.py)
-- 2026-01-28: Добавлен employee_analysis.py в карту файлов, обновлены описания
-- 2026-01-26: Полностью переписан согласно CLAUDE.md
-- 2026-01-25: Создан placeholder
+- **2026-03-27** — Создан документ overview.md с полной архитектурой системы

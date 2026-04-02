@@ -8,6 +8,7 @@ import { getWeeks } from '../core/api.js';
 
 class WeekSelector {
     constructor() {
+        // Этих элементов может не быть в HTML (используется Flatpickr вместо селектора)
         this.selectElement = document.getElementById('week-selector');
         this.btnPrevWeek = document.getElementById('btn-prev-week');
         this.btnCurrentWeek = document.getElementById('btn-current-week');
@@ -25,6 +26,15 @@ class WeekSelector {
      */
     async init() {
         if (this.initialized) return;
+
+        // Если элементов нет в DOM - используем Flatpickr вместо селектора недель
+        if (!this.selectElement) {
+            console.log('[WeekSelector] Элементы не найдены, используем Flatpickr');
+            // Просто загружаем недели в state для использования другими модулями
+            await this.loadWeeks();
+            this.initialized = true;
+            return;
+        }
 
         try {
             await this.loadWeeks();
@@ -49,20 +59,33 @@ class WeekSelector {
 
             state.setWeeks(weeks);
 
-            // Добавляем опцию "Произвольный период"
-            weeks.push({
-                key: 'custom',
-                label: '📅 Произвольный период',
-                start: null,
-                end: null,
-                is_current: false
-            });
+            // Заполняем select только если он есть в DOM
+            if (this.selectElement) {
+                // Добавляем опцию "Произвольный период"
+                weeks.push({
+                    key: 'custom',
+                    label: '📅 Произвольный период',
+                    start: null,
+                    end: null,
+                    is_current: false
+                });
 
-            this.populateSelect(weeks);
+                this.populateSelect(weeks);
 
-            // Установить текущую неделю по умолчанию
-            if (currentWeek && !state.currentPeriod) {
-                this.selectWeek(currentWeek.key);
+                // Установить текущую неделю по умолчанию
+                if (currentWeek && !state.currentPeriod) {
+                    this.selectWeek(currentWeek.key);
+                }
+            } else {
+                // Если селектора нет, просто устанавливаем период из currentWeek
+                if (currentWeek && !state.currentPeriod) {
+                    state.setPeriod({
+                        key: currentWeek.key,
+                        start: currentWeek.start,
+                        end: currentWeek.end,
+                        label: currentWeek.label
+                    });
+                }
             }
 
         } finally {

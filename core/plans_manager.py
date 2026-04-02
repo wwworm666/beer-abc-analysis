@@ -311,6 +311,15 @@ class PlansManager:
                 # Сохраняем
                 self._write_file(data)
                 print(f"[PLANS] План успешно сохранен для периода: {period_key}")
+
+                # Авто-генерация ежедневных планов
+                try:
+                    from core.daily_plans_generator import regenerate_daily_plans
+                    regenerate_daily_plans()
+                    print(f"[PLANS] Ежедневные планы пересчитаны")
+                except Exception as e:
+                    print(f"[PLANS WARN] Не удалось пересчитать ежедневные планы: {e}")
+
                 return True
 
             except ValueError as e:

@@ -36,6 +36,12 @@ class Analytics {
 
         this.setupEventListeners();
         this.initialized = true;
+
+        // Если период и заведение уже установлены - загружаем данные сразу
+        if (state.currentVenue && state.currentPeriod) {
+            console.log('[Analytics] Период и заведение уже установлены, загружаем данные...');
+            this.loadAnalytics();
+        }
     }
 
     /**

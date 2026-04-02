@@ -1,262 +1,447 @@
-# Design System — Warm Minimalism 2026
+# Дизайн-система Beer ABC Analysis
 
 ## Что это
 
-Единая дизайн-система для всех страниц проекта. Определяет: какие CSS подключать, как вставлять навигацию, какие переменные использовать, и как собрать новую страницу за 5 минут. Появилась в марте 2026 после унификации 12 страниц к стилю дашборда.
+Единая дизайн-система для всех страниц приложения. Основана на принципах **тёплого минимализма** с финтех-эстетикой 2026 года.
+
+## Философия
+
+- **Тёплые тона** — кремовые фоны, терракотовый акцент
+- **Моноширинный шрифт** — IBM Plex Mono для всей типографики
+- **Минимализм** — только необходимые элементы, никаких декоративных украшений
+- **Плавные переходы** — 150-200ms cubic-bezier для всех анимаций
+- **Щедрые отступы** — воздух между элементами
+
+---
+
+## Запрещено (Anti-patterns)
+
+**Никогда не использовать:**
+
+| Запрет | Почему | Чем заменить |
+|--------|--------|--------------|
+| 🚫 Смайлики/эмодзи в UI | Непрофессионально, не соответствует финтех-стилю | Текстовые иконки, SVG |
+| 🚫 Пёстрые цветные надписи | Визуальный шум, трудно читать | Только статусные цвета (success/warning/danger) |
+| 🚫 Градиенты на тексте | Выглядит дешево, плохая читаемость | Сплошные цвета из палитры |
+| 🚫 Более 3 цветов в компоненте | Нарушает минимализм | 1 основной + 1 акцент + 1 статусный |
+| 🚫 Случайные HEX-цвета | Ломает консистентность | Только CSS переменные (`var(--name)`) |
+| 🚫 Декоративные иконки без функции | Визуальный мусор | Только функциональные элементы |
+
+**Правило:** Если элемент не несёт функциональной нагрузки — удалить.
+
+---
 
 ## Файлы
 
-### CSS стек (подключать в этом порядке)
-
 ```
 static/dashboard/styles/
-├── fonts.css       ← @font-face IBM Plex Mono (400, 500, 600, 700)
-├── variables.css   ← :root переменные + [data-theme="dark"]
-├── base.css        ← Reset, body, .container, .btn, input/select, .api-status, .theme-toggle
-├── sidebar.css     ← Sidebar panel, backdrop, .header-bar, responsive
-└── mobile.css      ← Mobile breakpoints
-
-static/
-├── logo.css        ← Typewriter logo animation (> kultura.os_)
-└── logo.js         ← Typewriter effect для .header-bar-logo .logo-text
+├── variables.css      ← CSS переменные (цвета, отступы, радиусы)
+├── fonts.css          ← Подключение IBM Plex Mono
+├── base.css           ← Базовые стили, кнопки, инпуты
+├── cards.css          ← Карточки метрик и компонентов
+├── charts.css         ← Графики и визуализации
+├── tabs.css           ← Табы и навигация
+├── sidebar.css        ← Боковая панель
+├── mobile.css         ← Адаптивность
+└── animations.css     ← Анимации
 ```
 
-### Навигация
-
-```
-templates/shared/nav.html   ← Sidebar + Header Bar + Theme JS + Active Link Detection
-```
-
-## Как собрать новую страницу
-
-### Минимальный скелет
-
-```html
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Название — Beer Analytics</title>
-
-    <!-- Shared CSS (ПОРЯДОК ВАЖЕН) -->
-    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/logo.css">
-
-    <!-- Page-specific CSS (только уникальные стили страницы) -->
-    <style>
-        .my-card { ... }
-    </style>
-</head>
-<body>
-    <div class="container">
-        {% set page_title = "Название" %}
-        {% set page_subtitle = "Краткое описание" %}
-        {% include 'shared/nav.html' %}
-
-        <!-- Контент страницы -->
-        <div class="card">
-            ...
-        </div>
-    </div>
-
-    <script>
-        // API check (обязательно)
-        window.dashboardCheckApi = async function() {
-            const statusElement = document.getElementById('api-status');
-            const textElement = statusElement.querySelector('.api-status-text');
-            statusElement.className = 'api-status checking';
-            textElement.textContent = 'Проверка подключения...';
-            try {
-                const response = await fetch('/api/connection-status');
-                const data = await response.json();
-                if (response.ok && data.status === 'connected') {
-                    statusElement.className = 'api-status connected';
-                    textElement.textContent = 'iiko API подключен';
-                } else {
-                    statusElement.className = 'api-status error';
-                    textElement.textContent = 'Ошибка подключения';
-                }
-            } catch (error) {
-                statusElement.className = 'api-status error';
-                textElement.textContent = 'Ошибка подключения';
-            }
-        };
-
-        document.addEventListener('DOMContentLoaded', function() {
-            window.dashboardCheckApi();
-            setInterval(window.dashboardCheckApi, 60000);
-        });
-
-        // ... остальная логика страницы
-    </script>
-    <script src="/static/logo.js"></script>
-</body>
-</html>
-```
-
-### Что даёт nav.html автоматически
-
-При `{% include 'shared/nav.html' %}` ты получаешь:
-
-1. **Sidebar** — боковая панель с навигацией (все 11 ссылок)
-2. **Header Bar** — `[кнопка меню] [page_title / page_subtitle] [> kultura.os_]`
-3. **Theme toggle** — переключатель светлая/темная в sidebar footer
-4. **API status** — индикатор подключения к iiko в sidebar footer
-5. **Active link detection** — текущая страница подсвечивается автоматически по `window.location.pathname`
-6. **Keyboard shortcuts** — `M` открывает/закрывает sidebar, `Esc` закрывает
-7. **`window.dashboardSetTheme(theme)`** — глобальная функция переключения темы
-8. **Saved theme** — тема сохраняется в localStorage и применяется при загрузке
-
-### Переменные для nav.html
-
-```jinja2
-{% set page_title = "Название" %}        {# обязательно #}
-{% set page_subtitle = "Подзаголовок" %}  {# опционально #}
-{% include 'shared/nav.html' %}
-```
+---
 
 ## Цветовая палитра
 
 ### Light Theme
 
 | Переменная | Значение | Назначение |
-|-----------|---------|-----------|
-| `--bg-primary` | `#FAF9F7` | Фон страницы (теплый кремовый) |
+|------------|----------|------------|
+| `--bg-primary` | `#FAF9F7` | Основной фон страницы |
 | `--bg-secondary` | `#FFFFFF` | Фон карточек |
-| `--bg-tertiary` | `#F4F3F0` | Hover, вложенные блоки |
+| `--bg-tertiary` | `#F4F3F0` | Фон hover-состояний |
 | `--text-primary` | `#1a1a1a` | Основной текст |
-| `--text-secondary` | `#666666` | Вторичный текст |
-| `--text-tertiary` | `#999999` | Подписи, hints |
-| `--accent` | `#D97757` | Терракотовый акцент |
-| `--accent-hover` | `#C2664A` | Hover акцента |
-| `--accent-light` | `#F5E8E3` | Светлый фон для акцента |
-| `--border-color` | `#E8E6E3` | Границы |
-| `--success` | `#059669` | Зеленый (OK, рост) |
-| `--warning` | `#D97706` | Желтый (внимание) |
-| `--danger` | `#DC2626` | Красный (ошибка, падение) |
+| `--text-secondary` | `#666666` | Вторичный текст, лейблы |
+| `--text-tertiary` | `#999999` | Подписи, placeholder |
+| `--accent` | `#D97757` | **Терракотовый акцент** |
+| `--accent-hover` | `#C2664A` | Акцент при наведении |
+| `--border-color` | `#E8E6E3` | Границы элементов |
 
 ### Dark Theme
 
-Активируется через `[data-theme="dark"]`. Фоны — теплые темно-коричневые (НЕ чистый черный):
-- `--bg-primary: #1C1917`
-- `--bg-secondary: #292524`
-- `--accent: #E89779` (светлее для контраста)
+| Переменная | Значение | Назначение |
+|------------|----------|------------|
+| `--bg-primary` | `#1C1917` | Тёмный тёплый фон |
+| `--bg-secondary` | `#292524` | Фон карточек |
+| `--text-primary` | `#FAF9F7` | Светлый текст |
+| `--accent` | `#E89779` | Светлый терракотовый |
+
+### Статусы
+
+```css
+--success: #059669;     /* Зелёный */
+--warning: #D97706;     /* Янтарный */
+--danger: #DC2626;      /* Красный */
+```
+
+---
 
 ## Типографика
 
-- **Шрифт:** IBM Plex Mono (400, 500, 600, 700)
-- **Размер:** 15px base, line-height 1.6
-- **Подход:** Моноширинный шрифт = финтех-эстетика, "командная строка"
+### Шрифт
 
-## Ключевые компоненты
+```css
+font-family: 'IBM Plex Mono', 'Courier New', monospace;
+```
 
-### Карточка `.card`
+### Иерархия
+
+| Элемент | Размер | Вес | Трекинг |
+|---------|--------|-----|---------|
+| H1 | `3rem` | 700 | `0.02em` |
+| H2 | `1.75rem` | 700 | `-0.01em` |
+| H3 | `1.1rem` | 600 | `-0.01em` |
+| Label | `0.85rem` | 600 | `0.05em` (uppercase) |
+| Body | `15px` | 400 | normal |
+| Small | `0.75rem` | 500-600 | `0.05em` (uppercase) |
+
+### Числа
+
+```css
+font-variant-numeric: tabular-nums;  /* Табличные цифры для выравнивания */
+letter-spacing: -0.02em;  /* Плотный трекинг для крупных чисел */
+```
+
+---
+
+## Компоненты
+
+### Карточка (Card)
 
 ```css
 .card {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: 8px;        /* или var(--border-radius) = 24px для dashboard */
+    border-radius: 24px;           /* --border-radius */
     padding: 32px;
-    margin-bottom: 24px;
+    transition: all 0.2s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 12px var(--shadow);
+    transform: translateY(-2px);
 }
 ```
 
-### Кнопка `.btn`
+**Требования:**
+- Всегда белый/тёмный фон
+- Тонкая граница 1px
+- Большие радиусы 24px
+- Hover-эффект с подъёмом
+
+### Кнопка (Button)
 
 ```css
-/* base.css уже определяет .btn с pill-shape */
 .btn {
     background: var(--accent);
     color: white;
-    border-radius: var(--border-radius-pill);  /* 999px */
+    border: none;
     padding: 14px 28px;
+    border-radius: 999px;          /* Pill-shape */
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 ```
 
-Если нужна менее "pill" кнопка, переопредели `border-radius: 6px` в page-specific стилях.
+**Варианты:**
+- `.btn` — первичная (терракотовая)
+- `.btn-secondary` — вторичная (серый фон)
+
+### Инпуты (Form Controls)
+
+```css
+input, select {
+    padding: 12px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 24px;           /* --border-radius */
+    font-size: 0.95rem;
+    font-family: var(--font-family);
+    background: var(--bg-secondary);
+    transition: all 0.15s ease;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+```
+
+**Label:**
+```css
+label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+```
+
+### Метрика (Metric Card)
+
+```css
+.metric-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 20px;
+    transition: all 0.15s ease;
+}
+
+.metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+}
+```
+
+**Структура:**
+```
+┌────────────────────────┐
+│ Name          [● color]│  ← status-indicator
+│ ────────────────────── │
+│    1 234 567 ₽         │  ← metric-value (30px, 700)
+│ ────────────────────── │
+│ [████████░░]  78%      │  ← progress-bar + footer
+│            план 500к   │
+└────────────────────────┘
+```
 
 ### Таблица
 
 ```css
-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-thead { border-bottom: 2px solid var(--border-color); }
-th { text-align: left; padding: 12px 16px; color: var(--text-secondary);
-     text-transform: uppercase; font-size: 0.8rem; }
-td { padding: 16px; border-bottom: 1px solid var(--border-color); }
-```
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
 
-### Flatpickr (выбор дат)
+thead {
+    border-bottom: 2px solid var(--border-color);
+}
 
-Подключай CDN в `<head>`:
-```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
-```
+th {
+    text-align: left;
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
 
-Dark theme стили для flatpickr (добавь в page-specific `<style>`):
-```css
-.flatpickr-calendar { border-radius: 6px; border: 1px solid var(--border-color); }
-[data-theme="dark"] .flatpickr-calendar { background: var(--bg-secondary); }
-[data-theme="dark"] .flatpickr-day { color: var(--text-primary); }
-.flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange {
-    background: var(--accent) !important; border-color: var(--accent) !important;
+td {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+tr:hover {
+    background: var(--bg-tertiary);
 }
 ```
 
-## Ловушки и антипаттерны
+### Badge (статусы ABC/XYZ)
 
-### Jinja2 внутри HTML-комментариев
+```css
+.badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
 
-**НИКОГДА** не пиши `{% %}` внутри `<!-- -->`. Jinja2 обрабатывает шаблонные теги ДАЖЕ внутри HTML-комментариев. Используй Jinja2 комментарии: `{# ... #}`.
+/* ABC цвета */
+.badge.aaa, .badge.aab, .badge.aac { background: var(--success); color: white; }
+.badge.aba, .badge.abb, .badge.abc { background: var(--accent); color: white; }
+.badge.baa, .badge.bab, .badge.bac { background: var(--warning); color: white; }
+.badge.ccc { background: var(--danger); color: white; }
 
-Мы словили бесконечную рекурсию (`RecursionError: maximum recursion depth exceeded`) из-за:
-```html
-<!-- Usage: {% include 'shared/nav.html' %} -->   <-- СЛОМАЕТ ВСЕ
-{# Usage: include 'shared/nav.html' #}            <-- правильно
+/* XYZ цвета */
+.badge.x { background: var(--success); color: white; }
+.badge.y { background: var(--accent); color: white; }
+.badge.z { background: var(--danger); color: white; }
 ```
 
-### `checkApiConnection` -> `window.dashboardCheckApi`
+### Tooltip
 
-Все страницы должны определять и вызывать `window.dashboardCheckApi()`. Старое имя `checkApiConnection()` не существует. Если JS упадет на вызове несуществующей функции, весь остальной код в DOMContentLoaded (включая flatpickr init) не выполнится.
+```css
+.tooltip-wrapper {
+    position: relative;
+    display: inline-block;
+}
 
-### Порядок скриптов
+.tooltip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-secondary);
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow);
+    font-size: 0.85rem;
+    transition: opacity 0.2s ease;
+}
 
-1. Сначала `{% include 'shared/nav.html' %}` (определяет `window.dashboardSetTheme`)
-2. Потом page-specific `<script>` (определяет `window.dashboardCheckApi`)
-3. В конце `<script src="/static/logo.js"></script>` (typewriter эффект)
+.tooltip-wrapper:hover .tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+```
 
-### Container обязателен
+---
 
-Весь контент должен быть внутри `<div class="container">`. Без него header-bar не получит `max-width: 1400px` и padding.
+## Layout
 
-## Текущие страницы
+### Container
 
-| Route | Template | page_title | page_subtitle |
-|-------|----------|-----------|---------------|
-| `/` | `dashboard/base.html` | Дашборд | Выручка, средний чек, эффективность смен |
-| `/packaging` | `index.html` | ABC/XYZ анализ | Классификация ассортимента по выручке и стабильности |
-| `/draft` | `draft.html` | Анализ проливов | Контроль потерь разливного пива |
-| `/discounts` | `discounts.html` | Анализ акций | ROI скидок, сегментация гостей, эффективность промо |
-| `/waiters` | `waiters.html` | Анализ проливов по барменам | Сравнение продаж |
-| `/employee` | `employee.html` | Дашборд сотрудника | Персональная аналитика по всем метрикам |
-| `/bonus` | `bonus.html` | Расчёт премий | Мотивация по плану выручки и KPI |
-| `/schedule` | `schedule.html` | График | Расписание, нагрузка, подмены |
-| `/taps` | `taps.html` | Мониторинг кранов | Ротация сортов, остатки кег, простои |
-| `/stocks` | `stocks.html` | Заказы и остатки | Стоки, заказы, оборачиваемость |
-| `/taps/main` | `taps_main.html` | Мониторинг кранов | Активность и простои по барам |
-| `/taps/<bar>` | `taps_bar.html` | Краны -- {{ bar_name }} | Ротация и управление кранами бара |
-| `/wiki` | `wiki.html` | Вики | Документация и справочные материалы |
+```css
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+```
+
+### Сетка карточек
+
+```css
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+/* Адаптивность */
+@media (max-width: 1400px) { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 640px) { grid-template-columns: 1fr; }
+```
+
+### Отступы (Spacing)
+
+```css
+--spacing-xs: 6px;
+--spacing-sm: 12px;
+--spacing-md: 20px;
+--spacing-lg: 32px;
+--spacing-xl: 48px;
+--spacing-xxl: 64px;
+```
+
+---
+
+## Анимации
+
+### Переходы
+
+```css
+transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);  /* fast */
+transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);   /* base */
+```
+
+### Hover-эффекты
+
+```css
+/* Подъём карточки */
+transform: translateY(-2px);
+
+/* Тень */
+box-shadow: 0 4px 12px rgba(26, 26, 26, 0.08);
+
+/* Масштаб для компактных элементов */
+transform: scale(1.02);
+```
+
+### Spinner
+
+```css
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+```
+
+---
+
+## Адаптивность
+
+### Breakpoints
+
+| Breakpoint | Значение | Что меняется |
+|------------|----------|--------------|
+| Mobile | `≤640px` | 1 колонка, уменьшенные шрифты |
+| Tablet | `≤1024px` | 2 колонки в сетках |
+| Desktop | `≤1400px` | 3 колонки в сетках |
+| Large | `>1400px` | 4+ колонок, max-width контейнер |
+
+### Mobile-first правила
+
+1. Таблицы — горизонтальный скролл
+2. Карточки — на всю ширину
+3. Кнопки — 100% ширины
+4. Шрифты — на 10-15% меньше
+
+---
+
+## Theme Toggle
+
+Переключение тем через атрибут на `<html>`:
+
+```html
+<html data-theme="dark">
+```
+
+```css
+[data-theme="dark"] {
+    /* Тёмные переменные */
+}
+```
+
+---
 
 ## Changelog
 
-- 2026-03-17: Добавлена страница /wiki в таблицу маршрутов + ссылка «Вики» в sidebar
-- 2026-03-17: Создан design-system.md -- полный гайд по дизайн-системе
-- 2026-03-17: Унификация всех 12 страниц к warm minimalism, создание shared/nav.html
+### 2026-04-01 — Создание дизайн-системы
+
+**Что:** Документирование дизайн-системы на основе dashboard.html
+
+**Почему:** Требовалось создать единый источник истины для новых страниц
+
+**Файлы:**
+- `.claude/docs/design-system.md` (создан)
+- `static/dashboard/styles/*.css` (документированы)
+
+**Как применять:**
+1. При создании новой страницы использовать компоненты из этого документа
+2. Не изобретать новые стили — использовать существующие переменные
+3. Для новых компонентов расширять эту систему, а не дублировать

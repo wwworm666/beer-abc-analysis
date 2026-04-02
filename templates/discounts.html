@@ -107,56 +107,74 @@
 
         /* Metric cards grid — compact, one row */
         .metrics-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 16px;
             margin-bottom: 24px;
         }
 
         .metric-card {
-            flex: 1 1 0;
-            min-width: 130px;
             background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: var(--border-radius);
-            padding: 14px 16px;
-            transition: all 0.2s ease;
-            border-left: 3px solid var(--accent);
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.15s ease;
+            min-height: 100px;
         }
 
         .metric-card:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 3px 8px var(--shadow);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(26, 26, 26, 0.08);
         }
 
         .metric-card .metric-name {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
+            font-weight: 700;
             color: var(--text-secondary);
-            font-weight: 500;
-            margin-bottom: 4px;
-            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            line-height: 1.2;
+            white-space: normal;
         }
 
         .metric-card .metric-value {
-            font-size: 1.25rem;
+            font-size: 1.75rem;
             font-weight: 700;
             color: var(--text-primary);
             font-variant-numeric: tabular-nums;
+            line-height: 1;
         }
 
         .metric-card .metric-unit {
             font-size: 0.75rem;
             color: var(--text-tertiary);
-            margin-left: 2px;
+            margin-left: 4px;
             font-weight: 400;
+        }
+
+        /* Metric grid responsive */
+        @media (max-width: 1400px) {
+            .metrics-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        @media (max-width: 1024px) {
+            .metrics-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
         }
 
         /* Section title */
         .section-title {
-            font-size: 1.1rem;
+            font-size: 0.85rem;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
             margin: 32px 0 16px 0;
-            color: var(--text-primary);
         }
 
         /* Tables */
@@ -261,12 +279,32 @@
 
         input[readonly] { cursor: pointer; }
 
-        /* ROI accent colors */
-        .metric-card.roi-base { border-left-color: var(--text-tertiary); }
-        .metric-card.roi-revenue { border-left-color: var(--success); }
-        .metric-card.roi-discount { border-left-color: var(--danger); }
-        .metric-card.roi-depth { border-left-color: var(--warning); }
-        .metric-card.roi-check { border-left-color: var(--accent); }
+        /* RFM segment badges */
+        .segment-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .segment-badge.champions { background: rgba(16, 185, 129, 0.1); color: #059669; border-color: rgba(16, 185, 129, 0.2); }
+        .segment-badge.loyal { background: rgba(59, 130, 246, 0.1); color: #2563eb; border-color: rgba(59, 130, 246, 0.2); }
+        .segment-badge.at-risk { background: rgba(249, 115, 22, 0.1); color: #ea580c; border-color: rgba(249, 115, 22, 0.2); }
+        .segment-badge.churned { background: rgba(239, 68, 68, 0.1); color: #dc2626; border-color: rgba(239, 68, 68, 0.2); }
+        .segment-badge.new { background: rgba(139, 92, 246, 0.1); color: #7c3aed; border-color: rgba(139, 92, 246, 0.2); }
+        .segment-badge.potential { background: rgba(6, 182, 212, 0.1); color: #0891b2; border-color: rgba(6, 182, 212, 0.2); }
+        .segment-badge.regular { background: var(--bg-tertiary); color: var(--text-secondary); border-color: var(--border-color); }
+
+        /* Legacy segment indicators (for visit-based segmentation) */
+        .segment-indicator.new { background: #6366f1; }
+        .segment-indicator.returning { background: #f59e0b; }
+        .segment-indicator.regular { background: #10b981; }
 
         /* Segmentation section */
         .segmentation-section {
@@ -349,9 +387,19 @@
         .flatpickr-day.inRange { background: rgba(217,119,87,0.15) !important; border-color: transparent !important; box-shadow: -5px 0 0 rgba(217,119,87,0.15), 5px 0 0 rgba(217,119,87,0.15); }
         [data-theme="dark"] .flatpickr-day.inRange { background: rgba(217,119,87,0.25) !important; box-shadow: -5px 0 0 rgba(217,119,87,0.25), 5px 0 0 rgba(217,119,87,0.25); }
 
+        /* RFM Filters Row */
+        #rfm-filters.controls-row {
+            grid-template-columns: 1fr 1fr 1fr auto;
+            background: var(--bg-tertiary);
+            padding: 16px 24px;
+            border-radius: var(--border-radius);
+            border: 1px solid var(--border-color);
+        }
+
         /* Responsive */
         @media (max-width: 1024px) {
             .controls-row { grid-template-columns: 1fr 1fr; }
+            #rfm-filters.controls-row { grid-template-columns: 1fr 1fr; }
             .metrics-grid { gap: 8px; }
             .metric-card { min-width: 120px; }
         }
@@ -371,6 +419,192 @@
         @media (max-width: 480px) {
             .metric-card .metric-value { font-size: 1rem; }
         }
+
+        /* Mode Switcher */
+        .mode-switcher {
+            display: inline-flex;
+            background: var(--bg-tertiary);
+            border-radius: var(--border-radius-pill);
+            padding: 4px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mode-btn {
+            padding: 10px 24px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.9rem;
+            border-radius: var(--border-radius-pill);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font-family);
+        }
+
+        .mode-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .mode-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Hidden utility */
+        .hidden {
+            display: none !important;
+        }
+
+        /* RFM Segment Cards Row */
+        .segment-cards-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .segment-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            padding: 24px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            min-height: 100px;
+            cursor: pointer;
+        }
+
+        .segment-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(26, 26, 26, 0.12);
+            border-color: var(--accent);
+        }
+
+        .segment-card.active {
+            border-color: var(--accent);
+            background: rgba(217, 119, 87, 0.04);
+        }
+
+        .segment-card .name {
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            line-height: 1.2;
+        }
+
+        .segment-card .count {
+            font-size: 2.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+
+        .segment-card .percent {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+
+        /* Segment Card Tooltip */
+        .segment-card {
+            position: relative;
+        }
+
+        .segment-card .tooltip-text {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            font-size: 0.75rem;
+            line-height: 1.4;
+            text-align: center;
+            white-space: nowrap;
+            z-index: 100;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
+        }
+
+        .segment-card .tooltip-text::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border: 5px solid transparent;
+            border-top-color: var(--border-color);
+        }
+
+        .segment-card:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Visualization Tabs */
+        .visualization-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .tab-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            transition: all 0.2s;
+            font-family: var(--font-family);
+        }
+
+        .tab-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 1024px) {
+            .segment-cards-row { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .segment-cards-row { grid-template-columns: repeat(2, 1fr); }
+            .mode-switcher { flex-direction: column; }
+            .mode-btn { width: 100%; text-align: center; }
+        }
     </style>
 </head>
 <body>
@@ -379,7 +613,18 @@
         {% set page_subtitle = "ROI скидок, сегментация гостей, эффективность промо" %}
         {% include 'shared/nav.html' %}
 
-        <div class="dashboard-controls">
+        <!-- Mode Switcher -->
+        <div class="mode-switcher">
+            <button class="mode-btn active" data-mode="discounts" onclick="switchMode('discounts')">
+                Скидки
+            </button>
+            <button class="mode-btn" data-mode="rfm" onclick="switchMode('rfm')">
+                RFM-сегментация
+            </button>
+        </div>
+
+        <!-- Discount Mode Controls -->
+        <div class="dashboard-controls" id="discount-controls">
             <div class="controls-row">
                 <div class="control-group">
                     <label for="bar-select">Бар</label>
@@ -407,6 +652,71 @@
                     <button class="btn" id="btn-load" onclick="loadData()">Анализировать</button>
                 </div>
             </div>
+
+            <!-- RFM Filters -->
+            <div class="controls-row" id="rfm-filters" style="margin-top: 16px; display: none;">
+                <div class="control-group">
+                    <label for="segment-filter">Сегмент</label>
+                    <select id="segment-filter" class="control-input" onchange="applyFilters()">
+                        <option value="all">Все сегменты</option>
+                        <option value="CHAMPIONS">Чемпионы</option>
+                        <option value="CHURNED">Ушедшие</option>
+                        <option value="AT_RISK">В риске</option>
+                        <option value="NEW">Новички</option>
+                        <option value="LOYAL">Лояльные</option>
+                        <option value="POTENTIAL">Потенциальные</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="recency-filter">Recency</label>
+                    <select id="recency-filter" class="control-input" onchange="applyFilters()">
+                        <option value="all">Любой</option>
+                        <option value="0-7">0-7 дней (Активные)</option>
+                        <option value="8-14">8-14 дней</option>
+                        <option value="15-30">15-30 дней</option>
+                        <option value="31-60">31-60 дней</option>
+                        <option value="60+">60+ дней (Ушедшие)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="frequency-filter">Частота</label>
+                    <select id="frequency-filter" class="control-input" onchange="applyFilters()">
+                        <option value="all">Любая</option>
+                        <option value="3+">3+ раз/нед (VIP)</option>
+                        <option value="2-3">2-3 раза/нед</option>
+                        <option value="1-2">1-2 раза/нед</option>
+                        <option value="0-1">&lt;1 раза/нед</option>
+                    </select>
+                </div>
+
+                <div class="control-group" style="justify-content: flex-end; padding-bottom: 2px;">
+                    <button class="btn" onclick="clearFilters()" style="background: var(--bg-tertiary); color: var(--text-primary);">Сбросить</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RFM Mode Controls -->
+        <div class="dashboard-controls hidden" id="rfm-controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="rfm-date-range">Период</label>
+                    <input type="text" id="rfm-date-range" class="control-input" placeholder="Выберите период" readonly>
+                </div>
+                <div class="control-group">
+                    <label for="rfm-bar-select">Бар</label>
+                    <select id="rfm-bar-select" class="control-input">
+                        <option value="">Все бары</option>
+                        {% for bar in bars %}
+                        <option value="{{ bar }}">{{ bar }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="control-group" style="justify-content: flex-end;">
+                    <button class="btn" id="btn-rfm-load" onclick="loadRfmData()">Обновить</button>
+                </div>
+            </div>
         </div>
 
         <div class="error-msg" id="error-message"></div>
@@ -417,7 +727,23 @@
             <p>Это может занять несколько секунд</p>
         </div>
 
-        <div class="results" id="results"></div>
+        <!-- Discount Mode Results -->
+        <div class="results" id="discount-results"></div>
+
+        <!-- RFM Mode Results -->
+        <div class="results hidden" id="rfm-results">
+            <!-- RFM Segment Cards -->
+            <div class="segment-cards-row" id="rfm-segment-cards"></div>
+
+            <!-- RFM Metrics -->
+            <div class="metrics-grid" id="rfm-metrics"></div>
+
+            <!-- RFM Guests Table with Filters -->
+            <div class="table-card" id="rfm-guests-table"></div>
+
+            <!-- RFM Visualizations (Tabs) -->
+            <div class="table-card" id="rfm-visualizations" style="margin-top: 24px;"></div>
+        </div>
     </div>
 
     <!-- Modal -->
@@ -476,12 +802,103 @@
             return { from: fmt(datePicker.selectedDates[0]), to: fmt(datePicker.selectedDates[1]) };
         }
 
+        function initRfmDatePicker() {
+            const today = new Date();
+            const startOfYear = new Date(today.getFullYear(), 0, 1);
+            rfmDatePicker = flatpickr('#rfm-date-range', {
+                mode: 'range',
+                dateFormat: 'd.m.Y',
+                locale: 'ru',
+                maxDate: '2026-12-31',
+                defaultDate: [startOfYear, today],
+                onChange: function(selectedDates, dateStr, instance) {
+                    console.log('[RFM DatePicker] Selected:', dateStr);
+                }
+            });
+            console.log('[RFM] Date picker initialized, default dates:', startOfYear, today);
+        }
+
+        function getRfmPickerDates() {
+            if (!rfmDatePicker || !rfmDatePicker.selectedDates || rfmDatePicker.selectedDates.length < 2) {
+                showError('Выберите период для RFM-анализа');
+                return null;
+            }
+            const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            return { from: fmt(rfmDatePicker.selectedDates[0]), to: fmt(rfmDatePicker.selectedDates[1]) };
+        }
+
+        // === Mode Switcher ===
+        let currentMode = 'discounts';
+        let rfmDatePicker = null;
+        let rfmAllData = null;
+
+        function switchMode(mode) {
+            console.log('[Mode] switchMode called with:', mode);
+            currentMode = mode;
+
+            // Update buttons
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === mode);
+            });
+
+            // Show/hide controls
+            const discountControls = document.getElementById('discount-controls');
+            const rfmControls = document.getElementById('rfm-controls');
+            const rfmFilters = document.getElementById('rfm-filters');
+            const discountResults = document.getElementById('discount-results');
+            const rfmResults = document.getElementById('rfm-results');
+
+            if (discountControls) discountControls.classList.toggle('hidden', mode !== 'discounts');
+            if (rfmControls) rfmControls.classList.toggle('hidden', mode !== 'rfm');
+            if (rfmFilters) rfmFilters.classList.toggle('hidden', true);
+            if (discountResults) {
+                discountResults.classList.toggle('hidden', mode !== 'discounts');
+                discountResults.classList.toggle('active', mode === 'discounts');
+            }
+            if (rfmResults) {
+                rfmResults.classList.toggle('hidden', mode !== 'rfm');
+                rfmResults.classList.toggle('active', mode === 'rfm');
+            }
+
+            // Hide error message when switching
+            const errorEl = document.getElementById('error-message');
+            if (errorEl) errorEl.classList.remove('active');
+
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.set('mode', mode);
+            window.history.pushState({}, '', url);
+
+            console.log('[Mode] URL updated, mode:', mode);
+
+            // Initialize RFM date picker on first switch
+            if (mode === 'rfm' && !rfmDatePicker) {
+                console.log('[Mode] Initializing RFM date picker');
+                initRfmDatePicker();
+            }
+        }
+
         // === Init ===
         document.addEventListener('DOMContentLoaded', function() {
-            window.dashboardCheckApi();
-            setInterval(window.dashboardCheckApi, 60000);
-            initDatePicker();
-            loadDiscountNames();
+            console.log('[Init] DOMContentLoaded');
+            try {
+                window.dashboardCheckApi();
+                setInterval(window.dashboardCheckApi, 60000);
+                initDatePicker();
+                console.log('[Init] DatePicker initialized');
+                loadDiscountNames();
+                console.log('[Init] Discount names loading started');
+
+                // Initialize mode from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const initialMode = urlParams.get('mode') || 'discounts';
+                console.log('[Init] Initial mode:', initialMode);
+                if (initialMode === 'rfm') {
+                    switchMode('rfm');
+                }
+            } catch (e) {
+                console.error('[Init] Error during initialization:', e);
+            }
         });
 
         // === Load discount names on page open (light query) ===
@@ -511,7 +928,7 @@
             if (!dates) { showError('Выберите период'); return; }
 
             document.getElementById('loading').classList.add('active');
-            document.getElementById('results').classList.remove('active');
+            document.getElementById('discount-results').innerHTML = '';
             document.getElementById('error-message').classList.remove('active');
             document.getElementById('btn-load').disabled = true;
 
@@ -527,10 +944,12 @@
                 }
                 allData = await response.json();
 
-                // Показываем результат
+                // Показываем результат режима Скидки
                 if (bar) {
-                    displayGuestResults(discountName);
+                    // Конкретный бар — таблица гостей
+                    displayDiscountResults(discountName, bar);
                 } else {
+                    // Все бары — сводка по барам
                     displayStoresSummary(discountName);
                 }
             } catch (error) {
@@ -539,6 +958,110 @@
                 document.getElementById('loading').classList.remove('active');
                 document.getElementById('btn-load').disabled = false;
             }
+        }
+
+        // === Load RFM Data ===
+        async function loadRfmData() {
+            console.log('[RFM] loadRfmData called');
+            console.log('[RFM] rfmDatePicker:', rfmDatePicker);
+            console.log('[RFM] selectedDates:', rfmDatePicker?.selectedDates);
+
+            const bar = document.getElementById('rfm-bar-select').value;
+            const dates = getRfmPickerDates();
+            if (!dates) {
+                console.log('[RFM] No dates selected');
+                return;
+            }
+            console.log('[RFM] Dates:', dates);
+
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('rfm-results').innerHTML = '';
+            document.getElementById('error-message').classList.remove('active');
+            document.getElementById('btn-rfm-load').disabled = true;
+
+            try {
+                const response = await fetch('/api/rfm-analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bar: bar || null, date_from: dates.from, date_to: dates.to })
+                });
+                console.log('[RFM] Response status:', response.status);
+                if (!response.ok) {
+                    const err = await response.json();
+                    console.error('[RFM] Server error:', err);
+                    throw new Error(err.error || 'Ошибка при получении данных');
+                }
+                rfmAllData = await response.json();
+                console.log('[RFM] Data received:', rfmAllData);
+                console.log('[RFM] Guests count:', rfmAllData.guests?.length);
+                console.log('[RFM] Segments:', rfmAllData.segments);
+
+                // Показываем результат режима RFM
+                displayRfmResults(rfmAllData);
+
+                // Сбрасываем выделенный сегмент
+                rfmSelectedSegment = 'all';
+            } catch (error) {
+                console.error('[RFM] Error:', error);
+                showError(error.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('btn-rfm-load').disabled = false;
+            }
+        }
+
+        // === RFM Filters ===
+        let currentFilterSegment = 'all';
+        let currentFilterRecency = 'all';
+        let currentFilterFrequency = 'all';
+
+        function applyFilters() {
+            currentFilterSegment = document.getElementById('segment-filter').value;
+            currentFilterRecency = document.getElementById('recency-filter').value;
+            currentFilterFrequency = document.getElementById('frequency-filter').value;
+
+            const discountName = document.getElementById('discount-select').value;
+
+            // Применяем фильтры только к RFM-сегментации
+            displayRfmSegmentation(discountName);
+        }
+
+        function clearFilters() {
+            document.getElementById('segment-filter').value = 'all';
+            document.getElementById('recency-filter').value = 'all';
+            document.getElementById('frequency-filter').value = 'all';
+            currentFilterSegment = 'all';
+            currentFilterRecency = 'all';
+            currentFilterFrequency = 'all';
+            applyFilters();
+        }
+
+        function matchesFilters(guest) {
+            // Segment filter
+            if (currentFilterSegment !== 'all') {
+                const seg = getCombinedSegment(guest);
+                if (seg.name !== currentFilterSegment) return false;
+            }
+
+            // Recency filter
+            if (currentFilterRecency !== 'all' && guest.recency_days !== null) {
+                const [min, max] = currentFilterRecency.replace('+', '').split('-').map(v => v === '60' ? Infinity : parseInt(v));
+                if (guest.recency_days < min || guest.recency_days > max) return false;
+            }
+
+            // Frequency filter
+            if (currentFilterFrequency !== 'all' && guest.frequency_per_week !== null) {
+                const freqRanges = {
+                    '3+': [3, Infinity],
+                    '2-3': [2, 3],
+                    '1-2': [1, 2],
+                    '0-1': [0, 1]
+                };
+                const [min, max] = freqRanges[currentFilterFrequency];
+                if (guest.frequency_per_week < min || guest.frequency_per_week > max) return false;
+            }
+
+            return true;
         }
 
         // === Helpers: merge stores/guests across discounts ===
@@ -568,17 +1091,32 @@
                 for (const g of guests) {
                     const key = g.card_number;
                     if (!merged[key]) {
-                        merged[key] = { ...g, dishes: [...g.dishes], stores: [...g.stores] };
+                        merged[key] = { ...g, dishes: [...g.dishes], stores: [...g.stores], visit_dates: [...(g.visit_dates || [])] };
                     } else {
                         merged[key].visits += g.visits;
                         merged[key].sum_with_discount += g.sum_with_discount;
                         merged[key].discount_sum += g.discount_sum;
                         merged[key].dishes = merged[key].dishes.concat(g.dishes);
                         merged[key].stores = [...new Set([...merged[key].stores, ...g.stores])];
+                        if (g.visit_dates) merged[key].visit_dates = [...new Set([...merged[key].visit_dates, ...g.visit_dates])];
+                        // При мерже сохраняем последний визит
+                        if (g.last_visit && (!merged[key].last_visit || g.last_visit > merged[key].last_visit)) {
+                            merged[key].last_visit = g.last_visit;
+                        }
+                        if (g.first_visit && (!merged[key].first_visit || g.first_visit < merged[key].first_visit)) {
+                            merged[key].first_visit = g.first_visit;
+                        }
+                        // Recency: минимальный из recency_days
+                        if (g.recency_days !== null && (merged[key].recency_days === null || g.recency_days < merged[key].recency_days)) {
+                            merged[key].recency_days = g.recency_days;
+                        }
+                        // Frequency: пересчитываем
+                        merged[key].frequency_per_week = merged[key].visits / 180 * 7; // за 6 месяцев
                     }
                 }
             }
-            return Object.values(merged).sort((a, b) => b.visits - a.visits);
+            // Сортировка по recency (сначала самые "свежие")
+            return Object.values(merged).sort((a, b) => (a.recency_days || 999) - (b.recency_days || 999));
         }
 
         // === Display: Сводка по барам (Все бары) ===
@@ -598,23 +1136,23 @@
 
             resultsDiv.innerHTML = `
                 <div class="metrics-grid">
-                    <div class="metric-card roi-base">
+                    <div class="metric-card">
                         <div class="metric-name">Выручка (без скидки)</div>
                         <div class="metric-value">${fmtMoney(totalBase)}</div>
                     </div>
-                    <div class="metric-card roi-revenue">
+                    <div class="metric-card">
                         <div class="metric-name">Выручка (со скидкой)</div>
                         <div class="metric-value">${fmtMoney(totalSumWith)}</div>
                     </div>
-                    <div class="metric-card roi-discount">
+                    <div class="metric-card">
                         <div class="metric-name">Отдали скидками</div>
                         <div class="metric-value">${fmtMoney(totalDiscount)}</div>
                     </div>
-                    <div class="metric-card roi-depth">
+                    <div class="metric-card">
                         <div class="metric-name">Глубина скидки</div>
                         <div class="metric-value">${depth}<span class="metric-unit">%</span></div>
                     </div>
-                    <div class="metric-card roi-check">
+                    <div class="metric-card">
                         <div class="metric-name">Средний чек</div>
                         <div class="metric-value">${fmtMoney(avgCheck)}</div>
                     </div>
@@ -676,9 +1214,9 @@
 
         // === Segmentation helpers ===
         const SEGMENTS = [
-            { name: 'Новички', desc: '1 визит', min: 1, max: 1, color: '#6366f1' },
-            { name: 'Возвращающиеся', desc: '2–3 визита', min: 2, max: 3, color: '#f59e0b' },
-            { name: 'Постоянные', desc: '4+ визитов', min: 4, max: Infinity, color: '#10b981' }
+            { name: 'Новички', desc: '1 визит', min: 1, max: 1, cssClass: 'new' },
+            { name: 'Возвращающиеся', desc: '2–3 визита', min: 2, max: 3, cssClass: 'returning' },
+            { name: 'Постоянные', desc: '4+ визитов', min: 4, max: Infinity, cssClass: 'regular' }
         ];
 
         function segmentGuests(guests) {
@@ -694,13 +1232,50 @@
         }
 
         let segmentChart = null;
+        let recencyChart = null;
+
+        function renderRecencyHistogram(guests) {
+            const buckets = [
+                { label: '0-7 дн.', count: 0 },
+                { label: '8-14 дн.', count: 0 },
+                { label: '15-30 дн.', count: 0 },
+                { label: '31-60 дн.', count: 0 },
+                { label: '60+ дн.', count: 0 }
+            ];
+
+            guests.forEach(g => {
+                if (g.recency_days === null) return;
+                if (g.recency_days <= 7) buckets[0].count++;
+                else if (g.recency_days <= 14) buckets[1].count++;
+                else if (g.recency_days <= 30) buckets[2].count++;
+                else if (g.recency_days <= 60) buckets[3].count++;
+                else buckets[4].count++;
+            });
+
+            const total = guests.filter(g => g.recency_days !== null).length || 1;
+
+            return `
+                <h3 class="section-title">Распределение по recency</h3>
+                <div class="segmentation-section" style="grid-template-columns: 1fr;">
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        ${buckets.map(b => `
+                            <div style="flex: 1; min-width: 100px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 16px; text-align: center; transition: all 0.15s ease;">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">${b.label}</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); line-height: 1;">${b.count}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">${(b.count / total * 100).toFixed(0)}%</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
 
         function renderSegmentation(guests) {
             const segments = segmentGuests(guests);
             const total = guests.length || 1;
 
             return `
-                <h3 class="section-title">Сегментация гостей</h3>
+                <h3 class="section-title">Сегментация по визитам</h3>
                 <div class="segmentation-section">
                     <div class="chart-container">
                         <canvas id="segment-chart"></canvas>
@@ -708,7 +1283,7 @@
                     <div class="segment-cards">
                         ${segments.map(seg => `
                             <div class="segment-card">
-                                <div class="segment-indicator" style="background: ${seg.color}"></div>
+                                <div class="segment-indicator ${seg.cssClass}"></div>
                                 <div class="segment-info">
                                     <div class="segment-name">${seg.name}</div>
                                     <div class="segment-desc">${seg.desc} — ${seg.count} чел. (${(seg.count / total * 100).toFixed(0)}%)</div>
@@ -727,6 +1302,7 @@
                         `).join('')}
                     </div>
                 </div>
+                ${renderRecencyHistogram(guests)}
             `;
         }
 
@@ -737,6 +1313,13 @@
 
             if (segmentChart) { segmentChart.destroy(); segmentChart = null; }
 
+            // Карта цветов для сегментов (согласована с CSS)
+            const segmentColorMap = {
+                'Новички': '#6366f1',
+                'Возвращающиеся': '#f59e0b',
+                'Постоянные': '#10b981'
+            };
+
             const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
 
             segmentChart = new Chart(ctx, {
@@ -745,7 +1328,7 @@
                     labels: segments.map(s => s.name),
                     datasets: [{
                         data: segments.map(s => s.count),
-                        backgroundColor: segments.map(s => s.color),
+                        backgroundColor: segments.map(s => segmentColorMap[s.name] || '#6b7280'),
                         borderWidth: 0,
                         hoverOffset: 6
                     }]
@@ -769,12 +1352,89 @@
             });
         }
 
-        // === Display: Детализация по гостям (конкретный бар) ===
-        function displayGuestResults(discountName) {
+        // === RFM Segmentation Helpers ===
+        const RFM_SEGMENTS = {
+            recency: [
+                { code: 'R5', name: 'Активные', min: 0, max: 7 },
+                { code: 'R4', name: 'Recent', min: 8, max: 14 },
+                { code: 'R3', name: 'Средний риск', min: 15, max: 30 },
+                { code: 'R2', name: 'Высокий риск', min: 31, max: 60 },
+                { code: 'R1', name: 'Ушедшие', min: 61, max: Infinity }
+            ],
+            frequency: [
+                { code: 'F5', name: 'VIP', min: 3, max: Infinity },
+                { code: 'F4', name: 'Лояльные', min: 2, max: 3 },
+                { code: 'F3', name: 'Регулярные', min: 0.8, max: 2 },
+                { code: 'F2', name: 'Редкие', min: 0.3, max: 0.8 },
+                { code: 'F1', name: 'Очень редкие', min: 0, max: 0.3 }
+            ]
+        };
+
+        function getRecencySegment(recencyDays) {
+            if (recencyDays === null || recencyDays === undefined) return RFM_SEGMENTS.recency[3];
+            return RFM_SEGMENTS.recency.find(s => recencyDays >= s.min && recencyDays <= s.max) || RFM_SEGMENTS.recency[4];
+        }
+
+        function getFrequencySegment(freqPerWeek) {
+            if (freqPerWeek === null || freqPerWeek === undefined) return RFM_SEGMENTS.frequency[4];
+            return RFM_SEGMENTS.frequency.find(s => freqPerWeek >= s.min && freqPerWeek <= s.max) || RFM_SEGMENTS.frequency[4];
+        }
+
+        function getCombinedSegment(guest) {
+            const r = getRecencySegment(guest.recency_days);
+            const f = getFrequencySegment(guest.frequency_per_week);
+
+            // Определяем комбинированный сегмент
+            if (r.code === 'R5' && (f.code === 'F4' || f.code === 'F5')) return { name: 'CHAMPIONS', desc: 'Чемпионы' };
+            if (r.code === 'R1' && (f.code === 'F3' || f.code === 'F4' || f.code === 'F5')) return { name: 'CHURNED', desc: 'Ушедшие' };
+            if ((r.code === 'R2' || r.code === 'R3') && (f.code === 'F3' || f.code === 'F4' || f.code === 'F5')) return { name: 'AT_RISK', desc: 'В риске' };
+            if (r.code === 'R5' && guest.visits === 1) return { name: 'NEW', desc: 'Новички' };
+            if (r.code === 'R4' || r.code === 'R5') return { name: 'LOYAL', desc: 'Лояльные' };
+            if (f.code === 'F1' || f.code === 'F2') return { name: 'POTENTIAL', desc: 'Потенциальные' };
+            return { name: 'REGULAR', desc: 'Обычные' };
+        }
+
+        function formatLastVisit(lastVisit, recencyDays) {
+            if (!lastVisit) return '—';
+            const date = new Date(lastVisit);
+            const day = date.getDate();
+            const month = date.toLocaleString('ru', { month: 'short' });
+            const monthNum = date.getMonth() + 1;
+            const year = date.getFullYear();
+            const isCurrentYear = year === new Date().getFullYear();
+            const dateStr = isCurrentYear ? `${day} ${month}` : `${day}.${String(monthNum).padStart(2,'0')}.${year}`;
+            const daysAgo = recencyDays !== null ? `(${recencyDays} дн. назад)` : '';
+            return `${dateStr} ${daysAgo}`;
+        }
+
+        function getStatusBadge(segment) {
+            const badges = {
+                'CHAMPIONS': 'Чемпион',
+                'CHURNED': 'Ушел',
+                'AT_RISK': 'В риске',
+                'NEW': 'Новичок',
+                'LOYAL': 'Лояльный',
+                'POTENTIAL': 'Потенциальный',
+                'REGULAR': '• Обычный'
+            };
+            return badges[segment.name] || segment.name;
+        }
+
+        // === Display: Детализация по гостям (конкретный бар/скидка) ===
+        function displayGuestResults(discountName, applyFilters = false) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
 
-            const guests = getGuests(discountName);
+            const allGuests = getGuests(discountName);
+
+            // Показываем RFM-фильтры после загрузки данных
+            document.getElementById('rfm-filters').style.display = 'grid';
+
+            // Применяем фильтры
+            const guests = applyFilters
+                ? allGuests.filter(g => matchesFilters(g))
+                : allGuests;
+
             const totalPeople = guests.length;
             const totalVisits = guests.reduce((s, g) => s + g.visits, 0);
             const totalSumWith = guests.reduce((s, g) => s + g.sum_with_discount, 0);
@@ -782,34 +1442,39 @@
             const totalBase = totalSumWith + totalDiscount;
             const depth = totalBase > 0 ? (totalDiscount / totalBase * 100).toFixed(1) : '0';
             const avgCheck = totalVisits > 0 ? Math.round(totalSumWith / totalVisits) : 0;
-            const avgVisits = totalPeople > 0 ? (totalVisits / totalPeople).toFixed(1) : '0';
+
             const title = discountName ? esc(discountName) : 'Все скидки';
 
+            // Для скидки показываем только основные метрики
             resultsDiv.innerHTML = `
                 <div class="metrics-grid">
-                    <div class="metric-card roi-base">
+                    <div class="metric-card">
                         <div class="metric-name">Выручка (без скидки)</div>
                         <div class="metric-value">${fmtMoney(totalBase)}</div>
                     </div>
-                    <div class="metric-card roi-revenue">
+                    <div class="metric-card">
                         <div class="metric-name">Выручка (со скидкой)</div>
                         <div class="metric-value">${fmtMoney(totalSumWith)}</div>
                     </div>
-                    <div class="metric-card roi-discount">
+                    <div class="metric-card">
                         <div class="metric-name">Отдали скидками</div>
                         <div class="metric-value">${fmtMoney(totalDiscount)}</div>
                     </div>
-                    <div class="metric-card roi-depth">
+                    <div class="metric-card">
                         <div class="metric-name">Глубина скидки</div>
                         <div class="metric-value">${depth}<span class="metric-unit">%</span></div>
                     </div>
-                    <div class="metric-card roi-check">
+                    <div class="metric-card">
                         <div class="metric-name">Средний чек</div>
                         <div class="metric-value">${fmtMoney(avgCheck)}</div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-name">Гостей</div>
                         <div class="metric-value">${totalPeople}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Визитов</div>
+                        <div class="metric-value">${totalVisits}</div>
                     </div>
                 </div>
 
@@ -824,7 +1489,6 @@
                                 <th>Визитов</th>
                                 <th>Выручка</th>
                                 <th>Скидка</th>
-                                <th>Глубина</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -839,54 +1503,693 @@
                                     <td><strong>${g.visits}</strong></td>
                                     <td>${fmtMoney(g.sum_with_discount)}</td>
                                     <td>${fmtMoney(g.discount_sum)}</td>
-                                    <td>${gDepth}%</td>
                                 </tr>`;
                             }).join('')}
                         </tbody>
                     </table>
                 </div>
 
-                ${renderSegmentation(guests)}
+                <!-- Export Button -->
+                <div style="margin: 24px 0; display: flex; justify-content: flex-end;">
+                    <button class="btn" onclick="exportGuestsToCSV('${title}')" style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color);">
+                        Экспорт в CSV
+                    </button>
+                </div>
             `;
 
             resultsDiv.classList.add('active');
-            // Init chart after DOM is rendered
-            initSegmentChart(guests);
+        }
+
+
+        // === RFM Scatter Plot ===
+        let rfmScatterChart = null;
+
+        function initRfmScatterChart(guests) {
+            const ctx = document.getElementById('rfm-scatter-chart');
+            if (!ctx) return;
+
+            if (rfmScatterChart) { rfmScatterChart.destroy(); rfmScatterChart = null; }
+
+            // Карта цветов для сегментов (согласована с CSS)
+            const segmentColorMap = {
+                'CHAMPIONS': '#10b981',
+                'LOYAL': '#3b82f6',
+                'AT_RISK': '#f97316',
+                'CHURNED': '#ef4444',
+                'NEW': '#8b5cf6',
+                'POTENTIAL': '#06b6d4',
+                'REGULAR': '#6b7280'
+            };
+
+            // Подготавливаем данные
+            const datasets = [];
+            const segmentColors = {};
+
+            guests.forEach(g => {
+                if (g.recency_days === null || g.frequency_per_week === null) return;
+
+                const segment = getCombinedSegment(g);
+                const segmentColor = segmentColorMap[segment.name] || '#6b7280';
+                if (!segmentColors[segment.name]) {
+                    segmentColors[segment.name] = segmentColor;
+                    datasets.push({
+                        label: segment.desc,
+                        data: [],
+                        backgroundColor: segmentColor,
+                        borderColor: segmentColor,
+                        pointRadius: 6
+                    });
+                }
+
+                // Размер точки на основе среднего чека (нормализуем)
+                const maxAvgCheck = Math.max(...guests.map(x => x.avg_check || 0));
+                const normalizedSize = maxAvgCheck > 0 ? (g.avg_check / maxAvgCheck) * 8 + 4 : 6;
+
+                datasets.find(d => d.label === segment.desc).data.push({
+                    x: g.frequency_per_week,
+                    y: g.recency_days,
+                    r: normalizedSize / 2,
+                    guest: g
+                });
+            });
+
+            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+
+            rfmScatterChart = new Chart(ctx, {
+                type: 'bubble',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            min: 0,
+                            title: {
+                                display: true,
+                                text: 'Частота (визитов в неделю)',
+                                color: textColor,
+                                font: { weight: 'bold' }
+                            },
+                            ticks: { color: textColor }
+                        },
+                        y: {
+                            reverse: true, // Меньше recency = лучше
+                            title: {
+                                display: true,
+                                text: 'Recency (дней с последнего визита)',
+                                color: textColor,
+                                font: { weight: 'bold' }
+                            },
+                            ticks: { color: textColor }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { color: textColor }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = context.raw;
+                                    const g = point.guest;
+                                    return `${g.customer_name || g.card_number}: ${g.frequency_per_week} виз./нед, ${g.recency_days} дн., ${fmtMoney(g.avg_check)}`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            const datasetIndex = elements[0].datasetIndex;
+                            const index = elements[0].index;
+                            const guest = datasets[datasetIndex].data[index].guest;
+                            showGuestDetails(guest);
+                        }
+                    }
+                }
+            });
+        }
+
+        // === Export to CSV ===
+        function exportGuestsToCSV(title) {
+            const guests = getGuests(document.getElementById('discount-select').value);
+            const filteredGuests = guests.filter(g => matchesFilters(g));
+
+            if (filteredGuests.length === 0) {
+                alert('Нет данных для экспорта');
+                return;
+            }
+
+            const headers = ['Гость', 'Карта', 'Последний визит', 'Recency (дн)', 'Частота (раз/нед)', 'Визитов', 'Средний чек', 'Выручка', 'Скидка', 'Сегмент'];
+            const rows = filteredGuests.map(g => {
+                const segment = getCombinedSegment(g);
+                return [
+                    g.customer_name || '',
+                    g.card_number,
+                    g.last_visit || '',
+                    g.recency_days || '',
+                    g.frequency_per_week || '',
+                    g.visits,
+                    g.avg_check || '',
+                    g.sum_with_discount,
+                    g.discount_sum,
+                    segment.name
+                ].map(v => `"${v}"`).join(',');
+            });
+
+            const csv = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `guests_${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
+        }
+
+        // === RFM Mode Display Functions ===
+
+        // Display Discount Results (simplified)
+        function displayDiscountResults(discountName, bar) {
+            const resultsDiv = document.getElementById('discount-results');
+            if (!resultsDiv) return;
+            resultsDiv.innerHTML = '';
+
+            const guests = bar ? getGuests(discountName) : [];
+            const totalPeople = guests.length;
+            const totalVisits = guests.reduce((s, g) => s + g.visits, 0);
+            const totalSumWith = guests.reduce((s, g) => s + g.sum_with_discount, 0);
+            const totalDiscount = guests.reduce((s, g) => s + g.discount_sum, 0);
+            const totalBase = totalSumWith + totalDiscount;
+            const depth = totalBase > 0 ? (totalDiscount / totalBase * 100).toFixed(1) : '0';
+            const avgCheck = totalVisits > 0 ? Math.round(totalSumWith / totalVisits) : 0;
+            const title = discountName ? esc(discountName) : 'Все скидки';
+
+            // 3 кратких RFM-инсайта
+            const guestsWithRecency = guests.filter(g => g.recency_days !== null);
+            const avgRecency = guestsWithRecency.length > 0
+                ? Math.round(guestsWithRecency.reduce((s, g) => s + (g.recency_days || 0), 0) / guestsWithRecency.length)
+                : 0;
+            const churnedCount = guests.filter(g => {
+                const seg = getCombinedSegment(g);
+                return seg.name === 'CHURNED';
+            }).length;
+            const avgFrequency = guests.reduce((s, g) => s + (g.frequency_per_week || 0), 0) / (guests.length || 1);
+
+            resultsDiv.innerHTML = `
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-name">Выручка (без скидки)</div>
+                        <div class="metric-value">${fmtMoney(totalBase)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Выручка (со скидкой)</div>
+                        <div class="metric-value">${fmtMoney(totalSumWith)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Отдали скидками</div>
+                        <div class="metric-value">${fmtMoney(totalDiscount)}</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Глубина скидки</div>
+                        <div class="metric-value">${depth}<span class="metric-unit">%</span></div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-name">Средний чек</div>
+                        <div class="metric-value">${fmtMoney(avgCheck)}</div>
+                    </div>
+                </div>
+
+                <div class="table-card">
+                    <h3 class="section-title">Гости, использовавшие скидку${title !== 'Все скидки' ? ` — ${title}` : ''}</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Гость</th>
+                                <th>Карта</th>
+                                <th>Визитов</th>
+                                <th>Выручка</th>
+                                <th>Скидка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${guests.map((g, i) => `
+                                <tr class="clickable-row" onclick='showGuestDetails(${JSON.stringify(g).replace(/'/g, "&#39;")})'>
+                                    <td>${i + 1}</td>
+                                    <td>${esc(g.customer_name || 'Без имени')}</td>
+                                    <td>${esc(g.card_number)}</td>
+                                    <td><strong>${g.visits}</strong></td>
+                                    <td>${fmtMoney(g.sum_with_discount)}</td>
+                                    <td>${fmtMoney(g.discount_sum)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${totalPeople > 0 ? `
+                <div class="table-card" style="margin-top: 24px;">
+                    <h3 class="section-title">Профиль гостей скидки</h3>
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-name">Средний recency</div>
+                            <div class="metric-value">${avgRecency}<span class="metric-unit">дн.</span></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-name">Ушедших (60+ дн)</div>
+                            <div class="metric-value">${churnedCount}<span class="metric-unit">(${totalPeople > 0 ? ((churnedCount / totalPeople) * 100).toFixed(0) : 0}%)</span></div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-name">Средняя частота</div>
+                            <div class="metric-value">${avgFrequency.toFixed(1)}<span class="metric-unit">раз/нед</span></div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+            `;
+        }
+
+        // Display RFM Results
+        function displayRfmResults(data) {
+            console.log('[RFM display] displayRfmResults called with data:', data);
+
+            const resultsDiv = document.getElementById('rfm-results');
+            console.log('[RFM display] rfm-results element:', resultsDiv);
+            if (!resultsDiv) {
+                console.error('[RFM display] rfm-results element not found!');
+                return;
+            }
+
+            const guests = data.guests || [];
+            const segments = data.segments || {};
+            const metrics = data.metrics || {};
+            const totalGuests = metrics.total_guests || guests.length;
+
+            console.log('[RFM display] guests:', guests.length, 'segments:', segments, 'metrics:', metrics);
+
+            const segmentNames = {
+                'CHAMPIONS': 'Чемпионы',
+                'LOYAL': 'Лояльные',
+                'AT_RISK': 'В риске',
+                'CHURNED': 'Ушедшие',
+                'NEW': 'Новички',
+                'POTENTIAL': 'Потенциальные'
+            };
+
+            const segmentTooltips = {
+                'CHAMPIONS': 'Ходят часто и недавно',
+                'LOYAL': 'Стабильные гости',
+                'AT_RISK': 'Раньше ходили чаще,<br>сейчас реже',
+                'CHURNED': 'Не ходят 60+ дней',
+                'NEW': 'Первый визит &lt;7 дней',
+                'POTENTIAL': 'Редкие, но свежие'
+            };
+
+            // Генерируем HTML для всех элементов сразу
+            const segmentCardsHtml = Object.keys(segments).map(key => `
+                <div class="segment-card" data-segment="${key}" onclick="selectRfmSegment('${key}')">
+                    <span class="tooltip-text">${segmentTooltips[key]}</span>
+                    <div class="name">${segmentNames[key]}</div>
+                    <div class="count">${segments[key].count}</div>
+                    <div class="percent">${segments[key].percent}%</div>
+                </div>
+            `).join('');
+
+            const metricsHtml = `
+                <div class="metric-card">
+                    <div class="metric-name">Всего гостей</div>
+                    <div class="metric-value">${fmtNum(metrics.total_guests || 0)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-name">Активных (0-30 дн)</div>
+                    <div class="metric-value">${fmtNum(metrics.active_guests || 0)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-name">Ушедших (60+ дн)</div>
+                    <div class="metric-value">${fmtNum(metrics.churned_guests || 0)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-name">Средний recency</div>
+                    <div class="metric-value">${metrics.avg_recency || 0}<span class="metric-unit">дн.</span></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-name">Средняя частота</div>
+                    <div class="metric-value">${metrics.avg_frequency || 0}<span class="metric-unit">раз/нед</span></div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-name">Выручка</div>
+                    <div class="metric-value">${fmtMoney(metrics.total_revenue || 0)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-name">Отдали скидками</div>
+                    <div class="metric-value">${fmtMoney(metrics.total_discount || 0)}</div>
+                </div>
+            `;
+
+            const guestsTableHtml = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h3 class="section-title" style="margin: 0;">Все гости (${totalGuests})</h3>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="rfm-segment-filter" class="control-input" style="width: auto; padding: 8px 16px;" onchange="applyRfmFilters()">
+                            <option value="all">Все сегменты</option>
+                            <option value="CHAMPIONS">Чемпионы</option>
+                            <option value="CHURNED">Ушедшие</option>
+                            <option value="AT_RISK">В риске</option>
+                            <option value="NEW">Новички</option>
+                            <option value="LOYAL">Лояльные</option>
+                            <option value="POTENTIAL">Потенциальные</option>
+                        </select>
+                        <button class="btn" onclick="exportRfmGuests()" style="padding: 8px 16px;">Экспорт CSV</button>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Статус</th>
+                            <th>Гость</th>
+                            <th>Карта</th>
+                            <th>Посл. визит</th>
+                            <th>Recency</th>
+                            <th>Частота</th>
+                            <th>Визитов</th>
+                            <th>Ср. чек</th>
+                            <th>Выручка</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rfm-guests-tbody">
+                        ${renderRfmGuestRows(guests)}
+                    </tbody>
+                </table>
+            `;
+
+            const visualizationsHtml = `
+                <div class="visualization-tabs">
+                    <button class="tab-btn active" onclick="switchRfmTab('histogram')">Гистограмма</button>
+                    <button class="tab-btn" onclick="switchRfmTab('scatter')">Scatter plot</button>
+                    <button class="tab-btn" onclick="switchRfmTab('segments')">Сегменты</button>
+                </div>
+
+                <div id="tab-histogram" class="tab-content active">
+                    ${renderRecencyHistogram(guests)}
+                </div>
+
+                <div id="tab-scatter" class="tab-content">
+                    <div style="position: relative; height: 400px;">
+                        <canvas id="rfm-scatter-chart"></canvas>
+                    </div>
+                </div>
+
+                <div id="tab-segments" class="tab-content">
+                    ${renderSegmentDetails(guests, segments)}
+                </div>
+            `;
+
+            // Устанавливаем весь HTML сразу
+            resultsDiv.innerHTML = `
+                <div class="segment-cards-row" id="rfm-segment-cards">${segmentCardsHtml}</div>
+                <div class="metrics-grid" id="rfm-metrics">${metricsHtml}</div>
+                <div class="table-card" id="rfm-guests-table">${guestsTableHtml}</div>
+                <div class="table-card" id="rfm-visualizations" style="margin-top: 24px;">${visualizationsHtml}</div>
+            `;
+
+            console.log('[RFM display] HTML rendered and set');
+
+            // Initialize scatter chart after DOM is updated
+            setTimeout(() => initRfmScatterChart(guests), 100);
+        }
+
+        let rfmFilteredGuests = [];
+        let rfmSelectedSegment = 'all';
+
+        function selectRfmSegment(segmentKey) {
+            rfmSelectedSegment = segmentKey;
+
+            // Обновляем активный класс на карточках
+            document.querySelectorAll('.segment-card').forEach(card => {
+                card.classList.toggle('active', card.dataset.segment === segmentKey);
+            });
+
+            // Обновляем селект в таблице
+            const selectEl = document.getElementById('rfm-segment-filter');
+            if (selectEl) {
+                selectEl.value = segmentKey;
+            }
+
+            // Применяем фильтры
+            applyRfmFilters();
+        }
+
+        function applyRfmFilters() {
+            const segmentFilterEl = document.getElementById('rfm-segment-filter');
+            if (!segmentFilterEl) return;
+
+            const segmentFilter = segmentFilterEl.value;
+            const guests = rfmAllData.guests || [];
+
+            rfmFilteredGuests = segmentFilter === 'all'
+                ? guests
+                : guests.filter(g => {
+                    const seg = getCombinedSegment(g);
+                    return seg.name === segmentFilter;
+                });
+
+            const tbody = document.getElementById('rfm-guests-tbody');
+            if (tbody) {
+                tbody.innerHTML = renderRfmGuestRows(rfmFilteredGuests);
+            }
+
+            // Обновляем активный класс на карточках
+            document.querySelectorAll('.segment-card').forEach(card => {
+                card.classList.toggle('active', card.dataset.segment === segmentFilter);
+            });
+        }
+
+        function renderRfmGuestRows(guests) {
+            return guests.map((g, i) => {
+                const segment = getCombinedSegment(g);
+                const recencyDisplay = g.recency_days !== null ? `${g.recency_days} дн.` : '—';
+                const freqDisplay = g.frequency_per_week !== null ? `${g.frequency_per_week.toFixed(1)}` : '—';
+                const badgeClass = 'segment-badge ' + segment.name.toLowerCase();
+                const statusText = getStatusBadge(segment);
+                return `
+                    <tr class="clickable-row" onclick='showGuestDetails(${JSON.stringify(g).replace(/'/g, "&#39;")})'>
+                        <td><span class="${badgeClass}">${statusText}</span></td>
+                        <td>${esc(g.customer_name || 'Без имени')}</td>
+                        <td>${esc(g.card_number)}</td>
+                        <td>${formatLastVisit(g.last_visit, g.recency_days)}</td>
+                        <td>${recencyDisplay}</td>
+                        <td><strong>${freqDisplay}</strong></td>
+                        <td>${g.visits}</td>
+                        <td>${fmtMoney(g.avg_check)}</td>
+                        <td>${fmtMoney(g.sum_with_discount)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderRecencyHistogram(guests) {
+            const buckets = [
+                { label: '0-7 дн.', count: 0 },
+                { label: '8-14 дн.', count: 0 },
+                { label: '15-30 дн.', count: 0 },
+                { label: '31-60 дн.', count: 0 },
+                { label: '60+ дн.', count: 0 }
+            ];
+
+            guests.forEach(g => {
+                if (g.recency_days === null) return;
+                if (g.recency_days <= 7) buckets[0].count++;
+                else if (g.recency_days <= 14) buckets[1].count++;
+                else if (g.recency_days <= 30) buckets[2].count++;
+                else if (g.recency_days <= 60) buckets[3].count++;
+                else buckets[4].count++;
+            });
+
+            const total = guests.filter(g => g.recency_days !== null).length || 1;
+
+            return `
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    ${buckets.map(b => `
+                        <div style="flex: 1; min-width: 100px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 16px; text-align: center; transition: all 0.15s ease;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">${b.label}</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); line-height: 1;">${b.count}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">${(b.count / total * 100).toFixed(0)}%</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderSegmentDetails(guests, segments) {
+            const segmentDescriptions = {
+                'CHAMPIONS': 'Ходят часто и недавно',
+                'LOYAL': 'Стабильные гости',
+                'AT_RISK': 'Раньше ходили часто, сейчас реже',
+                'CHURNED': 'Не ходят 60+ дней',
+                'NEW': 'Первый визит <7 дней назад',
+                'POTENTIAL': 'Редкие, но свежие'
+            };
+
+            return `
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+                    ${Object.keys(segments).map(key => `
+                        <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 20px; transition: all 0.15s ease;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">${key}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 16px; line-height: 1.5;">${segmentDescriptions[key]}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                                <div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); line-height: 1;">${segments[key].count}</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">гостей</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">${segments[key].percent}%</div>
+                                    <div style="font-size: 0.7rem; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.05em;">${fmtMoney(segments[key].revenue)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function switchRfmTab(tabName) {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            if (!tabBtns.length || !tabContents.length) return;
+
+            tabBtns.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            const activeBtn = document.querySelector(`[onclick="switchRfmTab('${tabName}')"]`);
+            const activeContent = document.getElementById(`tab-${tabName}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            if (activeContent) activeContent.classList.add('active');
+
+            if (tabName === 'scatter') {
+                setTimeout(() => initRfmScatterChart(rfmAllData.guests || []), 100);
+            }
+        }
+
+        function exportRfmGuests() {
+            const guests = rfmFilteredGuests.length > 0 ? rfmFilteredGuests : rfmAllData.guests || [];
+
+            if (guests.length === 0) {
+                alert('Нет данных для экспорта');
+                return;
+            }
+
+            const headers = ['Гость', 'Карта', 'Последний визит', 'Recency (дн)', 'Частота (раз/нед)', 'Визитов', 'Средний чек', 'Выручка', 'Скидка', 'Сегмент'];
+            const rows = guests.map(g => {
+                const segment = getCombinedSegment(g);
+                return [
+                    g.customer_name || '',
+                    g.card_number,
+                    g.last_visit || '',
+                    g.recency_days || '',
+                    g.frequency_per_week || '',
+                    g.visits,
+                    g.avg_check || '',
+                    g.sum_with_discount,
+                    g.discount_sum,
+                    segment.name
+                ].map(v => `"${v}"`).join(',');
+            });
+
+            const csv = [headers.join(','), ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `rfm_guests_${new Date().toISOString().split('T')[0]}.csv`;
+            link.click();
         }
 
         // === Guest Details Modal ===
         function showGuestDetails(guest) {
             document.getElementById('modal-title').textContent = guest.customer_name || guest.card_number;
+            const segment = getCombinedSegment(guest);
             const body = document.getElementById('modal-body');
+
+            // Timeline визитов
+            const visitDates = guest.visit_dates || [];
+            const timelineHtml = visitDates.length > 0 ? `
+                <h3 class="section-title">История визитов (${visitDates.length})</h3>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px;">
+                    ${visitDates.map(d => {
+                        const date = new Date(d);
+                        const day = date.getDate();
+                        const month = date.toLocaleString('ru', { month: 'short' });
+                        const weekday = date.toLocaleString('ru', { weekday: 'short' });
+                        return `<span style="background: var(--bg-tertiary); padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 500;">${weekday}, ${day} ${month}</span>`;
+                    }).join('')}
+                </div>
+            ` : '';
+
+            // Паттерн посещения
+            const patternText = guest.frequency_per_week !== null
+                ? `${guest.frequency_per_week} визита(ов) в неделю`
+                : 'Данных недостаточно';
+            const recencyText = guest.recency_days !== null
+                ? `${guest.recency_days} дн. назад`
+                : 'Нет данных';
+
             body.innerHTML = `
+                <div style="margin-bottom: 24px; padding: 16px; background: var(--bg-tertiary); border-radius: var(--border-radius); border-left: 4px solid ${segment.color};">
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px;">Сегмент</div>
+                    <div style="font-size: 1.1rem; font-weight: 700; color: ${segment.color};">${segment.desc} (${segment.name})</div>
+                </div>
+
                 <div class="detail-grid">
                     <div class="detail-item">
                         <div class="label">Карта</div>
                         <div class="value">${esc(guest.card_number)}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="label">Визитов</div>
+                        <div class="label">Последний визит</div>
+                        <div class="value">${formatLastVisit(guest.last_visit, guest.recency_days)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Частота</div>
+                        <div class="value">${patternText}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Всего визитов</div>
                         <div class="value">${guest.visits}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="label">Сумма со скидкой</div>
+                        <div class="label">Первый визит</div>
+                        <div class="value">${guest.first_visit ? new Date(guest.first_visit).toLocaleDateString('ru', {day: 'numeric', month: 'long', year: 'numeric'}) : '—'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Активен</div>
+                        <div class="value">${guest.active_days ? `${guest.active_days} дн.` : '—'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Средний чек</div>
+                        <div class="value">${fmtMoney(guest.avg_check)}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="label">Выручка</div>
                         <div class="value">${fmtMoney(guest.sum_with_discount)}</div>
                     </div>
                     <div class="detail-item">
-                        <div class="label">Сумма скидки</div>
+                        <div class="label">Скидка</div>
                         <div class="value">${fmtMoney(guest.discount_sum)}</div>
                     </div>
                 </div>
+
+                ${timelineHtml}
+
                 ${guest.dishes && guest.dishes.length > 0 ? `
                     <h3 class="section-title">Блюда со скидкой</h3>
                     <table>
                         <thead>
-                            <tr><th>Блюдо</th><th>Чек</th><th>Точка</th><th>Со скидкой</th><th>Скидка</th></tr>
+                            <tr><th>Блюдо</th><th>Дата</th><th>Чек</th><th>Точка</th><th>Со скидкой</th><th>Скидка</th></tr>
                         </thead>
                         <tbody>
                             ${guest.dishes.map(d => `
                                 <tr>
                                     <td>${esc(d.name)}</td>
+                                    <td>${d.date ? new Date(d.date).toLocaleDateString('ru', {day: 'numeric', month: 'short'}) : '—'}</td>
                                     <td>${esc(String(d.order_num))}</td>
                                     <td>${esc(d.store)}</td>
                                     <td>${fmtMoney(d.sum_with_discount)}</td>

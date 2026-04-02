@@ -16,6 +16,16 @@ from typing import Dict, List, Optional, Tuple
 
 from core.employee_plans import BAR_NAME_MAPPING, normalize_bar_name
 
+# Обратный маппинг: английские ключи → русские названия (для kpi_targets.json)
+REVERSE_BAR_NAME_MAPPING = {v: k for k, v in BAR_NAME_MAPPING.items()}
+
+# Маппинг популярных русских названий для поиска в kpi_targets.json
+RUSSIAN_BAR_NAMES = {
+    'kremenchugskaya': 'Кременчугская',
+    'varshavskaya': 'Варшавская',
+    'bolshoy': 'Большой пр В.О.',
+    'ligovskiy': 'Лиговский',
+}
 
 KPI_KEYS = ['kpi1', 'kpi2', 'kpi3']
 
@@ -148,19 +158,23 @@ class KpiCalculator:
 
     def count_shifts_per_location(self, shift_locations: dict) -> Dict[str, int]:
         """
-        Считает смены по каноническим точкам.
+        Считает смены по точкам.
+        Возвращает русские названия для совместимости с kpi_targets.json
 
         Args:
             shift_locations: {date_str: location_name} из iiko cashshifts
 
         Returns:
-            {canonical_location: shift_count}
+            {russian_location_name: shift_count}
         """
         counts = {}
         for date_str, location in shift_locations.items():
             normalized = normalize_bar_name(location)
-            canonical = BAR_NAME_MAPPING.get(normalized, location)
-            counts[canonical] = counts.get(canonical, 0) + 1
+            # Сначала маппим на английский ключ
+            english_key = BAR_NAME_MAPPING.get(normalized, normalized)
+            # Затем конвертируем в русское название для kpi_targets.json
+            russian_name = RUSSIAN_BAR_NAMES.get(english_key, english_key)
+            counts[russian_name] = counts.get(russian_name, 0) + 1
         return counts
 
     def calculate_weighted_targets(

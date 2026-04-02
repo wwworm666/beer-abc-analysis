@@ -10,43 +10,44 @@ from typing import Optional, Dict, List
 import os
 
 
-# Маппинг названий баров из iiko API на названия в планах
+# Маппинг названий баров из iiko API на ключи в daily_plans.json
 # Используем нормализованные ключи (lower, strip)
-# ВАЖНО: Данные о реальной точке работы берутся из кассовых смен (/v2/cashshifts),
+# ВАЖНО: daily_plans.json использует английские ключи: kremenchugskaya, bolshoy, varshavskaya, ligovskiy
+# Данные о реальной точке работы берутся из кассовых смен (/v2/cashshifts),
 # а не из attendance API (который возвращает только "Пивная культура").
 BAR_NAME_MAPPING = {
     # === ИЗ КАССОВЫХ СМЕН (группы iiko) ===
     # "Пивная культура" - это Кременчугская (основная точка, она же доставка)
-    'пивная культура': 'Кременчугская',
+    'пивная культура': 'kremenchugskaya',
     # Большой пр. В.О (в iiko с точкой после В.О)
-    'большой пр. в.о': 'Большой пр В.О.',
+    'большой пр. в.о': 'bolshoy',
     # Варшавская
-    'варшавская': 'Варшавская',
+    'варшавская': 'varshavskaya',
     # Лиговский
-    'лиговский': 'Лиговский',
+    'лиговский': 'ligovskiy',
     # Планерная (новая точка - пока без плана)
-    'планерная': 'Планерная',
+    'планерная': 'planernaya',
 
     # === LEGACY (из attendance API и других источников) ===
     # Кременчугская варианты
-    'пивной бутик': 'Кременчугская',
-    'пивной бутик кременчугская': 'Кременчугская',
-    'кременчугская': 'Кременчугская',
-    'кременчуг': 'Кременчугская',
+    'пивной бутик': 'kremenchugskaya',
+    'пивной бутик кременчугская': 'kremenchugskaya',
+    'кременчугская': 'kremenchugskaya',
+    'кременчуг': 'kremenchugskaya',
     # Варшавская варианты
-    'варшавка': 'Варшавская',
-    'пивной бутик варшавская': 'Варшавская',
+    'варшавка': 'varshavskaya',
+    'пивной бутик варшавская': 'varshavskaya',
     # Большой пр В.О. варианты
-    'большой пр в.о.': 'Большой пр В.О.',
-    'большой': 'Большой пр В.О.',
-    'большой пр': 'Большой пр В.О.',
-    'большой проспект': 'Большой пр В.О.',
-    'пивной бутик большой': 'Большой пр В.О.',
-    'в.о.': 'Большой пр В.О.',
-    'во': 'Большой пр В.О.',
+    'большой пр в.о.': 'bolshoy',
+    'большой': 'bolshoy',
+    'большой пр': 'bolshoy',
+    'большой проспект': 'bolshoy',
+    'пивной бутик большой': 'bolshoy',
+    'в.о.': 'bolshoy',
+    'во': 'bolshoy',
     # Лиговский варианты
-    'лиговка': 'Лиговский',
-    'пивной бутик лиговский': 'Лиговский',
+    'лиговка': 'ligovskiy',
+    'пивной бутик лиговский': 'ligovskiy',
 }
 
 
@@ -201,6 +202,7 @@ class BarPlansReader:
     def calculate_plan_from_shifts(self, shift_locations: Dict[str, str]) -> float:
         """
         Рассчитывает план сотрудника на основе кассовых смен.
+        Использует daily_plans.json (автоматический расчёт пт/сб = 2x)
 
         Args:
             shift_locations: Dict {date: location_name} из кассовых смен
@@ -212,26 +214,20 @@ class BarPlansReader:
             return 0.0
 
         total_plan = 0.0
-        plans = self._load_plans()
+
+        # Используем daily_plans.json вместо legacy bar_plans.json
+        from core.daily_plans_generator import get_daily_plan_for_date
 
         for date_str, location in shift_locations.items():
-            day_plans = plans.get(date_str, {})
-
-            if not day_plans:
-                continue
-
-            # Нормализуем название и ищем через маппинг
+            # Нормализуем название и маппим на английский ключ
             normalized = normalize_bar_name(location)
-            mapped_name = BAR_NAME_MAPPING.get(normalized, location)
+            venue_key = BAR_NAME_MAPPING.get(normalized, normalized)
 
-            # Ищем план
-            plan = day_plans.get(mapped_name, 0.0)
+            # Получаем план из daily_plans.json
+            plan = get_daily_plan_for_date(date_str, venue_key)
 
-            # Если не нашли, пробуем точное совпадение
-            if plan == 0.0 and location in day_plans:
-                plan = day_plans[location]
-
-            total_plan += plan
+            if plan and plan > 0:
+                total_plan += plan
 
         return total_plan
 

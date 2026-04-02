@@ -1,74 +1,80 @@
-# Documentation for Artem
+# Project Principles
 
-For every project, write detailed documentation that explains the whole project in plain language.
+## 1. Deterministic Calculations
 
-## What to write
+All calculations must be **transparent** and **reproducible**:
 
-Explain:
-- **Technical architecture** — how the system is designed and why
-- **Codebase structure** — how files and folders are organized, how the various parts connect to each other
-- **Technology choices** — what we're using and the reasoning behind each decision
-- **Lessons learned**:
-  - Bugs we ran into and how we fixed them
-  - Potential pitfalls and how to avoid them in the future
-  - New technologies/patterns discovered
-  - How good engineers think and work
-  - Best practices demonstrated in this project
+- No magic numbers — every constant explained
+- Formulas documented in plain language
+- Same input → same output always
+- Rounding rules explicit
+- Edge cases described
 
-## How to write
+**UI requirement:** Where possible, show the formula/calculation to users (tooltips, help text, breakdown).
 
-**Make it engaging to read.** Don't make it sound like boring technical documentation or a textbook.
+---
 
-- Use analogies and anecdotes to make concepts understandable and memorable
-- Be specific with examples from the actual codebase
-- Include code snippets where they clarify explanations
-- Write like you're explaining to a friend, not writing a manual
+## 2. Documentation First
 
-## File structure
+Documentation is written **alongside** code changes, not after.
 
-Documentation lives in `.claude/` with a modular structure. Each module gets its own file.
+### Every change documents:
+| What | Why | Where | Impact |
+|------|-----|-------|--------|
+| Feature/bug/fix | Business/technical reason | Files/modules | What breaks if changed wrong |
+
+### Every module doc (`docs/*.md`) has:
+```markdown
+## Что это
+## Файлы
+## Как работает (с примерами и формулами)
+## Changelog
+```
+
+---
+
+## 3. Changelog in Every Session
+
+**At the end of each coding session**, update the changelog:
+
+1. Open `docs/CHANGELOG.md` (create if missing)
+2. Add entry: `### YYYY-MM-DD — <session goal>`
+3. List changes:
+   - What was changed
+   - Why
+   - Files affected
+
+---
+
+## File Structure
 
 ```
 .claude/
-├── CLAUDE.md              ← these instructions
-├── INDEX.md               ← MAIN FILE: hierarchy of all docs with links
-└── docs/
-    ├── overview.md        ← project architecture, technologies, "why"
-    ├── employee.md        ← Employee Dashboard module
-    ├── analytics.md       ← ABC/XYZ analysis module
-    ├── dashboard.md       ← Plan/Fact dashboard module
-    ├── taps.md            ← Taps management module
-    └── lessons.md         ← bugs, patterns, "aha moments"
+├── CLAUDE.md          ← this file
+├── INDEX.md           ← all docs with status
+├── docs/
+│   ├── overview.md    ← architecture, tech stack
+│   ├── <module>.md    ← one file per module
+│   ├── lessons.md     ← bugs & patterns (Problem→Cause→Solution)
+│   └── CHANGELOG.md   ← session-by-session log
 ```
 
-## INDEX.md — the main file
+---
 
-This is the entry point. Contains:
-- Tree of all documents with links
-- Brief description of each module (1-2 lines)
-- Status: ✅ current, 📝 TODO, ⚠️ outdated
+## Enforcement
 
-## Rules
+Before finishing any task:
+- [ ] Documentation updated for changed modules
+- [ ] CHANGELOG.md entry added
+- [ ] INDEX.md reflects current state
 
-1. **One module = one file**
-   - Don't mix Employee and Taps in one file
-   - If a module grows too big — split into subfiles
+---
 
-2. **Naming**: lowercase with dashes (`employee-compare.md`, `abc-xyz.md`)
+## Style Rules
 
-3. **Every file must have**:
-   - `## Что это` — what this module does (2-3 sentences)
-   - `## Файлы` — which code files belong to this module
-   - `## Как работает` — how it works, diagrams, examples
-   - `## Changelog` — history of changes
+**No emojis in code or UI** — никогда не использовать смайлы/эмодзи в:
+- Коде (Python, JavaScript, HTML, CSS)
+- Тексте интерфейса (кнопки, заголовки, подписи)
+- Документации (кроме личных заметок)
 
-4. **lessons.md is special**
-   - All bugs, traps, patterns go here
-   - Format: Problem → Cause → Solution
-   - Update on every non-trivial fix
-
-## Maintenance
-
-- When you change a module → update its doc + INDEX.md
-- When you add a new module → create file + add to INDEX.md
-- When you fix an interesting bug → add to lessons.md
+Исключение: контент, генерируемый пользователем, или внешние API.

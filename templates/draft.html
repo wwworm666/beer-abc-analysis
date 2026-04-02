@@ -664,11 +664,30 @@
                 </div>
             `;
 
+            // Расчёт дополнительных метрик
+            const avgPricePerLiter = data.total_revenue / data.total_liters || 0;
+            const totalPortions = data.total_portions || 0;
+            // Средний объем порции = общий объём / количество порций
+            // Пример: 0.5л + 0.5л + 1.0л = 2.0л / 3 порции = 0.67л средняя
+            const avgPortionVolume = totalPortions > 0 ? data.total_liters / totalPortions : 0;
+
             const stats = `
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="label">Общий объём</div>
                         <div class="value">${data.total_liters.toFixed(1)}<span class="unit">L</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Средняя цена за литр</div>
+                        <div class="value">${formatMoney(avgPricePerLiter)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Средний объём порции</div>
+                        <div class="value">${avgPortionVolume.toFixed(2)}<span class="unit">L</span></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">Всего порций</div>
+                        <div class="value">${formatNumber(totalPortions)}</div>
                     </div>
                 </div>
             `;

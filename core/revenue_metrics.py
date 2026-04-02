@@ -3,7 +3,7 @@
 
 Метрики:
 1. Текущая выручка — факт по данным OLAP за выбранный период
-2. План — плановая выручка из bar_plans.json на период
+2. План — плановая выручка из daily_plans.json на период (рассчитывается автоматически: пт/сб = 2x)
 3. Ожидаемая — прогноз на основе текущей динамики (тренд)
 4. Средняя — среднедневная выручка за период
 """
@@ -13,18 +13,17 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 from core.olap_reports import OlapReports
-from core.plans_manager import PlansManager
+from core.daily_plans_generator import get_daily_plan_for_date
 
 
 class RevenueMetricsCalculator:
     """Калькулятор метрик выручки"""
 
     def __init__(self):
-        self.plans_manager = PlansManager(data_file='data/bar_plans.json')
-        self._plans_file = 'data/bar_plans.json'
+        self._plans_file = 'data/daily_plans.json'
 
     def _read_plans_file(self) -> Dict:
-        """Прочитать файл планов bar_plans.json"""
+        """Прочитать файл планов daily_plans.json"""
         try:
             with open(self._plans_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -35,45 +34,50 @@ class RevenueMetricsCalculator:
     def _get_daily_plan(self, date_str: str, bar_name: str) -> Optional[float]:
         """
         Получить плановую выручку на конкретный день для бара
+        Использует daily_plans.json (автоматический расчёт пт/сб = 2x)
 
         Args:
             date_str: Дата в формате 'YYYY-MM-DD'
-            bar_name: Название бара (как в bar_plans.json)
+            bar_name: Название бара (например, 'bolshoy', 'kremenchugskaya')
 
         Returns:
             Плановая выручка или None
         """
-        plans_data = self._read_plans_file()
-        plans = plans_data.get('plans', {})
-
-        if date_str in plans:
-            day_plan = plans[date_str]
-            if bar_name in day_plan:
-                return float(day_plan[bar_name])
-
-        return None
+        # Используем готовую функцию из daily_plans_generator
+        return get_daily_plan_for_date(date_str, bar_name)
 
     def _calculate_period_plan(self, bar_name: str, date_from: str, date_to: str) -> Optional[float]:
         """
-        Рассчитать плановую выручку за период
+        Рассчитать плановую выручку за период из daily_plans.json
 
         Args:
-            bar_name: Название бара или '' для общей
+            bar_name: Ключ заведения ('bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya') или '' для общей
             date_from: Начало периода 'YYYY-MM-DD'
             date_to: Конец периода 'YYYY-MM-DD'
 
         Returns:
             Плановая выручка за период или None
         """
-        plans_data = self._read_plans_file()
-        plans = plans_data.get('plans', {})
+        # Маппинг старых названий на новые ключи
+        venue_key_map = {
+            'Кременчугская': 'kremenchugskaya',
+            'Варшавская': 'varshavskaya',
+            'Большой пр В.О.': 'bolshoy',
+            'Большой пр В.О': 'bolshoy',
+            'Большой пр': 'bolshoy',
+            'Лиговский': 'ligovskiy',
+            'bolshoy': 'bolshoy',
+            'ligovskiy': 'ligovskiy',
+            'kremenchugskaya': 'kremenchugskaya',
+            'varshavskaya': 'varshavskaya',
+        }
 
-        # Определяем бары для расчёта
-        if bar_name:
-            bars_to_check = [bar_name]
-        else:
-            # Для "общей" суммируем все бары
-            bars_to_check = ["Кременчугская", "Варшавская", "Большой пр В.О.", "Лиговский"]
+        # Определяем ключ заведения
+        venue_key = venue_key_map.get(bar_name, bar_name) if bar_name else None
+
+        # Для "общей" используем 'all'
+        if not venue_key:
+            venue_key = 'all'
 
         total_plan = 0.0
         days_found = 0
@@ -85,22 +89,11 @@ class RevenueMetricsCalculator:
         while current_date <= end_date:
             date_str = current_date.strftime('%Y-%m-%d')
 
-            if date_str in plans:
-                day_plan = plans[date_str]
+            # Получаем план на день из daily_plans.json
+            day_plan = get_daily_plan_for_date(date_str, venue_key)
 
-                for bar in bars_to_check:
-                    # Пробуем разные варианты написания названия бара
-                    bar_variants = [
-                        bar,
-                        bar.replace('.', ''),  # "Большой пр В.О" -> "Большой пр В.О"
-                        bar.strip(),
-                    ]
-
-                    for variant in bar_variants:
-                        if variant in day_plan:
-                            total_plan += float(day_plan[variant])
-                            break
-
+            if day_plan and day_plan > 0:
+                total_plan += day_plan
                 days_found += 1
 
             current_date += timedelta(days=1)

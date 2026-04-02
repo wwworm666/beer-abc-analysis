@@ -19,7 +19,6 @@
     <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
     <link rel="stylesheet" href="/static/dashboard/styles/comparison.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
-    <link rel="stylesheet" href="/static/dashboard/styles/expiry.css">
     <link rel="stylesheet" href="/static/logo.css">
 
     <!-- Flatpickr Datepicker -->
@@ -53,10 +52,9 @@
             return Promise.all([
                 import(`/static/js/dashboard/modules/export.js?v=${APP_VERSION}`),
                 import(`/static/js/dashboard/modules/comparison.js?v=${APP_VERSION}`),
-                import(`/static/js/dashboard/modules/datepicker.js?v=${APP_VERSION}`),
-                import(`/static/js/dashboard/modules/expiry.js?v=${APP_VERSION}`)
+                import(`/static/js/dashboard/modules/datepicker.js?v=${APP_VERSION}`)
             ]);
-        }).then(([exportMod, comparisonMod, datepickerMod, expiryMod]) => {
+        }).then(([exportMod, comparisonMod, datepickerMod]) => {
             // Инициализируем дополнительные модули
             if (exportMod && exportMod.exportModule) {
                 exportMod.exportModule.init();
@@ -66,10 +64,6 @@
             }
             if (datepickerMod && datepickerMod.datepickerModule) {
                 datepickerMod.datepickerModule.init();
-            }
-            // Инициализация модуля Честный ЗНАК (expiry)
-            if (expiryMod && expiryMod.CZ) {
-                expiryMod.CZ.init();
             }
             console.log('✅ Dashboard loaded successfully!');
         }).catch(err => {

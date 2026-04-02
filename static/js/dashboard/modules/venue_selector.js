@@ -9,8 +9,8 @@ import { getVenues } from '../core/api.js';
 class VenueSelector {
     constructor() {
         this.selectElement = document.getElementById('venue-selector');
+        // Элементы venue-info, venue-name, venue-taps могут отсутствовать в HTML
         this.venueInfo = document.getElementById('venue-info');
-        // this.venueIcon = document.getElementById('venue-icon'); // Удалено: иконки больше нет
         this.venueName = document.getElementById('venue-name');
         this.venueTaps = document.getElementById('venue-taps');
 

@@ -108,9 +108,11 @@ class VenuesManager:
         if not venue:
             return None
 
+        # Если icon пустой, не добавляем пробел перед названием
+        label_prefix = venue['icon'] + ' ' if venue['icon'] else ''
         return {
             'key': venue['key'],
-            'label': f"{venue['icon']} {venue['full_name']}",
+            'label': f"{label_prefix}{venue['full_name']}",
             'name': venue['name'],
             'icon': venue['icon']
         }

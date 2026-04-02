@@ -6,6 +6,7 @@ from core.olap_reports import OlapReports
 from core.iiko_api import IikoAPI
 from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from_waiter_data
 from core.employee_plans import get_employee_plan_by_shifts
+from core.daily_plans_generator import get_daily_plan_for_date, regenerate_daily_plans
 from core.kpi_calculator import KpiCalculator, KpiTargetsReader, clear_kpi_cache, AVAILABLE_METRICS
 from extensions import EMPLOYEES_CACHE, EMPLOYEES_CACHE_TTL
 
@@ -439,10 +440,9 @@ def bonus_calculate():
         if not all_employee_metrics:
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
 
-        # 2. Подготовка: планы ТТ (всегда свежие данные с диска)
-        from core.employee_plans import BarPlansReader, normalize_bar_name, BAR_NAME_MAPPING, clear_plans_cache
-        clear_plans_cache()
-        plans_reader = BarPlansReader()
+        # 2. Подготовка: планы ТТ из daily_plans.json (рассчитываются автоматически из месячных планов)
+        # Формула: пт/сб = 2x, остальные дни = 1x
+        from core.employee_plans import normalize_bar_name, BAR_NAME_MAPPING
 
         # Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
@@ -477,13 +477,14 @@ def bonus_calculate():
                 day_revenue = shift_revenues.get(date_str, 0.0)
                 total_revenue += day_revenue
 
-                # План на этот день
+                # План на этот день из daily_plans.json (автоматический расчёт пт/сб = 2x)
                 location = shift_locations.get(date_str, '')
                 day_plan = 0.0
                 if location:
                     normalized = normalize_bar_name(location)
                     mapped_name = BAR_NAME_MAPPING.get(normalized, location)
-                    day_plan = plans_reader.get_bar_plan(date_str, mapped_name)
+                    # Получаем план из daily_plans.json
+                    day_plan = get_daily_plan_for_date(date_str, mapped_name)
 
                 total_plan += day_plan
 
@@ -525,6 +526,12 @@ def bonus_calculate():
             # Сортируем дни по дате
             days_detail.sort(key=lambda x: x['date'])
 
+            # Часы работы из кассовых смен
+            total_hours = emp_metrics.get('total_hours', 0.0)
+
+            # Премия за передачу смены: 500 ₽ × количество смен
+            shift_handover_bonus = shifts_count * 500
+
             results.append({
                 'name': emp_name,
                 'plan_revenue': round(total_plan, 2),
@@ -536,6 +543,8 @@ def bonus_calculate():
                 'late_count': late_count,
                 'penalty': penalty,
                 'net': round(net, 2),
+                'shift_handover_bonus': shift_handover_bonus,
+                'total_hours': round(total_hours, 1),
                 'days': days_detail
             })
 
@@ -695,6 +704,8 @@ def kpi_calculate():
             )
 
             if kpi_result:
+                # Добавляем часы работы из кассовых смен
+                kpi_result['total_hours'] = round(total_hours, 1)
                 results.append(kpi_result)
                 total_premium += kpi_result['total_premium']
 

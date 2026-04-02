@@ -1,317 +1,363 @@
-# Lessons — Баги, ловушки, паттерны
+# Уроки и паттерны
 
 ## Что это
 
-Собрание всех нетривиальных багов и их решений. Обновляется при каждом интересном фиксе.
+Сборник багов, проблем, решений и паттернов разработки. Формат: Problem → Cause → Solution.
 
 ---
 
-## Баги
+## Критические особенности iiko API
 
-### Баг: "Нет данных" для сотрудника
+### 1. Дата `to` — EXCLUSIVE в OLAP
 
-**Симптом**: API возвращает пустой результат для "Артемий Новаев".
+**Problem:** OLAP запросы не включают последний день периода.
 
-**Причина**: В iiko имя записано как "Новаев Артемий".
+**Cause:** iiko API трактует параметр `to` как НЕ включительный.
 
-**Решение**: Запрашиваем оба варианта:
+**Solution:** Добавлять +1 день к конечной дате для OLAP запросов:
+
 ```python
-"WaiterName": {
-    "filterType": "IncludeValues",
-    "values": [employee_name, reverse_name(employee_name)]
+olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+```
+
+**Исключение:** Кассовые смены (cashshifts) используют inclusive даты — не требовать +1 день.
+
+---
+
+### 2. AuthUser vs WaiterName
+
+**Problem:** `WaiterName` пропускает все продажи через стойку (нет столика → нет официанта).
+
+**Cause:** WaiterName заполняется только для заказов с столиками.
+
+**Solution:** Использовать `AuthUser` ("Авторизовал") для агрегированных метрик:
+
+```python
+# core/olap_reports.py:1052-1055
+request = {
+    "groupByRowFields": ["AuthUser"],  # "Авторизовал" — кто пробил чек
+    "aggregateFields": [
+        "UniqOrderId",
+        "UniqOrderId.OrdersCount",
+        "DishDiscountSumInt",
+        "DiscountSum"
+    ]
 }
 ```
 
 ---
 
-### Баг: Расхождение в количестве чеков
+### 3. Матчинг имён сотрудников
 
-**Симптом**: API = 236, UI iiko = 233.
+**Problem:** `AuthUser` возвращает "Новаев Артемий", а iiko employee называется "Артемий Новаев".
 
-**Причина**: Разные фильтры удаления.
+**Cause:** Разный формат имён (фамилия-имя vs имя-фамилия).
 
-**Решение**:
+**Solution:** Использовать word-set intersection:
+
 ```python
-"DeletedWithWriteoff": {"filterType": "IncludeValues", "values": ["NOT_DELETED"]},
-"OrderDeleted": {"filterType": "IncludeValues", "values": ["NOT_DELETED"]}
+# core/employee_analysis.py:64-70
+emp_words = set(employee_name.lower().split())
+for auth_name, data in aggregated_data.items():
+    auth_words = set(auth_name.lower().split())
+    if emp_words == auth_words or (len(emp_words) >= 2 and emp_words.issubset(auth_words)):
+        emp_aggregated = data
+        break
 ```
 
 ---
 
-### Баг: План = 0 для всех сотрудников
+### 4. Поле для количества чеков
 
-**Симптом**: `plan_revenue` всегда 0.
+**Problem:** Нужно добавить ОБА поля в `aggregateFields`.
 
-**Причина**: `get_attendance()` возвращал "Пивная культура" для всех.
+**Cause:** `UniqOrderId` — это ID заказа, `UniqOrderId.OrdersCount` — счётчик.
 
-**Решение**: Переключились на Cash Shifts API:
+**Solution:**
+
 ```python
-# Старый способ (НЕ РАБОТАЕТ)
-attendance = api.get_attendance(employee_id)
-
-# Новый способ (РАБОТАЕТ)
-shifts = api.get_cash_shifts(date_from, date_to)
-# shift.pointOfSaleId → Groups API → название бара
+"aggregateFields": [
+    "UniqOrderId",              # ID заказа
+    "UniqOrderId.OrdersCount",  # Счётчик чеков (это и есть "количество чеков")
+    ...
+]
 ```
 
 ---
 
-### Баг: CardNumber — это банковские карты, не лояльность
+### 5. Средний чек
 
-**Симптом**: Запрос карт лояльности через `CardNumber` возвращает замаскированные номера (`****1234`) — длинные, похожие на банковские.
+**Problem:** Нельзя смешивать выручку из OLAP и чеки из кассовых смен.
 
-**Причина**: Поле `CardNumber` в OLAP iiko — это номер платёжной карты (Visa/Mastercard), а не карты лояльности. Карты лояльности имеют 7-значные номера.
+**Cause:** Разные источники данных дадут неверный результат.
 
-**Решение**: Использовать `Delivery.CustomerPhone` (телефон клиента) как идентификатор карты лояльности. Фильтровать по `Delivery.CustomerCreatedDateTyped` (дата создания клиента) для подсчёта новых регистраций.
+**Solution:** Считать из OLAP:
 
-```python
-# НЕПРАВИЛЬНО — банковские карты
-"groupByRowFields": ["WaiterName", "CardNumber"]
-
-# ПРАВИЛЬНО — телефоны = карты лояльности
-"groupByRowFields": ["WaiterName", "Delivery.CustomerPhone"]
+```
+Средний чек = DishDiscountSumInt / UniqOrderId.OrdersCount
 ```
 
 ---
 
-### Баг: Employee ID не найден (порядок имени)
+## Паттерны разработки
 
-**Симптом**: Для "Васильев Никита" не находится employee_id, все метрики из кассовых смен = 0.
+### 1. Thread-safe операции
 
-**Причина**: OLAP возвращает "Васильев Никита", а iiko employees API — "Никита Васильев". Точное сравнение строк не работает.
+**Problem:** Race conditions при одновременном доступе к данным.
 
-**Решение**: Нормализация имён — сравниваем множества слов:
+**Solution:** Использовать `threading.Lock()`:
+
 ```python
-def normalize_name(name):
-    return set(name.lower().strip().split())
-# {"васильев", "никита"} == {"никита", "васильев"} ✓
+# core/taps_manager.py:81
+self._lock = threading.Lock()
+
+def start_tap(self, ...):
+    with self._lock:  # Блокировка на время операции
+        ...
+        self._save_data()
 ```
 
 ---
 
-### Баг: Опоздания = 0 на Render, но работает локально
+### 2. Backup перед записью
 
-**Симптом**: `late_count` всегда 0 для всех сотрудников на Render (production), но локально показывает корректные 24/53 опоздания.
+**Problem:** Повреждение данных при сбое записи.
 
-**Причина**: `_parse_iso_datetime()` тупо обрезала таймзону через `iso_str.split('+')[0]`. Если iiko Cloud API возвращает UTC-таймстемпы (`"2026-01-20T11:04:48.781+00:00"`), обрезка `+00:00` оставляет UTC-час (11), а не московский (14). Сравнение `hour > 14` никогда не срабатывает. Локально формат мог быть без таймзоны (наивный datetime), поэтому всё работало.
-
-**Решение**: Вместо обрезки — правильная конвертация через `datetime.astimezone()`:
+**Solution:** Создавать backup перед изменением файла:
 
 ```python
-MOSCOW_TZ = timezone(timedelta(hours=3))
+# core/plans_manager.py:139-174
+def _write_file(self, data: Dict):
+    # Создаем backup перед записью
+    self._create_backup()
 
-def _parse_iso_datetime(self, iso_str):
-    dt = datetime.fromisoformat(iso_str)
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(MOSCOW_TZ).replace(tzinfo=None)
-    return dt
+    # Записываем во временный файл
+    temp_file = self.data_file + '.tmp'
+    with open(temp_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    # Атомарно переименовываем
+    os.replace(temp_file, self.data_file)
 ```
-
-**Урок**: Никогда не стрипай таймзоны строковыми операциями. `split('+')` — это не парсинг таймзоны, это потеря данных. Всегда конвертируй в нужную зону через стандартные datetime-методы.
 
 ---
 
-### Баг: Comparison Module — проценты отображаются как 19300% вместо 193%
+### 3. Кэширование OLAP запросов
 
-**Симптом**: Наценка розлив показывает `19300.0%` вместо `193.0%`, разница `4800 п.п.` вместо `48 п.п.`
+**Problem:** OLAP API медленный, частые запросы создают нагрузку.
 
-**Причина**: Двойное умножение на 100
+**Solution:** Кэшировать результаты с TTL:
 
-1. API возвращает проценты уже как числа: `193` (не `1.93`)
-2. Кастомный formatter умножал на 100: `(193 * 100).toFixed(1)%` = `19300%`
-3. Разница тоже умножалась: `48 * 100 = 4800 п.п.`
+```python
+# extensions.py
+DASHBOARD_OLAP_CACHE_TTL = 600  # 10 минут
+EMPLOYEES_CACHE_TTL = 300       # 5 минут
 
-**Решение**:
+# Кэширование в routes
+@cache.cached(timeout=DASHBOARD_OLAP_CACHE_TTL)
+def get_dashboard_analytics():
+    ...
+```
+
+---
+
+### 4. Retry logic для нестабильного API
+
+**Problem:** iiko API иногда возвращает timeout.
+
+**Solution:** Retry с экспоненциальной задержкой:
+
+```python
+# core/olap_reports.py:374-409
+max_retries = 3
+timeout = 120
+
+for attempt in range(max_retries):
+    try:
+        response = requests.post(url, params=params, json=request_body, timeout=timeout)
+        if response.status_code == 200:
+            return response.json()
+    except requests.exceptions.ReadTimeout:
+        if attempt < max_retries - 1:
+            time.sleep(2 ** attempt)  # Exponential backoff
+        else:
+            raise
+```
+
+---
+
+### 5. Валидация данных планов
+
+**Problem:** Некорректные данные планов ломают расчёты.
+
+**Solution:** Строгая валидация схемы:
+
+```python
+# core/plans_manager.py:194-238
+PLAN_SCHEMA = {
+    'revenue': (float, int),
+    'checks': (int,),
+    'averageCheck': (float, int),
+    ...
+}
+
+def _validate_plan_data(self, plan_data: Dict) -> bool:
+    # Проверяем наличие всех обязательных полей
+    for field, expected_types in self.PLAN_SCHEMA.items():
+        if field not in plan_data:
+            raise ValueError(f"Missing required field: {field}")
+
+        value = plan_data[field]
+        if not isinstance(value, expected_types):
+            raise ValueError(f"Field '{field}' has wrong type")
+
+        if value < 0:
+            raise ValueError(f"Field '{field}' cannot be negative")
+
+    # Проверяем что сумма долей ≈ 100%
+    shares_sum = (plan_data['draftShare'] +
+                  plan_data['packagedShare'] +
+                  plan_data['kitchenShare'])
+
+    if not (99.0 <= shares_sum <= 101.0):
+        raise ValueError(f"Sum of shares must be approximately 100%")
+```
+
+---
+
+## Планы: независимое редактирование (v3)
+
+**Problem:** Редактирование планов было привязано к периоду дашборда, что создавало путаницу.
+
+**Cause:** Пользователь должен был выбирать период в дашборде, затем открывать редактирование — но период мог охватывать несколько месяцев.
+
+**Solution (v3):** Полностью независимое редактирование планов:
+1. Модальное окно с собственным селектором периода (Месяц, Год, Заведение)
+2. Кнопка "Загрузить план" — загружает план за выбранный месяц
+3. Если план найден — показывается для редактирования
+4. Если план не найден — создаётся пустой шаблон
+5. Кнопки "Сохранить"/"Удалить" показываются только после загрузки
 
 ```javascript
-// БЫЛО (неправильно)
-{ key: 'markupDraft', label: 'Наценка розлив',
-  formatter: (v) => `${(v * 100).toFixed(1)}%` }
+// Выбор периода в модальном окне
+const month = this.planMonthSelect?.value;
+const year = this.planYearSelect?.value;
+const venue = this.planVenueSelect?.value;
+this.selectedPeriodKey = `${year}-${month}`;
 
-formattedDiff = `${(diff * 100).toFixed(1)} п.п.`;
-
-// СТАЛО (правильно)
-{ key: 'markupDraft', label: 'Наценка розлив',
-  formatter: formatPercent }  // из utils.js, не умножает
-
-formattedDiff = `${Math.abs(diff).toFixed(1)} п.п.`;
+// Загрузка плана
+const plan = await getPlan(venue, this.selectedPeriodKey);
 ```
 
-**Урок**:
-1. Всегда проверяй формат данных от API (десятичные 0.25 или проценты 25)
-2. Используй единые форматтеры из utils.js, не создавай кастомные
-3. Если видишь `* 100` в formatter — проверь, действительно ли это нужно
-4. Dashboard и Comparison должны использовать одинаковые форматтеры
+**Files:**
+- `templates/dashboard/plans_tab.html` — селектор месяца/года/заведения
+- `static/js/dashboard/modules/plans.js` — `loadPlanFromModal()`, `openCreateModal()`
 
 ---
 
-### Баг: Comparison Module — шкалы не привязаны, проценты неправильные
+## Планы: редактирование только одного месяца (v2, устарело)
 
-**Симптом**:
-1. Progress bars в карточках сравнения показывают произвольные значения
-2. Непонятно какой показатель был, какой стал
-3. Проценты для наценки считаются неправильно (показывают 0.05 п.п. вместо 5.0 п.п.)
+**Problem:** Пользователь может случайно выбрать период охватывающий два месяца (например, 25 марта — 5 апреля), что приведёт к некорректному сохранению плана.
 
-**Причина**:
-1. Progress bar не был привязан к данным — показывал фиксированное значение
-2. Footer не объяснял что означают числа
-3. Для процентных метрик (markup, shares) значения приходят как десятичные (0.25 = 25%), но разница не умножалась на 100
+**Cause:** Планы хранятся в формате `venue_YYYY-MM` (например, `bolshoy_2025-10`) — один план на один месяц. При редактировании периода охватывающего несколько месяцев непонятно в какой план сохранять данные.
 
-**Решение**:
-
-```javascript
-// 1. Разделили два процента: для отображения и для progress bar
-const changePercent = val2 !== 0 ? ((diff / val2) * 100) : 0;  // для footer
-const progressPercent = val2 !== 0 ? (val1 / val2) * 100 : 0;  // для bar
-
-// 2. Progress bar показывает отношение (как в dashboard: факт/план)
-const progressWidth = Math.min(progressPercent, 100);
-
-// 3. Для процентных метрик умножаем разницу на 100
-if (metric.key.includes('markup') || metric.key.includes('Share')) {
-    formattedDiff = `${diff >= 0 ? '+' : ''}${(diff * 100).toFixed(1)} п.п.`;
-}
-
-// 4. Footer теперь чёткий: процент изменения, разница, предыдущее значение
-<div class="metric-footer">
-    <span class="metric-percentage">+20.0%</span>      <!-- изменение -->
-    <span class="metric-deviation">+20 000 ₽</span>   <!-- разница -->
-    <span class="metric-plan">было 100 000 ₽</span>   <!-- было -->
-</div>
-```
-
-**Пример (наценка)**:
-- Period 2: 25% (приходит как 0.25)
-- Period 1: 30% (приходит как 0.30)
-- Разница: 0.05 → умножаем на 100 → **+5.0 п.п.** ✓
-
-**Урок**:
-1. Progress bar должен визуализировать реальное отношение данных, не произвольное значение
-2. UI должен явно показывать "было → стало → изменение"
-3. Процентные метрики требуют специальной обработки — проверяй формат данных от API
+**Solution (v2):**
+1. Проверять что выбранный период находится в рамках одного месяца
+2. Блокировать кнопки "Редактировать" и "Удалить" если период охватывает несколько месяцев
+3. Показывать месяц в заголовке модального окна
 
 ---
 
-## Паттерны
+## Баги и решения
 
-### Паттерн: Параллельные OLAP-запросы
+### 1. Двойной учёт продаж официантов
 
-OLAP-запросы к iiko медленные (2-5 сек). Делаем параллельно:
+**Problem:** Добавление `OrderWaiter.Name` в `groupByRowFields` создавало дублирование строк.
+
+**Cause:** Если `WaiterName` и `OrderWaiter.Name` различаются, OLAP создаёт отдельные строки.
+
+**Solution:** Использовать ТОЛЬКО `WaiterName`:
 
 ```python
-from concurrent.futures import ThreadPoolExecutor
-
-with ThreadPoolExecutor(max_workers=5) as executor:
-    futures = {
-        'revenue': executor.submit(get_revenue, ...),
-        'draft': executor.submit(get_draft, ...),
-    }
-    results = {k: f.result() for k, f in futures.items()}
+# core/olap_reports.py:646-652
+# Добавляем поля официантов если требуется
+if include_waiter:
+    # ВАЖНО: Используем ТОЛЬКО WaiterName (официант блюда)
+    # Добавление OrderWaiter.Name в groupByRowFields создаёт дублирование строк!
+    groupByRowFields.append("WaiterName")
 ```
-
-**Результат**: 8 сек → 3 сек.
 
 ---
 
-### Паттерн: Кэширование с TTL
+### 2. Отрицательные часы работы
+
+**Problem:** Смены с отрицательной длительностью.
+
+**Cause:** Смена закрыта в предыдущий день (переход через полночь).
+
+**Solution:** Проверка на отрицательные значения:
 
 ```python
-CACHE = {'data': None, 'timestamp': 0}
-CACHE_TTL = 300  # 5 минут
-
-def get_cached_data():
-    if CACHE['data'] and time.time() - CACHE['timestamp'] < CACHE_TTL:
-        return CACHE['data']
-
-    data = fetch_from_api()
-    CACHE['data'] = data
-    CACHE['timestamp'] = time.time()
-    return data
+# core/iiko_api.py:413-415
+if shift_hours < 0 or shift_hours > 24:
+    shift_hours = 0.0
 ```
 
 ---
 
-### Паттерн: Маппинг названий точек
+### 3. Опоздания >24 часов
 
-iiko называет точки по-своему, планы — по-своему:
+**Problem:** Некорректный подсчёт опозданий.
+
+**Cause:** Смена может быть открыта после 14:30 но до 15:00.
+
+**Solution:** Точная проверка времени:
 
 ```python
-BAR_NAME_MAPPING = {
-    "Пивная культура": "Кременчугская",
-    "Большой пр. В.О": "Большой пр В.О.",  # Обрати внимание на точку!
-}
+# core/iiko_api.py:424-426
+if open_dt:
+    if open_dt.hour > 14 or (open_dt.hour == 14 and open_dt.minute > 30):
+        is_late = True
 ```
 
 ---
 
-## "Ага-моменты"
+## Производительность
 
-### ABC-анализ — это три буквы, не одна
+### 1. Оптимизация widget API
 
-```
-1-я буква: Выручка (A=80%, B=15%, C=5%)
-2-я буква: Наценка (A≥120%, B=100-120%, C<100%)
-3-я буква: Маржа (A=80%, B=15%, C=5%)
-```
+**Problem:** 5 OLAP запросов для виджета.
 
-**AAA** = хит по всем метрикам.
-**CAC** = ловушка: низкие продажи, высокая наценка, низкая маржа.
-
-### XYZ — про стабильность, не качество
-
-```
-X = CV < 10%   (стабильные продажи)
-Y = CV 10-25%  (умеренные колебания)
-Z = CV > 25%   (непредсказуемо)
-```
-
----
-
-### Паттерн: Рефакторинг монолита на Flask Blueprints
-
-**Проблема**: `app.py` разросся до 5199 строк — 70+ endpoints, импорты на 30 строк, невозможно быстро найти нужный роут.
-
-**Решение**: Разбили на модули по функциональности:
+**Solution:** 1 комплексный запрос вместо 5:
 
 ```python
-# Было: app.py (5199 строк)
-@app.route('/api/analyze')
-@app.route('/api/employees')
-@app.route('/api/taps/bars')
-# ... ещё 67 роутов
-
-# Стало: routes/ (8 файлов)
-routes/
-├── pages.py      ← HTML-страницы
-├── analysis.py   ← ABC/XYZ/категории
-├── employee.py   ← Сотрудники, KPI
-├── taps.py       ← Краны
-├── stocks.py     ← Остатки
-├── dashboard.py  ← План/Факт
-├── schedule.py   ← Смены
-└── misc.py       ← Утилиты
+# core/olap_reports.py:339-411
+def get_all_sales_report(self, date_from, date_to, bar_name=None):
+    """
+    Получить КОМПЛЕКСНЫЙ OLAP отчет (розлив + фасовка + кухня) за ОДИН запрос.
+    Оптимизация: 1 HTTP запрос вместо 3 параллельных.
+    """
 ```
 
-**Ключевые моменты**:
+**Результат:** 5x быстрее загрузка.
 
-1. **Без url_prefix** — все URL остались идентичными (важно для production)
-2. **extensions.py** — общие синглтоны (менеджеры, кэши) вынесены отдельно, чтобы избежать циклических импортов
-3. **Blueprints без состояния** — импортируют из extensions.py, не создают свои экземпляры
-4. **Один blueprint = одна зона ответственности** — легко найти нужный код
+---
 
-**Результат**:
-- app.py: 5199 строк → 31 строка
-- Время поиска роута: ~30 сек → ~5 сек
-- gunicorn app:app работает без изменений
+### 2. Кэширование номенклатуры
 
-**Урок**: Рефакторинг монолита не требует изменения URL или логики. Flask Blueprints — это просто организация кода, не архитектурная революция.
+**Problem:** Частые запросы `/products` для маппинга товаров.
+
+**Solution:** Кэшировать на 15 минут:
+
+```python
+# core/olap_reports.py
+@cache.cached(timeout=900)  # 15 минут
+def get_nomenclature(self):
+    ...
+```
 
 ---
 
 ## Changelog
 
-- 2026-03-24: Добавлен баг: Comparison Module — progress bars, проценты, clarity
-- 2026-03-21: Добавлен паттерн: рефакторинг монолита на Flask Blueprints
-- 2026-01-29: Добавлен баг: опоздания = 0 на Render (таймзона UTC vs МСК)
-- 2026-01-28: Добавлены баги: CardNumber vs CustomerPhone, нормализация имён сотрудников
-- 2026-01-25: Создан файл, собраны баги из FORARTEM.md
+- **2026-03-27** — Создан документ lessons.md с описанием критических особенностей iiko API, паттернов и багов

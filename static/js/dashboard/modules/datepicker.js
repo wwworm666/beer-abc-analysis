@@ -190,14 +190,52 @@ export function init() {
     if (typeof flatpickr !== 'undefined') {
         initFlatpickr();
     } else {
-        // Fallback: ждем 500ms
-        setTimeout(() => {
+        // Fallback: пробуем несколько раз с интервалом
+        let attempts = 0;
+        const maxAttempts = 10;
+        const checkFlatpickr = () => {
+            attempts++;
             if (typeof flatpickr !== 'undefined') {
+                console.log('Flatpickr загружен после', attempts, 'попыток');
                 initFlatpickr();
+            } else if (attempts < maxAttempts) {
+                console.log('Попытка', attempts, ': Flatpickr ещё не загружен, ждем...');
+                setTimeout(checkFlatpickr, 200);
             } else {
-                console.error('Flatpickr библиотека не загрузилась');
+                console.error('Flatpickr библиотека не загрузилась после', maxAttempts, 'попыток');
+                // Создаем простой input fallback
+                const input = document.getElementById('flexi-range-picker');
+                if (input) {
+                    input.readOnly = false;
+                    input.placeholder = 'Введите даты (YYYY-MM-DD - YYYY-MM-DD)';
+                    input.addEventListener('change', handleManualDateInput);
+                }
             }
-        }, 500);
+        };
+        setTimeout(checkFlatpickr, 200);
+    }
+}
+
+/**
+ * Обработчик ручного ввода дат (fallback если Flatpickr не загрузился)
+ */
+function handleManualDateInput(e) {
+    const value = e.target.value;
+    // Ожидаем формат "YYYY-MM-DD - YYYY-MM-DD"
+    const match = value.match(/(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})/);
+    if (match) {
+        const dateFrom = match[1];
+        const dateTo = match[2];
+        const label = `${dateFrom} - ${dateTo}`;
+
+        state.setPeriod({
+            key: `custom_${dateFrom}_${dateTo}`,
+            start: dateFrom,
+            end: dateTo,
+            label: label
+        });
+
+        state.addMessage('success', `Период: ${label}`);
     }
 }
 
