@@ -411,7 +411,13 @@ def bonus_calculate():
         if not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры: date_from, date_to'}), 400
 
-        print(f"\n[BONUS] Raschyot bonusov za period: {date_from} - {date_to}")
+        started_at = time.perf_counter()
+
+        def bonus_log(message):
+            elapsed = time.perf_counter() - started_at
+            print(f"[BONUS][{elapsed:7.2f}s] {message}", flush=True)
+
+        bonus_log(f"Raschyot bonusov za period: {date_from} - {date_to}")
 
         # 1. iiko: кассовые смены — выручка, локация, дата (единый источник)
         now = time.time()
@@ -436,6 +442,8 @@ def bonus_calculate():
         else:
             employees_list = []
             print("   [ERROR] Failed to authenticate to iiko")
+
+        bonus_log(f"Stage shifts complete: employees={len(all_employee_metrics)}")
 
         if not all_employee_metrics:
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
@@ -548,6 +556,8 @@ def bonus_calculate():
                 'days': days_detail
             })
 
+        bonus_log(f"Stage calculation complete: result_employees={len(results)}")
+
         # Сортируем: сначала с наибольшей итоговой суммой
         results.sort(key=lambda x: x['net'], reverse=True)
 
@@ -562,6 +572,10 @@ def bonus_calculate():
         })
 
     except Exception as e:
+        try:
+            bonus_log(f"FAILED: {e}")
+        except Exception:
+            pass
         print(f"[ERROR] Oshibka v /api/bonus-calculate: {e}")
         import traceback
         traceback.print_exc()
@@ -587,12 +601,19 @@ def kpi_calculate():
             return jsonify({'error': 'Требуются параметры: date_from, date_to'}), 400
 
         month = date_from[:7]  # "YYYY-MM"
-        print(f"\n[KPI] Raschyot KPI-bonusov za period: {date_from} - {date_to}, month: {month}")
+        started_at = time.perf_counter()
+
+        def kpi_log(message):
+            elapsed = time.perf_counter() - started_at
+            print(f"[KPI][{elapsed:7.2f}s] {message}", flush=True)
+
+        kpi_log(f"Raschyot KPI-bonusov za period: {date_from} - {date_to}, month: {month}")
 
         # 1. Проверяем наличие целей за месяц
         clear_kpi_cache()
         kpi_calc = KpiCalculator()
         month_targets = kpi_calc.reader.get_targets_for_month(month)
+        kpi_log(f"Stage targets loaded: locations={len(month_targets)}")
         if not month_targets:
             return jsonify({'error': f'Нет KPI-целей за месяц {month}. Настройте цели во вкладке "Настройка целей".'}), 404
 
@@ -620,6 +641,8 @@ def kpi_calculate():
             employees_list = []
             print("   [ERROR] Failed to authenticate to iiko")
 
+        kpi_log(f"Stage shifts complete: employees={len(all_employee_metrics)}")
+
         if not all_employee_metrics:
             return jsonify({'error': 'Нет данных о сменах за выбранный период'}), 404
 
@@ -631,6 +654,7 @@ def kpi_calculate():
             return jsonify({'error': 'Не удалось подключиться к iiko OLAP'}), 500
 
         try:
+            kpi_log("Stage OLAP started")
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = {
                     executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, None): 'aggregated',
@@ -644,6 +668,13 @@ def kpi_calculate():
                     key = futures[future]
                     try:
                         olap_results[key] = future.result()
+                        size = 0
+                        result_obj = olap_results[key]
+                        if isinstance(result_obj, dict):
+                            size = len(result_obj.get('data', [])) if 'data' in result_obj else len(result_obj)
+                        elif isinstance(result_obj, list):
+                            size = len(result_obj)
+                        kpi_log(f"OLAP chunk complete: {key}, size={size}")
                     except Exception as e:
                         print(f"   [ERROR] OLAP {key}: {e}")
                         olap_results[key] = None
@@ -655,6 +686,8 @@ def kpi_calculate():
         finally:
             olap.disconnect()
 
+        kpi_log("Stage OLAP complete")
+
         # 4. Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
         system_users = EmployeeMetricsCalculator.SYSTEM_USERS + ['']
@@ -662,6 +695,7 @@ def kpi_calculate():
         # 5. Расчёт KPI для каждого сотрудника
         results = []
         total_premium = 0.0
+        processed_employees = 0
 
         for emp_id, emp_shifts in all_employee_metrics.items():
             emp_name = emp_id_to_name.get(emp_id, '')
@@ -709,6 +743,13 @@ def kpi_calculate():
                 results.append(kpi_result)
                 total_premium += kpi_result['total_premium']
 
+            processed_employees += 1
+            if processed_employees == 1 or processed_employees % 3 == 0:
+                kpi_log(
+                    f"Stage employee loop: processed={processed_employees}, "
+                    f"results={len(results)}, current={emp_name}"
+                )
+
         # Сортируем по убыванию премии
         results.sort(key=lambda x: x['total_premium'], reverse=True)
 
@@ -718,6 +759,7 @@ def kpi_calculate():
         # kpi_names из конфига месяца
         kpi_names = {k: v.get('name', k) for k, v in kpi_config.items()}
 
+        kpi_log(f"Stage final complete: results={len(results)}, total_premium={total_premium:.0f}")
         print(f"[OK] KPI calculated for {len(results)} employees, total premium: {total_premium:.0f}")
 
         return jsonify({
@@ -735,6 +777,10 @@ def kpi_calculate():
         })
 
     except Exception as e:
+        try:
+            kpi_log(f"FAILED: {e}")
+        except Exception:
+            pass
         print(f"[ERROR] Oshibka v /api/kpi-calculate: {e}")
         import traceback
         traceback.print_exc()
