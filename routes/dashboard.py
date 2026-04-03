@@ -387,11 +387,17 @@ def import_plans_from_excel():
             }
         }
 
-        with open('data/plansdashboard.json', 'w', encoding='utf-8') as f:
+        with open(plans_manager.data_file, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, ensure_ascii=False, indent=2)
 
         # Перезагружаем PlansManager
         plans_manager._initialize_file()
+        try:
+            from core.daily_plans_generator import regenerate_daily_plans
+            regenerate_daily_plans()
+            print("[PLANS API] daily_plans.json пересчитан после импорта")
+        except Exception as regen_error:
+            print(f"[PLANS API WARN] Не удалось пересчитать daily_plans.json: {regen_error}")
 
         print(f"[PLANS API] Импортировано планов: {len(all_plans)}")
 
@@ -774,9 +780,11 @@ def revenue_metrics():
         # Определяем ключ для плана (например, "all_2026-03" или "bolshoy_2026-03")
         month_key = f"{venue_key if venue_key else 'all'}_{datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m')}"
 
+        plans_file = plans_manager.data_file
+
         # Читаем plansdashboard.json
         try:
-            with open('data/plansdashboard.json', 'r', encoding='utf-8') as f:
+            with open(plans_file, 'r', encoding='utf-8') as f:
                 plans_data = json.load(f)
             plans = plans_data.get('plans', {})
 
@@ -785,7 +793,7 @@ def revenue_metrics():
             plan_revenue = month_plan.get('revenue', 0.0)
 
         except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"   [WARN] Не удалось прочитать data/plansdashboard.json: {e}")
+            print(f"   [WARN] Не удалось прочитать {plans_file}: {e}")
             plan_revenue = 0.0
 
         # Расчёт метрик
@@ -909,8 +917,9 @@ def widget_revenue():
 
         # Читаем планы один раз
         print(f"   [3/3] Rasschёт metrik...")
+        plans_file = plans_manager.data_file
         try:
-            with open('data/plansdashboard.json', 'r', encoding='utf-8') as f:
+            with open(plans_file, 'r', encoding='utf-8') as f:
                 plans_data = json.load(f)
             plans = plans_data.get('plans', {})
         except:

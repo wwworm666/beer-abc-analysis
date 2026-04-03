@@ -19,6 +19,7 @@ from calendar import monthrange
 from typing import Dict, Optional, List, Tuple
 import threading
 import shutil
+from core.storage_paths import get_data_path
 
 
 class PlansManager:
@@ -54,8 +55,7 @@ class PlansManager:
         if data_file:
             self.data_file = data_file
         else:
-            # Всегда используем data/plansdashboard.json (работает везде - локально и на Render)
-            self.data_file = 'data/plansdashboard.json'
+            self.data_file = get_data_path('plansdashboard.json', seed_from_local=True)
             print(f"[PLANS] Файл планов: {self.data_file}")
 
         # Создаем lock для thread-safe операций

@@ -14,6 +14,7 @@ import os
 from datetime import datetime, timedelta
 from calendar import monthrange
 from typing import Dict, List, Optional
+from core.storage_paths import get_data_path
 
 
 # Веса дней недели
@@ -86,10 +87,10 @@ class DailyPlansGenerator:
             daily_plans_file: Путь к файлу ежедневных планов (daily_plans.json)
         """
         if monthly_plans_file is None:
-            monthly_plans_file = 'data/plansdashboard.json'
+            monthly_plans_file = get_data_path('plansdashboard.json', seed_from_local=True)
 
         if daily_plans_file is None:
-            daily_plans_file = 'data/daily_plans.json'
+            daily_plans_file = get_data_path('daily_plans.json', seed_from_local=True)
 
         self.monthly_plans_file = monthly_plans_file
         self.daily_plans_file = daily_plans_file

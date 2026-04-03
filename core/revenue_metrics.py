@@ -14,13 +14,14 @@ from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 from core.olap_reports import OlapReports
 from core.daily_plans_generator import get_daily_plan_for_date
+from core.storage_paths import get_data_path
 
 
 class RevenueMetricsCalculator:
     """Калькулятор метрик выручки"""
 
     def __init__(self):
-        self._plans_file = 'data/daily_plans.json'
+        self._plans_file = get_data_path('daily_plans.json', seed_from_local=True)
 
     def _read_plans_file(self) -> Dict:
         """Прочитать файл планов daily_plans.json"""
