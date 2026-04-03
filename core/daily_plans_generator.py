@@ -316,6 +316,50 @@ class DailyPlansGenerator:
 
         self.save_daily_plans(daily_plans)
         print(f"[DAILY_PLANS] Готово!")
+    def needs_regeneration(self) -> bool:
+        """
+        Проверить, покрывает ли daily_plans.json все месячные планы.
+
+        Проверяем первый и последний день каждого месяца для каждой точки.
+        Этого достаточно, чтобы быстро обнаружить пропавшие месяцы на Render Disk.
+        """
+        monthly_plans = self.load_monthly_plans()
+        if not monthly_plans:
+            return False
+
+        daily_plans = self.load_daily_plans()
+        if not daily_plans:
+            print("[DAILY_PLANS] daily_plans.json отсутствует или пуст")
+            return True
+
+        for month_key, plan_data in monthly_plans.items():
+            venue_key, year, month = self.parse_month_key(month_key)
+
+            if year is None or month is None:
+                continue
+
+            if venue_key is None:
+                venue_key = 'all'
+
+            revenue = plan_data.get('revenue', 0) if isinstance(plan_data, dict) else 0
+            if revenue <= 0:
+                continue
+
+            days_in_month = monthrange(year, month)[1]
+            first_day = f"{year}-{month:02d}-01"
+            last_day = f"{year}-{month:02d}-{days_in_month:02d}"
+
+            first_day_plans = daily_plans.get(first_day, {})
+            last_day_plans = daily_plans.get(last_day, {})
+
+            if venue_key not in first_day_plans or venue_key not in last_day_plans:
+                print(
+                    f"[DAILY_PLANS] Требуется пересчет: нет покрытия "
+                    f"для {venue_key} {year}-{month:02d}"
+                )
+                return True
+
+        return False
 
 
 # Глобальная функция для использования в других модулях
@@ -328,6 +372,22 @@ def regenerate_daily_plans(venues: List[str] = None):
     """
     generator = DailyPlansGenerator()
     generator.regenerate(venues)
+
+
+def ensure_daily_plans_current(force: bool = False, venues: List[str] = None) -> bool:
+    """
+    Убедиться, что daily_plans.json существует и покрывает все месячные планы.
+
+    Returns:
+        bool: True если файл был пересобран
+    """
+    generator = DailyPlansGenerator()
+
+    if force or generator.needs_regeneration():
+        generator.regenerate(venues)
+        return True
+
+    return False
 
 
 def get_daily_plan_for_date(date_str: str, venue_key: str = None) -> Dict[str, float]:

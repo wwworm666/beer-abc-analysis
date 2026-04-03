@@ -19,7 +19,7 @@ from calendar import monthrange
 from typing import Dict, Optional, List, Tuple
 import threading
 import shutil
-from core.storage_paths import get_data_path
+from core.storage_paths import get_data_path, get_local_data_path
 
 
 class PlansManager:
@@ -63,6 +63,8 @@ class PlansManager:
 
         # Инициализируем структуру файла если нужно
         self._initialize_file()
+        merged = self._sync_local_plans_to_storage()
+        self._ensure_daily_plans_current(force=merged)
 
     def _initialize_file(self):
         """Инициализировать файл планов если он не существует"""
@@ -94,6 +96,92 @@ class PlansManager:
             except Exception as e:
                 print(f"[PLANS ERROR] Не удалось создать файл {self.data_file}: {e}")
                 raise
+
+    @staticmethod
+    def _read_json_file_safe(file_path: str) -> Dict:
+        """Прочитать JSON-файл без побочных эффектов."""
+        if not file_path or not os.path.exists(file_path):
+            return {}
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"[PLANS WARNING] Не удалось прочитать {file_path}: {e}")
+            return {}
+
+    def _sync_local_plans_to_storage(self) -> bool:
+        """
+        Дозалить недостающие планы из repo-копии в текущее хранилище.
+
+        Существующие значения на Render Disk не перезаписываются.
+        Добавляются только отсутствующие периоды и отсутствующие поля.
+        """
+        local_path = get_local_data_path('plansdashboard.json')
+
+        try:
+            if os.path.abspath(local_path) == os.path.abspath(self.data_file):
+                return False
+        except OSError:
+            return False
+
+        local_data = self._read_json_file_safe(local_path)
+        local_plans = local_data.get('plans', {})
+        if not isinstance(local_plans, dict) or not local_plans:
+            return False
+
+        disk_data = self._read_json_file_safe(self.data_file)
+        disk_plans = disk_data.get('plans', {})
+        if not isinstance(disk_plans, dict):
+            disk_plans = {}
+
+        missing_periods = 0
+        missing_fields = 0
+
+        for period_key, local_plan in local_plans.items():
+            if not isinstance(local_plan, dict):
+                continue
+
+            existing_plan = disk_plans.get(period_key)
+            if not isinstance(existing_plan, dict):
+                disk_plans[period_key] = local_plan.copy()
+                missing_periods += 1
+                continue
+
+            for field, value in local_plan.items():
+                if field not in existing_plan:
+                    existing_plan[field] = value
+                    missing_fields += 1
+
+        if missing_periods == 0 and missing_fields == 0:
+            return False
+
+        merged_data = disk_data if isinstance(disk_data, dict) else {}
+        metadata = merged_data.setdefault('metadata', {})
+        metadata['repoSeedSource'] = local_path
+        metadata['repoSeedMergedAt'] = datetime.now().isoformat()
+        metadata['repoSeedAddedPeriods'] = missing_periods
+        metadata['repoSeedAddedFields'] = missing_fields
+        merged_data['plans'] = disk_plans
+
+        self._write_file(merged_data)
+        print(
+            f"[PLANS] Синхронизация с repo завершена: "
+            f"+{missing_periods} периодов, +{missing_fields} полей"
+        )
+        return True
+
+    def _ensure_daily_plans_current(self, force: bool = False):
+        """Проверить daily_plans.json и при необходимости пересобрать из месячных планов."""
+        try:
+            from core.daily_plans_generator import ensure_daily_plans_current
+
+            regenerated = ensure_daily_plans_current(force=force)
+            if regenerated:
+                print("[PLANS] daily_plans.json актуализирован")
+        except Exception as e:
+            print(f"[PLANS WARN] Не удалось проверить daily_plans.json: {e}")
 
     def _read_file(self) -> Dict:
         """
@@ -327,6 +415,32 @@ class PlansManager:
                 raise
             except Exception as e:
                 print(f"[PLANS ERROR] Ошибка при сохранении плана: {e}")
+                return False
+
+    def replace_all_plans(self, plans: Dict[str, Dict], source: str = None) -> bool:
+        """
+        Полностью заменить набор планов и пересчитать daily_plans.json.
+
+        Args:
+            plans: Новый словарь планов {period_key: plan_data}
+            source: Описание источника данных для metadata
+
+        Returns:
+            bool: True если замена выполнена успешно
+        """
+        with self._lock:
+            try:
+                data = self._read_file()
+                data['plans'] = plans
+                metadata = data.setdefault('metadata', {})
+                if source:
+                    metadata['source'] = source
+                self._write_file(data)
+                self._ensure_daily_plans_current(force=True)
+                print(f"[PLANS] Полная замена планов выполнена: {len(plans)} записей")
+                return True
+            except Exception as e:
+                print(f"[PLANS ERROR] Ошибка полной замены планов: {e}")
                 return False
 
     def get_all_plans(self) -> Dict[str, Dict]:

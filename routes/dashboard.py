@@ -378,6 +378,23 @@ def import_plans_from_excel():
                     plan_data['loyaltyWriteoffs'] = revenue * 0.05
 
         # Сохраняем в JSON
+        replace_ok = plans_manager.replace_all_plans(
+            all_plans,
+            source='Excel import from РїР»Р°РЅС‹_2025_2026.xlsx'
+        )
+
+        if not replace_ok:
+            return jsonify({'error': 'Не удалось сохранить планы на Render Disk'}), 500
+
+        print(f"[PLANS API] РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ РїР»Р°РЅРѕРІ: {len(all_plans)}")
+
+        return jsonify({
+            'success': True,
+            'message': f'РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ {len(all_plans)} РїР»Р°РЅРѕРІ РёР· Excel',
+            'plans_count': len(all_plans),
+            'plan_keys': sorted(all_plans.keys())
+        })
+
         output_data = {
             'plans': all_plans,
             'metadata': {
