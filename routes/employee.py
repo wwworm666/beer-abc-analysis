@@ -582,6 +582,98 @@ def bonus_calculate():
         return jsonify({'error': str(e)}), 500
 
 
+def _find_employee_in_olap(data_dict, emp_name):
+    """
+    Найти данные сотрудника в OLAP результатах (exact match + fuzzy по словам).
+    Обрабатывает случаи вроде "Артемий Новаев" vs "Новаев Артемий".
+    """
+    if not data_dict:
+        return None
+    if emp_name in data_dict:
+        return data_dict[emp_name]
+    emp_words = set(emp_name.lower().split())
+    for name, data in data_dict.items():
+        name_words = set(name.lower().split())
+        if emp_words == name_words or (len(emp_words) >= 2 and emp_words.issubset(name_words)):
+            return data
+    return None
+
+
+def _build_kpi_metrics(emp_name, kpi_olap, shifts_count, total_hours):
+    """
+    Собрать метрики для KPI из OLAP данных.
+
+    Формирует dict с теми же ключами, что и EmployeeMetricsCalculator.calculate(),
+    но из 2 лёгких OLAP запросов вместо 4 тяжёлых.
+
+    Источники:
+      summary  -> total_checks, total_revenue, discount_sum
+      categories -> draft/bottles/kitchen revenue, markup
+      shifts (параметры) -> revenue_per_shift, revenue_per_hour
+    """
+    summary = _find_employee_in_olap(kpi_olap['summary'], emp_name)
+    cat_rows = _find_employee_in_olap(kpi_olap['categories'], emp_name) or []
+
+    total_checks = summary.get('total_checks', 0) if summary else 0
+    total_revenue = summary.get('total_revenue', 0) if summary else 0
+    discount_sum = summary.get('discount_sum', 0) if summary else 0
+
+    # Разбивка по категориям
+    draft_revenue = 0.0
+    bottles_revenue = 0.0
+    kitchen_revenue = 0.0
+    total_cost = 0.0
+    total_weighted_markup = 0.0
+
+    for row in cat_rows:
+        cat = row['category']
+        rev = row['revenue']
+        cost = row['cost']
+        markup = row['markup']
+
+        if cat == 'Напитки Розлив':
+            draft_revenue += rev
+        elif cat == 'Напитки Фасовка':
+            bottles_revenue += rev
+        else:
+            kitchen_revenue += rev
+
+        if cost > 0:
+            total_weighted_markup += markup * cost
+            total_cost += cost
+
+    # Доли категорий (%)
+    draft_share = (draft_revenue / total_revenue * 100) if total_revenue > 0 else 0
+    bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
+    kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
+
+    # Производные метрики
+    avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
+    revenue_per_shift = (total_revenue / shifts_count) if shifts_count > 0 else 0
+    revenue_per_hour = (total_revenue / total_hours) if total_hours > 0 else 0
+    avg_markup = ((total_weighted_markup / total_cost) * 100) if total_cost > 0 else 0
+    gross = total_revenue + discount_sum
+    discount_percent = (discount_sum / gross * 100) if gross > 0 else 0
+
+    return {
+        'total_revenue': round(total_revenue, 2),
+        'draft_share': round(draft_share, 2),
+        'bottles_share': round(bottles_share, 2),
+        'kitchen_share': round(kitchen_share, 2),
+        'draft_revenue': round(draft_revenue, 2),
+        'bottles_revenue': round(bottles_revenue, 2),
+        'kitchen_revenue': round(kitchen_revenue, 2),
+        'avg_check': round(avg_check, 2),
+        'total_checks': total_checks,
+        'revenue_per_shift': round(revenue_per_shift, 2),
+        'revenue_per_hour': round(revenue_per_hour, 2),
+        'avg_markup': round(avg_markup, 2),
+        'discount_sum': round(discount_sum, 2),
+        'discount_percent': round(discount_percent, 2),
+        'cancelled_count': 0,
+    }
+
+
 @employee_bp.route('/api/kpi-calculate', methods=['POST'])
 def kpi_calculate():
     """
@@ -646,7 +738,11 @@ def kpi_calculate():
         if not all_employee_metrics:
             return jsonify({'error': 'Нет данных о сменах за выбранный период'}), 404
 
-        # 3. OLAP: агрегированные метрики + категории (для всех баров)
+        # 3. OLAP: 2 легковесных запроса вместо 4 тяжёлых
+        # Старый подход: 4 параллельных запроса с группировкой по DishName × Store × Date
+        #   → тысячи строк, ~60 секунд
+        # Новый подход: 2 запроса с агрегацией на сервере
+        #   → ~200 строк, ~5-10 секунд
         olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         olap = OlapReports()
@@ -654,39 +750,15 @@ def kpi_calculate():
             return jsonify({'error': 'Не удалось подключиться к iiko OLAP'}), 500
 
         try:
-            kpi_log("Stage OLAP started")
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {
-                    executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, None): 'aggregated',
-                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, olap_date_to, None): 'draft',
-                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, olap_date_to, None): 'bottles',
-                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, olap_date_to, None): 'kitchen',
-                }
-
-                olap_results = {}
-                for future in as_completed(futures):
-                    key = futures[future]
-                    try:
-                        olap_results[key] = future.result()
-                        size = 0
-                        result_obj = olap_results[key]
-                        if isinstance(result_obj, dict):
-                            size = len(result_obj.get('data', [])) if 'data' in result_obj else len(result_obj)
-                        elif isinstance(result_obj, list):
-                            size = len(result_obj)
-                        kpi_log(f"OLAP chunk complete: {key}, size={size}")
-                    except Exception as e:
-                        print(f"   [ERROR] OLAP {key}: {e}")
-                        olap_results[key] = None
-
-            aggregated_data = olap_results.get('aggregated')
-            draft_data = olap_results.get('draft')
-            bottles_data = olap_results.get('bottles')
-            kitchen_data = olap_results.get('kitchen')
+            kpi_log("Stage OLAP started (2 lightweight queries)")
+            kpi_olap = olap.get_kpi_olap_data(date_from, olap_date_to)
         finally:
             olap.disconnect()
 
         kpi_log("Stage OLAP complete")
+
+        if kpi_olap is None:
+            return jsonify({'error': 'OLAP не вернул данные (таймаут или ошибка). Попробуйте ещё раз или уменьшите период.'}), 500
 
         # 4. Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
@@ -704,29 +776,14 @@ def kpi_calculate():
 
             shift_locations = emp_shifts.get('shift_locations', {})
             shifts_count = emp_shifts.get('shifts_count', 0)
-            shifts_revenue = emp_shifts.get('total_revenue', 0.0)
             total_hours = emp_shifts.get('total_hours', 0.0)
 
             if shifts_count == 0:
                 continue
 
-            # Рассчитываем метрики через EmployeeMetricsCalculator
-            # ВАЖНО: НЕ используем shifts_revenue (total_revenue_override), чтобы быть консистентными с dashboard
-            # Dashboard использует только OLAP данные, мы делаем так же для KPI
-            calculator = EmployeeMetricsCalculator()
-            metrics = calculator.calculate(
-                employee_name=emp_name,
-                aggregated_data=aggregated_data,
-                draft_data=draft_data,
-                bottles_data=bottles_data,
-                kitchen_data=kitchen_data,
-                cancelled_data=None,
-                plan_revenue=0,
-                date_from=date_from,
-                date_to=date_to,
-                shifts_count_override=shifts_count,
-                total_hours_override=total_hours,
-                total_revenue_override=None,  # Используем OLAP выручку, не кассовые смены
+            # Собираем метрики из OLAP данных + смен (без EmployeeMetricsCalculator)
+            metrics = _build_kpi_metrics(
+                emp_name, kpi_olap, shifts_count, total_hours
             )
 
             # Рассчитываем KPI-бонус
@@ -738,7 +795,6 @@ def kpi_calculate():
             )
 
             if kpi_result:
-                # Добавляем часы работы из кассовых смен
                 kpi_result['total_hours'] = round(total_hours, 1)
                 results.append(kpi_result)
                 total_premium += kpi_result['total_premium']

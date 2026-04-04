@@ -31,7 +31,7 @@ class IikoAPI:
         print(f"[AUTH] Podklyuchaus k {self.base_url}...")
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=15)
 
             if response.status_code == 200:
                 # Токен приходит в формате <string>токен</string>

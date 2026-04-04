@@ -316,6 +316,40 @@ class DailyPlansGenerator:
 
         self.save_daily_plans(daily_plans)
         print(f"[DAILY_PLANS] Готово!")
+
+    def regenerate_for_venue_month(self, venue_key: str, year: int, month: int):
+        """
+        Пересгенерировать ежедневные планы только для одного заведения и месяца.
+
+        Это целевая регенерация — не трогает другие заведения и месяцы.
+        Вызывается после сохранения месячного плана в UI.
+
+        Args:
+            venue_key: Ключ заведения (bolshoy, ligovskiy, kremenchugskaya, varshavskaya)
+            year: Год
+            month: Месяц (1-12)
+        """
+        monthly_plans = self.load_monthly_plans()
+        month_key = f"{venue_key}_{year}-{month:02d}"
+        plan_data = monthly_plans.get(month_key, {})
+        revenue = plan_data.get('revenue', 0)
+
+        if revenue <= 0:
+            print(f"[DAILY_PLANS] Нет revenue для {month_key}, пропускаю")
+            return
+
+        daily_plans = self.load_daily_plans()
+        days_in_month = monthrange(year, month)[1]
+
+        for day in range(1, days_in_month + 1):
+            date_str = f"{year}-{month:02d}-{day:02d}"
+            if date_str not in daily_plans:
+                daily_plans[date_str] = {}
+            daily_plans[date_str][venue_key] = get_daily_plan(revenue, year, month, day)
+
+        self.save_daily_plans(daily_plans)
+        print(f"[DAILY_PLANS] Пересчитан {month_key} для {venue_key}")
+
     def needs_regeneration(self) -> bool:
         """
         Проверить, покрывает ли daily_plans.json все месячные планы.
@@ -388,6 +422,19 @@ def ensure_daily_plans_current(force: bool = False, venues: List[str] = None) ->
         return True
 
     return False
+
+
+def regenerate_daily_plan_for_venue_month(venue_key: str, year: int, month: int):
+    """
+    Пересгенерировать ежедневные планы только для одного заведения и месяца.
+
+    Args:
+        venue_key: Ключ заведения
+        year: Год
+        month: Месяц (1-12)
+    """
+    generator = DailyPlansGenerator()
+    generator.regenerate_for_venue_month(venue_key, year, month)
 
 
 def get_daily_plan_for_date(date_str: str, venue_key: str = None) -> Dict[str, float]:

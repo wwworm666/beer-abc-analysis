@@ -357,7 +357,7 @@ class PlansManager:
         Сохранить план за период
 
         Args:
-            period_key: Ключ периода ('2024-11-04_2024-11-10')
+            period_key: Ключ периода в формате venue_YYYY-MM
             plan_data: Данные плана
 
         Returns:
@@ -400,14 +400,6 @@ class PlansManager:
                 self._write_file(data)
                 print(f"[PLANS] План успешно сохранен для периода: {period_key}")
 
-                # Авто-генерация ежедневных планов
-                try:
-                    from core.daily_plans_generator import regenerate_daily_plans
-                    regenerate_daily_plans()
-                    print(f"[PLANS] Ежедневные планы пересчитаны")
-                except Exception as e:
-                    print(f"[PLANS WARN] Не удалось пересчитать ежедневные планы: {e}")
-
                 return True
 
             except ValueError as e:
@@ -416,6 +408,42 @@ class PlansManager:
             except Exception as e:
                 print(f"[PLANS ERROR] Ошибка при сохранении плана: {e}")
                 return False
+
+        # Note: ежедневные планы пересчитываются ПОСЛЕ выхода из lock (см. save_plan_with_regeneration)
+
+    def save_plan_with_regeneration(self, period_key: str, plan_data: Dict) -> bool:
+        """
+        Сохранить план за период и пересчитать ежедневные планы.
+
+        Использует целевую регенерацию только для затронутого заведения и месяца.
+        Вызов вне lock для избежания блокировок.
+
+        Args:
+            period_key: Ключ периода в формате venue_YYYY-MM
+            plan_data: Данные плана
+
+        Returns:
+            bool: True если сохранение успешно
+        """
+        ok = self.save_plan(period_key, plan_data)
+        if not ok:
+            return False
+
+        # Парсим venue_key и дату из period_key (format: venue_YYYY-MM)
+        try:
+            parts = period_key.split('_')
+            if len(parts) >= 2 and len(parts[-1]) == 7:
+                venue_key = '_'.join(parts[:-1])
+                year = int(parts[-1][:4])
+                month = int(parts[-1][5:7])
+
+                from core.daily_plans_generator import regenerate_daily_plan_for_venue_month
+                regenerate_daily_plan_for_venue_month(venue_key, year, month)
+                print(f"[PLANS] Ежедневный план пересчитан для {venue_key} {year}-{month:02d}")
+        except Exception as e:
+            print(f"[PLANS WARN] Не удалось пересчитать ежедневные планы: {e}")
+
+        return True
 
     def replace_all_plans(self, plans: Dict[str, Dict], source: str = None) -> bool:
         """

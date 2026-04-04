@@ -377,44 +377,14 @@ def import_plans_from_excel():
                 if 'loyaltyWriteoffs' not in plan_data:
                     plan_data['loyaltyWriteoffs'] = revenue * 0.05
 
-        # Сохраняем в JSON
+        # Сохраняем в JSON (replace_all_plans уже вызывает force regeneration daily_plans)
         replace_ok = plans_manager.replace_all_plans(
             all_plans,
-            source='Excel import from РїР»Р°РЅС‹_2025_2026.xlsx'
+            source='Excel import from планы_2025_2026.xlsx'
         )
 
         if not replace_ok:
             return jsonify({'error': 'Не удалось сохранить планы на Render Disk'}), 500
-
-        print(f"[PLANS API] РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ РїР»Р°РЅРѕРІ: {len(all_plans)}")
-
-        return jsonify({
-            'success': True,
-            'message': f'РРјРїРѕСЂС‚РёСЂРѕРІР°РЅРѕ {len(all_plans)} РїР»Р°РЅРѕРІ РёР· Excel',
-            'plans_count': len(all_plans),
-            'plan_keys': sorted(all_plans.keys())
-        })
-
-        output_data = {
-            'plans': all_plans,
-            'metadata': {
-                'lastUpdate': datetime.now().isoformat(),
-                'version': '1.0',
-                'source': 'Excel import from планы_2025_2026.xlsx'
-            }
-        }
-
-        with open(plans_manager.data_file, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, ensure_ascii=False, indent=2)
-
-        # Перезагружаем PlansManager
-        plans_manager._initialize_file()
-        try:
-            from core.daily_plans_generator import regenerate_daily_plans
-            regenerate_daily_plans()
-            print("[PLANS API] daily_plans.json пересчитан после импорта")
-        except Exception as regen_error:
-            print(f"[PLANS API WARN] Не удалось пересчитать daily_plans.json: {regen_error}")
 
         print(f"[PLANS API] Импортировано планов: {len(all_plans)}")
 
@@ -529,7 +499,7 @@ def save_plan_with_venue(venue_key, period_key):
         composite_key = f"{venue_key}_{period_key}"
         print(f"[PLANS API] Составной ключ: {composite_key}")
 
-        success = plans_manager.save_plan(composite_key, request_data)
+        success = plans_manager.save_plan_with_regeneration(composite_key, request_data)
 
         if success:
             print(f"[PLANS API] План успешно сохранен")

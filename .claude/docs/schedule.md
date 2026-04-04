@@ -330,7 +330,7 @@ Total_revenue = Σ(fact_revenue для всех смен в периоде)
 
 ### От каких модулей зависит
 - `core/iiko_api.py` → синхронизация revenue из кассовых смен
-- `data/bar_plans.json` → планы выручки по дням
+- `data/daily_plans.json` → ежедневные планы выручки (авто, Пт/Сб=2x)
 
 ### Кто использует
 - Frontend графика (`schedule.html`)

@@ -1,11 +1,11 @@
 """
 Модуль расчёта KPI-бонусов сотрудников.
 
-Формула:
-  ratio = (Факт - Мін) / (Цель - Мін)
-  capped_ratio = max(0, min(ratio, max_ratio))
-  Премия_kpi = capped_ratio × Смен × (base_premium / norm_shifts)
-  Итого = Σ трёх KPI
+Формула (двухэтапная):
+  1. Промежуточная премия за KPI = capped_ratio × base_premium
+     где capped_ratio = max(0, min((Факт - Мин) / (Цель - Мин), max_ratio))
+  2. Итого KPI = Σ промежуточных премий × Коэффициент
+     где Коэффициент = смены / norm_shifts (по умолчанию 15)
 
 Цели и минимумы — взвешенные по сменам на точках.
 Конфигурация KPI (какие метрики используются) привязана к месяцу.
@@ -229,16 +229,21 @@ class KpiCalculator:
         fact: float,
         target: float,
         min_val: float,
-        total_shifts: int,
         defaults: dict,
     ) -> dict:
         """
-        Расчёт премии по одному KPI.
+        Расчёт промежуточной премии по одному KPI (без учёта смен).
+
+        Формула:
+            ratio = (факт - мин) / (цель - мин)
+            capped_ratio = max(0, min(ratio, max_ratio))
+            intermediate_premium = capped_ratio × base_premium
+
+        Коэффициент (смены / норма) применяется позже к общей сумме.
 
         Returns:
-            {ratio, capped_ratio, premium}
+            {ratio, capped_ratio, intermediate_premium}
         """
-        norm_shifts = defaults.get('norm_shifts', 15)
         base_premium = defaults.get('base_premium', 5000)
         max_ratio = defaults.get('max_ratio', 2)
 
@@ -250,12 +255,12 @@ class KpiCalculator:
             ratio = (fact - min_val) / (target - min_val)
 
         capped_ratio = max(0.0, min(ratio, float(max_ratio)))
-        premium = capped_ratio * total_shifts * (base_premium / norm_shifts)
+        intermediate_premium = capped_ratio * base_premium
 
         return {
             'ratio': round(ratio, 4),
             'capped_ratio': round(capped_ratio, 4),
-            'premium': round(premium, 2),
+            'intermediate_premium': round(intermediate_premium, 2),
         }
 
     def calculate_employee(
@@ -304,7 +309,7 @@ class KpiCalculator:
 
         # Расчёт по каждому KPI
         kpis = {}
-        total_premium = 0.0
+        total_intermediate = 0.0
 
         for kpi_key in KPI_KEYS:
             # Берём metric field из конфига месяца
@@ -319,7 +324,6 @@ class KpiCalculator:
                 fact=fact,
                 target=targets['target'],
                 min_val=targets['min'],
-                total_shifts=total_shifts,
                 defaults=defaults,
             )
 
@@ -331,15 +335,19 @@ class KpiCalculator:
                 'min': targets['min'],
                 **premium_result,
             }
-            total_premium += premium_result['premium']
+            total_intermediate += premium_result['intermediate_premium']
+
+        # Коэффициент применяется к итогу всех KPI
+        koef = round(total_shifts / norm_shifts, 2)
+        total_premium = round(total_intermediate * koef, 2)
 
         return {
             'employee_name': employee_name,
             'total_shifts': total_shifts,
-            'koef': round(total_shifts / norm_shifts, 2),
+            'koef': koef,
             'shifts_per_location': shifts_per_location,
             'kpis': kpis,
-            'total_premium': round(total_premium, 2),
+            'total_premium': total_premium,
         }
 
 

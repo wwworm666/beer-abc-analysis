@@ -258,7 +258,7 @@
 
         .kpi-metrics-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 8px;
             margin-bottom: 10px;
         }
@@ -366,7 +366,7 @@
             .emp-card-body { padding: 0 16px 16px; }
             .emp-details { padding: 12px 16px 16px; }
             .summary-row { grid-template-columns: repeat(2, 1fr); }
-            .kpi-metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .kpi-metrics-grid { grid-template-columns: repeat(3, 1fr); }
             .kpi-config-grid { grid-template-columns: 1fr; }
             .targets-grid { grid-template-columns: 100px repeat(4, 1fr); }
             .tg-input { width: 44px; }
@@ -410,7 +410,7 @@
                 <strong>Премия за план:</strong> за каждую смену где выручка >= плана ТТ <code>1 000 + перевыполнение x 5%</code><br>
                 <strong>За передачу смены:</strong> <code>500 x смены</code><br>
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
-                <strong>KPI-премия:</strong> <code>множитель x смены x (база / норма)</code> за каждую из 3 метрик<br>
+                <strong>KPI-премия:</strong> <code>множитель x Коэффициент x база</code>, где Коэффициент = смены / 15<br>
                 <strong>Ставка:</strong> <code>часы x 300</code>
             </div>
 
@@ -888,13 +888,14 @@
                 const kpi = k.kpis[key];
                 if (!kpi) return;
                 const color = ratioColor(kpi.capped_ratio);
-                const premColor = kpi.premium > 0 ? 'var(--success)' : 'var(--text-tertiary)';
+                const perKpiPremium = k.koef * kpi.capped_ratio * (kpiData.defaults.base_premium || 5000);
+                const premColor = perKpiPremium > 0 ? 'var(--success)' : 'var(--text-tertiary)';
                 const pct = Math.min(kpi.capped_ratio / 2 * 100, 100);
 
                 html += `<div class="kpi-detail-card">
                     <div class="kpi-detail-header">
                         <span class="kpi-detail-name">${kpi.name}</span>
-                        <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(kpi.premium)}</span>
+                        <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(perKpiPremium)}</span>
                     </div>
 
                     <div class="kpi-metrics-grid">
@@ -909,6 +910,10 @@
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Минимум</div>
                             <div class="kpi-metric-val">${fmtKpi(key, kpi.min)}</div>
+                        </div>
+                        <div class="kpi-metric-item">
+                            <div class="kpi-metric-label">Коэффициент</div>
+                            <div class="kpi-metric-val">x${formatNum(k.koef, 2)}</div>
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Множитель</div>
@@ -947,13 +952,17 @@
             });
 
             // Premium calc summary
+            const basePrem = kpiData.defaults.base_premium || 5000;
+            let calcSum = 0;
             html += `<div class="kpi-calc-summary"><strong>Расчёт:</strong><br>`;
             KPI_KEYS.forEach(key => {
                 const kpi = k.kpis[key];
                 if (!kpi) return;
-                html += `${kpi.name}: x${formatNum(kpi.capped_ratio, 2)} x ${totalShifts} смен x (${formatNum(kpiData.defaults.base_premium, 0)} / ${kpiData.defaults.norm_shifts}) = <strong>${formatMoney(kpi.premium)}</strong><br>`;
+                const kpiPremCalc = k.koef * kpi.capped_ratio * basePrem;
+                calcSum += kpiPremCalc;
+                html += `${kpi.name}: ${formatNum(k.koef, 2)} x ${formatNum(kpi.capped_ratio, 2)} x ${formatNum(basePrem, 0)} = ${formatMoney(kpiPremCalc)}<br>`;
             });
-            html += `<br><strong>Итого KPI: ${formatMoney(k.total_premium)}</strong></div>`;
+            html += `<br>Итого: <strong>${formatMoney(calcSum)}</strong></div>`;
 
             html += '</div>';
             document.getElementById(`detail-kpi-${index}`).innerHTML = html;

@@ -58,6 +58,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- **2026-04-03:** Рефакторинг планов — удалён `bar_plans.json`, `employee_plans.py` читает только `daily_plans.json`, точечная регенерация daily plans, фикс Excel import dead code
 - **2026-04-01:** Двухфайловая система планов — `plansdashboard.json` (месячные, 16 метрик) + `daily_plans.json` (ежедневные, auto, Пт/Сб=2x)
 - **2026-03-31:** RFM-сегментация гостей — recency/frequency/monetary, фильтры, scatter plot, гистограмма recency, экспорт CSV, timeline визитов
 - 2026-03-26: PWA виджет выручки — 5 карточек с % выполнения, установка на главный экран (Android/iOS), service worker для офлайн-работы

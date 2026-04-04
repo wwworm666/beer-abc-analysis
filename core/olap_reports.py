@@ -1094,7 +1094,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request,
-                headers=headers
+                headers=headers,
+                timeout=90
             )
 
             if response.status_code == 200:
@@ -1117,6 +1118,137 @@ class OlapReports:
         except Exception as e:
             print(f"[ERROR] Oshibka: {e}")
             return None
+
+    def get_kpi_olap_data(self, date_from, date_to):
+        """
+        Получить все OLAP данные для расчёта KPI за 2 легковесных запроса (вместо 4 тяжёлых).
+
+        Запрос 1 (summary): группировка только по WaiterName
+            -> чеки, выручка, скидки (~30-50 строк)
+        Запрос 2 (categories): группировка по WaiterName + DishGroup.TopParent
+            -> доли категорий, наценка (~100-200 строк)
+
+        Текущие 4 запроса возвращают тысячи строк (группировка по DishName × Store × Date),
+        что создаёт нагрузку на сервер и сеть. Эти 2 запроса возвращают только агрегаты.
+
+        Returns:
+            dict {'summary': {name: {...}}, 'categories': {name: [...]}} или None при ошибке
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        base_filters = {
+            "OpenDate.Typed": {
+                "filterType": "DateRange",
+                "periodType": "CUSTOM",
+                "from": date_from,
+                "to": date_to
+            },
+            "DeletedWithWriteoff": {
+                "filterType": "IncludeValues",
+                "values": ["NOT_DELETED"]
+            },
+            "OrderDeleted": {
+                "filterType": "IncludeValues",
+                "values": ["NOT_DELETED"]
+            }
+        }
+
+        # Запрос 1: сводка по сотрудникам (чеки, выручка, скидки)
+        summary_request = {
+            "reportType": "SALES",
+            "buildSummary": "false",
+            "groupByRowFields": ["WaiterName"],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId.OrdersCount",
+                "DishDiscountSumInt",
+                "DiscountSum"
+            ],
+            "filters": base_filters
+        }
+
+        # Запрос 2: разбивка по категориям (доли, наценка)
+        categories_request = {
+            "reportType": "SALES",
+            "buildSummary": "false",
+            "groupByRowFields": ["WaiterName", "DishGroup.TopParent"],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+                "ProductCostBase.MarkUp"
+            ],
+            "filters": base_filters
+        }
+
+        print(f"\n[OLAP KPI] 2 zaprosa: summary + categories, period {date_from} - {date_to}")
+
+        def fetch_olap(request_body, label):
+            try:
+                response = requests.post(
+                    url, params=params, json=request_body,
+                    headers=headers, timeout=60
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"[OK] OLAP KPI {label}: {len(data.get('data', []))} rows")
+                    return data
+                else:
+                    print(f"[ERROR] OLAP KPI {label}: HTTP {response.status_code}")
+                    print(f"   Response: {response.text[:300]}")
+                    return None
+            except Exception as e:
+                print(f"[ERROR] OLAP KPI {label}: {e}")
+                return None
+
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_summary = executor.submit(fetch_olap, summary_request, "summary")
+            future_categories = executor.submit(fetch_olap, categories_request, "categories")
+
+            summary_raw = future_summary.result()
+            categories_raw = future_categories.result()
+
+        if summary_raw is None:
+            return None
+
+        # Парсинг summary: {waiter_name: {total_checks, total_revenue, discount_sum}}
+        summary = {}
+        for row in summary_raw.get('data', []):
+            name = row.get('WaiterName', '')
+            if name:
+                summary[name] = {
+                    'total_checks': int(row.get('UniqOrderId.OrdersCount', 0) or 0),
+                    'total_revenue': float(row.get('DishDiscountSumInt', 0) or 0),
+                    'discount_sum': float(row.get('DiscountSum', 0) or 0),
+                }
+
+        # Парсинг categories: {waiter_name: [{category, revenue, cost, markup}]}
+        categories = {}
+        if categories_raw:
+            for row in categories_raw.get('data', []):
+                name = row.get('WaiterName', '')
+                category = row.get('DishGroup.TopParent', '')
+                if name:
+                    if name not in categories:
+                        categories[name] = []
+                    categories[name].append({
+                        'category': category,
+                        'revenue': float(row.get('DishDiscountSumInt', 0) or 0),
+                        'cost': float(row.get('ProductCostBase.ProductCost', 0) or 0),
+                        'markup': float(row.get('ProductCostBase.MarkUp', 0) or 0),
+                    })
+
+        print(f"[OK] OLAP KPI parsed: {len(summary)} employees in summary, "
+              f"{len(categories)} in categories")
+
+        return {'summary': summary, 'categories': categories}
 
     def debug_employee_field_names(self, date_from, date_to, employee_name):
         """
@@ -1254,7 +1386,8 @@ class OlapReports:
                 url,
                 params=params,
                 json=request,
-                headers=headers
+                headers=headers,
+                timeout=60
             )
 
             if response.status_code == 200:

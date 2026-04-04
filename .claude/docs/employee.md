@@ -20,19 +20,27 @@
 
 #### Источник данных
 
-Метрики рассчитываются из OLAP API с группировкой по `AuthUser`:
+Для KPI используется `get_kpi_olap_data()` — 2 легковесных OLAP запроса:
+
+```python
+# core/olap_reports.py — get_kpi_olap_data()
+# Запрос 1 (summary): groupBy [WaiterName] -> чеки, выручка, скидки (~30-50 строк)
+# Запрос 2 (categories): groupBy [WaiterName, DishGroup.TopParent] -> доли, наценка (~100-200 строк)
+```
+
+Для dashboard используется `get_employee_aggregated_metrics()` (старый подход с AuthUser):
 
 ```python
 # core/olap_reports.py:1025-1119
 def get_employee_aggregated_metrics(self, date_from, date_to, bar_name=None):
     request = {
-        "groupByRowFields": ["AuthUser"],  # "Авторизовал" — кто пробил чек
+        "groupByRowFields": ["AuthUser"],
         "aggregateFields": [
             "UniqOrderId",
-            "UniqOrderId.OrdersCount",  # Количество чеков
-            "DishDiscountSumInt",       # Выручка
-            "DiscountSum",              # Сумма скидок
-            "DishAmountInt"             # Количество блюд
+            "UniqOrderId.OrdersCount",
+            "DishDiscountSumInt",
+            "DiscountSum",
+            "DishAmountInt"
         ]
     }
 ```
@@ -115,31 +123,17 @@ def calculate(self, employee_name, aggregated_data, ...):
 
 ### Матчинг имён
 
-#### Решение (2026-04-01)
+#### KPI route (2026-04-04)
 
-Все OLAP отчёты теперь используют `AuthUser` ("Авторизовал") для группировки по сотруднику:
-- `get_employee_aggregated_metrics()` — `AuthUser`
-- `get_draft_sales_by_waiter_report()` — `AuthUser` (было `WaiterName`)
-- `get_bottles_sales_by_waiter_report()` — `AuthUser` (было `WaiterName`)
-- `get_kitchen_sales_by_waiter_report()` — `AuthUser` (было `WaiterName`)
+KPI route использует `WaiterName` для всех OLAP запросов (единообразие):
+- `get_kpi_olap_data()` summary — `WaiterName`
+- `get_kpi_olap_data()` categories — `WaiterName` + `DishGroup.TopParent`
 
-**Проблема решена:** данные консистентны, матчинг не требуется.
+Матчинг: `_find_employee_in_olap()` — exact match + fuzzy (по словам, обрабатывает "Иван Петров" vs "Петров Иван").
 
-```python
-# core/olap_reports.py:647-652
-if include_waiter:
-    # Используем AuthUser ("Авторизовал") — видит ВСЕ чеки
-    groupByRowFields.append("AuthUser")
-```
+#### Dashboard route (legacy)
 
-```python
-# core/employee_analysis.py:200-217
-def _filter_by_employee(self, data, employee_name):
-    # Простое точное совпадение AuthUser
-    for r in data['data']:
-        if r.get('AuthUser', '') == employee_name:
-            matched.append(r)
-```
+Dashboard всё ещё использует `AuthUser` для `get_employee_aggregated_metrics()` и `WaiterName` для категорий.
 
 ---
 
@@ -550,7 +544,7 @@ capped_ratio = min(max(ratio, 0), max_ratio)
 ### От каких модулей зависит
 - `core/olap_reports.py` → данные о продажах
 - `core/iiko_api.py` → кассовые смены, сотрудники
-- `core/employee_plans.py` → планы из bar_plans.json
+- `core/employee_plans.py` → планы из daily_plans.json
 - `core/kpi_calculator.py` → KPI цели из kpi_targets.json
 
 ### Кто использует

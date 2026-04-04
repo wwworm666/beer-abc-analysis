@@ -4,6 +4,71 @@
 
 ---
 
+## 2026-04-04 — Оптимизация OLAP для KPI + исправление отображения формулы
+
+### Оптимизация OLAP (4 запроса -> 2)
+
+**Проблема:** страница /salary загружалась ~60 секунд. 4 параллельных OLAP запроса с группировкой по DishName x Store x Date возвращали тысячи строк.
+
+**Решение:** новый метод `get_kpi_olap_data()` делает 2 легковесных запроса:
+1. Summary: `groupBy [WaiterName]` — чеки, выручка, скидки (~30-50 строк)
+2. Categories: `groupBy [WaiterName, DishGroup.TopParent]` — доли категорий, наценка (~100-200 строк)
+
+OLAP-сервер агрегирует данные сам, вместо передачи тысяч строк клиенту.
+
+**Что изменено:**
+- `core/olap_reports.py`: добавлен `get_kpi_olap_data()` — 2 запроса вместо 4
+- `routes/employee.py`: KPI route использует `get_kpi_olap_data()` + `_build_kpi_metrics()` вместо `ThreadPoolExecutor` с 4 запросами + `EmployeeMetricsCalculator`
+- `routes/employee.py`: добавлены `_find_employee_in_olap()`, `_build_kpi_metrics()` — сборка метрик из лёгких OLAP данных
+
+**Побочные эффекты:** `AuthUser` заменён на `WaiterName` для KPI (единообразие с категориями). Dashboard не затронут.
+
+### Исправление отображения формулы KPI
+
+**Было:** каждый KPI = `множитель x 5000`, итого = `сумма x коэфф.смен`
+**Стало:** каждый KPI = `коэфф.смен x множитель x 5000`, итого = простая сумма трёх
+
+**Файл:** `templates/bonus.html`
+
+Математический результат идентичен: `k*(a+b+c) = k*a + k*b + k*c`.
+
+### Исправление timeout (из начала сессии)
+
+- `core/olap_reports.py`: добавлен `timeout=90` в `get_employee_aggregated_metrics`
+- `core/olap_reports.py`: добавлен `timeout=60` в `get_employee_daily_revenue`
+- `routes/employee.py`: проверка `aggregated_data is None` (сейчас заменено новым подходом)
+
+---
+
+## 2026-04-03 — Рефакторинг системы планов: удаление bar_plans.json, целевая регенерация, исправление импорта
+
+**Проблемы, которые были найдены и исправлены:**
+
+1. **Удалён `bar_plans.json`** — legacy файл с русскими названиями баров, дублировал `daily_plans.json`. Теперь `employee_plans.py` читает только `daily_plans.json`.
+
+2. **`PlansManager.save_plan()` — пересчёт daily_plans только для затронутого заведения/месяца.** Раньше `save_plan()` вызывал полную пересборку всех ежедневных планов для всех заведений и месяцев. Теперь `save_plan_with_regeneration()` парсит `venue_YYYY-MM` из period_key и пересчитывает только один месяц одного заведения.
+
+3. **Excel import — удаление dead code.** После первого `return jsonify()` оставался блок (строки 398-426), который писал данные напрямую в файл и снова вызывал `regenerate_daily_plans()`. Это было недостижимым мёртвым кодом. Также исправлена кодировка в `source` строке.
+
+4. **BAR_NAME_MAPPING оставлен в `employee_plans.py`** — единственный источник маппинга, импортируется из `kpi_calculator.py` и `routes/employee.py`.
+
+5. **`DailyPlansGenerator.regenerate_for_venue_month()`** — новый метод для точечной регенерации одного месяца одного заведения.
+
+**Изменённые файлы:**
+- `core/employee_plans.py` — переписан: читает только `daily_plans.json`, удалён `bar_plans.json`
+- `core/daily_plans_generator.py` — добавлен `regenerate_for_venue_month()`, `regenerate_daily_plan_for_venue_month()`
+- `core/plans_manager.py` — `save_plan()` больше не вызывает регенерацию; добавлен `save_plan_with_regeneration()`
+- `routes/dashboard.py` — `save_plan_with_venue()` теперь вызывает `save_plan_with_regeneration()`; удалён dead code в Excel импорте
+- `data/bar_plans.json` — удалён
+
+**Затронутые функции:**
+- `get_employee_plan_by_shifts()` — теперь читает `daily_plans.json` напрямую
+- `PlansManager.save_plan()` — больше не регенерирует daily plans (callers должны использовать `save_plan_with_regeneration()`)
+- `PlansManager.save_plan_with_regeneration()` — новый метод
+- `DailyPlansGenerator.regenerate_for_venue_month()` — новый метод
+
+---
+
 ## 2026-04-01 — Вики: Расчёт премий (бонусы + KPI)
 
 **Что сделано:**

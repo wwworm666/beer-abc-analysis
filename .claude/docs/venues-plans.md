@@ -145,12 +145,13 @@ def normalize_bar_name(name):
 #### Dashboard (`routes/dashboard.py`)
 
 Использует `plansdashboard.json` (месячные планы) для расчёта планов за период через `plans_manager.calculate_plan_for_period()`.
+Сохранение через `save_plan_with_regeneration()` — пересчитывает `daily_plans.json` только для одного заведения и месяца.
 
 #### Сотрудник и ЗП (`routes/employee.py`)
 
-Использует `daily_plans.json` через `get_daily_plan_for_date()` для:
-- Расчёта премии за план в `/api/bonus-calculate`
-- Расчёта KPI в `/api/kpi-calculate`
+Использует `daily_plans.json` через `core/employee_plans.get_employee_plan_by_shifts()` для:
+- Расчёта плана сотрудника по кассовым сменам
+- Используется в расчёте бонусов и KPI
 
 #### Метрики выручки (`core/revenue_metrics.py`)
 
@@ -489,6 +490,23 @@ weighted_days = Σ(weight(день) для каждого дня)
 ---
 
 ## Changelog
+
+### 2026-04-03 — Удаление bar_plans.json, точечная регенерация daily plans
+
+**Что сделано:**
+- Удалён `data/bar_plans.json` — legacy файл с русскими названиями, дублировал `daily_plans.json`
+- `core/employee_plans.py` переписан: `DailyPlansReader` читает только `daily_plans.json` через `get_data_path()` (Render Disk compatible)
+- `PlansManager.save_plan()` больше не вызывает полную регенерацию daily plans; добавлен `save_plan_with_regeneration()` с точечным пересчётом одного месяца одного заведения
+- `DailyPlansGenerator.regenerate_for_venue_month()` — новый метод для точечной регенерации
+- Исправлен Excel import: удалён недостижимый dead code после `return`, исправлена кодировка в `source` строке
+- `BAR_NAME_MAPPING` остаётся в `employee_plans.py` — единственный источник, импортируется из `kpi_calculator.py` и `routes/employee.py`
+
+**Изменённые файлы:**
+- `core/employee_plans.py` — полная переработка
+- `core/daily_plans_generator.py` — добавлен `regenerate_for_venue_month()`
+- `core/plans_manager.py` — разделены `save_plan()` и `save_plan_with_regeneration()`
+- `routes/dashboard.py` — Excel import fixed, endpoint updated
+- `data/bar_plans.json` — удалён
 
 ### 2026-04-01 — Двухфайловая система планов
 

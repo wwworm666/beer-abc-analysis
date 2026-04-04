@@ -57,7 +57,7 @@ static/js/dashboard/    # JavaScript модули
 ```
 
 ### Данные
-- [`data/bar_plans.json`](../../data/bar_plans.json) — планы выручки по точкам на каждый день
+- [`data/daily_plans.json`](../../data/daily_plans.json) — ежедневные планы выручки (авто-генерация, Пт/Сб=2x)
 - [`data/kpi_targets.json`](../../data/kpi_targets.json) — KPI цели по месяцам
 - [`data/taps_data.json`](../../data/taps_data.json) — состояние кранов
 - [`data/plansdashboard.json`](../../data/plansdashboard.json) — планы для дашборда
