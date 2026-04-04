@@ -1,0 +1,194 @@
+================================================================================
+  MeshCentral - Шпаргалка по командам
+================================================================================
+
+================================================================================
+  НА ЛОКАЛЬНОМ ПК (Windows)
+================================================================================
+
+ПРОВЕРКА СТАТУСА АГЕНТА:
+  Get-Service "Mesh Agent Service"
+  или
+  "C:\Program Files\Mesh Agent\MeshAgent.exe" -state
+
+ПЕРЕЗАПУСК АГЕНТА:
+  Restart-Service "Mesh Agent Service"
+
+УДАЛЕНИЕ АГЕНТА:
+  "C:\Program Files\Mesh Agent\MeshAgent.exe" -uninstall
+  или
+  "C:\Program Files\Mesh Agent\MeshAgent.exe" -fulluninstall
+
+ПОЛУЧИТЬ ID УСТРОЙСТВА:
+  "C:\Program Files\Mesh Agent\MeshAgent.exe" -nodeid
+
+================================================================================
+  MESHCMD - УПРАВЛЕНИЕ УДАЛЁННЫМИ ПК
+================================================================================
+
+СКАЧАТЬ MESHCMD:
+  https://103.85.115.227/meshcmd?id=1
+
+ПОДКЛЮЧЕНИЕ К СЕРВЕРУ:
+  MeshCmd.exe ConnectServer --url wss://103.85.115.227 --loginuser "wwworm37@gmail.com" --loginpass "ВАШ_ПАРОЛЬ"
+
+СПИСОК УСТРОЙСТВ:
+  MeshCmd.exe GetDeviceList
+
+ВЫПОЛНИТЬ КОМАНДУ НА УДАЛЁННОМ ПК:
+  MeshCmd.exe Dispatch --deviceid [ID] --meshcmd RunCommand --command "ipconfig /all"
+
+ПЕРЕЗАГРУЗИТЬ УДАЛЁННЫЙ ПК:
+  MeshCmd.exe Dispatch --deviceid [ID] --meshcmd RunCommand --command "shutdown /r /t 0"
+
+ВЫКЛЮЧИТЬ УДАЛЁННЫЙ ПК:
+  MeshCmd.exe Dispatch --deviceid [ID] --meshcmd RunCommand --command "shutdown /s /t 0"
+
+ОТПРАВИТЬ ФАЙЛ:
+  MeshCmd.exe SendFile --deviceid [ID] --source "C:\file.txt" --destination "C:\file.txt"
+
+СКАЧАТЬ ФАЙЛ:
+  MeshCmd.exe GetFile --deviceid [ID] --source "C:\file.txt" --destination "C:\file.txt"
+
+ПОДКЛЮЧИТЬСЯ К РАБОЧЕМУ СТОЛУ:
+  MeshCmd.exe Desktop --deviceid [ID]
+
+ПОДКЛЮЧИТЬСЯ К ТЕРМИНАЛУ:
+  MeshCmd.exe Terminal --deviceid [ID]
+
+================================================================================
+  НА СЕРВЕРЕ (SSH)
+================================================================================
+
+ПОДКЛЮЧЕНИЕ К VPS:
+  ssh -i C:\Users\1\.ssh\id_ed25519 root@103.85.115.227 -p 22
+
+СТАТУС MESHCENTRAL:
+  systemctl status meshcentral
+
+ПЕРЕЗАПУСК MESHCENTRAL:
+  systemctl restart meshcentral
+
+ОСТАНОВИТЬ MESHCENTRAL:
+  systemctl stop meshcentral
+
+ЗАПУСТИТЬ MESHCENTRAL:
+  systemctl start meshcentral
+
+ЛОГИ В РЕАЛЬНОМ ВРЕМЕНИ:
+  journalctl -u meshcentral -f
+
+ЛОГИ ЗА ПОСЛЕДНИЙ ЧАС:
+  journalctl -u meshcentral --since "1 hour ago"
+
+================================================================================
+  MESHCCTRL.JS - УПРАВЛЕНИЕ ЧЕРЕЗ CLI НА СЕРВЕРЕ
+================================================================================
+
+СПИСОК ПОЛЬЗОВАТЕЛЕЙ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js ListUsers
+
+СПИСОК УСТРОЙСТВ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js ListDevices
+
+ИНФОРМАЦИЯ ОБ УСТРОЙСТВЕ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js ShowDevice --id [DEVICE_ID]
+
+ДОБАВИТЬ ПОЛЬЗОВАТЕЛЯ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js AddUser --name "user@example.com" --pass "Password123!"
+
+СБРОСИТЬ ПАРОЛЬ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js ResetPassword "user@example.com" "NewPassword123!"
+
+УДАЛИТЬ ПОЛЬЗОВАТЕЛЯ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js RemoveUser --name "user@example.com"
+
+ВЫПОЛНИТЬ КОМАНДУ НА УСТРОЙСТВЕ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js RunCommand --id [DEVICE_ID] --command "ipconfig"
+
+ПЕРЕЗАГРУЗИТЬ УСТРОЙСТВО:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js Restart --id [DEVICE_ID]
+
+ВЫКЛЮЧИТЬ УСТРОЙСТВО:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js Shutdown --id [DEVICE_ID]
+
+ЭКСПОРТ БАЗЫ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js ExportData --output backup.json
+
+ИМПОРТ БАЗЫ:
+  node /opt/meshcentral/node_modules/meshcentral/meshctrl.js ImportData --input backup.json
+
+================================================================================
+  CURL - REST API
+================================================================================
+
+ПОЛУЧИТЬ ТОКЕН:
+  curl -k -X POST https://103.85.115.227/auth \
+    -H "Content-Type: application/json" \
+    -d '{"username":"wwworm37@gmail.com","password":"ВАШ_ПАРОЛЬ"}'
+
+СПИСОК УСТРОЙСТВ:
+  curl -k -X GET https://103.85.115.227/api/devices \
+    -H "Authorization: Bearer TOKEN"
+
+СТАТУС УСТРОЙСТВА:
+  curl -k -X GET https://103.85.115.227/api/devices/DEVICE_ID/status \
+    -H "Authorization: Bearer TOKEN"
+
+ВЫПОЛНИТЬ КОМАНДУ:
+  curl -k -X POST https://103.85.115.227/api/devices/DEVICE_ID/command \
+    -H "Authorization: Bearer TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"command":"ipconfig"}'
+
+ПЕРЕЗАГРУЗИТЬ УСТРОЙСТВО:
+  curl -k -X POST https://103.85.115.227/api/devices/DEVICE_ID/restart \
+    -H "Authorization: Bearer TOKEN"
+
+================================================================================
+  ПОЛЕЗНЫЕ СКРИПТЫ
+================================================================================
+
+POWERShell - ПРОВЕРКА ВСЕХ УСТРОЙСТВ:
+  Get-Service "Mesh Agent Service" | Select-Object Name, Status
+
+POWERShell - МАССОВАЯ КОМАНДА:
+  $devices = MeshCmd.exe GetDeviceList
+  foreach ($d in $devices) { MeshCmd.exe Dispatch --deviceid $d.id --meshcmd RunCommand --command "ipconfig" }
+
+BASH - БЭКАП БАЗЫ НА СЕРВЕРЕ:
+  cp /opt/meshcentral/meshcentral-data/meshcentral.db /backup/meshcentral-$(date +%Y%m%d).db
+
+================================================================================
+  АДРЕСА И ПОРТЫ
+================================================================================
+
+ВЕБ-ИНТЕРФЕЙС:     https://103.85.115.227
+SSH:               ssh root@103.85.115.227 -p 22
+WebSocket:         wss://103.85.115.227
+
+ПОРТЫ:
+  22    - SSH
+  80    - HTTP (редирект на HTTPS)
+  443   - HTTPS (основной)
+  4433  - Intel AMT
+
+================================================================================
+  ФАЙЛЫ НА СЕРВЕРЕ
+================================================================================
+
+КОНФИГ:           /opt/meshcentral/meshcentral-data/config.json
+БАЗА ДАННЫХ:      /opt/meshcentral/meshcentral-data/meshcentral.db
+СЕРВИС:           /etc/systemd/system/meshcentral.service
+ЛОГИ:             journalctl -u meshcentral -f
+
+================================================================================
+  ФАЙЛЫ НА КЛИЕНТЕ (Windows)
+================================================================================
+
+УСТАНОВКА:        C:\Program Files\Mesh Agent\
+АГЕНТ:            C:\Program Files\Mesh Agent\MeshAgent.exe
+MESHCMD:          C:\Program Files\Mesh Agent\MeshCmd.exe
+ЛОГИ:             C:\Program Files\Mesh Agent\logs\meshagent.log
+
+================================================================================
