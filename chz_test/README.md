@@ -1,89 +1,115 @@
-# Честный ЗНАК API — Аутентификация
+# Честный ЗНАК API — Сроки годности пива
 
-Цель: получить токен от ЧЗ API, чтобы потом забирать сроки годности пива.
+Рабочий клиент ЧЗ API: аутентификация + получение сроков годности кодов маркировки пива.
 
-## Требования
+## Что в папке
 
-1. **Рутокен с УКЭП** вставлен в USB
-2. **CryptoPro CSP 5.0+** установлен
-3. **Python 3.10+** установлен
+| Файл | Назначение |
+|------|-----------|
+| `chz.py` | **Единственный** скрипт: аутентификация + запрос данных |
+| `debug/` | Рабочая папка (токен, промежуточные файлы) |
+| `чз/` | Документация ЧЗ API (HTML, сохранена для справки) |
+| `requirements.txt` | Зависимости: `requests`, `pycryptodome`, `pywin32` |
 
 ## Установка на бар-ПК
 
-1. Скопируй папку `chz_test` в `C:\chz_test`
+1. Скопируй папку в `C:\chz_test`
 2. Открой cmd **ОТ ИМЕНИ АДМИНИСТРАТОРА**
-3. Установи зависимости:
-   ```
-   cd C:\chz_test
-   pip install -r requirements.txt
-   ```
+3. `pip install -r C:\chz_test\requirements.txt`
 
-## Запуск
+## Требования
 
-### Вариант 1: Все варианты аутентификации разом (рекомендуется)
+- **Рутокен с УКЭП** в USB
+- **CryptoPro CSP 5.0+** (`csptest.exe`)
+- **Python 3.10+**
+- Интернет
 
-```
+## Команды
+
+### Получить/обновить токен
+
+```cmd
 cd C:\chz_test
-python run_all_auth.py
+python chz.py token
 ```
 
-Запустит по очереди 3 скрипта с разными способами подписи. Первый успешный — остановит цикл.
+Токен сохраняется в `debug\token.json`. Действует 9 часов.
+`load_token()` автоматически обновит если истёк.
 
-### Вариант 2: По одному скрипту
+### Проверить организацию
 
-```
-cd C:\chz_test
-
-# Основной вариант (5 комбинаций подписи с -cades_strict и -add)
-python csptest_cades_auth.py
-
-# CryptCP.exe (другой инструмент подписи)
-python cryptcp_sign_auth.py
-
-# PowerShell / .NET SignedCms
-python powershell_sign_auth.py
+```cmd
+python chz.py participants
 ```
 
-### Вариант 3: Диагностика подписи
+### Поиск кодов (50 штук, по умолчанию 30 дней назад)
 
-Если нужно понять что внутри PKCS#7:
+```cmd
+python chz.py search
 ```
-python diagnose_signature.py
+
+С конкретной даты:
+
+```cmd
+python chz.py search 2026-03-01
 ```
 
-## Что делает каждый скрипт
+Период:
 
-| Скрипт | Что пробует |
-|--------|-------------|
-| `csptest_cades_auth.py` | 5 вариантов csptest: `-cades_strict`, `-add`, `-addsigtime`, detached/attached |
-| `cryptcp_sign_auth.py` | CryptCP.exe для CMS/CAdES подписи |
-| `powershell_sign_auth.py` | .NET SignedCms через PowerShell, certutil -sign |
-| `diagnose_signature.py` | ASN.1 дамп PKCS#7, сравнение форматов подписи |
+```cmd
+python chz.py search 2026-03-01 2026-04-05
+```
 
-## Как работает аутентификация
+### Полный отчёт с загрузкой всех страниц
 
-1. `GET /api/v3/true-api/auth/key` → сервер шлёт случайную строку
-2. Подписываем эту строку УКЭП с Рутокена
-3. `POST /api/v3/true-api/auth/simpleSignIn` с подписью → получаем токен
-4. Токен действует 10 часов, используем как `Bearer` для всех запросов
+```cmd
+python chz.py report 2026-03-01 2026-04-05
+```
 
-## Где токен
+Выводит по GTIN: количество кодов, срок годности, дата производства, MOD ID.
+Сохраняет `debug\expiration_data.json` (сводка) и `debug\expiration_full.json` (все записи).
 
-При успехе токен сохраняется в `C:\chz_test\debug\token.json`
+## Рабочая формула аутентификации
 
-## Возможные ошибки
+**Команда подписи:**
 
-### "Отказано в доступе" при запуске csptest
-Запусти cmd от имени администратора.
+```
+csptest.exe -sfsign -sign -detached -my "2297..." -in data.txt -out sig.txt -base64 -cades_strict -add
+```
 
-### "Подпись невалидна" или "Проверка подписи не пройдена"
-Пробуй другие скрипты. Если все 3 не прошли — запусти `diagnose_signature.py` и отправь результаты в `support@crpt.ru`.
+**Запрос в API:**
 
-### "Сертификаты не найдены"
-Проверь что Рутокен вставлен и виден в Панели управления Рутокен.
+```
+POST https://markirovka.crpt.ru/api/v3/true-api/auth/simpleSignIn
+{"uuid": "uuid-из-key", "data": "подпись-base64"}
+```
 
-## Следующие шаги после получения токена
+Критически важно:
+- `-detached -cades_strict -add` (три флага обязательны)
+- Формат **v2** (`{"uuid": ..., "data": ...}`), НЕ v3 (`unitedToken`)
+- Запускать от имени администратора
 
-1. Запросить остатки кодов маркировки через `/cises/search`
-2. Получить сроки годности из поля `expiration.expirationStorageDate`
-3. Интегрировать в основной проект
+## Программа для интеграции в основной проект
+
+Импортируй `chz_auth_lib` (встроен в `chz.py` как модуль):
+
+```python
+from chz import load_token, make_request, CHZ_BASE_URL, INN_ORG
+
+token = load_token()  # автоматически обновит если истёк
+
+# Поиск кодов
+headers = {"Authorization": f"Bearer {token}"}
+payload = {
+    "page": 0,
+    "limit": 100,
+    "filter": {
+        "productGroups": ["beer"],
+        "ownerInn": INN_ORG,
+        "introducedDatePeriod": {
+            "from": "2026-03-01T00:00:00.000Z",
+            "to": "2026-04-05T23:59:59.999Z"
+        }
+    }
+}
+```

@@ -29,6 +29,8 @@ Beer ABC/XYZ Analysis
 | [employee.md](docs/employee.md) | Employee Dashboard — аналитика сотрудников | ✅ актуально |
 | [venues-plans.md](docs/venues-plans.md) | Торговые точки, планы выручки, weekend weighting | ✅ актуально |
 | [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
+| [remote-sync.md](docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale+SSH | ✅ актуально |
+| [connectivity.md](docs/connectivity.md) | Подключение ко всем бар-ПК: SSH, сертификаты, доступ | ✅ актуально |
 | [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
 | [comparison-redesign.md](docs/comparison-redesign.md) | Comparison Module — Modern Fintech Redesign | ✅ актуально |
 | [comparison-fixes-final.md](docs/comparison-fixes-final.md) | Comparison Module — Final Fixes (progress bars, percentages, clarity) | ✅ актуально |
@@ -58,7 +60,8 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
-- **2026-04-03:** Рефакторинг планов — удалён `bar_plans.json`, `employee_plans.py` читает только `daily_plans.json`, точечная регенерация daily plans, фикс Excel import dead code
+- **2026-04-05:** Удалённый доступ к бар-ПК — Tailscale сеть + OpenSSH Server + paramiko. Настроен SSH-ключ, `sshuser` учётка, утилита `remote_exec.py`
+- **2026-04-05:** Честный ЗНАК — чистка chz_test, единый скрипт chz.py, документация CHZ_INTEGRATION.md. Получены сроки годности пива (v4 API, 8500+ записей)
 - **2026-04-01:** Двухфайловая система планов — `plansdashboard.json` (месячные, 16 метрик) + `daily_plans.json` (ежедневные, auto, Пт/Сб=2x)
 - **2026-03-31:** RFM-сегментация гостей — recency/frequency/monetary, фильтры, scatter plot, гистограмма recency, экспорт CSV, timeline визитов
 - 2026-03-26: PWA виджет выручки — 5 карточек с % выполнения, установка на главный экран (Android/iOS), service worker для офлайн-работы
