@@ -113,10 +113,10 @@ class PlansManager:
 
     def _sync_local_plans_to_storage(self) -> bool:
         """
-        Дозалить недостающие планы из repo-копии в текущее хранилище.
+        Синхронизировать планы на Render Disk с repo-копией.
 
-        Существующие значения на Render Disk не перезаписываются.
-        Добавляются только отсутствующие периоды и отсутствующие поля.
+        Локальные периоды (из repo) перезаписывают значения на Render Disk.
+        Периоды, которые есть только на Render Disk, сохраняются.
         """
         local_path = get_local_data_path('plansdashboard.json')
 
@@ -136,39 +136,41 @@ class PlansManager:
         if not isinstance(disk_plans, dict):
             disk_plans = {}
 
-        missing_periods = 0
-        missing_fields = 0
+        local_keys = set(local_plans.keys())
+        disk_keys = set(disk_plans.keys())
 
-        for period_key, local_plan in local_plans.items():
-            if not isinstance(local_plan, dict):
-                continue
+        changed = False
 
-            existing_plan = disk_plans.get(period_key)
-            if not isinstance(existing_plan, dict):
-                disk_plans[period_key] = local_plan.copy()
-                missing_periods += 1
-                continue
+        # Новые периоды из repo → добавляем
+        for key in local_keys - disk_keys:
+            disk_plans[key] = local_plans[key].copy()
+            changed = True
 
-            for field, value in local_plan.items():
-                if field not in existing_plan:
-                    existing_plan[field] = value
-                    missing_fields += 1
+        # Изменённые периоды в repo → обновляем
+        for key in local_keys & disk_keys:
+            if disk_plans[key] != local_plans[key]:
+                disk_plans[key] = local_plans[key].copy()
+                changed = True
 
-        if missing_periods == 0 and missing_fields == 0:
+        # Периоды которых нет в repo сохраняются (не трогаем)
+
+        if not changed:
             return False
 
-        merged_data = disk_data if isinstance(disk_data, dict) else {}
-        metadata = merged_data.setdefault('metadata', {})
+        result_data = disk_data if isinstance(disk_data, dict) else {}
+        metadata = result_data.setdefault('metadata', {})
         metadata['repoSeedSource'] = local_path
         metadata['repoSeedMergedAt'] = datetime.now().isoformat()
-        metadata['repoSeedAddedPeriods'] = missing_periods
-        metadata['repoSeedAddedFields'] = missing_fields
-        merged_data['plans'] = disk_plans
+        metadata['repoSeedAddedPeriods'] = len(local_keys - disk_keys)
+        result_data['plans'] = disk_plans
 
-        self._write_file(merged_data)
+        self._write_file(result_data)
+
+        added = len(local_keys - disk_keys)
+        removed = len(disk_keys - local_keys)
         print(
-            f"[PLANS] Синхронизация с repo завершена: "
-            f"+{missing_periods} периодов, +{missing_fields} полей"
+            f"[PLANS] Синхронизация с repo: "
+            f"+{added}, -{removed} периодов"
         )
         return True
 
