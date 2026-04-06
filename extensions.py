@@ -86,9 +86,42 @@ except Exception as e:
     print(f"[TELEGRAM] Ошибка инициализации бота: {e}")
 
 
+NOMENCLATURE_DISK_CACHE = os.path.join(os.path.dirname(__file__), 'data', 'nomenclature_cache.json')
+NOMENCLATURE_DISK_TTL = 86400  # 24 hours
+
+
+def _load_nomenclature_from_disk():
+    """Load nomenclature from disk cache if fresh enough"""
+    try:
+        if not os.path.exists(NOMENCLATURE_DISK_CACHE):
+            return None
+        age = time.time() - os.path.getmtime(NOMENCLATURE_DISK_CACHE)
+        if age > NOMENCLATURE_DISK_TTL:
+            print(f"[CACHE] Disk cache expired ({age/3600:.1f}h old)")
+            return None
+        with open(NOMENCLATURE_DISK_CACHE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        print(f"[CACHE] Loaded nomenclature from disk ({len(data)} items, {age/60:.0f}m old)")
+        return data
+    except Exception as e:
+        print(f"[CACHE] Failed to load disk cache: {e}")
+        return None
+
+
+def _save_nomenclature_to_disk(nomenclature):
+    """Save nomenclature to disk cache"""
+    try:
+        os.makedirs(os.path.dirname(NOMENCLATURE_DISK_CACHE), exist_ok=True)
+        with open(NOMENCLATURE_DISK_CACHE, 'w', encoding='utf-8') as f:
+            json.dump(nomenclature, f, ensure_ascii=False)
+        print(f"[CACHE] Saved nomenclature to disk ({len(nomenclature)} items)")
+    except Exception as e:
+        print(f"[CACHE] Failed to save disk cache: {e}")
+
+
 def get_cached_nomenclature(olap):
     """
-    Получить номенклатуру из кэша или запросить новую
+    Получить номенклатуру: memory cache -> disk cache -> iiko API
 
     Args:
         olap: Экземпляр OlapReports
@@ -98,19 +131,26 @@ def get_cached_nomenclature(olap):
     """
     now = datetime.now()
 
-    # Проверяем кэш
+    # 1. Memory cache (15 min TTL)
     if nomenclature_cache['data'] is not None and nomenclature_cache['expires_at'] is not None:
         if now < nomenclature_cache['expires_at']:
-            print(f"[CACHE] Использую кэшированную номенклатуру (истекает через {(nomenclature_cache['expires_at'] - now).seconds // 60} мин)")
+            print(f"[CACHE] Memory cache hit ({(nomenclature_cache['expires_at'] - now).seconds // 60} min left)")
             return nomenclature_cache['data']
 
-    # Кэш устарел или пуст - запрашиваем новые данные
-    print("[CACHE] Запрашиваю свежую номенклатуру из iiko API...")
+    # 2. Disk cache (24h TTL)
+    disk_data = _load_nomenclature_from_disk()
+    if disk_data:
+        nomenclature_cache['data'] = disk_data
+        nomenclature_cache['expires_at'] = now + timedelta(minutes=15)
+        return disk_data
+
+    # 3. iiko API (slow, may timeout)
+    print("[CACHE] No cache available, requesting from iiko API...")
     nomenclature = olap.get_nomenclature()
 
     if nomenclature:
         nomenclature_cache['data'] = nomenclature
         nomenclature_cache['expires_at'] = now + timedelta(minutes=15)
-        print(f"[CACHE] Номенклатура закэширована на 15 минут (до {nomenclature_cache['expires_at'].strftime('%H:%M:%S')})")
+        _save_nomenclature_to_disk(nomenclature)
 
     return nomenclature

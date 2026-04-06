@@ -724,6 +724,28 @@
             return div.innerHTML;
         }
 
+        // Fetch with retry (handles 502 from Render wake-up / iiko timeouts)
+        async function fetchWithRetry(url, retries = 2, delay = 3000) {
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    const response = await fetch(url);
+                    if (response.status === 502 && i < retries) {
+                        console.warn(`502 on ${url}, retry ${i + 1}/${retries}...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        continue;
+                    }
+                    return response;
+                } catch (err) {
+                    if (i < retries) {
+                        console.warn(`Network error on ${url}, retry ${i + 1}/${retries}...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        continue;
+                    }
+                    throw err;
+                }
+            }
+        }
+
         // API Connection Status Check
         window.dashboardCheckApi = async function() {
             const statusElement = document.getElementById('api-status');
@@ -784,14 +806,12 @@
 
             currentBar = bar;
 
-            // Load taplist
-            await loadTaplist(bar);
-
-            // Load bottles
-            await loadBottles(bar);
-
-            // Load kitchen menu
-            await loadKitchenMenu(bar);
+            // Load all data in parallel
+            await Promise.allSettled([
+                loadTaplist(bar),
+                loadBottles(bar),
+                loadKitchenMenu(bar)
+            ]);
         }
 
         // Load taplist
@@ -804,8 +824,8 @@
 
             try {
                 // Get taplist data
-                const response = await fetch(`/api/stocks/taplist?bar=${encodeURIComponent(bar)}`);
-                if (!response.ok) throw new Error('Ошибка загрузки данных');
+                const response = await fetchWithRetry(`/api/stocks/taplist?bar=${encodeURIComponent(bar)}`);
+                if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
 
@@ -874,8 +894,8 @@
             content.style.display = 'none';
 
             try {
-                const response = await fetch(`/api/stocks/bottles?bar=${encodeURIComponent(bar)}`);
-                if (!response.ok) throw new Error('Ошибка загрузки данных');
+                const response = await fetchWithRetry(`/api/stocks/bottles?bar=${encodeURIComponent(bar)}`);
+                if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
 
@@ -965,8 +985,8 @@
             content.style.display = 'none';
 
             try {
-                const response = await fetch(`/api/stocks/kitchen?bar=${encodeURIComponent(bar)}`);
-                if (!response.ok) throw new Error('Ошибка загрузки данных');
+                const response = await fetchWithRetry(`/api/stocks/kitchen?bar=${encodeURIComponent(bar)}`);
+                if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
 

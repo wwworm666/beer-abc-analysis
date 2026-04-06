@@ -69,29 +69,111 @@ class OlapReports:
 
     def get_nomenclature(self):
         """
-        Получить номенклатуру товаров с полной информацией
+        Получить номенклатуру товаров с полной информацией.
+        Сначала пробует быстрый OLAP TRANSACTIONS, затем /products XML.
 
-        Возвращает словарь: {product_guid: {name, type, category, ...}}
+        Возвращает словарь: {product_guid: {name, type, category, mainUnit, parentId}}
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
 
-        print(f"\n[NOMENCLATURE] Zaprashivayu nomenklaturu tovarov...")
+        # Способ 1: OLAP TRANSACTIONS (быстрый, JSON, ~2-10 сек)
+        nomenclature = self._get_nomenclature_via_olap()
+        if nomenclature:
+            return nomenclature
+
+        # Способ 2: /products XML (медленный, часто таймаутит)
+        print("[NOMENCLATURE] OLAP failed, trying /products XML...")
+        return self._get_nomenclature_via_xml()
+
+    def _get_nomenclature_via_olap(self):
+        """
+        Получить номенклатуру через OLAP TRANSACTIONS.
+        Возвращает только товары с операциями за последние 90 дней.
+        """
+        print(f"\n[NOMENCLATURE] Getting nomenclature via OLAP TRANSACTIONS...")
+
+        date_to = datetime.now().strftime('%Y-%m-%d')
+        date_from = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+        request_body = {
+            'reportType': 'TRANSACTIONS',
+            'groupByRowFields': [
+                'Product.Id',
+                'Product.Name',
+                'Product.Type',
+                'Product.MeasureUnit',
+                'Product.Category',
+                'Product.TopParent',
+            ],
+            'groupByColFields': [],
+            'aggregateFields': ['Amount'],
+            'filters': {
+                'DateTime.DateTyped': {
+                    'filterType': 'DateRange',
+                    'periodType': 'CUSTOM',
+                    'from': date_from,
+                    'to': date_to
+                }
+            }
+        }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+
+        try:
+            response = requests.post(
+                url, params=params, json=request_body,
+                headers={"Content-Type": "application/json"},
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get('data', [])
+                print(f"[OK] OLAP returned {len(rows)} rows")
+
+                nomenclature = {}
+                for row in rows:
+                    product_id = row.get('Product.Id')
+                    if not product_id:
+                        continue
+
+                    nomenclature[product_id] = {
+                        'name': row.get('Product.Name'),
+                        'type': row.get('Product.Type'),
+                        'category': row.get('Product.Category'),
+                        'mainUnit': row.get('Product.MeasureUnit'),
+                        'parentId': row.get('Product.TopParent'),
+                    }
+
+                print(f"[OK] OLAP nomenclature: {len(nomenclature)} unique products")
+                return nomenclature if nomenclature else None
+            else:
+                print(f"[ERROR] OLAP nomenclature failed: {response.status_code}")
+                print(f"   Response: {response.text[:200]}")
+                return None
+
+        except Exception as e:
+            print(f"[ERROR] OLAP nomenclature error: {e}")
+            return None
+
+    def _get_nomenclature_via_xml(self):
+        """Получить полную номенклатуру через /products XML (медленный fallback)"""
+        print(f"\n[NOMENCLATURE] Zaprashivayu nomenklaturu tovarov (/products XML)...")
 
         url = f"{self.api.base_url}/products"
         params = {"key": self.token}
 
         try:
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, timeout=300)
 
             if response.status_code == 200:
                 print("[OK] Nomenklatura uspeshno poluchena!")
 
-                # API возвращает XML, парсим его
                 root = ET.fromstring(response.text)
 
-                # Создаем mapping GUID -> полная информация о товаре
                 nomenclature = {}
                 for product_el in root.findall('productDto'):
                     product_id = product_el.find('id')
@@ -442,7 +524,7 @@ class OlapReports:
         #     params["stores"] = bar_id
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=60)
 
             if response.status_code == 200:
                 print("[OK] Otchet po skladskim operaciyam uspeshno poluchen!")
@@ -502,7 +584,7 @@ class OlapReports:
         }
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=60)
 
             if response.status_code == 200:
                 print("[OK] Otchet po raskhodu produktov uspeshno poluchen!")

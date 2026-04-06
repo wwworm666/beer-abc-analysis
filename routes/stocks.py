@@ -462,11 +462,22 @@ def get_bottles_stocks():
             if not nomenclature:
                 return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
 
-            # ID группы "Напитки Фасовка"
+            # Фильтруем товары группы "Напитки Фасовка"
+            # OLAP-номенклатура: parentId = название группы (Product.TopParent)
+            # XML-номенклатура: parentId = GUID группы
             FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
+            FASOVKA_GROUP_NAME = 'Напитки Фасовка'
 
-            # Получаем все товары из группы "Напитки Фасовка" (включая подгруппы)
-            fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
+            fasovka_product_ids = set()
+            for pid, pinfo in nomenclature.items():
+                parent = pinfo.get('parentId', '')
+                if parent == FASOVKA_GROUP_ID or parent == FASOVKA_GROUP_NAME:
+                    fasovka_product_ids.add(pid)
+
+            # Fallback: рекурсивный поиск по GUID (XML-номенклатура)
+            if not fasovka_product_ids:
+                fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
+
             print(f"[BOTTLES DEBUG] Товаров в группе 'Напитки Фасовка': {len(fasovka_product_ids)}")
 
             # Получаем РЕАЛЬНЫЕ остатки на складах (текущий момент)

@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-04-07 -- Fix /stocks: replace /products XML with OLAP TRANSACTIONS for nomenclature
+
+**Проблема:** страница /stocks возвращала 500/502. Корневая причина: iiko endpoint `/products` (XML) не успевает вернуть 7840+ товаров -- обрывается после ~186 сек ("Response ended prematurely"). Номенклатура = None, все 3 endpoint'а stocks падают.
+
+**Решение:** получать номенклатуру через OLAP TRANSACTIONS вместо `/products`:
+- OLAP возвращает 873 товара за 2-3 сек (vs 186+ сек у `/products`)
+- Формат: `Product.Id`, `Product.Name`, `Product.Type`, `Product.MeasureUnit`, `Product.Category`, `Product.TopParent`
+- 3-уровневый кэш: memory (15 мин) -> disk (24ч) -> iiko API
+- Bottles: фильтрация по `Product.TopParent == "Напитки Фасовка"` вместо рекурсии по GUID
+
+**Что изменено:**
+- `core/olap_reports.py`: `get_nomenclature()` -> `_get_nomenclature_via_olap()` (основной) + `_get_nomenclature_via_xml()` (fallback)
+- `core/olap_reports.py`: timeout'ы: auth=30s, nomenclature XML=300s, store operations=60s
+- `core/iiko_api.py`: timeout=30s для auth, timeout=5s для logout
+- `extensions.py`: disk cache для номенклатуры (`data/nomenclature_cache.json`, TTL 24h)
+- `routes/stocks.py`: bottles фильтрует по имени группы (OLAP) или GUID (XML fallback)
+- `templates/stocks.html`: параллельная загрузка (`Promise.allSettled`), `fetchWithRetry()` при 502
+- `render.yaml`: `--workers 2`, timeout 120s
+
+**Результат:** taplist 6.6s, bottles 9.2s, kitchen 9.3s (параллельно ~10s суммарно)
+
+**Файлы:** `core/olap_reports.py`, `core/iiko_api.py`, `extensions.py`, `routes/stocks.py`, `templates/stocks.html`, `render.yaml`
+
+---
+
 ## 2026-04-04 — Оптимизация OLAP для KPI + исправление отображения формулы
 
 ### Оптимизация OLAP (4 запроса -> 2)
