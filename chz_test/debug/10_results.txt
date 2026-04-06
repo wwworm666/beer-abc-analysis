@@ -1,6 +1,0 @@
-{
-  "uuid": "2c1596d1-8c58-4191-bbb7-315e7c4a1adf",
-  "data_to_sign": "KMGUTGPXVYMKLPZYYVXIDTPAZKFOKM",
-  "signatures": {},
-  "results": []
-}
