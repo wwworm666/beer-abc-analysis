@@ -1121,7 +1121,8 @@
 
         // === Display: Сводка по барам (Все бары) ===
         function displayStoresSummary(discountName) {
-            const resultsDiv = document.getElementById('results');
+            const resultsDiv = document.getElementById('discount-results');
+            if (!resultsDiv) return;
             resultsDiv.innerHTML = '';
 
             const stores = getStores(discountName);
@@ -1422,7 +1423,8 @@
 
         // === Display: Детализация по гостям (конкретный бар/скидка) ===
         function displayGuestResults(discountName, applyFilters = false) {
-            const resultsDiv = document.getElementById('results');
+            const resultsDiv = document.getElementById('discount-results');
+            if (!resultsDiv) return;
             resultsDiv.innerHTML = '';
 
             const allGuests = getGuests(discountName);
