@@ -1,5 +1,28 @@
 # Changelog
 
+### 2026-04-16 — Фикс сохранения планов в дашборде: диск = единственный источник правды
+
+**Что сделано:**
+- Убрана авто-перезапись Render Disk значениями из repo при старте сервера
+- Удалён дубликат sync-логики (`_merge_json_plans` в `storage_paths.py` + `_sync_local_plans_to_storage` в `plans_manager.py` делали одно и то же)
+- Удалён эндпоинт `POST /api/plans/import-from-excel` (импорт через UI больше не нужен)
+- Удалён метод `PlansManager.replace_all_plans` (использовался только Excel-импортом)
+- `data/plansdashboard.json` (repo-копия) теперь только **seed при первом старте** на чистом диске — если `/kultura/plansdashboard.json` уже есть, repo не влияет ни на что
+
+**Почему:**
+Старая логика на каждом рестарте Render безусловно перезаписывала значения на диске значениями из repo, если они отличались. Любые правки, сделанные через дашборд, откатывались после редеплоя. Теперь единственный способ изменить план — вручную через UI, правки живут на диске.
+
+**Файлы:**
+- `core/storage_paths.py` — упрощён до одной функции `get_data_path`
+- `core/plans_manager.py` — удалён `_sync_local_plans_to_storage`, `_read_json_file_safe`, `replace_all_plans`; убран import `get_local_data_path`
+- `routes/dashboard.py` — удалён эндпоинт `/api/plans/import-from-excel`
+
+**Что ломается если изменить неправильно:**
+- Если кто-то вернёт sync repo→disk — правки снова будут теряться после рестарта
+- CLI-скрипты `scripts/import_export/import_plans_from_excel*.py` оставлены и работают автономно (пишут в `data/plansdashboard.json` локально); использовать только в dev-окружении как одноразовую миграцию
+
+---
+
 ### 2026-04-07 — Исследование подключения к бар-10 и бар-ПК
 
 **Что сделано:**
