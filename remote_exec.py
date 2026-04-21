@@ -19,7 +19,9 @@ from pathlib import Path
 
 REMOTE_HOST = "100.98.149.108"
 REMOTE_USER = os.environ.get("REMOTE_USER", "Администратор")
-REMOTE_PASS = os.environ.get("REMOTE_PASS", "Krem2026")
+REMOTE_PASS = os.environ.get("REMOTE_PASS")
+if not REMOTE_PASS:
+    raise EnvironmentError("REMOTE_PASS environment variable is not set")
 REPO_DIR = Path(__file__).parent.resolve()
 
 # Full path to Python on bar PC (confirmed: C:\Program Files\Python312\python.exe)
@@ -38,69 +40,78 @@ def connect(timeout=15):
 
 
 def run_cmd(rem_cmd, verbose=True, timeout=None):
+    import socket as _socket
     client = connect()
-    stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False, timeout=timeout)
-    raw_out = stdout.read()
-    raw_err = stderr.read()
     try:
-        out = raw_out.decode("utf-8")
-    except UnicodeDecodeError:
-        out = raw_out.decode("cp866", errors="replace")
-    try:
-        err = raw_err.decode("utf-8")
-    except UnicodeDecodeError:
-        err = raw_err.decode("cp866", errors="replace")
-    if verbose:
-        if out.strip():
-            sys.stdout.buffer.write(out.strip().encode("utf-8") + b"\n")
-            sys.stdout.buffer.flush()
-        if err.strip():
-            sys.stdout.buffer.write(("STDERR: " + err.strip()).encode("utf-8") + b"\n")
-            sys.stdout.buffer.flush()
-    client.close()
-    return out, err
+        stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False, timeout=timeout)
+        try:
+            raw_out = stdout.read()
+            raw_err = stderr.read()
+        except _socket.timeout:
+            raise TimeoutError(f"Команда превысила таймаут {timeout}с: {rem_cmd!r}")
+        try:
+            out = raw_out.decode("utf-8")
+        except UnicodeDecodeError:
+            out = raw_out.decode("cp866", errors="replace")
+        try:
+            err = raw_err.decode("utf-8")
+        except UnicodeDecodeError:
+            err = raw_err.decode("cp866", errors="replace")
+        if verbose:
+            if out.strip():
+                sys.stdout.buffer.write(out.strip().encode("utf-8") + b"\n")
+                sys.stdout.buffer.flush()
+            if err.strip():
+                sys.stdout.buffer.write(("STDERR: " + err.strip()).encode("utf-8") + b"\n")
+                sys.stdout.buffer.flush()
+        return out, err
+    finally:
+        client.close()
 
 
 def push(local_path, remote_dir):
     client = connect()
-    sftp = client.open_sftp()
-
-    local = Path(local_path)
-    if local.is_dir():
-        for f in local.iterdir():
-            if f.is_file():
-                remote_file = f"{remote_dir}/{f.name}"
-                sftp.put(str(f), remote_file)
-                print(f"  push: {f.name} -> {remote_dir}/")
-    elif local.is_file():
-        remote_file = f"{remote_dir}/{local.name}"
-        sftp.put(str(local), remote_file)
-        print(f"  push: {local.name} -> {remote_dir}/")
-    else:
-        print(f"FAIL: {local_path} не найден")
+    try:
+        sftp = client.open_sftp()
+        try:
+            local = Path(local_path)
+            if local.is_dir():
+                for f in local.iterdir():
+                    if f.is_file():
+                        remote_file = f"{remote_dir}/{f.name}"
+                        sftp.put(str(f), remote_file)
+                        print(f"  push: {f.name} -> {remote_dir}/")
+            elif local.is_file():
+                remote_file = f"{remote_dir}/{local.name}"
+                sftp.put(str(local), remote_file)
+                print(f"  push: {local.name} -> {remote_dir}/")
+            else:
+                print(f"FAIL: {local_path} не найден")
+                return
+            print(f"  done: {len([f for f in Path(local_path).iterdir()]) if Path(local_path).is_dir() else 1} file(s) sent")
+        finally:
+            sftp.close()
+    finally:
         client.close()
-        return
-
-    sftp.close()
-    client.close()
-    print(f"  done: {len([f for f in Path(local_path).iterdir()]) if Path(local_path).is_dir() else 1} file(s) sent")
 
 
 def pull(remote_path, local_dir):
     client = connect()
-    sftp = client.open_sftp()
+    try:
+        sftp = client.open_sftp()
+        try:
+            local = Path(local_dir)
+            local.mkdir(parents=True, exist_ok=True)
 
-    local = Path(local_dir)
-    local.mkdir(parents=True, exist_ok=True)
+            fname = Path(remote_path.replace("\\", "/")).name
+            local_file = local / fname
 
-    fname = Path(remote_path.replace("\\", "/")).name
-    local_file = local / fname
-
-    sftp.get(remote_path, str(local_file))
-    print(f"  pull: {remote_path} -> {local_file}")
-
-    sftp.close()
-    client.close()
+            sftp.get(remote_path, str(local_file))
+            print(f"  pull: {remote_path} -> {local_file}")
+        finally:
+            sftp.close()
+    finally:
+        client.close()
 
 
 def main():

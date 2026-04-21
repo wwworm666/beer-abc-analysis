@@ -615,24 +615,27 @@ def get_chz_stocks():
 
         stock = get_chz_stock()
 
-        # Подсчёт GTIN близких к окончанию срока (< 30 дней)
+        # Подсчёт кодов близких к окончанию срока (< 30 дней)
         from datetime import datetime
         today = datetime.now().date()
-        near_expiry = 0
+        near_expiry_codes = 0
         for item in stock:
+            has_near_expiry = False
             for exp_str in item.get("expiration_dates", []):
                 try:
                     exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
                     if (exp_date - today).days < 30:
-                        near_expiry += 1
+                        has_near_expiry = True
                         break
                 except ValueError:
                     pass
+            if has_near_expiry:
+                near_expiry_codes += item.get('count', 0)
 
         return jsonify({
             'total_items': len(stock),
             'total_codes': sum(s['count'] for s in stock),
-            'near_expiry': near_expiry,
+            'near_expiry_codes': near_expiry_codes,
             'items': stock
         })
 
@@ -649,7 +652,7 @@ def get_chz_stocks():
 def get_chz_stock_api():
     """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
     if not _CHZ_CACHE_FILE.exists():
-        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'})
+        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
 
     mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
     updated_at = datetime.fromtimestamp(mtime).isoformat()
@@ -667,9 +670,12 @@ def get_chz_stock_api():
 def refresh_chz_stock():
     """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
     remote_exec = str(_BASE_DIR / 'remote_exec.py')
-    subprocess.Popen(
-        [sys.executable, remote_exec, 'run', 'stock'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    try:
+        subprocess.Popen(
+            [sys.executable, remote_exec, 'run', 'stock'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    except OSError as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})

@@ -1,5 +1,24 @@
 # Changelog
 
+### 2026-04-21 — CHZ stock integration: code review pass 2 — security and reliability fixes
+
+**Изменено:**
+- `remote_exec.py` — удалён захардкоженный пароль `"Krem2026"` как дефолт в `REMOTE_PASS`; теперь переменная обязательна, без неё бросается `EnvironmentError`
+- `remote_exec.py` — `run_cmd`: добавлен `try/finally` для гарантированного закрытия SSH-клиента; добавлен перехват `socket.timeout` с понятным `TimeoutError`
+- `remote_exec.py` — `push`, `pull`: добавлены `try/finally` для SFTP и SSH-клиентов, исключающие утечки соединений при исключениях
+- `routes/stocks.py` — `GET /api/chz/stock`: при отсутствии кеша возвращает 404 (было 200)
+- `routes/stocks.py` — `POST /api/chz/refresh`: `Popen` обёрнут в `try/except OSError`, возвращает 500 при ошибке запуска
+- `routes/stocks.py` — `near_expiry` переименован в `near_expiry_codes` и теперь считает количество кодов (было количество GTIN); семантика согласована с `total_codes`
+
+**Почему:**
+- Хранение пароля в исходном коде — критическая уязвимость
+- Утечки SSH-сессий при сетевых сбоях накапливались на бар-ПК
+- `near_expiry=1` рядом с `total_codes=50` вводило в заблуждение
+
+**Файлы:**
+- `remote_exec.py`
+- `routes/stocks.py`
+
 ### 2026-04-21 — CHZ stock integration: Task 5 — add Flask cache endpoints
 
 **Изменено:**
