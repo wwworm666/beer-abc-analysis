@@ -487,6 +487,10 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     else:
         groups = product_groups
 
+    # Дефолтный лимит по дате: последние 6 месяцев, чтобы не скачивать 90k+ кодов за всё время
+    if date_from is None:
+        date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+
     # 1. Загружаем коды из всех групп
     all_items = []
     for g in groups:

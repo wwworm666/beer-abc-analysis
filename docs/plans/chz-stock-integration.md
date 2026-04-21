@@ -93,8 +93,8 @@ if date_from is None:
 Также убедиться что в `get_all_cises` переменная `limit = 1000` (не 100).
 При limit=1000 и ~5000 активных кодов — это ~5 страниц, ~30 секунд.
 
-- [ ] В `get_chz_stock`: добавить `if date_from is None: date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")`
-- [ ] Убедиться что `limit = 1000` в `get_all_cises` (проверить строку ~298)
+- [x] В `get_chz_stock`: добавить `if date_from is None: date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")`
+- [x] Убедиться что `limit = 1000` в `get_all_cises` (проверить строку ~298)
 
 ---
 
