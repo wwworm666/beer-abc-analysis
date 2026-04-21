@@ -1,5 +1,17 @@
 # Changelog
 
+### 2026-04-21 — CHZ stock integration: Task 6 — verify result
+
+**Проверено:**
+- `chz_test/debug/chz_stock.json` содержит 30 GTIN, 16 с product_group=BEER, все 30 с непустыми expiration_dates
+- `routes/stocks.py` проходит `python -m py_compile` без ошибок
+- Оба endpoint `/api/chz/stock` и `/api/chz/refresh` присутствуют в коде
+
+**Файлы:**
+- `chz_test/debug/chz_stock.json`
+- `routes/stocks.py`
+- `docs/plans/chz-stock-integration.md`
+
 ### 2026-04-21 — CHZ stock integration: Task 4 — run stock on bar-PC
 
 **Изменено:**

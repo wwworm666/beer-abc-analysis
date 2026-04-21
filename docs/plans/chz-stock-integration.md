@@ -217,6 +217,6 @@ for x in beer[:5]:
 "
 ```
 
-- [ ] Запустить проверку Python: убедиться что в chz_stock.json есть пиво с датами годности
-- [ ] Убедиться что items содержат непустые `expiration_dates`
-- [ ] Убедиться что `python -m py_compile routes/stocks.py` проходит без ошибок
+- [x] Запустить проверку Python: убедиться что в chz_stock.json есть пиво с датами годности
+- [x] Убедиться что items содержат непустые `expiration_dates`
+- [x] Убедиться что `python -m py_compile routes/stocks.py` проходит без ошибок
