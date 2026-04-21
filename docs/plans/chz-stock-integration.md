@@ -35,8 +35,8 @@ python -c "import json,os; d=json.load(open('chz_test/debug/chz_stock.json')); p
 
 Если `STATUS: ONLINE` — задача завершена.
 
-- [ ] Запустить `python remote_exec.py status`, убедиться что выводит `STATUS: ONLINE`
-- [ ] Если OFFLINE: исправить параметры подключения в remote_exec.py и повторить
+- [x] Запустить `python remote_exec.py status`, убедиться что выводит `STATUS: ONLINE`
+- [x] Если OFFLINE: исправить параметры подключения в remote_exec.py и повторить
 
 ---
 
