@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-04-21 — CHZ stock integration: Task 5 — add Flask cache endpoints
+
+**Изменено:**
+- `routes/stocks.py` — добавлен `GET /api/chz/stock`: читает `chz_test/debug/chz_stock.json` с диска, возвращает `{items, updated_at}`. При отсутствии файла — `{items:[], error:'no data'}`. При повреждённом JSON — 500 с `error:'cache corrupted or updating'`
+- `routes/stocks.py` — добавлен `POST /api/chz/refresh`: запускает `remote_exec.py run stock` через `subprocess.Popen` (неблокирующий), возвращает `{status:'started'}`
+
+**Почему:**
+- `/api/stocks/chz` вызывает CHZ API напрямую, требует CryptoPro на сервере (недоступно на Render)
+- Новые endpoints используют кеш-файл, обновляемый с бар-ПК по запросу
+
+**Файлы:**
+- `routes/stocks.py`
+
 ### 2026-04-21 — CHZ stock integration: Task 6 — verify result
 
 **Проверено:**

@@ -1,9 +1,16 @@
 from flask import Blueprint, request, jsonify
 import re
+import os
+import sys
 import json
+import subprocess
+from pathlib import Path
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
 from extensions import taps_manager, get_cached_nomenclature, BARS
+
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
 
 stocks_bp = Blueprint('stocks', __name__)
 
@@ -641,19 +648,17 @@ def get_chz_stocks():
 @stocks_bp.route('/api/chz/stock', methods=['GET'])
 def get_chz_stock_api():
     """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
-    import os
-    cache_file = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'chz_test', 'debug', 'chz_stock.json'
-    )
-    if not os.path.exists(cache_file):
+    if not _CHZ_CACHE_FILE.exists():
         return jsonify({'items': [], 'updated_at': None, 'error': 'no data'})
 
-    mtime = os.path.getmtime(cache_file)
+    mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
     updated_at = datetime.fromtimestamp(mtime).isoformat()
 
-    with open(cache_file, encoding='utf-8') as f:
-        items = json.load(f)
+    try:
+        with open(_CHZ_CACHE_FILE, encoding='utf-8') as f:
+            items = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return jsonify({'items': [], 'updated_at': updated_at, 'error': 'cache corrupted or updating'}), 500
 
     return jsonify({'items': items, 'updated_at': updated_at})
 
@@ -661,14 +666,9 @@ def get_chz_stock_api():
 @stocks_bp.route('/api/chz/refresh', methods=['POST'])
 def refresh_chz_stock():
     """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
-    import os
-    import subprocess
-    remote_exec = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'remote_exec.py'
-    )
+    remote_exec = str(_BASE_DIR / 'remote_exec.py')
     subprocess.Popen(
-        ['python', remote_exec, 'run', 'stock'],
+        [sys.executable, remote_exec, 'run', 'stock'],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )

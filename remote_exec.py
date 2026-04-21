@@ -7,17 +7,19 @@
     python remote_exec.py cmd "hostname"            - выполнить команду
     python remote_exec.py push chz.py chz_test/     - отправить файл/папку
     python remote_exec.py pull chz_test/data/ data/ - забрать файлы
+    python remote_exec.py run stock                 - обновить токен, запустить chz.py stock, скачать chz_stock.json
     python remote_exec.py run report 2026-03-01     - выполнить chz.py report
 """
 
+import os
 import sys
 import paramiko
 import subprocess
 from pathlib import Path
 
 REMOTE_HOST = "100.98.149.108"
-REMOTE_USER = "Администратор"
-REMOTE_PASS = "Krem2026"
+REMOTE_USER = os.environ.get("REMOTE_USER", "Администратор")
+REMOTE_PASS = os.environ.get("REMOTE_PASS", "Krem2026")
 REPO_DIR = Path(__file__).parent.resolve()
 
 # Full path to Python on bar PC (confirmed: C:\Program Files\Python312\python.exe)
@@ -29,9 +31,9 @@ REMOTE_CHZ_DIR = r"C:\chz_test"
 
 def connect(timeout=15):
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.set_missing_host_key_policy(paramiko.WarningPolicy())
     client.connect(REMOTE_HOST, username=REMOTE_USER, password=REMOTE_PASS,
-                   timeout=timeout, look_for_keys=True)
+                   timeout=timeout, look_for_keys=False, allow_agent=False)
     return client
 
 
@@ -147,7 +149,7 @@ def main():
             run_cmd(stock_cmd, timeout=600)
             print("\nСкачивание результата...")
             remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
-            pull(remote_json, "chz_test/debug/")
+            pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
         else:
             # Запустить chz.py на бар-ПК из C:\chz_test
             args = " ".join(sys.argv[2:])
