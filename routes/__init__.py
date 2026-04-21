@@ -6,6 +6,7 @@ from .stocks import stocks_bp
 from .dashboard import dashboard_bp
 from .schedule import schedule_bp
 from .misc import misc_bp
+from .menu import menu_bp
 
 
 def register_blueprints(app):
@@ -17,3 +18,4 @@ def register_blueprints(app):
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(schedule_bp)
     app.register_blueprint(misc_bp)
+    app.register_blueprint(menu_bp)

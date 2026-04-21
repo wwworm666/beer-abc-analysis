@@ -1,0 +1,4 @@
+"Filter(participantInn=7801630649, productGroup=WATER, packageType=[UNIT], status=INTRODUCED, statusExt=[], includeGtin=[], excludeGtin=[], appliedPeriod=null, emissionPeriod=null, emissionTypes=[], productionPeriod=null, vsd=null, turnoverTypes=[], producerInns=[], eliminationReasons=[], orderIds=[], declarationRegistrationNumbers=[], permitDocIndx=[])"
+"requestedCis","gtin","tnVedEaes","tnVedEaesGroup","maxRetailPrice","parent","producerInn","ownerInn","prVetDocument","productName","brand","ownerName","producerName","introducedDate","receiptDate","status","statusEx","emissionType","withdrawReason","packageType","productGroup","applicationDate","emissionDate","expirationDate","child","setGtin","setDescription","productionDate","aggregationType","orderId","turnoverType","kpp","fiasId","declarationRegistrationNumbers","permitDocs"
+"errors"
+"5: Коды маркировки по критериям отбора не найдены"

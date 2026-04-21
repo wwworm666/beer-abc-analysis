@@ -3,9 +3,10 @@
 Честный ЗНАК — единый клиент для аутентификации и получения данных.
 
 Рабочая комбинация аутентификации:
-  csptest.exe -sfsign -sign -detached -my %THUMB% -in %DATA% -out %SIG% -base64 -cades_strict -add
+  csptest.exe -sfsign -sign -my %THUMB% -in %DATA% -out %SIG% -base64 -cades_strict -add
   POST /auth/simpleSignIn: {"uuid": "...", "data": "подпись"}
 
+ВАЖНО: НЕ использовать -detached! Сервер возвращает 403.
 Запускать из cmd ОТ ИМЕНИ АДМИНИСТРАТОРА
 """
 
@@ -70,7 +71,7 @@ def get_token():
 
     Алгоритм (найдено экспериментально):
     1. GET /auth/key → uuid + data (30-символьная строка)
-    2. csptest.exe -sfsign -sign -detached -my THUMB -in DATA -out SIG -base64 -cades_strict -add
+    2. csptest.exe -sfsign -sign -my THUMB -in DATA -out SIG -base64 -cades_strict -add
     3. POST /auth/simpleSignIn {"uuid": uuid, "data": подпись} → токен
 
     Возвращает: {"token": "eyJ...", "expires_at": 1234567890}
@@ -82,14 +83,14 @@ def get_token():
     print("  [auth] Запрос UUID и DATA...", end=" ")
     status, auth_data = make_request(f"{CHZ_BASE_URL}/auth/key")
     if status != 200:
-        print(f"❌ GET /auth/key: {auth_data}")
+        print(f"[ERR] GET /auth/key: {auth_data}")
         return {"error": f"auth/key failed ({status}): {auth_data}"}
 
     uuid = auth_data.get('uuid')
     data_to_sign = auth_data.get('data')
     if not uuid or not data_to_sign:
         return {"error": f"No uuid/data: {auth_data}"}
-    print(f"✅ {uuid[:8]}...")
+    print(f"[OK] {uuid[:8]}...")
 
     # 2. Сохранить данные
     data_file = os.path.join(DEBUG_DIR, "_data_to_sign.txt")
@@ -98,7 +99,7 @@ def get_token():
         f.write(data_to_sign)
 
     # 3. Подписать
-    cmd = (f'"{CSP_PATH}" -sfsign -sign -detached '
+    cmd = (f'"{CSP_PATH}" -sfsign -sign '
            f'-my "{CERT_THUMBPRINT}" '
            f'-in "{data_file}" -out "{sig_file}" '
            f'-base64 -cades_strict -add')
@@ -108,9 +109,9 @@ def get_token():
                             timeout=60, encoding='cp866',
                             creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode != 0:
-        print(f"❌ csptest rc={result.returncode}")
+        print(f"[ERR] csptest rc={result.returncode}")
         return {"error": f"csptest failed ({result.returncode}): {result.stderr[:200]}"}
-    print(f"✅")
+    print(f"[OK]")
 
     # 4. Прочитать подпись
     if not os.path.exists(sig_file):
@@ -142,11 +143,11 @@ def get_token():
             json.dump(token_data, f, indent=2, ensure_ascii=False)
 
         exp_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(expires_at))
-        print(f"✅ действует до {exp_str}")
+        print(f"[OK] действует до {exp_str}")
         return token_data
     else:
         error_msg = response.get('error_message', str(response))
-        print(f"❌ {status}: {error_msg}")
+        print(f"[ERR] {status}: {error_msg}")
         return {"error": f"simpleSignIn failed ({status}): {error_msg}"}
 
 
@@ -199,7 +200,7 @@ def get_participants(inn=None):
             print(f"  {name} — {status_text}"
                   f"\n    Группы: {', '.join(groups)}")
     else:
-        print(f"  ❌ {status}: {response}")
+        print(f"  [ERR] {status}: {response}")
 
     return {"status": status, "data": response}
 
@@ -264,7 +265,7 @@ def search_cises(token=None, page=0, limit=100, product_group="beer",
 
 
 def get_all_cises(product_group="beer", date_from=None, date_to=None,
-                  delay_between_pages=2):
+                  delay_between_pages=1, max_items=100000):
     """
     Загрузить ВСЕ коды маркировки (со всеми страницами).
 
@@ -276,41 +277,60 @@ def get_all_cises(product_group="beer", date_from=None, date_to=None,
     if not token:
         return []
 
-    now = datetime.now()
-    if date_to is None:
-        date_to = now
-    if isinstance(date_to, str):
-        date_to = datetime.strptime(date_to, "%Y-%m-%d")
-    if date_from is None:
-        date_from = now - timedelta(days=30)
-    if isinstance(date_from, str):
-        date_from = datetime.strptime(date_from, "%Y-%m-%d")
-
-    print(f"\n  Загрузка: {product_group} | {date_from.strftime('%Y-%m-%d')} — {date_to.strftime('%Y-%m-%d')}")
+    # Если даты не указаны — не фильтруем по дате (получаем все коды)
+    use_date_filter = date_from is not None or date_to is not None
+    if use_date_filter:
+        now = datetime.now()
+        if date_to is None:
+            date_to = now
+        if isinstance(date_to, str):
+            date_to = datetime.strptime(date_to, "%Y-%m-%d")
+        if date_from is None:
+            date_from = now - timedelta(days=30)
+        if isinstance(date_from, str):
+            date_from = datetime.strptime(date_from, "%Y-%m-%d")
+        print(f"\n  Загрузка: {product_group} | {date_from.strftime('%Y-%m-%d')} — {date_to.strftime('%Y-%m-%d')}")
+    else:
+        print(f"\n  Загрузка: {product_group} (все коды, без фильтра по дате)")
 
     all_items = []
     current_page = 0
-    limit = 100
+    limit = 1000  # максимум API
 
     while True:
         print(f"  Страница {current_page + 1}...", end=" ")
-        status, response, _ = search_cises(
-            token=token, page=current_page, limit=limit,
-            product_group=product_group,
-            date_from=date_from, date_to=date_to
-        )
+
+        if use_date_filter:
+            status, response, _ = search_cises(
+                token=token, page=current_page, limit=limit,
+                product_group=product_group,
+                date_from=date_from, date_to=date_to
+            )
+        else:
+            # Без фильтра по дате — прямой запрос
+            headers = {"Authorization": f"Bearer {token}"}
+            payload = {
+                "page": current_page,
+                "limit": limit,
+                "filter": {
+                    "productGroups": [product_group],
+                    "ownerInn": INN_ORG,
+                }
+            }
+            url = f"{CHZ_BASE_URL_V4}/cises/search"
+            status, response = make_request(url, method="POST", data=payload, headers=headers)
 
         if status != 200:
-            print(f"❌ HTTP {status}")
+            print(f"[ERR] HTTP {status}")
             time.sleep(10)
             continue
 
         items = response.get("result", [])
         is_last = response.get("isLastPage", True)
         all_items.extend(items)
-        print(f"✅ +{len(items)} (всего {len(all_items)})")
+        print(f"[OK] +{len(items)} (всего {len(all_items)})")
 
-        if is_last or len(items) < limit or len(all_items) >= 3000:
+        if is_last or len(items) < limit or len(all_items) >= max_items:
             break
 
         current_page += 1
@@ -382,7 +402,7 @@ def print_expiration_report(items):
 
     # Сортируем по количеству кодов
     for g in sorted(by_gtin.values(), key=lambda x: x["count"], reverse=True):
-        print(f"\n  ─{'─'*68}")
+        print(f"\n  {'-'*69}")
         print(f"  GTIN:       {g['gtin']}")
         print(f"  Производитель: {g['producer']}")
         print(f"  Кодов:       {g['count']}")
@@ -390,7 +410,194 @@ def print_expiration_report(items):
         print(f"  Дата произв.:  {', '.join(sorted(g['production_dates']))}")
         print(f"  MOD ID(s):     {', '.join(sorted(g['mod_ids']))}")
 
-    print(f"\n  📄 Подробная сводка: {data_file}")
+    print(f"\n  FILE: Подробная сводка: {data_file}")
+
+
+# ==================== НАЗВАНИЯ ПРОДУКТОВ ====================
+
+def get_product_names(gtins, token=None):
+    """Получить названия товаров по списку GTIN через product/info.
+
+    POST /api/v4/true-api/product/info
+    Request: {"gtins": [...], "rdInfo": false}
+    Response: {"results": [{"gtin": "...", "name": "...", "brand": "...", ...}], "total": N}
+
+    Returns: dict {gtin: {"name": str, "brand": str, "volumeWeight": str, ...}}
+    """
+    if token is None:
+        token = load_token()
+        if not token:
+            return {}
+
+    if not gtins:
+        return {}
+
+    # Дополняем GTIN до 14 цифр лидирующими нулями
+    padded_gtins = [g.zfill(14) for g in gtins]
+
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {"gtins": padded_gtins, "rdInfo": False}
+
+    url = f"{CHZ_BASE_URL_V4}/product/info"
+    status, response = make_request(url, method="POST", data=payload, headers=headers)
+
+    if status != 200:
+        print(f"  [ERR] product/info: HTTP {status} — {response}")
+        return {}
+
+    result = {}
+    for item in response.get("results", []):
+        gtin = item.get("gtin", "")
+        result[gtin] = {
+            "name": item.get("name", ""),
+            "brand": item.get("brand", ""),
+            "privateBrand": item.get("privateBrand", ""),
+            "fullName": item.get("fullName", ""),
+            "volumeWeight": item.get("volumeWeight", ""),
+            "coreVolume": item.get("coreVolume", ""),
+            "netWeight": item.get("netWeight", ""),
+            "packageType": item.get("packageType", ""),
+            "productGroup": item.get("productGroup", ""),
+        }
+
+    return result
+
+
+# ==================== ОСТАТКИ ЧЗ (НАЗВАНИЕ + КОЛ-ВО + СРОК) ====================
+
+PRODUCT_GROUPS = ["beer", "nabeer", "softdrinks"]
+
+def get_chz_stock(product_groups=None, date_from=None, date_to=None):
+    """Полный запрос остатков ЧЗ: коды + названия.
+
+    Parameters
+    ----------
+    product_groups : list[str] | str | None
+        Список групп или одна строка. По умолчанию: beer + nabeer + softdrinks.
+    date_from, date_to : str | datetime
+        Период даты введения в оборот.
+
+    Returns: список словарей {gtin, name, brand, count, expiration_dates, production_dates, product_group}
+    """
+    # Нормализуем группы
+    if product_groups is None:
+        groups = PRODUCT_GROUPS
+    elif isinstance(product_groups, str):
+        groups = [product_groups]
+    else:
+        groups = product_groups
+
+    # 1. Загружаем коды из всех групп
+    all_items = []
+    for g in groups:
+        print(f"\n  Группа: {g}")
+        items = get_all_cises(
+            product_group=g,
+            date_from=date_from, date_to=date_to
+        )
+        all_items.extend(items)
+
+    if not all_items:
+        return []
+
+    # 2. Фильтруем только INTRODUCED (в обороте = на складе)
+    introduced = [i for i in all_items if i.get("status") == "INTRODUCED"]
+    if not introduced:
+        print("  Нет кодов со статусом INTRODUCED")
+        return []
+
+    print(f"\n  В обороте: {len(introduced)} из {len(all_items)} кодов")
+
+    # 3. Группируем по GTIN
+    by_gtin = {}
+    for item in introduced:
+        gtin = item.get("gtin", "N/A")
+        pg = item.get("productGroup", "")
+        if gtin not in by_gtin:
+            by_gtin[gtin] = {
+                "gtin": gtin,
+                "count": 0,
+                "expiration_dates": set(),
+                "production_dates": set(),
+                "product_group": pg,
+            }
+        e = by_gtin[gtin]
+        e["count"] += 1
+
+        exp = item.get("expirationDate", "")
+        if exp and "T" in exp:
+            exp = exp.split("T")[0]
+        if exp:
+            e["expiration_dates"].add(exp)
+
+        prod = item.get("productionDate", "")
+        if prod and "T" in prod:
+            prod = prod.split("T")[0]
+        if prod:
+            e["production_dates"].add(prod)
+
+    # 4. Получаем названия
+    unique_gtins = list(by_gtin.keys())
+    product_names = get_product_names(unique_gtins)
+
+    # 5. Объединяем
+    stock = []
+    for gtin, data in by_gtin.items():
+        info = product_names.get(gtin, {})
+        entry = {
+            "gtin": gtin,
+            "name": info.get("name", ""),
+            "brand": info.get("brand", ""),
+            "privateBrand": info.get("privateBrand", ""),
+            "fullName": info.get("fullName", ""),
+            "volumeWeight": info.get("volumeWeight", ""),
+            "coreVolume": info.get("coreVolume", ""),
+            "count": data["count"],
+            "expiration_dates": sorted(data["expiration_dates"]),
+            "production_dates": sorted(data["production_dates"]),
+            "product_group": data.get("product_group", ""),
+        }
+        stock.append(entry)
+
+    # Сортируем по количеству (убывание)
+    stock.sort(key=lambda x: x["count"], reverse=True)
+    return stock
+
+
+def print_stock_report(stock):
+    """Напечатать отчёт по остаткам ЧЗ: название — количество — срок"""
+    if not stock:
+        print("\n  Нет данных")
+        return
+
+    print(f"\n{'='*80}")
+    print(f"  ОСТАТКИ ЧЗ: {ORG_NAME} (ИНН {INN_ORG})")
+    print(f"{'='*80}")
+    total_count = sum(s["count"] for s in stock)
+    print(f"  Уникальных GTIN: {len(stock)}")
+    print(f"  Всего кодов в обороте: {total_count}")
+
+    # Сохранить JSON
+    data_file = os.path.join(DEBUG_DIR, "chz_stock.json")
+    with open(data_file, 'w', encoding='utf-8') as f:
+        json.dump(stock, f, indent=2, ensure_ascii=False,
+                  default=lambda x: list(x) if isinstance(x, set) else x)
+
+    # Таблица
+    print(f"\n  {'GTIN':<16} {'Название':<35} {'Кол':>4}  {'Срок годности':<12}")
+    print(f"  {'-'*78}")
+
+    for s in stock:
+        name = s.get("name") or s.get("fullName") or s.get("brand") or "?"
+        # Обрезаем длинные названия
+        if len(name) > 33:
+            name = name[:32] + ".."
+        exp = ", ".join(s["expiration_dates"])
+        if len(exp) > 12:
+            exp = exp[:11] + ".."
+        print(f"  {s['gtin']:<16} {name:<35} {s['count']:>4}  {exp:<12}")
+
+    print(f"\n  FILE: {data_file}")
 
 
 # ==================== CLI ====================
@@ -404,12 +611,15 @@ def print_help():
     print(f"  python chz.py search 2026-03-01 2026-04-05  — период")
     print(f"  python chz.py report             — полный отчёт + загрузка всех данных")
     print(f"  python chz.py report 2026-03-01  — отчёт с даты")
+    print(f"  python chz.py stock              — остатки: название, кол-во, срок (6 мес)")
+    print(f"  python chz.py stock 2025-10-01   — остатки с даты")
+    print(f"  python chz.py stock 2025-10-01 2026-04-05  — период")
     print(f"\nПараметры по умолчанию:")
-    print(f"  product_group = beer")
-    print(f"  период = последние 30 дней")
+    print(f"  группы = beer + nabeer + softdrinks")
+    print(f"  период = последние 6 месяцев")
     print(f"  организация = {ORG_NAME} (ИНН {INN_ORG})")
     print(f"\nРабочая формула аутентификации:")
-    print(f"  csptest -sfsign -sign -detached -my THUMB -in DATA -out SIG -base64 -cades_strict -add")
+    print(f"  csptest -sfsign -sign -my THUMB -in DATA -out SIG -base64 -cades_strict -add")
     print(f"  POST /auth/simpleSignIn: {{\"uuid\": uuid, \"data\": подпись}}")
     print(f"  Токен: {TOKEN_FILE}")
 
@@ -424,11 +634,11 @@ def main():
         print("Обновляю токен...")
         result = get_token()
         if "error" in result:
-            print(f"  ❌ {result['error']}")
+            print(f"  [ERR] {result['error']}")
         else:
             exp = time.strftime('%Y-%m-%d %H:%M:%S',
                                 time.localtime(result['expires_at']))
-            print(f"  ✅ Токен действует до: {exp}")
+            print(f"  [OK] Токен действует до: {exp}")
 
     elif cmd == "participants":
         get_participants()
@@ -440,7 +650,7 @@ def main():
 
         token = load_token()
         if not token:
-            print("❌ Не удалось получить токен")
+            print("[ERR] Не удалось получить токен")
             return
 
         status, response, period = search_cises(
@@ -450,10 +660,10 @@ def main():
 
         if status == 200:
             items = response.get("result", [])
-            print(f"\n  ✅ Загружено: {len(items)} кодов")
+            print(f"\n  [OK] Загружено: {len(items)} кодов")
             print_expiration_report(items)
         else:
-            print(f"  ❌ {status}: {response}")
+            print(f"  [ERR] {status}: {response}")
 
     elif cmd == "report":
         # python chz.py report [date_from] [date_to]
@@ -469,9 +679,21 @@ def main():
             with open(full_file, 'w', encoding='utf-8') as f:
                 json.dump(items, f, indent=2, ensure_ascii=False,
                           default=lambda x: list(x) if isinstance(x, set) else x)
-            print(f"\n  📄 Все данные: {full_file}")
+            print(f"\n  FILE: Все данные: {full_file}")
         else:
             print("  Нет данных")
+
+    elif cmd == "stock":
+        # python chz.py stock [date_from] [date_to]
+        date_from = rest[0] if rest else None
+        date_to = rest[1] if len(rest) > 1 else None
+
+        # По умолчанию — последние 6 месяцев
+        if date_from is None:
+            date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+
+        stock = get_chz_stock(date_from=date_from, date_to=date_to)
+        print_stock_report(stock)
 
     else:
         print_help()

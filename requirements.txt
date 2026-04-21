@@ -6,3 +6,4 @@ python-dotenv==1.0.0
 gunicorn==21.2.0
 aiogram==3.4.1
 aiohttp==3.9.1
+playwright==1.49.1

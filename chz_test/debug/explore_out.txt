@@ -1,0 +1,120 @@
+
+  ╧юыєўр■ эют√щ Єюъхэ...
+  [auth] ╟ряЁюё UUID ш DATA... [OK] eb388d92...
+  [auth] ╧юфяшё№... [OK]
+  [auth] ╬сьхэ эр Єюъхэ... [OK] фхщёЄтєхЄ фю 2026-04-14 01:25:26
+=== receipt/search (various filters) ===
+participantInn: 400 - {'error_message': '═х чряюыэхэ эш юфшэ ярЁрьхЄЁ filter'}
+empty filter: 400 - {'error_message': '═х чряюыэхэ эш юфшэ ярЁрьхЄЁ filter'}
+
+=== doc/list (various pg) ===
+  beer: 0 docs
+  nabeer: 0 docs
+  softdrinks: 0 docs
+  milk: 0 docs
+
+=== cises/search beer (all pages) ===
+  Page 0: 100 items (total 100) isLast=False
+  Page 1: 100 items (total 200) isLast=False
+  Page 2: 100 items (total 300) isLast=False
+  Page 3: 100 items (total 400) isLast=False
+  Page 4: 100 items (total 500) isLast=False
+  Page 5: 100 items (total 600) isLast=False
+  Page 6: 100 items (total 700) isLast=False
+  Page 7: 100 items (total 800) isLast=False
+  Page 8: 100 items (total 900) isLast=False
+  Page 9: 100 items (total 1000) isLast=False
+  Page 10: 100 items (total 1100) isLast=False
+  Page 11: 100 items (total 1200) isLast=False
+  Page 12: 100 items (total 1300) isLast=False
+  Page 13: 100 items (total 1400) isLast=False
+  Page 14: 100 items (total 1500) isLast=False
+  Page 15: 100 items (total 1600) isLast=False
+  Page 16: 100 items (total 1700) isLast=False
+  Page 17: 100 items (total 1800) isLast=False
+  Page 18: 100 items (total 1900) isLast=False
+  Page 19: 100 items (total 2000) isLast=False
+  Page 20: 100 items (total 2100) isLast=False
+  Page 21: 100 items (total 2200) isLast=False
+  Page 22: 100 items (total 2300) isLast=False
+  Page 23: 100 items (total 2400) isLast=False
+  Page 24: 100 items (total 2500) isLast=False
+  Page 25: 100 items (total 2600) isLast=False
+  Page 26: 100 items (total 2700) isLast=False
+  Page 27: 100 items (total 2800) isLast=False
+  Page 28: 100 items (total 2900) isLast=False
+  Page 29: 100 items (total 3000) isLast=False
+  Page 30: 100 items (total 3100) isLast=False
+  Page 31: 100 items (total 3200) isLast=False
+  Page 32: 100 items (total 3300) isLast=False
+  Page 33: 100 items (total 3400) isLast=False
+  Page 34: 100 items (total 3500) isLast=False
+  Page 35: 100 items (total 3600) isLast=False
+  Page 36: 100 items (total 3700) isLast=False
+  Page 37: 100 items (total 3800) isLast=False
+  Page 38: 100 items (total 3900) isLast=False
+  Page 39: 100 items (total 4000) isLast=False
+  Page 40: 100 items (total 4100) isLast=False
+  Page 41: 100 items (total 4200) isLast=False
+  Page 42: 100 items (total 4300) isLast=False
+  Page 43: 100 items (total 4400) isLast=False
+  Page 44: 100 items (total 4500) isLast=False
+  Page 45: 100 items (total 4600) isLast=False
+  Page 46: 100 items (total 4700) isLast=False
+  Page 47: 100 items (total 4800) isLast=False
+  Page 48: 100 items (total 4900) isLast=False
+  Page 49: 100 items (total 5000) isLast=False
+  Page 50: 100 items (total 5100) isLast=False
+  Page 51: 100 items (total 5200) isLast=False
+  Page 52: 100 items (total 5300) isLast=False
+  Page 53: 100 items (total 5400) isLast=False
+  Page 54: 100 items (total 5500) isLast=False
+  Page 55: 100 items (total 5600) isLast=False
+  Page 56: 100 items (total 5700) isLast=False
+  Page 57: 100 items (total 5800) isLast=False
+  Page 58: 100 items (total 5900) isLast=False
+  Page 59: 100 items (total 6000) isLast=False
+  Page 60: 100 items (total 6100) isLast=False
+  Page 61: 100 items (total 6200) isLast=False
+  Page 62: 100 items (total 6300) isLast=False
+  Page 63: 100 items (total 6400) isLast=False
+  Page 64: 100 items (total 6500) isLast=False
+  Page 65: 100 items (total 6600) isLast=False
+  Page 66: 100 items (total 6700) isLast=False
+  Page 67: 100 items (total 6800) isLast=False
+  Page 68: 100 items (total 6900) isLast=False
+  Page 69: 100 items (total 7000) isLast=False
+  Page 70: 100 items (total 7100) isLast=False
+  Page 71: 100 items (total 7200) isLast=False
+  Page 72: 100 items (total 7300) isLast=False
+  Page 73: 100 items (total 7400) isLast=False
+  Page 74: 100 items (total 7500) isLast=False
+  Page 75: 100 items (total 7600) isLast=False
+  Page 76: 100 items (total 7700) isLast=False
+  Page 77: 100 items (total 7800) isLast=False
+  Page 78: 100 items (total 7900) isLast=False
+  Page 79: 100 items (total 8000) isLast=False
+  Page 80: 100 items (total 8100) isLast=False
+  Page 81: 100 items (total 8200) isLast=False
+  Page 82: 100 items (total 8300) isLast=False
+  Page 83: 100 items (total 8400) isLast=False
+  Page 84: 100 items (total 8500) isLast=False
+  Page 85: 100 items (total 8600) isLast=False
+  Page 86: 100 items (total 8700) isLast=False
+  Page 87: 100 items (total 8800) isLast=False
+  Page 88: 100 items (total 8900) isLast=False
+  Page 89: 100 items (total 9000) isLast=False
+  Page 90: 100 items (total 9100) isLast=False
+  Page 91: 100 items (total 9200) isLast=False
+  Page 92: 100 items (total 9300) isLast=False
+  Page 93: 100 items (total 9400) isLast=False
+  Page 94: 100 items (total 9500) isLast=False
+  Page 95: 100 items (total 9600) isLast=False
+  Page 96: 100 items (total 9700) isLast=False
+  Page 97: 100 items (total 9800) isLast=False
+  Page 98: 100 items (total 9900) isLast=False
+  Page 99: 100 items (total 10000) isLast=False
+
+  TOTAL beer codes: 10000
+  INTRODUCED: 8400 (20 GTINs)
+  RETIRED: 1600

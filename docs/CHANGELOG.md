@@ -1,5 +1,40 @@
 # Changelog
 
+### 2026-04-11 — ЧЗ остатки: название + количество + срок годности
+
+**Новое:**
+- `chz.py stock` — CLI команда для получения остатков пива в формате "название — количество — срок годности"
+- `get_product_names(gtins)` — запрос к `/api/v4/true-api/product/info` для получения названий по GTIN
+- `get_chz_stock()` — объединяет коды со статусом INTRODUCED с названиями продуктов
+- `/api/stocks/chz` — Flask endpoint для дашборда
+
+**Как работает:**
+1. `cises/search` получает все коды маркировки за период
+2. Фильтруются только коды со статусом `INTRODUCED` (в обороте = на складе)
+3. Группировка по GTIN, подсчёт количества
+4. `product/info` получает названия, бренды, объёмы по GTIN
+5. Результат: GTIN + название + количество + сроки годности
+
+**Файлы:**
+- `chz_test/chz.py` — добавлены `get_product_names()`, `get_chz_stock()`, `print_stock_report()`, команда `stock`
+- `routes/stocks.py` — добавлен endpoint `/api/stocks/chz`
+
+### 2026-04-08 — Beer Menu Card Creator
+
+**Что создано:**
+- Веб-конструктор A4-карточек пивного меню с live-превью
+- Два режима экспорта PNG: client (html2canvas) и server (Playwright)
+- CRUD API для управления позициями, загрузка логотипов
+- Фиксированный дизайн (PT Serif, corner accents, dividers), не ломающийся при любом контенте
+
+**Файлы:**
+- `routes/menu.py` — Blueprint с API и Playwright-рендером
+- `templates/menu.html` — страница конструктора
+- `templates/menu_card.html` — standalone шаблон карточки
+- `static/menu/logos/` — папка для логотипов
+- `data/menu_items.json` — хранилище позиций
+- `docs/menu-card.md` — документация модуля
+
 ### 2026-04-07 — Исследование подключения к бар-10 и бар-ПК
 
 **Что сделано:**

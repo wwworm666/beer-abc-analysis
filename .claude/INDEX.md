@@ -40,6 +40,7 @@ Beer ABC/XYZ Analysis
 | [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
 | [pwa-widget.md](docs/pwa-widget.md) | PWA виджет выручки — 5 баров с %, установка на главный экран | ✅ актуально |
 | [design-system.md](docs/design-system.md) | Дизайн-система: цвета, типографика, компоненты, layout | ✅ актуально |
+| [menu-card.md](docs/menu-card.md) | Конструктор A4-карточек пивного меню | ✅ актуально |
 | [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
 
 ---

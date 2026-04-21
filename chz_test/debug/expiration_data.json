@@ -1,0 +1,250 @@
+[
+  {
+    "gtin": "04610093628492",
+    "count": 1,
+    "producer": "3663081120",
+    "manufacturer": "3663081120",
+    "expiration_dates": [
+      "2026-09-25"
+    ],
+    "production_dates": [
+      "2026-03-29"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "04680089900468",
+    "count": 4,
+    "producer": "9705119097",
+    "manufacturer": "9705119097",
+    "expiration_dates": [
+      "2027-03-25"
+    ],
+    "production_dates": [
+      "2026-03-25"
+    ],
+    "mod_ids": [
+      "1339757"
+    ]
+  },
+  {
+    "gtin": "04660185915597",
+    "count": 12,
+    "producer": "7606117553",
+    "manufacturer": "7606117553",
+    "expiration_dates": [
+      "2027-03-20"
+    ],
+    "production_dates": [
+      "2026-03-20"
+    ],
+    "mod_ids": [
+      "450438",
+      "1339757"
+    ]
+  },
+  {
+    "gtin": "04603791714130",
+    "count": 1,
+    "producer": "7806546510",
+    "manufacturer": "7806546510",
+    "expiration_dates": [
+      "2026-09-13"
+    ],
+    "production_dates": [
+      "2026-03-18"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "04670223011921",
+    "count": 4,
+    "producer": "5029212582",
+    "manufacturer": "5029212582",
+    "expiration_dates": [
+      "2027-03-18"
+    ],
+    "production_dates": [
+      "2026-03-18"
+    ],
+    "mod_ids": [
+      "450438"
+    ]
+  },
+  {
+    "gtin": "04640229752821",
+    "count": 4,
+    "producer": "7723137176",
+    "manufacturer": "7723137176",
+    "expiration_dates": [
+      "2027-03-26"
+    ],
+    "production_dates": [
+      "2026-03-26"
+    ],
+    "mod_ids": [
+      "1339757"
+    ]
+  },
+  {
+    "gtin": "04640437582869",
+    "count": 4,
+    "producer": "3665801630",
+    "manufacturer": "3665801630",
+    "expiration_dates": [
+      "2027-03-17"
+    ],
+    "production_dates": [
+      "2026-03-16"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "04640106808733",
+    "count": 3,
+    "producer": "3665801630",
+    "manufacturer": "3665801630",
+    "expiration_dates": [
+      "2026-05-29",
+      "2026-05-30",
+      "2027-03-14"
+    ],
+    "production_dates": [
+      "2026-03-13"
+    ],
+    "mod_ids": [
+      "450437",
+      "450439",
+      "1339757"
+    ]
+  },
+  {
+    "gtin": "04660185917980",
+    "count": 8,
+    "producer": "7606117553",
+    "manufacturer": "7606117553",
+    "expiration_dates": [
+      "2027-03-12"
+    ],
+    "production_dates": [
+      "2026-03-12"
+    ],
+    "mod_ids": [
+      "450438",
+      "1339757"
+    ]
+  },
+  {
+    "gtin": "05060084982420",
+    "count": 3,
+    "producer": "7805800034",
+    "manufacturer": "",
+    "expiration_dates": [
+      "2027-01-08"
+    ],
+    "production_dates": [
+      "2026-01-08"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "05060084982260",
+    "count": 3,
+    "producer": "7805800034",
+    "manufacturer": "",
+    "expiration_dates": [
+      "2027-01-16"
+    ],
+    "production_dates": [
+      "2026-01-16"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "05060084982284",
+    "count": 3,
+    "producer": "7805800034",
+    "manufacturer": "",
+    "expiration_dates": [
+      "2027-01-15"
+    ],
+    "production_dates": [
+      "2026-01-15"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "04650363640403",
+    "count": 3,
+    "producer": "7805800034",
+    "manufacturer": "",
+    "expiration_dates": [
+      "2027-02-02"
+    ],
+    "production_dates": [
+      "2026-02-02"
+    ],
+    "mod_ids": [
+      "450439"
+    ]
+  },
+  {
+    "gtin": "04610173061126",
+    "count": 10,
+    "producer": "7716813948",
+    "manufacturer": "",
+    "expiration_dates": [
+      "2026-12-05"
+    ],
+    "production_dates": [
+      "2025-09-05"
+    ],
+    "mod_ids": [
+      "450438",
+      "450439"
+    ]
+  },
+  {
+    "gtin": "05410218008197",
+    "count": 10,
+    "producer": "7716813948",
+    "manufacturer": "",
+    "expiration_dates": [
+      "2027-02-26"
+    ],
+    "production_dates": [
+      "2025-08-26"
+    ],
+    "mod_ids": [
+      "450439",
+      "450438"
+    ]
+  },
+  {
+    "gtin": "04650139081652",
+    "count": 6,
+    "producer": "7604304460",
+    "manufacturer": "7604304460",
+    "expiration_dates": [
+      "2028-03-07"
+    ],
+    "production_dates": [
+      "2026-03-18"
+    ],
+    "mod_ids": [
+      "1339757"
+    ]
+  }
+]

@@ -16,8 +16,8 @@ import subprocess
 from pathlib import Path
 
 REMOTE_HOST = "100.98.149.108"
-REMOTE_USER = "sshuser"
-REMOTE_PASS = "chz2026"
+REMOTE_USER = "Администратор"
+REMOTE_PASS = "Krem2026"
 REPO_DIR = Path(__file__).parent.resolve()
 
 # Full path to Python on bar PC (python.exe stub in WindowsApps doesn't work)

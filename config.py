@@ -2,7 +2,8 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Загружаем .env из директории проекта (не из cwd)
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Данные для подключения (из .env)
 IIKO_SERVER = os.getenv("IIKO_SERVER", "first-federation.iiko.it")

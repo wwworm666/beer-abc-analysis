@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Beer Menu Card Creator</title>
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { background: #1a1a1a; color: #e5e5e5; font-family: 'Space Grotesk', sans-serif; }
+
+/* Layout */
+.app { display: flex; height: 100vh; }
+.sidebar { width: 420px; min-width: 420px; background: #2a2a2a; overflow-y: auto; border-right: 1px solid #3a3a3a; }
+.preview-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding: 32px; }
+
+/* Card preview scaled down */
+.card-wrap { transform-origin: top center; }
+
+/* Form */
+.form-section { padding: 20px; border-bottom: 1px solid #3a3a3a; }
+.form-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: #888; margin-bottom: 12px; }
+
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 4px; }
+.form-group input, .form-group textarea {
+    width: 100%; padding: 8px 10px; background: #1e1e1e; border: 1px solid #3a3a3a;
+    color: #e5e5e5; font-size: 14px; font-family: inherit; border-radius: 4px;
+}
+.form-group input:focus, .form-group textarea:focus { outline: none; border-color: #666; }
+.form-group textarea { resize: vertical; min-height: 60px; }
+
+/* Volume rows */
+.vol-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.vol-row input { flex: 1; }
+.vol-row .btn-remove { background: none; border: none; color: #f87171; cursor: pointer; font-size: 18px; padding: 0 4px; }
+
+/* Buttons */
+.btn { padding: 8px 16px; border: none; cursor: pointer; font-size: 13px; font-family: inherit; border-radius: 4px; }
+.btn-primary { background: #4f46e5; color: #fff; }
+.btn-primary:hover { background: #4338ca; }
+.btn-secondary { background: #3a3a3a; color: #ccc; }
+.btn-secondary:hover { background: #4a4a4a; }
+.btn-success { background: #059669; color: #fff; }
+.btn-success:hover { background: #047857; }
+.btn-warning { background: #d97706; color: #fff; }
+.btn-warning:hover { background: #b45309; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* Item list */
+.item-list { padding: 12px 20px; }
+.item-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: #1e1e1e; border-radius: 4px;
+    margin-bottom: 6px; cursor: pointer; transition: background 0.15s;
+}
+.item-item:hover { background: #2e2e2e; }
+.item-item.active { background: #312e81; border: 1px solid #4f46e5; }
+.item-item .name { font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-item .actions { display: flex; gap: 4px; }
+
+/* Logo upload */
+.logo-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 1px solid #444; margin-top: 8px; }
+.logo-drop-zone { border: 2px dashed #444; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+.logo-drop-zone:hover, .logo-drop-zone.dragover { border-color: #4f46e5; background: rgba(79, 70, 229, 0.1); }
+.logo-drop-zone p { font-size: 12px; color: #888; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+    <!-- Sidebar: Form + Item List -->
+    <div class="sidebar">
+        <!-- Item List -->
+        <div class="form-section">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin-bottom: 0;">Позиции</h3>
+                <button class="btn btn-primary btn-sm" onclick="newItem()">+ Новая</button>
+            </div>
+        </div>
+        <div class="item-list" id="item-list"></div>
+
+        <!-- Edit Form -->
+        <div class="form-section">
+            <h3>Редактирование</h3>
+
+            <div class="form-group">
+                <label>Логотип</label>
+                <div class="logo-drop-zone" id="logo-drop-zone" onclick="document.getElementById('logo-input').click()">
+                    <img id="logo-preview" class="logo-preview" style="display:none;"/>
+                    <p id="logo-hint">Нажмите, выберите файл или вставьте из буфера (Ctrl+V)</p>
+                </div>
+                <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(event)" style="display:none;"/>
+            </div>
+
+            <div class="form-group">
+                <label>Название</label>
+                <input id="f-name" oninput="updatePreview()"/>
+            </div>
+
+            <div class="form-group">
+                <label>Тип пива</label>
+                <input id="f-type" placeholder="АМБЕР - ЭЛЬ" oninput="updatePreview()"/>
+            </div>
+
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex:1;">
+                    <label>Страна</label>
+                    <input id="f-country" placeholder="Бельгия" oninput="updatePreview()"/>
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Крепость</label>
+                    <input id="f-abv" placeholder="5,2%" oninput="updatePreview()"/>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Описание</label>
+                <textarea id="f-description" rows="2" placeholder="Мягкий, солодовый, сладковатый" oninput="updatePreview()"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Теги / дескрипторы</label>
+                <input id="f-tags" placeholder="КАРАМЕЛЬ · ХЛЕБ · ТРАВЫ" oninput="updatePreview()"/>
+            </div>
+        </div>
+
+        <!-- Volumes -->
+        <div class="form-section">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin-bottom: 0;">Объёмы и цены</h3>
+                <button class="btn btn-secondary btn-sm" onclick="addVolRow()">+ Объём</button>
+            </div>
+            <div id="vol-rows" style="margin-top: 12px;"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="form-section" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="saveItem()" style="flex:1;">Сохранить</button>
+            <button class="btn btn-success" onclick="exportClient()" style="flex:1;">PNG Client</button>
+            <button class="btn btn-warning" onclick="exportServer()" style="flex:1;">PNG Server</button>
+            <button class="btn btn-secondary" onclick="deleteItem()" id="btn-delete" style="display:none;">Удалить</button>
+        </div>
+    </div>
+
+    <!-- Preview Area -->
+    <div class="preview-area" id="preview-area">
+        <div class="card-wrap" id="card-wrap">
+            <!-- Card preview injected here -->
+        </div>
+    </div>
+</div>
+
+<script>
+// State
+let items = [];
+let editingId = null;
+let currentLogoUrl = '';
+
+// ---- Init ----
+async function init() {
+    const res = await fetch('/menu/api/items');
+    items = await res.json();
+    renderItemList();
+    if (items.length > 0) selectItem(items[0].id);
+    else newItem();
+    setupLogoHandlers();
+}
+
+// ---- Item List ----
+function renderItemList() {
+    const el = document.getElementById('item-list');
+    el.innerHTML = items.map(i => `
+        <div class="item-item ${editingId === i.id ? 'active' : ''}" onclick="selectItem(${i.id})">
+            <span class="name">${esc(i.name || 'Без названия')}</span>
+            <div class="actions">
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); exportItemClient(${i.id})" title="PNG Client">↓</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function newItem() {
+    editingId = null;
+    clearForm();
+    updatePreview();
+    document.getElementById('btn-delete').style.display = 'none';
+    renderItemList();
+}
+
+function selectItem(id) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    editingId = id;
+    document.getElementById('f-name').value = item.name || '';
+    document.getElementById('f-type').value = item.type || '';
+    document.getElementById('f-country').value = item.country || '';
+    document.getElementById('f-abv').value = item.abv || '';
+    document.getElementById('f-description').value = item.description || '';
+    document.getElementById('f-tags').value = item.tags || '';
+    currentLogoUrl = item.logo_url || '';
+    if (currentLogoUrl) { showLogoPreview(currentLogoUrl); }
+    else { hideLogoPreview(); }
+    renderVolRows(item.volumes || []);
+    updatePreview();
+    document.getElementById('btn-delete').style.display = 'inline-block';
+    renderItemList();
+}
+
+function clearForm() {
+    ['f-name','f-type','f-country','f-abv','f-description','f-tags'].forEach(id => document.getElementById(id).value = '');
+    currentLogoUrl = '';
+    hideLogoPreview();
+    renderVolRows([]);
+}
+
+function hideLogoPreview() {
+    const preview = document.getElementById('logo-preview');
+    const hint = document.getElementById('logo-hint');
+    preview.style.display = 'none';
+    if (hint) hint.style.display = 'block';
+}
+
+// ---- Volumes ----
+function renderVolRows(vols) {
+    const c = document.getElementById('vol-rows');
+    c.innerHTML = '';
+    vols.forEach(v => addVolRow(v.vol || '', v.price || ''));
+    if (vols.length === 0) addVolRow('', '');
+}
+
+function addVolRow(vol, price) {
+    const c = document.getElementById('vol-rows');
+    const row = document.createElement('div');
+    row.className = 'vol-row';
+    row.innerHTML = `
+        <input placeholder="0,3 л" value="${esc(vol)}" oninput="updatePreview()"/>
+        <input placeholder="550₽" value="${esc(price)}" oninput="updatePreview()"/>
+        <button class="btn-remove" onclick="this.parentElement.remove(); updatePreview();">&times;</button>
+    `;
+    c.appendChild(row);
+    updatePreview();
+}
+
+function getVolumes() {
+    const rows = document.querySelectorAll('#vol-rows .vol-row');
+    const vols = [];
+    rows.forEach(r => {
+        const inputs = r.querySelectorAll('input');
+        const vol = inputs[0].value.trim();
+        const price = inputs[1].value.trim();
+        if (vol || price) vols.push({ vol, price });
+    });
+    return vols;
+}
+
+// ---- Logo ----
+function setupLogoHandlers() {
+    const zone = document.getElementById('logo-drop-zone');
+
+    // Drag and drop
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => { zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) uploadLogoFile(file);
+    });
+
+    // Paste from clipboard
+    document.addEventListener('paste', (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (const item of items) {
+            if (item.type.indexOf('image') !== -1) {
+                e.preventDefault();
+                uploadLogoFile(item.getAsFile());
+                break;
+            }
+        }
+    });
+}
+
+async function handleLogoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    uploadLogoFile(file);
+}
+
+async function uploadLogoFile(file) {
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const res = await fetch('/menu/api/logo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: e.target.result })
+        });
+        const data = await res.json();
+        currentLogoUrl = data.url;
+        showLogoPreview(data.url);
+        updatePreview();
+    };
+    reader.readAsDataURL(file);
+}
+
+function showLogoPreview(url) {
+    const preview = document.getElementById('logo-preview');
+    const hint = document.getElementById('logo-hint');
+    preview.src = url;
+    preview.style.display = 'block';
+    if (hint) hint.style.display = 'none';
+}
+
+// ---- Save / Delete ----
+async function saveItem() {
+    const item = {
+        logo_url: currentLogoUrl,
+        name: document.getElementById('f-name').value.trim(),
+        type: document.getElementById('f-type').value.trim(),
+        country: document.getElementById('f-country').value.trim(),
+        abv: document.getElementById('f-abv').value.trim(),
+        description: document.getElementById('f-description').value.trim(),
+        tags: document.getElementById('f-tags').value.trim(),
+        volumes: getVolumes()
+    };
+
+    if (editingId) {
+        await fetch(`/menu/api/items/${editingId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) });
+    } else {
+        const res = await fetch('/menu/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) });
+        const created = await res.json();
+        editingId = created.id;
+    }
+
+    const res2 = await fetch('/menu/api/items');
+    items = await res2.json();
+    renderItemList();
+}
+
+async function deleteItem() {
+    if (!editingId) return;
+    await fetch(`/menu/api/items/${editingId}`, { method: 'DELETE' });
+    const res = await fetch('/menu/api/items');
+    items = await res.json();
+    renderItemList();
+    if (items.length > 0) selectItem(items[0].id);
+    else newItem();
+}
+
+// ---- Preview ----
+function buildCardHTML(item) {
+    const logoHTML = item.logo_url
+        ? `<img src="${item.logo_url}" class="card-logo" alt="Logo"/>`
+        : `<div class="card-logo-placeholder">LOGO</div>`;
+
+    const vols = item.volumes || [];
+    let volsHTML = '';
+    vols.slice(0, 2).forEach((v, i) => {
+        if (i > 0) volsHTML += `<div class="vol-divider"></div>`;
+        volsHTML += `<div class="vol-col"><span class="vol-label">${esc(v.vol)}</span><span class="vol-price">${esc(v.price)}</span></div>`;
+    });
+
+    return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/>
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&amp;family=Space+Grotesk:wght@300..700&amp;display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+.a4-page{width:1240px;height:1754px;background:#F9F9F7;position:relative;display:flex;flex-direction:column;padding:60px 100px 100px 100px;overflow:hidden}
+.corner{position:absolute;width:60px;height:60px;border:1px solid #1A1A1A;opacity:0.3}
+.corner.tl{top:60px;left:60px;border-right:0;border-bottom:0}
+.corner.tr{top:60px;right:60px;border-left:0;border-bottom:0}
+.corner.bl{bottom:60px;left:60px;border-right:0;border-top:0}
+.corner.br{bottom:60px;right:60px;border-left:0;border-top:0}
+.inner{height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between}
+.logo-section{display:flex;flex-direction:column;align-items:center}
+.card-logo{width:200px;height:200px;border-radius:50%;object-fit:cover;background:#fff;border:1px solid rgba(26,26,26,0.05)}
+.card-logo-placeholder{width:200px;height:200px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid rgba(26,26,26,0.05);font-family:'Space Grotesk',sans-serif;font-size:24px;color:#999;letter-spacing:0.2em}
+.divider{width:80%;height:1px;background:#1A1A1A;opacity:0.1;margin:30px 0}
+.title-section{width:100%;text-align:center}
+.title{font-family:'PT Serif',serif;font-size:110px;font-weight:700;color:#1A1A1A;text-transform:uppercase;text-align:center;letter-spacing:-0.02em;line-height:1;margin-bottom:32px;word-break:break-word}
+.sub-type{font-family:'PT Serif',serif;font-size:52px;color:#1A1A1A;text-transform:uppercase;letter-spacing:0.3em;text-align:center}
+.sub-origin{font-family:'PT Serif',serif;font-size:44px;color:rgba(26,26,26,0.5);font-style:italic;text-align:center}
+.desc-section{width:100%;text-align:center;display:flex;flex-direction:column;gap:48px}
+.desc{font-family:'PT Serif',serif;font-size:72px;color:#1A1A1A;font-style:italic;line-height:1.3;text-align:center;padding:0 160px}
+.tags{font-family:'PT Serif',serif;font-size:48px;color:#1A1A1A;font-weight:700;text-transform:uppercase;letter-spacing:0.15em;text-align:center}
+.vols{display:flex;justify-content:center;align-items:center;gap:160px;width:100%;padding-bottom:40px}
+.vol-col{display:flex;flex-direction:column;align-items:center}
+.vol-label{font-family:'PT Serif',serif;font-size:60px;color:rgba(26,26,26,0.4);text-transform:uppercase;letter-spacing:0.15em;margin-bottom:8px}
+.vol-price{font-family:'PT Serif',serif;font-size:104px;font-weight:700;color:#1A1A1A;line-height:1}
+.vol-divider{width:1px;height:176px;background:rgba(26,26,26,0.1)}
+</style></head><body>
+<div class="a4-page" id="menu-card">
+<div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+<div class="inner">
+<div class="logo-section">${logoHTML}</div>
+<div class="divider"></div>
+<div class="title-section"><div class="title">${esc(item.name)}</div><div class="sub-type">${esc(item.type)}</div><div class="sub-origin">${esc(item.country)} · ${esc(item.abv)}</div></div>
+<div class="divider"></div>
+<div class="desc-section"><div class="desc">${esc(item.description)}</div><div class="tags">${esc(item.tags)}</div></div>
+<div class="divider"></div>
+<div class="vols">${volsHTML}</div>
+</div></div></body></html>`;
+}
+
+function updatePreview() {
+    const item = {
+        logo_url: currentLogoUrl,
+        name: document.getElementById('f-name').value,
+        type: document.getElementById('f-type').value,
+        country: document.getElementById('f-country').value,
+        abv: document.getElementById('f-abv').value,
+        description: document.getElementById('f-description').value,
+        tags: document.getElementById('f-tags').value,
+        volumes: getVolumes()
+    };
+
+    const wrap = document.getElementById('card-wrap');
+    wrap.innerHTML = buildCardHTML(item);
+
+    // Scale to fit preview area
+    const area = document.getElementById('preview-area');
+    const availableWidth = area.clientWidth - 64;
+    const scale = Math.min(availableWidth / 1240, 0.55);
+    wrap.style.transform = `scale(${scale})`;
+    wrap.style.width = `${1240}px`;
+    wrap.style.height = `${1754}px`;
+}
+
+// ---- Export: Client (html2canvas) ----
+async function exportClient() {
+    const card = document.querySelector('#card-wrap #menu-card');
+    if (!card) return;
+    const canvas = await html2canvas(card, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#F9F9F7',
+        width: 1240,
+        height: 1754,
+    });
+    downloadCanvas(canvas, `menu-${document.getElementById('f-name').value || 'card'}.png`);
+}
+
+async function exportItemClient(id) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    selectItem(id);
+    setTimeout(exportClient, 200);
+}
+
+// ---- Export: Server (Playwright) ----
+async function exportServer() {
+    const item = {
+        logo_url: currentLogoUrl,
+        name: document.getElementById('f-name').value,
+        type: document.getElementById('f-type').value,
+        country: document.getElementById('f-country').value,
+        abv: document.getElementById('f-abv').value,
+        description: document.getElementById('f-description').value,
+        tags: document.getElementById('f-tags').value,
+        volumes: getVolumes()
+    };
+    const res = await fetch('/menu/api/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item)
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert('Server render error: ' + (err.error || res.statusText));
+        return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `menu-${item.name || 'card'}.png`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ---- Helpers ----
+function downloadCanvas(canvas, filename) {
+    canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+    }, 'image/png');
+}
+
+function esc(s) {
+    if (!s) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ---- Start ----
+init();
+</script>
+</body>
+</html>

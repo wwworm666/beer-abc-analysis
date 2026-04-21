@@ -588,3 +588,51 @@ def get_bottles_stocks():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+@stocks_bp.route('/api/stocks/chz', methods=['GET'])
+def get_chz_stocks():
+    """Остатки фасованного пива из Честный ЗНАК.
+
+    Возвращает: название - количество - срок годности
+    Данные получаются через ЧЗ API (cises/search + product/info).
+    Работает только на бар-ПК с установленным CryptoPro CSP и Рутокеном.
+    """
+    try:
+        import sys
+        import os
+        chz_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'chz_test')
+        if chz_path not in sys.path:
+            sys.path.insert(0, chz_path)
+
+        from chz import get_chz_stock
+
+        stock = get_chz_stock()
+
+        # Подсчёт GTIN близких к окончанию срока (< 30 дней)
+        from datetime import datetime
+        today = datetime.now().date()
+        near_expiry = 0
+        for item in stock:
+            for exp_str in item.get("expiration_dates", []):
+                try:
+                    exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
+                    if (exp_date - today).days < 30:
+                        near_expiry += 1
+                        break
+                except ValueError:
+                    pass
+
+        return jsonify({
+            'total_items': len(stock),
+            'total_codes': sum(s['count'] for s in stock),
+            'near_expiry': near_expiry,
+            'items': stock
+        })
+
+    except ImportError:
+        return jsonify({'error': 'ЧЗ модуль недоступен. Требуется бар-ПК с CryptoPro CSP.'}), 503
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/stocks/chz: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
