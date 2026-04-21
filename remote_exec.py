@@ -20,8 +20,11 @@ REMOTE_USER = "Администратор"
 REMOTE_PASS = "Krem2026"
 REPO_DIR = Path(__file__).parent.resolve()
 
-# Full path to Python on bar PC (python.exe stub in WindowsApps doesn't work)
-REMOTE_PYTHON = r"C:\Users\1\AppData\Local\Python\bin\python.exe"
+# Full path to Python on bar PC (confirmed: C:\Program Files\Python312\python.exe)
+REMOTE_PYTHON = r"C:\Program Files\Python312\python.exe"
+
+# chz_test directory on bar PC (repo is not present, scripts live at C:\chz_test)
+REMOTE_CHZ_DIR = r"C:\chz_test"
 
 
 def connect(timeout=15):
@@ -131,11 +134,11 @@ def main():
         pull(sys.argv[2], sys.argv[3])
 
     elif action == "run":
-        # Запустить chz.py report на бар-ПК
+        # Запустить chz.py на бар-ПК из C:\chz_test
         args = " ".join(sys.argv[2:])
         remote_cmd = (
-            'cd C:\\Users\\1\\Documents\\GitHub\\beer-abc-analysis && '
-            f'"{REMOTE_PYTHON}" chz_test\\chz.py {args}'
+            f'cd {REMOTE_CHZ_DIR} && '
+            f'"{REMOTE_PYTHON}" chz.py {args}'
         )
         print(f"Запуск: chz.py {args}\n")
         run_cmd(remote_cmd)

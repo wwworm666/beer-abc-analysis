@@ -67,8 +67,8 @@ dir C:\Users\1\Documents\GitHub\beer-abc-analysis\chz_test\chz.py
 push("chz_test/chz.py", "C:\\Users\\1\\Documents\\GitHub\\beer-abc-analysis\\chz_test")
 ```
 
-- [ ] Найти рабочий путь к Python на бар-ПК, обновить REMOTE_PYTHON в remote_exec.py
-- [ ] Убедиться что chz.py есть на бар-ПК (или загрузить)
+- [x] Найти рабочий путь к Python на бар-ПК, обновить REMOTE_PYTHON в remote_exec.py
+- [x] Убедиться что chz.py есть на бар-ПК (или загрузить)
 
 ---
 
