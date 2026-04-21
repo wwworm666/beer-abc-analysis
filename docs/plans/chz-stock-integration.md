@@ -189,10 +189,10 @@ def get_chz_stock_api():
 }
 ```
 
-- [ ] Добавить маршрут `GET /api/chz/stock` в `routes/stocks.py`
-- [ ] Endpoint читает `chz_test/debug/chz_stock.json` и возвращает JSON
-- [ ] Если файл не найден — возвращает `{"items": [], "updated_at": null, "error": "no data"}`
-- [ ] Добавить маршрут `POST /api/chz/refresh` который запускает `remote_exec.py run stock`
+- [x] Добавить маршрут `GET /api/chz/stock` в `routes/stocks.py`
+- [x] Endpoint читает `chz_test/debug/chz_stock.json` и возвращает JSON
+- [x] Если файл не найден — возвращает `{"items": [], "updated_at": null, "error": "no data"}`
+- [x] Добавить маршрут `POST /api/chz/refresh` который запускает `remote_exec.py run stock`
   в фоне (subprocess.Popen) и сразу возвращает `{"status": "started"}`
 
 ---

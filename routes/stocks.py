@@ -636,3 +636,40 @@ def get_chz_stocks():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@stocks_bp.route('/api/chz/stock', methods=['GET'])
+def get_chz_stock_api():
+    """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
+    import os
+    cache_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'chz_test', 'debug', 'chz_stock.json'
+    )
+    if not os.path.exists(cache_file):
+        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'})
+
+    mtime = os.path.getmtime(cache_file)
+    updated_at = datetime.fromtimestamp(mtime).isoformat()
+
+    with open(cache_file, encoding='utf-8') as f:
+        items = json.load(f)
+
+    return jsonify({'items': items, 'updated_at': updated_at})
+
+
+@stocks_bp.route('/api/chz/refresh', methods=['POST'])
+def refresh_chz_stock():
+    """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
+    import os
+    import subprocess
+    remote_exec = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'remote_exec.py'
+    )
+    subprocess.Popen(
+        ['python', remote_exec, 'run', 'stock'],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    return jsonify({'status': 'started'})
