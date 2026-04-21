@@ -135,11 +135,11 @@ pull(
 stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False, timeout=timeout)
 ```
 
-- [ ] Добавить параметр `timeout` в `run_cmd` функцию remote_exec.py
-- [ ] Добавить в remote_exec.py команду `run stock` которая:
+- [x] Добавить параметр `timeout` в `run_cmd` функцию remote_exec.py
+- [x] Добавить в remote_exec.py команду `run stock` которая:
   1. Запускает `chz.py stock 2024-01-01` на бар-ПК (timeout=600)
   2. Скачивает `chz_stock.json` в локальный `chz_test/debug/`
-- [ ] Запустить `python remote_exec.py run stock` и убедиться что chz_stock.json обновился
+- [x] Запустить `python remote_exec.py run stock` и убедиться что chz_stock.json обновился
       (по умолчанию берёт последние 6 месяцев)
 
 ---

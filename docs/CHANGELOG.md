@@ -1,5 +1,21 @@
 # Changelog
 
+### 2026-04-21 — CHZ stock integration: Task 4 — run stock on bar-PC
+
+**Изменено:**
+- `remote_exec.py` — добавлен параметр `timeout` в `run_cmd` (передаётся в `exec_command`)
+- `remote_exec.py` — добавлена специальная команда `run stock`: обновляет токен, запускает `chz.py stock` с timeout=600, скачивает `chz_stock.json` в `chz_test/debug/`
+- `remote_exec.py` — исправлена кодировка вывода: теперь `sys.stdout.buffer.write` с UTF-8 вместо `print` (избегает cp1251 ошибок)
+- `chz_test/debug/chz_stock.json` — обновлён: 30 GTIN, 29 с датами годности
+
+**Почему:**
+- Без timeout=600 долгие SSH-команды обрывались по таймауту paramiko
+- run stock нужен как единая команда для обновления кеша (токен + сбор + скачивание)
+
+**Файлы:**
+- `remote_exec.py`
+- `chz_test/debug/chz_stock.json`
+
 ### 2026-04-11 — ЧЗ остатки: название + количество + срок годности
 
 **Новое:**

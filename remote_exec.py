@@ -35,9 +35,9 @@ def connect(timeout=15):
     return client
 
 
-def run_cmd(rem_cmd, verbose=True):
+def run_cmd(rem_cmd, verbose=True, timeout=None):
     client = connect()
-    stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False)
+    stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False, timeout=timeout)
     raw_out = stdout.read()
     raw_err = stderr.read()
     try:
@@ -50,9 +50,11 @@ def run_cmd(rem_cmd, verbose=True):
         err = raw_err.decode("cp866", errors="replace")
     if verbose:
         if out.strip():
-            print(out.strip())
+            sys.stdout.buffer.write(out.strip().encode("utf-8") + b"\n")
+            sys.stdout.buffer.flush()
         if err.strip():
-            print(f"STDERR: {err.strip()}")
+            sys.stdout.buffer.write(("STDERR: " + err.strip()).encode("utf-8") + b"\n")
+            sys.stdout.buffer.flush()
     client.close()
     return out, err
 
@@ -134,14 +136,27 @@ def main():
         pull(sys.argv[2], sys.argv[3])
 
     elif action == "run":
-        # Запустить chz.py на бар-ПК из C:\chz_test
-        args = " ".join(sys.argv[2:])
-        remote_cmd = (
-            f'cd {REMOTE_CHZ_DIR} && '
-            f'"{REMOTE_PYTHON}" chz.py {args}'
-        )
-        print(f"Запуск: chz.py {args}\n")
-        run_cmd(remote_cmd)
+        subcmd = sys.argv[2] if len(sys.argv) > 2 else ""
+        if subcmd == "stock":
+            # Special: refresh token, run stock, pull result
+            print("Обновление токена...")
+            token_cmd = f'cd {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
+            run_cmd(token_cmd)
+            print("\nЗапуск сбора остатков (таймаут 600с)...")
+            stock_cmd = f'cd {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py stock'
+            run_cmd(stock_cmd, timeout=600)
+            print("\nСкачивание результата...")
+            remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
+            pull(remote_json, "chz_test/debug/")
+        else:
+            # Запустить chz.py на бар-ПК из C:\chz_test
+            args = " ".join(sys.argv[2:])
+            remote_cmd = (
+                f'cd {REMOTE_CHZ_DIR} && '
+                f'"{REMOTE_PYTHON}" chz.py {args}'
+            )
+            print(f"Запуск: chz.py {args}\n")
+            run_cmd(remote_cmd)
 
     else:
         print(f"Неизвестная команда: {action}")
