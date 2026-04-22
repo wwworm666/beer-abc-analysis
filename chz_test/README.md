@@ -256,6 +256,21 @@ python chz.py report 2026-03-01 2026-04-05
 - `debug/expiration_data.json` — сводка по GTIN
 - `debug/expiration_full.json` — все записи
 
+### Получить остатки (GTIN + название + кол-во + срок годности)
+```cmd
+python chz.py stock
+```
+
+Загружает все коды со статусом INTRODUCED за последние 6 месяцев (дефолт), группирует по GTIN,
+получает названия через product/info. Сохраняет: `debug/chz_stock.json`.
+
+С явной датой:
+```cmd
+python chz.py stock 2024-01-01
+```
+
+Данные в `chz_stock.json` используются Flask-эндпоинтом `GET /api/chz/stock` (читает кеш без SSH/CryptoPro).
+
 ### Удалённый запуск через SSH
 
 С локальной машины (Python + paramiko):

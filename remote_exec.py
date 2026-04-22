@@ -20,8 +20,6 @@ from pathlib import Path
 REMOTE_HOST = "100.98.149.108"
 REMOTE_USER = os.environ.get("REMOTE_USER", "Администратор")
 REMOTE_PASS = os.environ.get("REMOTE_PASS")
-if not REMOTE_PASS:
-    raise EnvironmentError("REMOTE_PASS environment variable is not set")
 REPO_DIR = Path(__file__).parent.resolve()
 
 # Full path to Python on bar PC (confirmed: C:\Program Files\Python312\python.exe)
@@ -32,6 +30,8 @@ REMOTE_CHZ_DIR = r"C:\chz_test"
 
 
 def connect(timeout=15):
+    if not REMOTE_PASS:
+        raise EnvironmentError("REMOTE_PASS environment variable is not set")
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.WarningPolicy())
     client.connect(REMOTE_HOST, username=REMOTE_USER, password=REMOTE_PASS,
@@ -153,10 +153,10 @@ def main():
         if subcmd == "stock":
             # Special: refresh token, run stock, pull result
             print("Обновление токена...")
-            token_cmd = f'cd {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
+            token_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
             run_cmd(token_cmd)
             print("\nЗапуск сбора остатков (таймаут 600с)...")
-            stock_cmd = f'cd {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py stock'
+            stock_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py stock'
             run_cmd(stock_cmd, timeout=600)
             print("\nСкачивание результата...")
             remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
@@ -165,7 +165,7 @@ def main():
             # Запустить chz.py на бар-ПК из C:\chz_test
             args = " ".join(sys.argv[2:])
             remote_cmd = (
-                f'cd {REMOTE_CHZ_DIR} && '
+                f'cd /d {REMOTE_CHZ_DIR} && '
                 f'"{REMOTE_PYTHON}" chz.py {args}'
             )
             print(f"Запуск: chz.py {args}\n")

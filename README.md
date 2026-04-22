@@ -289,6 +289,8 @@ Render (Облачный хостинг)
    - `IIKO_API_PASSWORD` - пароль iiko API
    - `IIKO_ORGANIZATION_ID` - ID организации
    - `GEMINI_API_KEY` - ключ Google Gemini API
+   - `REMOTE_PASS` - пароль SSH к бар-ПК (обязателен для POST /api/chz/refresh)
+   - `REMOTE_USER` - пользователь SSH на бар-ПК (по умолчанию: Администратор)
 6. **Деплой!**
 
 После `git push` в main → Render автоматически обновит приложение.
@@ -423,6 +425,11 @@ beer-abc-analysis/
 - `GET /api/stocks/taplist` - Остатки разливного пива
 - `GET /api/stocks/kitchen` - Остатки продуктов кухни
 - `GET /api/stocks/bottles` - Остатки бутылочного пива
+
+### Честный ЗНАК:
+
+- `GET /api/chz/stock` - Остатки пива из кеша ЧЗ (chz_stock.json). Возвращает `{items, updated_at}`. 404 если кеш не найден. Не требует бар-ПК или CryptoPro.
+- `POST /api/chz/refresh` - Запускает обновление кеша в фоне через remote_exec.py (SSH к бар-ПК). Возвращает `{status: "started"}` немедленно. Требует REMOTE_PASS в env.
 
 ### Краны:
 

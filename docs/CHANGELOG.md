@@ -1,5 +1,26 @@
 # Changelog
 
+### 2026-04-22 — CHZ stock integration: code review pass 3 — bug fixes and doc updates
+
+**Изменено:**
+- `routes/stocks.py` — `near_expiry_codes`: исправлена логика подсчёта — ранее считались и уже просроченные коды (`days < 0`). Теперь только коды с `0 <= days < 30`.
+- `routes/stocks.py` — `GET /api/chz/stock`: `getmtime()` перенесён внутрь `try/except` — ранее при удалении файла между `.exists()` и `getmtime()` возникал необработанный `FileNotFoundError` (TOCTOU race).
+- `routes/stocks.py` — удалён мёртвый блок `if amount == 0: pass` в `get_taplist_stocks`.
+- `remote_exec.py` — проверка `REMOTE_PASS` перенесена из уровня модуля в `connect()` — импорт модуля больше не выбрасывает исключение.
+- `remote_exec.py` — `cd` заменён на `cd /d` во всех командах `run stock` и `run` — без `/d` `cmd.exe` не меняет диск.
+- `docs/remote-sync.md` — обновлены учётные данные (Администратор / REMOTE_PASS env), Python путь, состояние бар-ПК; добавлена команда `run stock`.
+- `docs/changelog/CHZ_INTEGRATION.md` — обновлён пункт 7: описан дефолтный лимит 180 дней в `get_chz_stock`.
+- `chz_test/README.md` — добавлена секция команды `stock`.
+- `README.md` — добавлены `GET /api/chz/stock` и `POST /api/chz/refresh` в список API; `REMOTE_PASS`/`REMOTE_USER` добавлены в список env vars.
+
+**Почему:**
+- `days < 30` без проверки `>= 0` ошибочно включало давно просроченные коды в `near_expiry_codes`.
+- TOCTOU гонка на файле кеша могла вызвать 500 при параллельном refresh.
+- `cd` без `/d` не меняет диск в Windows cmd.exe при смене драйва.
+
+**Файлы:**
+- `remote_exec.py`, `routes/stocks.py`, `README.md`, `docs/remote-sync.md`, `docs/changelog/CHZ_INTEGRATION.md`, `chz_test/README.md`
+
 ### 2026-04-21 — CHZ stock integration: code review pass 2 — security and reliability fixes
 
 **Изменено:**

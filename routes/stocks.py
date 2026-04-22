@@ -130,12 +130,6 @@ def get_taplist_stocks():
             if target_store_id and store_id != target_store_id:
                 continue
 
-            # НЕ пропускаем отрицательные остатки - они важны для контроля!
-            # Пропускаем только нулевые, если кега не активна
-            if amount == 0:
-                # Пропустим потом при проверке на активность
-                pass
-
             # Получаем информацию о товаре из номенклатуры
             product_info = nomenclature.get(product_id)
             if not product_info:
@@ -624,7 +618,7 @@ def get_chz_stocks():
             for exp_str in item.get("expiration_dates", []):
                 try:
                     exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
-                    if (exp_date - today).days < 30:
+                    if 0 <= (exp_date - today).days < 30:
                         has_near_expiry = True
                         break
                 except ValueError:
@@ -654,14 +648,13 @@ def get_chz_stock_api():
     if not _CHZ_CACHE_FILE.exists():
         return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
 
-    mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
-    updated_at = datetime.fromtimestamp(mtime).isoformat()
-
     try:
+        mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
+        updated_at = datetime.fromtimestamp(mtime).isoformat()
         with open(_CHZ_CACHE_FILE, encoding='utf-8') as f:
             items = json.load(f)
     except (json.JSONDecodeError, OSError):
-        return jsonify({'items': [], 'updated_at': updated_at, 'error': 'cache corrupted or updating'}), 500
+        return jsonify({'items': [], 'updated_at': None, 'error': 'cache corrupted or updating'}), 500
 
     return jsonify({'items': items, 'updated_at': updated_at})
 
