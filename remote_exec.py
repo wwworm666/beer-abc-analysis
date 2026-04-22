@@ -33,7 +33,7 @@ def connect(timeout=15):
     if not REMOTE_PASS:
         raise EnvironmentError("REMOTE_PASS environment variable is not set")
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.WarningPolicy())
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(REMOTE_HOST, username=REMOTE_USER, password=REMOTE_PASS,
                    timeout=timeout, look_for_keys=False, allow_agent=False)
     return client

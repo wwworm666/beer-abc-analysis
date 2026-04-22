@@ -662,6 +662,8 @@ def get_chz_stock_api():
 @stocks_bp.route('/api/chz/refresh', methods=['POST'])
 def refresh_chz_stock():
     """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
+    if not os.environ.get('REMOTE_PASS'):
+        return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
     remote_exec = str(_BASE_DIR / 'remote_exec.py')
     try:
         subprocess.Popen(
