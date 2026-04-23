@@ -599,8 +599,6 @@ def get_chz_stocks():
     Работает только на бар-ПК с установленным CryptoPro CSP и Рутокеном.
     """
     try:
-        import sys
-        import os
         chz_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'chz_test')
         if chz_path not in sys.path:
             sys.path.insert(0, chz_path)
@@ -610,7 +608,6 @@ def get_chz_stocks():
         stock = get_chz_stock()
 
         # Подсчёт кодов близких к окончанию срока (< 30 дней)
-        from datetime import datetime
         today = datetime.now().date()
         near_expiry_codes = 0
         for item in stock:
@@ -646,7 +643,7 @@ def get_chz_stocks():
 def get_chz_stock_api():
     """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
     if not _CHZ_CACHE_FILE.exists():
-        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
+        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'})
 
     try:
         mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))

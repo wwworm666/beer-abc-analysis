@@ -13,6 +13,7 @@
 
 import os
 import sys
+import socket
 import paramiko
 import subprocess
 from pathlib import Path
@@ -40,14 +41,13 @@ def connect(timeout=15):
 
 
 def run_cmd(rem_cmd, verbose=True, timeout=None):
-    import socket as _socket
     client = connect()
     try:
         stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False, timeout=timeout)
         try:
             raw_out = stdout.read()
             raw_err = stderr.read()
-        except _socket.timeout:
+        except socket.timeout:
             raise TimeoutError(f"Команда превысила таймаут {timeout}с: {rem_cmd!r}")
         try:
             out = raw_out.decode("utf-8")
@@ -75,20 +75,23 @@ def push(local_path, remote_dir):
         sftp = client.open_sftp()
         try:
             local = Path(local_path)
+            sent = 0
             if local.is_dir():
                 for f in local.iterdir():
                     if f.is_file():
                         remote_file = f"{remote_dir}/{f.name}"
                         sftp.put(str(f), remote_file)
                         print(f"  push: {f.name} -> {remote_dir}/")
+                        sent += 1
             elif local.is_file():
                 remote_file = f"{remote_dir}/{local.name}"
                 sftp.put(str(local), remote_file)
                 print(f"  push: {local.name} -> {remote_dir}/")
+                sent = 1
             else:
                 print(f"FAIL: {local_path} не найден")
                 return
-            print(f"  done: {len([f for f in Path(local_path).iterdir()]) if Path(local_path).is_dir() else 1} file(s) sent")
+            print(f"  done: {sent} file(s) sent")
         finally:
             sftp.close()
     finally:

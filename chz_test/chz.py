@@ -516,6 +516,8 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     by_gtin = {}
     for item in introduced:
         gtin = item.get("gtin", "N/A")
+        if not gtin:
+            continue  # пропустить записи без GTIN (пустая строка)
         pg = item.get("productGroup", "")
         if gtin not in by_gtin:
             by_gtin[gtin] = {

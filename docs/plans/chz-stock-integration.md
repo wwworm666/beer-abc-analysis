@@ -6,12 +6,12 @@
 
 ## Контекст
 - `chz_test/chz.py` — рабочий клиент ЧЗ (аутентификация через CryptoPro csptest.exe)
-- `remote_exec.py` — SSH-клиент к бар-ПК (100.98.149.108, пользователь Администратор / Krem2026)
+- `remote_exec.py` — SSH-клиент к бар-ПК (100.98.149.108, пользователь Администратор, пароль из env REMOTE_PASS)
 - Подпись (csptest.exe) работает ТОЛЬКО под учётной записью Администратор
-- `chz_test/debug/chz_stock.json` — кеш данных (предыдущий успешный запуск: 38 GTIN)
-- Python на бар-ПК: `C:\Users\1\AppData\Local\Python\bin\python.exe`
-- Репозиторий на бар-ПК: `C:\Users\1\Documents\GitHub\beer-abc-analysis`
-- Токен ЧЗ действует ~10 часов, обновляется автоматически при запуске chz.py
+- `chz_test/debug/chz_stock.json` — кеш данных (последний успешный запуск: ~30 GTIN)
+- Python на бар-ПК: `C:\Program Files\Python312\python.exe`
+- Скрипты на бар-ПК: `C:\chz_test\chz.py` (репозиторий НЕ клонирован на бар-ПК)
+- Токен ЧЗ действует ~10 часов, обновляется при запуске `chz.py token`
 
 ## Validation Commands
 ```
@@ -27,9 +27,9 @@ python -c "import json,os; d=json.load(open('chz_test/debug/chz_stock.json')); p
 
 Запусти `python remote_exec.py status` и проверь вывод.
 Если возвращает `STATUS: OFFLINE`:
-- Проверь в remote_exec.py строки REMOTE_HOST, REMOTE_USER, REMOTE_PASS
-- REMOTE_USER должен быть `Администратор`, REMOTE_PASS = `Krem2026`
-- Попробуй альтернативные имена: `1` с паролем `qwe123` (бар-10 из CONNECTIVITY.md)
+- Проверь в remote_exec.py строки REMOTE_HOST, REMOTE_USER
+- REMOTE_USER должен быть `Администратор`, REMOTE_PASS берётся из env-переменной
+- Попробуй альтернативные учётки из CONNECTIVITY.md
 - Используй `paramiko.SSHClient` с `look_for_keys=False` и `allow_agent=False`
   чтобы исключить конфликты с ключами
 
