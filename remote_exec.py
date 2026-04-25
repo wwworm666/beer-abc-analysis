@@ -15,7 +15,7 @@ import os
 import sys
 import socket
 import paramiko
-import subprocess
+
 from pathlib import Path
 
 REMOTE_HOST = os.environ.get("REMOTE_HOST", "100.98.149.108")

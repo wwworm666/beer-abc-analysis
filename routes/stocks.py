@@ -671,6 +671,7 @@ def refresh_chz_stock():
                 return jsonify({'status': 'already_running'}), 409
             _refresh_proc = None
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
+        log_file = None
         try:
             log_file = open(_CHZ_REFRESH_LOG, 'a', encoding='utf-8')
             _refresh_proc = subprocess.Popen(
@@ -678,7 +679,8 @@ def refresh_chz_stock():
                 stdout=log_file,
                 stderr=log_file
             )
-            log_file.close()
         except OSError as e:
+            if log_file is not None:
+                log_file.close()
             return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})
