@@ -14,6 +14,7 @@ _BASE_DIR = Path(__file__).resolve().parent.parent
 _CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
 _CHZ_REFRESH_LOG = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.log'
 _refresh_proc: subprocess.Popen | None = None
+_refresh_log_file = None
 _refresh_lock = threading.Lock()
 
 stocks_bp = Blueprint('stocks', __name__)
@@ -662,7 +663,7 @@ def get_chz_stock_api():
 @stocks_bp.route('/api/chz/refresh', methods=['POST'])
 def refresh_chz_stock():
     """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
-    global _refresh_proc
+    global _refresh_proc, _refresh_log_file
     if not os.environ.get('REMOTE_PASS'):
         return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
     with _refresh_lock:
@@ -670,6 +671,9 @@ def refresh_chz_stock():
             if _refresh_proc.poll() is None:
                 return jsonify({'status': 'already_running'}), 409
             _refresh_proc = None
+            if _refresh_log_file is not None:
+                _refresh_log_file.close()
+                _refresh_log_file = None
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         log_file = None
         try:
@@ -679,6 +683,7 @@ def refresh_chz_stock():
                 stdout=log_file,
                 stderr=log_file
             )
+            _refresh_log_file = log_file
         except OSError as e:
             if log_file is not None:
                 log_file.close()

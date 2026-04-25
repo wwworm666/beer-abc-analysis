@@ -51,7 +51,7 @@ def make_request(url, method="GET", data=None, headers=None):
         error_body = e.read().decode('utf-8') if e.fp else str(e)
         try:
             return e.code, json.loads(error_body)
-        except:
+        except Exception:
             return e.code, {"_raw": error_body[:500]}
     except Exception as ex:
         return None, str(ex)
