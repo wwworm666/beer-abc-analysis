@@ -12,6 +12,7 @@ from extensions import taps_manager, get_cached_nomenclature, BARS
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 _CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
+_CHZ_REFRESH_LOG = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.log'
 _refresh_proc: subprocess.Popen | None = None
 _refresh_lock = threading.Lock()
 
@@ -671,11 +672,13 @@ def refresh_chz_stock():
             _refresh_proc = None
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         try:
+            log_file = open(_CHZ_REFRESH_LOG, 'a', encoding='utf-8')
             _refresh_proc = subprocess.Popen(
                 [sys.executable, remote_exec, 'run', 'stock'],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=log_file,
+                stderr=log_file
             )
+            log_file.close()
         except OSError as e:
             return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})

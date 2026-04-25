@@ -182,12 +182,20 @@ def main():
             pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
         else:
             # Запустить chz.py на бар-ПК из C:\chz_test
-            args = " ".join(sys.argv[2:])
+            ALLOWED_SUBCMDS = {"token", "stock", "report", "status"}
+            if subcmd not in ALLOWED_SUBCMDS:
+                print(f"Неизвестная подкоманда: {subcmd}")
+                print(f"Допустимые: {', '.join(sorted(ALLOWED_SUBCMDS))}")
+                return
+            extra_args = sys.argv[3:]
+            safe_args = " ".join(a for a in extra_args if a.isalnum() or a.replace("-", "").isalnum())
             remote_cmd = (
                 f'cd /d {REMOTE_CHZ_DIR} && '
-                f'"{REMOTE_PYTHON}" chz.py {args}'
+                f'"{REMOTE_PYTHON}" chz.py {subcmd}'
             )
-            print(f"Запуск: chz.py {args}\n")
+            if safe_args:
+                remote_cmd += f' {safe_args}'
+            print(f"Запуск: chz.py {subcmd} {safe_args}\n")
             run_cmd(remote_cmd)
 
     else:

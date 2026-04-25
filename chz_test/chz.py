@@ -165,7 +165,7 @@ def load_token():
             expires_at = t.get("expires_at")
             if token and expires_at and time.time() < expires_at:
                 return token
-        except:
+        except Exception:
             pass
 
     # Токен отсутствует или просрочен
