@@ -521,9 +521,9 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     # 3. Группируем по GTIN
     by_gtin = {}
     for item in introduced:
-        gtin = item.get("gtin", "N/A")
+        gtin = item.get("gtin") or ""
         if not gtin:
-            continue  # пропустить записи без GTIN (пустая строка)
+            continue  # пропустить записи без GTIN или с отсутствующим полем
         pg = item.get("productGroup", "")
         if gtin not in by_gtin:
             by_gtin[gtin] = {

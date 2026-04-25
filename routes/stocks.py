@@ -669,8 +669,7 @@ def refresh_chz_stock():
         if _refresh_proc is not None:
             if _refresh_proc.poll() is None:
                 return jsonify({'status': 'already_running'}), 409
-            # Reap the finished process to avoid zombie
-            _refresh_proc.wait()
+            # poll() already reaped the process; just clear the reference
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         try:
             _refresh_proc = subprocess.Popen(
