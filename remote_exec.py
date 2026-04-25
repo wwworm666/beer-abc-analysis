@@ -18,7 +18,7 @@ import paramiko
 import subprocess
 from pathlib import Path
 
-REMOTE_HOST = "100.98.149.108"
+REMOTE_HOST = os.environ.get("REMOTE_HOST", "100.98.149.108")
 REMOTE_USER = os.environ.get("REMOTE_USER", "Администратор")
 REMOTE_PASS = os.environ.get("REMOTE_PASS")
 REPO_DIR = Path(__file__).parent.resolve()
@@ -57,7 +57,10 @@ def run_cmd(rem_cmd, verbose=True, timeout=None):
             err = raw_err.decode("utf-8")
         except UnicodeDecodeError:
             err = raw_err.decode("cp866", errors="replace")
-        exit_code = stdout.channel.recv_exit_status()
+        try:
+            exit_code = stdout.channel.recv_exit_status()
+        except socket.timeout:
+            raise TimeoutError(f"Команда превысила таймаут {timeout}с (ожидание завершения): {rem_cmd!r}")
         if verbose:
             if out.strip():
                 sys.stdout.buffer.write(out.strip().encode("utf-8") + b"\n")
@@ -116,8 +119,13 @@ def pull(remote_path, local_dir):
             local_file = local / fname
             tmp_file = local / (fname + ".tmp")
 
-            sftp.get(remote_path, str(tmp_file))
-            tmp_file.replace(local_file)
+            try:
+                sftp.get(remote_path, str(tmp_file))
+                tmp_file.replace(local_file)
+            except Exception:
+                if tmp_file.exists():
+                    tmp_file.unlink()
+                raise
             print(f"  pull: {remote_path} -> {local_file}")
         finally:
             sftp.close()
@@ -165,7 +173,7 @@ def main():
             # Special: refresh token, run stock, pull result
             print("Обновление токена...")
             token_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
-            run_cmd(token_cmd)
+            run_cmd(token_cmd, timeout=120)
             print("\nЗапуск сбора остатков (таймаут 600с)...")
             stock_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py stock'
             run_cmd(stock_cmd, timeout=600)

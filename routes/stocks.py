@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import subprocess
+import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
@@ -12,6 +13,7 @@ from extensions import taps_manager, get_cached_nomenclature, BARS
 _BASE_DIR = Path(__file__).resolve().parent.parent
 _CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
 _refresh_proc: subprocess.Popen | None = None
+_refresh_lock = threading.Lock()
 
 stocks_bp = Blueprint('stocks', __name__)
 
@@ -663,15 +665,19 @@ def refresh_chz_stock():
     global _refresh_proc
     if not os.environ.get('REMOTE_PASS'):
         return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
-    if _refresh_proc is not None and _refresh_proc.poll() is None:
-        return jsonify({'status': 'already_running'}), 409
-    remote_exec = str(_BASE_DIR / 'remote_exec.py')
-    try:
-        _refresh_proc = subprocess.Popen(
-            [sys.executable, remote_exec, 'run', 'stock'],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-    except OSError as e:
-        return jsonify({'status': 'error', 'error': str(e)}), 500
+    with _refresh_lock:
+        if _refresh_proc is not None:
+            if _refresh_proc.poll() is None:
+                return jsonify({'status': 'already_running'}), 409
+            # Reap the finished process to avoid zombie
+            _refresh_proc.wait()
+        remote_exec = str(_BASE_DIR / 'remote_exec.py')
+        try:
+            _refresh_proc = subprocess.Popen(
+                [sys.executable, remote_exec, 'run', 'stock'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+        except OSError as e:
+            return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})
