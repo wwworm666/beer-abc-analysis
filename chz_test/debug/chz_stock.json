@@ -467,19 +467,6 @@
     "product_group": "BEER"
   },
   {
-    "gtin": "",
-    "name": "",
-    "brand": "",
-    "privateBrand": "",
-    "fullName": "",
-    "volumeWeight": "",
-    "coreVolume": "",
-    "count": 1,
-    "expiration_dates": [],
-    "production_dates": [],
-    "product_group": "NABEER"
-  },
-  {
     "gtin": "04630287664730",
     "name": "ПИВО «ВЕЛО ДРАГ» БЕЗАЛКОГОЛЬНОЕ СВЕТЛОЕ НЕПАСТЕРИЗОВАННОЕ ФИЛЬТРОВАННОЕ",
     "brand": "Zero point",

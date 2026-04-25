@@ -645,14 +645,13 @@ def get_chz_stocks():
 @stocks_bp.route('/api/chz/stock', methods=['GET'])
 def get_chz_stock_api():
     """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
-    if not _CHZ_CACHE_FILE.exists():
-        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
-
     try:
         mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
         updated_at = datetime.fromtimestamp(mtime).isoformat()
         with open(_CHZ_CACHE_FILE, encoding='utf-8') as f:
             items = json.load(f)
+    except FileNotFoundError:
+        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
     except (json.JSONDecodeError, OSError):
         return jsonify({'items': [], 'updated_at': None, 'error': 'cache corrupted or updating'}), 500
 
@@ -669,7 +668,7 @@ def refresh_chz_stock():
         if _refresh_proc is not None:
             if _refresh_proc.poll() is None:
                 return jsonify({'status': 'already_running'}), 409
-            # poll() already reaped the process; just clear the reference
+            _refresh_proc = None
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         try:
             _refresh_proc = subprocess.Popen(

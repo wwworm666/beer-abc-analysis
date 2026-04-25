@@ -208,7 +208,7 @@ def get_chz_expiration(product_group="beer", date_from=None, date_to=None):
 ```
 
 Коды ответа:
-- 200 + `{items:[], updated_at:null, error:'no data'}` — файл отсутствует
+- 404 + `{items:[], updated_at:null, error:'no data'}` — файл отсутствует
 - 200 + данные — успех
 - 500 + `{error:'cache corrupted or updating'}` — файл повреждён или записывается
 
@@ -219,6 +219,7 @@ def get_chz_expiration(product_group="beer", date_from=None, date_to=None):
 
 Коды ответа:
 - 200 + `{status:'started'}` — процесс запущен в фоне
+- 409 + `{status:'already_running'}` — обновление уже выполняется
 - 503 + `{error:'REMOTE_PASS not configured'}` — env-переменная REMOTE_PASS не задана
 - 500 + `{error:'...'}` — OSError при старте процесса
 
