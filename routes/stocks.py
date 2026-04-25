@@ -11,6 +11,7 @@ from extensions import taps_manager, get_cached_nomenclature, BARS
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 _CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
+_refresh_proc: subprocess.Popen | None = None
 
 stocks_bp = Blueprint('stocks', __name__)
 
@@ -643,7 +644,7 @@ def get_chz_stocks():
 def get_chz_stock_api():
     """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
     if not _CHZ_CACHE_FILE.exists():
-        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'})
+        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
 
     try:
         mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
@@ -659,11 +660,14 @@ def get_chz_stock_api():
 @stocks_bp.route('/api/chz/refresh', methods=['POST'])
 def refresh_chz_stock():
     """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
+    global _refresh_proc
     if not os.environ.get('REMOTE_PASS'):
         return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
+    if _refresh_proc is not None and _refresh_proc.poll() is None:
+        return jsonify({'status': 'already_running'}), 409
     remote_exec = str(_BASE_DIR / 'remote_exec.py')
     try:
-        subprocess.Popen(
+        _refresh_proc = subprocess.Popen(
             [sys.executable, remote_exec, 'run', 'stock'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL

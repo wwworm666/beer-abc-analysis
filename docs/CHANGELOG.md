@@ -1,5 +1,23 @@
 # Changelog
 
+### 2026-04-25 — CHZ stock integration: code review pass 4 — bug fixes and docs
+
+**Изменено:**
+- `routes/stocks.py:647` — `GET /api/chz/stock`: добавлен HTTP 404 при отсутствии кеша (ранее возвращался 200, что противоречило документации в README и plan).
+- `routes/stocks.py:660-676` — `POST /api/chz/refresh`: `_refresh_proc` теперь используется как guard — при уже запущенном refresh возвращает 409 вместо запуска параллельного SSH-процесса. Popen-результат присваивается в модульную переменную.
+- `chz_test/chz.py:703-705` — удалён дублирующий default для `date_from` из `main()` — он уже есть в `get_chz_stock()` (добавлен в этой ветке). Два одинаковых defaults = риск расхождения при будущих изменениях.
+- `docs/stocks.md` — создан (требование CLAUDE.md: документ на каждый модуль).
+- `docs/plans/chz-stock-integration.md` — добавлен статус DONE (2026-04-22).
+
+**Почему:**
+- Несоответствие 200 vs 404 нарушало API-контракт, описанный в README.
+- Параллельные refreshes создавали два SSH-процесса, записывающих в один файл одновременно.
+- `date_from` default в двух местах означал, что изменение периода в одном месте тихо не применится к другому.
+
+**Файлы:** `routes/stocks.py`, `chz_test/chz.py`, `docs/stocks.md`, `docs/plans/chz-stock-integration.md`
+
+---
+
 ### 2026-04-22 — CHZ stock integration: code review pass 3 — bug fixes and doc updates
 
 **Изменено:**

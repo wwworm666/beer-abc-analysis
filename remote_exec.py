@@ -57,6 +57,7 @@ def run_cmd(rem_cmd, verbose=True, timeout=None):
             err = raw_err.decode("utf-8")
         except UnicodeDecodeError:
             err = raw_err.decode("cp866", errors="replace")
+        exit_code = stdout.channel.recv_exit_status()
         if verbose:
             if out.strip():
                 sys.stdout.buffer.write(out.strip().encode("utf-8") + b"\n")
@@ -64,6 +65,11 @@ def run_cmd(rem_cmd, verbose=True, timeout=None):
             if err.strip():
                 sys.stdout.buffer.write(("STDERR: " + err.strip()).encode("utf-8") + b"\n")
                 sys.stdout.buffer.flush()
+        if exit_code != 0:
+            raise RuntimeError(
+                f"Remote command failed (exit {exit_code}): {rem_cmd!r}"
+                + (f"\nSTDERR: {err.strip()}" if err.strip() else "")
+            )
         return out, err
     finally:
         client.close()
@@ -108,8 +114,10 @@ def pull(remote_path, local_dir):
 
             fname = Path(remote_path.replace("\\", "/")).name
             local_file = local / fname
+            tmp_file = local / (fname + ".tmp")
 
-            sftp.get(remote_path, str(local_file))
+            sftp.get(remote_path, str(tmp_file))
+            tmp_file.replace(local_file)
             print(f"  pull: {remote_path} -> {local_file}")
         finally:
             sftp.close()

@@ -296,6 +296,8 @@ def get_all_cises(product_group="beer", date_from=None, date_to=None,
     all_items = []
     current_page = 0
     limit = 1000  # максимум API
+    retry_count = 0
+    max_retries = 3
 
     while True:
         print(f"  Страница {current_page + 1}...", end=" ")
@@ -321,9 +323,13 @@ def get_all_cises(product_group="beer", date_from=None, date_to=None,
             status, response = make_request(url, method="POST", data=payload, headers=headers)
 
         if status != 200:
-            print(f"[ERR] HTTP {status}")
+            retry_count += 1
+            if retry_count >= max_retries:
+                raise RuntimeError(f"API error after {max_retries} retries: HTTP {status}, response: {response}")
+            print(f"[ERR] HTTP {status}, retry {retry_count}/{max_retries}...")
             time.sleep(10)
             continue
+        retry_count = 0
 
         items = response.get("result", [])
         is_last = response.get("isLastPage", True)
@@ -693,10 +699,6 @@ def main():
         # python chz.py stock [date_from] [date_to]
         date_from = rest[0] if rest else None
         date_to = rest[1] if len(rest) > 1 else None
-
-        # По умолчанию — последние 6 месяцев
-        if date_from is None:
-            date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
 
         stock = get_chz_stock(date_from=date_from, date_to=date_to)
         print_stock_report(stock)
