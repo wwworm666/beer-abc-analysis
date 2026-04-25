@@ -265,7 +265,7 @@ def search_cises(token=None, page=0, limit=100, product_group="beer",
 
 
 def get_all_cises(product_group="beer", date_from=None, date_to=None,
-                  delay_between_pages=1, max_items=100000):
+                  delay_between_pages=0, max_items=100000):
     """
     Загрузить ВСЕ коды маркировки (со всеми страницами).
 
@@ -295,7 +295,8 @@ def get_all_cises(product_group="beer", date_from=None, date_to=None,
 
     all_items = []
     current_page = 0
-    limit = 1000  # максимум API
+    limit = 100  # API ЧЗ жёстко режет страницы до 100, даже если запросить больше.
+                 # Если ставить limit=1000, len(items) (=100) < limit и пагинация рвётся.
     retry_count = 0
     max_retries = 3
 
@@ -469,6 +470,114 @@ def get_product_names(gtins, token=None):
     return result
 
 
+# ==================== ПАРСЕР CSV-ЭКСПОРТОВ ИЗ ЛК ЧЗ ====================
+
+def parse_chz_csv(csv_dir=None):
+    """Прочитать CSV-экспорт из личного кабинета ЧЗ и собрать остатки.
+
+    Формат CSV: первая строка — фильтр, вторая строка — заголовки (внутри
+    поля могут быть запятые, поэтому весь заголовок и данные хранятся в
+    одном поле с разделителем CSV `,` внутри, а внешний разделитель `;`).
+
+    Parameters
+    ----------
+    csv_dir : str | None
+        Путь к папке с CSV-файлами. Если None, ищет все pg*_csv/ в debug/.
+
+    Returns
+    -------
+    list[dict]: Записи {gtin, name, brand, count, expiration_dates,
+                        production_dates, product_group}.
+    """
+    import csv as csvmod
+    import io as iomod
+    import glob
+
+    if csv_dir is None:
+        # все папки pg*_csv в debug/
+        pattern = os.path.join(DEBUG_DIR, "pg*_csv")
+        dirs = glob.glob(pattern)
+    else:
+        dirs = [csv_dir]
+
+    by_gtin = {}
+    parsed_rows = 0
+    for d in dirs:
+        for csv_file in glob.glob(os.path.join(d, "*.csv")):
+            with open(csv_file, encoding="utf-8") as f:
+                reader = csvmod.reader(f, delimiter=";")
+                rows = list(reader)
+            if len(rows) < 2:
+                continue
+            # rows[0] = фильтр, rows[1] = заголовки CSV-в-CSV
+            header = list(csvmod.reader(iomod.StringIO(rows[1][0])))[0]
+            try:
+                gtin_i = header.index("gtin")
+                name_i = header.index("productName")
+                brand_i = header.index("brand")
+                status_i = header.index("status")
+                exp_i = header.index("expirationDate")
+                prod_i = header.index("productionDate")
+                group_i = header.index("productGroup")
+                pkg_i = header.index("packageType")
+                owner_i = header.index("ownerInn")
+            except ValueError as e:
+                print(f"  [SKIP] {csv_file}: missing column ({e})")
+                continue
+
+            for row in rows[2:]:
+                if not row or not row[0]:
+                    continue
+                parts = list(csvmod.reader(iomod.StringIO(row[0])))[0]
+                if len(parts) <= max(gtin_i, name_i, status_i, exp_i):
+                    continue
+                # Только INTRODUCED + UNIT + наш ИНН
+                if parts[status_i] != "INTRODUCED":
+                    continue
+                if parts[pkg_i] != "UNIT":
+                    continue
+                if parts[owner_i] != INN_ORG:
+                    continue
+                gtin = parts[gtin_i]
+                if not gtin:
+                    continue
+                parsed_rows += 1
+
+                # Очистка дат: формат "2027-03-10T00:00:00.000Z" -> "2027-03-10"
+                exp = parts[exp_i].split("T")[0] if parts[exp_i] else ""
+                prod = parts[prod_i].split("T")[0] if parts[prod_i] else ""
+
+                if gtin not in by_gtin:
+                    by_gtin[gtin] = {
+                        "gtin": gtin,
+                        "name": parts[name_i] or "",
+                        "brand": parts[brand_i] or "",
+                        "count": 0,
+                        "expiration_dates": set(),
+                        "production_dates": set(),
+                        "product_group": parts[group_i] or "",
+                    }
+                e = by_gtin[gtin]
+                e["count"] += 1
+                if exp:
+                    e["expiration_dates"].add(exp)
+                if prod:
+                    e["production_dates"].add(prod)
+
+    print(f"  [CSV] обработано {parsed_rows} строк, {len(by_gtin)} уникальных GTIN")
+
+    # set -> отсортированный список
+    stock = []
+    for entry in by_gtin.values():
+        stock.append({
+            **entry,
+            "expiration_dates": sorted(entry["expiration_dates"]),
+            "production_dates": sorted(entry["production_dates"]),
+        })
+    stock.sort(key=lambda x: x["count"], reverse=True)
+    return stock
+
+
 # ==================== ОСТАТКИ ЧЗ (НАЗВАНИЕ + КОЛ-ВО + СРОК) ====================
 
 PRODUCT_GROUPS = ["beer", "nabeer", "softdrinks"]
@@ -493,11 +602,11 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     else:
         groups = product_groups
 
-    # Дефолтный лимит по дате: последние 6 месяцев, чтобы не скачивать 90k+ кодов за всё время
-    if date_from is None:
-        date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+    # БЕЗ фильтра по дате: фильтр ownerInn (ИНН организации) сам ограничивает выборку
+    # до ~5000 кодов. Фильтр по introducedDate отрезает старые коды, которые ещё в стоке —
+    # пиво может лежать на складе год+ после маркировки, дата введения в оборот не важна.
 
-    # 1. Загружаем коды из всех групп
+    # 1. Загружаем коды из всех групп (без фильтра по дате)
     all_items = []
     for g in groups:
         print(f"\n  Группа: {g}")
@@ -701,6 +810,12 @@ def main():
         date_to = rest[1] if len(rest) > 1 else None
 
         stock = get_chz_stock(date_from=date_from, date_to=date_to)
+        print_stock_report(stock)
+
+    elif cmd == "csv":
+        # python chz.py csv — построить chz_stock.json из CSV-экспортов
+        print("Чтение CSV-экспортов из chz_test/debug/pg*_csv/...")
+        stock = parse_chz_csv()
         print_stock_report(stock)
 
     else:
