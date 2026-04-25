@@ -1,5 +1,50 @@
 # Changelog
 
+### 2026-04-25 — CHZ stock: переход с API search на CSV-парсер (РАБОЧЕЕ РЕШЕНИЕ)
+
+**Контекст проблемы:**
+API `/cises/search` возвращал только 30 GTIN / 173 кода для ИНВЕСТАГРО, тогда как
+в реальности у бара 540+ позиций. Расследование показало:
+1. API режет страницы до 100 записей (игнорирует `limit=1000`) — пагинация рвалась
+   из-за условия `len(items) < limit`.
+2. Без фильтра по дате API возвращает 79,000+ INTRODUCED кодов — историческое
+   накопление за все годы (бар не делает RETIRE при продажах).
+3. CSV-экспорт через ЛК ЧЗ применяет фильтры `participantInn + packageType=UNIT`
+   и возвращает реальный текущий склад.
+
+**Решение:** парсить CSV-экспорты из ЛК ЧЗ вместо использования API search.
+
+**Изменено:**
+- `chz_test/chz.py` — добавлена функция `parse_chz_csv()`. Читает все
+  `chz_test/debug/pg*_csv/*.csv`, фильтрует по `status=INTRODUCED + packageType=UNIT
+  + ownerInn=INN_ORG`, агрегирует по GTIN.
+- `chz_test/chz.py` — добавлена CLI-команда `python chz.py csv` для построения
+  `chz_stock.json` из CSV-экспортов.
+- `chz_test/chz.py:298` — `limit = 100` (был 1000) — это реальный потолок API.
+- `chz_test/chz.py:267` — `delay_between_pages=0` (был 1) — задержка не нужна.
+- `chz_test/chz.py:496-500` — убран дефолтный фильтр по дате 180 дней (он отрезал
+  валидный сток с long-shelf-life продуктами).
+- `chz_test/test_filters.py` — диагностический скрипт для тестирования параметров
+  фильтра API (ownerInn vs participantInn vs packageType).
+
+**Результат:**
+- Было: 30 GTIN, 173 кода (через API)
+- Стало: 541 GTIN, 2878 кодов (через CSV) — увеличение в 18 раз
+
+**Workflow для пользователя:**
+1. Скачать CSV-экспорт из ЛК ЧЗ для нужных групп (beer/nabeer/water/etc.)
+2. Распакованные папки положить в `chz_test/debug/pg*_csv/`
+3. Запустить `python chz_test/chz.py csv`
+4. Данные доступны через `GET /api/chz/stock`
+
+**Замечание:** 203 из 541 GTIN имеют просроченные expiration_dates (2024 год) —
+это коды, которые бар не закрыл RETIRE-операцией. Это проблема учёта на стороне
+бара, не нашего парсера.
+
+**Файлы:** `chz_test/chz.py`, `chz_test/test_filters.py`, `chz_test/debug/chz_stock.json`
+
+---
+
 ### 2026-04-25 — CHZ stock integration: code review pass 4 — bug fixes and docs
 
 **Изменено:**
