@@ -1,9 +1,21 @@
 from flask import Blueprint, request, jsonify
 import re
+import os
+import sys
 import json
+import subprocess
+import threading
+from pathlib import Path
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
 from extensions import taps_manager, get_cached_nomenclature, BARS
+
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
+_CHZ_REFRESH_LOG = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.log'
+_refresh_proc: subprocess.Popen | None = None
+_refresh_log_file = None
+_refresh_lock = threading.Lock()
 
 stocks_bp = Blueprint('stocks', __name__)
 
@@ -122,12 +134,6 @@ def get_taplist_stocks():
             # Фильтруем по складу конкретного бара (если не "Общая")
             if target_store_id and store_id != target_store_id:
                 continue
-
-            # НЕ пропускаем отрицательные остатки - они важны для контроля!
-            # Пропускаем только нулевые, если кега не активна
-            if amount == 0:
-                # Пропустим потом при проверке на активность
-                pass
 
             # Получаем информацию о товаре из номенклатуры
             product_info = nomenclature.get(product_id)
@@ -598,8 +604,6 @@ def get_chz_stocks():
     Работает только на бар-ПК с установленным CryptoPro CSP и Рутокеном.
     """
     try:
-        import sys
-        import os
         chz_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'chz_test')
         if chz_path not in sys.path:
             sys.path.insert(0, chz_path)
@@ -608,24 +612,26 @@ def get_chz_stocks():
 
         stock = get_chz_stock()
 
-        # Подсчёт GTIN близких к окончанию срока (< 30 дней)
-        from datetime import datetime
+        # Подсчёт кодов близких к окончанию срока (< 30 дней)
         today = datetime.now().date()
-        near_expiry = 0
+        near_expiry_codes = 0
         for item in stock:
+            has_near_expiry = False
             for exp_str in item.get("expiration_dates", []):
                 try:
                     exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
-                    if (exp_date - today).days < 30:
-                        near_expiry += 1
+                    if 0 <= (exp_date - today).days < 30:
+                        has_near_expiry = True
                         break
                 except ValueError:
                     pass
+            if has_near_expiry:
+                near_expiry_codes += item.get('count', 0)
 
         return jsonify({
             'total_items': len(stock),
             'total_codes': sum(s['count'] for s in stock),
-            'near_expiry': near_expiry,
+            'near_expiry_codes': near_expiry_codes,
             'items': stock
         })
 
@@ -636,3 +642,50 @@ def get_chz_stocks():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@stocks_bp.route('/api/chz/stock', methods=['GET'])
+def get_chz_stock_api():
+    """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
+    try:
+        mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
+        updated_at = datetime.fromtimestamp(mtime).isoformat()
+        with open(_CHZ_CACHE_FILE, encoding='utf-8') as f:
+            items = json.load(f)
+    except FileNotFoundError:
+        return jsonify({'items': [], 'updated_at': None, 'error': 'no data'}), 404
+    except (json.JSONDecodeError, OSError):
+        return jsonify({'items': [], 'updated_at': None, 'error': 'cache corrupted or updating'}), 500
+
+    return jsonify({'items': items, 'updated_at': updated_at})
+
+
+@stocks_bp.route('/api/chz/refresh', methods=['POST'])
+def refresh_chz_stock():
+    """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
+    global _refresh_proc, _refresh_log_file
+    if not os.environ.get('REMOTE_PASS'):
+        return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
+    with _refresh_lock:
+        if _refresh_proc is not None:
+            if _refresh_proc.poll() is None:
+                return jsonify({'status': 'already_running'}), 409
+            _refresh_proc = None
+            if _refresh_log_file is not None:
+                _refresh_log_file.close()
+                _refresh_log_file = None
+        remote_exec = str(_BASE_DIR / 'remote_exec.py')
+        log_file = None
+        try:
+            log_file = open(_CHZ_REFRESH_LOG, 'a', encoding='utf-8')
+            _refresh_proc = subprocess.Popen(
+                [sys.executable, remote_exec, 'run', 'stock'],
+                stdout=log_file,
+                stderr=log_file
+            )
+            _refresh_log_file = log_file
+        except OSError as e:
+            if log_file is not None:
+                log_file.close()
+            return jsonify({'status': 'error', 'error': str(e)}), 500
+    return jsonify({'status': 'started'})

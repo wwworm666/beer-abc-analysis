@@ -1,17 +1,19 @@
 # Plan: CHZ Stock — получение сроков годности пива
 
+**Статус:** DONE (2026-04-22)
+
 ## Цель
 Получить данные о сроках годности пива из Честного Знака и сделать их доступными
 через Flask API `/api/chz/stock`. Все данные берутся с бар-ПК через SSH.
 
 ## Контекст
 - `chz_test/chz.py` — рабочий клиент ЧЗ (аутентификация через CryptoPro csptest.exe)
-- `remote_exec.py` — SSH-клиент к бар-ПК (100.98.149.108, пользователь Администратор / Krem2026)
+- `remote_exec.py` — SSH-клиент к бар-ПК (100.98.149.108, пользователь Администратор, пароль из env REMOTE_PASS)
 - Подпись (csptest.exe) работает ТОЛЬКО под учётной записью Администратор
-- `chz_test/debug/chz_stock.json` — кеш данных (предыдущий успешный запуск: 38 GTIN)
-- Python на бар-ПК: `C:\Users\1\AppData\Local\Python\bin\python.exe`
-- Репозиторий на бар-ПК: `C:\Users\1\Documents\GitHub\beer-abc-analysis`
-- Токен ЧЗ действует ~10 часов, обновляется автоматически при запуске chz.py
+- `chz_test/debug/chz_stock.json` — кеш данных (последний успешный запуск: ~30 GTIN)
+- Python на бар-ПК: `C:\Program Files\Python312\python.exe`
+- Скрипты на бар-ПК: `C:\chz_test\chz.py` (репозиторий НЕ клонирован на бар-ПК)
+- Токен ЧЗ действует ~10 часов, обновляется при запуске `chz.py token`
 
 ## Validation Commands
 ```
@@ -27,16 +29,16 @@ python -c "import json,os; d=json.load(open('chz_test/debug/chz_stock.json')); p
 
 Запусти `python remote_exec.py status` и проверь вывод.
 Если возвращает `STATUS: OFFLINE`:
-- Проверь в remote_exec.py строки REMOTE_HOST, REMOTE_USER, REMOTE_PASS
-- REMOTE_USER должен быть `Администратор`, REMOTE_PASS = `Krem2026`
-- Попробуй альтернативные имена: `1` с паролем `qwe123` (бар-10 из CONNECTIVITY.md)
+- Проверь в remote_exec.py строки REMOTE_HOST, REMOTE_USER
+- REMOTE_USER должен быть `Администратор`, REMOTE_PASS берётся из env-переменной
+- Попробуй альтернативные учётки из CONNECTIVITY.md
 - Используй `paramiko.SSHClient` с `look_for_keys=False` и `allow_agent=False`
   чтобы исключить конфликты с ключами
 
 Если `STATUS: ONLINE` — задача завершена.
 
-- [ ] Запустить `python remote_exec.py status`, убедиться что выводит `STATUS: ONLINE`
-- [ ] Если OFFLINE: исправить параметры подключения в remote_exec.py и повторить
+- [x] Запустить `python remote_exec.py status`, убедиться что выводит `STATUS: ONLINE`
+- [x] Если OFFLINE: исправить параметры подключения в remote_exec.py и повторить
 
 ---
 
@@ -67,8 +69,8 @@ dir C:\Users\1\Documents\GitHub\beer-abc-analysis\chz_test\chz.py
 push("chz_test/chz.py", "C:\\Users\\1\\Documents\\GitHub\\beer-abc-analysis\\chz_test")
 ```
 
-- [ ] Найти рабочий путь к Python на бар-ПК, обновить REMOTE_PYTHON в remote_exec.py
-- [ ] Убедиться что chz.py есть на бар-ПК (или загрузить)
+- [x] Найти рабочий путь к Python на бар-ПК, обновить REMOTE_PYTHON в remote_exec.py
+- [x] Убедиться что chz.py есть на бар-ПК (или загрузить)
 
 ---
 
@@ -93,8 +95,8 @@ if date_from is None:
 Также убедиться что в `get_all_cises` переменная `limit = 1000` (не 100).
 При limit=1000 и ~5000 активных кодов — это ~5 страниц, ~30 секунд.
 
-- [ ] В `get_chz_stock`: добавить `if date_from is None: date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")`
-- [ ] Убедиться что `limit = 1000` в `get_all_cises` (проверить строку ~298)
+- [x] В `get_chz_stock`: добавить `if date_from is None: date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")`
+- [x] Убедиться что `limit = 1000` в `get_all_cises` (проверить строку ~298)
 
 ---
 
@@ -135,11 +137,11 @@ pull(
 stdin, stdout, stderr = client.exec_command(rem_cmd, get_pty=False, timeout=timeout)
 ```
 
-- [ ] Добавить параметр `timeout` в `run_cmd` функцию remote_exec.py
-- [ ] Добавить в remote_exec.py команду `run stock` которая:
+- [x] Добавить параметр `timeout` в `run_cmd` функцию remote_exec.py
+- [x] Добавить в remote_exec.py команду `run stock` которая:
   1. Запускает `chz.py stock 2024-01-01` на бар-ПК (timeout=600)
   2. Скачивает `chz_stock.json` в локальный `chz_test/debug/`
-- [ ] Запустить `python remote_exec.py run stock` и убедиться что chz_stock.json обновился
+- [x] Запустить `python remote_exec.py run stock` и убедиться что chz_stock.json обновился
       (по умолчанию берёт последние 6 месяцев)
 
 ---
@@ -189,10 +191,10 @@ def get_chz_stock_api():
 }
 ```
 
-- [ ] Добавить маршрут `GET /api/chz/stock` в `routes/stocks.py`
-- [ ] Endpoint читает `chz_test/debug/chz_stock.json` и возвращает JSON
-- [ ] Если файл не найден — возвращает `{"items": [], "updated_at": null, "error": "no data"}`
-- [ ] Добавить маршрут `POST /api/chz/refresh` который запускает `remote_exec.py run stock`
+- [x] Добавить маршрут `GET /api/chz/stock` в `routes/stocks.py`
+- [x] Endpoint читает `chz_test/debug/chz_stock.json` и возвращает JSON
+- [x] Если файл не найден — возвращает `{"items": [], "updated_at": null, "error": "no data"}`
+- [x] Добавить маршрут `POST /api/chz/refresh` который запускает `remote_exec.py run stock`
   в фоне (subprocess.Popen) и сразу возвращает `{"status": "started"}`
 
 ---
@@ -217,6 +219,6 @@ for x in beer[:5]:
 "
 ```
 
-- [ ] Запустить проверку Python: убедиться что в chz_stock.json есть пиво с датами годности
-- [ ] Убедиться что items содержат непустые `expiration_dates`
-- [ ] Убедиться что `python -m py_compile routes/stocks.py` проходит без ошибок
+- [x] Запустить проверку Python: убедиться что в chz_stock.json есть пиво с датами годности
+- [x] Убедиться что items содержат непустые `expiration_dates`
+- [x] Убедиться что `python -m py_compile routes/stocks.py` проходит без ошибок

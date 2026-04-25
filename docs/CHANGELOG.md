@@ -1,5 +1,104 @@
 # Changelog
 
+### 2026-04-25 — CHZ stock integration: code review pass 4 — bug fixes and docs
+
+**Изменено:**
+- `routes/stocks.py:647` — `GET /api/chz/stock`: добавлен HTTP 404 при отсутствии кеша (ранее возвращался 200, что противоречило документации в README и plan).
+- `routes/stocks.py:660-676` — `POST /api/chz/refresh`: `_refresh_proc` теперь используется как guard — при уже запущенном refresh возвращает 409 вместо запуска параллельного SSH-процесса. Popen-результат присваивается в модульную переменную.
+- `chz_test/chz.py:703-705` — удалён дублирующий default для `date_from` из `main()` — он уже есть в `get_chz_stock()` (добавлен в этой ветке). Два одинаковых defaults = риск расхождения при будущих изменениях.
+- `docs/stocks.md` — создан (требование CLAUDE.md: документ на каждый модуль).
+- `docs/plans/chz-stock-integration.md` — добавлен статус DONE (2026-04-22).
+
+**Почему:**
+- Несоответствие 200 vs 404 нарушало API-контракт, описанный в README.
+- Параллельные refreshes создавали два SSH-процесса, записывающих в один файл одновременно.
+- `date_from` default в двух местах означал, что изменение периода в одном месте тихо не применится к другому.
+
+**Файлы:** `routes/stocks.py`, `chz_test/chz.py`, `docs/stocks.md`, `docs/plans/chz-stock-integration.md`
+
+---
+
+### 2026-04-22 — CHZ stock integration: code review pass 3 — bug fixes and doc updates
+
+**Изменено:**
+- `routes/stocks.py` — `near_expiry_codes`: исправлена логика подсчёта — ранее считались и уже просроченные коды (`days < 0`). Теперь только коды с `0 <= days < 30`.
+- `routes/stocks.py` — `GET /api/chz/stock`: `getmtime()` перенесён внутрь `try/except` — ранее при удалении файла между `.exists()` и `getmtime()` возникал необработанный `FileNotFoundError` (TOCTOU race).
+- `routes/stocks.py` — удалён мёртвый блок `if amount == 0: pass` в `get_taplist_stocks`.
+- `remote_exec.py` — проверка `REMOTE_PASS` перенесена из уровня модуля в `connect()` — импорт модуля больше не выбрасывает исключение.
+- `remote_exec.py` — `cd` заменён на `cd /d` во всех командах `run stock` и `run` — без `/d` `cmd.exe` не меняет диск.
+- `docs/remote-sync.md` — обновлены учётные данные (Администратор / REMOTE_PASS env), Python путь, состояние бар-ПК; добавлена команда `run stock`.
+- `docs/changelog/CHZ_INTEGRATION.md` — обновлён пункт 7: описан дефолтный лимит 180 дней в `get_chz_stock`.
+- `chz_test/README.md` — добавлена секция команды `stock`.
+- `README.md` — добавлены `GET /api/chz/stock` и `POST /api/chz/refresh` в список API; `REMOTE_PASS`/`REMOTE_USER` добавлены в список env vars.
+
+**Почему:**
+- `days < 30` без проверки `>= 0` ошибочно включало давно просроченные коды в `near_expiry_codes`.
+- TOCTOU гонка на файле кеша могла вызвать 500 при параллельном refresh.
+- `cd` без `/d` не меняет диск в Windows cmd.exe при смене драйва.
+
+**Файлы:**
+- `remote_exec.py`, `routes/stocks.py`, `README.md`, `docs/remote-sync.md`, `docs/changelog/CHZ_INTEGRATION.md`, `chz_test/README.md`
+
+### 2026-04-21 — CHZ stock integration: code review pass 2 — security and reliability fixes
+
+**Изменено:**
+- `remote_exec.py` — удалён захардкоженный пароль `"Krem2026"` как дефолт в `REMOTE_PASS`; теперь переменная обязательна, без неё бросается `EnvironmentError`
+- `remote_exec.py` — `run_cmd`: добавлен `try/finally` для гарантированного закрытия SSH-клиента; добавлен перехват `socket.timeout` с понятным `TimeoutError`
+- `remote_exec.py` — `push`, `pull`: добавлены `try/finally` для SFTP и SSH-клиентов, исключающие утечки соединений при исключениях
+- `routes/stocks.py` — `GET /api/chz/stock`: при отсутствии кеша возвращает 404 (было 200)
+- `routes/stocks.py` — `POST /api/chz/refresh`: `Popen` обёрнут в `try/except OSError`, возвращает 500 при ошибке запуска
+- `routes/stocks.py` — `near_expiry` переименован в `near_expiry_codes` и теперь считает количество кодов (было количество GTIN); семантика согласована с `total_codes`
+
+**Почему:**
+- Хранение пароля в исходном коде — критическая уязвимость
+- Утечки SSH-сессий при сетевых сбоях накапливались на бар-ПК
+- `near_expiry=1` рядом с `total_codes=50` вводило в заблуждение
+
+**Файлы:**
+- `remote_exec.py`
+- `routes/stocks.py`
+
+### 2026-04-21 — CHZ stock integration: Task 5 — add Flask cache endpoints
+
+**Изменено:**
+- `routes/stocks.py` — добавлен `GET /api/chz/stock`: читает `chz_test/debug/chz_stock.json` с диска, возвращает `{items, updated_at}`. При отсутствии файла — `{items:[], error:'no data'}`. При повреждённом JSON — 500 с `error:'cache corrupted or updating'`
+- `routes/stocks.py` — добавлен `POST /api/chz/refresh`: запускает `remote_exec.py run stock` через `subprocess.Popen` (неблокирующий), возвращает `{status:'started'}`
+
+**Почему:**
+- `/api/stocks/chz` вызывает CHZ API напрямую, требует CryptoPro на сервере (недоступно на Render)
+- Новые endpoints используют кеш-файл, обновляемый с бар-ПК по запросу
+
+**Файлы:**
+- `routes/stocks.py`
+
+### 2026-04-21 — CHZ stock integration: Task 6 — verify result
+
+**Проверено:**
+- `chz_test/debug/chz_stock.json` содержит 30 GTIN, 16 с product_group=BEER, все 30 с непустыми expiration_dates
+- `routes/stocks.py` проходит `python -m py_compile` без ошибок
+- Оба endpoint `/api/chz/stock` и `/api/chz/refresh` присутствуют в коде
+
+**Файлы:**
+- `chz_test/debug/chz_stock.json`
+- `routes/stocks.py`
+- `docs/plans/chz-stock-integration.md`
+
+### 2026-04-21 — CHZ stock integration: Task 4 — run stock on bar-PC
+
+**Изменено:**
+- `remote_exec.py` — добавлен параметр `timeout` в `run_cmd` (передаётся в `exec_command`)
+- `remote_exec.py` — добавлена специальная команда `run stock`: обновляет токен, запускает `chz.py stock` с timeout=600, скачивает `chz_stock.json` в `chz_test/debug/`
+- `remote_exec.py` — исправлена кодировка вывода: теперь `sys.stdout.buffer.write` с UTF-8 вместо `print` (избегает cp1251 ошибок)
+- `chz_test/debug/chz_stock.json` — обновлён: 30 GTIN, 29 с датами годности
+
+**Почему:**
+- Без timeout=600 долгие SSH-команды обрывались по таймауту paramiko
+- run stock нужен как единая команда для обновления кеша (токен + сбор + скачивание)
+
+**Файлы:**
+- `remote_exec.py`
+- `chz_test/debug/chz_stock.json`
+
 ### 2026-04-11 — ЧЗ остатки: название + количество + срок годности
 
 **Новое:**

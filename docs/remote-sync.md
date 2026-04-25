@@ -1,6 +1,6 @@
 # Удалённая работа: Сервер → Бар-ПК
 
-**Дата:** 2026-04-05
+**Обновлено:** 2026-04-22
 **Метод:** Tailscale (сеть) + OpenSSH (команды) + paramiko (клиент Python)
 
 ## Топология
@@ -11,8 +11,9 @@
 | Бар-ПК | `100.98.149.108` (DESKTOP-E0BLMGC) |
 | Сеть | Tailscale (tailnet, ping 8ms) |
 | Протокол | OpenSSH Server (Windows) + paramiko |
-| Учётка на бар-ПК | `sshuser` / пароль `chz2026` |
-| SSH-ключ | `C:\Users\1\.ssh\id_bar` → `C:\Users\sshuser\.ssh\authorized_keys` |
+| Учётка на бар-ПК | `Администратор` / пароль из `REMOTE_PASS` env |
+| Python на бар-ПК | `C:\Program Files\Python312\python.exe` |
+| Скрипты на бар-ПК | `C:\chz_test\chz.py` |
 
 ## Как это работает
 
@@ -27,6 +28,8 @@
 
 ## Использование (remote_exec.py)
 
+Требует переменную окружения `REMOTE_PASS` (пароль SSH). `REMOTE_USER` необязателен (по умолчанию: Администратор).
+
 ```bash
 # Проверить связь
 python remote_exec.py status
@@ -38,9 +41,12 @@ python remote_exec.py cmd "dir C:\chz_test"
 python remote_exec.py push chz_test/chz.py C:\chz_test
 
 # Забрать файл
-python remote_exec.py pull C:\chz_test\debug\expiration_data.json data/
+python remote_exec.py pull C:\chz_test\debug\chz_stock.json chz_test/debug/
 
-# Запустить chz.py report
+# Обновить токен ЧЗ, собрать остатки, скачать chz_stock.json
+python remote_exec.py run stock
+
+# Запустить chz.py с произвольными аргументами
 python remote_exec.py run report 2026-03-01 2026-04-05
 ```
 
@@ -119,8 +125,9 @@ Match Group administrators
 
 ## Текущее состояние бар-ПК
 
-- Python: НЕ найден в PATH у sshuser (нужно искать/установить)
-- chz_test: старая версия с 50+ мёртвыми файлами
-- Git репо: НЕ клонировано
+- Python: `C:\Program Files\Python312\python.exe` (Python 3.12)
+- chz_test: `C:\chz_test\chz.py` — актуальный скрипт, загружен через push
+- Git репо: НЕ клонировано (скрипты живут в C:\chz_test, не в репо)
 - OpenSSH Server: запущен, работает
 - Tailscale: подключён, ping работает
+- Пользователь SSH: Администратор (подпись csptest.exe требует прав администратора)

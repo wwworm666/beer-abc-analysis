@@ -143,7 +143,7 @@ python chz.py report 2026-03-01 2026-04-05
 4. **`filter` обязателен** — без фильтра запрос возвращает 400
 5. **`cises/search` возвращает в `"result"`** — не `"products"`, это частая ошибка
 6. **DDoS риск** — без задержки API банит (150+ страниц без паузы = соединение сбрасывается)
-7. **Без `introducedDatePeriod`** возвращает ВСЕ коды с самого начала (может быть 15000+ записей)
+7. **`get_chz_stock` применяет дефолтный лимит 6 месяцев** — если `date_from` не передан явно, функция автоматически устанавливает `date_from = now - 180 дней`. Без лимита API возвращает 90k+ кодов за всё время и не завершается. Для получения данных за весь период передать явный `date_from`.
 
 ---
 
@@ -179,3 +179,52 @@ def get_chz_expiration(product_group="beer", date_from=None, date_to=None):
     # ... pagination loop ...
     return items
 ```
+
+---
+
+## Flask кеш-слой (routes/stocks.py)
+
+Два endpoint-а для доступа к данным ЧЗ без прямого SSH/CryptoPro на сервере.
+Данные хранятся в `chz_test/debug/chz_stock.json` (обновляется через `POST /api/chz/refresh`).
+
+### GET /api/chz/stock
+
+Читает `chz_test/debug/chz_stock.json` с диска. Возвращает:
+```json
+{
+  "updated_at": "2026-04-21T12:00:00",
+  "items": [
+    {
+      "gtin": "04660185917775",
+      "name": "Пиво светлое...",
+      "brand": "Polnochnyj Project",
+      "count": 450,
+      "expiration_dates": ["2027-03-10"],
+      "production_dates": ["2026-03-10"],
+      "product_group": "BEER"
+    }
+  ]
+}
+```
+
+Коды ответа:
+- 404 + `{items:[], updated_at:null, error:'no data'}` — файл отсутствует
+- 200 + данные — успех
+- 500 + `{error:'cache corrupted or updating'}` — файл повреждён или записывается
+
+### POST /api/chz/refresh
+
+Запускает `remote_exec.py run stock` через `subprocess.Popen` (неблокирующий).
+Возвращает `{"status": "started"}` немедленно.
+
+Коды ответа:
+- 200 + `{status:'started'}` — процесс запущен в фоне
+- 409 + `{status:'already_running'}` — обновление уже выполняется
+- 503 + `{error:'REMOTE_PASS not configured'}` — env-переменная REMOTE_PASS не задана
+- 500 + `{error:'...'}` — OSError при старте процесса
+
+### near_expiry_codes (GET /api/stocks/chz)
+
+Поле `near_expiry_codes` в ответе считает суммарное количество кодов маркировки (`count`)
+по GTIN, у которых хотя бы одна дата годности попадает в диапазон `[today, today+30)`.
+Просроченные коды (`days < 0`) не включаются. Считается по первому совпадающему `expiration_date` на GTIN.

@@ -51,7 +51,7 @@ def make_request(url, method="GET", data=None, headers=None):
         error_body = e.read().decode('utf-8') if e.fp else str(e)
         try:
             return e.code, json.loads(error_body)
-        except:
+        except Exception:
             return e.code, {"_raw": error_body[:500]}
     except Exception as ex:
         return None, str(ex)
@@ -165,7 +165,7 @@ def load_token():
             expires_at = t.get("expires_at")
             if token and expires_at and time.time() < expires_at:
                 return token
-        except:
+        except Exception:
             pass
 
     # Токен отсутствует или просрочен
@@ -296,6 +296,8 @@ def get_all_cises(product_group="beer", date_from=None, date_to=None,
     all_items = []
     current_page = 0
     limit = 1000  # максимум API
+    retry_count = 0
+    max_retries = 3
 
     while True:
         print(f"  Страница {current_page + 1}...", end=" ")
@@ -321,9 +323,13 @@ def get_all_cises(product_group="beer", date_from=None, date_to=None,
             status, response = make_request(url, method="POST", data=payload, headers=headers)
 
         if status != 200:
-            print(f"[ERR] HTTP {status}")
+            retry_count += 1
+            if retry_count >= max_retries:
+                raise RuntimeError(f"API error after {max_retries} retries: HTTP {status}, response: {response}")
+            print(f"[ERR] HTTP {status}, retry {retry_count}/{max_retries}...")
             time.sleep(10)
             continue
+        retry_count = 0
 
         items = response.get("result", [])
         is_last = response.get("isLastPage", True)
@@ -487,6 +493,10 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     else:
         groups = product_groups
 
+    # Дефолтный лимит по дате: последние 6 месяцев, чтобы не скачивать 90k+ кодов за всё время
+    if date_from is None:
+        date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
+
     # 1. Загружаем коды из всех групп
     all_items = []
     for g in groups:
@@ -511,7 +521,9 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     # 3. Группируем по GTIN
     by_gtin = {}
     for item in introduced:
-        gtin = item.get("gtin", "N/A")
+        gtin = item.get("gtin") or ""
+        if not gtin:
+            continue  # пропустить записи без GTIN или с отсутствующим полем
         pg = item.get("productGroup", "")
         if gtin not in by_gtin:
             by_gtin[gtin] = {
@@ -687,10 +699,6 @@ def main():
         # python chz.py stock [date_from] [date_to]
         date_from = rest[0] if rest else None
         date_to = rest[1] if len(rest) > 1 else None
-
-        # По умолчанию — последние 6 месяцев
-        if date_from is None:
-            date_from = (datetime.now() - timedelta(days=180)).strftime("%Y-%m-%d")
 
         stock = get_chz_stock(date_from=date_from, date_to=date_to)
         print_stock_report(stock)
