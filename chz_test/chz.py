@@ -66,15 +66,25 @@ def make_request(url, method="GET", data=None, headers=None, raw=False, timeout=
 
 # ==================== ДИСПЕНСЕР: АСИНХРОННЫЕ ОТЧЁТЫ ====================
 
-# productGroupCode в ЛК ЧЗ — соответствуют названиям папок pgN_csv:
-# pg15 = BEER, pg13 = WATER, pg8 = MILK (так юзер ранее экспортировал)
-# nabeer (безалкогольное пиво) — отдельный код, найду эмпирически
+# productGroupCode в ЧЗ:
+#   8  = milk (молочная продукция)
+#   11 = alcohol (крепкий алкоголь, сидр, медовуха)
+#   13 = water (упакованная вода)
+#   15 = beer (пиво и напитки на основе пива)
+#   22 = nabeer (безалкогольное пиво)
+#   23 = softdrinks (соки, газировки, лимонады, шорли)
 DISPENSER_GROUPS = {
     "beer": 15,
+    "nabeer": 22,
+    "softdrinks": 23,
+    "alcohol": 11,
     "water": 13,
     "milk": 8,
-    "nabeer": 22,  # предположение, проверим
 }
+
+# Группы которые выгружаем по умолчанию (без water — у бара воды немного,
+# можно явно указать `chz.py csv-auto water` если потребуется).
+DEFAULT_AUTO_GROUPS = ["beer", "nabeer", "softdrinks", "alcohol"]
 
 
 def dispenser_create_task(token, group_code, filter_dict):
@@ -1054,8 +1064,8 @@ def main():
 
     elif cmd == "csv-auto":
         # python chz.py csv-auto [groups...] — авто-выгрузка CSV через dispenser API
-        # По умолчанию выгружает beer + water + nabeer (без milk).
-        groups_arg = rest if rest else ["beer", "water", "nabeer"]
+        # По умолчанию: beer + nabeer + softdrinks + alcohol (без water/milk).
+        groups_arg = rest if rest else DEFAULT_AUTO_GROUPS
         token = load_token()
         if not token:
             print("[ERR] Нет токена")

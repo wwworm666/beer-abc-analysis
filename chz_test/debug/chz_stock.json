@@ -11545,6 +11545,52 @@
     ]
   },
   {
+    "gtin": "04640205261064",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Лимонад\"",
+    "brand": "lapochka",
+    "count": 9,
+    "expiration_dates": [
+      "2026-04-17",
+      "2026-10-18"
+    ],
+    "production_dates": [
+      "2025-04-22",
+      "2025-10-23"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-10-23",
+        "expiration_date": "2026-10-18",
+        "count": 8
+      },
+      {
+        "production_date": "2025-04-22",
+        "expiration_date": "2026-04-17",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 9,
+        "batches": [
+          {
+            "production_date": "2025-10-23",
+            "expiration_date": "2026-10-18",
+            "count": 8
+          },
+          {
+            "production_date": "2025-04-22",
+            "expiration_date": "2026-04-17",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04660185918116",
     "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"ИПА 3\" (\"9 Years Anniversary West Coast IPA\"), 6,9% об. алк., 450 мл.",
     "brand": "Polnochnyj Project",
@@ -15234,6 +15280,74 @@
             "production_date": "2024-01-25",
             "expiration_date": "2024-04-26",
             "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205266007",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Яблочный Шорле \" (банка)",
+    "brand": "отсутствует",
+    "count": 6,
+    "expiration_dates": [
+      "2027-03-15"
+    ],
+    "production_dates": [
+      "2026-03-21"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-03-21",
+        "expiration_date": "2027-03-15",
+        "count": 6
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 6,
+        "batches": [
+          {
+            "production_date": "2026-03-21",
+            "expiration_date": "2027-03-15",
+            "count": 6
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205265550",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Т-Банк\" (банка)",
+    "brand": "отсутствует",
+    "count": 6,
+    "expiration_dates": [
+      "2026-12-07"
+    ],
+    "production_dates": [
+      "2025-12-12"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-12-12",
+        "expiration_date": "2026-12-07",
+        "count": 6
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 6,
+        "batches": [
+          {
+            "production_date": "2025-12-12",
+            "expiration_date": "2026-12-07",
+            "count": 6
           }
         ]
       }
@@ -19256,6 +19370,74 @@
     ]
   },
   {
+    "gtin": "04640205266618",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Крем-Сода\" (банка)",
+    "brand": "lapochka",
+    "count": 4,
+    "expiration_dates": [
+      "2027-03-21"
+    ],
+    "production_dates": [
+      "2026-03-26"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-03-26",
+        "expiration_date": "2027-03-21",
+        "count": 4
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2026-03-26",
+            "expiration_date": "2027-03-21",
+            "count": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205266601",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Тархун\" (банка)",
+    "brand": "lapochka",
+    "count": 4,
+    "expiration_dates": [
+      "2027-03-20"
+    ],
+    "production_dates": [
+      "2026-03-24"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-03-24",
+        "expiration_date": "2027-03-20",
+        "count": 4
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2026-03-24",
+            "expiration_date": "2027-03-20",
+            "count": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04610424291500",
     "name": "пивной напиток нефильтрованный непастеризованный неосветленный \"ШЕФ №2\"",
     "brand": "КУЛИНАР Смородиновый крамбл",
@@ -22372,6 +22554,106 @@
           {
             "production_date": "2025-09-22",
             "expiration_date": "2026-09-22",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205263006",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Персик Вербена\"",
+    "brand": "lapochka",
+    "count": 3,
+    "expiration_dates": [
+      "2027-01-29"
+    ],
+    "production_dates": [],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "",
+        "expiration_date": "2027-01-29",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "",
+            "expiration_date": "2027-01-29",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620031823407",
+    "name": "Напиток безалкогольный с соком слабогазированный пастеризованный «БЮЛЬВИ ШОРЛИ ЯБЛОЧНЫЙ С ГРЕЙПФРУТОМ»",
+    "brand": "Bullevie",
+    "count": 3,
+    "expiration_dates": [
+      "2027-08-17"
+    ],
+    "production_dates": [
+      "2026-02-17"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-02-17",
+        "expiration_date": "2027-08-17",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2026-02-17",
+            "expiration_date": "2027-08-17",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04603791714789",
+    "name": "Напиток безалкогольный «Лайт» среднегазированный пастеризованный «Имбирный»",
+    "brand": "GRAVIYY",
+    "count": 3,
+    "expiration_dates": [
+      "2027-02-25"
+    ],
+    "production_dates": [
+      "2026-02-25"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-02-25",
+        "expiration_date": "2027-02-25",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2026-02-25",
+            "expiration_date": "2027-02-25",
             "count": 3
           }
         ]
@@ -25795,6 +26077,74 @@
           {
             "production_date": "",
             "expiration_date": "2025-09-13",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620031823421",
+    "name": "Напиток безалкогольный с соком слабогазированный пастеризованный «БЮЛЬВИ ШОРЛИ ЯБЛОЧНЫЙ С ГРУШЕЙ»",
+    "brand": "Bullevie",
+    "count": 2,
+    "expiration_dates": [
+      "2027-08-11"
+    ],
+    "production_dates": [
+      "2026-02-11"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-02-11",
+        "expiration_date": "2027-08-11",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-02-11",
+            "expiration_date": "2027-08-11",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620031822288",
+    "name": "Напиток безалкогольный с соком слабогазированный пастеризованный «БЮЛЬВИ ШОРЛИ ЯБЛОЧНЫЙ С ЯГОДАМИ»",
+    "brand": "отсутствует",
+    "count": 2,
+    "expiration_dates": [
+      "2027-01-04"
+    ],
+    "production_dates": [
+      "2025-07-04"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-07-04",
+        "expiration_date": "2027-01-04",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2025-07-04",
+            "expiration_date": "2027-01-04",
             "count": 2
           }
         ]
@@ -31303,6 +31653,240 @@
           {
             "production_date": "2025-10-27",
             "expiration_date": "2026-10-27",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205260111",
+    "name": "Напиток безалкогольный среднегазированный “Лапочка Арбуз Мелисса”",
+    "brand": "Lapochka",
+    "count": 1,
+    "expiration_dates": [
+      "2027-02-08"
+    ],
+    "production_dates": [
+      "2026-02-13"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-02-13",
+        "expiration_date": "2027-02-08",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2026-02-13",
+            "expiration_date": "2027-02-08",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205260050",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Грейпфрут Лимон\"",
+    "brand": "Lapochka",
+    "count": 1,
+    "expiration_dates": [
+      "2027-01-28"
+    ],
+    "production_dates": [],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "",
+        "expiration_date": "2027-01-28",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "",
+            "expiration_date": "2027-01-28",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205260098",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Ананас Личи\"",
+    "brand": "Lapochka",
+    "count": 1,
+    "expiration_dates": [
+      "2027-01-11"
+    ],
+    "production_dates": [],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "",
+        "expiration_date": "2027-01-11",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "",
+            "expiration_date": "2027-01-11",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205262900",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Микс 1\"",
+    "brand": "lapochka",
+    "count": 1,
+    "expiration_dates": [
+      "2026-08-18"
+    ],
+    "production_dates": [
+      "2025-08-23"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-08-23",
+        "expiration_date": "2026-08-18",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-08-23",
+            "expiration_date": "2026-08-18",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620402490924",
+    "name": "Напиток безалкогольный среднегазированный пастеризованный \"Брюмен лимонад \"Маракуйя лайм\"",
+    "brand": "Брюмен",
+    "count": 1,
+    "expiration_dates": [
+      "2026-08-08"
+    ],
+    "production_dates": [
+      "2025-08-13"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-08-13",
+        "expiration_date": "2026-08-08",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-08-13",
+            "expiration_date": "2026-08-08",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205264027",
+    "name": "Напиток безалкогольный среднегазированный \"Шорли Яблоко\" (банка)",
+    "brand": "lapochka",
+    "count": 1,
+    "expiration_dates": [
+      "2026-07-31"
+    ],
+    "production_dates": [
+      "2025-08-05"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-08-05",
+        "expiration_date": "2026-07-31",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-08-05",
+            "expiration_date": "2026-07-31",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620031823445",
+    "name": "Напиток безалкогольный с соком слабогазированный пастеризованный «БЮЛЬВИ ШОРЛИ ЯБЛОЧНЫЙ С МАНГО»",
+    "brand": "Bullevie",
+    "count": 1,
+    "expiration_dates": [
+      "2027-03-10"
+    ],
+    "production_dates": [
+      "2025-09-10"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-09-10",
+        "expiration_date": "2027-03-10",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-09-10",
+            "expiration_date": "2027-03-10",
             "count": 1
           }
         ]
