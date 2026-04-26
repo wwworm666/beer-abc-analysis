@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
+from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from extensions import taps_manager, get_cached_nomenclature, BARS
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
@@ -689,3 +690,245 @@ def refresh_chz_stock():
                 log_file.close()
             return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})
+
+
+@stocks_bp.route('/api/stocks/expiry', methods=['GET'])
+def get_bottles_with_expiry():
+    """Остатки фасовки из iiko, обогащённые сроками годности из ЧЗ.
+
+    Стыковка iiko↔ЧЗ по barcode (EAN-13) ↔ gtin (GTIN-14, lpad'0').
+    Позиции без матча в ЧЗ возвращаются с пустыми expiration_dates.
+    """
+    bar = request.args.get('bar', '')
+    if not bar:
+        return jsonify({'error': 'Требуется параметр bar'}), 400
+
+    bar_id_map = {
+        'Большой пр. В.О': 'bar1',
+        'Лиговский': 'bar2',
+        'Кременчугская': 'bar3',
+        'Варшавская': 'bar4',
+        'Общая': None,
+    }
+    store_id_map = {
+        'bar1': 'a4c88d1c-be9a-4366-9aca-68ddaf8be40d',
+        'bar2': '91d7d070-875b-4d98-a81c-ae628eca45fd',
+        'bar3': '1239d270-1bbe-f64f-b7ea-5f00518ef508',
+        'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',
+    }
+    # Маппинг бар → КПП в ЧЗ (получен через GET /api/v3/true-api/mods/list,
+    # см. chz_test/debug/mods.json). Каждая бар-точка — отдельная МОД с
+    # уникальным КПП. По этому КПП в CSV-выгрузке ЧЗ привязан каждый CIS-код.
+    bar_kpp_map = {
+        'bar1': '780145001',  # Большой пр. В.О
+        'bar2': '781645001',  # Лиговский
+        'bar3': '784201001',  # Кременчугская
+        'bar4': '781045001',  # Варшавская
+    }
+
+    target_store_id = None
+    target_kpp = None
+    if bar != 'Общая':
+        bar_id = bar_id_map.get(bar)
+        if bar_id:
+            target_store_id = store_id_map.get(bar_id)
+            target_kpp = bar_kpp_map.get(bar_id)
+
+    olap = OlapReports()
+    if not olap.connect():
+        return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+    try:
+        nomenclature = get_cached_nomenclature(olap)
+        if not nomenclature:
+            return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
+
+        FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
+        FASOVKA_GROUP_NAME = 'Напитки Фасовка'
+
+        fasovka_product_ids = set()
+        for pid, pinfo in nomenclature.items():
+            parent = pinfo.get('parentId', '')
+            if parent == FASOVKA_GROUP_ID or parent == FASOVKA_GROUP_NAME:
+                fasovka_product_ids.add(pid)
+        if not fasovka_product_ids:
+            fasovka_product_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
+
+        balances = olap.get_store_balances()
+        if not balances:
+            return jsonify({'error': 'Не удалось получить остатки'}), 500
+
+        date_to_obj = datetime.now()
+        date_from_obj = datetime.now() - timedelta(days=30)
+        date_to = date_to_obj.strftime("%d.%m.%Y")
+        date_from = date_from_obj.strftime("%d.%m.%Y")
+        bar_name = bar if bar != 'Общая' else None
+        store_data = olap.get_store_operations_report(date_from, date_to, bar_name)
+    finally:
+        olap.disconnect()
+
+    products_dict = {}
+    for balance in balances:
+        product_id = balance.get('product')
+        amount = balance.get('amount', 0)
+        store_id = balance.get('store')
+
+        if target_store_id and store_id != target_store_id:
+            continue
+        if product_id not in fasovka_product_ids:
+            continue
+
+        product_info = nomenclature.get(product_id)
+        if not product_info:
+            continue
+
+        if product_id not in products_dict:
+            products_dict[product_id] = {
+                'name': product_info.get('name', product_id),
+                'category': product_info.get('category', 'Без поставщика'),
+                'stock': 0,
+                'outgoing': 0,
+            }
+        products_dict[product_id]['stock'] += amount
+
+    if store_data:
+        for record in store_data:
+            product_id = record.get('product')
+            if not product_id or product_id not in products_dict:
+                continue
+            amount = float(record.get('amount', 0) or 0)
+            is_incoming = record.get('incoming', 'false') == 'true'
+            if not is_incoming:
+                products_dict[product_id]['outgoing'] += abs(amount)
+
+    barcode_map = get_barcode_map()
+    product_to_gtins = invert_to_product_gtins(barcode_map)
+
+    chz_by_gtin = {}
+    chz_updated_at = None
+    try:
+        chz_mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
+        chz_updated_at = datetime.fromtimestamp(chz_mtime).isoformat()
+        with open(_CHZ_CACHE_FILE, encoding='utf-8') as f:
+            chz_items = json.load(f)
+        for item in chz_items:
+            gtin = str(item.get('gtin', '')).zfill(14)
+            chz_by_gtin[gtin] = item
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+        print(f"[EXPIRY] CHZ cache unavailable: {e}")
+
+    today = datetime.now().date()
+    days_in_period = 30
+    items = []
+    matched_count = 0
+    near_expiry_count = 0
+
+    for product_id, data in products_dict.items():
+        current_stock = data['stock']
+        avg_consumption = data['outgoing'] / days_in_period if days_in_period > 0 else 0
+        if avg_consumption > 0:
+            days_left = current_stock / avg_consumption
+            if days_left < 3:
+                stock_level = 'low'
+            elif days_left < 7:
+                stock_level = 'medium'
+            else:
+                stock_level = 'high'
+        else:
+            stock_level = 'high'
+
+        gtins = product_to_gtins.get(product_id, [])
+        matched_gtins = []
+        # Собираем партии: либо ТОЛЬКО для нашего КПП (когда выбран
+        # конкретный бар), либо со всех КПП юрлица (когда bar='Общая').
+        bar_batches = []           # список {production_date, expiration_date, count}
+        bar_chz_count = 0          # сколько кодов в ЧЗ числится за этим баром
+        chz_total_count = 0        # итог по всему юрлицу (для контекста)
+        for g in gtins:
+            chz_item = chz_by_gtin.get(g)
+            if not chz_item:
+                continue
+            matched_gtins.append(g)
+            chz_total_count += chz_item.get('count', 0)
+            by_kpp = chz_item.get('by_kpp', [])
+            if target_kpp:
+                # фильтруем только наш бар
+                for slot in by_kpp:
+                    if slot.get('kpp') == target_kpp:
+                        bar_chz_count += slot.get('count', 0)
+                        for b in slot.get('batches', []):
+                            bar_batches.append(b)
+            else:
+                # bar='Общая' — все партии юрлица
+                bar_chz_count = chz_total_count
+                for b in chz_item.get('batches', []):
+                    bar_batches.append(b)
+
+        bar_batches.sort(key=lambda b: b.get('production_date', ''), reverse=True)
+
+        # Объединённые даты ИЗ НАШИХ партий (не со всего юрлица)
+        expiration_dates = sorted({b['expiration_date'] for b in bar_batches if b.get('expiration_date')})
+        production_dates = sorted({b['production_date'] for b in bar_batches if b.get('production_date')})
+
+        has_chz_data = bool(matched_gtins) and bool(bar_batches)
+        # Note: матч по GTIN найден, но конкретно за этим баром нет партий —
+        # отдельный кейс: товар у нас в iiko есть, в ЧЗ есть для юрлица,
+        # но не на этом КПП. Тогда has_chz_data=False для этого бара.
+        if has_chz_data:
+            matched_count += 1
+
+        # Партии от свежих к старым, но без эвристики «обрезаем под iiko-сток» —
+        # данные точные, показываем все партии этого бара (бар не RETIRE'ит,
+        # поэтому bar_chz_count может быть > current_stock, что нормально).
+        nearest_expiry = None
+        latest_expiry = None
+        days_to_expiry = None
+        if expiration_dates:
+            future = [d for d in expiration_dates if d >= today.isoformat()]
+            nearest_expiry = future[0] if future else expiration_dates[-1]
+            latest_expiry = expiration_dates[-1]
+            try:
+                exp_date = datetime.strptime(nearest_expiry, "%Y-%m-%d").date()
+                days_to_expiry = (exp_date - today).days
+                if 0 <= days_to_expiry < 30:
+                    near_expiry_count += 1
+            except ValueError:
+                pass
+
+        items.append({
+            'name': data['name'],
+            'category': data['category'],
+            'stock': round(current_stock, 1),
+            'avg_sales': round(avg_consumption, 2),
+            'stock_level': stock_level,
+            'gtins': matched_gtins,
+            'chz_total_count': chz_total_count,    # коды по всему юрлицу
+            'bar_chz_count': bar_chz_count,        # коды на КПП этого бара
+            'expiration_dates': expiration_dates,
+            'production_dates': production_dates,
+            'inferred_batches': bar_batches,       # партии этого бара (точные, не эвристика)
+            'nearest_expiry': nearest_expiry,
+            'latest_expiry': latest_expiry,
+            'days_to_expiry': days_to_expiry,
+            'has_chz_data': has_chz_data,
+        })
+
+    def sort_key(it):
+        d = it['days_to_expiry']
+        if d is None:
+            return (2, 0)
+        if d < 30:
+            return (0, d)
+        return (1, d)
+
+    items.sort(key=sort_key)
+
+    return jsonify({
+        'bar': bar,
+        'updated_at': datetime.now().isoformat(),
+        'chz_updated_at': chz_updated_at,
+        'total_items': len(items),
+        'matched_items': matched_count,
+        'near_expiry_count': near_expiry_count,
+        'items': items,
+    })

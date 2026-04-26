@@ -182,7 +182,7 @@ def main():
             pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
         else:
             # Запустить chz.py на бар-ПК из C:\chz_test
-            ALLOWED_SUBCMDS = {"token", "stock", "report", "status"}
+            ALLOWED_SUBCMDS = {"token", "stock", "report", "status", "mods"}
             if subcmd not in ALLOWED_SUBCMDS:
                 print(f"Неизвестная подкоманда: {subcmd}")
                 print(f"Допустимые: {', '.join(sorted(ALLOWED_SUBCMDS))}")

@@ -521,6 +521,8 @@ def parse_chz_csv(csv_dir=None):
                 group_i = header.index("productGroup")
                 pkg_i = header.index("packageType")
                 owner_i = header.index("ownerInn")
+                kpp_i = header.index("kpp") if "kpp" in header else None
+                fias_i = header.index("fiasId") if "fiasId" in header else None
             except ValueError as e:
                 print(f"  [SKIP] {csv_file}: missing column ({e})")
                 continue
@@ -547,6 +549,21 @@ def parse_chz_csv(csv_dir=None):
                 exp = parts[exp_i].split("T")[0] if parts[exp_i] else ""
                 prod = parts[prod_i].split("T")[0] if parts[prod_i] else ""
 
+                # КПП места осуществления деятельности (МОД).
+                # Иногда колонки kpp/fiasId сдвинуты из-за запятых в predшествующих
+                # полях — фильтруем только валидные 9-значные КПП.
+                kpp = ""
+                if kpp_i is not None and len(parts) > kpp_i:
+                    raw_kpp = (parts[kpp_i] or "").strip()
+                    if raw_kpp.isdigit() and len(raw_kpp) == 9:
+                        kpp = raw_kpp
+                fias = ""
+                if fias_i is not None and len(parts) > fias_i:
+                    raw_fias = (parts[fias_i] or "").strip()
+                    # FIAS — UUID (36 символов с дефисами); отсеиваем если случайно КПП
+                    if len(raw_fias) == 36 and raw_fias.count("-") == 4:
+                        fias = raw_fias
+
                 if gtin not in by_gtin:
                     by_gtin[gtin] = {
                         "gtin": gtin,
@@ -555,6 +572,8 @@ def parse_chz_csv(csv_dir=None):
                         "count": 0,
                         "expiration_dates": set(),
                         "production_dates": set(),
+                        "batches": {},          # {(prod, exp): count} — по всему юрлицу
+                        "by_kpp": {},           # {kpp: {count, batches: {(prod, exp): count}, fiasId}}
                         "product_group": parts[group_i] or "",
                     }
                 e = by_gtin[gtin]
@@ -563,16 +582,52 @@ def parse_chz_csv(csv_dir=None):
                     e["expiration_dates"].add(exp)
                 if prod:
                     e["production_dates"].add(prod)
+                key = (prod, exp)
+                e["batches"][key] = e["batches"].get(key, 0) + 1
+
+                # Привязка к месту деятельности
+                kpp_key = kpp or "_unknown"
+                if kpp_key not in e["by_kpp"]:
+                    e["by_kpp"][kpp_key] = {
+                        "kpp": kpp,
+                        "fiasId": fias,
+                        "count": 0,
+                        "batches": {},
+                    }
+                slot = e["by_kpp"][kpp_key]
+                slot["count"] += 1
+                slot["batches"][key] = slot["batches"].get(key, 0) + 1
+                if not slot["fiasId"] and fias:
+                    slot["fiasId"] = fias
 
     print(f"  [CSV] обработано {parsed_rows} строк, {len(by_gtin)} уникальных GTIN")
 
-    # set -> отсортированный список
+    def _batches_to_list(batches_dict):
+        out = [
+            {"production_date": p, "expiration_date": x, "count": c}
+            for (p, x), c in batches_dict.items()
+        ]
+        out.sort(key=lambda b: b["production_date"], reverse=True)
+        return out
+
+    # set/dict -> сериализуемые списки
     stock = []
     for entry in by_gtin.values():
+        by_kpp_out = []
+        for slot in entry["by_kpp"].values():
+            by_kpp_out.append({
+                "kpp": slot["kpp"],
+                "fiasId": slot["fiasId"],
+                "count": slot["count"],
+                "batches": _batches_to_list(slot["batches"]),
+            })
+        by_kpp_out.sort(key=lambda s: -s["count"])
         stock.append({
-            **entry,
+            **{k: v for k, v in entry.items() if k not in ("batches", "by_kpp")},
             "expiration_dates": sorted(entry["expiration_dates"]),
             "production_dates": sorted(entry["production_dates"]),
+            "batches": _batches_to_list(entry["batches"]),
+            "by_kpp": by_kpp_out,
         })
     stock.sort(key=lambda x: x["count"], reverse=True)
     return stock
@@ -817,6 +872,32 @@ def main():
         print("Чтение CSV-экспортов из chz_test/debug/pg*_csv/...")
         stock = parse_chz_csv()
         print_stock_report(stock)
+
+    elif cmd == "mods":
+        # python chz.py mods — справочник МОД (мест осуществления деятельности)
+        token = load_token()
+        if not token:
+            print("[ERR] Нет токена")
+            return
+        url = (
+            f"{CHZ_BASE_URL}/mods/list"
+            f"?productGroups=beer&inns={INN_ORG}&limit=1000&page=0"
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+        status, resp = make_request(url, method="GET", headers=headers)
+        if status != 200:
+            print(f"  [ERR] HTTP {status}: {resp}")
+            return
+        out_file = os.path.join(DEBUG_DIR, "mods.json")
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(resp, f, ensure_ascii=False, indent=2)
+        result = resp.get("result", [])
+        print(f"  [OK] МОД для ИНН {INN_ORG}: найдено {len(result)}")
+        for m in result:
+            print(f"    KPP={m.get('kpp')} | fiasId={m.get('fiasId')}")
+            print(f"      address: {m.get('address')}")
+            print(f"      productGroups: {m.get('productGroups')}")
+        print(f"\n  FILE: {out_file}")
 
     else:
         print_help()

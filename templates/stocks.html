@@ -639,6 +639,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('taplist')">Таплист</button>
             <button class="tab" onclick="switchTab('bottles')">Фасовка</button>
+            <button class="tab" onclick="switchTab('expiry')">Сроки годности</button>
             <button class="tab" onclick="switchTab('kitchen')">Меню кухни</button>
             <button class="tab" onclick="switchTab('order')">Формирование заказа</button>
         </div>
@@ -679,6 +680,21 @@
                 <h2>Фасовка и остатки</h2>
                 <div class="stats-grid" id="bottles-stats"></div>
                 <div id="bottles-groups"></div>
+            </div>
+        </div>
+
+        <!-- Expiry Tab -->
+        <div id="expiry-tab" class="tab-content">
+            <div class="card loading" id="loading-expiry">
+                <div class="spinner"></div>
+                <h2>Загружаем данные...</h2>
+            </div>
+
+            <div class="card" id="expiry-content" style="display: none;">
+                <h2>Сроки годности фасовки (по данным ЧЗ)</h2>
+                <div id="expiry-meta" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;"></div>
+                <div class="stats-grid" id="expiry-stats"></div>
+                <div id="expiry-groups"></div>
             </div>
         </div>
 
@@ -810,6 +826,7 @@
             await Promise.allSettled([
                 loadTaplist(bar),
                 loadBottles(bar),
+                loadExpiry(bar),
                 loadKitchenMenu(bar)
             ]);
         }
@@ -972,6 +989,140 @@
             } catch (error) {
                 console.error('Error loading bottles:', error);
                 alert('Ошибка загрузки фасовки: ' + error.message);
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        function expiryRowStyle(item) {
+            if (!item.has_chz_data) return 'color: var(--text-secondary);';
+            const d = item.days_to_expiry;
+            if (d === null || d === undefined) return '';
+            if (d < 0) return 'background: rgba(239, 68, 68, 0.18); font-weight: 600;';
+            if (d < 30) return 'background: rgba(239, 68, 68, 0.10);';
+            if (d < 90) return 'background: rgba(245, 158, 11, 0.10);';
+            return '';
+        }
+
+        function formatHeadlineExpiry(item) {
+            if (!item.has_chz_data) return '<span style="color: var(--text-secondary);">нет в ЧЗ</span>';
+            if (!item.nearest_expiry) return '—';
+            const d = item.days_to_expiry;
+            const dayLabel = d === null ? '' : (d < 0 ? ` (просрочен ${-d}д)` : ` (${d}д)`);
+            // Если nearest != latest — есть несколько партий, покажем диапазон
+            if (item.latest_expiry && item.latest_expiry !== item.nearest_expiry) {
+                return escapeHtml(item.nearest_expiry) + dayLabel +
+                    ` <span style="color: var(--text-secondary); font-size: 11px;">… до ${escapeHtml(item.latest_expiry)}</span>`;
+            }
+            return escapeHtml(item.nearest_expiry) + dayLabel;
+        }
+
+        function formatBatches(item) {
+            if (!item.has_chz_data) return '—';
+            const batches = item.inferred_batches || [];
+            if (batches.length === 0) return '—';
+            const lines = batches.map(b => `${b.count}шт до ${escapeHtml(b.expiration_date)} <span style="color: var(--text-secondary);">(произв. ${escapeHtml(b.production_date)})</span>`);
+            const stock = item.stock || 0;
+            const barChz = item.bar_chz_count || 0;
+            const totalChz = item.chz_total_count || 0;
+            let warn = '';
+            if (barChz > stock + 1) {
+                // в ЧЗ за этим баром числится больше кодов чем по факту в iiko
+                warn += `<div style="color: #d97706; font-size: 11px; margin-top: 4px;">⚠ В ЧЗ за этим баром ${barChz} кодов, в iiko ${stock} — касса не RETIRE'ит проданные</div>`;
+            }
+            if (totalChz > barChz) {
+                warn += `<div style="color: var(--text-secondary); font-size: 11px;">по всему юрлицу: ${totalChz} кодов</div>`;
+            }
+            return lines.join('<br>') + warn;
+        }
+
+        async function loadExpiry(bar) {
+            const loading = document.getElementById('loading-expiry');
+            const content = document.getElementById('expiry-content');
+
+            loading.classList.add('active');
+            content.style.display = 'none';
+
+            try {
+                const response = await fetchWithRetry(`/api/stocks/expiry?bar=${encodeURIComponent(bar)}`);
+                if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
+
+                const data = await response.json();
+
+                const chzDate = data.chz_updated_at
+                    ? new Date(data.chz_updated_at).toLocaleString('ru-RU')
+                    : 'нет данных';
+                document.getElementById('expiry-meta').textContent =
+                    `Кэш ЧЗ обновлён: ${chzDate}. Партии привязаны к бару по КПП из CSV-выгрузки ЛК Честный Знак.`;
+
+                const statsHtml = `
+                    <div class="stat-card">
+                        <div class="label">Всего позиций</div>
+                        <div class="value">${data.total_items || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="label">С данными ЧЗ</div>
+                        <div class="value">${data.matched_items || 0}</div>
+                    </div>
+                    <div class="stat-card" style="border-color: #991b1b;">
+                        <div class="label" style="color: #991b1b;">Срочных (&lt;30д)</div>
+                        <div class="value" style="color: #991b1b;">${data.near_expiry_count || 0}</div>
+                    </div>
+                `;
+                document.getElementById('expiry-stats').innerHTML = statsHtml;
+
+                const groupedItems = {};
+                (data.items || []).forEach(item => {
+                    const supplier = item.category || 'Без поставщика';
+                    if (!groupedItems[supplier]) groupedItems[supplier] = [];
+                    groupedItems[supplier].push(item);
+                });
+
+                const container = document.getElementById('expiry-groups');
+                container.innerHTML = '';
+
+                Object.keys(groupedItems).sort().forEach(supplier => {
+                    const group = document.createElement('div');
+                    group.className = 'supplier-group';
+                    const items = groupedItems[supplier];
+                    const escapedSupplier = escapeHtml(supplier);
+
+                    group.innerHTML = `
+                        <div class="supplier-header">${escapedSupplier}</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Остаток (шт)</th>
+                                    <th>Ср. продажи</th>
+                                    <th>Срок (по последним партиям)</th>
+                                    <th>Партии на полке</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    `;
+
+                    const tbody = group.querySelector('tbody');
+                    items.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.setAttribute('style', expiryRowStyle(item));
+                        row.innerHTML = `
+                            <td>${escapeHtml(item.name)}</td>
+                            <td>${item.stock || 0}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${formatHeadlineExpiry(item)}</td>
+                            <td style="font-size: 12px;">${formatBatches(item)}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                    container.appendChild(group);
+                });
+
+                content.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading expiry:', error);
+                alert('Ошибка загрузки сроков годности: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
