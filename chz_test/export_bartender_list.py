@@ -19,6 +19,13 @@ from core.iiko_barcodes import _normalize_gtin
 
 BARS = ["Большой пр. В.О", "Лиговский", "Кременчугская", "Варшавская"]
 
+# Поставщики которых НЕ включаем в список бармен-сверки.
+# СПБ-Премиум возит только импорт со сроком розлива до 01.12.2025 —
+# поштучный учёт по этим бутылкам в ЧЗ не ведётся (объёмно-сортовой
+# метод старого режима). Их «нет в ЧЗ» легитимно, проверять баркоды
+# в iiko бессмысленно — всё равно ЧЗ не пропустит сканирование.
+EXCLUDE_SUPPLIERS = {"СПБ-Премиум"}
+
 
 def load_suggestions():
     """barcode_fixes_suggested.csv → {iiko_name: (suggested_gtin, score)}"""
@@ -66,8 +73,12 @@ def main():
         except Exception as e:
             print(f"[ERR] {bar}: {e}")
             continue
-        unmatched = [it for it in data['items'] if not it['has_chz_data']]
-        print(f"  {bar}: {len(unmatched)} позиций без ЧЗ")
+        unmatched = [
+            it for it in data['items']
+            if not it['has_chz_data']
+            and it.get('category', '?') not in EXCLUDE_SUPPLIERS
+        ]
+        print(f"  {bar}: {len(unmatched)} позиций без ЧЗ (после исключения {EXCLUDE_SUPPLIERS})")
         for it in unmatched:
             name = it['name'].strip()
             iiko_bcs = iiko_by_name.get(name, [])
