@@ -31,6 +31,7 @@ Beer ABC/XYZ Analysis
 | [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
 | [remote-sync.md](docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale+SSH | ✅ актуально |
 | [connectivity.md](docs/connectivity.md) | Подключение ко всем бар-ПК: SSH, сертификаты, доступ | ✅ актуально |
+| [chz-stock-integration.md](docs/chz-stock-integration.md) | iiko ↔ Честный Знак: dispenser API, КПП-привязка, авторефреш, UI «Сроки годности» | ✅ актуально |
 | [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
 | [comparison-redesign.md](docs/comparison-redesign.md) | Comparison Module — Modern Fintech Redesign | ✅ актуально |
 | [comparison-fixes-final.md](docs/comparison-fixes-final.md) | Comparison Module — Final Fixes (progress bars, percentages, clarity) | ✅ актуально |

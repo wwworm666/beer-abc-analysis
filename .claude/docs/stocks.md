@@ -1,14 +1,23 @@
 # Остатки товаров
 
+> **Раздел про Честный Знак переехал в отдельный документ:**
+> [chz-stock-integration.md](chz-stock-integration.md) — полная схема
+> dispenser API, КПП-привязка партий к барам, авторефреш в 03:00,
+> вкладка «Сроки годности».
+>
+> Этот файл описывает только taplist / kitchen / bottles. Для всего что
+> касается ЧЗ и поэкземплярного учёта смотрите новый документ.
+
 ## Что это
 
 Модуль учёта остатков: кеги на кранах (taplist), кухня, фасовка, интеграция с Честным ЗНАКом.
 
 ## Файлы
 
-- [`routes/stocks.py`](../../routes/stocks.py) — Flask endpoint'ы
-- [`core/chestny_znak.py`](../../core/chestny_znak.py) — Честный ЗНАК API
-- [`routes/chestny_znak.py`](../../routes/chestny_znak.py) — endpoint'ы Честного ЗНАКа
+- [`routes/stocks.py`](../../routes/stocks.py) — Flask endpoint'ы (включая `/api/stocks/expiry`, `/api/chz/refresh` — см. chz-stock-integration.md)
+- [`chz_test/chz.py`](../../chz_test/chz.py) — единый ЧЗ-клиент (auth + dispenser API + парсер CSV)
+- [`core/iiko_barcodes.py`](../../core/iiko_barcodes.py) — баркоды iiko из XML
+- [`core/chz_scheduler.py`](../../core/chz_scheduler.py) — daemon-thread авторефреш
 
 ---
 

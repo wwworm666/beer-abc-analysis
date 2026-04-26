@@ -4,6 +4,115 @@
 
 ---
 
+## 2026-04-26 — Полная интеграция iiko ↔ Честный Знак
+
+**Цель:** автоматизировать получение сроков годности фасовки из ЧЗ
+и привязать их к остаткам конкретного бара. Один POST → данные
+актуальные, без ручных выгрузок.
+
+**Что построили:**
+
+1. **Стыковка iiko↔ЧЗ по GTIN** (баркоду) — `core/iiko_barcodes.py`
+   парсит XML iiko, строит `{gtin: [iiko_pid]}`. Сравнение нормализованных
+   14-значных GTIN.
+
+2. **Привязка партий к конкретному бару через КПП** — каждая строка
+   CSV-выгрузки `FILTERED_CIS_REPORT` содержит поля `kpp` и `fiasId`.
+   У ИНВЕСТАГРО 4 МОД = 4 КПП. Парсер агрегирует `by_kpp: [{kpp, count, batches}]`.
+   Endpoint фильтрует по `target_kpp` для конкретного бара. Точные
+   данные, не эвристика.
+
+3. **Полная автоматизация через dispenser API:**
+   - `POST /api/v3/true-api/dispenser/tasks` — создать задание
+   - `GET /api/v3/true-api/dispenser/tasks/{id}` — опросить статус
+   - `GET /api/v3/true-api/dispenser/results/{id}/file` — скачать ZIP с CSV
+   - Распаковать ZIP, перестроить `chz_stock.json`
+   - `POST /api/chz/refresh` запускает SSH-цепочку на бар-ПК
+   - Daemon-thread авторефреш в 03:00 (`core/chz_scheduler.py`)
+   - Кнопка «Обновить данные ЧЗ» в UI с polling-индикатором
+
+4. **Расширение групп ЧЗ** до `[beer (15), nabeer (22), softdrinks (23)]`
+   (water/milk/alcohol выключены — alcohol вообще не в ЧЗ а в ЕГАИС).
+
+5. **Endpoint `GET /api/stocks/expiry?bar=X`** — главная страница
+   интеграции. Возвращает фасовку с разбивкой по партиям, привязанным
+   к бару. Поля `bar_chz_count` (на КПП этого бара) и `chz_total_count`
+   (по всему юрлицу) для UI-предупреждений.
+
+6. **UI вкладка «Сроки годности»** в `templates/stocks.html` —
+   таблицы по поставщикам, цветовая подсветка по дням до экспирации,
+   предупреждения «касса не RETIRE'ит» когда `bar_chz_count > stock`.
+
+7. **Утилиты для отладки:**
+   - `chz_test/probe_gtin.py` — поиск GTIN во всех 13 group ЧЗ
+   - `chz_test/suggest_barcode_fixes.py` — авто-подбор настоящих
+     GTIN для несматченных позиций (по схожести бренда, score 2-4)
+   - `chz_test/export_bartender_list.py` — CSV для бармен-сверки
+     с пустой колонкой для заполнения после сканирования бутылки
+
+**Главные открытия:**
+
+- **Каплимит /cises/search 100/страница** — старый прямой режим был
+  фундаментально сломан, переход на dispenser API
+- **CSV из ЛК ЧЗ уже содержит kpp/fiasId** — мы их игнорировали 2
+  месяца, делая бессмысленные эвристики
+- **iiko XML устаревал 4 месяца** — refresh поднял match rate +146%
+- **status=APPLIED + participantInn=наш = 0 кодов** (APPLIED у producer-а)
+- **alcohol (group 11) маркируется ЕГАИС, не ЧЗ** — для пива не нужна
+- **01.12.2025 — водораздел** обязательного поэкземплярного учёта
+  бутылок (ПП РФ № 1415 от 13.09.2025). Старые остатки не появятся
+  ни в каком отчёте — это легитимно
+- **Иногда iiko-баркод не совпадает с DataMatrix** — Кулинар-кейс,
+  починка через бармен-сверку
+
+**Финальные цифры:**
+
+| Бар | Всего фасовки | С CHZ-данными |
+|---|---|---|
+| Большой пр. В.О | 160 | 96 |
+| Лиговский | 115 | 76 |
+| Кременчугская | 158 | 80 |
+| Варшавская | 116 | 65 |
+| Общая (юрлицо) | 366 | 241 |
+
+Из 125 несматченных:
+- ~80 — легитимные остатки до 01.12.2025 (ничего не сделать)
+- ~30 — импорт без подписания УПД через ЭДО (звонки поставщикам)
+- ~10 — баркод-несоответствие (бармен-сверка)
+- ~5 — товары в группах вне доступа (alcohol)
+
+**Файлы:**
+
+- `chz_test/chz.py` — переписан: dispenser_*, csv-auto, mods, парсер
+  с support UTF-8/cp1251/ZIP
+- `routes/stocks.py` — `/api/stocks/expiry`, `/api/chz/refresh{,/status}`
+- `core/iiko_barcodes.py` (новый) — баркод-карта из XML
+- `core/chz_scheduler.py` (новый) — daemon-thread авторефреш
+- `remote_exec.py` — добавлен `run csv-auto` спец-режим, ALLOWED_SUBCMDS
+  расширены `csv-auto`, `mods`
+- `templates/stocks.html` — вкладка «Сроки годности» с polling-кнопкой
+- `app.py` — стартует scheduler при наличии `REMOTE_PASS`
+- `chz_test/probe_gtin.py`, `chz_test/suggest_barcode_fixes.py`,
+  `chz_test/export_bartender_list.py` — утилиты
+- `chz_test/debug/chz_stock.json` — изменилась структура (добавлено
+  `by_kpp`, `batches`)
+- `chz_test/debug/mods.json` (новый) — справочник 4 МОД
+- `data/cache/nomenclature__products.xml` — обновлён со старого декабря 2025
+
+**Документация:**
+
+- `.claude/docs/chz-stock-integration.md` (новый) — полное описание
+  системы, главный референс
+- `.claude/docs/stocks.md` — добавлен указатель на новый документ
+- `.claude/docs/lessons.md` — добавлены уроки 11-19 (каплимит API,
+  КПП-привязка, ZIP-формат, поэтапные даты маркировки и т.д.)
+- `.claude/INDEX.md` — добавлена строка для нового документа
+- `docs/CHANGELOG.md` — детальные хронологические записи по дням
+
+См. подробности: [chz-stock-integration.md](chz-stock-integration.md).
+
+---
+
 ## 2026-04-07 -- Fix /stocks: replace /products XML with OLAP TRANSACTIONS for nomenclature
 
 **Проблема:** страница /stocks возвращала 500/502. Корневая причина: iiko endpoint `/products` (XML) не успевает вернуть 7840+ товаров -- обрывается после ~186 сек ("Response ended prematurely"). Номенклатура = None, все 3 endpoint'а stocks падают.
