@@ -82,9 +82,11 @@ DISPENSER_GROUPS = {
     "milk": 8,
 }
 
-# Группы которые выгружаем по умолчанию (без water — у бара воды немного,
-# можно явно указать `chz.py csv-auto water` если потребуется).
-DEFAULT_AUTO_GROUPS = ["beer", "nabeer", "softdrinks", "alcohol"]
+# Группы которые выгружаем по умолчанию.
+# alcohol (11) НЕ нужен — крепкий алкоголь маркируется ЕГАИС-маркой, не ЧЗ.
+# Сидр/медовуха/перри попадают в beer (15) как «слабоалкогольные напитки».
+# water/milk выключены (бар их не продаёт значимыми объёмами).
+DEFAULT_AUTO_GROUPS = ["beer", "nabeer", "softdrinks"]
 
 
 def dispenser_create_task(token, group_code, filter_dict):
@@ -144,22 +146,27 @@ def dispenser_download(token, result_id, group_code):
     return make_request(url, method="GET", headers=headers, raw=True, timeout=300)
 
 
-def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None):
+def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None, status="INTRODUCED"):
     """Полная цепочка: create → poll → get result_id → download → save CSV.
 
-    Файл сохраняется в chz_test/debug/pg{group_code}_csv/auto-{timestamp}.csv
+    Файл сохраняется в chz_test/debug/pg{group_code}_csv/auto-{status}-{timestamp}.csv
+    `status` обязателен в API; для покрытия импортного товара вызывайте
+    функцию ДВАЖДЫ — со status=INTRODUCED и status=APPLIED. Файлы не
+    перетирают друг друга т.к. имеют статус в имени.
     """
     if filter_dict is None:
         filter_dict = {
             "participantInn": INN_ORG,
             "packageType": ["UNIT", "LEVEL1"],
-            "status": "INTRODUCED",
+            "status": status,
         }
+    elif "status" not in filter_dict:
+        filter_dict = {**filter_dict, "status": status}
 
     print(f"\n[{group_name}/pg{group_code}] Создаём задание...")
-    status, resp = dispenser_create_task(token, group_code, filter_dict)
-    if status != 200:
-        print(f"  [ERR] create_task HTTP {status}: {resp}")
+    http_status, resp = dispenser_create_task(token, group_code, filter_dict)
+    if http_status != 200:
+        print(f"  [ERR] create_task HTTP {http_status}: {resp}")
         return False
     task_id = resp.get("id") or resp
     if isinstance(task_id, dict):
@@ -167,9 +174,9 @@ def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None):
     print(f"  taskId: {task_id}")
 
     print(f"  Опрос статуса (макс. 10 минут)...")
-    status, resp = dispenser_poll(token, task_id, group_code)
-    if status != 200:
-        print(f"  [ERR] poll HTTP {status}: {resp}")
+    http_status, resp = dispenser_poll(token, task_id, group_code)
+    if http_status != 200:
+        print(f"  [ERR] poll HTTP {http_status}: {resp}")
         return False
     cur = resp.get("currentStatus")
     print(f"  Финальный статус: {cur}")
@@ -178,16 +185,16 @@ def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None):
         return False
 
     print(f"  Получаем resultId...")
-    status, result_id = dispenser_get_result_id(token, task_id, group_code)
-    if status != 200 or not result_id:
-        print(f"  [ERR] result_id: {status} {result_id}")
+    http_status, result_id = dispenser_get_result_id(token, task_id, group_code)
+    if http_status != 200 or not result_id:
+        print(f"  [ERR] result_id: {http_status} {result_id}")
         return False
     print(f"  resultId: {result_id}")
 
     print(f"  Скачиваем файл...")
-    status, content = dispenser_download(token, result_id, group_code)
-    if status != 200:
-        print(f"  [ERR] download HTTP {status}")
+    http_status, content = dispenser_download(token, result_id, group_code)
+    if http_status != 200:
+        print(f"  [ERR] download HTTP {http_status}")
         return False
     if not isinstance(content, (bytes, bytearray)) or len(content) == 0:
         print(f"  [ERR] empty download")
@@ -196,9 +203,12 @@ def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None):
 
     out_dir = os.path.join(DEBUG_DIR, f"pg{group_code}_csv")
     os.makedirs(out_dir, exist_ok=True)
-    # Удалим старые auto-*.csv чтобы не плодить
+    # Удалим старые auto-*.csv ТОЛЬКО для текущего status (не трогаем файлы
+    # с других статусов чтобы не потерять, например, APPLIED при перезапуске
+    # с status=INTRODUCED).
     import glob as _glob
-    for old in _glob.glob(os.path.join(out_dir, "auto-*.csv")):
+    status_lc = status.lower()
+    for old in _glob.glob(os.path.join(out_dir, f"auto-{status_lc}-*.csv")):
         try:
             os.remove(old)
         except OSError:
@@ -221,11 +231,11 @@ def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None):
         inner = csv_names[0]
         csv_bytes = zf.read(inner)
         print(f"  ZIP содержит {inner} ({len(csv_bytes)} bytes)")
-        out_file = os.path.join(out_dir, f"auto-{int(time.time())}.csv")
+        out_file = os.path.join(out_dir, f"auto-{status_lc}-{int(time.time())}.csv")
         with open(out_file, "wb") as f:
             f.write(csv_bytes)
     else:
-        out_file = os.path.join(out_dir, f"auto-{int(time.time())}.csv")
+        out_file = os.path.join(out_dir, f"auto-{status_lc}-{int(time.time())}.csv")
         with open(out_file, "wb") as f:
             f.write(content)
     print(f"  [OK] {out_file}")
@@ -718,13 +728,18 @@ def parse_chz_csv(csv_dir=None):
                 parts = list(csvmod.reader(iomod.StringIO(row[0])))[0]
                 if len(parts) <= max(gtin_i, name_i, status_i, exp_i):
                     continue
-                # Только INTRODUCED + UNIT + наш ИНН
-                if parts[status_i] != "INTRODUCED":
+                # Принимаем in-circulation статусы:
+                #   INTRODUCED — В обороте (основная масса)
+                #   APPLIED    — Нанесён (типично для импорта в пути)
+                #   EMITTED    — Эмитирован (свежие коды только что произведённые)
+                # Отбрасываем: RETIRED, WRITTEN_OFF, DISAGGREGATION
+                if parts[status_i] not in ("INTRODUCED", "APPLIED", "EMITTED"):
                     continue
                 if parts[pkg_i] != "UNIT":
                     continue
-                if parts[owner_i] != INN_ORG:
-                    continue
+                # Не фильтруем по ownerInn — для импорта/неподписанных УПД
+                # ownerInn может быть = поставщик, не наш ИНН. Бутылка
+                # физически у нас, но числится за поставщиком до подписания.
                 gtin = parts[gtin_i]
                 if not gtin:
                     continue
@@ -1064,7 +1079,11 @@ def main():
 
     elif cmd == "csv-auto":
         # python chz.py csv-auto [groups...] — авто-выгрузка CSV через dispenser API
-        # По умолчанию: beer + nabeer + softdrinks + alcohol (без water/milk).
+        # По умолчанию: beer + nabeer + softdrinks (без water/milk/alcohol).
+        # Только status=INTRODUCED — APPLIED не работает с participantInn=наш
+        # (коды APPLIED принадлежат producer-у, не нам).
+        # Импортные/неподписанные через ЭДО бутылки в этом отчёте НЕ ВИДНЫ —
+        # они числятся за поставщиком до подписания УПД на наш ИНН.
         groups_arg = rest if rest else DEFAULT_AUTO_GROUPS
         token = load_token()
         if not token:
@@ -1076,7 +1095,7 @@ def main():
             if not code:
                 print(f"[SKIP] неизвестная группа: {g}")
                 continue
-            if export_csv_via_dispenser(token, g, code):
+            if export_csv_via_dispenser(token, g, code, status="INTRODUCED"):
                 ok_count += 1
         print(f"\nИтог: {ok_count}/{len(groups_arg)} групп выгружено")
         if ok_count > 0:
