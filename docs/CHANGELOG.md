@@ -1,5 +1,68 @@
 # Changelog
 
+### 2026-04-26 — Полная автоматизация выгрузки ЧЗ через dispenser API
+
+**До:** пользователь руками выгружал CSV из ЛК ЧЗ (3 группы: beer/water/milk),
+клал в `chz_test/debug/pg*_csv/`, запускал `chz.py csv`. Без ручного действия
+данные устаревали (на момент диагностики CSV был 2-недельной давности).
+
+**Теперь:** один POST-запрос → весь цикл автоматически на бар-ПК.
+
+**Как работает:**
+1. На бар-ПК `chz.py csv-auto` для каждой группы (beer/water/nabeer):
+   - `POST /api/v3/true-api/dispenser/tasks` — создать задание `FILTERED_CIS_REPORT`
+   - `GET /api/v3/true-api/dispenser/tasks/{id}` — опрашивать статус до COMPLETED
+   - `GET /api/v3/true-api/dispenser/results` — получить resultId
+   - `GET /api/v3/true-api/dispenser/results/{id}/file` — скачать ZIP
+   - Распаковать ZIP, сохранить CSV в `chz_test/debug/pg{code}_csv/auto-*.csv`
+2. После всех групп — `parse_chz_csv()` → перестроить `chz_stock.json`
+3. Flask тянет JSON через SSH/SFTP
+
+**productGroupCode:**
+- 15 = BEER
+- 13 = WATER
+- 22 = NABEER (безалкогольное на пивной основе) — **новая группа**, в ручных
+  выгрузках её не было
+
+**Изменения:**
+- `chz_test/chz.py` — добавлены: `dispenser_create_task`, `dispenser_poll`,
+  `dispenser_get_result_id`, `dispenser_download`, `export_csv_via_dispenser`,
+  CLI команда `csv-auto`. Парсер теперь умеет читать UTF-8 / cp1251 и
+  распаковывать ZIP-ответы dispenser API.
+- `remote_exec.py` — добавлен спец-режим `run csv-auto`: token refresh →
+  csv-auto на бар-ПК → pull `chz_stock.json` локально.
+- `routes/stocks.py` — `POST /api/chz/refresh` теперь дёргает `csv-auto`
+  вместо устаревшего `stock`. Новый эндпоинт `GET /api/chz/refresh/status`
+  для опроса прогресса (running, exit_code, log_tail, cache_updated_at).
+- `templates/stocks.html` — кнопка «Обновить данные ЧЗ» во вкладке Сроки
+  годности с polling-индикатором; после успеха таблица перезагружается.
+- `core/chz_scheduler.py` (новый) — daemon-thread дёргает refresh раз в
+  сутки (по умолчанию 03:00, env CHZ_REFRESH_HOUR / CHZ_REFRESH_MINUTE).
+- `app.py` — стартует scheduler при запуске Flask, если `REMOTE_PASS` в env.
+
+**Match rate с фрешем через dispenser:**
+
+| Бар | До (CSV 12.04) | После (API 26.04) |
+|---|---|---|
+| Большой В.О | 82 | 96 |
+| Лиговский | 52 | 76 |
+| Кременчугская | 78 | 80 |
+| Варшавская | 58 | 65 |
+| Общая | 202 | 228 |
+
+**Эксплуатация:**
+- Флешем по кнопке: открыть Stocks → Сроки годности → «Обновить данные ЧЗ»
+- Авторефреш: `REMOTE_PASS=xxx py app.py` → каждый день в 03:00
+- Лог: `chz_test/debug/refresh.log` (truncate перед каждым refresh)
+- Лимит ЧЗ: 10 заданий в сутки на одну товарную группу — для нас 1/день более чем достаточно
+
+**На будущее:**
+- Если в `chz.py` в DISPENSER_GROUPS добавить ещё группы (например milk
+  если бар начнёт продавать молоко) — сразу подхватится.
+- На бар-ПК нет апдейтера: новые версии `chz.py` пушит `remote_exec.py push`.
+
+---
+
 ### 2026-04-26 — Обновление iiko XML-номенклатуры → +146% матчей с ЧЗ
 
 **Диагностика match rate.** Из 366 позиций фасовки (Общая):

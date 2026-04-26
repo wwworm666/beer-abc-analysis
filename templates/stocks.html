@@ -693,6 +693,10 @@
             <div class="card" id="expiry-content" style="display: none;">
                 <h2>Сроки годности фасовки (по данным ЧЗ)</h2>
                 <div id="expiry-meta" style="color: var(--text-secondary); font-size: 13px; margin-bottom: 12px;"></div>
+                <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
+                    <button class="btn" onclick="refreshChzData()" id="chz-refresh-btn">Обновить данные ЧЗ</button>
+                    <span id="chz-refresh-status" style="color: var(--text-secondary); font-size: 13px;"></span>
+                </div>
                 <div class="stats-grid" id="expiry-stats"></div>
                 <div id="expiry-groups"></div>
             </div>
@@ -1034,6 +1038,63 @@
                 warn += `<div style="color: var(--text-secondary); font-size: 11px;">по всему юрлицу: ${totalChz} кодов</div>`;
             }
             return lines.join('<br>') + warn;
+        }
+
+        let chzRefreshPolling = null;
+
+        async function refreshChzData() {
+            const btn = document.getElementById('chz-refresh-btn');
+            const statusEl = document.getElementById('chz-refresh-status');
+            btn.disabled = true;
+            btn.textContent = 'Обновляем...';
+            statusEl.textContent = 'Запускаем обновление на бар-ПК (токен → дёргаем dispenser API ЧЗ → ZIP → CSV → JSON)...';
+            try {
+                const r = await fetch('/api/chz/refresh', {method: 'POST'});
+                const data = await r.json();
+                if (data.status === 'started') {
+                    statusEl.textContent = 'Обновление запущено, ожидаем результат (обычно 1-3 минуты)...';
+                    pollChzRefreshStatus();
+                } else if (data.status === 'already_running') {
+                    statusEl.textContent = 'Уже идёт другое обновление, ждите...';
+                    pollChzRefreshStatus();
+                } else {
+                    statusEl.textContent = 'Ошибка запуска: ' + (data.error || JSON.stringify(data));
+                    btn.disabled = false;
+                    btn.textContent = 'Обновить данные ЧЗ';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Ошибка сети: ' + e.message;
+                btn.disabled = false;
+                btn.textContent = 'Обновить данные ЧЗ';
+            }
+        }
+
+        async function pollChzRefreshStatus() {
+            const btn = document.getElementById('chz-refresh-btn');
+            const statusEl = document.getElementById('chz-refresh-status');
+            if (chzRefreshPolling) clearInterval(chzRefreshPolling);
+            chzRefreshPolling = setInterval(async () => {
+                try {
+                    const r = await fetch('/api/chz/refresh/status');
+                    const s = await r.json();
+                    if (!s.running) {
+                        clearInterval(chzRefreshPolling);
+                        chzRefreshPolling = null;
+                        if (s.exit_code === 0) {
+                            statusEl.textContent = 'Обновление завершено успешно. Перезагружаем данные...';
+                            const bar = document.getElementById('bar-select').value;
+                            if (bar) await loadExpiry(bar);
+                            statusEl.textContent = 'Готово. Кэш ЧЗ обновлён ' + (s.cache_updated_at || '?');
+                        } else {
+                            statusEl.textContent = `Ошибка (exit ${s.exit_code}). Лог: ${(s.log_tail || '').slice(-300)}`;
+                        }
+                        btn.disabled = false;
+                        btn.textContent = 'Обновить данные ЧЗ';
+                    }
+                } catch (e) {
+                    // Игнорируем сетевые ошибки во время polling
+                }
+            }, 5000);
         }
 
         async function loadExpiry(bar) {

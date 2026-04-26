@@ -663,7 +663,12 @@ def get_chz_stock_api():
 
 @stocks_bp.route('/api/chz/refresh', methods=['POST'])
 def refresh_chz_stock():
-    """Запускает обновление кеша ЧЗ в фоне через remote_exec.py."""
+    """Запускает обновление кеша ЧЗ в фоне через dispenser API ЧЗ.
+
+    Делает на бар-ПК: token refresh → chz.py csv-auto (beer+water+nabeer) →
+    pull chz_stock.json. Возвращает сразу status=started; прогресс в
+    chz_test/debug/refresh.log.
+    """
     global _refresh_proc, _refresh_log_file
     if not os.environ.get('REMOTE_PASS'):
         return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
@@ -678,9 +683,12 @@ def refresh_chz_stock():
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         log_file = None
         try:
-            log_file = open(_CHZ_REFRESH_LOG, 'a', encoding='utf-8')
+            # Truncate log so each refresh starts fresh
+            log_file = open(_CHZ_REFRESH_LOG, 'w', encoding='utf-8')
+            log_file.write(f'=== refresh started {datetime.now().isoformat()} ===\n')
+            log_file.flush()
             _refresh_proc = subprocess.Popen(
-                [sys.executable, remote_exec, 'run', 'stock'],
+                [sys.executable, remote_exec, 'run', 'csv-auto'],
                 stdout=log_file,
                 stderr=log_file
             )
@@ -690,6 +698,38 @@ def refresh_chz_stock():
                 log_file.close()
             return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})
+
+
+@stocks_bp.route('/api/chz/refresh/status', methods=['GET'])
+def refresh_chz_status():
+    """Статус последнего/текущего refresh: running/done/idle + хвост лога."""
+    global _refresh_proc
+    with _refresh_lock:
+        if _refresh_proc is not None:
+            poll = _refresh_proc.poll()
+            running = poll is None
+            exit_code = poll
+        else:
+            running = False
+            exit_code = None
+    log_tail = ''
+    try:
+        if _CHZ_REFRESH_LOG.exists():
+            with open(_CHZ_REFRESH_LOG, encoding='utf-8', errors='replace') as f:
+                log_tail = f.read()[-3000:]
+    except OSError:
+        pass
+    cache_updated = None
+    try:
+        cache_updated = datetime.fromtimestamp(_CHZ_CACHE_FILE.stat().st_mtime).isoformat()
+    except OSError:
+        pass
+    return jsonify({
+        'running': running,
+        'exit_code': exit_code,
+        'cache_updated_at': cache_updated,
+        'log_tail': log_tail,
+    })
 
 
 @stocks_bp.route('/api/stocks/expiry', methods=['GET'])

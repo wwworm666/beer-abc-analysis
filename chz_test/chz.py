@@ -30,8 +30,12 @@ TOKEN_FILE = os.path.join(DEBUG_DIR, "token.json")
 
 # ==================== УТИЛИТЫ ====================
 
-def make_request(url, method="GET", data=None, headers=None):
-    """HTTP запрос к ЧЗ API"""
+def make_request(url, method="GET", data=None, headers=None, raw=False, timeout=60):
+    """HTTP запрос к ЧЗ API.
+
+    raw=True — вернуть body как bytes (для скачивания CSV/ZIP).
+    raw=False — попытаться распарсить как JSON (default).
+    """
     if headers is None:
         headers = {}
     if data and isinstance(data, dict):
@@ -44,8 +48,11 @@ def make_request(url, method="GET", data=None, headers=None):
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
         opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ctx))
-        response = opener.open(req, timeout=60)
-        body = response.read().decode('utf-8')
+        response = opener.open(req, timeout=timeout)
+        body_bytes = response.read()
+        if raw:
+            return response.status, body_bytes
+        body = body_bytes.decode('utf-8')
         return response.status, json.loads(body) if body else {}
     except urllib.error.HTTPError as e:
         error_body = e.read().decode('utf-8') if e.fp else str(e)
@@ -55,6 +62,164 @@ def make_request(url, method="GET", data=None, headers=None):
             return e.code, {"_raw": error_body[:500]}
     except Exception as ex:
         return None, str(ex)
+
+
+# ==================== ДИСПЕНСЕР: АСИНХРОННЫЕ ОТЧЁТЫ ====================
+
+# productGroupCode в ЛК ЧЗ — соответствуют названиям папок pgN_csv:
+# pg15 = BEER, pg13 = WATER, pg8 = MILK (так юзер ранее экспортировал)
+# nabeer (безалкогольное пиво) — отдельный код, найду эмпирически
+DISPENSER_GROUPS = {
+    "beer": 15,
+    "water": 13,
+    "milk": 8,
+    "nabeer": 22,  # предположение, проверим
+}
+
+
+def dispenser_create_task(token, group_code, filter_dict):
+    """POST /dispenser/tasks — создать задание FILTERED_CIS_REPORT."""
+    url = f"{CHZ_BASE_URL}/dispenser/tasks"
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = {
+        "format": "CSV",
+        "name": "FILTERED_CIS_REPORT",
+        "periodicity": "SINGLE",
+        "productGroupCode": str(group_code),
+        "params": json.dumps(filter_dict, ensure_ascii=False),
+    }
+    status, resp = make_request(url, method="POST", data=payload, headers=headers)
+    return status, resp
+
+
+def dispenser_poll(token, task_id, group_code, max_seconds=600, interval=5):
+    """GET /dispenser/tasks/{id} — опрос статуса до COMPLETED/FAILED."""
+    url = f"{CHZ_BASE_URL}/dispenser/tasks/{task_id}?pg={group_code}"
+    headers = {"Authorization": f"Bearer {token}"}
+    waited = 0
+    while waited < max_seconds:
+        status, resp = make_request(url, method="GET", headers=headers)
+        if status != 200:
+            return status, resp
+        cur = resp.get("currentStatus", "")
+        if cur in ("COMPLETED", "FAILED", "CANCELED"):
+            return 200, resp
+        time.sleep(interval)
+        waited += interval
+    return None, {"error": f"timeout after {max_seconds}s"}
+
+
+def dispenser_get_result_id(token, task_id, group_code):
+    """GET /dispenser/results — найти resultId по taskId."""
+    url = f"{CHZ_BASE_URL}/dispenser/results?page=0&size=20&pg={group_code}"
+    headers = {"Authorization": f"Bearer {token}"}
+    status, resp = make_request(url, method="GET", headers=headers)
+    if status != 200:
+        return status, resp
+    # Ищем результат с нашим taskId
+    items = resp.get("list") or resp.get("results") or resp.get("content") or []
+    for it in items:
+        if it.get("taskId") == task_id or it.get("task_id") == task_id:
+            return 200, it.get("id") or it.get("resultId")
+    # fallback: первый из списка
+    if items:
+        return 200, items[0].get("id") or items[0].get("resultId")
+    return 404, {"error": "no results found", "list_keys": list(resp.keys())}
+
+
+def dispenser_download(token, result_id, group_code):
+    """GET /dispenser/results/{id}/file — скачать CSV (bytes)."""
+    url = f"{CHZ_BASE_URL}/dispenser/results/{result_id}/file?pg={group_code}"
+    headers = {"Authorization": f"Bearer {token}"}
+    return make_request(url, method="GET", headers=headers, raw=True, timeout=300)
+
+
+def export_csv_via_dispenser(token, group_name, group_code, filter_dict=None):
+    """Полная цепочка: create → poll → get result_id → download → save CSV.
+
+    Файл сохраняется в chz_test/debug/pg{group_code}_csv/auto-{timestamp}.csv
+    """
+    if filter_dict is None:
+        filter_dict = {
+            "participantInn": INN_ORG,
+            "packageType": ["UNIT", "LEVEL1"],
+            "status": "INTRODUCED",
+        }
+
+    print(f"\n[{group_name}/pg{group_code}] Создаём задание...")
+    status, resp = dispenser_create_task(token, group_code, filter_dict)
+    if status != 200:
+        print(f"  [ERR] create_task HTTP {status}: {resp}")
+        return False
+    task_id = resp.get("id") or resp
+    if isinstance(task_id, dict):
+        task_id = task_id.get("id")
+    print(f"  taskId: {task_id}")
+
+    print(f"  Опрос статуса (макс. 10 минут)...")
+    status, resp = dispenser_poll(token, task_id, group_code)
+    if status != 200:
+        print(f"  [ERR] poll HTTP {status}: {resp}")
+        return False
+    cur = resp.get("currentStatus")
+    print(f"  Финальный статус: {cur}")
+    if cur != "COMPLETED":
+        print(f"  [SKIP] не COMPLETED, не качаем")
+        return False
+
+    print(f"  Получаем resultId...")
+    status, result_id = dispenser_get_result_id(token, task_id, group_code)
+    if status != 200 or not result_id:
+        print(f"  [ERR] result_id: {status} {result_id}")
+        return False
+    print(f"  resultId: {result_id}")
+
+    print(f"  Скачиваем файл...")
+    status, content = dispenser_download(token, result_id, group_code)
+    if status != 200:
+        print(f"  [ERR] download HTTP {status}")
+        return False
+    if not isinstance(content, (bytes, bytearray)) or len(content) == 0:
+        print(f"  [ERR] empty download")
+        return False
+    print(f"  Получено {len(content)} bytes")
+
+    out_dir = os.path.join(DEBUG_DIR, f"pg{group_code}_csv")
+    os.makedirs(out_dir, exist_ok=True)
+    # Удалим старые auto-*.csv чтобы не плодить
+    import glob as _glob
+    for old in _glob.glob(os.path.join(out_dir, "auto-*.csv")):
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+
+    # Dispenser API возвращает ZIP с одним CSV внутри (signature PK\x03\x04).
+    # ЛК отдавала чистый CSV. Поддерживаем оба варианта.
+    if content[:4] == b"PK\x03\x04":
+        import zipfile, io as iomod
+        try:
+            zf = zipfile.ZipFile(iomod.BytesIO(content))
+        except zipfile.BadZipFile as e:
+            print(f"  [ERR] bad ZIP: {e}")
+            return False
+        names = zf.namelist()
+        csv_names = [n for n in names if n.lower().endswith(".csv")]
+        if not csv_names:
+            print(f"  [ERR] no CSV inside ZIP, contents: {names}")
+            return False
+        inner = csv_names[0]
+        csv_bytes = zf.read(inner)
+        print(f"  ZIP содержит {inner} ({len(csv_bytes)} bytes)")
+        out_file = os.path.join(out_dir, f"auto-{int(time.time())}.csv")
+        with open(out_file, "wb") as f:
+            f.write(csv_bytes)
+    else:
+        out_file = os.path.join(out_dir, f"auto-{int(time.time())}.csv")
+        with open(out_file, "wb") as f:
+            f.write(content)
+    print(f"  [OK] {out_file}")
+    return True
 
 
 def clean_base64(text):
@@ -504,10 +669,20 @@ def parse_chz_csv(csv_dir=None):
     parsed_rows = 0
     for d in dirs:
         for csv_file in glob.glob(os.path.join(d, "*.csv")):
-            with open(csv_file, encoding="utf-8") as f:
-                reader = csvmod.reader(f, delimiter=";")
-                rows = list(reader)
-            if len(rows) < 2:
+            # ЛК-выгрузка отдаёт UTF-8, dispenser API — cp1251.
+            # Пробуем оба, без BOM-контроля (utf-8-sig тоже работает).
+            rows = None
+            for enc in ("utf-8-sig", "utf-8", "cp1251"):
+                try:
+                    with open(csv_file, encoding=enc) as f:
+                        reader = csvmod.reader(f, delimiter=";")
+                        rows = list(reader)
+                    break
+                except UnicodeDecodeError:
+                    rows = None
+                    continue
+            if rows is None or len(rows) < 2:
+                print(f"  [SKIP] {csv_file}: не удалось декодировать или пустой")
                 continue
             # rows[0] = фильтр, rows[1] = заголовки CSV-в-CSV
             header = list(csvmod.reader(iomod.StringIO(rows[1][0])))[0]
@@ -771,7 +946,11 @@ def print_stock_report(stock):
         exp = ", ".join(s["expiration_dates"])
         if len(exp) > 12:
             exp = exp[:11] + ".."
-        print(f"  {s['gtin']:<16} {name:<35} {s['count']:>4}  {exp:<12}")
+        try:
+            print(f"  {s['gtin']:<16} {name:<35} {s['count']:>4}  {exp:<12}")
+        except UnicodeEncodeError:
+            # Windows console (cp1251/cp866) не умеет некоторые символы — пропускаем
+            print(f"  {s['gtin']:<16} <name with unprintable chars>      {s['count']:>4}  {exp:<12}")
 
     print(f"\n  FILE: {data_file}")
 
@@ -872,6 +1051,28 @@ def main():
         print("Чтение CSV-экспортов из chz_test/debug/pg*_csv/...")
         stock = parse_chz_csv()
         print_stock_report(stock)
+
+    elif cmd == "csv-auto":
+        # python chz.py csv-auto [groups...] — авто-выгрузка CSV через dispenser API
+        # По умолчанию выгружает beer + water + nabeer (без milk).
+        groups_arg = rest if rest else ["beer", "water", "nabeer"]
+        token = load_token()
+        if not token:
+            print("[ERR] Нет токена")
+            return
+        ok_count = 0
+        for g in groups_arg:
+            code = DISPENSER_GROUPS.get(g)
+            if not code:
+                print(f"[SKIP] неизвестная группа: {g}")
+                continue
+            if export_csv_via_dispenser(token, g, code):
+                ok_count += 1
+        print(f"\nИтог: {ok_count}/{len(groups_arg)} групп выгружено")
+        if ok_count > 0:
+            print("Перестраиваем chz_stock.json...")
+            stock = parse_chz_csv()
+            print_stock_report(stock)
 
     elif cmd == "mods":
         # python chz.py mods — справочник МОД (мест осуществления деятельности)

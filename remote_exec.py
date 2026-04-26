@@ -180,9 +180,21 @@ def main():
             print("\nСкачивание результата...")
             remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
             pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
+        elif subcmd == "csv-auto":
+            # Special: refresh token, run csv-auto через dispenser API,
+            # перестроить chz_stock.json, скачать на локалку.
+            print("Обновление токена...")
+            token_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
+            run_cmd(token_cmd, timeout=120)
+            print("\nАвтовыгрузка CSV через dispenser API (beer + water + nabeer, таймаут 1200с)...")
+            csv_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py csv-auto'
+            run_cmd(csv_cmd, timeout=1200)
+            print("\nСкачивание chz_stock.json...")
+            remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
+            pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
         else:
             # Запустить chz.py на бар-ПК из C:\chz_test
-            ALLOWED_SUBCMDS = {"token", "stock", "report", "status", "mods"}
+            ALLOWED_SUBCMDS = {"token", "stock", "report", "status", "mods", "csv-auto"}
             if subcmd not in ALLOWED_SUBCMDS:
                 print(f"Неизвестная подкоманда: {subcmd}")
                 print(f"Допустимые: {', '.join(sorted(ALLOWED_SUBCMDS))}")

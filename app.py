@@ -34,5 +34,10 @@ def serve_manifest():
     return send_from_directory('static', 'manifest.json')
 
 
+# Запустить ежедневный авторефреш ЧЗ (если REMOTE_PASS настроен)
+from core.chz_scheduler import start_scheduler
+start_scheduler()
+
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
