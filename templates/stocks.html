@@ -1113,8 +1113,11 @@
                 const chzDate = data.chz_updated_at
                     ? new Date(data.chz_updated_at).toLocaleString('ru-RU')
                     : 'нет данных';
-                document.getElementById('expiry-meta').textContent =
-                    `Кэш ЧЗ обновлён: ${chzDate}. Партии привязаны к бару по КПП из CSV-выгрузки ЛК Честный Знак.`;
+                document.getElementById('expiry-meta').innerHTML =
+                    `Кэш ЧЗ обновлён: ${escapeHtml(chzDate)}. Партии привязаны к бару по КПП из CSV-выгрузки ЛК Честный Знак.<br>` +
+                    `<span style="font-size: 11px;">Если позиция «нет в ЧЗ»: либо это легитимные остатки без КИ ` +
+                    `(безалк. пиво до 01.10.2024, лимонады до 01.12.2023 — продаются до конца срока годности), ` +
+                    `либо поставщик не подписал УПД через ЭДО на наш ИНН.</span>`;
 
                 const statsHtml = `
                     <div class="stat-card">
