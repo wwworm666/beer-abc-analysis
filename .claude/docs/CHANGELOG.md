@@ -4,6 +4,126 @@
 
 ---
 
+## 2026-04-27 (вечер) — Velocity-классификация slow-mover'ов
+
+**Цель:** убрать шум в «критических» от позиций с микроскопическими продажами.
+До этого товар типа «Эплтон Апельсин 0.5л» (0.03 продажи/день ≈ раз в месяц)
+при нулевом остатке уходил в `urgency=critical` (потому что `days_left = 0/0.03 = 0`).
+Менеджер не должен заказывать такое — это шум.
+
+**Что сделали:**
+
+1. **Функция `_velocity(avg_sales)`** — классификация по продажам в неделю:
+   - `dead` (0) → `recommended = 0`, `urgency = low`
+   - `slow` (< 1 в неделю) → `recommended = 0`, `urgency = low`
+   - `regular` (1–7 в неделю) → обычная логика
+   - `fast` (≥ 7 в неделю) → обычная логика
+   - Константы: `SLOW_MOVER_WEEKLY_SALES=1.0`, `FAST_MOVER_WEEKLY_SALES=7.0`
+
+2. **Порядок проверок в `_urgency_level`:** `stock < 0` → critical
+   (учётная ошибка — приоритет выше velocity), затем slow/dead → low,
+   только потом обычные days_left-проверки. Slow с stock=0 теперь low.
+
+3. **`_calc_recommendation`** принимает `velocity`: для dead/slow возвращает 0
+   независимо от остальной логики.
+
+4. **Response добавил поля:** `velocity`, `weekly_sales` на позицию;
+   counters `active_count`, `slow_count`, `dead_count` в корне.
+
+5. **UI:**
+   - Колонка «Ср/день» заменена на «В неделю» (`avg_sales × 7`) —
+     просьба менеджера: weekly-цифры интуитивнее для бара.
+   - Новая колонка «Скорость» с цветным бэйджем.
+   - Новый фильтр «Скорость» (по умолчанию `active` = regular+fast,
+     slow/dead скрыты).
+   - Stat-карточки: добавлено «Активных позиций» и «Slow / Dead».
+   - Описание формулы в шапке вкладки расширено.
+
+**Файлы:** `routes/stocks.py` (helper `_velocity`, обновлены
+`_calc_recommendation` и `_urgency_level`), `templates/stocks.html`
+(колонки, фильтр, stats, formula text), `.claude/docs/stocks.md`.
+
+**Smoke-test:**
+- Эплтон 0.5л (stock=0, 0.03/день) → velocity=slow, recommended=0, urgency=low ✓
+- Heineken (stock=12, 4.2/день) → velocity=fast, recommended=14, urgency=high ✓
+- Slow с отрицательным остатком (stock=-2, 0.05/день) → urgency=critical
+  (учётная ошибка важнее velocity) ✓
+
+---
+
+## 2026-04-27 — Прототип «Сводный заказ» (Order Board)
+
+**Цель:** заменить «5 вкладок + заказ только в памяти браузера» одной таблицей,
+которая отвечает на главный вопрос менеджера — «сколько заказывать сейчас».
+
+**Что построили:**
+
+1. **Новый endpoint `/api/stocks/order-board?bar=...`** — объединённая выборка
+   фасовка + кеги + кухня в одной таблице. Каждая позиция содержит:
+   - `stock`, `avg_sales` (за 30 дней), `days_left`
+   - `lead_time_days`, `pack_size` — параметры поставщика
+   - `recommended` — рекомендованное количество к заказу
+   - `urgency` — `critical / high / medium / low`
+   - `nearest_expiry / days_to_expiry` (для фасовки, через стыковку с ЧЗ по КПП)
+
+2. **Формула рекомендации** (`_calc_recommendation` в `routes/stocks.py`):
+   ```
+   target_stock = avg_sales × (lead_time_days + SAFETY_DAYS=3)
+   deficit      = max(0, target_stock − stock)
+   recommended  = ceil(deficit / pack_size) × pack_size
+   ```
+   Спецслучаи: `avg_sales <= 0` → 0; `0 <= days_to_expiry < 14` → 0
+   (расходуем то что есть, не пополняем то что протухнет).
+
+3. **Срочность** (`_urgency_level`): `critical` если `stock < 0` или хватит
+   меньше чем на 1 день; `high` если поставка не успеет; `medium` если
+   успеет без страхового запаса; иначе `low`.
+
+4. **Параметры поставщиков** (`SUPPLIER_PARAMS`): хардкод-словарь
+   `{lead_time_days, pack_size}` на 13 поставщиков из `food_categories`,
+   с fallback'ом `{lead_time_days=3, pack_size=1}`. **TODO:** вынести
+   в редактируемые настройки.
+
+5. **Новая вкладка UI «Сводный заказ»** — первая и активная по умолчанию.
+   Колонки: Срочность / Поставщик / Позиция / Тип / Остаток / Ср/день /
+   Хватит дн. / Поставка дн. / Истекает / Рекомендация / Заказ.
+   Фильтры: тип, поставщик, срочность («любая» / «требует заказа»).
+   Кнопка **«Применить рекомендации»** — заполняет инпуты `recommended`
+   для всех видимых строк.
+
+6. **Экспорт переключён с группировки по барам на группировку по поставщикам.**
+   Раньше один и тот же поставщик возил на 4 бара → 4 отдельных CSV; теперь
+   один CSV на поставщика с колонкой «Бар». Это совпадает с реальной
+   единицей отправки заказа.
+
+7. **`addToOrder` / `updateOrderSummary`** расширены: поддерживают тип
+   `bottle`, передают `supplier` и `unit` (раньше bottle вообще не показывался
+   в сводке заказа из-за фильтра по `type==='kitchen'||'draft'`).
+
+**Файлы:**
+- `routes/stocks.py` — новый endpoint, helpers `_supplier_params`,
+  `_calc_recommendation`, `_urgency_level`; константы `SAFETY_DAYS=3`,
+  `NEAR_EXPIRY_BLOCK_DAYS=14`, `SUPPLIER_PARAMS`, маппинги бар→склад→КПП
+  (`_BAR_ID_MAP`, `_STORE_ID_MAP`, `_BAR_KPP_MAP` — для нового endpoint;
+  старые endpoint'ы пока имеют локальные копии, рефактор отдельной задачей).
+- `templates/stocks.html` — новая вкладка, JS-функции `loadOrderBoard`,
+  `renderOrderBoard`, `applyAllRecommendations`, `urgencyBadgeClass`,
+  `urgencyLabel`, `typeLabel`, `orderBoardRowStyle`; helpers `sanitizeFilename`,
+  `downloadCsv`.
+- `.claude/docs/stocks.md` — раздел «Сводный заказ» с формулами и UX.
+
+**Что НЕ сделано (следующие шаги):**
+- Заказ всё ещё хранится в JS-памяти (`ordersByBar`); нужно `localStorage`
+  или сохранение на бэке для истории.
+- `pack_size` для всех = 1 — нужны реальные значения от менеджера
+  (упаковки пива по 12/24/30, ящики и т.д.).
+- `lead_time_days` для пивных поставщиков не указан (fallback = 3 дня) —
+  тоже нужны реальные значения.
+- Среднее за 30 дней не учитывает сезонность/weekday.
+- Нет отправки заказа поставщику — только скачивание CSV.
+
+---
+
 ## 2026-04-26 — Полная интеграция iiko ↔ Честный Знак
 
 **Цель:** автоматизировать получение сроков годности фасовки из ЧЗ

@@ -637,15 +637,106 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('taplist')">Таплист</button>
+            <button class="tab active" onclick="switchTab('order-board')">Сводный заказ</button>
+            <button class="tab" onclick="switchTab('taplist')">Таплист</button>
             <button class="tab" onclick="switchTab('bottles')">Фасовка</button>
             <button class="tab" onclick="switchTab('expiry')">Сроки годности</button>
             <button class="tab" onclick="switchTab('kitchen')">Меню кухни</button>
             <button class="tab" onclick="switchTab('order')">Формирование заказа</button>
         </div>
 
+        <!-- Order Board Tab (главная: сводная таблица заказа с рекомендациями) -->
+        <div id="order-board-tab" class="tab-content active">
+            <div class="card loading" id="loading-order-board">
+                <div class="spinner"></div>
+                <h2>Считаем рекомендации...</h2>
+            </div>
+
+            <div class="card" id="order-board-content" style="display: none;">
+                <h2>Сводная таблица заказа</h2>
+                <div id="order-board-formula" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+                    <strong>Рекомендация</strong> = <code>продажи_в_день × (срок_поставки + страховой_запас) − текущий_остаток</code>,
+                    округлено вверх до кратного партии. Страховой запас — 3 дня. Если до конца срока годности &lt; 14 дней — рекомендация 0.
+                    <br>
+                    <strong>Скорость продаж</strong> (в неделю): <span style="color: var(--text-secondary);">dead</span> = 0;
+                    <span style="color: var(--text-secondary);">slow</span> = &lt; 1 (раз в месяц или реже — <em>не пополняем автоматически</em>);
+                    regular = 1–7; fast = ≥ 7.
+                    <br>
+                    <strong>Срочность:</strong> <span style="color: #991b1b;">критическая</span> = остаток отрицательный или закончится за &lt;1 день;
+                    <span style="color: #d97706;">высокая</span> = поставка не успеет до окончания;
+                    <span style="color: #b45309;">средняя</span> = успеет, но без страхового запаса.
+                    Slow- и dead-mover'ы не считаются «срочными» даже при нулевом остатке.
+                </div>
+
+                <div class="stats-grid" id="order-board-stats"></div>
+
+                <!-- Фильтры -->
+                <div style="display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: end;">
+                    <div class="form-group" style="min-width: 130px;">
+                        <label>Тип</label>
+                        <select id="ob-filter-type" onchange="renderOrderBoard()">
+                            <option value="">Все</option>
+                            <option value="bottle">Фасовка</option>
+                            <option value="draft">Кеги</option>
+                            <option value="kitchen">Кухня</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="min-width: 180px;">
+                        <label>Поставщик</label>
+                        <select id="ob-filter-supplier" onchange="renderOrderBoard()">
+                            <option value="">Все</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="min-width: 130px;">
+                        <label>Срочность</label>
+                        <select id="ob-filter-urgency" onchange="renderOrderBoard()">
+                            <option value="">Любая</option>
+                            <option value="critical">Критическая</option>
+                            <option value="high">Высокая</option>
+                            <option value="medium">Средняя</option>
+                            <option value="needs">Требует заказа (рекомендация &gt; 0)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="min-width: 130px;">
+                        <label>Скорость</label>
+                        <select id="ob-filter-velocity" onchange="renderOrderBoard()">
+                            <option value="active">Только активные (regular+fast)</option>
+                            <option value="">Все</option>
+                            <option value="fast">Только fast</option>
+                            <option value="regular">Только regular</option>
+                            <option value="slow">Только slow</option>
+                            <option value="dead">Только dead</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" onclick="applyAllRecommendations()" style="height: 44px;">
+                        Применить рекомендации
+                    </button>
+                </div>
+
+                <table id="order-board-table">
+                    <thead>
+                        <tr>
+                            <th>Срочность</th>
+                            <th>Поставщик</th>
+                            <th>Позиция</th>
+                            <th>Тип</th>
+                            <th>Скорость</th>
+                            <th>Остаток</th>
+                            <th>В неделю</th>
+                            <th>Хватит дн.</th>
+                            <th>Поставка дн.</th>
+                            <th>Истекает</th>
+                            <th>Рекомендация</th>
+                            <th>Заказ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="order-board-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Taplist Tab -->
-        <div id="taplist-tab" class="tab-content active">
+        <div id="taplist-tab" class="tab-content">
             <div class="card loading" id="loading-taplist">
                 <div class="spinner"></div>
                 <h2>Загружаем данные...</h2>
@@ -828,11 +919,192 @@
 
             // Load all data in parallel
             await Promise.allSettled([
+                loadOrderBoard(bar),
                 loadTaplist(bar),
                 loadBottles(bar),
                 loadExpiry(bar),
                 loadKitchenMenu(bar)
             ]);
+        }
+
+        // === Сводный заказ (Order Board) ===
+        let orderBoardData = null;  // последний ответ /api/stocks/order-board
+
+        async function loadOrderBoard(bar) {
+            const loading = document.getElementById('loading-order-board');
+            const content = document.getElementById('order-board-content');
+            loading.classList.add('active');
+            content.style.display = 'none';
+
+            try {
+                const response = await fetchWithRetry(`/api/stocks/order-board?bar=${encodeURIComponent(bar)}`);
+                if (!response.ok) throw new Error(`Ошибка загрузки (${response.status})`);
+                orderBoardData = await response.json();
+
+                // Заполняем фильтр поставщиков
+                const suppliers = [...new Set(orderBoardData.items.map(i => i.supplier))].sort();
+                const supplierSelect = document.getElementById('ob-filter-supplier');
+                supplierSelect.innerHTML = '<option value="">Все</option>' +
+                    suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+
+                renderOrderBoard();
+                content.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading order board:', error);
+                alert('Ошибка загрузки сводного заказа: ' + error.message);
+            } finally {
+                loading.classList.remove('active');
+            }
+        }
+
+        function renderOrderBoard() {
+            if (!orderBoardData) return;
+            const data = orderBoardData;
+            const filterType = document.getElementById('ob-filter-type').value;
+            const filterSupplier = document.getElementById('ob-filter-supplier').value;
+            const filterUrgency = document.getElementById('ob-filter-urgency').value;
+            const filterVelocity = document.getElementById('ob-filter-velocity').value;
+
+            const filtered = data.items.filter(item => {
+                if (filterType && item.type !== filterType) return false;
+                if (filterSupplier && item.supplier !== filterSupplier) return false;
+                if (filterUrgency === 'needs' && item.recommended <= 0) return false;
+                if (filterUrgency && filterUrgency !== 'needs' && item.urgency !== filterUrgency) return false;
+                if (filterVelocity === 'active') {
+                    if (item.velocity !== 'regular' && item.velocity !== 'fast') return false;
+                } else if (filterVelocity && item.velocity !== filterVelocity) return false;
+                return true;
+            });
+
+            // Stats
+            const recoSum = filtered.reduce((s, i) => s + i.recommended, 0);
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="label">Активных позиций</div>
+                    <div class="value">${data.active_count}</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">из ${data.total_items} (regular+fast)</div>
+                </div>
+                <div class="stat-card" style="border-color: #991b1b;">
+                    <div class="label" style="color: #991b1b;">Критических</div>
+                    <div class="value" style="color: #991b1b;">${data.critical_count}</div>
+                </div>
+                <div class="stat-card" style="border-color: #d97706;">
+                    <div class="label" style="color: #d97706;">Высокая срочность</div>
+                    <div class="value" style="color: #d97706;">${data.high_count}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Slow / Dead</div>
+                    <div class="value" style="font-size: 1.4rem;">${data.slow_count} / ${data.dead_count}</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">скрыты по умолчанию</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Сумма рекомендаций</div>
+                    <div class="value">${recoSum}</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">по текущему фильтру</div>
+                </div>
+            `;
+            document.getElementById('order-board-stats').innerHTML = statsHtml;
+
+            // Table rows
+            const tbody = document.getElementById('order-board-tbody');
+            tbody.innerHTML = '';
+            filtered.forEach(item => {
+                const row = document.createElement('tr');
+                row.setAttribute('style', orderBoardRowStyle(item));
+
+                const expiryCell = item.nearest_expiry
+                    ? `${escapeHtml(item.nearest_expiry)} <span style="color: var(--text-secondary); font-size: 11px;">(${item.days_to_expiry}д)</span>`
+                    : (item.type === 'bottle' ? '<span style="color: var(--text-secondary);">нет в ЧЗ</span>' : '—');
+
+                const daysLeftCell = item.days_left !== null
+                    ? item.days_left.toFixed(1)
+                    : '<span style="color: var(--text-secondary);">нет продаж</span>';
+
+                const stockStyle = item.stock < 0 ? 'color: #991b1b; font-weight: 700;' : '';
+
+                row.innerHTML = `
+                    <td><span class="badge ${urgencyBadgeClass(item.urgency)}">${urgencyLabel(item.urgency)}</span></td>
+                    <td>${escapeHtml(item.supplier)}</td>
+                    <td>${escapeHtml(item.name)}</td>
+                    <td>${typeLabel(item.type)}</td>
+                    <td><span style="font-size: 11px; color: ${velocityColor(item.velocity)}; font-weight: 600;">${velocityLabel(item.velocity)}</span></td>
+                    <td style="${stockStyle}">${item.stock} ${escapeHtml(item.unit)}</td>
+                    <td>${item.weekly_sales.toFixed(2)}</td>
+                    <td>${daysLeftCell}</td>
+                    <td>${item.lead_time_days}</td>
+                    <td>${expiryCell}</td>
+                    <td><strong>${item.recommended}</strong> ${escapeHtml(item.unit)}</td>
+                    <td>
+                        <input type="number" min="0" value="0"
+                            data-product-id="${escapeHtml(item.product_id)}"
+                            data-recommended="${item.recommended}"
+                            style="width: 70px;">
+                    </td>
+                `;
+                const input = row.querySelector('input');
+                input.addEventListener('change', function() {
+                    addToOrder(item.type, item.name, this.value, item.supplier, item.unit);
+                });
+                tbody.appendChild(row);
+            });
+        }
+
+        function velocityLabel(v) {
+            if (v === 'fast') return 'fast';
+            if (v === 'regular') return 'regular';
+            if (v === 'slow') return 'slow';
+            if (v === 'dead') return 'dead';
+            return v;
+        }
+        function velocityColor(v) {
+            if (v === 'fast') return '#059669';
+            if (v === 'regular') return 'var(--text-primary)';
+            if (v === 'slow') return 'var(--text-secondary)';
+            if (v === 'dead') return '#9ca3af';
+            return 'var(--text-secondary)';
+        }
+
+        function applyAllRecommendations() {
+            // Заполняет инпуты в видимых строках значением recommended и добавляет в заказ
+            const tbody = document.getElementById('order-board-tbody');
+            const inputs = tbody.querySelectorAll('input[type="number"]');
+            let count = 0;
+            inputs.forEach(inp => {
+                const reco = parseInt(inp.dataset.recommended || '0');
+                if (reco > 0) {
+                    inp.value = reco;
+                    inp.dispatchEvent(new Event('change'));
+                    count++;
+                }
+            });
+            if (count === 0) {
+                alert('Нет позиций с рекомендацией > 0 (или все скрыты фильтром)');
+            }
+        }
+
+        function urgencyBadgeClass(u) {
+            if (u === 'critical') return 'negative';
+            if (u === 'high') return 'low';
+            if (u === 'medium') return 'medium';
+            return 'high';
+        }
+        function urgencyLabel(u) {
+            if (u === 'critical') return 'Критич.';
+            if (u === 'high') return 'Высокая';
+            if (u === 'medium') return 'Средняя';
+            return 'Норма';
+        }
+        function typeLabel(t) {
+            if (t === 'bottle') return 'Фасовка';
+            if (t === 'draft') return 'Кеги';
+            if (t === 'kitchen') return 'Кухня';
+            return t;
+        }
+        function orderBoardRowStyle(item) {
+            if (item.urgency === 'critical') return 'background: rgba(239, 68, 68, 0.18);';
+            if (item.urgency === 'high') return 'background: rgba(245, 158, 11, 0.12);';
+            if (item.days_to_expiry !== null && item.days_to_expiry < 30) return 'background: rgba(239, 68, 68, 0.06);';
+            return '';
         }
 
         // Load taplist
@@ -1283,12 +1555,15 @@
             }
         }
 
-        // Add to order (привязка к текущему бару)
-        function addToOrder(type, itemName, quantity) {
+        // Группировки и форматирование строк заказа
+        const TYPE_LABELS = {draft: 'Кеги', bottle: 'Фасовка', kitchen: 'Кухня'};
+
+        // Add to order (привязка к текущему бару).
+        // supplier и unit опциональны — для legacy-вызовов из таплиста/кухни.
+        function addToOrder(type, itemName, quantity, supplier, unit) {
             quantity = parseInt(quantity);
             if (!currentBar) return;
 
-            // Инициализируем массив для бара если нет
             if (!ordersByBar[currentBar]) {
                 ordersByBar[currentBar] = [];
             }
@@ -1299,21 +1574,23 @@
             );
 
             if (quantity <= 0) {
-                // Удаляем позицию если количество 0
                 if (existingIndex >= 0) {
                     barOrder.splice(existingIndex, 1);
                 }
             } else if (existingIndex >= 0) {
                 barOrder[existingIndex].quantity = quantity;
+                if (supplier) barOrder[existingIndex].supplier = supplier;
+                if (unit) barOrder[existingIndex].unit = unit;
             } else {
                 barOrder.push({
                     type: type,
                     name: itemName,
-                    quantity: quantity
+                    quantity: quantity,
+                    supplier: supplier || '',
+                    unit: unit || (type === 'draft' ? 'л' : 'шт'),
                 });
             }
 
-            // Убираем пустые бары
             if (barOrder.length === 0) {
                 delete ordersByBar[currentBar];
             }
@@ -1321,7 +1598,7 @@
             updateOrderSummary();
         }
 
-        // Update order summary — показывает заказы по каждому бару отдельно
+        // Update order summary — группировка по поставщикам (то что отправляется одному получателю)
         function updateOrderSummary() {
             const summary = document.getElementById('order-summary');
             const bars = Object.keys(ordersByBar);
@@ -1329,83 +1606,82 @@
             if (bars.length === 0) {
                 summary.innerHTML = `
                     <h3>Заказ пуст</h3>
-                    <p style="color: var(--text-secondary);">Добавьте позиции из таплиста или меню кухни</p>
+                    <p style="color: var(--text-secondary);">Добавьте позиции на вкладке «Сводный заказ» или в таплисте/меню кухни</p>
                 `;
                 return;
             }
 
-            let html = '<h3>Заказ</h3>';
-
+            const bySupplier = {};
             bars.forEach(barName => {
-                const barItems = ordersByBar[barName];
-                if (!barItems || barItems.length === 0) return;
+                (ordersByBar[barName] || []).forEach(item => {
+                    const sup = item.supplier || 'Без поставщика';
+                    if (!bySupplier[sup]) bySupplier[sup] = [];
+                    bySupplier[sup].push({...item, bar: barName});
+                });
+            });
 
-                html += `<div style="margin-top: 20px; padding: 16px; border: 1px solid var(--border-color); border-radius: 8px;">`;
-                html += `<h4 style="margin-bottom: 12px; color: var(--accent);">${escapeHtml(barName)}</h4>`;
+            let html = '<h3>Заказ</h3>';
+            html += '<div style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">Группировка по поставщикам — то что отправляется одному получателю:</div>';
 
-                const draftItems = barItems.filter(item => item.type === 'draft');
-                const kitchenItems = barItems.filter(item => item.type === 'kitchen');
-
-                if (draftItems.length > 0) {
-                    html += '<h4 style="margin-top: 8px; color: var(--text-secondary); font-size: 0.85rem;">Разливное:</h4>';
-                    draftItems.forEach(item => {
-                        html += `
-                            <div class="order-item">
-                                <span>${escapeHtml(item.name)}</span>
-                                <span>${item.quantity} кег</span>
-                            </div>
-                        `;
-                    });
-                }
-
-                if (kitchenItems.length > 0) {
-                    html += '<h4 style="margin-top: 8px; color: var(--text-secondary); font-size: 0.85rem;">Кухня:</h4>';
-                    kitchenItems.forEach(item => {
-                        html += `
-                            <div class="order-item">
-                                <span>${escapeHtml(item.name)}</span>
-                                <span>${item.quantity} шт</span>
-                            </div>
-                        `;
-                    });
-                }
-
+            Object.keys(bySupplier).sort().forEach(sup => {
+                html += `<div style="margin-top: 16px; padding: 16px; border: 1px solid var(--border-color); border-radius: 8px;">`;
+                html += `<h4 style="margin-bottom: 12px; color: var(--accent);">${escapeHtml(sup)}</h4>`;
+                bySupplier[sup].forEach(item => {
+                    const typeLbl = TYPE_LABELS[item.type] || item.type;
+                    html += `
+                        <div class="order-item">
+                            <span>${escapeHtml(item.name)} <span style="color: var(--text-secondary); font-size: 11px;">[${typeLbl} · ${escapeHtml(item.bar)}]</span></span>
+                            <span>${item.quantity} ${escapeHtml(item.unit || 'шт')}</span>
+                        </div>
+                    `;
+                });
                 html += '</div>';
             });
 
             summary.innerHTML = html;
         }
 
-        // Export order — отдельный CSV для каждого бара
+        // Export order — CSV по каждому поставщику (через все бары).
         function exportOrder() {
             const bars = Object.keys(ordersByBar);
             if (bars.length === 0) {
                 alert('Заказ пуст');
                 return;
             }
-
             const today = new Date().toISOString().split('T')[0];
 
+            const bySupplier = {};
             bars.forEach(barName => {
-                const barItems = ordersByBar[barName];
-                if (!barItems || barItems.length === 0) return;
-
-                let csv = `Бар: ${barName}\nТип,Название,Количество\n`;
-                barItems.forEach(item => {
-                    const type = item.type === 'draft' ? 'Разливное' : 'Кухня';
-                    csv += `"${type}","${item.name}","${item.quantity}"\n`;
+                (ordersByBar[barName] || []).forEach(item => {
+                    const sup = item.supplier || 'Без поставщика';
+                    if (!bySupplier[sup]) bySupplier[sup] = [];
+                    bySupplier[sup].push({...item, bar: barName});
                 });
-
-                const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                link.setAttribute('href', url);
-                link.setAttribute('download', `order_${barName}_${today}.csv`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
             });
+
+            Object.keys(bySupplier).forEach(sup => {
+                let csv = `Поставщик: ${sup}\nДата: ${today}\nТип,Название,Бар,Количество,Ед.\n`;
+                bySupplier[sup].forEach(item => {
+                    const typeLbl = TYPE_LABELS[item.type] || item.type;
+                    csv += `"${typeLbl}","${item.name}","${item.bar}","${item.quantity}","${item.unit || 'шт'}"\n`;
+                });
+                downloadCsv(csv, `order_${sanitizeFilename(sup)}_${today}.csv`);
+            });
+        }
+
+        function sanitizeFilename(s) {
+            return (s || 'unknown').replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
+        }
+        function downloadCsv(csv, filename) {
+            const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         // Clear order

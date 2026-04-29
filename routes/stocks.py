@@ -3,6 +3,7 @@ import re
 import os
 import sys
 import json
+import math
 import subprocess
 import threading
 from pathlib import Path
@@ -17,6 +18,133 @@ _CHZ_REFRESH_LOG = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.log'
 _refresh_proc: subprocess.Popen | None = None
 _refresh_log_file = None
 _refresh_lock = threading.Lock()
+
+# Маппинги бар→склад→КПП. Дублируются в 4 endpoint'ах ниже — рефактор отдельной задачей.
+_BAR_ID_MAP = {
+    'Большой пр. В.О': 'bar1',
+    'Лиговский': 'bar2',
+    'Кременчугская': 'bar3',
+    'Варшавская': 'bar4',
+    'Общая': None,
+}
+_STORE_ID_MAP = {
+    'bar1': 'a4c88d1c-be9a-4366-9aca-68ddaf8be40d',
+    'bar2': '91d7d070-875b-4d98-a81c-ae628eca45fd',
+    'bar3': '1239d270-1bbe-f64f-b7ea-5f00518ef508',
+    'bar4': '1ebd631f-2e6d-4f74-8b32-0e54d9efd97d',
+}
+_BAR_KPP_MAP = {
+    'bar1': '780145001',
+    'bar2': '781645001',
+    'bar3': '784201001',
+    'bar4': '781045001',
+}
+
+# Параметры поставщиков для расчёта рекомендации к заказу.
+# lead_time_days  — типичный срок от размещения заказа до приёмки (рабочих дней).
+# pack_size       — минимальная партия (упаковка). Прототип: для всех 1, менеджер
+#                   корректирует руками. Будущая задача — вынести в редактируемые настройки.
+# Значения подобраны эмпирически по типу поставщика; уточнить с менеджером.
+SUPPLIER_PARAMS = {
+    'Метро':                       {'lead_time_days': 1, 'pack_size': 1},
+    'Лента':                       {'lead_time_days': 1, 'pack_size': 1},
+    'ООО "Май"':                   {'lead_time_days': 2, 'pack_size': 1},
+    'ИП Тихомиров':                {'lead_time_days': 2, 'pack_size': 1},
+    'ООО "Кулинарпродторг"':       {'lead_time_days': 2, 'pack_size': 1},
+    'ИП Новиков':                  {'lead_time_days': 3, 'pack_size': 1},
+    'ООО "Арбореал"':              {'lead_time_days': 3, 'pack_size': 1},
+    'Криспи':                      {'lead_time_days': 3, 'pack_size': 1},
+    'ООО "ВУРСТХАУСМАНУФАКТУР"':   {'lead_time_days': 3, 'pack_size': 1},
+    'ООО "КВГ"':                   {'lead_time_days': 2, 'pack_size': 1},
+    'ГС Маркет':                   {'lead_time_days': 2, 'pack_size': 1},
+    'ООО МП Арсенал':              {'lead_time_days': 3, 'pack_size': 1},
+    'ООО "МП-Арсенал АО"':         {'lead_time_days': 3, 'pack_size': 1},
+}
+SUPPLIER_DEFAULT = {'lead_time_days': 3, 'pack_size': 1}
+
+# Параметры формулы рекомендации к заказу
+SAFETY_DAYS = 3                  # страховой запас сверх lead_time на колебания спроса
+NEAR_EXPIRY_BLOCK_DAYS = 14      # если до конца срока годности < этого — не заказываем
+SLOW_MOVER_WEEKLY_SALES = 1.0    # граница slow-mover'а: < 1 продажи в неделю
+FAST_MOVER_WEEKLY_SALES = 7.0    # граница fast-mover'а: ≥ 7 продаж в неделю
+
+
+def _supplier_params(supplier_name):
+    """Возвращает {lead_time_days, pack_size} для поставщика. Fallback — SUPPLIER_DEFAULT."""
+    if not supplier_name:
+        return dict(SUPPLIER_DEFAULT)
+    return dict(SUPPLIER_PARAMS.get(supplier_name, SUPPLIER_DEFAULT))
+
+
+def _velocity(avg_sales):
+    """Классификация скорости продаж по 30-дневному среднему (продажи/день).
+
+    Считаем в неделю (avg_sales × 7), это интуитивнее для бара:
+        dead:    нет продаж за период (avg_sales = 0)
+        slow:    < 1 продажи в неделю — раз в месяц/реже, не пополняем автоматически
+        regular: 1–7 в неделю
+        fast:    ≥ 7 в неделю
+    """
+    if avg_sales <= 0:
+        return 'dead'
+    weekly = avg_sales * 7
+    if weekly < SLOW_MOVER_WEEKLY_SALES:
+        return 'slow'
+    if weekly < FAST_MOVER_WEEKLY_SALES:
+        return 'regular'
+    return 'fast'
+
+
+def _calc_recommendation(stock, avg_sales, lead_time_days, pack_size, days_to_expiry, velocity):
+    """Расчёт рекомендованного количества к заказу.
+
+    target_stock = avg_sales * (lead_time_days + SAFETY_DAYS)
+    deficit      = max(0, target_stock - stock)
+    recommended  = ceil(deficit / pack_size) * pack_size
+
+    Спецслучаи (рекомендация принудительно 0):
+        velocity in ('dead', 'slow')       → не пополняем редко-продаваемые позиции
+        0 <= days_to_expiry < 14           → расходуем то что есть на полке
+    """
+    if velocity in ('dead', 'slow'):
+        return 0
+    if avg_sales <= 0:
+        return 0
+    if days_to_expiry is not None and 0 <= days_to_expiry < NEAR_EXPIRY_BLOCK_DAYS:
+        return 0
+    target_stock = avg_sales * (lead_time_days + SAFETY_DAYS)
+    deficit = target_stock - stock
+    if deficit <= 0:
+        return 0
+    pack = max(1, int(pack_size))
+    return int(math.ceil(deficit / pack) * pack)
+
+
+def _urgency_level(stock, avg_sales, lead_time_days, velocity):
+    """Уровень срочности позиции.
+
+    critical: stock < 0 (учётная ошибка) — независимо от скорости продаж
+    low:      velocity in ('dead', 'slow') — редко продаётся, не критично
+    critical: days_left < 1
+    high:     days_left < lead_time_days (поставка не успеет)
+    medium:   days_left < lead_time_days + SAFETY_DAYS
+    low:      остальное
+    """
+    if stock < 0:
+        return 'critical'
+    if velocity in ('dead', 'slow'):
+        return 'low'
+    if avg_sales <= 0:
+        return 'low'
+    days_left = stock / avg_sales
+    if days_left < 1:
+        return 'critical'
+    if days_left < lead_time_days:
+        return 'high'
+    if days_left < lead_time_days + SAFETY_DAYS:
+        return 'medium'
+    return 'low'
+
 
 stocks_bp = Blueprint('stocks', __name__)
 
@@ -972,3 +1100,241 @@ def get_bottles_with_expiry():
         'near_expiry_count': near_expiry_count,
         'items': items,
     })
+
+
+@stocks_bp.route('/api/stocks/order-board', methods=['GET'])
+def get_order_board():
+    """Сводная таблица заказа: фасовка + кеги + кухня в одной таблице.
+
+    Каждая позиция содержит расчёт рекомендованного количества к заказу.
+    Ответ сортируется по срочности (critical→high→medium→low), внутри — по days_left.
+
+    Формула рекомендации (см. _calc_recommendation):
+        target_stock = avg_sales × (lead_time_days + SAFETY_DAYS)
+        deficit      = max(0, target_stock − stock)
+        recommended  = ceil(deficit / pack_size) × pack_size
+
+    Где:
+        avg_sales        — расход/день за последние 30 дней (get_store_operations_report)
+        lead_time_days   — срок поставки от поставщика (SUPPLIER_PARAMS)
+        SAFETY_DAYS = 3  — страховой запас на колебания спроса
+        pack_size        — минимальная партия (упаковка)
+
+    Если для позиции есть данные ЧЗ и ближайшая партия истекает <14 дней —
+    рекомендация принудительно 0 (расходуем то что есть на полке).
+    Срочность: см. _urgency_level.
+    """
+    try:
+        bar = request.args.get('bar', '')
+        if not bar:
+            return jsonify({'error': 'Требуется параметр bar'}), 400
+
+        target_store_id = None
+        target_kpp = None
+        if bar != 'Общая':
+            bar_id = _BAR_ID_MAP.get(bar)
+            if bar_id:
+                target_store_id = _STORE_ID_MAP.get(bar_id)
+                target_kpp = _BAR_KPP_MAP.get(bar_id)
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+
+        try:
+            nomenclature = get_cached_nomenclature(olap)
+            if not nomenclature:
+                return jsonify({'error': 'Не удалось получить номенклатуру товаров'}), 500
+
+            FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
+            FASOVKA_GROUP_NAME = 'Напитки Фасовка'
+            fasovka_ids = set()
+            for pid, pinfo in nomenclature.items():
+                parent = pinfo.get('parentId', '')
+                if parent == FASOVKA_GROUP_ID or parent == FASOVKA_GROUP_NAME:
+                    fasovka_ids.add(pid)
+            if not fasovka_ids:
+                fasovka_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
+
+            balances = olap.get_store_balances() or []
+
+            date_to = datetime.now().strftime("%d.%m.%Y")
+            date_from = (datetime.now() - timedelta(days=30)).strftime("%d.%m.%Y")
+            bar_name = bar if bar != 'Общая' else None
+            store_data = olap.get_store_operations_report(date_from, date_to, bar_name) or []
+        finally:
+            olap.disconnect()
+
+        # Кухонный белый список (тот же что в /api/stocks/kitchen)
+        food_categories = [
+            'Метро', 'ООО "Май"', 'ООО "КВГ"', 'ГС Маркет',
+            'ИП Тихомиров', 'ООО "Кулинарпродторг"',
+            'ИП Новиков', 'ООО МП Арсенал', 'Лента',
+            'ООО "МП-Арсенал АО"', 'Криспи',
+            'ООО "ВУРСТХАУСМАНУФАКТУР"', 'ООО "Арбореал"'
+        ]
+        beer_keywords = ['пиво', 'beer', 'ipa', 'лагер', 'эль', 'стаут']
+
+        def classify(product_id, product_info):
+            """Возвращает 'bottle' | 'draft' | 'kitchen' | None."""
+            if not product_info:
+                return None
+            if product_info.get('type') == 'DISH':
+                return None
+            if product_id in fasovka_ids:
+                return 'bottle'
+            if product_info.get('type') == 'GOODS' and product_info.get('mainUnit') == 'л':
+                return 'draft'
+            category = product_info.get('category', '') or ''
+            if not category or not any(fc in category for fc in food_categories):
+                return None
+            product_name = product_info.get('name', '')
+            if any(kw in product_name.lower() for kw in beer_keywords):
+                return None
+            return 'kitchen'
+
+        # Шаг 1: остатки
+        products_dict = {}
+        for balance in balances:
+            product_id = balance.get('product')
+            amount = balance.get('amount', 0)
+            store_id = balance.get('store')
+            if target_store_id and store_id != target_store_id:
+                continue
+            product_info = nomenclature.get(product_id)
+            kind = classify(product_id, product_info)
+            if not kind:
+                continue
+            if product_id not in products_dict:
+                products_dict[product_id] = {
+                    'name': product_info.get('name', product_id),
+                    'supplier': product_info.get('category', 'Без поставщика') or 'Без поставщика',
+                    'type': kind,
+                    'unit': product_info.get('mainUnit', 'шт') or 'шт',
+                    'stock': 0,
+                    'outgoing': 0,
+                }
+            products_dict[product_id]['stock'] += amount
+
+        # Шаг 2: расход за 30 дней
+        for record in store_data:
+            product_id = record.get('product')
+            if not product_id or product_id not in products_dict:
+                continue
+            amount = float(record.get('amount', 0) or 0)
+            if record.get('incoming', 'false') != 'true':
+                products_dict[product_id]['outgoing'] += abs(amount)
+
+        # Шаг 3: ЧЗ-обогащение для bottle
+        barcode_map = get_barcode_map()
+        product_to_gtins = invert_to_product_gtins(barcode_map)
+        chz_by_gtin = {}
+        chz_updated_at = None
+        try:
+            chz_mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
+            chz_updated_at = datetime.fromtimestamp(chz_mtime).isoformat()
+            with open(_CHZ_CACHE_FILE, encoding='utf-8') as f:
+                chz_items = json.load(f)
+            for item in chz_items:
+                gtin = str(item.get('gtin', '')).zfill(14)
+                chz_by_gtin[gtin] = item
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+        today = datetime.now().date()
+        days_in_period = 30
+        items = []
+
+        for product_id, data in products_dict.items():
+            stock = data['stock']
+            avg_sales = data['outgoing'] / days_in_period
+
+            nearest_expiry = None
+            days_to_expiry = None
+            if data['type'] == 'bottle':
+                gtins = product_to_gtins.get(product_id, [])
+                bar_batches = []
+                for g in gtins:
+                    chz_item = chz_by_gtin.get(g)
+                    if not chz_item:
+                        continue
+                    if target_kpp:
+                        for slot in chz_item.get('by_kpp', []):
+                            if slot.get('kpp') == target_kpp:
+                                for b in slot.get('batches', []):
+                                    bar_batches.append(b)
+                    else:
+                        for b in chz_item.get('batches', []):
+                            bar_batches.append(b)
+                exp_dates = sorted({b['expiration_date'] for b in bar_batches if b.get('expiration_date')})
+                if exp_dates:
+                    future = [d for d in exp_dates if d >= today.isoformat()]
+                    nearest_expiry = future[0] if future else exp_dates[-1]
+                    try:
+                        exp = datetime.strptime(nearest_expiry, "%Y-%m-%d").date()
+                        days_to_expiry = (exp - today).days
+                    except ValueError:
+                        pass
+
+            params = _supplier_params(data['supplier'])
+            lead_time = params['lead_time_days']
+            pack_size = params['pack_size']
+            velocity = _velocity(avg_sales)
+            weekly_sales = avg_sales * 7
+            days_left = (stock / avg_sales) if avg_sales > 0 else None
+            recommended = _calc_recommendation(stock, avg_sales, lead_time, pack_size, days_to_expiry, velocity)
+            urgency = _urgency_level(stock, avg_sales, lead_time, velocity)
+
+            items.append({
+                'product_id': product_id,
+                'type': data['type'],
+                'name': data['name'],
+                'supplier': data['supplier'],
+                'unit': data['unit'],
+                'stock': round(stock, 1),
+                'avg_sales': round(avg_sales, 2),
+                'weekly_sales': round(weekly_sales, 2),
+                'velocity': velocity,
+                'days_left': round(days_left, 1) if days_left is not None else None,
+                'lead_time_days': lead_time,
+                'pack_size': pack_size,
+                'recommended': recommended,
+                'urgency': urgency,
+                'nearest_expiry': nearest_expiry,
+                'days_to_expiry': days_to_expiry,
+            })
+
+        # Сортировка: сначала срочность, внутри — по days_left возрастающе
+        urgency_rank = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+
+        def sort_key(it):
+            u = urgency_rank.get(it['urgency'], 99)
+            d = it['days_left'] if it['days_left'] is not None else 9999
+            return (u, d)
+
+        items.sort(key=sort_key)
+
+        return jsonify({
+            'bar': bar,
+            'updated_at': datetime.now().isoformat(),
+            'chz_updated_at': chz_updated_at,
+            'safety_days': SAFETY_DAYS,
+            'near_expiry_block_days': NEAR_EXPIRY_BLOCK_DAYS,
+            'slow_mover_weekly_sales': SLOW_MOVER_WEEKLY_SALES,
+            'fast_mover_weekly_sales': FAST_MOVER_WEEKLY_SALES,
+            'total_items': len(items),
+            'critical_count': sum(1 for i in items if i['urgency'] == 'critical'),
+            'high_count': sum(1 for i in items if i['urgency'] == 'high'),
+            'medium_count': sum(1 for i in items if i['urgency'] == 'medium'),
+            'active_count': sum(1 for i in items if i['velocity'] in ('regular', 'fast')),
+            'slow_count': sum(1 for i in items if i['velocity'] == 'slow'),
+            'dead_count': sum(1 for i in items if i['velocity'] == 'dead'),
+            'recommended_total': sum(i['recommended'] for i in items),
+            'items': items,
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/stocks/order-board: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
