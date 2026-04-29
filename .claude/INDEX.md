@@ -32,6 +32,7 @@ Beer ABC/XYZ Analysis
 | [remote-sync.md](docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale+SSH | ✅ актуально |
 | [connectivity.md](docs/connectivity.md) | Подключение ко всем бар-ПК: SSH, сертификаты, доступ | ✅ актуально |
 | [chz-stock-integration.md](docs/chz-stock-integration.md) | iiko ↔ Честный Знак: dispenser API, КПП-привязка, авторефреш, UI «Сроки годности» | ✅ актуально |
+| [expiration.md](docs/expiration.md) | Shelf-Life Cockpit — страница /expiration с tier-логикой и рекомендациями уценки/перевода | ✅ актуально |
 | [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
 | [comparison-redesign.md](docs/comparison-redesign.md) | Comparison Module — Modern Fintech Redesign | ✅ актуально |
 | [comparison-fixes-final.md](docs/comparison-fixes-final.md) | Comparison Module — Final Fixes (progress bars, percentages, clarity) | ✅ актуально |
@@ -62,6 +63,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- **2026-04-30:** Shelf-Life Cockpit — новая страница /expiration с tier-классификацией (expired/critical/urgent/watch/fresh), рекомендациями уценки/перевода и календарём риска ₽
 - **2026-04-16:** Фикс дашборд-планов — убрана перезапись `/kultura/plansdashboard.json` из repo при рестарте. Удалён импорт из Excel (POST `/api/plans/import-from-excel`) и метод `replace_all_plans`. Правки через UI теперь переживают редеплой Render
 - **2026-04-05:** Удалённый доступ к бар-ПК — Tailscale сеть + OpenSSH Server + paramiko. Настроен SSH-ключ, `sshuser` учётка, утилита `remote_exec.py`
 - **2026-04-05:** Честный ЗНАК — чистка chz_test, единый скрипт chz.py, документация CHZ_INTEGRATION.md. Получены сроки годности пива (v4 API, 8500+ записей)

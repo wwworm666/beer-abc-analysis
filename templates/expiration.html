@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сроки годности — Beer Analysis</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 20px 64px;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 16px;
+            align-items: end;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        select, button.toolbar-btn {
+            padding: 10px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        select:focus { outline: none; border-color: var(--accent); }
+        button.toolbar-btn { background: var(--accent); color: white; border: none; font-weight: 600; }
+        button.toolbar-btn:hover { background: var(--accent-hover); }
+
+        /* KPI strip */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .kpi-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 24px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+        }
+        .kpi-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+        }
+        .kpi-value.danger { color: var(--danger); }
+        .kpi-hint {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            margin-top: 8px;
+        }
+
+        /* Tier tabs */
+        .tier-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .tier-tab {
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            font-family: inherit;
+            color: var(--text-secondary);
+            transition: all 0.15s ease;
+        }
+        .tier-tab:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        .tier-tab.active {
+            background: var(--text-primary);
+            color: var(--bg-secondary);
+            border-color: var(--text-primary);
+        }
+        .tier-tab .count {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            background: rgba(0,0,0,0.08);
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+        .tier-tab.active .count { background: rgba(255,255,255,0.18); }
+        .tier-tab[data-tier="expired"] .count,
+        .tier-tab[data-tier="critical"] .count { color: var(--danger); }
+        .tier-tab[data-tier="urgent"] .count { color: var(--warning); }
+        .tier-tab[data-tier="watch"] .count { color: var(--accent); }
+
+        /* Cards grid */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        @media (max-width: 1280px) { .cards-grid { grid-template-columns: repeat(2, 1fr); } .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 720px) { .cards-grid { grid-template-columns: 1fr; } .kpi-grid { grid-template-columns: 1fr; } }
+
+        .item-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-left: 4px solid var(--border-color);
+            border-radius: 14px;
+            padding: 20px;
+            transition: all 0.15s ease;
+            position: relative;
+        }
+        .item-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+        }
+        .item-card[data-tier="expired"]   { border-left-color: var(--danger); }
+        .item-card[data-tier="critical"]  { border-left-color: var(--danger); }
+        .item-card[data-tier="urgent"]    { border-left-color: var(--warning); }
+        .item-card[data-tier="watch"]     { border-left-color: var(--accent); }
+        .item-card[data-tier="fresh"]     { border-left-color: var(--text-tertiary); }
+        .item-card[data-tier="unknown"]   { border-left-color: var(--border-color); }
+
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        .card-title {
+            font-size: 0.92rem;
+            font-weight: 700;
+            line-height: 1.3;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+        .card-tier-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
+            color: white;
+        }
+        .badge-expired   { background: var(--danger); }
+        .badge-critical  { background: var(--danger); }
+        .badge-urgent    { background: var(--warning); }
+        .badge-watch     { background: var(--accent); }
+        .badge-fresh     { background: var(--text-tertiary); }
+        .badge-unknown   { background: var(--border-color); color: var(--text-secondary); }
+
+        .card-meta {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+        }
+        .card-days {
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+            margin-bottom: 12px;
+            color: var(--text-primary);
+            cursor: help;
+        }
+        .card-days.expired,
+        .card-days.critical { color: var(--danger); }
+        .card-days.urgent { color: var(--warning); }
+        .card-days.watch { color: var(--accent); }
+
+        .card-rows {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            row-gap: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 14px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+        .card-rows .label { color: var(--text-secondary); }
+        .card-rows .value { font-variant-numeric: tabular-nums; font-weight: 500; }
+        .card-rows .value.danger { color: var(--danger); font-weight: 600; }
+
+        .card-recommendation {
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .card-recommendation .rec-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+        .rec-option { margin-bottom: 4px; }
+        .rec-option .opt-tag {
+            display: inline-block;
+            padding: 1px 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border-radius: 3px;
+            margin-right: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+        .rec-option.markdown .opt-tag { background: var(--warning); color: white; }
+        .rec-option.transfer .opt-tag { background: var(--accent); color: white; }
+        .rec-option.writeoff .opt-tag { background: var(--danger); color: white; }
+        .rec-option.none .opt-tag { background: var(--bg-tertiary); color: var(--text-tertiary); }
+
+        .empty {
+            padding: 64px 24px;
+            text-align: center;
+            color: var(--text-tertiary);
+            background: var(--bg-secondary);
+            border: 1px dashed var(--border-color);
+            border-radius: 14px;
+        }
+        .loading {
+            padding: 80px 24px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        .spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .stages {
+            margin-top: 24px;
+            display: inline-flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: left;
+            min-width: 280px;
+        }
+        .stage {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: var(--text-tertiary);
+            transition: color 0.2s;
+        }
+        .stage-mark {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .stage.active { color: var(--text-primary); }
+        .stage.active .stage-mark {
+            border-color: var(--accent);
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+        }
+        .stage.done { color: var(--text-secondary); }
+        .stage.done .stage-mark {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .cache-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            margin-left: 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .meta-row {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% set page_title = "Сроки годности" %}
+        {% set page_subtitle = "Cockpit FEFO" %}
+        {% include 'shared/nav.html' %}
+
+        <div class="toolbar">
+            <div class="form-group">
+                <label for="bar-select">Бар</label>
+                <select id="bar-select" onchange="loadBoard()">
+                    <option value="all">Все бары</option>
+                    <option value="bar1">Большой пр. В.О</option>
+                    <option value="bar2">Лиговский</option>
+                    <option value="bar3">Кременчугская</option>
+                    <option value="bar4">Варшавская</option>
+                </select>
+            </div>
+            <button class="toolbar-btn" onclick="loadBoard(true)">Обновить</button>
+            <div id="meta-info" class="meta-row" style="margin-left: auto; margin-bottom: 0;"></div>
+        </div>
+
+        <div id="kpi-strip" class="kpi-grid"></div>
+
+        <div id="tier-tabs" class="tier-tabs"></div>
+
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><div style="margin-top: 16px;">Загружаем board...</div></div>
+        </div>
+    </div>
+
+<script>
+const STATE = {
+    raw: null,
+    activeTier: null,
+};
+
+const TIER_ORDER = ['expired', 'critical', 'urgent', 'watch', 'fresh', 'unknown'];
+const TIER_LABELS = {
+    expired:  'Просрочено',
+    critical: 'Критично 0-7 дн.',
+    urgent:   'Срочно 8-14 дн.',
+    watch:    'Внимание 15-30 дн.',
+    fresh:    'Свежие 30+',
+    unknown:  'Без данных ЧЗ',
+};
+
+function fmtRub(n) {
+    if (!n && n !== 0) return '—';
+    return Math.round(n).toLocaleString('ru-RU') + ' ₽';
+}
+function fmtUnits(n) {
+    if (n === null || n === undefined) return '—';
+    const r = Math.round(n * 10) / 10;
+    return (Number.isInteger(r) ? r : r.toFixed(1)) + ' шт.';
+}
+function fmtDay(n) {
+    const abs = Math.abs(n);
+    const last = abs % 10, l2 = abs % 100;
+    if (l2 >= 11 && l2 <= 14) return abs + ' дней';
+    if (last === 1) return abs + ' день';
+    if (last >= 2 && last <= 4) return abs + ' дня';
+    return abs + ' дней';
+}
+
+async function loadBoard(force = false) {
+    const bar = document.getElementById('bar-select').value || 'all';
+    const content = document.getElementById('content');
+    content.innerHTML = `
+        <div class="loading">
+            <div class="spinner"></div>
+            <div style="margin-top: 16px;">Загружаем board...</div>
+            <div class="stages" id="stages">
+                <div class="stage active" data-stage="balances"><span class="stage-mark"></span>Запрашиваем балансы и обороты iiko</div>
+                <div class="stage" data-stage="chz"><span class="stage-mark"></span>Сопоставляем с партиями ЧЗ</div>
+                <div class="stage" data-stage="render"><span class="stage-mark"></span>Считаем риск и рендерим</div>
+            </div>
+        </div>`;
+
+    const t0 = performance.now();
+    try {
+        const url = `/api/expiration/board?bars=${encodeURIComponent(bar)}${force ? '&force=1' : ''}`;
+        const r = await fetch(url);
+
+        const stages = document.getElementById('stages');
+        if (stages) {
+            stages.querySelector('[data-stage="balances"]').classList.remove('active');
+            stages.querySelector('[data-stage="balances"]').classList.add('done');
+            stages.querySelector('[data-stage="chz"]').classList.add('active');
+        }
+
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({error: 'неизвестная ошибка'}));
+            content.innerHTML = `<div class="empty">Ошибка: ${err.error || r.statusText}</div>`;
+            return;
+        }
+        STATE.raw = await r.json();
+        STATE.loadMs = Math.round(performance.now() - t0);
+        renderAll();
+    } catch (e) {
+        content.innerHTML = `<div class="empty">Ошибка: ${e.message}</div>`;
+    }
+}
+
+function renderAll() {
+    const data = STATE.raw;
+    if (!data) return;
+
+    // Meta
+    const meta = document.getElementById('meta-info');
+    const chzDate = data.chz_updated_at
+        ? new Date(data.chz_updated_at).toLocaleDateString('ru-RU', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})
+        : '—';
+    const cacheTag = data.cache && data.cache.hit
+        ? `<span class="cache-badge" title="Из кеша, возраст ${data.cache.age_sec}с">кеш ${data.cache.age_sec}с</span>`
+        : (STATE.loadMs ? `<span class="cache-badge" title="Время ответа ${STATE.loadMs} мс">${(STATE.loadMs/1000).toFixed(1)}с</span>` : '');
+    meta.innerHTML = `Данные ЧЗ: ${chzDate}${cacheTag}`;
+
+    renderKpi(data.kpi);
+    renderTabs(data.tier_counts);
+    renderCards();
+}
+
+function renderKpi(kpi) {
+    const strip = document.getElementById('kpi-strip');
+    strip.innerHTML = `
+        <div class="kpi-card">
+            <div class="kpi-label">Под риском, ₽</div>
+            <div class="kpi-value ${kpi.risk_rub > 0 ? 'danger' : ''}" title="Σ(избыток × цена) по позициям не успевающим продаться">${fmtRub(kpi.risk_rub)}</div>
+            <div class="kpi-hint">сумма ожидаемых списаний при текущей скорости продаж</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Критично сейчас</div>
+            <div class="kpi-value ${kpi.critical_count > 0 ? 'danger' : ''}">${kpi.critical_count}</div>
+            <div class="kpi-hint">SKU с истечением менее 7 дней или просроченные</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Не успеваем продать</div>
+            <div class="kpi-value">${fmtUnits(kpi.surplus_units)}</div>
+            <div class="kpi-hint">избыток над прогнозом продаж до истечения</div>
+        </div>
+    `;
+}
+
+function renderTabs(counts) {
+    const tabs = document.getElementById('tier-tabs');
+    const order = TIER_ORDER.filter(t => (counts[t] || 0) > 0);
+
+    if (!STATE.activeTier || !order.includes(STATE.activeTier)) {
+        STATE.activeTier = order[0] || null;
+    }
+
+    tabs.innerHTML = order.map(t => `
+        <button class="tier-tab ${t === STATE.activeTier ? 'active' : ''}" data-tier="${t}" onclick="setTier('${t}')">
+            ${TIER_LABELS[t]} <span class="count">${counts[t] || 0}</span>
+        </button>
+    `).join('');
+}
+
+function setTier(t) {
+    STATE.activeTier = t;
+    document.querySelectorAll('.tier-tab').forEach(el => {
+        el.classList.toggle('active', el.dataset.tier === t);
+    });
+    renderCards();
+}
+
+function renderCards() {
+    const content = document.getElementById('content');
+    const items = (STATE.raw?.items || []).filter(it => it.tier === STATE.activeTier);
+
+    if (items.length === 0) {
+        content.innerHTML = '<div class="empty">В этой категории сейчас нет позиций</div>';
+        return;
+    }
+
+    content.innerHTML = `<div class="cards-grid">${items.map(renderCard).join('')}</div>`;
+}
+
+function daysClass(tier) {
+    if (tier === 'expired' || tier === 'critical') return 'critical';
+    if (tier === 'urgent') return 'urgent';
+    if (tier === 'watch') return 'watch';
+    return '';
+}
+
+function daysLabel(it) {
+    if (it.days_to_expiry === null || it.days_to_expiry === undefined) return 'Нет данных ЧЗ';
+    if (it.days_to_expiry < 0) return 'Просрочено ' + fmtDay(it.days_to_expiry);
+    return fmtDay(it.days_to_expiry);
+}
+
+function recOptionHtml(opt) {
+    if (opt.kind === 'none') {
+        return `<div class="rec-option none"><span class="opt-tag">OK</span>${opt.reason || ''}${opt.expected_sold ? ' (ожидаем продать ' + fmtUnits(opt.expected_sold) + ')' : ''}</div>`;
+    }
+    if (opt.kind === 'writeoff') {
+        return `<div class="rec-option writeoff"><span class="opt-tag">Списать</span>${fmtUnits(opt.amount)} — ${opt.reason || ''}</div>`;
+    }
+    if (opt.kind === 'markdown') {
+        return `<div class="rec-option markdown"><span class="opt-tag">Уценка</span>−${opt.discount_pct}% от цены → продадим ≈ ${fmtUnits(opt.expected_sold)}, останется ${fmtUnits(opt.expected_writeoff)}</div>`;
+    }
+    if (opt.kind === 'transfer') {
+        return `<div class="rec-option transfer"><span class="opt-tag">Передать</span>${fmtUnits(opt.amount)} → «${opt.to_bar}» (там ${opt.target_velocity} шт/день, остаток ${opt.target_level})</div>`;
+    }
+    return '';
+}
+
+function renderCard(it) {
+    const tier = it.tier;
+    const rec = it.recommendation || {options: []};
+    const formula = it.has_chz_data
+        ? `Формула: stock(${it.stock}) − velocity(${it.avg_sales}) × days(${it.days_to_expiry}) = surplus(${it.surplus})`
+        : 'Нет данных ЧЗ';
+
+    return `
+        <div class="item-card" data-tier="${tier}">
+            <div class="card-head">
+                <div class="card-title">${(it.name || '').toUpperCase()}</div>
+                <span class="card-tier-badge badge-${tier}">${TIER_LABELS[tier].split(' ')[0]}</span>
+            </div>
+            <div class="card-meta">${it.bar} · ${it.category}${it.gtins && it.gtins.length ? ' · GTIN ' + it.gtins[0] : ''}</div>
+            <div class="card-days ${daysClass(tier)}" title="${formula}">${daysLabel(it)}</div>
+
+            <div class="card-rows">
+                <span class="label">Остаток</span><span class="value">${fmtUnits(it.stock)}</span>
+                <span class="label">Расход</span><span class="value">${it.avg_sales} шт/день</span>
+                ${it.price > 0 ? `<span class="label">Цена</span><span class="value">${fmtRub(it.price)}</span>` : ''}
+                ${it.surplus > 0 ? `<span class="label">Под списание</span><span class="value danger">${fmtUnits(it.surplus)} ≈ ${fmtRub(it.risk_rub)}</span>` : ''}
+                ${it.nearest_expiry ? `<span class="label">Ближайший срок</span><span class="value">${it.nearest_expiry}</span>` : ''}
+            </div>
+
+            <div class="card-recommendation">
+                <div class="rec-label">Рекомендация</div>
+                ${(rec.options || []).map(recOptionHtml).join('')}
+            </div>
+        </div>
+    `;
+}
+
+loadBoard();
+</script>
+</body>
+</html>
