@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 История изменений проекта по сессиям.
 
@@ -230,6 +230,20 @@
 - `docs/CHANGELOG.md` — детальные хронологические записи по дням
 
 См. подробности: [chz-stock-integration.md](chz-stock-integration.md).
+
+---
+
+## 2026-04-16 -- Fix /discounts: неверный id контейнера результатов
+
+**Проблема:** на странице `/discounts` в режиме "Скидки" при нажатии "Анализировать" падало `Cannot set properties of null (setting 'innerHTML')`. В HTML контейнер результатов имеет id `discount-results`, но две JS-функции обращались к несуществующему id `results`.
+
+**Решение:** исправить `getElementById('results')` -> `getElementById('discount-results')` и добавить null-guard (как в `displayDiscountResults`).
+
+**Что изменено:**
+- `templates/discounts.html`: `displayStoresSummary()` (строка ~1124) -- корректный id + guard
+- `templates/discounts.html`: `displayGuestResults()` (строка ~1425) -- корректный id + guard (функция не вызывается сейчас, но баг был тот же)
+
+**Файлы:** `templates/discounts.html`
 
 ---
 

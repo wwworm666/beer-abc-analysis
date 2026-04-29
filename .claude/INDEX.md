@@ -62,6 +62,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- **2026-04-16:** Фикс дашборд-планов — убрана перезапись `/kultura/plansdashboard.json` из repo при рестарте. Удалён импорт из Excel (POST `/api/plans/import-from-excel`) и метод `replace_all_plans`. Правки через UI теперь переживают редеплой Render
 - **2026-04-05:** Удалённый доступ к бар-ПК — Tailscale сеть + OpenSSH Server + paramiko. Настроен SSH-ключ, `sshuser` учётка, утилита `remote_exec.py`
 - **2026-04-05:** Честный ЗНАК — чистка chz_test, единый скрипт chz.py, документация CHZ_INTEGRATION.md. Получены сроки годности пива (v4 API, 8500+ записей)
 - **2026-04-01:** Двухфайловая система планов — `plansdashboard.json` (месячные, 16 метрик) + `daily_plans.json` (ежедневные, auto, Пт/Сб=2x)

@@ -19,7 +19,7 @@ from calendar import monthrange
 from typing import Dict, Optional, List, Tuple
 import threading
 import shutil
-from core.storage_paths import get_data_path, get_local_data_path
+from core.storage_paths import get_data_path
 
 
 class PlansManager:
@@ -63,8 +63,7 @@ class PlansManager:
 
         # Инициализируем структуру файла если нужно
         self._initialize_file()
-        merged = self._sync_local_plans_to_storage()
-        self._ensure_daily_plans_current(force=merged)
+        self._ensure_daily_plans_current(force=False)
 
     def _initialize_file(self):
         """Инициализировать файл планов если он не существует"""
@@ -96,83 +95,6 @@ class PlansManager:
             except Exception as e:
                 print(f"[PLANS ERROR] Не удалось создать файл {self.data_file}: {e}")
                 raise
-
-    @staticmethod
-    def _read_json_file_safe(file_path: str) -> Dict:
-        """Прочитать JSON-файл без побочных эффектов."""
-        if not file_path or not os.path.exists(file_path):
-            return {}
-
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            return data if isinstance(data, dict) else {}
-        except (OSError, json.JSONDecodeError) as e:
-            print(f"[PLANS WARNING] Не удалось прочитать {file_path}: {e}")
-            return {}
-
-    def _sync_local_plans_to_storage(self) -> bool:
-        """
-        Синхронизировать планы на Render Disk с repo-копией.
-
-        Локальные периоды (из repo) перезаписывают значения на Render Disk.
-        Периоды, которые есть только на Render Disk, сохраняются.
-        """
-        local_path = get_local_data_path('plansdashboard.json')
-
-        try:
-            if os.path.abspath(local_path) == os.path.abspath(self.data_file):
-                return False
-        except OSError:
-            return False
-
-        local_data = self._read_json_file_safe(local_path)
-        local_plans = local_data.get('plans', {})
-        if not isinstance(local_plans, dict) or not local_plans:
-            return False
-
-        disk_data = self._read_json_file_safe(self.data_file)
-        disk_plans = disk_data.get('plans', {})
-        if not isinstance(disk_plans, dict):
-            disk_plans = {}
-
-        local_keys = set(local_plans.keys())
-        disk_keys = set(disk_plans.keys())
-
-        changed = False
-
-        # Новые периоды из repo → добавляем
-        for key in local_keys - disk_keys:
-            disk_plans[key] = local_plans[key].copy()
-            changed = True
-
-        # Изменённые периоды в repo → обновляем
-        for key in local_keys & disk_keys:
-            if disk_plans[key] != local_plans[key]:
-                disk_plans[key] = local_plans[key].copy()
-                changed = True
-
-        # Периоды которых нет в repo сохраняются (не трогаем)
-
-        if not changed:
-            return False
-
-        result_data = disk_data if isinstance(disk_data, dict) else {}
-        metadata = result_data.setdefault('metadata', {})
-        metadata['repoSeedSource'] = local_path
-        metadata['repoSeedMergedAt'] = datetime.now().isoformat()
-        metadata['repoSeedAddedPeriods'] = len(local_keys - disk_keys)
-        result_data['plans'] = disk_plans
-
-        self._write_file(result_data)
-
-        added = len(local_keys - disk_keys)
-        removed = len(disk_keys - local_keys)
-        print(
-            f"[PLANS] Синхронизация с repo: "
-            f"+{added}, -{removed} периодов"
-        )
-        return True
 
     def _ensure_daily_plans_current(self, force: bool = False):
         """Проверить daily_plans.json и при необходимости пересобрать из месячных планов."""
@@ -446,32 +368,6 @@ class PlansManager:
             print(f"[PLANS WARN] Не удалось пересчитать ежедневные планы: {e}")
 
         return True
-
-    def replace_all_plans(self, plans: Dict[str, Dict], source: str = None) -> bool:
-        """
-        Полностью заменить набор планов и пересчитать daily_plans.json.
-
-        Args:
-            plans: Новый словарь планов {period_key: plan_data}
-            source: Описание источника данных для metadata
-
-        Returns:
-            bool: True если замена выполнена успешно
-        """
-        with self._lock:
-            try:
-                data = self._read_file()
-                data['plans'] = plans
-                metadata = data.setdefault('metadata', {})
-                if source:
-                    metadata['source'] = source
-                self._write_file(data)
-                self._ensure_daily_plans_current(force=True)
-                print(f"[PLANS] Полная замена планов выполнена: {len(plans)} записей")
-                return True
-            except Exception as e:
-                print(f"[PLANS ERROR] Ошибка полной замены планов: {e}")
-                return False
 
     def get_all_plans(self) -> Dict[str, Dict]:
         """
