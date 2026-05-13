@@ -433,6 +433,165 @@ def delete_plan(period_key):
         return jsonify({'error': str(e)}), 500
 
 
+@dashboard_bp.route('/api/storage/diagnose')
+def storage_diagnose():
+    """
+    Диагностика хранилища планов: куда реально пишет приложение и работает ли persistence.
+
+    Используется для подтверждения, что Render Disk примонтирован и приложение его видит.
+    Не требует авторизации (информационный endpoint без чувствительных данных).
+    """
+    from core.storage_paths import (
+        RENDER_DISK_DIR, LOCAL_DATA_DIR, get_data_path, is_persistent_storage_active
+    )
+
+    persistent = is_persistent_storage_active()
+    plans_path = get_data_path('plansdashboard.json', seed_from_local=False)
+    daily_path = get_data_path('daily_plans.json', seed_from_local=False)
+
+    def _file_info(path):
+        if not os.path.exists(path):
+            return {'exists': False}
+        try:
+            stat = os.stat(path)
+            info = {
+                'exists': True,
+                'path': path,
+                'size_bytes': stat.st_size,
+                'mtime': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                'writable': os.access(path, os.W_OK),
+            }
+            if path.endswith('.json'):
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    if 'plans' in data:
+                        info['keys_count'] = len(data['plans'])
+                        info['sample_keys'] = sorted(data['plans'].keys())[:5]
+                    elif isinstance(data, dict):
+                        info['keys_count'] = len(data)
+                except Exception as e:
+                    info['parse_error'] = str(e)
+            return info
+        except Exception as e:
+            return {'exists': True, 'path': path, 'stat_error': str(e)}
+
+    return jsonify({
+        'persistent_storage_active': persistent,
+        'render_disk_dir': RENDER_DISK_DIR,
+        'render_disk_exists': os.path.exists(RENDER_DISK_DIR),
+        'local_data_dir': LOCAL_DATA_DIR,
+        'plansdashboard': _file_info(plans_path),
+        'daily_plans': _file_info(daily_path),
+        'env_persistent_data_dir': os.environ.get('PERSISTENT_DATA_DIR'),
+        'pid': os.getpid(),
+        'cwd': os.getcwd(),
+    })
+
+
+@dashboard_bp.route('/api/plans/sync-from-repo', methods=['POST'])
+def plans_sync_from_repo():
+    """
+    Применить repo-копию data/plansdashboard.json к постоянному хранилищу.
+
+    Используется когда планы редактируются через git (правка repo-файла, commit, push).
+    Без этого вызова при наличии существующего файла на /kultura новые значения из repo
+    не применяются (seed_from_local срабатывает только на пустом диске).
+
+    Требует X-Admin-Token из переменной окружения PLANS_ADMIN_TOKEN.
+    Опции:
+        ?prune=true  — удалить ключи, которых нет в repo-копии (по умолчанию НЕ удаляет).
+
+    Безопасность:
+        - Перед применением создаётся именованный бэкап
+          plansdashboard.json.before-sync-<UTC_ISO> на постоянном диске.
+        - Каждый ключ из repo пишется через save_plan_with_regeneration:
+          валидация + точечная регенерация daily_plans.json.
+        - Если хотя бы один ключ не прошёл валидацию — он попадает в errors,
+          остальные применяются (частичный success).
+    """
+    from core.storage_paths import get_local_data_path, is_persistent_storage_active
+
+    expected_token = os.environ.get('PLANS_ADMIN_TOKEN')
+    if not expected_token:
+        return jsonify({'error': 'PLANS_ADMIN_TOKEN not configured on server'}), 503
+
+    provided_token = request.headers.get('X-Admin-Token') or request.args.get('token')
+    if provided_token != expected_token:
+        return jsonify({'error': 'Invalid or missing admin token'}), 401
+
+    if not is_persistent_storage_active():
+        return jsonify({
+            'error': 'Persistent storage is not active. Sync would write to ephemeral disk and be lost on restart.',
+            'hint': 'Check /api/storage/diagnose'
+        }), 409
+
+    repo_file = get_local_data_path('plansdashboard.json')
+    if not os.path.exists(repo_file):
+        return jsonify({'error': f'Repo file not found: {repo_file}'}), 404
+
+    try:
+        with open(repo_file, 'r', encoding='utf-8') as f:
+            repo_data = json.load(f)
+    except json.JSONDecodeError as e:
+        return jsonify({'error': f'Repo file is not valid JSON: {e}'}), 400
+
+    repo_plans = repo_data.get('plans', {}) if isinstance(repo_data, dict) else {}
+    if not repo_plans:
+        return jsonify({'error': 'Repo file has no plans'}), 400
+
+    # Именованный бэкап ДО любых изменений
+    disk_file = plans_manager.data_file
+    backup_path = None
+    if os.path.exists(disk_file):
+        from shutil import copy2
+        ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        backup_path = f"{disk_file}.before-sync-{ts}"
+        try:
+            copy2(disk_file, backup_path)
+            print(f"[PLANS SYNC] Backup создан: {backup_path}")
+        except Exception as e:
+            return jsonify({'error': f'Failed to create backup: {e}'}), 500
+
+    prune = request.args.get('prune', '').lower() == 'true'
+
+    applied = []
+    errors = {}
+    for key, plan in repo_plans.items():
+        # createdAt/updatedAt не нужны в payload — save_plan их сам проставит
+        payload = {k: v for k, v in plan.items() if k not in ('createdAt', 'updatedAt')}
+        try:
+            plans_manager.save_plan_with_regeneration(key, payload)
+            applied.append(key)
+        except ValueError as e:
+            errors[key] = f'validation: {e}'
+        except Exception as e:
+            errors[key] = f'error: {e}'
+
+    pruned = []
+    if prune:
+        current = plans_manager.get_all_plans()
+        for key in list(current.keys()):
+            if key not in repo_plans:
+                try:
+                    if plans_manager.delete_plan(key):
+                        pruned.append(key)
+                except Exception as e:
+                    errors[key] = f'prune-failed: {e}'
+
+    print(f"[PLANS SYNC] Применено: {len(applied)}, ошибок: {len(errors)}, удалено: {len(pruned)}")
+
+    return jsonify({
+        'success': len(errors) == 0,
+        'applied': applied,
+        'pruned': pruned,
+        'errors': errors,
+        'backup': backup_path,
+        'repo_file': repo_file,
+        'disk_file': disk_file,
+    })
+
+
 @dashboard_bp.route('/api/comments/<venue_key>/<period_key>', methods=['GET'])
 def get_comment(venue_key, period_key):
     """Получить комментарий для периода и заведения"""

@@ -133,10 +133,14 @@ class PlansManager:
             backup_restored = self._restore_from_backup()
             if backup_restored:
                 return self._read_file()
-            # Если не удалось - создаем новый файл
-            print("[PLANS] Создаю новый файл...")
-            self._initialize_file()
-            return self._read_file()
+            # НЕ пересоздаём файл автоматически: иначе все планы будут затёрты
+            # пустой структурой, и ошибка останется незамеченной.
+            raise RuntimeError(
+                f"Файл планов {self.data_file} повреждён, backup отсутствует или "
+                "тоже повреждён. Автосоздание пустой структуры отключено во избежание "
+                "потери данных. Восстановите файл вручную (например, через "
+                "/api/plans/sync-from-repo)."
+            ) from e
 
     def _write_file(self, data: Dict):
         """
