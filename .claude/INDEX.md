@@ -63,6 +63,7 @@ Beer ABC/XYZ Analysis
 
 ## Changelog
 
+- **2026-05-15:** Устранение костылей редактирования планов — удалены 5 legacy/костыльных endpoint'ов (`sync-from-repo`, `migrate-to-monthly`, no-venue варианты), удалены Excel-импорт-скрипты, добавлен cross-worker file lock через portalocker, новый `GET /api/plans/export` (xlsx со всеми планами). UI = единственный путь редактирования.
 - **2026-04-30:** Shelf-Life Cockpit — новая страница /expiration с tier-классификацией (expired/critical/urgent/watch/fresh), рекомендациями уценки/перевода и календарём риска ₽
 - **2026-04-16:** Фикс дашборд-планов — убрана перезапись `/kultura/plansdashboard.json` из repo при рестарте. Удалён импорт из Excel (POST `/api/plans/import-from-excel`) и метод `replace_all_plans`. Правки через UI теперь переживают редеплой Render
 - **2026-04-05:** Удалённый доступ к бар-ПК — Tailscale сеть + OpenSSH Server + paramiko. Настроен SSH-ключ, `sshuser` учётка, утилита `remote_exec.py`

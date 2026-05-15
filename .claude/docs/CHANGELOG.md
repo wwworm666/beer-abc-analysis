@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-05-15 — Устранение костылей редактирования планов + экспорт
+
+**Цель:** оставить UI единственным путём редактирования планов, гарантировать переживание деплоев, исключить race condition между gunicorn-воркерами, добавить экспорт всех планов одним xlsx.
+
+**Что сделано:**
+
+1. **Удалены 5 legacy/костыльных endpoint'ов** в `routes/dashboard.py`:
+   - `POST /api/plans/sync-from-repo` — заливка repo→диск с X-Admin-Token (основной костыль)
+   - `POST /api/plans` — body-based save (не вызывался фронтом)
+   - `GET /api/plans/<period_key>` — без venue (не вызывался)
+   - `DELETE /api/plans/<period_key>` — без venue (не вызывался)
+   - `POST /api/plans/migrate-to-monthly` — одноразовая миграция, давно отработала
+
+2. **Удалён метод** `PlansManager.import_monthly_plans_from_weekly()` (мёртвый код после миграции).
+
+3. **Удалены legacy-скрипты** `scripts/import_export/import_plans_from_excel{,_new}.py` — обходили API, писали в JSON напрямую. Один из них импортировал несуществующий пакет `dashboardNovaev.*` (мёртв до удаления).
+
+4. **Починено прямое чтение** `plansdashboard.json` в `revenue_metrics` ([routes/dashboard.py](../../routes/dashboard.py)) — теперь идёт через `plans_manager.get_plan()`. Единая точка чтения.
+
+5. **Cross-worker file lock** — добавлен `portalocker` в `_file_lock` контекст-менеджер `PlansManager`. Обёртка вокруг `save_plan` и `delete_plan`. Защищает read-modify-write от гонки между двумя gunicorn-воркерами (`render.yaml: --workers 2`). `threading.Lock` оставлен (внутрипроцессная защита).
+
+6. **`GET /api/plans/export`** — новый endpoint. Возвращает xlsx со всеми планами одним flat-листом «All Plans»: Period × Venue × 16 метрик. Сортировка по Period ASC, Venue ASC. Жирный header, заморозка первой строки, fixed widths.
+
+7. **UI:** в `templates/dashboard/plans_tab.html` добавлена кнопка «Экспорт» в `.plans-actions`. В `static/js/dashboard/modules/plans.js` — обработчик `exportAllPlans()`: fetch → blob → анкор-download.
+
+**Файлы:**
+- `routes/dashboard.py` — −5 endpoint'ов, +1 export endpoint, фикс revenue_metrics
+- `core/plans_manager.py` — `_file_lock` context manager + portalocker, удаление import_monthly_plans_from_weekly, обновление текста ошибки `_read_file`
+- `requirements.txt` — `+portalocker>=2.8`, `+openpyxl>=3.1`
+- `templates/dashboard/plans_tab.html` — кнопка «Экспорт»
+- `static/js/dashboard/modules/plans.js` — обработчик экспорта
+- `scripts/import_export/import_plans_from_excel.py` — удалён
+- `scripts/import_export/import_plans_from_excel_new.py` — удалён
+- `.claude/docs/venues-plans.md` — обновлён блок «API endpoint'ы», запись в changelog
+
+**Почему это важно:**
+- Раньше планы редактировались тремя путями (UI / прямой curl / sync-from-repo), что приводило к расхождению `data/plansdashboard.json` (репо) и `/kultura/plansdashboard.json` (диск).
+- `git push` на прод-планы по-прежнему ничего не доставляет, но теперь это и не нужно — UI = единственный путь.
+- Persistence гарантирован: `seed_from_local=True` в `storage_paths.py` оставлен — он копирует repo→диск только если диск пустой (первый деплой), деплой не затирает существующие правки.
+
+---
+
 ## 2026-04-27 (вечер) — Velocity-классификация slow-mover'ов
 
 **Цель:** убрать шум в «критических» от позиций с микроскопическими продажами.

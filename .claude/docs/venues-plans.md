@@ -389,6 +389,8 @@ if (Math.abs(sharesSum - 100) > 1) {
 
 ## API endpoint'ы
 
+Все правки идут только через эти endpoint'ы (UI = единственный путь редактирования).
+
 ### Получение плана
 
 ```
@@ -421,7 +423,7 @@ Body: {
 DELETE /api/plans/<venue_key>/<period_key>
 ```
 
-### Расчёт плана для периода
+### Расчёт плана для произвольного периода
 
 ```
 GET /api/plans/calculate/<venue_key>/<start_date>/<end_date>
@@ -431,21 +433,28 @@ Response: {
 }
 ```
 
-### Сохранение плана
+### Получение всех планов (JSON)
 
 ```
-POST /api/plans
-Body: {
-    "venue": "bolshoy",
-    "period": "2026-03",
-    "data": {...}  # 15 метрик
+GET /api/plans
+Response: {
+    "plans": { "<venue>_<YYYY-MM>": {...}, ... },
+    "periods": ["bolshoy_2026-05", "ligovskiy_2026-05", ...]
 }
 ```
 
-### Удаление плана
+### Экспорт всех планов (xlsx)
 
 ```
-DELETE /api/plans?period=bolshoy_2026-03
+GET /api/plans/export
+Response: xlsx-файл (один лист "All Plans", строки = период × заведение, 16 столбцов-метрик)
+```
+
+### Диагностика хранилища
+
+```
+GET /api/storage/diagnose
+Response: { "persistent_storage_active": bool, "plansdashboard": {...}, "daily_plans": {...} }
 ```
 
 ---
@@ -490,6 +499,25 @@ weighted_days = Σ(weight(день) для каждого дня)
 ---
 
 ## Changelog
+
+### 2026-05-15 — Устранение костылей редактирования планов + экспорт
+
+**Что сделано:**
+- Удалены 5 legacy/костыльных endpoint'ов из `routes/dashboard.py`: `POST /api/plans/sync-from-repo`, `POST /api/plans` (body-based), `GET /api/plans/<period>` (без venue), `DELETE /api/plans/<period>` (без venue), `POST /api/plans/migrate-to-monthly`
+- Удалён метод `PlansManager.import_monthly_plans_from_weekly()` (одноразовая миграция, давно отработала)
+- Удалены legacy-скрипты `scripts/import_export/import_plans_from_excel.py` и `import_plans_from_excel_new.py` — редактирование только через UI
+- Починено прямое чтение `plansdashboard.json` в `revenue_metrics` — теперь через `plans_manager.get_plan()` (единая точка)
+- Добавлен cross-worker file lock (`portalocker`) в `save_plan` и `delete_plan` — защита от гонки между gunicorn-воркерами
+- Добавлен `GET /api/plans/export` — экспорт всех планов одним flat-листом xlsx (Period × Venue × 16 метрик)
+- В UI вкладки «Планы» добавлена кнопка «Экспорт»
+
+**Изменённые файлы:**
+- `routes/dashboard.py` — удаление 5 endpoint'ов, новый export endpoint, фикс revenue_metrics
+- `core/plans_manager.py` — file lock через portalocker, удаление import_monthly_plans_from_weekly, текст ошибки
+- `requirements.txt` — +portalocker, +openpyxl
+- `templates/dashboard/plans_tab.html` — кнопка «Экспорт»
+- `static/js/dashboard/modules/plans.js` — обработчик экспорта
+- `scripts/import_export/import_plans_from_excel*.py` — удалены
 
 ### 2026-04-03 — Удаление bar_plans.json, точечная регенерация daily plans
 

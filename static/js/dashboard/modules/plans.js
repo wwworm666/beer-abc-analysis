@@ -24,6 +24,7 @@ class PlansViewer {
         this.btnCreatePlan = document.getElementById('btn-create-plan');
         this.btnEditPlan = document.getElementById('btn-edit-plan');
         this.btnDeletePlan = document.getElementById('btn-delete-plan');
+        this.btnExportPlans = document.getElementById('btn-export-plans');
         this.btnCreateFromNoData = document.getElementById('btn-create-from-no-data');
 
         // Модальное окно
@@ -96,6 +97,7 @@ class PlansViewer {
         this.btnCreatePlan?.addEventListener('click', () => this.createPlan());
         this.btnEditPlan?.addEventListener('click', () => this.editPlan());
         this.btnDeletePlan?.addEventListener('click', () => this.deletePlan());
+        this.btnExportPlans?.addEventListener('click', () => this.exportAllPlans());
         this.btnCreateFromNoData?.addEventListener('click', () => this.createPlan());
 
         // Модальное окно
@@ -749,6 +751,53 @@ class PlansViewer {
         } catch (error) {
             console.error('Ошибка удаления плана:', error);
             state.addMessage('error', 'Не удалось удалить план: ' + error.message);
+        }
+    }
+
+    /**
+     * Экспорт всех планов одним xlsx-файлом
+     */
+    async exportAllPlans() {
+        if (!this.btnExportPlans) return;
+
+        this.btnExportPlans.disabled = true;
+
+        try {
+            const response = await fetch('/api/plans/export');
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || `Сервер вернул ${response.status}`);
+            }
+
+            const blob = await response.blob();
+
+            // Имя файла из Content-Disposition либо дефолт
+            let filename = `plans_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            const disposition = response.headers.get('Content-Disposition');
+            if (disposition) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    filename = match[1].replace(/['"]/g, '');
+                }
+            }
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            state.addMessage('success', 'Планы экспортированы');
+
+        } catch (error) {
+            console.error('Ошибка экспорта планов:', error);
+            state.addMessage('error', `Не удалось экспортировать планы: ${error.message}`);
+        } finally {
+            this.btnExportPlans.disabled = false;
         }
     }
 

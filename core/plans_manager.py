@@ -16,9 +16,11 @@ import os
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange
+from contextlib import contextmanager
 from typing import Dict, Optional, List, Tuple
 import threading
 import shutil
+import portalocker
 from core.storage_paths import get_data_path
 
 
@@ -58,12 +60,25 @@ class PlansManager:
             self.data_file = get_data_path('plansdashboard.json', seed_from_local=True)
             print(f"[PLANS] Файл планов: {self.data_file}")
 
-        # Создаем lock для thread-safe операций
+        # In-process lock для одного gunicorn-воркера
         self._lock = threading.Lock()
+        # Cross-process advisory lock — защита от гонки между gunicorn-воркерами
+        self._lock_path = self.data_file + '.lock'
 
         # Инициализируем структуру файла если нужно
         self._initialize_file()
         self._ensure_daily_plans_current(force=False)
+
+    @contextmanager
+    def _file_lock(self, timeout: int = 10):
+        """
+        Cross-worker advisory lock на отдельном lock-файле.
+
+        Используется в дополнение к self._lock (threading.Lock внутри воркера),
+        чтобы защитить read-modify-write цикл между параллельными gunicorn-воркерами.
+        """
+        with portalocker.Lock(self._lock_path, mode='a', timeout=timeout):
+            yield
 
     def _initialize_file(self):
         """Инициализировать файл планов если он не существует"""
@@ -138,8 +153,8 @@ class PlansManager:
             raise RuntimeError(
                 f"Файл планов {self.data_file} повреждён, backup отсутствует или "
                 "тоже повреждён. Автосоздание пустой структуры отключено во избежание "
-                "потери данных. Восстановите файл вручную (например, через "
-                "/api/plans/sync-from-repo)."
+                "потери данных. Восстановите файл вручную из резервной копии "
+                f"({self.data_file}.backup) или загрузите планы через UI."
             ) from e
 
     def _write_file(self, data: Dict):
@@ -294,7 +309,7 @@ class PlansManager:
         Raises:
             ValueError: Если данные плана некорректны
         """
-        with self._lock:
+        with self._lock, self._file_lock():
             try:
                 # Валидация данных
                 self._validate_plan_data(plan_data)
@@ -400,7 +415,7 @@ class PlansManager:
         Returns:
             bool: True если удаление успешно
         """
-        with self._lock:
+        with self._lock, self._file_lock():
             try:
                 data = self._read_file()
 
@@ -610,49 +625,6 @@ class PlansManager:
             import traceback
             traceback.print_exc()
             return None
-
-    def import_monthly_plans_from_weekly(self):
-        """
-        Конвертировать недельные планы в месячные (одноразовая миграция)
-
-        Берёт существующие недельные планы и группирует их по месяцам,
-        беря среднее или первое значение для каждого месяца.
-        """
-        all_plans = self.get_all_plans()
-        monthly_plans = {}
-
-        for key, plan in all_plans.items():
-            # Пропускаем уже месячные планы (формат venue_2025-10)
-            parts = key.split('_')
-            if len(parts) == 2 and len(parts[1]) == 7:  # venue_2025-10
-                monthly_plans[key] = plan
-                continue
-
-            # Парсим недельный ключ: venue_2025-10-06
-            if len(parts) >= 2:
-                venue = parts[0]
-                date_part = '_'.join(parts[1:])
-
-                try:
-                    week_date = datetime.strptime(date_part, '%Y-%m-%d').date()
-                    month_key = f"{venue}_{week_date.year}-{week_date.month:02d}"
-
-                    # Берём первый попавшийся план для месяца
-                    if month_key not in monthly_plans:
-                        monthly_plans[month_key] = plan.copy()
-                        print(f"[PLANS] Миграция: {key} -> {month_key}")
-                except ValueError:
-                    print(f"[PLANS] Не удалось распарсить ключ: {key}")
-
-        # Сохраняем месячные планы
-        data = self._read_file()
-        data['plans'] = monthly_plans
-        data['metadata']['migratedToMonthly'] = datetime.now().isoformat()
-        self._write_file(data)
-
-        print(f"[PLANS] Миграция завершена: {len(monthly_plans)} месячных планов")
-        return monthly_plans
-
 
 # Тестирование модуля
 if __name__ == "__main__":

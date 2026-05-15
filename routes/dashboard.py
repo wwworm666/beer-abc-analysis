@@ -249,44 +249,6 @@ def calculate_plan_for_period(venue_key, start_date, end_date):
         return jsonify({'error': str(e)}), 500
 
 
-@dashboard_bp.route('/api/plans/migrate-to-monthly', methods=['POST'])
-def migrate_plans_to_monthly():
-    """Миграция недельных планов в месячные (одноразовая)"""
-    try:
-        print("\n[PLANS API] Запуск миграции планов в месячный формат...")
-        monthly_plans = plans_manager.import_monthly_plans_from_weekly()
-        return jsonify({
-            'success': True,
-            'message': f'Migrated to {len(monthly_plans)} monthly plans',
-            'plans_count': len(monthly_plans),
-            'plan_keys': list(monthly_plans.keys())
-        })
-    except Exception as e:
-        print(f"[PLANS API ERROR] Ошибка миграции: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-@dashboard_bp.route('/api/plans/<period_key>')
-def get_plan(period_key):
-    """Получить план за конкретный период (без указания заведения)"""
-    try:
-        print(f"\n[PLANS API] Запрос плана для периода: {period_key}")
-        plan = plans_manager.get_plan(period_key)
-        if plan:
-            print(f"[PLANS API] План найден")
-            return jsonify(plan)
-        else:
-            print(f"[PLANS API] План НЕ найден")
-            return jsonify({'error': 'Plan not found'}), 404
-    except Exception as e:
-        print(f"[PLANS API ERROR] Ошибка при получении плана: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
 @dashboard_bp.route('/api/plans', methods=['GET'])
 def get_all_plans():
     """Получить все планы (для функции копирования)"""
@@ -301,50 +263,6 @@ def get_all_plans():
         })
     except Exception as e:
         print(f"[PLANS API ERROR] Ошибка при получении планов: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-@dashboard_bp.route('/api/plans', methods=['POST'])
-def save_plan():
-    """Сохранить или обновить план"""
-    try:
-        request_data = request.json
-
-        if not request_data:
-            return jsonify({'error': 'No data provided'}), 400
-
-        period_key = request_data.get('period')
-        plan_data = request_data.get('data')
-
-        if not period_key:
-            return jsonify({'error': 'Period key is required'}), 400
-
-        if not plan_data:
-            return jsonify({'error': 'Plan data is required'}), 400
-
-        print(f"\n[PLANS API] Сохранение плана для периода: {period_key}")
-        print(f"[PLANS API] Данные: {list(plan_data.keys())}")
-
-        success = plans_manager.save_plan(period_key, plan_data)
-
-        if success:
-            print(f"[PLANS API] План успешно сохранен")
-            return jsonify({
-                'success': True,
-                'message': 'Plan saved successfully',
-                'period': period_key
-            })
-        else:
-            return jsonify({'error': 'Failed to save plan'}), 500
-
-    except ValueError as e:
-        print(f"[PLANS API VALIDATION ERROR] {e}")
-        return jsonify({'error': f'Validation error: {str(e)}'}), 400
-
-    except Exception as e:
-        print(f"[PLANS API ERROR] Ошибка при сохранении плана: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
@@ -397,27 +315,6 @@ def delete_plan_with_venue(venue_key, period_key):
         composite_key = f"{venue_key}_{period_key}"
         print(f"[PLANS API] Составной ключ: {composite_key}")
         success = plans_manager.delete_plan(composite_key)
-        if success:
-            print(f"[PLANS API] План удален")
-            return jsonify({
-                'success': True,
-                'message': 'Plan deleted successfully'
-            })
-        else:
-            return jsonify({'error': 'Plan not found'}), 404
-    except Exception as e:
-        print(f"[PLANS API ERROR] Ошибка при удалении плана: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
-
-
-@dashboard_bp.route('/api/plans/<period_key>', methods=['DELETE'])
-def delete_plan(period_key):
-    """Удалить план за период (без указания заведения)"""
-    try:
-        print(f"\n[PLANS API] Удаление плана для периода: {period_key}")
-        success = plans_manager.delete_plan(period_key)
         if success:
             print(f"[PLANS API] План удален")
             return jsonify({
@@ -489,107 +386,104 @@ def storage_diagnose():
     })
 
 
-@dashboard_bp.route('/api/plans/sync-from-repo', methods=['POST'])
-def plans_sync_from_repo():
+@dashboard_bp.route('/api/plans/export', methods=['GET'])
+def plans_export():
     """
-    Применить repo-копию data/plansdashboard.json к постоянному хранилищу.
+    Экспорт всех планов одним flat-листом xlsx.
 
-    Используется когда планы редактируются через git (правка repo-файла, commit, push).
-    Без этого вызова при наличии существующего файла на /kultura новые значения из repo
-    не применяются (seed_from_local срабатывает только на пустом диске).
-
-    Требует X-Admin-Token из переменной окружения PLANS_ADMIN_TOKEN.
-    Опции:
-        ?prune=true  — удалить ключи, которых нет в repo-копии (по умолчанию НЕ удаляет).
-
-    Безопасность:
-        - Перед применением создаётся именованный бэкап
-          plansdashboard.json.before-sync-<UTC_ISO> на постоянном диске.
-        - Каждый ключ из repo пишется через save_plan_with_regeneration:
-          валидация + точечная регенерация daily_plans.json.
-        - Если хотя бы один ключ не прошёл валидацию — он попадает в errors,
-          остальные применяются (частичный success).
+    Возвращает xlsx со строками `<period> × <venue>` и 16 метриками в столбцах.
+    Источник данных — plansdashboard.json (через plans_manager.get_all_plans()).
+    Сортировка: Period ASC, Venue ASC.
     """
-    from core.storage_paths import get_local_data_path, is_persistent_storage_active
-
-    expected_token = os.environ.get('PLANS_ADMIN_TOKEN')
-    if not expected_token:
-        return jsonify({'error': 'PLANS_ADMIN_TOKEN not configured on server'}), 503
-
-    provided_token = request.headers.get('X-Admin-Token') or request.args.get('token')
-    if provided_token != expected_token:
-        return jsonify({'error': 'Invalid or missing admin token'}), 401
-
-    if not is_persistent_storage_active():
-        return jsonify({
-            'error': 'Persistent storage is not active. Sync would write to ephemeral disk and be lost on restart.',
-            'hint': 'Check /api/storage/diagnose'
-        }), 409
-
-    repo_file = get_local_data_path('plansdashboard.json')
-    if not os.path.exists(repo_file):
-        return jsonify({'error': f'Repo file not found: {repo_file}'}), 404
-
     try:
-        with open(repo_file, 'r', encoding='utf-8') as f:
-            repo_data = json.load(f)
-    except json.JSONDecodeError as e:
-        return jsonify({'error': f'Repo file is not valid JSON: {e}'}), 400
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
 
-    repo_plans = repo_data.get('plans', {}) if isinstance(repo_data, dict) else {}
-    if not repo_plans:
-        return jsonify({'error': 'Repo file has no plans'}), 400
+        all_plans = plans_manager.get_all_plans()
+        if not all_plans:
+            return jsonify({'error': 'Нет планов для экспорта'}), 404
 
-    # Именованный бэкап ДО любых изменений
-    disk_file = plans_manager.data_file
-    backup_path = None
-    if os.path.exists(disk_file):
-        from shutil import copy2
-        ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-        backup_path = f"{disk_file}.before-sync-{ts}"
-        try:
-            copy2(disk_file, backup_path)
-            print(f"[PLANS SYNC] Backup создан: {backup_path}")
-        except Exception as e:
-            return jsonify({'error': f'Failed to create backup: {e}'}), 500
+        venue_names = {
+            'bolshoy': 'Большой пр. В.О',
+            'ligovskiy': 'Лиговский',
+            'kremenchugskaya': 'Кременчугская',
+            'varshavskaya': 'Варшавская',
+            'all': 'Все заведения',
+        }
 
-    prune = request.args.get('prune', '').lower() == 'true'
+        metric_keys = list(plans_manager.PLAN_SCHEMA.keys())
+        metric_labels = {
+            'revenue': 'Выручка (₽)',
+            'checks': 'Чеки (шт)',
+            'averageCheck': 'Средний чек (₽)',
+            'draftShare': 'Доля розлива (%)',
+            'packagedShare': 'Доля фасовки (%)',
+            'kitchenShare': 'Доля кухни (%)',
+            'revenueDraft': 'Выручка розлив (₽)',
+            'revenuePackaged': 'Выручка фасовка (₽)',
+            'revenueKitchen': 'Выручка кухня (₽)',
+            'markupPercent': 'Наценка (%)',
+            'profit': 'Прибыль (₽)',
+            'markupDraft': 'Наценка розлив (%)',
+            'markupPackaged': 'Наценка фасовка (%)',
+            'markupKitchen': 'Наценка кухня (%)',
+            'loyaltyWriteoffs': 'Списания баллов (₽)',
+            'tapActivity': 'Активность кранов (%)',
+        }
 
-    applied = []
-    errors = {}
-    for key, plan in repo_plans.items():
-        # createdAt/updatedAt не нужны в payload — save_plan их сам проставит
-        payload = {k: v for k, v in plan.items() if k not in ('createdAt', 'updatedAt')}
-        try:
-            plans_manager.save_plan_with_regeneration(key, payload)
-            applied.append(key)
-        except ValueError as e:
-            errors[key] = f'validation: {e}'
-        except Exception as e:
-            errors[key] = f'error: {e}'
+        rows = []
+        for key, plan in all_plans.items():
+            # Ключ формата venue_YYYY-MM
+            parts = key.rsplit('_', 1)
+            if len(parts) != 2 or len(parts[1]) != 7:
+                continue
+            venue_key, period = parts
+            rows.append((period, venue_key, plan))
 
-    pruned = []
-    if prune:
-        current = plans_manager.get_all_plans()
-        for key in list(current.keys()):
-            if key not in repo_plans:
-                try:
-                    if plans_manager.delete_plan(key):
-                        pruned.append(key)
-                except Exception as e:
-                    errors[key] = f'prune-failed: {e}'
+        rows.sort(key=lambda r: (r[0], r[1]))
 
-    print(f"[PLANS SYNC] Применено: {len(applied)}, ошибок: {len(errors)}, удалено: {len(pruned)}")
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'All Plans'
 
-    return jsonify({
-        'success': len(errors) == 0,
-        'applied': applied,
-        'pruned': pruned,
-        'errors': errors,
-        'backup': backup_path,
-        'repo_file': repo_file,
-        'disk_file': disk_file,
-    })
+        headers = ['Период', 'Заведение'] + [metric_labels.get(k, k) for k in metric_keys]
+        ws.append(headers)
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color='CCE5FF', end_color='CCE5FF', fill_type='solid')
+            cell.alignment = Alignment(horizontal='center')
+        ws.freeze_panes = 'A2'
+
+        for period, venue_key, plan in rows:
+            row_values = [period, venue_names.get(venue_key, venue_key)]
+            for metric_key in metric_keys:
+                value = plan.get(metric_key)
+                row_values.append(round(value, 2) if isinstance(value, (int, float)) else '')
+            ws.append(row_values)
+
+        col_widths = [12, 22] + [20] * len(metric_keys)
+        for idx, width in enumerate(col_widths, start=1):
+            ws.column_dimensions[ws.cell(row=1, column=idx).column_letter].width = width
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"plans_export_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+        print(f"[PLANS EXPORT] Сгенерирован xlsx: {len(rows)} строк, файл {filename}")
+
+        return output.getvalue(), 200, {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': f'attachment; filename={filename}'
+        }
+
+    except Exception as e:
+        print(f"[PLANS EXPORT ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 
 @dashboard_bp.route('/api/comments/<venue_key>/<period_key>', methods=['GET'])
@@ -786,27 +680,11 @@ def revenue_metrics():
         # 'revenue' = вся выручка после маппинга
         actual_revenue = mapped.get('revenue', 0)
 
-        # Получаем план за ВЕСЬ месяц из plansdashboard.json
-        plan_revenue = 0.0
-
-        # Определяем ключ для плана (например, "all_2026-03" или "bolshoy_2026-03")
+        # Получаем план за ВЕСЬ месяц из plansdashboard.json через единый менеджер
         month_key = f"{venue_key if venue_key else 'all'}_{datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m')}"
 
-        plans_file = plans_manager.data_file
-
-        # Читаем plansdashboard.json
-        try:
-            with open(plans_file, 'r', encoding='utf-8') as f:
-                plans_data = json.load(f)
-            plans = plans_data.get('plans', {})
-
-            # Берём готовый план на месяц
-            month_plan = plans.get(month_key, {})
-            plan_revenue = month_plan.get('revenue', 0.0)
-
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(f"   [WARN] Не удалось прочитать {plans_file}: {e}")
-            plan_revenue = 0.0
+        month_plan = plans_manager.get_plan(month_key) or {}
+        plan_revenue = month_plan.get('revenue', 0.0)
 
         # Расчёт метрик
         start = datetime.strptime(date_from, '%Y-%m-%d')

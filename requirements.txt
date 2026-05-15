@@ -7,3 +7,5 @@ gunicorn==21.2.0
 aiogram==3.4.1
 aiohttp==3.9.1
 playwright==1.49.1
+portalocker>=2.8
+openpyxl>=3.1

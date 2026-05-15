@@ -118,14 +118,6 @@ export async function deletePlan(venueKey, periodKey) {
 }
 
 /**
- * Получить все планы для заведения
- */
-export async function getAllPlans(venueKey) {
-    const data = await fetchAPI(API.ALL_PLANS(venueKey));
-    return data.plans;
-}
-
-/**
  * Получить фактические данные (аналитика)
  */
 export async function getAnalytics(venueKey, dateFrom, dateTo) {
@@ -247,7 +239,6 @@ export const api = {
     calculatePlan,
     savePlan,
     deletePlan,
-    getAllPlans,
     getAnalytics,
     comparePeriods,
     compareVenues,

@@ -223,10 +223,15 @@ Response: {
 
 ### Планы
 
+UI = единственный путь редактирования. См. подробнее [venues-plans.md](venues-plans.md).
+
 ```
-GET /api/plans?venue=...&dateFrom=...&dateTo=...
-POST /api/plans
-DELETE /api/plans?period=...
+GET    /api/plans/<venue>/<period>            — получить план
+POST   /api/plans/<venue>/<period>            — создать/обновить план
+DELETE /api/plans/<venue>/<period>            — удалить план
+GET    /api/plans                             — дамп всех планов (JSON)
+GET    /api/plans/calculate/<v>/<from>/<to>   — пропорциональный план за период
+GET    /api/plans/export                      — экспорт всех планов в xlsx
 ```
 
 ### Сравнение
