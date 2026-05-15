@@ -599,17 +599,29 @@ def _find_employee_in_olap(data_dict, emp_name):
     return None
 
 
-def _build_kpi_metrics(emp_name, kpi_olap, shifts_count, total_hours):
+def _build_kpi_metrics(
+    emp_name,
+    kpi_olap,
+    shifts_count,
+    total_hours,
+    late_count=0,
+    loyalty_cards=0,
+    cancelled_count=0,
+    plan_revenue=0.0,
+):
     """
-    Собрать метрики для KPI из OLAP данных.
+    Собрать метрики для KPI из OLAP данных и кассовых смен.
 
-    Формирует dict с теми же ключами, что и EmployeeMetricsCalculator.calculate(),
-    но из 2 лёгких OLAP запросов вместо 4 тяжёлых.
+    Формирует dict с теми же ключами, что возвращает EmployeeMetricsCalculator.calculate()
+    и что показывает дашборд сотрудника (/employee).
 
     Источники:
-      summary  -> total_checks, total_revenue, discount_sum
+      summary    -> total_checks, total_revenue, discount_sum
       categories -> draft/bottles/kitchen revenue, markup
-      shifts (параметры) -> revenue_per_shift, revenue_per_hour
+      cashshifts -> shifts_count, total_hours, late_count
+      OLAP loyalty -> loyalty_cards_count
+      OLAP cancelled -> cancelled_count
+      daily_plans -> plan_revenue, plan_fact_percent
     """
     summary = _find_employee_in_olap(kpi_olap['summary'], emp_name)
     cat_rows = _find_employee_in_olap(kpi_olap['categories'], emp_name) or []
@@ -654,6 +666,7 @@ def _build_kpi_metrics(emp_name, kpi_olap, shifts_count, total_hours):
     avg_markup = ((total_weighted_markup / total_cost) * 100) if total_cost > 0 else 0
     gross = total_revenue + discount_sum
     discount_percent = (discount_sum / gross * 100) if gross > 0 else 0
+    plan_fact_percent = (total_revenue / plan_revenue * 100) if plan_revenue > 0 else 0
 
     return {
         'total_revenue': round(total_revenue, 2),
@@ -670,7 +683,13 @@ def _build_kpi_metrics(emp_name, kpi_olap, shifts_count, total_hours):
         'avg_markup': round(avg_markup, 2),
         'discount_sum': round(discount_sum, 2),
         'discount_percent': round(discount_percent, 2),
-        'cancelled_count': 0,
+        'cancelled_count': int(cancelled_count or 0),
+        'shifts_count': int(shifts_count or 0),
+        'work_hours': round(total_hours or 0.0, 1),
+        'late_count': int(late_count or 0),
+        'loyalty_cards_count': int(loyalty_cards or 0),
+        'plan_revenue': round(plan_revenue or 0.0, 2),
+        'plan_fact_percent': round(plan_fact_percent, 2),
     }
 
 
@@ -738,11 +757,10 @@ def kpi_calculate():
         if not all_employee_metrics:
             return jsonify({'error': 'Нет данных о сменах за выбранный период'}), 404
 
-        # 3. OLAP: 2 легковесных запроса вместо 4 тяжёлых
-        # Старый подход: 4 параллельных запроса с группировкой по DishName × Store × Date
-        #   → тысячи строк, ~60 секунд
-        # Новый подход: 2 запроса с агрегацией на сервере
-        #   → ~200 строк, ~5-10 секунд
+        # 3. OLAP: легковесные запросы параллельно
+        # - kpi_olap (2 внутренних запроса): summary + categories
+        # - cancelled: отмены/возвраты по официантам
+        # - loyalty: новые карты лояльности по официантам (уникальные телефоны)
         olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         olap = OlapReports()
@@ -750,8 +768,15 @@ def kpi_calculate():
             return jsonify({'error': 'Не удалось подключиться к iiko OLAP'}), 500
 
         try:
-            kpi_log("Stage OLAP started (2 lightweight queries)")
-            kpi_olap = olap.get_kpi_olap_data(date_from, olap_date_to)
+            kpi_log("Stage OLAP started (kpi summary/categories + cancelled + loyalty)")
+            with ThreadPoolExecutor(max_workers=3) as olap_executor:
+                future_kpi = olap_executor.submit(olap.get_kpi_olap_data, date_from, olap_date_to)
+                future_cancelled = olap_executor.submit(olap.get_cancelled_orders_by_waiter, date_from, olap_date_to)
+                future_loyalty = olap_executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, olap_date_to)
+
+                kpi_olap = future_kpi.result()
+                cancelled_raw = future_cancelled.result()
+                loyalty_cards_data = future_loyalty.result() or {}
         finally:
             olap.disconnect()
 
@@ -759,6 +784,17 @@ def kpi_calculate():
 
         if kpi_olap is None:
             return jsonify({'error': 'OLAP не вернул данные (таймаут или ошибка). Попробуйте ещё раз или уменьшите период.'}), 500
+
+        # Сворачиваем cancelled OLAP {data: [...]} → {waiter_name: count}
+        cancelled_by_waiter = {}
+        if cancelled_raw and cancelled_raw.get('data'):
+            for record in cancelled_raw['data']:
+                waiter = record.get('WaiterName', '')
+                if waiter:
+                    try:
+                        cancelled_by_waiter[waiter] = cancelled_by_waiter.get(waiter, 0) + int(record.get('OrderNum', 0) or 0)
+                    except (ValueError, TypeError):
+                        continue
 
         # 4. Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
@@ -777,13 +813,28 @@ def kpi_calculate():
             shift_locations = emp_shifts.get('shift_locations', {})
             shifts_count = emp_shifts.get('shifts_count', 0)
             total_hours = emp_shifts.get('total_hours', 0.0)
+            late_count = emp_shifts.get('late_count', 0)
 
             if shifts_count == 0:
                 continue
 
+            # План сотрудника = сумма дневных планов ТТ по локациям из смен
+            plan_revenue = get_employee_plan_by_shifts(shift_locations)
+
+            # Новые карты лояльности и отмены — fuzzy-матч имени (порядок слов может различаться)
+            loyalty_cards = _find_employee_in_olap(loyalty_cards_data, emp_name) or 0
+            cancelled_count = _find_employee_in_olap(cancelled_by_waiter, emp_name) or 0
+
             # Собираем метрики из OLAP данных + смен (без EmployeeMetricsCalculator)
             metrics = _build_kpi_metrics(
-                emp_name, kpi_olap, shifts_count, total_hours
+                emp_name,
+                kpi_olap,
+                shifts_count,
+                total_hours,
+                late_count=late_count,
+                loyalty_cards=loyalty_cards,
+                cancelled_count=cancelled_count,
+                plan_revenue=plan_revenue,
             )
 
             # Рассчитываем KPI-бонус

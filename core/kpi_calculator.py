@@ -29,19 +29,30 @@ RUSSIAN_BAR_NAMES = {
 
 KPI_KEYS = ['kpi1', 'kpi2', 'kpi3']
 
-# Каталог доступных метрик из EmployeeMetricsCalculator.calculate()
+# Каталог доступных метрик из EmployeeMetricsCalculator.calculate().
+# Полный набор соответствует карточкам на странице /employee (дашборд сотрудника).
+# Инверсные метрики (late_count, cancelled_count): для них в редакторе KPI задают min > target,
+# тогда формула (fact - min) / (target - min) даёт положительный ratio при низком факте.
 AVAILABLE_METRICS = {
-    'kitchen_share':    {'name': 'Доля кухни',        'unit': '%',  'decimals': 1},
-    'draft_share':      {'name': 'Доля розлива',      'unit': '%',  'decimals': 1},
-    'bottles_share':    {'name': 'Доля фасовки',      'unit': '%',  'decimals': 1},
-    'avg_check':        {'name': 'Средний чек',       'unit': '₽',  'decimals': 0},
-    'total_revenue':    {'name': 'Общая выручка',     'unit': '₽',  'decimals': 0},
-    'revenue_per_shift':{'name': 'Выручка/смена',     'unit': '₽',  'decimals': 0},
-    'revenue_per_hour': {'name': 'Выручка/час',       'unit': '₽',  'decimals': 0},
-    'total_checks':     {'name': 'Кол-во чеков',      'unit': 'шт', 'decimals': 0},
-    'avg_markup':       {'name': 'Средняя наценка',   'unit': '%',  'decimals': 1},
-    'discount_percent': {'name': '% скидок',          'unit': '%',  'decimals': 1},
-    'cancelled_count':  {'name': 'Отмены/возвраты',   'unit': 'шт', 'decimals': 0},
+    'kitchen_share':       {'name': 'Доля кухни',              'unit': '%',  'decimals': 1},
+    'draft_share':         {'name': 'Доля розлива',            'unit': '%',  'decimals': 1},
+    'bottles_share':       {'name': 'Доля фасовки',            'unit': '%',  'decimals': 1},
+    'avg_check':           {'name': 'Средний чек',             'unit': '₽',  'decimals': 0},
+    'total_revenue':       {'name': 'Общая выручка',           'unit': '₽',  'decimals': 0},
+    'revenue_per_shift':   {'name': 'Выручка/смена',           'unit': '₽',  'decimals': 0},
+    'revenue_per_hour':    {'name': 'Выручка/час',             'unit': '₽',  'decimals': 0},
+    'total_checks':        {'name': 'Кол-во чеков',            'unit': 'шт', 'decimals': 0},
+    'avg_markup':          {'name': 'Средняя наценка',         'unit': '%',  'decimals': 1},
+    'discount_percent':    {'name': '% скидок',                'unit': '%',  'decimals': 1},
+    'cancelled_count':     {'name': 'Отмены/возвраты',         'unit': 'шт', 'decimals': 0},
+    'draft_revenue':       {'name': 'Выручка розлива',         'unit': '₽',  'decimals': 0},
+    'bottles_revenue':     {'name': 'Выручка фасовки',         'unit': '₽',  'decimals': 0},
+    'kitchen_revenue':     {'name': 'Выручка кухни',           'unit': '₽',  'decimals': 0},
+    'shifts_count':        {'name': 'Количество смен',         'unit': 'шт', 'decimals': 0},
+    'work_hours':          {'name': 'Часы работы',             'unit': 'ч',  'decimals': 1},
+    'late_count':          {'name': 'Опоздания',               'unit': 'шт', 'decimals': 0},
+    'loyalty_cards_count': {'name': 'Новые карты лояльности',  'unit': 'шт', 'decimals': 0},
+    'plan_fact_percent':   {'name': 'План/Факт',               'unit': '%',  'decimals': 1},
 }
 
 # Дефолтный конфиг KPI (если в месяце не указан kpi_config)

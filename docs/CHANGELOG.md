@@ -1,5 +1,56 @@
 ﻿# Changelog
 
+### 2026-05-15 — KPI-каталог расширен до полного набора дашборда сотрудника
+
+В редакторе «Настройка KPI-целей» на /salary было 11 опций метрик —
+меньше, чем показывает /employee. Пользователь не мог выбрать «Новые карты
+лояльности», «Опоздания», «Часы» и др. как KPI.
+
+**Что:**
+- `AVAILABLE_METRICS` расширен с 11 до 19 записей: добавлены `draft_revenue`,
+  `bottles_revenue`, `kitchen_revenue`, `shifts_count`, `work_hours`,
+  `late_count`, `loyalty_cards_count`, `plan_fact_percent`.
+- `_build_kpi_metrics()` теперь принимает `late_count`, `loyalty_cards`,
+  `cancelled_count`, `plan_revenue` и возвращает все 19 полей. Стаб
+  `'cancelled_count': 0` заменён на реальное значение.
+- `/api/kpi-calculate` параллельно запускает 3 OLAP-операции вместо 1:
+  `get_kpi_olap_data` + `get_cancelled_orders_by_waiter` +
+  `get_new_loyalty_cards_by_waiter` — через `ThreadPoolExecutor(max_workers=3)`.
+  План сотрудника считается через `get_employee_plan_by_shifts`.
+- UI: добавлен `title=` тултип на ячейку «Коэффициент» в детализации KPI и
+  на формуле в шапке (`смены с целями / норма`).
+- UI: блок «Настройка KPI-целей» вынесен из `#results` (был доступен только
+  после расчёта) и теперь находится сразу под селектором периода — открыть
+  настройки можно без предварительного расчёта.
+- Документация: исправлена формула в `.claude/docs/employee.md` (старая
+  сигнатура `calculate_premium(..., total_shifts, ...)` уже не существует;
+  актуальная — двухэтапная `intermediate × koef`).
+- `docs/salary-instruction.txt`: уточнено, что в коэффициент попадают только
+  смены на точках с настроенными KPI-целями.
+
+**Почему:**
+- Дашборд сотрудника содержит 13 метрик, которые видны руководителю; не
+  иметь их в KPI-каталоге странно — пользователь не может настроить KPI на
+  основе уже измеряемого показателя.
+- Инверсные метрики (`late_count`, `cancelled_count`) работают через
+  `target < min` без изменений формулы.
+- Старая документация описывала несуществующую сигнатуру — сбивала с толку
+  при ревью кода.
+
+**Файлы:**
+- `core/kpi_calculator.py` — `AVAILABLE_METRICS` +8 записей, комментарий
+  про инверсные метрики.
+- `routes/employee.py` — сигнатура `_build_kpi_metrics()`, OLAP-блок в
+  `/api/kpi-calculate`, расчёт `plan_revenue` и подстановка
+  `loyalty_cards`/`cancelled_count` в цикле.
+- `templates/bonus.html` — `koefTitle` и `title=` на «Коэффициент»; tooltip
+  на формуле KPI в `.formula-card`.
+- `.claude/docs/employee.md` — секции «Формула расчёта», «Итоговая премия»,
+  «Формулы → KPI ratio» переписаны под актуальный код.
+- `docs/salary-instruction.txt` — пункт 4 «KPI-премия» уточнён.
+
+---
+
 ### 2026-04-30 — Shelf-Life Cockpit: оптимизация и доработка
 
 Доработка страницы /expiration после первого запуска.

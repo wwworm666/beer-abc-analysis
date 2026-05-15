@@ -343,15 +343,17 @@ mergedEmployees.forEach(emp => {
 
 #### Формула расчёта
 
+Двухэтапная: сначала промежуточная премия по каждому KPI без учёта смен,
+затем единый коэффициент `смены/норма` применяется к сумме всех KPI.
+
 ```python
-# core/kpi_calculator.py:213-245
-def calculate_premium(self, fact, target, min_val, total_shifts, defaults):
+# core/kpi_calculator.py — calculate_premium()
+def calculate_premium(self, fact, target, min_val, defaults):
     """
-    ratio = (Факт - Мін) / (Цель - Мін)
-    capped_ratio = max(0, min(ratio, max_ratio))
-    Премия_kpi = capped_ratio × Смен × (base_premium / norm_shifts)
+    ratio              = (Факт - Мин) / (Цель - Мин)
+    capped_ratio       = max(0, min(ratio, max_ratio))
+    intermediate_premium = capped_ratio × base_premium
     """
-    norm_shifts = defaults.get('norm_shifts', 15)
     base_premium = defaults.get('base_premium', 5000)
     max_ratio = defaults.get('max_ratio', 2)
 
@@ -363,14 +365,26 @@ def calculate_premium(self, fact, target, min_val, total_shifts, defaults):
         ratio = (fact - min_val) / (target - min_val)
 
     capped_ratio = max(0.0, min(ratio, float(max_ratio)))
-    premium = capped_ratio * total_shifts * (base_premium / norm_shifts)
+    intermediate_premium = capped_ratio * base_premium
 
     return {
         'ratio': round(ratio, 4),
         'capped_ratio': round(capped_ratio, 4),
-        'premium': round(premium, 2)
+        'intermediate_premium': round(intermediate_premium, 2),
     }
 ```
+
+Финальный шаг — в `calculate_employee()`:
+
+```python
+koef = total_shifts / norm_shifts        # total_shifts = смены ТОЛЬКО на точках с целями
+total_intermediate = Σ intermediate_premium  # по всем 3 KPI
+total_premium = total_intermediate × koef    # коэффициент применяется один раз к сумме
+```
+
+Инверсные метрики (`late_count`, `cancelled_count`): задайте `min > target`
+(например target=0, min=3). Формула `(fact - min) / (target - min)` даст
+положительный ratio при низком факте и clamp в 0 при `fact > min`.
 
 #### 3 KPI метрики
 
@@ -425,29 +439,36 @@ def calculate_weighted_targets(self, shifts_per_location, month_targets):
 #### Итоговая премия
 
 ```python
-# core/kpi_calculator.py:247-329
+# core/kpi_calculator.py — calculate_employee()
 def calculate_employee(self, employee_name, metrics, shift_locations, month):
-    # 1. Считаем смены по точкам
+    # 1. Считаем смены по точкам (русские названия для kpi_targets.json)
     shifts_per_location = self.count_shifts_per_location(shift_locations)
 
-    # 2. Взвешенные цели
+    # 2. Взвешенные цели — total_shifts здесь = ТОЛЬКО смены на точках с целями
     weighted_targets, total_shifts = self.calculate_weighted_targets(...)
+    if total_shifts == 0:
+        return None  # нет точек с настроенными KPI → премия не считается
 
-    # 3. Расчёт по каждому KPI
+    # 3. Промежуточная премия по каждому KPI (без множителя на смены)
+    total_intermediate = 0.0
     for kpi_key in ['kpi1', 'kpi2', 'kpi3']:
         metric_field = kpi_config[kpi_key]['metric']
         fact = metrics.get(metric_field, 0)
         targets = weighted_targets.get(kpi_key)
 
-        premium_result = self.calculate_premium(fact, targets['target'], targets['min'], ...)
-        total_premium += premium_result['premium']
+        result = self.calculate_premium(fact, targets['target'], targets['min'], defaults)
+        total_intermediate += result['intermediate_premium']
+
+    # 4. Финальный шаг — коэффициент применяется один раз к сумме
+    koef = round(total_shifts / norm_shifts, 2)
+    total_premium = round(total_intermediate * koef, 2)
 
     return {
         'employee_name': employee_name,
         'total_shifts': total_shifts,
-        'koef': total_shifts / norm_shifts,
+        'koef': koef,
         'kpis': {...},
-        'total_premium': total_premium
+        'total_premium': total_premium,
     }
 ```
 
@@ -532,10 +553,13 @@ POST /api/kpi-calculate
 
 ### KPI ratio
 ```
-ratio = (Факт - Мін) / (Цель - Мін)
-capped_ratio = min(max(ratio, 0), max_ratio)
-Премия = capped_ratio × Смен × (base_premium / norm_shifts)
+ratio                = (Факт - Мин) / (Цель - Мин)
+capped_ratio         = clamp(ratio, 0, max_ratio)
+intermediate_premium = capped_ratio × base_premium       # per KPI
+total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ```
+
+где `total_shifts` — смены на точках с настроенными KPI-целями (не общее число смен).
 
 ---
 
