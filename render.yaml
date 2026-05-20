@@ -10,3 +10,16 @@ services:
         value: 3.11.0
       - key: TELEGRAM_BOT_TOKEN
         sync: false
+      # Open-check bot (ежедневная проверка открытых смен в 14:59 МСК)
+      - key: TELEGRAM_OPEN_CHECK_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_GROUP_CHAT_ID
+        sync: false
+      - key: TELEGRAM_ALARM_CHAT_IDS
+        sync: false
+      - key: OPEN_CHECK_HOUR
+        value: "14"
+      - key: OPEN_CHECK_MINUTE
+        value: "59"
+      - key: OPEN_CHECK_DRY_RUN
+        sync: false

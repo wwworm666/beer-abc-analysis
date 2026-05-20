@@ -38,6 +38,10 @@ def serve_manifest():
 from core.chz_scheduler import start_scheduler
 start_scheduler()
 
+# Запустить ежедневную проверку открытых смен (если TELEGRAM_OPEN_CHECK_BOT_TOKEN настроен)
+from core.open_check_scheduler import start_scheduler as start_open_check_scheduler
+start_open_check_scheduler()
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
