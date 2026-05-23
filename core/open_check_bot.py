@@ -27,7 +27,7 @@ from typing import Callable, List, Optional
 
 from core.iiko_api import IikoAPI
 from core.employee_plans import BAR_NAME_MAPPING, normalize_bar_name
-from core.venues_config import KEY_TO_IIKO_NAME, PHYSICAL_VENUES
+from core.venues_config import PHYSICAL_VENUES
 
 # Имена точек в кассовых сменах (corporation/groups) НЕ совпадают с OLAP
 # Store.Name: например, "Пивная культура" в сменах = Кременчугская, есть и
@@ -35,6 +35,14 @@ from core.venues_config import KEY_TO_IIKO_NAME, PHYSICAL_VENUES
 # а не из venues_config.IIKO_NAME_TO_KEY (тот построен под OLAP-имена).
 
 MOSCOW_TZ = timezone(timedelta(hours=3))
+
+# Короткие имена баров для сообщений.
+BAR_SHORT_NAMES = {
+    'bolshoy': 'ВО',
+    'ligovskiy': 'Лиг',
+    'kremenchugskaya': 'Крем',
+    'varshavskaya': 'Варш',
+}
 
 log = logging.getLogger("open-check")
 
@@ -86,6 +94,7 @@ def check_bars_state(
             'closed_keys': list(PHYSICAL_VENUES),
             'other_open': [],
             'unknown_pos': [],
+            'open_times': {},
             'check_dt': check_dt,
         }
 
@@ -106,6 +115,7 @@ def check_bars_state(
     open_keys = set()
     other_open: List[str] = []
     unknown_pos: List[str] = []
+    open_dt_map = {}  # venue_key -> самая поздняя дата открытия открытой смены
 
     for sh in shifts or []:
         pos_id = sh.get('pointOfSaleId')
@@ -124,10 +134,14 @@ def check_bars_state(
             continue
         if venue_key in PHYSICAL_VENUES:
             open_keys.add(venue_key)
+            # время открытия = старт самой свежей открытой смены этого бара
+            if venue_key not in open_dt_map or open_dt > open_dt_map[venue_key]:
+                open_dt_map[venue_key] = open_dt
         elif venue_key not in other_open:
             other_open.append(venue_key)
 
     closed_keys = [k for k in PHYSICAL_VENUES if k not in open_keys]
+    open_times = {k: dt.strftime('%H:%M') for k, dt in open_dt_map.items()}
     return {
         'iiko_error': False,
         'error_msg': None,
@@ -135,6 +149,7 @@ def check_bars_state(
         'closed_keys': closed_keys,
         'other_open': other_open,
         'unknown_pos': unknown_pos,
+        'open_times': open_times,
         'check_dt': check_dt,
     }
 
@@ -143,30 +158,40 @@ def _fmt_time(check_dt: datetime) -> str:
     return check_dt.strftime('%H:%M')
 
 
-def _key_to_name(key: str) -> str:
-    return KEY_TO_IIKO_NAME.get(key) or key
+def _short(key: str) -> str:
+    return BAR_SHORT_NAMES.get(key, key)
 
 
-def format_positive_message(check_dt: datetime) -> str:
-    names = ', '.join(_key_to_name(k) for k in PHYSICAL_VENUES)
-    return f"[Open-check] {_fmt_time(check_dt)} МСК. Все 4 бара открыты: {names}."
+def format_positive_message(state: dict, check_dt: datetime) -> str:
+    """Все бары открыты — построчно: <код> — <время открытия>."""
+    times = state.get('open_times', {})
+    lines = [f"Open-check {_fmt_time(check_dt)} МСК", "Все 4 бара открыты:"]
+    for k in PHYSICAL_VENUES:
+        lines.append(f"{_short(k)} — {times.get(k, '—')}")
+    return "\n".join(lines)
 
 
 def format_alarm_message(state: dict, check_dt: datetime) -> str:
-    closed = ', '.join(_key_to_name(k) for k in state['closed_keys'])
+    """Часть баров закрыта — список закрытых + открытые с временем."""
+    times = state.get('open_times', {})
+    closed = ', '.join(_short(k) for k in state['closed_keys'])
+    lines = [f"Open-check ALARM {_fmt_time(check_dt)} МСК", f"Закрыты: {closed}"]
     open_list = [k for k in PHYSICAL_VENUES if k in state['open_keys']]
-    open_txt = ', '.join(_key_to_name(k) for k in open_list) if open_list else 'нет'
-    return (
-        f"[Open-check ALARM] {_fmt_time(check_dt)} МСК. "
-        f"Закрыты: {closed}. Открыты: {open_txt}."
-    )
+    if open_list:
+        lines.append("Открыты:")
+        for k in open_list:
+            lines.append(f"{_short(k)} — {times.get(k, '—')}")
+    else:
+        lines.append("Открытых нет")
+    return "\n".join(lines)
 
 
 def format_iiko_error_message(state: dict, check_dt: datetime) -> str:
     err = state.get('error_msg') or 'unknown_error'
     return (
-        f"[Open-check ERROR] {_fmt_time(check_dt)} МСК. "
-        f"iiko недоступен: {err}. Проверка не выполнена."
+        f"Open-check ERROR {_fmt_time(check_dt)} МСК\n"
+        f"iiko недоступен: {err}\n"
+        "Проверка не выполнена"
     )
 
 
@@ -214,7 +239,7 @@ def send_report(state: dict, check_dt: datetime) -> dict:
         recipients = _alarm_recipients()
         target = 'alarm'
     elif not state['closed_keys']:
-        text = format_positive_message(check_dt)
+        text = format_positive_message(state, check_dt)
         recipients = _positive_recipients()
         target = 'positive'
     else:
@@ -275,6 +300,7 @@ def run_check(check_dt: Optional[datetime] = None) -> dict:
             'error_msg': state['error_msg'],
             'open_keys': sorted(state['open_keys']),
             'closed_keys': state['closed_keys'],
+            'open_times': state.get('open_times', {}),
             'other_open': state.get('other_open', []),
             'unknown_pos': state['unknown_pos'],
         },
