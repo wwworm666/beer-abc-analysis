@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    image: beer-abc-analysis:latest
+    container_name: beer-app
+    restart: unless-stopped
+    env_file: .env
+    network_mode: host
+    volumes:
+      - /srv/kultura:/kultura
+      - /srv/beer/data:/app/data
+      - /srv/beer/chz_debug:/app/chz_test/debug
+      - /srv/beer/logs:/app/logs
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: beer-caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
