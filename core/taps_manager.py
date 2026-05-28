@@ -112,9 +112,13 @@ class TapsManager:
 
     def _save_data(self):
         """
-        Сохранение данных в файл
+        Сохранение данных в файл (atomic write через tmp+replace).
         ВАЖНО: Этот метод вызывается только из методов, которые УЖЕ держат self._lock!
         НЕ использовать напрямую без lock!
+
+        Atomic write: пишем в .tmp, fsync, os.replace на финальный путь — гарантирует
+        что параллельный читатель никогда не увидит полу-записанный файл (важно под
+        gunicorn 2 worker'а).
         """
         try:
             os.makedirs(os.path.dirname(self.data_file) or '.', exist_ok=True)
@@ -126,8 +130,15 @@ class TapsManager:
                     'taps': [tap.to_dict() for tap in bar.taps.values()]
                 }
 
-            with open(self.data_file, 'w', encoding='utf-8') as f:
+            tmp_path = self.data_file + '.tmp'
+            with open(tmp_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    pass  # на некоторых FS (например, network mount) fsync не поддерживается
+            os.replace(tmp_path, self.data_file)
         except Exception as e:
             print(f"[ERROR] Ошибка сохранения данных о кранах: {e}")
 

@@ -14,8 +14,14 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Конфигурация
-BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8261982160:AAFu1YfpSQBB1lRC_gDxobwBfSL5kI0UKK8')
+# Конфигурация. Токен ТОЛЬКО из env — никаких хардкод-fallback'ов
+# (раньше тут был реальный токен в коде, что утекало в git).
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+if not BOT_TOKEN:
+    raise RuntimeError(
+        "TELEGRAM_BOT_TOKEN не задан. Установите переменную окружения "
+        "перед запуском (или уберите импорт telegram_webhook из extensions.py)."
+    )
 
 # Конфигурация баров
 BARS_CONFIG = {

@@ -44,4 +44,8 @@ start_open_check_scheduler()
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Под gunicorn эта ветка не исполняется — это только для локального запуска `python app.py`.
+    # FLASK_DEBUG=1 включает debug-режим; в production оставляем выключенным.
+    import os as _os
+    debug_mode = _os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes', 'on')
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)

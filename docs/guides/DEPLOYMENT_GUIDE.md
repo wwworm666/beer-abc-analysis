@@ -1,7 +1,9 @@
 # 🚀 Руководство по развертыванию и обновлению
 
-> **Проект работает только через GitHub + Render**  
-> Никаких локальных установок не требуется!
+> **АКТУАЛЬНЫЙ ДЕПЛОЙ — Selectel VPS (Docker Compose + Caddy), https://beerkultura.ru.**
+> Этот документ описывает устаревший Render-флоу и оставлен как rollback-страховка
+> (есть `render.yaml` в репо). Для текущего деплоя см. `docker-compose.yml`,
+> `Dockerfile`, `Caddyfile` и `.env.example` в корне репозитория.
 
 ---
 

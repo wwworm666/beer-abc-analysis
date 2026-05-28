@@ -72,6 +72,7 @@ def openbot_setup_webhook():
         return jsonify({'error': 'bot not configured'}), 503
 
     base_url = (request.args.get('base_url')
+                or os.environ.get('API_BASE_URL')
                 or os.environ.get('RENDER_EXTERNAL_URL')
                 or request.url_root.rstrip('/'))
     webhook_url = f"{base_url}{_WEBHOOK_PATH}"

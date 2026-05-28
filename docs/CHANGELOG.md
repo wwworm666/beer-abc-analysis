@@ -1,5 +1,135 @@
 ﻿# Changelog
 
+### 2026-05-28 — Audit Selectel: надёжность под gunicorn --workers 2, atomic writes, lock-файлы
+
+После миграции на Selectel под Docker (gunicorn `--workers 2`) выявлены и
+устранены race-conditions и потенциальные коррупции данных, незаметные на Render
+(где раньше шёл один worker). Аудит провёл отдельный подагент, валидацию —
+третий. Все правки прошли `py_compile`, lock-папки фактически маунтятся
+persistent-volume'ами (`/srv/beer/data → /app/data`,
+`/srv/beer/chz_debug → /app/chz_test/debug`).
+
+**Что:**
+- `core/chz_scheduler.py` — добавлен ежедневный atomic lock-файл
+  (`data/.chz_refresh_lock_YYYY-MM-DD`, `O_CREAT|O_EXCL`). Без него оба worker'а
+  тикали в 03:00 и оба POST'или `/api/chz/refresh` → двойной refresh ЧЗ-API.
+  Паттерн идентичен `open_check_scheduler.py`.
+- `routes/stocks.py:796-858` — `/api/chz/refresh` получил cross-worker lock
+  `chz_test/debug/refresh.lock` (atomic `O_EXCL`, stale-detection >30 мин).
+  Прежний `_refresh_proc` был in-process переменной → два параллельных POST
+  стартовали два `remote_exec.py csv-auto` с записью в один `refresh.log`.
+- `core/shifts_manager.py:36-48` — на каждом коннекте `PRAGMA journal_mode=WAL`,
+  `busy_timeout=5000`, `synchronous=NORMAL`. Под 2 worker'ами без WAL писатели
+  блокировали друг друга и читателей `shifts.db`. SQLite автоматически
+  конвертирует существующую БД при первом WAL-pragma.
+- `core/taps_manager.py:113-143` — atomic write через tmp + `flush` + `fsync`
+  + `os.replace`. Раньше при крэше worker'а в `json.dump` файл
+  `/kultura/taps_data.json` оставался полу-записанным (битый JSON, при рестарте
+  пустой таплист).
+- `core/olap_reports.py:170-173` — `timeout=300` → `100` (gunicorn `--timeout 120`
+  убил бы worker раньше; теперь fallback укладывается до SIGKILL).
+- `telegram_webhook.py:18`, `telegram_bot.py:18` — убран хардкод-fallback токена
+  `8261982160:AAFu...`. Раньше токен утекал в git и публичные форки. Теперь
+  при отсутствии env поднимается `RuntimeError`, `extensions.py:74-86` ловит
+  через try/except и выставляет `TELEGRAM_BOT_ENABLED=False`.
+- `app.py:46-51` — `app.run(debug=True)` → `debug=os.environ.get('FLASK_DEBUG')`.
+  Под gunicorn эта ветка не исполняется, но защита от случайного `python app.py`
+  на сервере.
+- `requirements.txt` — добавлены upper-bounds (`<3` / `<4`) для `portalocker`,
+  `openpyxl`, `python-dateutil`, `paramiko`, `Markdown` — защита от breaking
+  major-релизов.
+
+**Почему:**
+- gunicorn `--workers 2` запускает 2 процесса, каждый импортирует `app.py` →
+  стартует свои daemon-потоки → дубли action'ов. `chz_scheduler` дублей не
+  замечал, `open_check_scheduler` уже имел свой lock.
+- Сетевой/файловый I/O в фоновых тредах + SIGTERM/OOM → polу-записанный JSON
+  на `/kultura` (persistent disk).
+- iiko OLAP `timeout=300` > gunicorn `timeout=120` — worker рестартился до
+  получения ответа, кэш не успевал прогреться.
+
+**Файлы:**
+- `core/chz_scheduler.py`, `routes/stocks.py`, `core/shifts_manager.py`,
+  `core/taps_manager.py`, `core/olap_reports.py`, `telegram_webhook.py`,
+  `telegram_bot.py`, `app.py`, `requirements.txt`.
+
+**Подтверждено валидатором:**
+- Все lock-пути маунтятся persistent-volume'ами (переживают рестарт контейнера).
+- `os.replace` атомарен и на Windows (Python 3.3+), и на Linux.
+- Существующая `shifts.db` корректно мигрирует в WAL при первом подключении.
+- Конфликтов с правками URL-аудита нет (разные строки).
+
+**Открытые P2 (не блокеры):**
+- `extensions.py:35`, `core/kpi_calculator.py:75`, `core/meeting_notes.py:17`,
+  `core/shifts_manager.py:28` — `os.path.exists('/kultura')` напрямую вместо
+  `core/storage_paths`. В production работает (mount `/kultura`), но единый
+  helper упростит dev-окружение.
+- `routes/misc.py:run_async` — `asyncio.get_event_loop()` (deprecated в Py 3.12).
+- `core/olap_reports.py` — 25+ `requests.*` без retry/backoff (iiko flaky).
+- `print()` повсеместно вместо `logging.*` (под gunicorn `--access-logfile -`
+  работает, но без уровней).
+- Нет файлового lock на `/kultura/plansdashboard.json`, `meeting_notes.json`,
+  `kpi_targets.json` (только in-process `threading.Lock`) — под 2 worker'ами
+  потенциальная коррупция. Решается тем же tmp+replace.
+
+### 2026-05-28 — Audit Render → Selectel: убраны захардкоженные onrender.com ссылки, актуализированы доки
+
+После миграции с Render на Selectel VPS (https://beerkultura.ru, 139.100.200.92,
+Docker Compose + Caddy) код и документация всё ещё ссылались на старые URLs.
+Пройден полный аудит репозитория, исправлены некритичные, но видимые места.
+
+**Что:**
+- `telegram_bot.py:19` — default `API_BASE_URL` поменян с `https://beer-abc-analysis.onrender.com`
+  на `https://beerkultura.ru`. Шапка модуля переписана.
+- `routes/misc.py:setup_telegram_webhook` — теперь читает `API_BASE_URL` первым,
+  потом `RENDER_EXTERNAL_URL` (оставлен как алиас, env-переменная всё ещё прописана
+  на сервере для обратной совместимости). Комментарии обновлены.
+- `routes/open_check.py:openbot_setup_webhook` — аналогичный порядок:
+  `API_BASE_URL` → `RENDER_EXTERNAL_URL` → `request.url_root`.
+- `docs/open-check-bot.md`, `docs/changelog/CHANGELOG_STOCKS_FILTERING.md`,
+  `docs/technical/CODE_ANALYSIS_COMPLETE.md` — заменены примеры `curl
+  https://*.onrender.com/...` на `https://beerkultura.ru/...`.
+- `README.md` — баннер, секция «Архитектура», «Быстрый старт», «Инфраструктура»
+  и «Поддержка» переписаны под Selectel VPS + Docker Compose + Caddy. `render.yaml`
+  явно помечен как legacy rollback-страховка.
+- `docs/guides/README.md`, `docs/guides/DEPLOYMENT_GUIDE.md`, `docs/PROJECT_STRUCTURE.md`
+  — Render-документы помечены `(legacy)`, добавлены ссылки на актуальный
+  Selectel-стек (`Dockerfile`, `docker-compose.yml`, `Caddyfile`).
+
+**Почему:**
+- Дефолтный onrender.com URL в `telegram_bot.py` означал, что если кто-то
+  запустит polling-бота без `.env`, он начнёт стучать на мёртвый Render-сервис.
+- Доки → юзеры читают README первым, видеть «работает только через Render»
+  на проде Selectel — путаница.
+- `RENDER_EXTERNAL_URL` в env-переменных и в коде оставлен — задокументирован
+  как алиас в `.env.example`, на сервере содержит `https://beerkultura.ru`.
+
+**Файлы:**
+- Код: `telegram_bot.py`, `routes/misc.py`, `routes/open_check.py`.
+- Доки: `README.md`, `docs/PROJECT_STRUCTURE.md`, `docs/open-check-bot.md`,
+  `docs/changelog/CHANGELOG_STOCKS_FILTERING.md`,
+  `docs/technical/CODE_ANALYSIS_COMPLETE.md`, `docs/guides/README.md`,
+  `docs/guides/DEPLOYMENT_GUIDE.md`.
+
+**Оставлено намеренно:**
+- `render.yaml`, `docs/guides/RENDER_DISK_SETUP.md` — rollback-страховка на 1-2 недели.
+- `core/storage_paths.py:RENDER_DISK_DIR` — имя константы (внутреннее API),
+  фактическое значение приходит из `PERSISTENT_DATA_DIR=/kultura`. Переименование
+  затронуло бы импорт в `routes/dashboard.py` и не даёт функциональной пользы.
+- `routes/dashboard.py:render_disk_dir/render_disk_exists` — ключи в diag-JSON,
+  потребители (внешние ops-скрипты, если есть) могут на них полагаться.
+- Исторические упоминания Render в `docs/CHANGELOG.md`, `.claude/docs/CHANGELOG.md`,
+  `docs/changelog/*` — это история, по правилам проекта не переписываем.
+- `docs/guides/ОЦЕНКА_ТРУДОЗАТРАТ_С_ИИ.md` (`RENDER_DEPLOY_HOOK` в примере
+  GitHub Actions) — это иллюстрация в оценке трудозатрат, не действующий пайплайн.
+
+**Что НЕ найдено** (хорошо):
+- Захардкоженных путей `/opt/render/project/src/...` — нет.
+- Проверок `os.environ.get('RENDER')` для определения окружения — нет.
+- Кода, который сам бы вызывал `setWebhook` на старый Render URL при старте — нет.
+  Webhook регистрируется только вручную через `/telegram/setup-webhook` или
+  `/telegram/openbot/setup-webhook`, базовый URL теперь приходит из `API_BASE_URL`.
+
 ### 2026-05-15 — KPI-каталог расширен до полного набора дашборда сотрудника
 
 В редакторе «Настройка KPI-целей» на /salary было 11 опций метрик —

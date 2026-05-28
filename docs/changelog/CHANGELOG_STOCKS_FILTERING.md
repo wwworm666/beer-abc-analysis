@@ -59,18 +59,18 @@ for balance in balances:
         include_in_result()
 ```
 
-## Тестирование на Render
+## Тестирование на проде
 
 После деплоя проверить:
 
 1. Что файл `/kultura/taps_data.json` существует и содержит актуальные данные кранов
 2. Endpoint возвращает только активные кеги:
    ```bash
-   curl "https://your-app.onrender.com/api/stocks/taplist?bar=Большой пр. В.О"
+   curl "https://beerkultura.ru/api/stocks/taplist?bar=Большой пр. В.О"
    ```
 3. Режим "Общая" показывает кеги со всех баров:
    ```bash
-   curl "https://your-app.onrender.com/api/stocks/taplist?bar=Общая"
+   curl "https://beerkultura.ru/api/stocks/taplist?bar=Общая"
    ```
 
 ## Известные ограничения

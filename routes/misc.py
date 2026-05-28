@@ -198,7 +198,7 @@ def setup_telegram_webhook():
 
     try:
         import telegram_webhook
-        # Получаем базовый URL из запроса или используем Render URL
+        # Получаем базовый URL из запроса или из env
         if request.method == 'POST' and request.is_json:
             data = request.get_json() or {}
             base_url = data.get('base_url')
@@ -206,10 +206,13 @@ def setup_telegram_webhook():
             base_url = request.args.get('base_url')
 
         if not base_url:
-            # Пытаемся определить URL автоматически
-            base_url = os.environ.get('RENDER_EXTERNAL_URL')
+            # Пытаемся определить URL автоматически.
+            # API_BASE_URL — основной env (Selectel deploy);
+            # RENDER_EXTERNAL_URL оставлен как алиас для совместимости со старым кодом.
+            base_url = (os.environ.get('API_BASE_URL')
+                        or os.environ.get('RENDER_EXTERNAL_URL'))
             if not base_url:
-                # Если Render URL не найден, используем URL из запроса
+                # Иначе используем URL из запроса (last resort)
                 base_url = request.url_root.rstrip('/')
 
         webhook_url = f"{base_url}/telegram/webhook"

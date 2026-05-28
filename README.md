@@ -2,8 +2,9 @@
 
 **Система комплексного анализа продаж пива и управления разливными кранами для сети баров**
 
-> ⚙️ **Проект работает исключительно через GitHub + Render**
-> Развёртывание в облаке, автоматические обновления, никаких локальных установок
+> ⚙️ **Проект работает через GitHub + Selectel VPS (Docker Compose + Caddy)**
+> Прод: https://beerkultura.ru. Развёртывание в облаке, никаких локальных установок.
+> Конфигурация Render (`render.yaml`) сохранена как rollback-страховка.
 
 ---
 
@@ -202,8 +203,8 @@
 - Планирование и контроль загрузки кранов
 
 **Хранение данных:**
-- **Данные хранятся на Render Disk** (`/kultura/taps_data.json`)
-- Постоянное хранилище, данные не теряются при перезапуске
+- **Данные хранятся на постоянном volume** (`/kultura/taps_data.json` — host mount Selectel VPS)
+- Постоянное хранилище, данные не теряются при перезапуске контейнера
 - История всех событий сохраняется
 
 **URL:** `/taps` (выбор бара), `/taps/<bar_id>` (краны конкретного бара)
@@ -243,31 +244,33 @@
 ## 🏗️ Архитектура
 
 ```
-GitHub (Исходный код + CI/CD)
+GitHub (Исходный код)
     ↓
-Render (Облачный хостинг)
+Selectel VPS (139.100.200.92, beerkultura.ru)
     ↓
-├── Web Service (Flask приложение)
-│   ├── ABC/XYZ анализ
-│   ├── Аналитика по категориям
-│   ├── Анализ официантов
-│   ├── Дашборд "План vs Факт"
-│   ├── Управление остатками
-│   ├── Управление кранами
-│   └── AI-анализ (Google Gemini)
+├── Caddy (TLS + reverse proxy)
+│   └── Docker Compose (gunicorn:10000)
+│       ├── Web Service (Flask приложение)
+│       │   ├── ABC/XYZ анализ
+│       │   ├── Аналитика по категориям
+│       │   ├── Анализ официантов
+│       │   ├── Дашборд "План vs Факт"
+│       │   ├── Управление остатками
+│       │   ├── Управление кранами
+│       │   └── AI-анализ (Google Gemini)
+│       │
+│       ├── iiko API (Данные о продажах и остатках)
+│       │
+│       └── Google Gemini API (AI-анализ)
 │
-├── iiko API (Данные о продажах и остатках)
-│
-├── Google Gemini API (AI-анализ)
-│
-└── Render Disk /kultura
+└── Host volume /kultura
     └── taps_data.json (История кранов)
 ```
 
 ### 💾 Хранение данных:
 
 - **Код**: GitHub
-- **Данные кранов**: Render Disk `/kultura/taps_data.json`
+- **Данные кранов**: host volume `/kultura/taps_data.json` на Selectel VPS
 - **Планы**: JSON файл `data/plansdashboard.json`
 - **Данные о продажах**: iiko API (OLAP отчёты)
 - **Локальных файлов НЕТ** - всё в облаке
@@ -281,19 +284,23 @@ Render (Облачный хостинг)
 ### Кратко:
 
 1. **Fork/Clone** репозитория
-2. **Создать Web Service** на [Render](https://render.com)
-3. **Подключить GitHub** репозиторий
-4. **Создать Render Disk** с mount path `/kultura`
-5. **Добавить Environment Variables**:
-   - `IIKO_API_LOGIN` - логин iiko API
-   - `IIKO_API_PASSWORD` - пароль iiko API
-   - `IIKO_ORGANIZATION_ID` - ID организации
+2. **Поднять VPS** (Selectel) с Docker и Docker Compose
+3. **Склонировать репо** в `/opt/beer` на сервере
+4. **Создать host-каталог** `/kultura` для постоянных данных (мапится в контейнер)
+5. **Заполнить `.env`** на сервере (см. `.env.example`):
+   - `IIKO_LOGIN`, `IIKO_PASSWORD`, `IIKO_SERVER`, `IIKO_PORT`
    - `GEMINI_API_KEY` - ключ Google Gemini API
    - `REMOTE_PASS` - пароль SSH к бар-ПК (обязателен для POST /api/chz/refresh)
    - `REMOTE_USER` - пользователь SSH на бар-ПК (по умолчанию: Администратор)
-6. **Деплой!**
+   - `API_BASE_URL=https://beerkultura.ru`, `APP_DOMAIN=beerkultura.ru`
+   - `CHZ_REFRESH_URL=http://127.0.0.1:10000/api/chz/refresh`
+   - `PERSISTENT_DATA_DIR=/kultura`
+6. **`docker compose up -d`** + Caddy выдаст TLS автоматически.
 
-После `git push` в main → Render автоматически обновит приложение.
+Обновление: `git pull && docker compose build && docker compose up -d` на сервере.
+
+> Конфигурация Render (`render.yaml`) сохранена в репо как rollback-страховка
+> и больше не является активным деплоем.
 
 ---
 
@@ -344,7 +351,7 @@ beer-abc-analysis/
 │
 └── docs/                       # Документация (50+ файлов)
     ├── DEPLOYMENT_GUIDE.md     # Руководство по деплою
-    ├── RENDER_DISK_SETUP.md    # Настройка Render Disk
+    ├── RENDER_DISK_SETUP.md    # (legacy) Настройка Render Disk — оставлено для rollback
     ├── DASHBOARD_NOTES.md      # Работа с дашбордом
     ├── MAPPING_SYSTEM_GUIDE.md # Система мэппинга
     └── ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ.md
@@ -493,11 +500,12 @@ git commit -m "Описание изменений"
 - **Caching** - кэширование AI анализов (1 час)
 
 ### Инфраструктура:
-- **Render** - облачный хостинг
-  - Web Service - Flask приложение
-  - Persistent Disk - данные кранов
-- **GitHub** - Git репозиторий + CI/CD
-- **Автодеплой** - на каждый push в main
+- **Selectel VPS** (139.100.200.92, beerkultura.ru) — основной хостинг
+  - **Docker Compose** — приложение (gunicorn) + Caddy reverse proxy
+  - **Host volume `/kultura`** — постоянные данные кранов
+- **GitHub** — Git репозиторий
+- **Деплой** — `git pull && docker compose up -d` на сервере
+- **Render** — legacy конфигурация (`render.yaml`) сохранена как rollback-страховка
 
 ### Хранение данных:
 - **JSON** - планы, конфигурация, краны
@@ -510,7 +518,7 @@ git commit -m "Описание изменений"
 ### Основные документы:
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Деплой и обновления
 - [DASHBOARD_NOTES.md](DASHBOARD_NOTES.md) - Работа с дашбордом "План vs Факт"
-- [docs/RENDER_DISK_SETUP.md](docs/RENDER_DISK_SETUP.md) - Настройка Render Disk
+- [docs/RENDER_DISK_SETUP.md](docs/RENDER_DISK_SETUP.md) - (legacy) Настройка Render Disk; для Selectel см. host mount `/kultura`
 - [docs/ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ.md](docs/ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ.md) - Для барменов
 
 ### Техническая документация:
@@ -575,10 +583,10 @@ git commit -m "Описание изменений"
 При проблемах:
 
 1. Проверить [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) → Устранение проблем
-2. Проверить Render Logs
+2. Проверить логи контейнера: `docker compose logs -f` на сервере
 3. Убедиться что iiko API доступен
-4. Проверить что Render Disk примонтирован
-5. Проверить Environment Variables (включая `GEMINI_API_KEY`)
+4. Проверить что host volume `/kultura` примонтирован в контейнер
+5. Проверить `.env` на сервере (включая `GEMINI_API_KEY`)
 
 ---
 
@@ -604,6 +612,6 @@ git commit -m "Описание изменений"
 
 ---
 
-**Версия:** 2.2 (Render + Disk + ABC/XYZ + Dashboard + AI + Stocks)
+**Версия:** 2.3 (Selectel VPS + Docker + Caddy + ABC/XYZ + Dashboard + AI + Stocks)
 **Дата обновления:** 5 декабря 2025
 **Автор:** Разработано АН с Claude Code

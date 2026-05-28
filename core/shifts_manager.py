@@ -33,10 +33,18 @@ class ShiftsManager:
 
     @contextmanager
     def _get_connection(self):
-        """Context manager для подключения к БД."""
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        """Context manager для подключения к БД.
+
+        WAL-mode + busy_timeout: под gunicorn 2 worker'а пишут в shifts.db одновременно;
+        с дефолтным rollback journal писатели блокируют читателей и друг друга.
+        WAL даёт concurrent read+write; busy_timeout=5000 ретраит блокировки.
+        """
+        conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
         conn.row_factory = sqlite3.Row
         try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA synchronous=NORMAL")
             yield conn
         finally:
             conn.close()

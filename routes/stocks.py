@@ -6,6 +6,7 @@ import json
 import math
 import subprocess
 import threading
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
@@ -15,6 +16,9 @@ from extensions import taps_manager, get_cached_nomenclature, BARS
 _BASE_DIR = Path(__file__).resolve().parent.parent
 _CHZ_CACHE_FILE = _BASE_DIR / 'chz_test' / 'debug' / 'chz_stock.json'
 _CHZ_REFRESH_LOG = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.log'
+# Cross-worker lock-файл: gunicorn запускает 2 worker'а, у каждого свой _refresh_proc.
+# Без файлового флага оба worker'а могут запустить refresh параллельно (race на refresh.log).
+_CHZ_REFRESH_LOCK = _BASE_DIR / 'chz_test' / 'debug' / 'refresh.lock'
 _refresh_proc: subprocess.Popen | None = None
 _refresh_log_file = None
 _refresh_lock = threading.Lock()
@@ -801,6 +805,8 @@ def refresh_chz_stock():
     if not os.environ.get('REMOTE_PASS'):
         return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
     with _refresh_lock:
+        # Cross-worker check: если lock-файл существует и pid в нём жив — refresh уже идёт
+        # в другом воркере (или в этом). Lock-файл создаётся atomic'но через O_EXCL.
         if _refresh_proc is not None:
             if _refresh_proc.poll() is None:
                 return jsonify({'status': 'already_running'}), 409
@@ -808,6 +814,25 @@ def refresh_chz_stock():
             if _refresh_log_file is not None:
                 _refresh_log_file.close()
                 _refresh_log_file = None
+        # Попытка взять file-lock (atomic). Если уже взят — есть шанс что worker'у-владельцу
+        # дали умереть (stale lock). Проверяем mtime: если файл старше 30 минут — снимаем.
+        os.makedirs(_CHZ_REFRESH_LOCK.parent, exist_ok=True)
+        try:
+            if _CHZ_REFRESH_LOCK.exists():
+                age = time.time() - _CHZ_REFRESH_LOCK.stat().st_mtime
+                if age > 1800:  # 30 минут — refresh всегда укладывается
+                    _CHZ_REFRESH_LOCK.unlink()
+                else:
+                    return jsonify({'status': 'already_running', 'note': 'cross-worker lock'}), 409
+            fd = os.open(str(_CHZ_REFRESH_LOCK),
+                         os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            os.write(fd, f'{os.getpid()}\n'.encode())
+            os.close(fd)
+        except FileExistsError:
+            return jsonify({'status': 'already_running', 'note': 'cross-worker lock race'}), 409
+        except OSError as e:
+            return jsonify({'status': 'error', 'error': f'lock failed: {e}'}), 500
+
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         log_file = None
         try:
@@ -824,6 +849,11 @@ def refresh_chz_stock():
         except OSError as e:
             if log_file is not None:
                 log_file.close()
+            # Снять lock — refresh не стартовал
+            try:
+                _CHZ_REFRESH_LOCK.unlink()
+            except OSError:
+                pass
             return jsonify({'status': 'error', 'error': str(e)}), 500
     return jsonify({'status': 'started'})
 
@@ -837,6 +867,14 @@ def refresh_chz_status():
             poll = _refresh_proc.poll()
             running = poll is None
             exit_code = poll
+            # Если процесс завершился — снимаем cross-worker lock, чтобы можно было
+            # запустить следующий refresh. Делаем только в worker'е-владельце процесса.
+            if not running:
+                try:
+                    if _CHZ_REFRESH_LOCK.exists():
+                        _CHZ_REFRESH_LOCK.unlink()
+                except OSError:
+                    pass
         else:
             running = False
             exit_code = None

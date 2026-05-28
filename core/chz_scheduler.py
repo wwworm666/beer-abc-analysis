@@ -6,6 +6,11 @@
 
 Время refresh берётся из env CHZ_REFRESH_HOUR (default 3, т.е. 03:00 по
 локальному времени бара-сервера).
+
+ЗАЩИТА ОТ ДВОЙНОГО ЗАПУСКА (gunicorn --workers 2):
+Каждый воркер стартует свой scheduler-поток. В момент срабатывания первый
+воркер берёт atomic lock-file (O_CREAT|O_EXCL) на текущую дату, второй —
+ловит FileExistsError и пропускает. Тот же паттерн что и в open_check_scheduler.
 """
 import os
 import threading
@@ -16,6 +21,10 @@ from datetime import datetime, timedelta
 REFRESH_HOUR = int(os.environ.get("CHZ_REFRESH_HOUR", "3"))
 REFRESH_MINUTE = int(os.environ.get("CHZ_REFRESH_MINUTE", "0"))
 LOCAL_REFRESH_URL = os.environ.get("CHZ_REFRESH_URL", "http://127.0.0.1:10000/api/chz/refresh")
+
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCK_DIR = os.path.join(_BASE_DIR, 'data')
+LOCK_PREFIX = '.chz_refresh_lock_'
 
 _started = False
 _lock = threading.Lock()
@@ -29,7 +38,43 @@ def _seconds_until_next_run(hour, minute):
     return (target - now).total_seconds()
 
 
+def _try_acquire_daily_lock(date_str: str) -> bool:
+    """Atomic test-and-set на день. True если этот воркер первый."""
+    os.makedirs(LOCK_DIR, exist_ok=True)
+    lock_path = os.path.join(LOCK_DIR, f'{LOCK_PREFIX}{date_str}')
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            os.write(fd, f'{os.getpid()}\n'.encode())
+        finally:
+            os.close(fd)
+        return True
+    except FileExistsError:
+        return False
+
+
+def _cleanup_old_locks() -> None:
+    """Удалить lock-файлы старше 2 дней. Защита от мусора."""
+    if not os.path.isdir(LOCK_DIR):
+        return
+    today = datetime.now().strftime('%Y-%m-%d')
+    cutoff = (datetime.now() - timedelta(days=2)).strftime('%Y-%m-%d')
+    for fname in os.listdir(LOCK_DIR):
+        if not fname.startswith(LOCK_PREFIX):
+            continue
+        date_part = fname[len(LOCK_PREFIX):]
+        if len(date_part) == 10 and date_part < cutoff and date_part != today:
+            try:
+                os.remove(os.path.join(LOCK_DIR, fname))
+            except OSError:
+                pass
+
+
 def _trigger_refresh():
+    date_str = datetime.now().strftime('%Y-%m-%d')
+    if not _try_acquire_daily_lock(date_str):
+        print(f"[CHZ-SCHED] {datetime.now().isoformat()} lock уже взят другим воркером — пропуск")
+        return
     try:
         req = urllib.request.Request(LOCAL_REFRESH_URL, method="POST")
         with urllib.request.urlopen(req, timeout=15) as r:
@@ -60,6 +105,7 @@ def start_scheduler():
         if not os.environ.get("REMOTE_PASS"):
             print("[CHZ-SCHED] REMOTE_PASS не установлен — авторефреш отключён")
             return
+        _cleanup_old_locks()
         t = threading.Thread(target=_loop, name="chz-scheduler", daemon=True)
         t.start()
         _started = True

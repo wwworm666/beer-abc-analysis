@@ -923,7 +923,7 @@ class DraftAnalysis:
 
 ```
 http://localhost:5000  (development)
-https://your-app.onrender.com  (production)
+https://beerkultura.ru  (production — Selectel VPS)
 ```
 
 ### Endpoints Overview

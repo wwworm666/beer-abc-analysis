@@ -7,7 +7,10 @@ beer-abc-analysis/
 ├── app.py                  # Основное Flask приложение
 ├── config.py               # Конфигурация приложения
 ├── requirements.txt        # Python зависимости
-├── render.yaml             # Конфигурация Render.com
+├── render.yaml             # (legacy) Конфигурация Render.com — rollback-страховка
+├── Dockerfile              # Production-сборка (Selectel VPS)
+├── docker-compose.yml      # Сервис gunicorn + Caddy
+├── Caddyfile               # Reverse proxy + TLS для beerkultura.ru
 ├── telegram_bot.py         # Telegram бот (polling режим)
 ├── telegram_webhook.py     # Telegram бот (webhook режим)
 ├── README.md               # Главная документация
@@ -141,7 +144,8 @@ tests/
 | `.env` | Переменные окружения (секреты, не в git) |
 | `.env.example` | Пример .env файла |
 | `.gitignore` | Игнорируемые файлы |
-| `render.yaml` | Конфигурация деплоя на Render |
+| `render.yaml` | (legacy) Конфигурация деплоя на Render — rollback-страховка |
+| `Dockerfile`, `docker-compose.yml`, `Caddyfile` | Актуальный деплой на Selectel VPS |
 | `.python-version` | Версия Python для pyenv |
 
 ## Запуск проекта

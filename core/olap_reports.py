@@ -167,7 +167,10 @@ class OlapReports:
         params = {"key": self.token}
 
         try:
-            response = requests.get(url, params=params, timeout=300)
+            # gunicorn --timeout 120: уменьшаем с 300 до 100 чтобы worker не убили
+            # до того как мы успеем обработать ответ. На warm cache этот путь не
+            # вызывается (см. extensions.get_cached_nomenclature).
+            response = requests.get(url, params=params, timeout=100)
 
             if response.status_code == 200:
                 print("[OK] Nomenklatura uspeshno poluchena!")

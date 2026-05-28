@@ -1,6 +1,6 @@
 """
 Telegram бот для получения таплиста KULT
-Получает данные через API с Render
+Получает данные через API (https://beerkultura.ru — Selectel VPS).
 """
 import asyncio
 import os
@@ -14,9 +14,11 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Конфигурация
-BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8261982160:AAFu1YfpSQBB1lRC_gDxobwBfSL5kI0UKK8')
-API_BASE_URL = os.getenv('API_BASE_URL', 'https://beer-abc-analysis.onrender.com')
+# Конфигурация. Токен ТОЛЬКО из env (раньше был хардкод-fallback в коде).
+BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+if not BOT_TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN не задан. Установите переменную окружения.")
+API_BASE_URL = os.getenv('API_BASE_URL', 'https://beerkultura.ru')
 
 # Конфигурация баров
 BARS_CONFIG = {

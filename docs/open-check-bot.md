@@ -127,7 +127,7 @@ python -c "from core.open_check_bot import run_check; import json; print(json.du
 
 **На проде:**
 ```
-curl -X POST "https://beer-abc-analysis.onrender.com/api/admin/open-check/run-now" \
+curl -X POST "https://beerkultura.ru/api/admin/open-check/run-now" \
   -H "X-Remote-Pass: $REMOTE_PASS"
 ```
 
