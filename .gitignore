@@ -47,6 +47,9 @@ data/*.backup
 # Логи
 *.log
 data/*.log
+# Имя без расширения — gunicorn/прочие writers любят писать в "logs"
+/logs
+/logs/
 
 # Временные файлы
 *.tmp

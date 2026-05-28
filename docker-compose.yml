@@ -10,7 +10,9 @@ services:
       - /srv/kultura:/kultura
       - /srv/beer/data:/app/data
       - /srv/beer/chz_debug:/app/chz_test/debug
-      - /srv/beer/logs:/app/logs
+    # /app/logs не маунтим: gunicorn пишет access/error в stdout,
+    # логи доступны через `docker compose logs app`. Маунт ломался
+    # из-за случайно закоммиченного файла logs в репо (не папка).
 
   caddy:
     image: caddy:2-alpine
