@@ -1,0 +1,26 @@
+{
+  "data": [
+    {
+      "ItemSaleEventDiscountType": "Loyalty",
+      "Delivery.CustomerCardNumber": "CARD-001",
+      "Delivery.CustomerName": "Guest One",
+      "OrderNum": "42",
+      "DishName": "Beer A",
+      "Store.Name": "Лиговский",
+      "OpenDate.Typed": "2026-03-01",
+      "DishDiscountSumInt": 100.0,
+      "DiscountSum": 10.0
+    },
+    {
+      "ItemSaleEventDiscountType": "Loyalty",
+      "Delivery.CustomerCardNumber": "CARD-002",
+      "Delivery.CustomerName": "Guest Two",
+      "OrderNum": "42",
+      "DishName": "Beer B",
+      "Store.Name": "Лиговский",
+      "OpenDate.Typed": "2026-03-02",
+      "DishDiscountSumInt": 150.0,
+      "DiscountSum": 15.0
+    }
+  ]
+}

@@ -211,11 +211,14 @@
             margin-bottom: 40px;
         }
 
+        /* Fintech-стиль: плашка белая с тонким бордером, цвет передаётся LED в углу */
         .abc-card {
-            background: var(--bg-tertiary);
+            position: relative;
+            background: var(--bg-secondary);
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 20px;
+            color: var(--text-primary);
+            border-radius: 14px;
+            padding: 18px 16px 16px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -223,21 +226,25 @@
 
         .abc-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px var(--shadow);
-            border-color: var(--accent);
+            box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+            border-color: var(--border-color);
         }
 
-        .abc-card.aaa {
-            background: var(--success);
-            border-color: var(--success);
-            color: white;
+        .abc-card .led {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
         }
-
-        .abc-card.ccc {
-            background: var(--danger);
-            border-color: var(--danger);
-            color: white;
-        }
+        .abc-card.led-success  .led { background: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.45); }
+        .abc-card.led-accent   .led { background: #D97757; box-shadow: 0 0 8px rgba(217, 119, 87, 0.45); }
+        .abc-card.led-warning  .led { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.45); }
+        .abc-card.led-violet   .led { background: #8b5cf6; box-shadow: 0 0 8px rgba(139, 92, 246, 0.45); }
+        .abc-card.led-danger   .led { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.45); }
+        .abc-card.led-neutral  .led { background: var(--text-tertiary); box-shadow: none; }
 
         .abc-card .category {
             font-size: 1.25rem;
@@ -301,27 +308,31 @@
             font-variant-numeric: tabular-nums;
         }
 
-        .badge.aaa, .badge.aab, .badge.aac { 
+        .badge.bucket-stars {
             background: var(--success);
             color: white;
         }
-        .badge.aba, .badge.abb, .badge.abc,
-        .badge.aca, .badge.acb, .badge.acc { 
+        .badge.bucket-workhorses,
+        .badge.bucket-premium {
             background: var(--accent);
             color: white;
         }
-        .badge.baa, .badge.bab, .badge.bac,
-        .badge.bba, .badge.bbb, .badge.bbc,
-        .badge.bca, .badge.bcb, .badge.bcc { 
+        .badge.bucket-price-up {
             background: var(--warning);
             color: white;
         }
-        .badge.caa, .badge.cab, .badge.cac,
-        .badge.cba, .badge.cbb, .badge.cbc,
-        .badge.ccc { 
+        .badge.bucket-background {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        .badge.bucket-remove {
             background: var(--danger);
             color: white;
         }
+        /* XYZ standalone badges */
+        .badge.demand-x { background: var(--success); color: white; }
+        .badge.demand-y { background: var(--warning); color: white; }
+        .badge.demand-z { background: var(--danger); color: white; }
 
         /* Modal */
         .modal {
@@ -717,33 +728,6 @@
         {% set page_subtitle = "Классификация ассортимента по выручке и стабильности" %}
         {% include 'shared/nav.html' %}
 
-        <!-- Карточки метрик выручки -->
-        <div class="revenue-metrics" id="revenue-metrics">
-            <div class="metric-card current">
-                <div class="metric-label">Текущая выручка</div>
-                <div class="metric-value" id="metric-current">—</div>
-                <div class="metric-sub" id="metric-current-sub">За выбранный период</div>
-            </div>
-            <div class="metric-card plan">
-                <div class="metric-label">План</div>
-                <div class="metric-value" id="metric-plan">—</div>
-                <div class="metric-sub" id="metric-plan-sub">Плановая выручка</div>
-                <div class="completion-bar">
-                    <div class="completion-fill" id="completion-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="metric-card expected">
-                <div class="metric-label">Ожидаемая</div>
-                <div class="metric-value" id="metric-expected">—</div>
-                <div class="metric-sub" id="metric-expected-sub">Прогноз по тренду</div>
-            </div>
-            <div class="metric-card average">
-                <div class="metric-label">Средняя</div>
-                <div class="metric-value" id="metric-average">—</div>
-                <div class="metric-sub" id="metric-average-sub">В день</div>
-            </div>
-        </div>
-
         <div class="card">
             <!-- Переключатель режима анализа -->
             <div style="margin-bottom: 24px;">
@@ -825,15 +809,6 @@
             window.dashboardCheckApi();
             setInterval(window.dashboardCheckApi, 60000);
             initDatePicker();
-
-            // Загружаем метрики выручки при загрузке страницы (прошлая неделя)
-            setTimeout(() => {
-                const dates = getPickerDates();
-                if (dates) {
-                    const bar = document.getElementById('bar-select').value;
-                    loadRevenueMetrics(bar, dates.from, dates.to);
-                }
-            }, 500);
         });
 
         let datePicker = null;
@@ -878,58 +853,6 @@
             }
         }
 
-        // Revenue Metrics
-        async function loadRevenueMetrics(bar, dateFrom, dateTo) {
-            try {
-                const response = await fetch('/api/revenue-metrics', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ bar, date_from: dateFrom, date_to: dateTo })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Ошибка загрузки метрик');
-                }
-
-                const metrics = await response.json();
-                updateRevenueMetrics(metrics);
-            } catch (error) {
-                console.error('Error loading revenue metrics:', error);
-                // Скрываем метрики при ошибке
-                document.getElementById('metric-current').textContent = '—';
-                document.getElementById('metric-plan').textContent = '—';
-                document.getElementById('metric-expected').textContent = '—';
-                document.getElementById('metric-average').textContent = '—';
-            }
-        }
-
-        function updateRevenueMetrics(metrics) {
-            // Текущая выручка
-            document.getElementById('metric-current').textContent = formatMoney(metrics.current);
-            document.getElementById('metric-current-sub').textContent = `За ${metrics.period_days} дн.`;
-
-            // План
-            document.getElementById('metric-plan').textContent = formatMoney(metrics.plan);
-            document.getElementById('metric-plan-sub').textContent = `${metrics.completion_percent}% выполнения`;
-
-            // Полоска выполнения плана
-            const completionPercent = Math.min(metrics.completion_percent, 100);
-            document.getElementById('completion-fill').style.width = completionPercent + '%';
-
-            // Ожидаемая
-            document.getElementById('metric-expected').textContent = formatMoney(metrics.expected);
-            const expectedSub = metrics.expected >= metrics.plan ? 'План будет выполнен' : 'Недостаточно для плана';
-            const expectedEl = document.getElementById('metric-expected-sub');
-            expectedEl.textContent = expectedSub;
-            expectedEl.className = 'metric-sub ' + (metrics.expected >= metrics.plan ? 'positive' : 'negative');
-
-            // Средняя
-            document.getElementById('metric-average').textContent = formatMoney(metrics.average);
-            document.getElementById('metric-average-sub').textContent = 'В день';
-        }
-
         async function runAnalysis() {
             const bar = document.getElementById('bar-select').value;
             const dates = getPickerDates();
@@ -941,16 +864,10 @@
 
             const dateFrom = dates.from;
             const dateTo = dates.to;
-            const from = new Date(dateFrom);
-            const to = new Date(dateTo);
-            const days = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
 
             document.getElementById('loading').classList.add('active');
             document.getElementById('results').classList.remove('active');
             document.getElementById('error-message').classList.remove('active');
-
-            // Загружаем метрики выручки (не блокируя основной анализ)
-            loadRevenueMetrics(bar, dateFrom, dateTo);
 
             try {
                 // Выбираем endpoint в зависимости от режима
@@ -961,7 +878,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ bar, days })
+                    body: JSON.stringify({ bar, date_from: dateFrom, date_to: dateTo })
                 });
 
                 if (!response.ok) {
@@ -1028,18 +945,46 @@
                 </div>
             `;
 
-           const abcCards = Object.entries(data.abc_stats || data.stats || {})
+            // Корзины действий (6 групп по Revenue+Markup — приоритетный вид)
+            let bucketSection = '';
+            if (data.bucket_stats && Object.keys(data.bucket_stats).length > 0) {
+                const bucketOrder = ['stars', 'workhorses', 'price_up', 'premium', 'background', 'remove'];
+                const bucketCards = bucketOrder
+                    .filter(key => data.bucket_stats[key])
+                    .map(key => {
+                        const info = BUCKETS_UI[key];
+                        const count = data.bucket_stats[key];
+                        return `
+                            <div class="abc-card ${getBucketLedClass(key)}" onclick="showBucketDetails('${barName}', '${key}')">
+                                <span class="led"></span>
+                                ${wrapWithTooltip(`<div class="category">${info.name}</div>`, key)}
+                                <div class="count">${count}</div>
+                            </div>
+                        `;
+                    }).join('');
+
+                bucketSection = `
+                    <h3 class="section-title">Корзины действий</h3>
+                    <div class="abc-matrix">
+                        ${bucketCards}
+                    </div>
+                `;
+            }
+
+            // Полная 3-буквенная раскладка (выручка + наценка + спрос) — вторичный вид
+            const abcCards = Object.entries(data.abc_stats || data.stats || {})
                 .sort((a, b) => b[1] - a[1])
                 .slice(0, 12)
                 .map(([category, count]) => `
-                    <div class="abc-card ${category.toLowerCase()}" onclick="showCategoryDetails('${barName}', '${category}')">
+                    <div class="abc-card ${getBucketLedClassFromCode(category)}" onclick="showCategoryDetails('${barName}', '${category}')">
+                        <span class="led"></span>
                         ${wrapWithTooltip(`<div class="category">${category}</div>`, category)}
                         <div class="count">${count}</div>
                     </div>
                 `).join('');
 
             const matrix = `
-                <h3 class="section-title">ABC категории</h3>
+                <h3 class="section-title">ABC-коды (выручка + наценка + спрос)</h3>
                 <div class="abc-matrix">
                     ${abcCards}
                 </div>
@@ -1050,13 +995,9 @@
              const xyzCards = Object.entries(data.xyz_stats)
                     .sort((a, b) => b[1] - a[1])
                     .map(([category, count]) => {
-                        let bgClass = '';
-                        if (category === 'X') bgClass = 'aaa';
-                        else if (category === 'Y') bgClass = 'bbb';
-                        else if (category === 'Z') bgClass = 'ccc';
-                        
                         return `
-                            <div class="abc-card ${bgClass}" onclick="showXYZDetails('${barName}', '${category}')">
+                            <div class="abc-card ${getXYZLedClass(category)}" onclick="showXYZDetails('${barName}', '${category}')">
+                                <span class="led"></span>
                                 ${wrapWithTooltip(`<div class="category">${category}</div>`, category)}
                                 <div class="count">${count}</div>
                             </div>
@@ -1094,7 +1035,7 @@
                                 ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
                                 <td>${beer.Beer}</td>
                                 <td>${formatMoney(beer.TotalRevenue)}</td>
-                                <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                <td>${wrapWithTooltip(`<span class="badge ${getBucketClass(beer.ABC_Combined)}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
                                 ${beer.XYZ_Category ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
                             </tr>
                         `).join('')}
@@ -1102,15 +1043,9 @@
                 </table>
             `;
 
-            card.innerHTML = header + stats + matrix + xyzSection + topTable;
+            card.innerHTML = header + stats + bucketSection + matrix + xyzSection + topTable;
             section.appendChild(card);
             return section;
-        }
-
-        function getXYZBadgeClass(xyz) {
-            if (xyz === 'X') return 'aaa';
-            if (xyz === 'Y') return 'bbb';
-            return 'ccc';
         }
 
         function showCategoryDetails(barName, category) {
@@ -1186,6 +1121,63 @@
             document.body.insertAdjacentHTML('beforeend', modalHTML);
         }
 
+        function showBucketDetails(barName, bucketKey) {
+            const barData = currentData[barName];
+            if (!barData) return;
+
+            const beers = barData.records.filter(record => record.ABC_Bucket === bucketKey);
+            const hasXYZ = beers.length > 0 && beers[0].XYZ_Category;
+            const hasBarColumn = beers.length > 0 && beers[0].Bar;
+            const bucketInfo = BUCKETS_UI[bucketKey] || { name: bucketKey, action: '' };
+
+            const modalHTML = `
+                <div class="modal active" id="category-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${bucketInfo.name} — ${barName}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 4px; font-size: 0.9rem;">${bucketInfo.action}</p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+                        <p style="margin-bottom: 20px; color: var(--text-secondary);">Всего: ${beers.length} фасовок</p>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    ${hasBarColumn ? '<th>Бар</th>' : ''}
+                                    <th>Пиво</th>
+                                    <th>Код</th>
+                                    <th>Кол-во</th>
+                                    <th>Выручка</th>
+                                    <th>Наценка %</th>
+                                    ${hasXYZ ? '<th>XYZ</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${beers
+                                    .sort((a, b) => b.TotalRevenue - a.TotalRevenue)
+                                    .map((beer, i) => `
+                                        <tr class="beer-row">
+                                            <td>${i + 1}</td>
+                                            ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
+                                            <td>${beer.Beer}</td>
+                                            <td>${wrapWithTooltip(`<span class="badge ${getBucketClass(beer.ABC_Combined)}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                            <td>${formatNumber(beer.TotalQty)}</td>
+                                            <td>${formatMoney(beer.TotalRevenue)}</td>
+                                            <td>${(beer.AvgMarkupPercent * 100).toFixed(1)}%</td>
+                                            ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
+                                        </tr>
+                                    `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
         function showXYZDetails(barName, xyzCategory) {
             const barData = currentData[barName];
             if (!barData) return;
@@ -1242,7 +1234,7 @@
                                             <td>${i + 1}</td>
                                             ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
                                             <td>${beer.Beer}</td>
-                                         <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                         <td>${wrapWithTooltip(`<span class="badge ${getBucketClass(beer.ABC_Combined)}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
                                             <td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>
                                             <td>${formatNumber(beer.TotalQty)}</td>
                                             <td>${formatMoney(beer.TotalRevenue)}</td>
@@ -1493,7 +1485,7 @@
                                         ${catName.length > 25 ? catName.substring(0, 25) + '...' : catName}
                                     </div>
                                     <div class="category">
-                                        <span class="badge ${dominantABC.toLowerCase()}">${dominantABC}</span>
+                                        <span class="badge ${getBucketClass(dominantABC)}">${dominantABC}</span>
                                     </div>
                                     <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
                                         ${formatMoney(catData.total_revenue)}
@@ -1545,7 +1537,8 @@
                                 .sort((a, b) => b[1] - a[1])
                                 .slice(0, 8)
                                 .map(([abc, count]) => `
-                                    <div class="abc-card ${abc.toLowerCase()}">
+                                    <div class="abc-card ${getBucketLedClassFromCode(abc)}">
+                                        <span class="led"></span>
                                         <div class="category">${abc}</div>
                                         <div class="count">${count}</div>
                                     </div>
@@ -1557,9 +1550,9 @@
                             <div class="abc-matrix" style="margin-bottom: 30px;">
                                 ${Object.entries(catData.xyz_stats || {})
                                     .map(([xyz, count]) => {
-                                        let bgClass = xyz === 'X' ? 'aaa' : (xyz === 'Y' ? 'bbb' : 'ccc');
                                         return `
-                                            <div class="abc-card ${bgClass}">
+                                            <div class="abc-card ${getXYZLedClass(xyz)}">
+                                                <span class="led"></span>
                                                 <div class="category">${xyz}</div>
                                                 <div class="count">${count}</div>
                                             </div>
@@ -1591,7 +1584,7 @@
                                             <td>${beer.Beer}</td>
                                             <td>${formatNumber(beer.TotalQty)}</td>
                                             <td>${formatMoney(beer.TotalRevenue)}</td>
-                                            <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                            <td>${wrapWithTooltip(`<span class="badge ${getBucketClass(beer.ABC_Combined)}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
                                             ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
                                             ${hasXYZ ? `<td>${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}</td>` : ''}
                                         </tr>
@@ -1647,56 +1640,91 @@
                 closeModal();
             }
         });
-        // Описания категорий для tooltips
-        const categoryDescriptions = {
-            // ABC категории
-            'AAA': { emoji: '🌟', text: 'Отличная выручка • Высокая наценка • Высокая маржа', action: 'Звезды меню! Must have.' },
-            'AAB': { emoji: '⭐', text: 'Отличная выручка • Высокая наценка • Средняя маржа', action: 'Очень хорошо.' },
-            'AAC': { emoji: '⚠️', text: 'Отличная выручка • Высокая наценка • Низкая маржа', action: 'Проверить себестоимость.' },
-            
-            'ABA': { emoji: '💰', text: 'Отличная выручка • Средняя наценка • Высокая маржа', action: 'Зарабатывает за счёт объёма.' },
-            'ABB': { emoji: '✅', text: 'Отличная выручка • Средняя наценка • Средняя маржа', action: 'Стабильно хорошо.' },
-            'ABC': { emoji: '📊', text: 'Отличная выручка • Средняя наценка • Низкая маржа', action: 'Пересмотреть цену.' },
-            
-            'ACA': { emoji: '🔥', text: 'Отличная выручка • Низкая наценка • Высокая маржа', action: 'Народное пиво!' },
-            'ACB': { emoji: '💡', text: 'Отличная выручка • Низкая наценка • Средняя маржа', action: 'Можно поднять цену.' },
-            'ACC': { emoji: '⚠️', text: 'Отличная выручка • Низкая наценка • Низкая маржа', action: 'Поднять цену!' },
-            
-            'BAA': { emoji: '💎', text: 'Средняя выручка • Высокая наценка • Высокая маржа', action: 'Премиум сегмент.' },
-            'BAB': { emoji: '✅', text: 'Средняя выручка • Высокая наценка • Средняя маржа', action: 'Можно продвигать.' },
-            'BAC': { emoji: '🤔', text: 'Средняя выручка • Высокая наценка • Низкая маржа', action: 'Проверить расчёты.' },
-            
-            'BBA': { emoji: '📈', text: 'Средняя выручка • Средняя наценка • Высокая маржа', action: 'Стоит продвигать.' },
-            'BBB': { emoji: '➖', text: 'Средняя выручка • Средняя наценка • Средняя маржа', action: 'Середнячок.' },
-            'BBC': { emoji: '📉', text: 'Средняя выручка • Средняя наценка • Низкая маржа', action: 'Можно заменить.' },
-            
-            'BCA': { emoji: '🎯', text: 'Средняя выручка • Низкая наценка • Высокая маржа', action: 'Поднять цену.' },
-            'BCB': { emoji: '💭', text: 'Средняя выручка • Низкая наценка • Средняя маржа', action: 'Слабовато.' },
-            'BCC': { emoji: '❌', text: 'Средняя выручка • Низкая наценка • Низкая маржа', action: 'Кандидат на замену.' },
-            
-            'CAA': { emoji: '🍷', text: 'Низкая выручка • Высокая наценка • Высокая маржа', action: 'Craft/Premium для имиджа.' },
-            'CAB': { emoji: '🎨', text: 'Низкая выручка • Высокая наценка • Средняя маржа', action: 'Нишевый продукт.' },
-            'CAC': { emoji: '⚠️', text: 'Низкая выручка • Высокая наценка • Низкая маржа', action: 'Рассмотреть удаление.' },
-            
-            'CBA': { emoji: '🔍', text: 'Низкая выручка • Средняя наценка • Высокая маржа', action: 'Проверить данные.' },
-            'CBB': { emoji: '🤷', text: 'Низкая выручка • Средняя наценка • Средняя маржа', action: 'Рассмотреть замену.' },
-            'CBC': { emoji: '🗑️', text: 'Низкая выручка • Средняя наценка • Низкая маржа', action: 'Убрать из меню.' },
-            
-            'CCA': { emoji: '🧐', text: 'Низкая выручка • Низкая наценка • Высокая маржа', action: 'Проверить расчёты.' },
-            'CCB': { emoji: '❌', text: 'Низкая выручка • Низкая наценка • Средняя маржа', action: 'Убрать из ассортимента.' },
-            'CCC': { emoji: '💀', text: 'Низкая выручка • Низкая наценка • Низкая маржа', action: 'Немедленно убрать!' },
-            
-            // XYZ категории
-            'X': { emoji: '✅', text: 'Стабильный спрос (вариация <10%)', action: 'Легко планировать закупки.' },
-            'Y': { emoji: '📊', text: 'Умеренные колебания (10-25%)', action: 'Нужен небольшой запас.' },
-            'Z': { emoji: '⚡', text: 'Нестабильный спрос (>25%)', action: 'Сложно прогнозировать.' }
+        // 3-буквенный код: выручка (A/B/C) + наценка (A/B/C) + спрос (X/Y/Z).
+        // Маржа в рублях — отдельное поле ABC_Margin, в код не входит.
+        const BUCKETS_UI = {
+            'stars':      { name: 'Ядро',          action: 'Держать всегда',                     led: 'led-success' },
+            'workhorses': { name: 'Объём',         action: 'Оставить',                           led: 'led-accent'  },
+            'price_up':   { name: 'Недооценённые', action: 'Поднять наценку',                   led: 'led-warning' },
+            'premium':    { name: 'Ниша',          action: 'Продвигать',                         led: 'led-violet'  },
+            'background': { name: 'База',          action: 'Не трогать',                         led: 'led-neutral' },
+            'remove':     { name: 'К выводу',      action: 'Рассмотреть удаление',               led: 'led-danger'  }
         };
 
+        const REV_MARKUP_TO_BUCKET = {
+            'AA': 'stars',      'AB': 'workhorses', 'AC': 'price_up',
+            'BA': 'workhorses', 'BB': 'background', 'BC': 'price_up',
+            'CA': 'premium',    'CB': 'background', 'CC': 'remove'
+        };
+
+        const REV_DESC = {
+            'A': 'Топ выручка',
+            'B': 'Средняя выручка',
+            'C': 'Низкая выручка'
+        };
+        const MARKUP_DESC = {
+            'A': 'Высокая наценка (>=120%)',
+            'B': 'Средняя наценка (100-120%)',
+            'C': 'Низкая наценка (<100%)'
+        };
+        const DEMAND_DESC = {
+            'X': 'Стабильный спрос (CV<10%)',
+            'Y': 'Умеренные колебания (10-25%)',
+            'Z': 'Нестабильный спрос (>=25%)'
+        };
+
+        function getBucketKey(code) {
+            if (!code || code.length < 2) return 'background';
+            return REV_MARKUP_TO_BUCKET[code.substring(0, 2)] || 'background';
+        }
+
+        function getBucketClass(code) {
+            return 'bucket-' + getBucketKey(code).replace('_', '-');
+        }
+
+        function getBucketLedClass(bucketKey) {
+            return (BUCKETS_UI[bucketKey] && BUCKETS_UI[bucketKey].led) || 'led-neutral';
+        }
+
+        function getBucketLedClassFromCode(code) {
+            return getBucketLedClass(getBucketKey(code));
+        }
+
+        function getXYZBadgeClass(xyz) {
+            if (xyz === 'X') return 'demand-x';
+            if (xyz === 'Y') return 'demand-y';
+            return 'demand-z';
+        }
+
+        function getXYZLedClass(xyz) {
+            if (xyz === 'X') return 'led-success';
+            if (xyz === 'Y') return 'led-warning';
+            return 'led-danger';
+        }
+
         function createTooltip(category) {
-            const desc = categoryDescriptions[category];
-            if (!desc) return '';
-            
-            return `<span class="tooltip"><span class="emoji">${desc.emoji}</span>${desc.text}<br><strong>${desc.action}</strong></span>`;
+            if (!category) return '';
+
+            // Одиночная буква спроса: X/Y/Z
+            if (category.length === 1 && DEMAND_DESC[category]) {
+                return `<span class="tooltip">${DEMAND_DESC[category]}</span>`;
+            }
+
+            // Ключ корзины напрямую (для кликов по карточке корзины)
+            if (BUCKETS_UI[category]) {
+                const b = BUCKETS_UI[category];
+                return `<span class="tooltip"><strong>${b.name}</strong><br>${b.action}</span>`;
+            }
+
+            // 3-буквенный код
+            if (category.length === 3) {
+                const rev = category[0], markup = category[1], demand = category[2];
+                const bucket = BUCKETS_UI[getBucketKey(category)] || { name: '?', action: '' };
+                const parts = [REV_DESC[rev], MARKUP_DESC[markup], DEMAND_DESC[demand]].filter(Boolean).join(' / ');
+                return `<span class="tooltip"><strong>${bucket.name}</strong> — ${bucket.action}<br>${parts}</span>`;
+            }
+
+            return '';
         }
 
         function wrapWithTooltip(html, category) {
@@ -1763,7 +1791,7 @@
                                         <td>${beer.Style || '—'}</td>
                                         <td>${formatNumber(beer.TotalQty)}</td>
                                         <td>${formatMoney(beer.TotalRevenue)}</td>
-                                        <td>${wrapWithTooltip(`<span class="badge ${beer.ABC_Combined.toLowerCase()}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
+                                        <td>${wrapWithTooltip(`<span class="badge ${getBucketClass(beer.ABC_Combined)}">${beer.ABC_Combined}</span>`, beer.ABC_Combined)}</td>
                                         ${hasXYZ ? `<td>${wrapWithTooltip(`<span class="badge ${getXYZBadgeClass(beer.XYZ_Category)}">${beer.XYZ_Category}</span>`, beer.XYZ_Category)}</td>` : ''}
                                         <td>${(beer.AvgMarkupPercent * 100).toFixed(1)}%</td>
                                     </tr>

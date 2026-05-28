@@ -7,6 +7,7 @@ from core.data_processor import BeerDataProcessor
 from core.abc_analysis import ABCAnalysis
 from core.xyz_analysis import XYZAnalysis
 from core.category_analysis import CategoryAnalysis
+from core.abc_buckets import get_bucket_key
 from core.draft_analysis import DraftAnalysis
 from core.waiter_analysis import WaiterAnalysis
 from core.revenue_metrics import RevenueMetricsCalculator
@@ -22,23 +23,31 @@ def analyze():
         data = request.json
         bar_name = data.get('bar')
         days = int(data.get('days', 30))
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
 
         print(f"\n[ANALIZ] Zapusk analiza...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
-        print(f"   Period: {days} dney")
 
-            # Подключаемся к iiko API
+        # Если конкретные даты не переданы, считаем по days от сегодня
+        if not date_from or not date_to:
+            date_to_obj = datetime.now()
+            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = date_to_obj.strftime("%Y-%m-%d")
+            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+        else:
+            print(f"   Period: {date_from} - {date_to}")
+
+        # OLAP to-дата EXCLUSIVE → +1 день, чтобы включить выбранный последний день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        # Подключаемся к iiko API
         olap = OlapReports()
         if not olap.connect():
             return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
 
         try:
-            # Запрашиваем данные
-            date_to_obj = datetime.now()
-            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
-            date_to = (date_to_obj + timedelta(days=1)).strftime("%Y-%m-%d")  # OLAP exclusive
-
-            report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
+            report_data = olap.get_beer_sales_report(date_from, olap_date_to, bar_name)
         finally:
             olap.disconnect()
 
@@ -74,8 +83,11 @@ def analyze():
                 combined['XYZ_Category'].fillna('Z', inplace=True)
                 combined['CoefficientOfVariation'].fillna(100, inplace=True)
 
-                # Полная категория ABC-XYZ
-                combined['ABCXYZ_Combined'] = combined['ABC_Combined'] + '-' + combined['XYZ_Category']
+                # 3-буквенный код: выручка + наценка + спрос (XYZ). Маржа остаётся отдельным полем.
+                combined['ABC_Combined'] = combined['ABC_Revenue'] + combined['ABC_Markup'] + combined['XYZ_Category']
+                combined['ABC_Bucket'] = combined.apply(
+                    lambda r: get_bucket_key(r['ABC_Revenue'], r['ABC_Markup']), axis=1
+                )
 
                 results = {bar_name: combined}
             else:
@@ -102,7 +114,6 @@ def analyze():
                         )
                         abc_df_copy['XYZ_Category'].fillna('Z', inplace=True)
                         abc_df_copy['CoefficientOfVariation'].fillna(100, inplace=True)
-                        abc_df_copy['ABCXYZ_Combined'] = abc_df_copy['ABC_Combined'] + '-' + abc_df_copy['XYZ_Category']
 
                     all_bars_data.append(abc_df_copy)
 
@@ -136,17 +147,10 @@ def analyze():
                     aggregated['AvgMarkupPercent']
                 )
 
-                # 3-я буква: ABC по марже
+                # ABC по марже (как отдельное поле для сортировки — в ABC_Combined не входит)
                 aggregated['ABC_Margin'] = abc_temp.calculate_abc_category(
                     aggregated['TotalMargin'],
                     ascending=False
-                )
-
-                # Комбинированная категория
-                aggregated['ABC_Combined'] = (
-                    aggregated['ABC_Revenue'] +
-                    aggregated['ABC_Markup'] +
-                    aggregated['ABC_Margin']
                 )
 
                 # Добавляем XYZ анализ на основе агрегированных данных
@@ -177,7 +181,12 @@ def analyze():
                 aggregated = aggregated.merge(xyz_df_all, on='Beer', how='left')
                 aggregated['XYZ_Category'].fillna('Z', inplace=True)
                 aggregated['CoefficientOfVariation'].fillna(100, inplace=True)
-                aggregated['ABCXYZ_Combined'] = aggregated['ABC_Combined'] + '-' + aggregated['XYZ_Category']
+
+                # 3-буквенный код: выручка + наценка + спрос (XYZ).
+                aggregated['ABC_Combined'] = aggregated['ABC_Revenue'] + aggregated['ABC_Markup'] + aggregated['XYZ_Category']
+                aggregated['ABC_Bucket'] = aggregated.apply(
+                    lambda r: get_bucket_key(r['ABC_Revenue'], r['ABC_Markup']), axis=1
+                )
 
                 results = {"Общая": aggregated}
             else:
@@ -201,10 +210,10 @@ def analyze():
             if 'XYZ_Category' in df.columns:
                 xyz_stats = df['XYZ_Category'].value_counts().to_dict()
 
-            # Статистика по ABCXYZ комбинациям
-            abcxyz_stats = {}
-            if 'ABCXYZ_Combined' in df.columns:
-                abcxyz_stats = df['ABCXYZ_Combined'].value_counts().to_dict()
+            # Статистика по корзинам действий (6 групп по Revenue+Markup)
+            bucket_stats = {}
+            if 'ABC_Bucket' in df.columns:
+                bucket_stats = df['ABC_Bucket'].value_counts().to_dict()
 
             # Топ и худшие фасовки
             top_beers = df.nlargest(10, 'TotalRevenue')[
@@ -221,7 +230,7 @@ def analyze():
                 'records': records,
                 'abc_stats': abc_stats,
                 'xyz_stats': xyz_stats,
-                'abcxyz_stats': abcxyz_stats,
+                'bucket_stats': bucket_stats,
                 'top_beers': top_beers,
                 'worst_beers': worst_beers,
                 'total_beers': len(df),
@@ -274,10 +283,23 @@ def analyze_categories():
         data = request.json
         bar_name = data.get('bar')
         days = int(data.get('days', 30))
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
 
         print(f"\n[CATEGORY] Zapusk analiza po kategoriyam...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
-        print(f"   Period: {days} dney")
+
+        # Если конкретные даты не переданы, считаем по days от сегодня
+        if not date_from or not date_to:
+            date_to_obj = datetime.now()
+            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
+            date_to = date_to_obj.strftime("%Y-%m-%d")
+            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+        else:
+            print(f"   Period: {date_from} - {date_to}")
+
+        # OLAP to-дата EXCLUSIVE → +1 день, чтобы включить выбранный последний день
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         # Подключаемся к iiko API
         print("   [1/8] Podklyuchenie k iiko API...")
@@ -288,16 +310,11 @@ def analyze_categories():
         print("   [OK] Podklyucheno k iiko API")
 
         try:
-            # Запрашиваем данные
             print("   [2/8] Zapros dannykh iz OLAP...")
-            date_to_obj = datetime.now()
-            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
-            date_to = (date_to_obj + timedelta(days=1)).strftime("%Y-%m-%d")  # OLAP exclusive
-
-            report_data = olap.get_beer_sales_report(date_from, date_to, bar_name)
+            report_data = olap.get_beer_sales_report(date_from, olap_date_to, bar_name)
 
             if not report_data or not report_data.get('data'):
-                print(f"   [ERROR] Net dannykh za period {date_from} - {date_to}")
+                print(f"   [ERROR] Net dannykh za period {date_from} - {olap_date_to}")
                 return jsonify({'error': 'Нет данных за выбранный период'}), 404
         finally:
             olap.disconnect()

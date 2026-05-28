@@ -3,7 +3,7 @@
     "gtin": "04610093628430",
     "name": "Пиво светлое пастеризованное фильтрованное FH Helles «ФХ Хеллес», объемная доля этилового спирта  4,5%",
     "brand": "Без товарного знака",
-    "count": 132,
+    "count": 134,
     "expiration_dates": [
       "2025-05-28",
       "2025-05-29",
@@ -54,7 +54,7 @@
       {
         "production_date": "2026-04-01",
         "expiration_date": "2026-09-28",
-        "count": 5
+        "count": 7
       },
       {
         "production_date": "2026-03-04",
@@ -166,12 +166,12 @@
       {
         "kpp": "784201001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 94,
+        "count": 97,
         "batches": [
           {
             "production_date": "2026-04-01",
             "expiration_date": "2026-09-28",
-            "count": 2
+            "count": 5
           },
           {
             "production_date": "2026-03-04",
@@ -283,13 +283,8 @@
       {
         "kpp": "781045001",
         "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 30,
+        "count": 29,
         "batches": [
-          {
-            "production_date": "2026-04-01",
-            "expiration_date": "2026-09-28",
-            "count": 1
-          },
           {
             "production_date": "2026-01-14",
             "expiration_date": "2026-07-13",
@@ -2896,471 +2891,6 @@
     ]
   },
   {
-    "gtin": "04640106806746",
-    "name": "Пиво светлое непастеризованное нефильтрованное неосветленное \"Эль 45\"",
-    "brand": "Brewlok",
-    "count": 45,
-    "expiration_dates": [
-      "2024-06-03",
-      "2024-06-04",
-      "2024-06-12",
-      "2024-06-16",
-      "2024-06-24",
-      "2024-06-28",
-      "2024-07-09",
-      "2024-07-24",
-      "2024-07-28",
-      "2024-08-05",
-      "2024-08-08",
-      "2024-08-09",
-      "2024-08-15",
-      "2024-08-17",
-      "2024-09-12",
-      "2025-01-08",
-      "2025-01-14",
-      "2025-02-26",
-      "2025-03-07",
-      "2025-03-31",
-      "2025-05-10",
-      "2025-05-17",
-      "2025-05-25",
-      "2025-07-21",
-      "2025-08-12",
-      "2026-04-30",
-      "2026-05-07",
-      "2026-05-08",
-      "2026-05-23",
-      "2026-05-24",
-      "2026-07-02",
-      "2026-07-22",
-      "2026-08-23",
-      "2027-01-13",
-      "2027-02-17"
-    ],
-    "production_dates": [
-      "2024-03-26",
-      "2024-04-03",
-      "2024-04-09",
-      "2024-06-20",
-      "2024-07-31",
-      "2024-10-22",
-      "2024-11-20",
-      "2024-12-03",
-      "2025-04-08",
-      "2025-04-29",
-      "2025-05-06",
-      "2025-05-07",
-      "2025-05-22",
-      "2025-05-23",
-      "2025-07-01",
-      "2025-07-21",
-      "2025-08-22",
-      "2026-01-12",
-      "2026-02-16"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-16",
-        "expiration_date": "2027-02-17",
-        "count": 1
-      },
-      {
-        "production_date": "2026-01-12",
-        "expiration_date": "2027-01-13",
-        "count": 2
-      },
-      {
-        "production_date": "2025-08-22",
-        "expiration_date": "2026-08-23",
-        "count": 1
-      },
-      {
-        "production_date": "2025-07-21",
-        "expiration_date": "2026-07-22",
-        "count": 1
-      },
-      {
-        "production_date": "2025-07-01",
-        "expiration_date": "2026-07-02",
-        "count": 3
-      },
-      {
-        "production_date": "2025-05-23",
-        "expiration_date": "2026-05-24",
-        "count": 1
-      },
-      {
-        "production_date": "2025-05-22",
-        "expiration_date": "2026-05-23",
-        "count": 1
-      },
-      {
-        "production_date": "2025-05-07",
-        "expiration_date": "2026-05-08",
-        "count": 1
-      },
-      {
-        "production_date": "2025-05-06",
-        "expiration_date": "2026-05-07",
-        "count": 4
-      },
-      {
-        "production_date": "2025-04-29",
-        "expiration_date": "2026-04-30",
-        "count": 4
-      },
-      {
-        "production_date": "2025-04-08",
-        "expiration_date": "2025-05-10",
-        "count": 1
-      },
-      {
-        "production_date": "2024-12-03",
-        "expiration_date": "2025-03-31",
-        "count": 1
-      },
-      {
-        "production_date": "2024-12-03",
-        "expiration_date": "2025-05-17",
-        "count": 1
-      },
-      {
-        "production_date": "2024-12-03",
-        "expiration_date": "2025-05-25",
-        "count": 1
-      },
-      {
-        "production_date": "2024-12-03",
-        "expiration_date": "2025-02-26",
-        "count": 1
-      },
-      {
-        "production_date": "2024-11-20",
-        "expiration_date": "2025-03-07",
-        "count": 1
-      },
-      {
-        "production_date": "2024-10-22",
-        "expiration_date": "2025-01-08",
-        "count": 1
-      },
-      {
-        "production_date": "2024-10-22",
-        "expiration_date": "2025-01-14",
-        "count": 1
-      },
-      {
-        "production_date": "2024-07-31",
-        "expiration_date": "2024-08-17",
-        "count": 1
-      },
-      {
-        "production_date": "2024-07-31",
-        "expiration_date": "2024-09-12",
-        "count": 1
-      },
-      {
-        "production_date": "2024-07-31",
-        "expiration_date": "2025-08-12",
-        "count": 1
-      },
-      {
-        "production_date": "2024-06-20",
-        "expiration_date": "2024-08-08",
-        "count": 1
-      },
-      {
-        "production_date": "2024-06-20",
-        "expiration_date": "2024-08-09",
-        "count": 1
-      },
-      {
-        "production_date": "2024-06-20",
-        "expiration_date": "2025-07-21",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-09",
-        "expiration_date": "2024-06-24",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-09",
-        "expiration_date": "2024-06-28",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-09",
-        "expiration_date": "2024-08-05",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-09",
-        "expiration_date": "2024-08-15",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-09",
-        "expiration_date": "2024-07-28",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-03",
-        "expiration_date": "2024-07-24",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-03",
-        "expiration_date": "2024-06-12",
-        "count": 2
-      },
-      {
-        "production_date": "2024-04-03",
-        "expiration_date": "2024-06-03",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-03",
-        "expiration_date": "2024-07-09",
-        "count": 1
-      },
-      {
-        "production_date": "2024-04-03",
-        "expiration_date": "2024-06-16",
-        "count": 1
-      },
-      {
-        "production_date": "2024-03-26",
-        "expiration_date": "2024-06-04",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 19,
-        "batches": [
-          {
-            "production_date": "2026-01-12",
-            "expiration_date": "2027-01-13",
-            "count": 1
-          },
-          {
-            "production_date": "2025-07-21",
-            "expiration_date": "2026-07-22",
-            "count": 1
-          },
-          {
-            "production_date": "2025-07-01",
-            "expiration_date": "2026-07-02",
-            "count": 1
-          },
-          {
-            "production_date": "2025-05-22",
-            "expiration_date": "2026-05-23",
-            "count": 1
-          },
-          {
-            "production_date": "2025-05-06",
-            "expiration_date": "2026-05-07",
-            "count": 2
-          },
-          {
-            "production_date": "2025-04-29",
-            "expiration_date": "2026-04-30",
-            "count": 3
-          },
-          {
-            "production_date": "2025-04-08",
-            "expiration_date": "2025-05-10",
-            "count": 1
-          },
-          {
-            "production_date": "2024-12-03",
-            "expiration_date": "2025-03-31",
-            "count": 1
-          },
-          {
-            "production_date": "2024-12-03",
-            "expiration_date": "2025-05-17",
-            "count": 1
-          },
-          {
-            "production_date": "2024-12-03",
-            "expiration_date": "2025-05-25",
-            "count": 1
-          },
-          {
-            "production_date": "2024-07-31",
-            "expiration_date": "2025-08-12",
-            "count": 1
-          },
-          {
-            "production_date": "2024-06-20",
-            "expiration_date": "2024-08-09",
-            "count": 1
-          },
-          {
-            "production_date": "2024-06-20",
-            "expiration_date": "2025-07-21",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-09",
-            "expiration_date": "2024-08-05",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-03",
-            "expiration_date": "2024-07-24",
-            "count": 1
-          },
-          {
-            "production_date": "2024-03-26",
-            "expiration_date": "2024-06-04",
-            "count": 1
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 16,
-        "batches": [
-          {
-            "production_date": "2026-02-16",
-            "expiration_date": "2027-02-17",
-            "count": 1
-          },
-          {
-            "production_date": "2026-01-12",
-            "expiration_date": "2027-01-13",
-            "count": 1
-          },
-          {
-            "production_date": "2025-08-22",
-            "expiration_date": "2026-08-23",
-            "count": 1
-          },
-          {
-            "production_date": "2025-07-01",
-            "expiration_date": "2026-07-02",
-            "count": 2
-          },
-          {
-            "production_date": "2025-05-23",
-            "expiration_date": "2026-05-24",
-            "count": 1
-          },
-          {
-            "production_date": "2025-05-07",
-            "expiration_date": "2026-05-08",
-            "count": 1
-          },
-          {
-            "production_date": "2025-05-06",
-            "expiration_date": "2026-05-07",
-            "count": 2
-          },
-          {
-            "production_date": "2025-04-29",
-            "expiration_date": "2026-04-30",
-            "count": 1
-          },
-          {
-            "production_date": "2024-11-20",
-            "expiration_date": "2025-03-07",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-09",
-            "expiration_date": "2024-06-28",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-09",
-            "expiration_date": "2024-08-15",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-03",
-            "expiration_date": "2024-06-03",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-03",
-            "expiration_date": "2024-07-09",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-03",
-            "expiration_date": "2024-06-12",
-            "count": 1
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 10,
-        "batches": [
-          {
-            "production_date": "2024-12-03",
-            "expiration_date": "2025-02-26",
-            "count": 1
-          },
-          {
-            "production_date": "2024-10-22",
-            "expiration_date": "2025-01-08",
-            "count": 1
-          },
-          {
-            "production_date": "2024-10-22",
-            "expiration_date": "2025-01-14",
-            "count": 1
-          },
-          {
-            "production_date": "2024-07-31",
-            "expiration_date": "2024-08-17",
-            "count": 1
-          },
-          {
-            "production_date": "2024-07-31",
-            "expiration_date": "2024-09-12",
-            "count": 1
-          },
-          {
-            "production_date": "2024-06-20",
-            "expiration_date": "2024-08-08",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-09",
-            "expiration_date": "2024-06-24",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-09",
-            "expiration_date": "2024-07-28",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-03",
-            "expiration_date": "2024-06-12",
-            "count": 1
-          },
-          {
-            "production_date": "2024-04-03",
-            "expiration_date": "2024-06-16",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04610093628492",
     "name": "Пиво светлое пастеризованное нефильтрованное неосветленное пшеничное FH Weizen «ФХ Вайцен», объемная доля этилового спирта  5,2%",
     "brand": "Без товарного знака",
@@ -3581,6 +3111,466 @@
           {
             "production_date": "2026-03-29",
             "expiration_date": "2026-09-25",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640106806746",
+    "name": "Пиво светлое непастеризованное нефильтрованное неосветленное \"Эль 45\"",
+    "brand": "Brewlok",
+    "count": 44,
+    "expiration_dates": [
+      "2024-06-03",
+      "2024-06-04",
+      "2024-06-12",
+      "2024-06-16",
+      "2024-06-24",
+      "2024-06-28",
+      "2024-07-09",
+      "2024-07-24",
+      "2024-07-28",
+      "2024-08-05",
+      "2024-08-08",
+      "2024-08-09",
+      "2024-08-15",
+      "2024-08-17",
+      "2024-09-12",
+      "2025-01-08",
+      "2025-01-14",
+      "2025-02-26",
+      "2025-03-07",
+      "2025-03-31",
+      "2025-05-10",
+      "2025-05-17",
+      "2025-05-25",
+      "2025-07-21",
+      "2025-08-12",
+      "2026-04-30",
+      "2026-05-07",
+      "2026-05-08",
+      "2026-05-23",
+      "2026-05-24",
+      "2026-07-02",
+      "2026-07-22",
+      "2026-08-23",
+      "2027-01-13",
+      "2027-02-17"
+    ],
+    "production_dates": [
+      "2024-03-26",
+      "2024-04-03",
+      "2024-04-09",
+      "2024-06-20",
+      "2024-07-31",
+      "2024-10-22",
+      "2024-11-20",
+      "2024-12-03",
+      "2025-04-08",
+      "2025-04-29",
+      "2025-05-06",
+      "2025-05-07",
+      "2025-05-22",
+      "2025-05-23",
+      "2025-07-01",
+      "2025-07-21",
+      "2025-08-22",
+      "2026-01-12",
+      "2026-02-16"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-16",
+        "expiration_date": "2027-02-17",
+        "count": 1
+      },
+      {
+        "production_date": "2026-01-12",
+        "expiration_date": "2027-01-13",
+        "count": 1
+      },
+      {
+        "production_date": "2025-08-22",
+        "expiration_date": "2026-08-23",
+        "count": 1
+      },
+      {
+        "production_date": "2025-07-21",
+        "expiration_date": "2026-07-22",
+        "count": 1
+      },
+      {
+        "production_date": "2025-07-01",
+        "expiration_date": "2026-07-02",
+        "count": 3
+      },
+      {
+        "production_date": "2025-05-23",
+        "expiration_date": "2026-05-24",
+        "count": 1
+      },
+      {
+        "production_date": "2025-05-22",
+        "expiration_date": "2026-05-23",
+        "count": 1
+      },
+      {
+        "production_date": "2025-05-07",
+        "expiration_date": "2026-05-08",
+        "count": 1
+      },
+      {
+        "production_date": "2025-05-06",
+        "expiration_date": "2026-05-07",
+        "count": 4
+      },
+      {
+        "production_date": "2025-04-29",
+        "expiration_date": "2026-04-30",
+        "count": 4
+      },
+      {
+        "production_date": "2025-04-08",
+        "expiration_date": "2025-05-10",
+        "count": 1
+      },
+      {
+        "production_date": "2024-12-03",
+        "expiration_date": "2025-03-31",
+        "count": 1
+      },
+      {
+        "production_date": "2024-12-03",
+        "expiration_date": "2025-05-17",
+        "count": 1
+      },
+      {
+        "production_date": "2024-12-03",
+        "expiration_date": "2025-05-25",
+        "count": 1
+      },
+      {
+        "production_date": "2024-12-03",
+        "expiration_date": "2025-02-26",
+        "count": 1
+      },
+      {
+        "production_date": "2024-11-20",
+        "expiration_date": "2025-03-07",
+        "count": 1
+      },
+      {
+        "production_date": "2024-10-22",
+        "expiration_date": "2025-01-08",
+        "count": 1
+      },
+      {
+        "production_date": "2024-10-22",
+        "expiration_date": "2025-01-14",
+        "count": 1
+      },
+      {
+        "production_date": "2024-07-31",
+        "expiration_date": "2024-08-17",
+        "count": 1
+      },
+      {
+        "production_date": "2024-07-31",
+        "expiration_date": "2024-09-12",
+        "count": 1
+      },
+      {
+        "production_date": "2024-07-31",
+        "expiration_date": "2025-08-12",
+        "count": 1
+      },
+      {
+        "production_date": "2024-06-20",
+        "expiration_date": "2024-08-08",
+        "count": 1
+      },
+      {
+        "production_date": "2024-06-20",
+        "expiration_date": "2024-08-09",
+        "count": 1
+      },
+      {
+        "production_date": "2024-06-20",
+        "expiration_date": "2025-07-21",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-09",
+        "expiration_date": "2024-06-24",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-09",
+        "expiration_date": "2024-06-28",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-09",
+        "expiration_date": "2024-08-05",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-09",
+        "expiration_date": "2024-08-15",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-09",
+        "expiration_date": "2024-07-28",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-03",
+        "expiration_date": "2024-07-24",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-03",
+        "expiration_date": "2024-06-12",
+        "count": 2
+      },
+      {
+        "production_date": "2024-04-03",
+        "expiration_date": "2024-06-03",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-03",
+        "expiration_date": "2024-07-09",
+        "count": 1
+      },
+      {
+        "production_date": "2024-04-03",
+        "expiration_date": "2024-06-16",
+        "count": 1
+      },
+      {
+        "production_date": "2024-03-26",
+        "expiration_date": "2024-06-04",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 18,
+        "batches": [
+          {
+            "production_date": "2025-07-21",
+            "expiration_date": "2026-07-22",
+            "count": 1
+          },
+          {
+            "production_date": "2025-07-01",
+            "expiration_date": "2026-07-02",
+            "count": 1
+          },
+          {
+            "production_date": "2025-05-22",
+            "expiration_date": "2026-05-23",
+            "count": 1
+          },
+          {
+            "production_date": "2025-05-06",
+            "expiration_date": "2026-05-07",
+            "count": 2
+          },
+          {
+            "production_date": "2025-04-29",
+            "expiration_date": "2026-04-30",
+            "count": 3
+          },
+          {
+            "production_date": "2025-04-08",
+            "expiration_date": "2025-05-10",
+            "count": 1
+          },
+          {
+            "production_date": "2024-12-03",
+            "expiration_date": "2025-03-31",
+            "count": 1
+          },
+          {
+            "production_date": "2024-12-03",
+            "expiration_date": "2025-05-17",
+            "count": 1
+          },
+          {
+            "production_date": "2024-12-03",
+            "expiration_date": "2025-05-25",
+            "count": 1
+          },
+          {
+            "production_date": "2024-07-31",
+            "expiration_date": "2025-08-12",
+            "count": 1
+          },
+          {
+            "production_date": "2024-06-20",
+            "expiration_date": "2024-08-09",
+            "count": 1
+          },
+          {
+            "production_date": "2024-06-20",
+            "expiration_date": "2025-07-21",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-09",
+            "expiration_date": "2024-08-05",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-03",
+            "expiration_date": "2024-07-24",
+            "count": 1
+          },
+          {
+            "production_date": "2024-03-26",
+            "expiration_date": "2024-06-04",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 16,
+        "batches": [
+          {
+            "production_date": "2026-02-16",
+            "expiration_date": "2027-02-17",
+            "count": 1
+          },
+          {
+            "production_date": "2026-01-12",
+            "expiration_date": "2027-01-13",
+            "count": 1
+          },
+          {
+            "production_date": "2025-08-22",
+            "expiration_date": "2026-08-23",
+            "count": 1
+          },
+          {
+            "production_date": "2025-07-01",
+            "expiration_date": "2026-07-02",
+            "count": 2
+          },
+          {
+            "production_date": "2025-05-23",
+            "expiration_date": "2026-05-24",
+            "count": 1
+          },
+          {
+            "production_date": "2025-05-07",
+            "expiration_date": "2026-05-08",
+            "count": 1
+          },
+          {
+            "production_date": "2025-05-06",
+            "expiration_date": "2026-05-07",
+            "count": 2
+          },
+          {
+            "production_date": "2025-04-29",
+            "expiration_date": "2026-04-30",
+            "count": 1
+          },
+          {
+            "production_date": "2024-11-20",
+            "expiration_date": "2025-03-07",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-09",
+            "expiration_date": "2024-06-28",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-09",
+            "expiration_date": "2024-08-15",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-03",
+            "expiration_date": "2024-06-03",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-03",
+            "expiration_date": "2024-07-09",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-03",
+            "expiration_date": "2024-06-12",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 10,
+        "batches": [
+          {
+            "production_date": "2024-12-03",
+            "expiration_date": "2025-02-26",
+            "count": 1
+          },
+          {
+            "production_date": "2024-10-22",
+            "expiration_date": "2025-01-08",
+            "count": 1
+          },
+          {
+            "production_date": "2024-10-22",
+            "expiration_date": "2025-01-14",
+            "count": 1
+          },
+          {
+            "production_date": "2024-07-31",
+            "expiration_date": "2024-08-17",
+            "count": 1
+          },
+          {
+            "production_date": "2024-07-31",
+            "expiration_date": "2024-09-12",
+            "count": 1
+          },
+          {
+            "production_date": "2024-06-20",
+            "expiration_date": "2024-08-08",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-09",
+            "expiration_date": "2024-06-24",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-09",
+            "expiration_date": "2024-07-28",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-03",
+            "expiration_date": "2024-06-12",
+            "count": 1
+          },
+          {
+            "production_date": "2024-04-03",
+            "expiration_date": "2024-06-16",
             "count": 1
           }
         ]
@@ -4471,7 +4461,7 @@
     "gtin": "04610359540537",
     "name": "Пивной напиток непастеризованный нефильтрованный неосветленный «Мичелада»",
     "brand": "PARADOX",
-    "count": 38,
+    "count": 32,
     "expiration_dates": [
       "2026-11-10",
       "2026-12-25",
@@ -4487,12 +4477,12 @@
       {
         "production_date": "2026-03-19",
         "expiration_date": "2027-03-19",
-        "count": 21
+        "count": 18
       },
       {
         "production_date": "2025-12-25",
         "expiration_date": "2026-12-25",
-        "count": 8
+        "count": 5
       },
       {
         "production_date": "2025-11-10",
@@ -4526,24 +4516,24 @@
       {
         "kpp": "784201001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 11,
+        "count": 8,
         "batches": [
           {
             "production_date": "2026-03-19",
             "expiration_date": "2027-03-19",
-            "count": 11
+            "count": 8
           }
         ]
       },
       {
         "kpp": "781645001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 6,
+        "count": 3,
         "batches": [
           {
             "production_date": "2025-12-25",
             "expiration_date": "2026-12-25",
-            "count": 6
+            "count": 3
           }
         ]
       }
@@ -4553,7 +4543,7 @@
     "gtin": "04105120993150",
     "name": "Пиво светлое пастеризованное фильтрованное \"Вайнштефан Оригинал Хеллес\"",
     "brand": ",нет",
-    "count": 36,
+    "count": 28,
     "expiration_dates": [
       "2026-08-15",
       "2026-09-15",
@@ -4576,12 +4566,12 @@
       {
         "production_date": "2025-11-15",
         "expiration_date": "2026-11-15",
-        "count": 6
+        "count": 3
       },
       {
         "production_date": "2025-09-15",
         "expiration_date": "2026-09-15",
-        "count": 10
+        "count": 5
       },
       {
         "production_date": "2025-08-15",
@@ -4627,29 +4617,17 @@
       {
         "kpp": "780145001",
         "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 10,
+        "count": 7,
         "batches": [
           {
             "production_date": "2025-11-15",
             "expiration_date": "2026-11-15",
-            "count": 6
+            "count": 3
           },
           {
             "production_date": "2025-09-15",
             "expiration_date": "2026-09-15",
             "count": 4
-          }
-        ]
-      },
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2025-09-15",
-            "expiration_date": "2026-09-15",
-            "count": 5
           }
         ]
       }
@@ -4659,7 +4637,7 @@
     "gtin": "04104170021226",
     "name": "Пиво светлое непастеризованное фильтрованное ячменное низового брожения \"Айингер Байриш Пилз\"",
     "brand": "Ayinger",
-    "count": 28,
+    "count": 26,
     "expiration_dates": [
       "2026-07-30"
     ],
@@ -4671,7 +4649,7 @@
       {
         "production_date": "2025-09-30",
         "expiration_date": "2026-07-30",
-        "count": 28
+        "count": 26
       }
     ],
     "by_kpp": [
@@ -4690,18 +4668,6 @@
       {
         "kpp": "780145001",
         "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 7,
-        "batches": [
-          {
-            "production_date": "2025-09-30",
-            "expiration_date": "2026-07-30",
-            "count": 7
-          }
-        ]
-      },
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
         "count": 7,
         "batches": [
           {
@@ -4722,6 +4688,18 @@
             "count": 5
           }
         ]
+      },
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 5,
+        "batches": [
+          {
+            "production_date": "2025-09-30",
+            "expiration_date": "2026-07-30",
+            "count": 5
+          }
+        ]
       }
     ]
   },
@@ -4729,7 +4707,7 @@
     "gtin": "00000040269115",
     "name": "Пиво светлое непастеризованное фильтрованное Ригеле Вюрцигес Экспорт",
     "brand": "Riegele",
-    "count": 26,
+    "count": 25,
     "expiration_dates": [
       "2026-08-12"
     ],
@@ -4741,7 +4719,7 @@
       {
         "production_date": "2025-08-12",
         "expiration_date": "2026-08-12",
-        "count": 26
+        "count": 25
       }
     ],
     "by_kpp": [
@@ -4760,12 +4738,12 @@
       {
         "kpp": "781645001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 9,
+        "count": 8,
         "batches": [
           {
             "production_date": "2025-08-12",
             "expiration_date": "2026-08-12",
-            "count": 9
+            "count": 8
           }
         ]
       },
@@ -5089,7 +5067,7 @@
     "gtin": "00000040269146",
     "name": "Пиво светлое непастеризованное фильтрованное Ригеле Аугсбургер Херрен Пилс",
     "brand": "Riegele",
-    "count": 24,
+    "count": 23,
     "expiration_dates": [
       "2026-04-09",
       "2026-07-08"
@@ -5103,7 +5081,7 @@
       {
         "production_date": "2025-10-08",
         "expiration_date": "2026-07-08",
-        "count": 22
+        "count": 21
       },
       {
         "production_date": "2025-07-13",
@@ -5144,12 +5122,12 @@
       {
         "kpp": "781045001",
         "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 5,
+        "count": 4,
         "batches": [
           {
             "production_date": "2025-10-08",
             "expiration_date": "2026-07-08",
-            "count": 4
+            "count": 3
           },
           {
             "production_date": "2025-07-13",
@@ -6042,52 +6020,6 @@
     ]
   },
   {
-    "gtin": "04670013013357",
-    "name": "\"Доунт Ворри Бэйби\" (\"Don't Worry Baby\") Пиво безалкогольное светлое пастеризованное фильтрованное",
-    "brand": "\"Jaws\"",
-    "count": 21,
-    "expiration_dates": [
-      "2027-03-16",
-      "2027-04-09"
-    ],
-    "production_dates": [
-      "2026-03-16",
-      "2026-04-09"
-    ],
-    "product_group": "NABEER",
-    "batches": [
-      {
-        "production_date": "2026-04-09",
-        "expiration_date": "2027-04-09",
-        "count": 12
-      },
-      {
-        "production_date": "2026-03-16",
-        "expiration_date": "2027-03-16",
-        "count": 9
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "",
-        "fiasId": "",
-        "count": 21,
-        "batches": [
-          {
-            "production_date": "2026-04-09",
-            "expiration_date": "2027-04-09",
-            "count": 12
-          },
-          {
-            "production_date": "2026-03-16",
-            "expiration_date": "2027-03-16",
-            "count": 9
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04105120673946",
     "name": "Пиво светлое пастеризованное нефильтрованное неосветленное \"Вайнштефан Хефевайсбир\"",
     "brand": ",нет",
@@ -6948,53 +6880,46 @@
     ]
   },
   {
-    "gtin": "04003669016104",
-    "name": "Пиво светлое непастеризованное нефильтрованное осветленное Шнайдер Вайсс ХопфенВайсс Вайцендоппелбок ТАП 05",
-    "brand": ",нет",
-    "count": 17,
+    "gtin": "04670013013357",
+    "name": "\"Доунт Ворри Бэйби\" (\"Don't Worry Baby\") Пиво безалкогольное светлое пастеризованное фильтрованное",
+    "brand": "\"Jaws\"",
+    "count": 18,
     "expiration_dates": [
-      "2026-09-26",
-      "2026-11-03"
+      "2027-03-16",
+      "2027-04-09"
     ],
     "production_dates": [
-      "2025-09-26",
-      "2025-11-03"
+      "2026-03-16",
+      "2026-04-09"
     ],
-    "product_group": "BEER",
+    "product_group": "NABEER",
     "batches": [
       {
-        "production_date": "2025-11-03",
-        "expiration_date": "2026-11-03",
+        "production_date": "2026-04-09",
+        "expiration_date": "2027-04-09",
         "count": 9
       },
       {
-        "production_date": "2025-09-26",
-        "expiration_date": "2026-09-26",
-        "count": 8
+        "production_date": "2026-03-16",
+        "expiration_date": "2027-03-16",
+        "count": 9
       }
     ],
     "by_kpp": [
       {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 9,
+        "kpp": "",
+        "fiasId": "",
+        "count": 18,
         "batches": [
           {
-            "production_date": "2025-11-03",
-            "expiration_date": "2026-11-03",
+            "production_date": "2026-04-09",
+            "expiration_date": "2027-04-09",
             "count": 9
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 8,
-        "batches": [
+          },
           {
-            "production_date": "2025-09-26",
-            "expiration_date": "2026-09-26",
-            "count": 8
+            "production_date": "2026-03-16",
+            "expiration_date": "2027-03-16",
+            "count": 9
           }
         ]
       }
@@ -7262,65 +7187,53 @@
     ]
   },
   {
-    "gtin": "04650505842214",
-    "name": "Пивной напиток темный Ньюкасл Браун Эль «Newcastle Brown Ale» фильтрованный пастеризованный  бутылка 0,33л. алк. 4,7%",
-    "brand": "Heineken UK Limited",
-    "count": 15,
+    "gtin": "04003669016104",
+    "name": "Пиво светлое непастеризованное нефильтрованное осветленное Шнайдер Вайсс ХопфенВайсс Вайцендоппелбок ТАП 05",
+    "brand": ",нет",
+    "count": 16,
     "expiration_dates": [
-      "2026-09-30",
-      "2026-11-30"
+      "2026-09-26",
+      "2026-11-03"
     ],
     "production_dates": [
-      "2025-09-30",
-      "2025-11-30"
+      "2025-09-26",
+      "2025-11-03"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2025-11-30",
-        "expiration_date": "2026-11-30",
-        "count": 6
+        "production_date": "2025-11-03",
+        "expiration_date": "2026-11-03",
+        "count": 9
       },
       {
-        "production_date": "2025-09-30",
-        "expiration_date": "2026-09-30",
-        "count": 9
+        "production_date": "2025-09-26",
+        "expiration_date": "2026-09-26",
+        "count": 7
       }
     ],
     "by_kpp": [
       {
-        "kpp": "784201001",
+        "kpp": "781645001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 9,
         "batches": [
           {
-            "production_date": "2025-09-30",
-            "expiration_date": "2026-09-30",
+            "production_date": "2025-11-03",
+            "expiration_date": "2026-11-03",
             "count": 9
           }
         ]
       },
       {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 5,
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 7,
         "batches": [
           {
-            "production_date": "2025-11-30",
-            "expiration_date": "2026-11-30",
-            "count": 5
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-11-30",
-            "expiration_date": "2026-11-30",
-            "count": 1
+            "production_date": "2025-09-26",
+            "expiration_date": "2026-09-26",
+            "count": 7
           }
         ]
       }
@@ -7385,142 +7298,53 @@
     ]
   },
   {
-    "gtin": "04603702182218",
-    "name": "«Он Бейс. Вест Коаст Ай Пи Эй» 0,5 Пиво светлое непастеризованное нефильтрованное неосветленное",
-    "brand": "Отсутствует",
+    "gtin": "04650505842214",
+    "name": "Пивной напиток темный Ньюкасл Браун Эль «Newcastle Brown Ale» фильтрованный пастеризованный  бутылка 0,33л. алк. 4,7%",
+    "brand": "Heineken UK Limited",
     "count": 14,
     "expiration_dates": [
-      "2026-09-04",
-      "2026-10-02",
-      "2027-01-22",
-      "2027-04-14"
+      "2026-09-30",
+      "2026-11-30"
     ],
     "production_dates": [
-      "2025-09-04",
-      "2025-10-02",
-      "2026-01-22",
-      "2026-04-14"
+      "2025-09-30",
+      "2025-11-30"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-04-14",
-        "expiration_date": "2027-04-14",
-        "count": 3
+        "production_date": "2025-11-30",
+        "expiration_date": "2026-11-30",
+        "count": 5
       },
       {
-        "production_date": "2026-01-22",
-        "expiration_date": "2027-01-22",
+        "production_date": "2025-09-30",
+        "expiration_date": "2026-09-30",
         "count": 9
-      },
-      {
-        "production_date": "2025-10-02",
-        "expiration_date": "2026-10-02",
-        "count": 1
-      },
-      {
-        "production_date": "2025-09-04",
-        "expiration_date": "2026-09-04",
-        "count": 1
       }
     ],
     "by_kpp": [
       {
         "kpp": "784201001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 10,
+        "count": 9,
         "batches": [
           {
-            "production_date": "2026-01-22",
-            "expiration_date": "2027-01-22",
+            "production_date": "2025-09-30",
+            "expiration_date": "2026-09-30",
             "count": 9
-          },
-          {
-            "production_date": "2025-09-04",
-            "expiration_date": "2026-09-04",
-            "count": 1
           }
         ]
       },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-04-14",
-            "expiration_date": "2027-04-14",
-            "count": 3
-          },
-          {
-            "production_date": "2025-10-02",
-            "expiration_date": "2026-10-02",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04680089900345",
-    "name": "Сидр фруктовый ароматизированный нефильтрованный пастеризованный газированный жемчужный полусухой \"ТАЙМ КИЛЛА КОНОПЛЯНЫЙ\"",
-    "brand": "TIME KILLA",
-    "count": 14,
-    "expiration_dates": [
-      "2026-11-28",
-      "2026-12-24"
-    ],
-    "production_dates": [
-      "2025-11-28",
-      "2025-12-24"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-12-24",
-        "expiration_date": "2026-12-24",
-        "count": 8
-      },
-      {
-        "production_date": "2025-11-28",
-        "expiration_date": "2026-11-28",
-        "count": 6
-      }
-    ],
-    "by_kpp": [
       {
         "kpp": "781045001",
         "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 6,
+        "count": 5,
         "batches": [
           {
-            "production_date": "2025-11-28",
-            "expiration_date": "2026-11-28",
-            "count": 6
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2025-12-24",
-            "expiration_date": "2026-12-24",
-            "count": 4
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2025-12-24",
-            "expiration_date": "2026-12-24",
-            "count": 4
+            "production_date": "2025-11-30",
+            "expiration_date": "2026-11-30",
+            "count": 5
           }
         ]
       }
@@ -7590,102 +7414,6 @@
           {
             "production_date": "2025-09-08",
             "expiration_date": "2026-04-08",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04603702182201",
-    "name": "«Астролагер Премиум Пилс» 0,5 Пиво светлое непастеризованное нефильтрованное неосветленное",
-    "brand": "Отсутствует",
-    "count": 14,
-    "expiration_dates": [
-      "2026-07-07",
-      "2026-09-01",
-      "2026-09-15",
-      "2026-10-21",
-      "2026-11-05"
-    ],
-    "production_dates": [
-      "2025-09-30",
-      "2025-11-25",
-      "2025-12-09",
-      "2026-01-14",
-      "2026-01-29"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-01-29",
-        "expiration_date": "2026-11-05",
-        "count": 5
-      },
-      {
-        "production_date": "2026-01-14",
-        "expiration_date": "2026-10-21",
-        "count": 4
-      },
-      {
-        "production_date": "2025-12-09",
-        "expiration_date": "2026-09-15",
-        "count": 1
-      },
-      {
-        "production_date": "2025-11-25",
-        "expiration_date": "2026-09-01",
-        "count": 1
-      },
-      {
-        "production_date": "2025-09-30",
-        "expiration_date": "2026-07-07",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 9,
-        "batches": [
-          {
-            "production_date": "2026-01-29",
-            "expiration_date": "2026-11-05",
-            "count": 5
-          },
-          {
-            "production_date": "2025-11-25",
-            "expiration_date": "2026-09-01",
-            "count": 1
-          },
-          {
-            "production_date": "2025-09-30",
-            "expiration_date": "2026-07-07",
-            "count": 3
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-01-14",
-            "expiration_date": "2026-10-21",
-            "count": 4
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-12-09",
-            "expiration_date": "2026-09-15",
             "count": 1
           }
         ]
@@ -7876,52 +7604,6 @@
     ]
   },
   {
-    "gtin": "05410218008197",
-    "name": "Мартинс ИПА 55 0,33 Пиво светлое пастеризованное фильтрованное",
-    "brand": "JOHN MARTIN",
-    "count": 13,
-    "expiration_dates": [
-      "2027-02-26"
-    ],
-    "production_dates": [
-      "2025-08-26"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-08-26",
-        "expiration_date": "2027-02-26",
-        "count": 13
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 9,
-        "batches": [
-          {
-            "production_date": "2025-08-26",
-            "expiration_date": "2027-02-26",
-            "count": 9
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2025-08-26",
-            "expiration_date": "2027-02-26",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "00000040269108",
     "name": "Пиво светлое непастеризованное фильтрованное Ригеле Файнес Урхель",
     "brand": "\" отсутствует\"",
@@ -8027,6 +7709,71 @@
             "production_date": "2025-10-31",
             "expiration_date": "2026-10-31",
             "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04680089900345",
+    "name": "Сидр фруктовый ароматизированный нефильтрованный пастеризованный газированный жемчужный полусухой \"ТАЙМ КИЛЛА КОНОПЛЯНЫЙ\"",
+    "brand": "TIME KILLA",
+    "count": 13,
+    "expiration_dates": [
+      "2026-11-28",
+      "2026-12-24"
+    ],
+    "production_dates": [
+      "2025-11-28",
+      "2025-12-24"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-12-24",
+        "expiration_date": "2026-12-24",
+        "count": 7
+      },
+      {
+        "production_date": "2025-11-28",
+        "expiration_date": "2026-11-28",
+        "count": 6
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 6,
+        "batches": [
+          {
+            "production_date": "2025-11-28",
+            "expiration_date": "2026-11-28",
+            "count": 6
+          }
+        ]
+      },
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2025-12-24",
+            "expiration_date": "2026-12-24",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2025-12-24",
+            "expiration_date": "2026-12-24",
+            "count": 3
           }
         ]
       }
@@ -8311,22 +8058,43 @@
     ]
   },
   {
-    "gtin": "04610173061126",
-    "name": "Мартинс Пэль Эль 0,33 Пиво светлое пастеризованное фильтрованное",
-    "brand": "JOHN MARTIN",
+    "gtin": "04603702182218",
+    "name": "«Он Бейс. Вест Коаст Ай Пи Эй» 0,5 Пиво светлое непастеризованное нефильтрованное неосветленное",
+    "brand": "Отсутствует",
     "count": 12,
     "expiration_dates": [
-      "2026-12-05"
+      "2026-09-04",
+      "2026-10-02",
+      "2027-01-22",
+      "2027-04-14"
     ],
     "production_dates": [
-      "2025-09-05"
+      "2025-09-04",
+      "2025-10-02",
+      "2026-01-22",
+      "2026-04-14"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2025-09-05",
-        "expiration_date": "2026-12-05",
-        "count": 12
+        "production_date": "2026-04-14",
+        "expiration_date": "2027-04-14",
+        "count": 3
+      },
+      {
+        "production_date": "2026-01-22",
+        "expiration_date": "2027-01-22",
+        "count": 7
+      },
+      {
+        "production_date": "2025-10-02",
+        "expiration_date": "2026-10-02",
+        "count": 1
+      },
+      {
+        "production_date": "2025-09-04",
+        "expiration_date": "2026-09-04",
+        "count": 1
       }
     ],
     "by_kpp": [
@@ -8336,9 +8104,14 @@
         "count": 8,
         "batches": [
           {
-            "production_date": "2025-09-05",
-            "expiration_date": "2026-12-05",
-            "count": 8
+            "production_date": "2026-01-22",
+            "expiration_date": "2027-01-22",
+            "count": 7
+          },
+          {
+            "production_date": "2025-09-04",
+            "expiration_date": "2026-09-04",
+            "count": 1
           }
         ]
       },
@@ -8348,61 +8121,97 @@
         "count": 4,
         "batches": [
           {
-            "production_date": "2025-09-05",
-            "expiration_date": "2026-12-05",
-            "count": 4
+            "production_date": "2026-04-14",
+            "expiration_date": "2027-04-14",
+            "count": 3
+          },
+          {
+            "production_date": "2025-10-02",
+            "expiration_date": "2026-10-02",
+            "count": 1
           }
         ]
       }
     ]
   },
   {
-    "gtin": "04660185914583",
-    "name": "Пиво тёмное нефильтрованное непастеризованное осветлённое \"Балтик портер 1\" (\"Anubis\"), 10% об. алк., 450 мл.",
-    "brand": "Polnochnyj Project",
+    "gtin": "04603702182201",
+    "name": "«Астролагер Премиум Пилс» 0,5 Пиво светлое непастеризованное нефильтрованное неосветленное",
+    "brand": "Отсутствует",
     "count": 12,
     "expiration_dates": [
-      "2026-12-12",
-      "2027-02-13"
+      "2026-07-07",
+      "2026-09-01",
+      "2026-09-15",
+      "2026-10-21",
+      "2026-11-05"
     ],
     "production_dates": [
-      "2025-12-12",
-      "2026-02-13"
+      "2025-09-30",
+      "2025-11-25",
+      "2025-12-09",
+      "2026-01-14",
+      "2026-01-29"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-02-13",
-        "expiration_date": "2027-02-13",
+        "production_date": "2026-01-29",
+        "expiration_date": "2026-11-05",
+        "count": 3
+      },
+      {
+        "production_date": "2026-01-14",
+        "expiration_date": "2026-10-21",
         "count": 4
       },
       {
-        "production_date": "2025-12-12",
-        "expiration_date": "2026-12-12",
-        "count": 8
+        "production_date": "2025-12-09",
+        "expiration_date": "2026-09-15",
+        "count": 1
+      },
+      {
+        "production_date": "2025-11-25",
+        "expiration_date": "2026-09-01",
+        "count": 1
+      },
+      {
+        "production_date": "2025-09-30",
+        "expiration_date": "2026-07-07",
+        "count": 3
       }
     ],
     "by_kpp": [
       {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 7,
         "batches": [
           {
-            "production_date": "2025-12-12",
-            "expiration_date": "2026-12-12",
-            "count": 7
+            "production_date": "2026-01-29",
+            "expiration_date": "2026-11-05",
+            "count": 3
+          },
+          {
+            "production_date": "2025-11-25",
+            "expiration_date": "2026-09-01",
+            "count": 1
+          },
+          {
+            "production_date": "2025-09-30",
+            "expiration_date": "2026-07-07",
+            "count": 3
           }
         ]
       },
       {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
         "count": 4,
         "batches": [
           {
-            "production_date": "2026-02-13",
-            "expiration_date": "2027-02-13",
+            "production_date": "2026-01-14",
+            "expiration_date": "2026-10-21",
             "count": 4
           }
         ]
@@ -8413,8 +8222,8 @@
         "count": 1,
         "batches": [
           {
-            "production_date": "2025-12-12",
-            "expiration_date": "2026-12-12",
+            "production_date": "2025-12-09",
+            "expiration_date": "2026-09-15",
             "count": 1
           }
         ]
@@ -8752,86 +8561,6 @@
     ]
   },
   {
-    "gtin": "04680623940622",
-    "name": "Пивной напиток безалкогольный нефильтрованный неосветленный непастеризованный \"Бэк ту бэланс\"",
-    "brand": "TWO PEAKS BREW LAB",
-    "count": 12,
-    "expiration_dates": [
-      "2027-03-13"
-    ],
-    "production_dates": [
-      "2026-03-13"
-    ],
-    "product_group": "NABEER",
-    "batches": [
-      {
-        "production_date": "2026-03-13",
-        "expiration_date": "2027-03-13",
-        "count": 12
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "",
-        "fiasId": "",
-        "count": 12,
-        "batches": [
-          {
-            "production_date": "2026-03-13",
-            "expiration_date": "2027-03-13",
-            "count": 12
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04660185917775",
-    "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"Сингл Хоп Плейер 4\" (\"Single Hop Player: Citra\"), 7% об. алк., 450 мл.",
-    "brand": "Polnochnyj Project",
-    "count": 11,
-    "expiration_dates": [
-      "2027-03-10"
-    ],
-    "production_dates": [
-      "2026-03-10"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-10",
-        "expiration_date": "2027-03-10",
-        "count": 11
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 7,
-        "batches": [
-          {
-            "production_date": "2026-03-10",
-            "expiration_date": "2027-03-10",
-            "count": 7
-          }
-        ]
-      },
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-03-10",
-            "expiration_date": "2027-03-10",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "05011885003685",
     "name": "Пиво темное нефильтрованное непастеризованное неосветленное \"Фуллерс 1845\" (Fuller's 1845), 0,5л ст. бут., алк. 6,3%",
     "brand": "Fullers",
@@ -8872,6 +8601,71 @@
             "production_date": "2025-12-22",
             "expiration_date": "2028-01-01",
             "count": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04660185914583",
+    "name": "Пиво тёмное нефильтрованное непастеризованное осветлённое \"Балтик портер 1\" (\"Anubis\"), 10% об. алк., 450 мл.",
+    "brand": "Polnochnyj Project",
+    "count": 11,
+    "expiration_dates": [
+      "2026-12-12",
+      "2027-02-13"
+    ],
+    "production_dates": [
+      "2025-12-12",
+      "2026-02-13"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-13",
+        "expiration_date": "2027-02-13",
+        "count": 3
+      },
+      {
+        "production_date": "2025-12-12",
+        "expiration_date": "2026-12-12",
+        "count": 8
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 7,
+        "batches": [
+          {
+            "production_date": "2025-12-12",
+            "expiration_date": "2026-12-12",
+            "count": 7
+          }
+        ]
+      },
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2026-02-13",
+            "expiration_date": "2027-02-13",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-12-12",
+            "expiration_date": "2026-12-12",
+            "count": 1
           }
         ]
       }
@@ -9018,52 +8812,6 @@
           {
             "production_date": "2025-07-24",
             "expiration_date": "2027-07-24",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "00000040269139",
-    "name": "Пиво светлое непастеризованное фильтрованное Коммерцианрат Ригеле Приват",
-    "brand": ",нет",
-    "count": 11,
-    "expiration_dates": [
-      "2026-10-07"
-    ],
-    "production_dates": [
-      "2025-10-07"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-10-07",
-        "expiration_date": "2026-10-07",
-        "count": 11
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 10,
-        "batches": [
-          {
-            "production_date": "2025-10-07",
-            "expiration_date": "2026-10-07",
-            "count": 10
-          }
-        ]
-      },
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-10-07",
-            "expiration_date": "2026-10-07",
             "count": 1
           }
         ]
@@ -9391,21 +9139,21 @@
     ]
   },
   {
-    "gtin": "04610093626153",
-    "name": "Пиво светлое пастеризованное фильтрованное безалкогольное Dreamteam Sport Pilsner («Дримтим Спорт Пилснер»), объемная доля этилового спирта не более 0,5%",
-    "brand": "Без товарного знака",
+    "gtin": "04680623940622",
+    "name": "Пивной напиток безалкогольный нефильтрованный неосветленный непастеризованный \"Бэк ту бэланс\"",
+    "brand": "TWO PEAKS BREW LAB",
     "count": 11,
     "expiration_dates": [
-      "2026-12-19"
+      "2027-03-13"
     ],
     "production_dates": [
-      "2026-03-24"
+      "2026-03-13"
     ],
     "product_group": "NABEER",
     "batches": [
       {
-        "production_date": "2026-03-24",
-        "expiration_date": "2026-12-19",
+        "production_date": "2026-03-13",
+        "expiration_date": "2027-03-13",
         "count": 11
       }
     ],
@@ -9416,8 +9164,8 @@
         "count": 11,
         "batches": [
           {
-            "production_date": "2026-03-24",
-            "expiration_date": "2026-12-19",
+            "production_date": "2026-03-13",
+            "expiration_date": "2027-03-13",
             "count": 11
           }
         ]
@@ -9425,99 +9173,46 @@
     ]
   },
   {
-    "gtin": "04660512526601",
-    "name": "Пивной напиток \"форестер 2\" нефильтрованный непастеризованный неосветленный  0,45",
-    "brand": "Отсутствует",
+    "gtin": "04660185917775",
+    "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"Сингл Хоп Плейер 4\" (\"Single Hop Player: Citra\"), 7% об. алк., 450 мл.",
+    "brand": "Polnochnyj Project",
     "count": 10,
     "expiration_dates": [
-      "2028-03-30"
+      "2027-03-10"
     ],
     "production_dates": [
-      "2026-03-30"
+      "2026-03-10"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-03-30",
-        "expiration_date": "2028-03-30",
+        "production_date": "2026-03-10",
+        "expiration_date": "2027-03-10",
         "count": 10
       }
     ],
     "by_kpp": [
       {
-        "kpp": "781645001",
+        "kpp": "784201001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 6,
         "batches": [
           {
-            "production_date": "2026-03-30",
-            "expiration_date": "2028-03-30",
+            "production_date": "2026-03-10",
+            "expiration_date": "2027-03-10",
             "count": 6
           }
         ]
       },
       {
-        "kpp": "784201001",
+        "kpp": "781645001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 4,
         "batches": [
           {
-            "production_date": "2026-03-30",
-            "expiration_date": "2028-03-30",
+            "production_date": "2026-03-10",
+            "expiration_date": "2027-03-10",
             "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "08593875210510",
-    "name": "Пиво светлое пастеризованное фильтрованное  Зубр Голд",
-    "brand": ",нет",
-    "count": 10,
-    "expiration_dates": [
-      "2026-12-11",
-      "2027-03-02"
-    ],
-    "production_dates": [
-      "2025-12-11",
-      "2026-03-02"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-02",
-        "expiration_date": "2027-03-02",
-        "count": 2
-      },
-      {
-        "production_date": "2025-12-11",
-        "expiration_date": "2026-12-11",
-        "count": 8
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 8,
-        "batches": [
-          {
-            "production_date": "2025-12-11",
-            "expiration_date": "2026-12-11",
-            "count": 8
-          }
-        ]
-      },
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2026-03-02",
-            "expiration_date": "2027-03-02",
-            "count": 2
           }
         ]
       }
@@ -9644,128 +9339,6 @@
             "production_date": "2025-11-20",
             "expiration_date": "2026-11-20",
             "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "05411858001166",
-    "name": "Пиво LeFort \"Трипл ЛеФорт\" 20л. светлое пастеризованное фильтрованное",
-    "brand": "LeFort",
-    "count": 10,
-    "expiration_dates": [
-      "2024-03-26",
-      "2024-03-28",
-      "2024-04-21",
-      "2024-09-19",
-      "2024-09-27",
-      "2024-11-17",
-      "2025-03-31",
-      "2026-09-09"
-    ],
-    "production_dates": [
-      "2023-10-25",
-      "2023-11-21",
-      "2024-06-12",
-      "2024-08-29",
-      "2025-09-09"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-09-09",
-        "expiration_date": "2026-09-09",
-        "count": 3
-      },
-      {
-        "production_date": "2024-08-29",
-        "expiration_date": "2025-03-31",
-        "count": 1
-      },
-      {
-        "production_date": "2024-06-12",
-        "expiration_date": "2024-11-17",
-        "count": 1
-      },
-      {
-        "production_date": "2024-06-12",
-        "expiration_date": "2024-09-19",
-        "count": 1
-      },
-      {
-        "production_date": "2024-06-12",
-        "expiration_date": "2024-09-27",
-        "count": 1
-      },
-      {
-        "production_date": "2023-11-21",
-        "expiration_date": "2024-04-21",
-        "count": 1
-      },
-      {
-        "production_date": "2023-11-21",
-        "expiration_date": "2024-03-26",
-        "count": 1
-      },
-      {
-        "production_date": "2023-10-25",
-        "expiration_date": "2024-03-28",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 9,
-        "batches": [
-          {
-            "production_date": "2025-09-09",
-            "expiration_date": "2026-09-09",
-            "count": 3
-          },
-          {
-            "production_date": "2024-08-29",
-            "expiration_date": "2025-03-31",
-            "count": 1
-          },
-          {
-            "production_date": "2024-06-12",
-            "expiration_date": "2024-11-17",
-            "count": 1
-          },
-          {
-            "production_date": "2024-06-12",
-            "expiration_date": "2024-09-19",
-            "count": 1
-          },
-          {
-            "production_date": "2024-06-12",
-            "expiration_date": "2024-09-27",
-            "count": 1
-          },
-          {
-            "production_date": "2023-11-21",
-            "expiration_date": "2024-04-21",
-            "count": 1
-          },
-          {
-            "production_date": "2023-11-21",
-            "expiration_date": "2024-03-26",
-            "count": 1
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2023-10-25",
-            "expiration_date": "2024-03-28",
-            "count": 1
           }
         ]
       }
@@ -10063,6 +9636,52 @@
     ]
   },
   {
+    "gtin": "04660512526601",
+    "name": "Пивной напиток \"форестер 2\" нефильтрованный непастеризованный неосветленный  0,45",
+    "brand": "Отсутствует",
+    "count": 9,
+    "expiration_dates": [
+      "2028-03-30"
+    ],
+    "production_dates": [
+      "2026-03-30"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-03-30",
+        "expiration_date": "2028-03-30",
+        "count": 9
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 5,
+        "batches": [
+          {
+            "production_date": "2026-03-30",
+            "expiration_date": "2028-03-30",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2026-03-30",
+            "expiration_date": "2028-03-30",
+            "count": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04660185918123",
     "name": "Пиво светлое нефильтрованное непастеризованное неосветлённое \"Сессионная ИПА 1\" (\"Grace's Green Herb\"), 5,4% об. алк., 450 мл.",
     "brand": "Polnochnyj Project",
@@ -10149,52 +9768,6 @@
             "production_date": "2026-03-11",
             "expiration_date": "2027-01-11",
             "count": 9
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04680820151739",
-    "name": "Пивной напиток непастеризованный нефильтрованный неосветленный \"Гозе 14\" (Nagual De Sangre) банка 045 0300005492060001145",
-    "brand": "отсутствует",
-    "count": 9,
-    "expiration_dates": [
-      "2026-08-27"
-    ],
-    "production_dates": [
-      "2026-02-28"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-28",
-        "expiration_date": "2026-08-27",
-        "count": 9
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2026-02-28",
-            "expiration_date": "2026-08-27",
-            "count": 5
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-02-28",
-            "expiration_date": "2026-08-27",
-            "count": 4
           }
         ]
       }
@@ -10560,6 +10133,128 @@
             "production_date": "2025-11-21",
             "expiration_date": "2026-11-21",
             "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "05411858001166",
+    "name": "Пиво LeFort \"Трипл ЛеФорт\" 20л. светлое пастеризованное фильтрованное",
+    "brand": "LeFort",
+    "count": 9,
+    "expiration_dates": [
+      "2024-03-26",
+      "2024-03-28",
+      "2024-04-21",
+      "2024-09-19",
+      "2024-09-27",
+      "2024-11-17",
+      "2025-03-31",
+      "2026-09-09"
+    ],
+    "production_dates": [
+      "2023-10-25",
+      "2023-11-21",
+      "2024-06-12",
+      "2024-08-29",
+      "2025-09-09"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-09-09",
+        "expiration_date": "2026-09-09",
+        "count": 2
+      },
+      {
+        "production_date": "2024-08-29",
+        "expiration_date": "2025-03-31",
+        "count": 1
+      },
+      {
+        "production_date": "2024-06-12",
+        "expiration_date": "2024-11-17",
+        "count": 1
+      },
+      {
+        "production_date": "2024-06-12",
+        "expiration_date": "2024-09-19",
+        "count": 1
+      },
+      {
+        "production_date": "2024-06-12",
+        "expiration_date": "2024-09-27",
+        "count": 1
+      },
+      {
+        "production_date": "2023-11-21",
+        "expiration_date": "2024-04-21",
+        "count": 1
+      },
+      {
+        "production_date": "2023-11-21",
+        "expiration_date": "2024-03-26",
+        "count": 1
+      },
+      {
+        "production_date": "2023-10-25",
+        "expiration_date": "2024-03-28",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 8,
+        "batches": [
+          {
+            "production_date": "2025-09-09",
+            "expiration_date": "2026-09-09",
+            "count": 2
+          },
+          {
+            "production_date": "2024-08-29",
+            "expiration_date": "2025-03-31",
+            "count": 1
+          },
+          {
+            "production_date": "2024-06-12",
+            "expiration_date": "2024-11-17",
+            "count": 1
+          },
+          {
+            "production_date": "2024-06-12",
+            "expiration_date": "2024-09-19",
+            "count": 1
+          },
+          {
+            "production_date": "2024-06-12",
+            "expiration_date": "2024-09-27",
+            "count": 1
+          },
+          {
+            "production_date": "2023-11-21",
+            "expiration_date": "2024-04-21",
+            "count": 1
+          },
+          {
+            "production_date": "2023-11-21",
+            "expiration_date": "2024-03-26",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2023-10-25",
+            "expiration_date": "2024-03-28",
+            "count": 1
           }
         ]
       }
@@ -11545,29 +11240,22 @@
     ]
   },
   {
-    "gtin": "04640205261064",
-    "name": "Напиток безалкогольный среднегазированный \"Лапочка Лимонад\"",
-    "brand": "lapochka",
+    "gtin": "04610093626153",
+    "name": "Пиво светлое пастеризованное фильтрованное безалкогольное Dreamteam Sport Pilsner («Дримтим Спорт Пилснер»), объемная доля этилового спирта не более 0,5%",
+    "brand": "Без товарного знака",
     "count": 9,
     "expiration_dates": [
-      "2026-04-17",
-      "2026-10-18"
+      "2026-12-19"
     ],
     "production_dates": [
-      "2025-04-22",
-      "2025-10-23"
+      "2026-03-24"
     ],
-    "product_group": "SOFTDRINKS",
+    "product_group": "NABEER",
     "batches": [
       {
-        "production_date": "2025-10-23",
-        "expiration_date": "2026-10-18",
-        "count": 8
-      },
-      {
-        "production_date": "2025-04-22",
-        "expiration_date": "2026-04-17",
-        "count": 1
+        "production_date": "2026-03-24",
+        "expiration_date": "2026-12-19",
+        "count": 9
       }
     ],
     "by_kpp": [
@@ -11577,14 +11265,9 @@
         "count": 9,
         "batches": [
           {
-            "production_date": "2025-10-23",
-            "expiration_date": "2026-10-18",
-            "count": 8
-          },
-          {
-            "production_date": "2025-04-22",
-            "expiration_date": "2026-04-17",
-            "count": 1
+            "production_date": "2026-03-24",
+            "expiration_date": "2026-12-19",
+            "count": 9
           }
         ]
       }
@@ -11695,84 +11378,80 @@
     ]
   },
   {
-    "gtin": "04680583606712",
-    "name": "Пивной напиток непастеризованный нефильтрованный неосветленный \"Зависимость\" (Зависимость) банка 045 0300005492060000812",
+    "gtin": "04680820151739",
+    "name": "Пивной напиток непастеризованный нефильтрованный неосветленный \"Гозе 14\" (Nagual De Sangre) банка 045 0300005492060001145",
     "brand": "отсутствует",
     "count": 8,
     "expiration_dates": [
-      "2026-07-01",
-      "2026-12-03",
-      "2027-01-05",
-      "2027-01-15"
+      "2026-08-27"
     ],
     "production_dates": [
-      "2025-07-06",
-      "2025-12-08",
-      "2026-01-10",
-      "2026-01-20"
+      "2026-02-28"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-01-20",
-        "expiration_date": "2027-01-15",
-        "count": 4
-      },
-      {
-        "production_date": "2026-01-10",
-        "expiration_date": "2027-01-05",
-        "count": 2
-      },
-      {
-        "production_date": "2025-12-08",
-        "expiration_date": "2026-12-03",
-        "count": 1
-      },
-      {
-        "production_date": "2025-07-06",
-        "expiration_date": "2026-07-01",
-        "count": 1
+        "production_date": "2026-02-28",
+        "expiration_date": "2026-08-27",
+        "count": 8
       }
     ],
     "by_kpp": [
       {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 5,
         "batches": [
           {
-            "production_date": "2026-01-20",
-            "expiration_date": "2027-01-15",
-            "count": 4
+            "production_date": "2026-02-28",
+            "expiration_date": "2026-08-27",
+            "count": 5
           }
         ]
       },
       {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
         "count": 3,
         "batches": [
           {
-            "production_date": "2026-01-10",
-            "expiration_date": "2027-01-05",
-            "count": 2
-          },
-          {
-            "production_date": "2025-12-08",
-            "expiration_date": "2026-12-03",
-            "count": 1
+            "production_date": "2026-02-28",
+            "expiration_date": "2026-08-27",
+            "count": 3
           }
         ]
-      },
+      }
+    ]
+  },
+  {
+    "gtin": "08593875210510",
+    "name": "Пиво светлое пастеризованное фильтрованное  Зубр Голд",
+    "brand": ",нет",
+    "count": 8,
+    "expiration_dates": [
+      "2026-12-11"
+    ],
+    "production_dates": [
+      "2025-12-11"
+    ],
+    "product_group": "BEER",
+    "batches": [
       {
-        "kpp": "",
-        "fiasId": "",
-        "count": 1,
+        "production_date": "2025-12-11",
+        "expiration_date": "2026-12-11",
+        "count": 8
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 8,
         "batches": [
           {
-            "production_date": "2025-07-06",
-            "expiration_date": "2026-07-01",
-            "count": 1
+            "production_date": "2025-12-11",
+            "expiration_date": "2026-12-11",
+            "count": 8
           }
         ]
       }
@@ -12833,6 +12512,52 @@
     ]
   },
   {
+    "gtin": "04640205261064",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Лимонад\"",
+    "brand": "lapochka",
+    "count": 8,
+    "expiration_dates": [
+      "2026-04-17",
+      "2026-10-18"
+    ],
+    "production_dates": [
+      "2025-04-22",
+      "2025-10-23"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2025-10-23",
+        "expiration_date": "2026-10-18",
+        "count": 7
+      },
+      {
+        "production_date": "2025-04-22",
+        "expiration_date": "2026-04-17",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 8,
+        "batches": [
+          {
+            "production_date": "2025-10-23",
+            "expiration_date": "2026-10-18",
+            "count": 7
+          },
+          {
+            "production_date": "2025-04-22",
+            "expiration_date": "2026-04-17",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04660185918000",
     "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"ДИПА 1\" (\"Bad Beat: Simcoe & Mosaic \"), 8,5% об. алк., 450 мл.",
     "brand": "Polnochnyj Project",
@@ -12872,52 +12597,6 @@
           {
             "production_date": "2026-03-30",
             "expiration_date": "2027-03-30",
-            "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04660185918130",
-    "name": "Пиво светлое нефильтрованное непастеризованное неосветлённое \"Сессионная ИПА 2\" (\"Дай 5!\"), 5,5% об. алк., 450 мл.",
-    "brand": "Polnochnyj Project",
-    "count": 7,
-    "expiration_dates": [
-      "2027-03-24"
-    ],
-    "production_dates": [
-      "2026-03-24"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-24",
-        "expiration_date": "2027-03-24",
-        "count": 7
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-03-24",
-            "expiration_date": "2027-03-24",
-            "count": 4
-          }
-        ]
-      },
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2026-03-24",
-            "expiration_date": "2027-03-24",
             "count": 3
           }
         ]
@@ -13099,102 +12778,6 @@
     ]
   },
   {
-    "gtin": "04670013010172",
-    "name": "пиво jaws Атомная Прачечная IPA светлое непастеризованное фильтрованное",
-    "brand": "\"Jaws\"",
-    "count": 7,
-    "expiration_dates": [
-      "2026-01-21",
-      "2026-05-05",
-      "2026-06-10",
-      "2026-07-12",
-      "2026-08-09"
-    ],
-    "production_dates": [
-      "2025-07-25",
-      "2025-11-06",
-      "2025-12-12",
-      "2026-01-13",
-      "2026-02-10"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-10",
-        "expiration_date": "2026-08-09",
-        "count": 1
-      },
-      {
-        "production_date": "2026-01-13",
-        "expiration_date": "2026-07-12",
-        "count": 3
-      },
-      {
-        "production_date": "2025-12-12",
-        "expiration_date": "2026-06-10",
-        "count": 1
-      },
-      {
-        "production_date": "2025-11-06",
-        "expiration_date": "2026-05-05",
-        "count": 1
-      },
-      {
-        "production_date": "2025-07-25",
-        "expiration_date": "2026-01-21",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2026-01-13",
-            "expiration_date": "2026-07-12",
-            "count": 3
-          },
-          {
-            "production_date": "2025-12-12",
-            "expiration_date": "2026-06-10",
-            "count": 1
-          },
-          {
-            "production_date": "2025-07-25",
-            "expiration_date": "2026-01-21",
-            "count": 1
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2026-02-10",
-            "expiration_date": "2026-08-09",
-            "count": 1
-          }
-        ]
-      },
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-11-06",
-            "expiration_date": "2026-05-05",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "05411516010110",
     "name": "Пивной напиток светлый пастеризованный фильтрованный Тиммерманс Крик Блек Пеппер Ламбикус бутылка",
     "brand": "Timmermans",
@@ -13254,105 +12837,6 @@
             "production_date": "2025-07-15",
             "expiration_date": "2027-07-15",
             "count": 2
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04640235991559",
-    "name": "Пивной напиток \"СБ Томато Метод\" непастеризованный нефильтрованный неосветленный Банка 0,45 л",
-    "brand": "Selfmade",
-    "count": 7,
-    "expiration_dates": [
-      "2026-06-03",
-      "2026-08-19"
-    ],
-    "production_dates": [
-      "2025-10-06",
-      "2025-12-22"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-12-22",
-        "expiration_date": "2026-08-19",
-        "count": 4
-      },
-      {
-        "production_date": "2025-10-06",
-        "expiration_date": "2026-06-03",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 7,
-        "batches": [
-          {
-            "production_date": "2025-12-22",
-            "expiration_date": "2026-08-19",
-            "count": 4
-          },
-          {
-            "production_date": "2025-10-06",
-            "expiration_date": "2026-06-03",
-            "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04650505843143",
-    "name": "Пиво светлое Майзельс Вайссе Ориджинал (Maisel's Weisse Original) непастеризованное нефильтрованное неосветленное бутылка 0,5л. алк. 5,1%",
-    "brand": "Brauerei Gebr Maisel GmbH",
-    "count": 7,
-    "expiration_dates": [
-      "2026-07-02",
-      "2026-07-30"
-    ],
-    "production_dates": [
-      "2025-07-02",
-      "2025-07-30"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-07-30",
-        "expiration_date": "2026-07-30",
-        "count": 3
-      },
-      {
-        "production_date": "2025-07-02",
-        "expiration_date": "2026-07-02",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2025-07-02",
-            "expiration_date": "2026-07-02",
-            "count": 4
-          }
-        ]
-      },
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2025-07-30",
-            "expiration_date": "2026-07-30",
-            "count": 3
           }
         ]
       }
@@ -13473,52 +12957,6 @@
             "production_date": "2023-12-07",
             "expiration_date": "2024-01-25",
             "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04650505842924",
-    "name": "Пиво темное Хобгоблин Дарк Стаут (Hobgoblin Dark Stout) фильтрованное пастеризованное бутылка 0,5л. алк. 4,1%",
-    "brand": "Carlsberg Marston's Brewing Co. Ltd.",
-    "count": 7,
-    "expiration_dates": [
-      "2026-09-30"
-    ],
-    "production_dates": [
-      "2025-09-30"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-09-30",
-        "expiration_date": "2026-09-30",
-        "count": 7
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2025-09-30",
-            "expiration_date": "2026-09-30",
-            "count": 5
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-09-30",
-            "expiration_date": "2026-09-30",
-            "count": 2
           }
         ]
       }
@@ -13775,52 +13213,6 @@
             "production_date": "2025-04-04",
             "expiration_date": "2026-04-04",
             "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04660185915580",
-    "name": "Пивной напиток непастеризованный нефильтрованный неосветлённый \"Фруктовый Гозе 2\" (\"Кот и сабака\"), 5% об. алк., 450 мл.",
-    "brand": "Polnochnyj Project",
-    "count": 7,
-    "expiration_dates": [
-      "2026-10-07"
-    ],
-    "production_dates": [
-      "2025-10-07"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-10-07",
-        "expiration_date": "2026-10-07",
-        "count": 7
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2025-10-07",
-            "expiration_date": "2026-10-07",
-            "count": 5
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-10-07",
-            "expiration_date": "2026-10-07",
-            "count": 2
           }
         ]
       }
@@ -14518,21 +13910,21 @@
     ]
   },
   {
-    "gtin": "04654091399657",
-    "name": "Пивной напиток нефильтрованный непастеризованный неосветлённый Такамба-1 (0,45-180)",
-    "brand": "Отсутствует",
+    "gtin": "04660185918130",
+    "name": "Пиво светлое нефильтрованное непастеризованное неосветлённое \"Сессионная ИПА 2\" (\"Дай 5!\"), 5,5% об. алк., 450 мл.",
+    "brand": "Polnochnyj Project",
     "count": 6,
     "expiration_dates": [
-      "2026-10-04"
+      "2027-03-24"
     ],
     "production_dates": [
-      "2026-04-07"
+      "2026-03-24"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-04-07",
-        "expiration_date": "2026-10-04",
+        "production_date": "2026-03-24",
+        "expiration_date": "2027-03-24",
         "count": 6
       }
     ],
@@ -14540,111 +13932,24 @@
       {
         "kpp": "781645001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 6,
+        "count": 4,
         "batches": [
           {
-            "production_date": "2026-04-07",
-            "expiration_date": "2026-10-04",
-            "count": 6
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04670013010158",
-    "name": "Пиво jaws apa светлое фильтрованное непастеризованное",
-    "brand": "Jaws",
-    "count": 6,
-    "expiration_dates": [
-      "2026-06-08",
-      "2026-09-08"
-    ],
-    "production_dates": [
-      "2025-12-10",
-      "2026-03-12"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-12",
-        "expiration_date": "2026-09-08",
-        "count": 5
-      },
-      {
-        "production_date": "2025-12-10",
-        "expiration_date": "2026-06-08",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2026-03-12",
-            "expiration_date": "2026-09-08",
-            "count": 5
+            "production_date": "2026-03-24",
+            "expiration_date": "2027-03-24",
+            "count": 4
           }
         ]
       },
       {
         "kpp": "781045001",
         "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 1,
+        "count": 2,
         "batches": [
           {
-            "production_date": "2025-12-10",
-            "expiration_date": "2026-06-08",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04620197363960",
-    "name": "Пиво светлое нефильтрованное неосветленное непастеризованное \"Хейзи  Индиа Пейл Эль 4\"",
-    "brand": "Отсутствует",
-    "count": 6,
-    "expiration_dates": [
-      "2026-10-14"
-    ],
-    "production_dates": [
-      "2026-02-16"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-16",
-        "expiration_date": "2026-10-14",
-        "count": 6
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2026-02-16",
-            "expiration_date": "2026-10-14",
-            "count": 5
-          }
-        ]
-      },
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2026-02-16",
-            "expiration_date": "2026-10-14",
-            "count": 1
+            "production_date": "2026-03-24",
+            "expiration_date": "2027-03-24",
+            "count": 2
           }
         ]
       }
@@ -14697,45 +14002,170 @@
     ]
   },
   {
-    "gtin": "04670223011983",
-    "name": "Пивной напиток \"Стонер\" непастеризованный нефильтрованный неосветленный",
-    "brand": "ООО \"Пивоварня Заговор\"",
+    "gtin": "04680583606712",
+    "name": "Пивной напиток непастеризованный нефильтрованный неосветленный \"Зависимость\" (Зависимость) банка 045 0300005492060000812",
+    "brand": "отсутствует",
     "count": 6,
     "expiration_dates": [
-      "2026-12-25"
+      "2026-07-01",
+      "2027-01-05",
+      "2027-01-15"
     ],
     "production_dates": [
-      "2025-12-25"
+      "2025-07-06",
+      "2026-01-10",
+      "2026-01-20"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2025-12-25",
-        "expiration_date": "2026-12-25",
-        "count": 6
+        "production_date": "2026-01-20",
+        "expiration_date": "2027-01-15",
+        "count": 4
+      },
+      {
+        "production_date": "2026-01-10",
+        "expiration_date": "2027-01-05",
+        "count": 1
+      },
+      {
+        "production_date": "2025-07-06",
+        "expiration_date": "2026-07-01",
+        "count": 1
       }
     ],
     "by_kpp": [
       {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2026-01-20",
+            "expiration_date": "2027-01-15",
+            "count": 4
+          }
+        ]
+      },
+      {
         "kpp": "781045001",
         "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2026-01-10",
+            "expiration_date": "2027-01-05",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-07-06",
+            "expiration_date": "2026-07-01",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640235991559",
+    "name": "Пивной напиток \"СБ Томато Метод\" непастеризованный нефильтрованный неосветленный Банка 0,45 л",
+    "brand": "Selfmade",
+    "count": 6,
+    "expiration_dates": [
+      "2026-06-03",
+      "2026-08-19"
+    ],
+    "production_dates": [
+      "2025-10-06",
+      "2025-12-22"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-12-22",
+        "expiration_date": "2026-08-19",
+        "count": 3
+      },
+      {
+        "production_date": "2025-10-06",
+        "expiration_date": "2026-06-03",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 6,
+        "batches": [
+          {
+            "production_date": "2025-12-22",
+            "expiration_date": "2026-08-19",
+            "count": 3
+          },
+          {
+            "production_date": "2025-10-06",
+            "expiration_date": "2026-06-03",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04650505843143",
+    "name": "Пиво светлое Майзельс Вайссе Ориджинал (Maisel's Weisse Original) непастеризованное нефильтрованное неосветленное бутылка 0,5л. алк. 5,1%",
+    "brand": "Brauerei Gebr Maisel GmbH",
+    "count": 6,
+    "expiration_dates": [
+      "2026-07-02",
+      "2026-07-30"
+    ],
+    "production_dates": [
+      "2025-07-02",
+      "2025-07-30"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-07-30",
+        "expiration_date": "2026-07-30",
+        "count": 3
+      },
+      {
+        "production_date": "2025-07-02",
+        "expiration_date": "2026-07-02",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 3,
         "batches": [
           {
-            "production_date": "2025-12-25",
-            "expiration_date": "2026-12-25",
+            "production_date": "2025-07-30",
+            "expiration_date": "2026-07-30",
             "count": 3
           }
         ]
       },
       {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 3,
         "batches": [
           {
-            "production_date": "2025-12-25",
-            "expiration_date": "2026-12-25",
+            "production_date": "2025-07-02",
+            "expiration_date": "2026-07-02",
             "count": 3
           }
         ]
@@ -14926,6 +14356,52 @@
           {
             "production_date": "2025-12-30",
             "expiration_date": "2026-08-27",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04660185915580",
+    "name": "Пивной напиток непастеризованный нефильтрованный неосветлённый \"Фруктовый Гозе 2\" (\"Кот и сабака\"), 5% об. алк., 450 мл.",
+    "brand": "Polnochnyj Project",
+    "count": 6,
+    "expiration_dates": [
+      "2026-10-07"
+    ],
+    "production_dates": [
+      "2025-10-07"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-10-07",
+        "expiration_date": "2026-10-07",
+        "count": 6
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 5,
+        "batches": [
+          {
+            "production_date": "2025-10-07",
+            "expiration_date": "2026-10-07",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-10-07",
+            "expiration_date": "2026-10-07",
             "count": 1
           }
         ]
@@ -15354,6 +14830,40 @@
     ]
   },
   {
+    "gtin": "04654091399657",
+    "name": "Пивной напиток нефильтрованный непастеризованный неосветлённый Такамба-1 (0,45-180)",
+    "brand": "Отсутствует",
+    "count": 5,
+    "expiration_dates": [
+      "2026-10-04"
+    ],
+    "production_dates": [
+      "2026-04-07"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-04-07",
+        "expiration_date": "2026-10-04",
+        "count": 5
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 5,
+        "batches": [
+          {
+            "production_date": "2026-04-07",
+            "expiration_date": "2026-10-04",
+            "count": 5
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04660185917973",
     "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"Оникс Зе Кэт\", 4,5% об. алк., 450 мл.",
     "brand": "Polnochnyj Project",
@@ -15394,6 +14904,52 @@
             "production_date": "2026-03-27",
             "expiration_date": "2027-03-27",
             "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04610173061126",
+    "name": "Мартинс Пэль Эль 0,33 Пиво светлое пастеризованное фильтрованное",
+    "brand": "JOHN MARTIN",
+    "count": 5,
+    "expiration_dates": [
+      "2026-12-05"
+    ],
+    "production_dates": [
+      "2025-09-05"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-09-05",
+        "expiration_date": "2026-12-05",
+        "count": 5
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2025-09-05",
+            "expiration_date": "2026-12-05",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-09-05",
+            "expiration_date": "2026-12-05",
+            "count": 1
           }
         ]
       }
@@ -15462,71 +15018,6 @@
             "production_date": "2026-01-20",
             "expiration_date": "2026-07-19",
             "count": 5
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04630287665096",
-    "name": "Пивной напиток непастеризованный нефильтрованный неосветленный \"Мантра Саур Эль 7\"",
-    "brand": "Мантра",
-    "count": 5,
-    "expiration_dates": [
-      "2026-11-27",
-      "2027-01-16"
-    ],
-    "production_dates": [
-      "2025-11-27",
-      "2026-01-16"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-01-16",
-        "expiration_date": "2027-01-16",
-        "count": 2
-      },
-      {
-        "production_date": "2025-11-27",
-        "expiration_date": "2026-11-27",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2026-01-16",
-            "expiration_date": "2027-01-16",
-            "count": 2
-          }
-        ]
-      },
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-11-27",
-            "expiration_date": "2026-11-27",
-            "count": 2
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-11-27",
-            "expiration_date": "2026-11-27",
-            "count": 1
           }
         ]
       }
@@ -15731,6 +15222,40 @@
     ]
   },
   {
+    "gtin": "00000040269139",
+    "name": "Пиво светлое непастеризованное фильтрованное Коммерцианрат Ригеле Приват",
+    "brand": ",нет",
+    "count": 5,
+    "expiration_dates": [
+      "2026-10-07"
+    ],
+    "production_dates": [
+      "2025-10-07"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-10-07",
+        "expiration_date": "2026-10-07",
+        "count": 5
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 5,
+        "batches": [
+          {
+            "production_date": "2025-10-07",
+            "expiration_date": "2026-10-07",
+            "count": 5
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04650505840388",
     "name": "Пиво светлое Вичвуд Хобгоблин Голд (Wychwood Hobgoblin Gold)  фильтрованное пастеризованное банка 0,5л. алк. 4,2%.",
     "brand": "Carlsberg Marston's Brewing Co. Ltd.",
@@ -15778,6 +15303,52 @@
             "production_date": "2024-09-30",
             "expiration_date": "2025-09-30",
             "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04650505842924",
+    "name": "Пиво темное Хобгоблин Дарк Стаут (Hobgoblin Dark Stout) фильтрованное пастеризованное бутылка 0,5л. алк. 4,1%",
+    "brand": "Carlsberg Marston's Brewing Co. Ltd.",
+    "count": 5,
+    "expiration_dates": [
+      "2026-09-30"
+    ],
+    "production_dates": [
+      "2025-09-30"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-09-30",
+        "expiration_date": "2026-09-30",
+        "count": 5
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2025-09-30",
+            "expiration_date": "2026-09-30",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2025-09-30",
+            "expiration_date": "2026-09-30",
+            "count": 2
           }
         ]
       }
@@ -16057,40 +15628,6 @@
     ]
   },
   {
-    "gtin": "04670013014590",
-    "name": "Ищу человека 5,2% пиво темное пастеризованное фильтрованное",
-    "brand": "\"Jaws\"",
-    "count": 5,
-    "expiration_dates": [
-      "2027-11-12"
-    ],
-    "production_dates": [
-      "2025-11-12"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-11-12",
-        "expiration_date": "2027-11-12",
-        "count": 5
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2025-11-12",
-            "expiration_date": "2027-11-12",
-            "count": 5
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04640236239858",
     "name": "Пивной напиток \"Яркое 20\" нефильтрованный непастеризованный неосветленный 0,45 б",
     "brand": "Отсутствует",
@@ -16233,40 +15770,6 @@
             "production_date": "2025-10-02",
             "expiration_date": "2026-10-02",
             "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04603702182430",
-    "name": "«Дзен. Азиан лагер» бут. 0,5 Пиво светлое непастеризованное нефильтрованное неосветленное",
-    "brand": "Отсутствует",
-    "count": 5,
-    "expiration_dates": [
-      "2027-03-26"
-    ],
-    "production_dates": [
-      "2026-03-26"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-26",
-        "expiration_date": "2027-03-26",
-        "count": 5
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 5,
-        "batches": [
-          {
-            "production_date": "2026-03-26",
-            "expiration_date": "2027-03-26",
-            "count": 5
           }
         ]
       }
@@ -16628,40 +16131,6 @@
     ]
   },
   {
-    "gtin": "04660185918055",
-    "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"Хоп Хэдшот 8\" (\"Hop Headshot: Simcoe\"), 11% об. алк., 450 мл.",
-    "brand": "Polnochnyj Project",
-    "count": 4,
-    "expiration_dates": [
-      "2027-04-10"
-    ],
-    "production_dates": [
-      "2026-04-10"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-04-10",
-        "expiration_date": "2027-04-10",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-04-10",
-            "expiration_date": "2027-04-10",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04627108127284",
     "name": "Традиционный сидр полусладкий \"Белые ночи\"",
     "brand": "Отсутствует",
@@ -16689,40 +16158,6 @@
           {
             "production_date": "2026-04-06",
             "expiration_date": "2028-12-30",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04627108127383",
-    "name": "Сидр традиционный сухой \"Молодой. Холодный\"",
-    "brand": "Отсутствует",
-    "count": 4,
-    "expiration_dates": [
-      "2028-12-27"
-    ],
-    "production_dates": [
-      "2026-04-03"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-04-03",
-        "expiration_date": "2028-12-27",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-04-03",
-            "expiration_date": "2028-12-27",
             "count": 4
           }
         ]
@@ -16832,33 +16267,33 @@
     ]
   },
   {
-    "gtin": "04650505843679",
-    "name": "Пиво светлое Байройтер Хелл (Bayreuther Hell) непастеризованное фильтрованное бутылка. ОБЪЕМ 0,5 Л. Алк. 4,9% Об.",
-    "brand": "Bayreuther Bierbrauerei AG",
+    "gtin": "05410218008197",
+    "name": "Мартинс ИПА 55 0,33 Пиво светлое пастеризованное фильтрованное",
+    "brand": "JOHN MARTIN",
     "count": 4,
     "expiration_dates": [
-      "2026-10-14"
+      "2027-02-26"
     ],
     "production_dates": [
-      "2026-01-14"
+      "2025-08-26"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-01-14",
-        "expiration_date": "2026-10-14",
+        "production_date": "2025-08-26",
+        "expiration_date": "2027-02-26",
         "count": 4
       }
     ],
     "by_kpp": [
       {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
         "count": 4,
         "batches": [
           {
-            "production_date": "2026-01-14",
-            "expiration_date": "2026-10-14",
+            "production_date": "2025-08-26",
+            "expiration_date": "2027-02-26",
             "count": 4
           }
         ]
@@ -16968,86 +16403,6 @@
     ]
   },
   {
-    "gtin": "04670190944529",
-    "name": "Пивной напиток \"Кинки\" нефильтрованный светлый, непастеризованный неосветленный. Объем 0.45л",
-    "brand": "Red Button Brewery",
-    "count": 4,
-    "expiration_dates": [
-      "2027-02-22"
-    ],
-    "production_dates": [
-      "2026-02-27"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-27",
-        "expiration_date": "2027-02-22",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2026-02-27",
-            "expiration_date": "2027-02-22",
-            "count": 2
-          }
-        ]
-      },
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2026-02-27",
-            "expiration_date": "2027-02-22",
-            "count": 2
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04660185917768",
-    "name": "Пиво светлое непастеризованное нефильтрованное неосветлённое \"Сноу Кэп\" (\"Snow Cap\"), 8.5% об. алк., 450 мл.",
-    "brand": "Polnochnyj Project",
-    "count": 4,
-    "expiration_dates": [
-      "2027-02-18"
-    ],
-    "production_dates": [
-      "2026-02-18"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-18",
-        "expiration_date": "2027-02-18",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-02-18",
-            "expiration_date": "2027-02-18",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04673737049763",
     "name": "Медовуха нефильтрованная, осветленная «Боше 1»",
     "brand": "Степь и Ветер",
@@ -17083,7 +16438,7 @@
   },
   {
     "gtin": "04650309433083",
-    "name": "Медовуха нефильтрованная (осветлённая), пастеризованная \"Меломель Лайм\", 0,45л жб",
+    "name": "Медовуха нефильтрованная (осветлённая), пастеризованная \"Меломель Лайм\", 0,45л ал.банка",
     "brand": "Степь и Ветер",
     "count": 4,
     "expiration_dates": [
@@ -17109,40 +16464,6 @@
           {
             "production_date": "2026-02-15",
             "expiration_date": "2027-02-10",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04627159252362",
-    "name": "Сидр фруктовый ароматизированный газированный непастеризованный нефильтрованный полусладкий \"Элете\"",
-    "brand": "Токсовская сидрерия",
-    "count": 4,
-    "expiration_dates": [
-      "2028-11-07"
-    ],
-    "production_dates": [
-      "2026-02-12"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-12",
-        "expiration_date": "2028-11-07",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-02-12",
-            "expiration_date": "2028-11-07",
             "count": 4
           }
         ]
@@ -17177,40 +16498,6 @@
           {
             "production_date": "2026-02-12",
             "expiration_date": "2027-02-12",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04640229931639",
-    "name": "РЕД РОКЕТ СВЕТЛЫЙ ЭЛЬ 8 ПИВО СВЕТЛОЕ НЕПАСТЕРИЗОВАННОЕ НЕФИЛЬТРОВАННОЕ НЕОСВЕТЛЕННОЕ 0,45л",
-    "brand": "РЕД РОКЕТ",
-    "count": 4,
-    "expiration_dates": [
-      "2026-08-08"
-    ],
-    "production_dates": [
-      "2026-02-09"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-02-09",
-        "expiration_date": "2026-08-08",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-02-09",
-            "expiration_date": "2026-08-08",
             "count": 4
           }
         ]
@@ -17343,40 +16630,6 @@
     ]
   },
   {
-    "gtin": "04660512526687",
-    "name": "Пиво светлое \"Пиво со вкусом пива 12\" непастеризованное нефильтрованное неосветленное  0,45",
-    "brand": "Отсутствует",
-    "count": 4,
-    "expiration_dates": [
-      "2027-01-27"
-    ],
-    "production_dates": [
-      "2026-01-27"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-01-27",
-        "expiration_date": "2027-01-27",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2026-01-27",
-            "expiration_date": "2027-01-27",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04680089900239",
     "name": "СИДР СУХОЙ \"ДИКИЙ КРЕСТ\"",
     "brand": "DICKIY CREST",
@@ -17454,6 +16707,182 @@
           {
             "production_date": "2025-08-07",
             "expiration_date": "2026-02-06",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04630287665096",
+    "name": "Пивной напиток непастеризованный нефильтрованный неосветленный \"Мантра Саур Эль 7\"",
+    "brand": "Мантра",
+    "count": 4,
+    "expiration_dates": [
+      "2026-11-27",
+      "2027-01-16"
+    ],
+    "production_dates": [
+      "2025-11-27",
+      "2026-01-16"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-01-16",
+        "expiration_date": "2027-01-16",
+        "count": 2
+      },
+      {
+        "production_date": "2025-11-27",
+        "expiration_date": "2026-11-27",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-01-16",
+            "expiration_date": "2027-01-16",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-11-27",
+            "expiration_date": "2026-11-27",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-11-27",
+            "expiration_date": "2026-11-27",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04670013010172",
+    "name": "пиво jaws Атомная Прачечная IPA светлое непастеризованное фильтрованное",
+    "brand": "\"Jaws\"",
+    "count": 4,
+    "expiration_dates": [
+      "2026-01-21",
+      "2026-05-05",
+      "2026-07-12"
+    ],
+    "production_dates": [
+      "2025-07-25",
+      "2025-11-06",
+      "2026-01-13"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-01-13",
+        "expiration_date": "2026-07-12",
+        "count": 2
+      },
+      {
+        "production_date": "2025-11-06",
+        "expiration_date": "2026-05-05",
+        "count": 1
+      },
+      {
+        "production_date": "2025-07-25",
+        "expiration_date": "2026-01-21",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2026-01-13",
+            "expiration_date": "2026-07-12",
+            "count": 2
+          },
+          {
+            "production_date": "2025-07-25",
+            "expiration_date": "2026-01-21",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-11-06",
+            "expiration_date": "2026-05-05",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04670223011983",
+    "name": "Пивной напиток \"Стонер\" непастеризованный нефильтрованный неосветленный",
+    "brand": "ООО \"Пивоварня Заговор\"",
+    "count": 4,
+    "expiration_dates": [
+      "2026-12-25"
+    ],
+    "production_dates": [
+      "2025-12-25"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-12-25",
+        "expiration_date": "2026-12-25",
+        "count": 4
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2025-12-25",
+            "expiration_date": "2026-12-25",
+            "count": 3
+          }
+        ]
+      },
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-12-25",
+            "expiration_date": "2026-12-25",
             "count": 1
           }
         ]
@@ -18050,6 +17479,40 @@
     ]
   },
   {
+    "gtin": "04670013014590",
+    "name": "Ищу человека 5,2% пиво темное пастеризованное фильтрованное",
+    "brand": "\"Jaws\"",
+    "count": 4,
+    "expiration_dates": [
+      "2027-11-12"
+    ],
+    "production_dates": [
+      "2025-11-12"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-11-12",
+        "expiration_date": "2027-11-12",
+        "count": 4
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 4,
+        "batches": [
+          {
+            "production_date": "2025-11-12",
+            "expiration_date": "2027-11-12",
+            "count": 4
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04603726880848",
     "name": "Пиво светлое \"80 ДИПА\" непастеризованное нефильтрованное неосветленное",
     "brand": "Black Cat Brewery",
@@ -18429,93 +17892,6 @@
           {
             "production_date": "2025-09-16",
             "expiration_date": "2026-09-16",
-            "count": 4
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04603759677972",
-    "name": "Сидр традиционный полусухой Заповедник 1 непастеризованный нефильтрованный 0.45",
-    "brand": "Заповедник",
-    "count": 4,
-    "expiration_dates": [
-      "2027-08-29",
-      "2027-09-08"
-    ],
-    "production_dates": [
-      "2025-08-29",
-      "2025-09-08"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-09-08",
-        "expiration_date": "2027-09-08",
-        "count": 2
-      },
-      {
-        "production_date": "2025-08-29",
-        "expiration_date": "2027-08-29",
-        "count": 2
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-09-08",
-            "expiration_date": "2027-09-08",
-            "count": 2
-          }
-        ]
-      },
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-08-29",
-            "expiration_date": "2027-08-29",
-            "count": 2
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04650505840104",
-    "name": "Пиво темное Белхевен Блэк Скоттиш Стаут (Belhaven Black Scottish Stout) фильтрованное пастеризованное банка 0,44л, алк. 4,2%",
-    "brand": "Greene King Brewing and Retailing Ltd",
-    "count": 4,
-    "expiration_dates": [
-      "2026-10-31"
-    ],
-    "production_dates": [
-      "2025-07-31"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-07-31",
-        "expiration_date": "2026-10-31",
-        "count": 4
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 4,
-        "batches": [
-          {
-            "production_date": "2025-07-31",
-            "expiration_date": "2026-10-31",
             "count": 4
           }
         ]
@@ -19404,67 +18780,67 @@
     ]
   },
   {
-    "gtin": "04640205266601",
-    "name": "Напиток безалкогольный среднегазированный \"Лапочка Тархун\" (банка)",
-    "brand": "lapochka",
-    "count": 4,
+    "gtin": "04660185918055",
+    "name": "Пиво светлое нефильтрованное непастеризованное осветлённое \"Хоп Хэдшот 8\" (\"Hop Headshot: Simcoe\"), 11% об. алк., 450 мл.",
+    "brand": "Polnochnyj Project",
+    "count": 3,
     "expiration_dates": [
-      "2027-03-20"
+      "2027-04-10"
     ],
     "production_dates": [
-      "2026-03-24"
+      "2026-04-10"
     ],
-    "product_group": "SOFTDRINKS",
+    "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-03-24",
-        "expiration_date": "2027-03-20",
-        "count": 4
+        "production_date": "2026-04-10",
+        "expiration_date": "2027-04-10",
+        "count": 3
       }
     ],
     "by_kpp": [
       {
-        "kpp": "",
-        "fiasId": "",
-        "count": 4,
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 3,
         "batches": [
           {
-            "production_date": "2026-03-24",
-            "expiration_date": "2027-03-20",
-            "count": 4
+            "production_date": "2026-04-10",
+            "expiration_date": "2027-04-10",
+            "count": 3
           }
         ]
       }
     ]
   },
   {
-    "gtin": "04610424291500",
-    "name": "пивной напиток нефильтрованный непастеризованный неосветленный \"ШЕФ №2\"",
-    "brand": "КУЛИНАР Смородиновый крамбл",
+    "gtin": "04627108127383",
+    "name": "Сидр традиционный сухой \"Молодой. Холодный\"",
+    "brand": "Отсутствует",
     "count": 3,
     "expiration_dates": [
-      "2027-04-05"
+      "2028-12-27"
     ],
     "production_dates": [
-      "2026-04-05"
+      "2026-04-03"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-04-05",
-        "expiration_date": "2027-04-05",
+        "production_date": "2026-04-03",
+        "expiration_date": "2028-12-27",
         "count": 3
       }
     ],
     "by_kpp": [
       {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 3,
         "batches": [
           {
-            "production_date": "2026-04-05",
-            "expiration_date": "2027-04-05",
+            "production_date": "2026-04-03",
+            "expiration_date": "2028-12-27",
             "count": 3
           }
         ]
@@ -19500,86 +18876,6 @@
             "production_date": "2026-03-31",
             "expiration_date": "2028-03-30",
             "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04610280230088",
-    "name": "Сидр традиционный газированный сухой нефильтрованный неосветлённый \"Фёст пресс\"",
-    "brand": "Токсовская сидрерия",
-    "count": 3,
-    "expiration_dates": [
-      "2028-12-16"
-    ],
-    "production_dates": [
-      "2026-03-23"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-23",
-        "expiration_date": "2028-12-16",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2026-03-23",
-            "expiration_date": "2028-12-16",
-            "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "08606108261439",
-    "name": "Пиво \"Нишко пиво LAGER\"  (NISKO LAGER PIVO) 4,7% об.,  КЕГ 30л, ТМ Нишко",
-    "brand": "ТМ Нишко",
-    "count": 3,
-    "expiration_dates": [
-      "2025-11-03",
-      "2026-09-27"
-    ],
-    "production_dates": [
-      "2025-05-07",
-      "2026-03-31"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-31",
-        "expiration_date": "2026-09-27",
-        "count": 1
-      },
-      {
-        "production_date": "2025-05-07",
-        "expiration_date": "2025-11-03",
-        "count": 2
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781045001",
-        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2026-03-31",
-            "expiration_date": "2026-09-27",
-            "count": 1
-          },
-          {
-            "production_date": "2025-05-07",
-            "expiration_date": "2025-11-03",
-            "count": 2
           }
         ]
       }
@@ -19722,34 +19018,179 @@
     ]
   },
   {
-    "gtin": "04640229932377",
-    "name": "РЕД РОКЕТ ТРОПИКАЛ ТАНДЕР ПИВО СВЕТЛОЕ НЕПАСТЕРИЗОВАННОЕ НЕФИЛЬТРОВАННОЕ НЕОСВЕТЛЕННОЕ 0,45л",
-    "brand": "РЕД РОКЕТ",
+    "gtin": "04670013010158",
+    "name": "Пиво jaws apa светлое фильтрованное непастеризованное",
+    "brand": "Jaws",
     "count": 3,
     "expiration_dates": [
-      "2027-03-01"
+      "2026-06-08",
+      "2026-09-08"
     ],
     "production_dates": [
-      "2026-03-06"
+      "2025-12-10",
+      "2026-03-12"
     ],
     "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-03-06",
-        "expiration_date": "2027-03-01",
+        "production_date": "2026-03-12",
+        "expiration_date": "2026-09-08",
+        "count": 2
+      },
+      {
+        "production_date": "2025-12-10",
+        "expiration_date": "2026-06-08",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-03-12",
+            "expiration_date": "2026-09-08",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-12-10",
+            "expiration_date": "2026-06-08",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04670190944529",
+    "name": "Пивной напиток \"Кинки\" нефильтрованный светлый, непастеризованный неосветленный. Объем 0.45л",
+    "brand": "Red Button Brewery",
+    "count": 3,
+    "expiration_dates": [
+      "2027-02-22"
+    ],
+    "production_dates": [
+      "2026-02-27"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-27",
+        "expiration_date": "2027-02-22",
         "count": 3
       }
     ],
     "by_kpp": [
       {
-        "kpp": "781645001",
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-02-27",
+            "expiration_date": "2027-02-22",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2026-02-27",
+            "expiration_date": "2027-02-22",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04660185917768",
+    "name": "Пиво светлое непастеризованное нефильтрованное неосветлённое \"Сноу Кэп\" (\"Snow Cap\"), 8.5% об. алк., 450 мл.",
+    "brand": "Polnochnyj Project",
+    "count": 3,
+    "expiration_dates": [
+      "2027-02-18"
+    ],
+    "production_dates": [
+      "2026-02-18"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-18",
+        "expiration_date": "2027-02-18",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
         "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 3,
         "batches": [
           {
-            "production_date": "2026-03-06",
-            "expiration_date": "2027-03-01",
+            "production_date": "2026-02-18",
+            "expiration_date": "2027-02-18",
             "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620197363960",
+    "name": "Пиво светлое нефильтрованное неосветленное непастеризованное \"Хейзи  Индиа Пейл Эль 4\"",
+    "brand": "Отсутствует",
+    "count": 3,
+    "expiration_dates": [
+      "2026-10-14"
+    ],
+    "production_dates": [
+      "2026-02-16"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-16",
+        "expiration_date": "2026-10-14",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-02-16",
+            "expiration_date": "2026-10-14",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2026-02-16",
+            "expiration_date": "2026-10-14",
+            "count": 1
           }
         ]
       }
@@ -19892,6 +19333,40 @@
     ]
   },
   {
+    "gtin": "04640229931639",
+    "name": "РЕД РОКЕТ СВЕТЛЫЙ ЭЛЬ 8 ПИВО СВЕТЛОЕ НЕПАСТЕРИЗОВАННОЕ НЕФИЛЬТРОВАННОЕ НЕОСВЕТЛЕННОЕ 0,45л",
+    "brand": "РЕД РОКЕТ",
+    "count": 3,
+    "expiration_dates": [
+      "2026-08-08"
+    ],
+    "production_dates": [
+      "2026-02-09"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-09",
+        "expiration_date": "2026-08-08",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2026-02-09",
+            "expiration_date": "2026-08-08",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04650139081652",
     "name": "Пиво темное нефильтрованное непастеризованное неосветленное  \"Тэн\" (\"TEN\")",
     "brand": "Plan B Brewery",
@@ -20021,6 +19496,40 @@
           {
             "production_date": "2026-02-02",
             "expiration_date": "2027-02-02",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04660512526687",
+    "name": "Пиво светлое \"Пиво со вкусом пива 12\" непастеризованное нефильтрованное неосветленное  0,45",
+    "brand": "Отсутствует",
+    "count": 3,
+    "expiration_dates": [
+      "2027-01-27"
+    ],
+    "production_dates": [
+      "2026-01-27"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-01-27",
+        "expiration_date": "2027-01-27",
+        "count": 3
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 3,
+        "batches": [
+          {
+            "production_date": "2026-01-27",
+            "expiration_date": "2027-01-27",
             "count": 3
           }
         ]
@@ -20207,40 +19716,6 @@
     ]
   },
   {
-    "gtin": "04620235853439",
-    "name": "Пиво светлое непастеризованное нефильтрованное неосветленное САБОТАЖ Хоп Райдер",
-    "brand": "SABOTAGE",
-    "count": 3,
-    "expiration_dates": [
-      "2027-01-20"
-    ],
-    "production_dates": [
-      "2026-01-20"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-01-20",
-        "expiration_date": "2027-01-20",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2026-01-20",
-            "expiration_date": "2027-01-20",
-            "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04630250301952",
     "name": "Пивной напиток непастеризованный нефильтрованный осветленный \"Гозешка 9\"",
     "brand": "Отсутствует",
@@ -20268,40 +19743,6 @@
           {
             "production_date": "2026-01-26",
             "expiration_date": "2027-01-21",
-            "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04670190944277",
-    "name": "Пивной напиток \"Йес Ноу Плиз\" нефильтрованный светлый, непастеризованный неосветленный. Объем 0.45л",
-    "brand": "Red Button Brewery",
-    "count": 3,
-    "expiration_dates": [
-      "2027-01-10"
-    ],
-    "production_dates": [
-      "2026-01-15"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-01-15",
-        "expiration_date": "2027-01-10",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2026-01-15",
-            "expiration_date": "2027-01-10",
             "count": 3
           }
         ]
@@ -20337,52 +19778,6 @@
             "production_date": "2026-01-12",
             "expiration_date": "2028-01-12",
             "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "05411516003532",
-    "name": "Тиммерманс Ламбик и Стаут 0,375 Пивной напиток темный пастеризованный фильтрованный",
-    "brand": "JOHN MARTIN",
-    "count": 3,
-    "expiration_dates": [
-      "2029-12-16"
-    ],
-    "production_dates": [
-      "2025-12-16"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-12-16",
-        "expiration_date": "2029-12-16",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-12-16",
-            "expiration_date": "2029-12-16",
-            "count": 2
-          }
-        ]
-      },
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-12-16",
-            "expiration_date": "2029-12-16",
-            "count": 1
           }
         ]
       }
@@ -21303,6 +20698,59 @@
             "production_date": "2025-09-15",
             "expiration_date": "2026-09-15",
             "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04603759677972",
+    "name": "Сидр традиционный полусухой Заповедник 1 непастеризованный нефильтрованный 0.45",
+    "brand": "Заповедник",
+    "count": 3,
+    "expiration_dates": [
+      "2027-08-29",
+      "2027-09-08"
+    ],
+    "production_dates": [
+      "2025-08-29",
+      "2025-09-08"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-09-08",
+        "expiration_date": "2027-09-08",
+        "count": 1
+      },
+      {
+        "production_date": "2025-08-29",
+        "expiration_date": "2027-08-29",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2025-08-29",
+            "expiration_date": "2027-08-29",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-09-08",
+            "expiration_date": "2027-09-08",
+            "count": 1
           }
         ]
       }
@@ -22527,40 +21975,6 @@
     ]
   },
   {
-    "gtin": "04630287664747",
-    "name": "ПИВО «ПИК ДРАГ» БЕЗАЛКОГОЛЬНОЕ СВЕТЛОЕ НЕПАСТЕРИЗОВАННОЕ НЕФИЛЬТРОВАННОЕ НЕОСВЕТЛЕННОЕ",
-    "brand": "Zero point",
-    "count": 3,
-    "expiration_dates": [
-      "2026-09-22"
-    ],
-    "production_dates": [
-      "2025-09-22"
-    ],
-    "product_group": "NABEER",
-    "batches": [
-      {
-        "production_date": "2025-09-22",
-        "expiration_date": "2026-09-22",
-        "count": 3
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "",
-        "fiasId": "",
-        "count": 3,
-        "batches": [
-          {
-            "production_date": "2025-09-22",
-            "expiration_date": "2026-09-22",
-            "count": 3
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04640205263006",
     "name": "Напиток безалкогольный среднегазированный \"Лапочка Персик Вербена\"",
     "brand": "lapochka",
@@ -22627,34 +22041,34 @@
     ]
   },
   {
-    "gtin": "04603791714789",
-    "name": "Напиток безалкогольный «Лайт» среднегазированный пастеризованный «Имбирный»",
-    "brand": "GRAVIYY",
-    "count": 3,
+    "gtin": "04610424291500",
+    "name": "пивной напиток нефильтрованный непастеризованный неосветленный \"ШЕФ №2\"",
+    "brand": "КУЛИНАР Смородиновый крамбл",
+    "count": 2,
     "expiration_dates": [
-      "2027-02-25"
+      "2027-04-05"
     ],
     "production_dates": [
-      "2026-02-25"
+      "2026-04-05"
     ],
-    "product_group": "SOFTDRINKS",
+    "product_group": "BEER",
     "batches": [
       {
-        "production_date": "2026-02-25",
-        "expiration_date": "2027-02-25",
-        "count": 3
+        "production_date": "2026-04-05",
+        "expiration_date": "2027-04-05",
+        "count": 2
       }
     ],
     "by_kpp": [
       {
-        "kpp": "",
-        "fiasId": "",
-        "count": 3,
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 2,
         "batches": [
           {
-            "production_date": "2026-02-25",
-            "expiration_date": "2027-02-25",
-            "count": 3
+            "production_date": "2026-04-05",
+            "expiration_date": "2027-04-05",
+            "count": 2
           }
         ]
       }
@@ -22722,6 +22136,40 @@
           {
             "production_date": "2026-01-15",
             "expiration_date": "2027-01-15",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04650505843679",
+    "name": "Пиво светлое Байройтер Хелл (Bayreuther Hell) непастеризованное фильтрованное бутылка. ОБЪЕМ 0,5 Л. Алк. 4,9% Об.",
+    "brand": "Bayreuther Bierbrauerei AG",
+    "count": 2,
+    "expiration_dates": [
+      "2026-10-14"
+    ],
+    "production_dates": [
+      "2026-01-14"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-01-14",
+        "expiration_date": "2026-10-14",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-01-14",
+            "expiration_date": "2026-10-14",
             "count": 2
           }
         ]
@@ -23013,6 +22461,40 @@
     ]
   },
   {
+    "gtin": "04627159252362",
+    "name": "Сидр фруктовый ароматизированный газированный непастеризованный нефильтрованный полусладкий \"Элете\"",
+    "brand": "Токсовская сидрерия",
+    "count": 2,
+    "expiration_dates": [
+      "2028-11-07"
+    ],
+    "production_dates": [
+      "2026-02-12"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-02-12",
+        "expiration_date": "2028-11-07",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-02-12",
+            "expiration_date": "2028-11-07",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04670223014236",
     "name": "Пиво светлое «Ван хандред пэкс» непастеризованное нефильтрованное неосветленное",
     "brand": "ООО \"Пивоварня Заговор\"",
@@ -23241,6 +22723,40 @@
     ]
   },
   {
+    "gtin": "04620235853439",
+    "name": "Пиво светлое непастеризованное нефильтрованное неосветленное САБОТАЖ Хоп Райдер",
+    "brand": "SABOTAGE",
+    "count": 2,
+    "expiration_dates": [
+      "2027-01-20"
+    ],
+    "production_dates": [
+      "2026-01-20"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-01-20",
+        "expiration_date": "2027-01-20",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-01-20",
+            "expiration_date": "2027-01-20",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04640235993928",
     "name": "Пивной напиток \"СБ Тропикал Слэшер\" непастеризованный нефильтрованный неосветленный Банка 0,45 л",
     "brand": "Selfmade",
@@ -23268,6 +22784,40 @@
           {
             "production_date": "2026-01-21",
             "expiration_date": "2027-01-19",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04670190944277",
+    "name": "Пивной напиток \"Йес Ноу Плиз\" нефильтрованный светлый, непастеризованный неосветленный. Объем 0.45л",
+    "brand": "Red Button Brewery",
+    "count": 2,
+    "expiration_dates": [
+      "2027-01-10"
+    ],
+    "production_dates": [
+      "2026-01-15"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2026-01-15",
+        "expiration_date": "2027-01-10",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-01-15",
+            "expiration_date": "2027-01-10",
             "count": 2
           }
         ]
@@ -23303,6 +22853,52 @@
             "production_date": "2026-01-12",
             "expiration_date": "2028-01-12",
             "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "05411516003532",
+    "name": "Тиммерманс Ламбик и Стаут 0,375 Пивной напиток темный пастеризованный фильтрованный",
+    "brand": "JOHN MARTIN",
+    "count": 2,
+    "expiration_dates": [
+      "2029-12-16"
+    ],
+    "production_dates": [
+      "2025-12-16"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-12-16",
+        "expiration_date": "2029-12-16",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-12-16",
+            "expiration_date": "2029-12-16",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-12-16",
+            "expiration_date": "2029-12-16",
+            "count": 1
           }
         ]
       }
@@ -23503,74 +23099,6 @@
           {
             "production_date": "2025-07-31",
             "expiration_date": "2026-07-31",
-            "count": 2
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04640437580858",
-    "name": "Пиво темное непастеризованное нефильтрованное неосветленное \"1915\"",
-    "brand": "Brewlok",
-    "count": 2,
-    "expiration_dates": [
-      "2026-12-12"
-    ],
-    "production_dates": [
-      "2025-12-11"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-12-11",
-        "expiration_date": "2026-12-12",
-        "count": 2
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-12-11",
-            "expiration_date": "2026-12-12",
-            "count": 2
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04640205261859",
-    "name": "Пиво светлое непастеризованное нефильтрованное неосветленное «Островица Индийский пэйл эль»",
-    "brand": "Отсутствует",
-    "count": 2,
-    "expiration_dates": [
-      "2026-12-02"
-    ],
-    "production_dates": [
-      "2025-12-07"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-12-07",
-        "expiration_date": "2026-12-02",
-        "count": 2
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-12-07",
-            "expiration_date": "2026-12-02",
             "count": 2
           }
         ]
@@ -24140,40 +23668,6 @@
     ]
   },
   {
-    "gtin": "04650300021944",
-    "name": "ПИВНОЙ НАПИТОК «БЛЭК КЭТ САУР 1.10» НЕПАСТЕРИЗОВАННЫЙ НЕФИЛЬТРОВАННЫЙ НЕОСВЕТЛЕННЫЙ",
-    "brand": "Black Cat Brewery",
-    "count": 2,
-    "expiration_dates": [
-      "2026-10-31"
-    ],
-    "production_dates": [
-      "2025-11-05"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-11-05",
-        "expiration_date": "2026-10-31",
-        "count": 2
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 2,
-        "batches": [
-          {
-            "production_date": "2025-11-05",
-            "expiration_date": "2026-10-31",
-            "count": 2
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04623108696690",
     "name": "Пиво тёмное Леффе Брюн \"Leffe Brune\" пастеризованное, фильтрованное, стекл. бут. 0,33 л. алк. 6,5%",
     "brand": "InBev Belgium NV/SA",
@@ -24628,6 +24122,40 @@
     ]
   },
   {
+    "gtin": "04650505840104",
+    "name": "Пиво темное Белхевен Блэк Скоттиш Стаут (Belhaven Black Scottish Stout) фильтрованное пастеризованное банка 0,44л, алк. 4,2%",
+    "brand": "Greene King Brewing and Retailing Ltd",
+    "count": 2,
+    "expiration_dates": [
+      "2026-10-31"
+    ],
+    "production_dates": [
+      "2025-07-31"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-07-31",
+        "expiration_date": "2026-10-31",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "784201001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2025-07-31",
+            "expiration_date": "2026-10-31",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "04650139081065",
     "name": "Пиво светлое нефильтрованное непастеризованное неосветленное \"План Б светлое-4\"",
     "brand": "Plan B Brewery",
@@ -24850,6 +24378,40 @@
             "production_date": "2025-01-13",
             "expiration_date": "2025-05-07",
             "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "08606108261439",
+    "name": "Пиво \"Нишко пиво LAGER\"  (NISKO LAGER PIVO) 4,7% об.,  КЕГ 30л, ТМ Нишко",
+    "brand": "ТМ Нишко",
+    "count": 2,
+    "expiration_dates": [
+      "2025-11-03"
+    ],
+    "production_dates": [
+      "2025-05-07"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-05-07",
+        "expiration_date": "2025-11-03",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781045001",
+        "fiasId": "f111ab59-a4aa-4939-bf25-08ca83b72b3d",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2025-05-07",
+            "expiration_date": "2025-11-03",
+            "count": 2
           }
         ]
       }
@@ -26052,6 +25614,40 @@
     ]
   },
   {
+    "gtin": "04630287664747",
+    "name": "ПИВО «ПИК ДРАГ» БЕЗАЛКОГОЛЬНОЕ СВЕТЛОЕ НЕПАСТЕРИЗОВАННОЕ НЕФИЛЬТРОВАННОЕ НЕОСВЕТЛЕННОЕ",
+    "brand": "Zero point",
+    "count": 2,
+    "expiration_dates": [
+      "2026-09-22"
+    ],
+    "production_dates": [
+      "2025-09-22"
+    ],
+    "product_group": "NABEER",
+    "batches": [
+      {
+        "production_date": "2025-09-22",
+        "expiration_date": "2026-09-22",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2025-09-22",
+            "expiration_date": "2026-09-22",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
     "gtin": "08721082823135",
     "name": "Пивной напиток безалкогольный светлый пастеризованный нефильтрованный осветленный солодовый Стадсхавен Морай ИПА",
     "brand": "Stadshaven",
@@ -26084,21 +25680,21 @@
     ]
   },
   {
-    "gtin": "04620031823421",
-    "name": "Напиток безалкогольный с соком слабогазированный пастеризованный «БЮЛЬВИ ШОРЛИ ЯБЛОЧНЫЙ С ГРУШЕЙ»",
-    "brand": "Bullevie",
+    "gtin": "04640205266601",
+    "name": "Напиток безалкогольный среднегазированный \"Лапочка Тархун\" (банка)",
+    "brand": "lapochka",
     "count": 2,
     "expiration_dates": [
-      "2027-08-11"
+      "2027-03-20"
     ],
     "production_dates": [
-      "2026-02-11"
+      "2026-03-24"
     ],
     "product_group": "SOFTDRINKS",
     "batches": [
       {
-        "production_date": "2026-02-11",
-        "expiration_date": "2027-08-11",
+        "production_date": "2026-03-24",
+        "expiration_date": "2027-03-20",
         "count": 2
       }
     ],
@@ -26109,8 +25705,42 @@
         "count": 2,
         "batches": [
           {
-            "production_date": "2026-02-11",
-            "expiration_date": "2027-08-11",
+            "production_date": "2026-03-24",
+            "expiration_date": "2027-03-20",
+            "count": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04603791714789",
+    "name": "Напиток безалкогольный «Лайт» среднегазированный пастеризованный «Имбирный»",
+    "brand": "GRAVIYY",
+    "count": 2,
+    "expiration_dates": [
+      "2027-02-25"
+    ],
+    "production_dates": [
+      "2026-02-25"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-02-25",
+        "expiration_date": "2027-02-25",
+        "count": 2
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 2,
+        "batches": [
+          {
+            "production_date": "2026-02-25",
+            "expiration_date": "2027-02-25",
             "count": 2
           }
         ]
@@ -26179,40 +25809,6 @@
           {
             "production_date": "2026-03-18",
             "expiration_date": "2026-09-13",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04670223011921",
-    "name": "Пиво светлое \"Реплика Мотуэка\" непастеризованное нефильтрованное неосветленное",
-    "brand": "ООО \"Пивоварня Заговор\"",
-    "count": 1,
-    "expiration_dates": [
-      "2027-03-18"
-    ],
-    "production_dates": [
-      "2026-03-18"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2026-03-18",
-        "expiration_date": "2027-03-18",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "784201001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2026-03-18",
-            "expiration_date": "2027-03-18",
             "count": 1
           }
         ]
@@ -26764,40 +26360,6 @@
     ]
   },
   {
-    "gtin": "05410218009460",
-    "name": "Пивной напиток темный пастеризованный фильтрованный «Бургунь де Фландер»",
-    "brand": "JOHN MARTIN",
-    "count": 1,
-    "expiration_dates": [
-      "2026-11-26"
-    ],
-    "production_dates": [
-      "2025-11-26"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-11-26",
-        "expiration_date": "2026-11-26",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-11-26",
-            "expiration_date": "2026-11-26",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04670240360866",
     "name": "Пивной напиток нефильтрованный непастеризованный  неосветленный «БОСТОНСКИЙ КЛЮКВЕННЫЙ ПИРОГ С ГРЕЦКИМ ОРЕХОМ»",
     "brand": "Отсутствует",
@@ -27002,12 +26564,12 @@
     ]
   },
   {
-    "gtin": "04670161155435",
-    "name": "Пивной напиток непастеризованный нефильтрованный осветленный Крылья отваги",
-    "brand": "Реворт Крылья отваги",
+    "gtin": "04640437580858",
+    "name": "Пиво темное непастеризованное нефильтрованное неосветленное \"1915\"",
+    "brand": "Brewlok",
     "count": 1,
     "expiration_dates": [
-      "2026-12-11"
+      "2026-12-12"
     ],
     "production_dates": [
       "2025-12-11"
@@ -27016,19 +26578,19 @@
     "batches": [
       {
         "production_date": "2025-12-11",
-        "expiration_date": "2026-12-11",
+        "expiration_date": "2026-12-12",
         "count": 1
       }
     ],
     "by_kpp": [
       {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
         "count": 1,
         "batches": [
           {
             "production_date": "2025-12-11",
-            "expiration_date": "2026-12-11",
+            "expiration_date": "2026-12-12",
             "count": 1
           }
         ]
@@ -27131,6 +26693,40 @@
           {
             "production_date": "2025-07-30",
             "expiration_date": "2028-07-30",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04640205261859",
+    "name": "Пиво светлое непастеризованное нефильтрованное неосветленное «Островица Индийский пэйл эль»",
+    "brand": "Отсутствует",
+    "count": 1,
+    "expiration_dates": [
+      "2026-12-02"
+    ],
+    "production_dates": [
+      "2025-12-07"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-12-07",
+        "expiration_date": "2026-12-02",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "780145001",
+        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-12-07",
+            "expiration_date": "2026-12-02",
             "count": 1
           }
         ]
@@ -27267,74 +26863,6 @@
           {
             "production_date": "2025-11-27",
             "expiration_date": "2026-11-27",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04670190943966",
-    "name": "Пивной напиток «Напиток пивной» нефильтрованный светлый, непастеризованный неосветленный. Объем 0.45л",
-    "brand": "Red Button Brewery",
-    "count": 1,
-    "expiration_dates": [
-      "2026-11-20"
-    ],
-    "production_dates": [
-      "2025-11-25"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-11-25",
-        "expiration_date": "2026-11-20",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "781645001",
-        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-11-25",
-            "expiration_date": "2026-11-20",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "gtin": "04610544180524",
-    "name": "пиво светлое, нефильтрованное неосветленное пастеризованное СТИНБРЮГГЕ ВАЙТ",
-    "brand": "STEENBRUGGE WHITE",
-    "count": 1,
-    "expiration_dates": [
-      "2026-06-26"
-    ],
-    "production_dates": [
-      "2025-09-26"
-    ],
-    "product_group": "BEER",
-    "batches": [
-      {
-        "production_date": "2025-09-26",
-        "expiration_date": "2026-06-26",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "780145001",
-        "fiasId": "02d5531c-c228-4fd5-9f39-831cfd4bd07c",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-09-26",
-            "expiration_date": "2026-06-26",
             "count": 1
           }
         ]
@@ -27709,6 +27237,40 @@
           {
             "production_date": "2025-09-03",
             "expiration_date": "2026-11-01",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04650300021944",
+    "name": "ПИВНОЙ НАПИТОК «БЛЭК КЭТ САУР 1.10» НЕПАСТЕРИЗОВАННЫЙ НЕФИЛЬТРОВАННЫЙ НЕОСВЕТЛЕННЫЙ",
+    "brand": "Black Cat Brewery",
+    "count": 1,
+    "expiration_dates": [
+      "2026-10-31"
+    ],
+    "production_dates": [
+      "2025-11-05"
+    ],
+    "product_group": "BEER",
+    "batches": [
+      {
+        "production_date": "2025-11-05",
+        "expiration_date": "2026-10-31",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "781645001",
+        "fiasId": "44b7f9ba-edcc-4385-b165-bc5625f88582",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2025-11-05",
+            "expiration_date": "2026-10-31",
             "count": 1
           }
         ]
@@ -31792,40 +31354,6 @@
     ]
   },
   {
-    "gtin": "04620402490924",
-    "name": "Напиток безалкогольный среднегазированный пастеризованный \"Брюмен лимонад \"Маракуйя лайм\"",
-    "brand": "Брюмен",
-    "count": 1,
-    "expiration_dates": [
-      "2026-08-08"
-    ],
-    "production_dates": [
-      "2025-08-13"
-    ],
-    "product_group": "SOFTDRINKS",
-    "batches": [
-      {
-        "production_date": "2025-08-13",
-        "expiration_date": "2026-08-08",
-        "count": 1
-      }
-    ],
-    "by_kpp": [
-      {
-        "kpp": "",
-        "fiasId": "",
-        "count": 1,
-        "batches": [
-          {
-            "production_date": "2025-08-13",
-            "expiration_date": "2026-08-08",
-            "count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
     "gtin": "04640205264027",
     "name": "Напиток безалкогольный среднегазированный \"Шорли Яблоко\" (банка)",
     "brand": "lapochka",
@@ -31887,6 +31415,40 @@
           {
             "production_date": "2025-09-10",
             "expiration_date": "2027-03-10",
+            "count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "gtin": "04620031823421",
+    "name": "Напиток безалкогольный с соком слабогазированный пастеризованный «БЮЛЬВИ ШОРЛИ ЯБЛОЧНЫЙ С ГРУШЕЙ»",
+    "brand": "Bullevie",
+    "count": 1,
+    "expiration_dates": [
+      "2027-08-11"
+    ],
+    "production_dates": [
+      "2026-02-11"
+    ],
+    "product_group": "SOFTDRINKS",
+    "batches": [
+      {
+        "production_date": "2026-02-11",
+        "expiration_date": "2027-08-11",
+        "count": 1
+      }
+    ],
+    "by_kpp": [
+      {
+        "kpp": "",
+        "fiasId": "",
+        "count": 1,
+        "batches": [
+          {
+            "production_date": "2026-02-11",
+            "expiration_date": "2027-08-11",
             "count": 1
           }
         ]

@@ -1,0 +1,31 @@
+{
+  "data": [
+    {
+      "Store.Name": "Большой пр. В.О",
+      "DishGroup.TopParent": "Напитки Розлив",
+      "UniqOrderId.Id": "ord-1",
+      "DishDiscountSumInt": 200.0,
+      "DiscountSum": 10.0,
+      "ProductCostBase.ProductCost": 100.0,
+      "ProductCostBase.MarkUp": 1.0
+    },
+    {
+      "Store.Name": "Большой пр. В.О",
+      "DishGroup.TopParent": "Напитки Фасовка",
+      "UniqOrderId.Id": "ord-2",
+      "DishDiscountSumInt": 100.0,
+      "DiscountSum": 5.0,
+      "ProductCostBase.ProductCost": 40.0,
+      "ProductCostBase.MarkUp": 1.5
+    },
+    {
+      "Store.Name": "Большой пр. В.О",
+      "DishGroup.TopParent": "Кухня",
+      "UniqOrderId.Id": "ord-3",
+      "DishDiscountSumInt": 300.0,
+      "DiscountSum": 15.0,
+      "ProductCostBase.ProductCost": 120.0,
+      "ProductCostBase.MarkUp": 1.5
+    }
+  ]
+}

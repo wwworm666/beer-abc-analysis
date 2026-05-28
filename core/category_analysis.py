@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from core.abc_buckets import get_bucket_key
 
 class CategoryAnalysis:
     """Класс для ABC/XYZ анализа по категориям (стилям) пива"""
@@ -263,9 +264,12 @@ class CategoryAnalysis:
         if xyz_df.empty:
             return category_result
 
-        # Добавляем XYZ данные к каждому пиву
+        # Добавляем XYZ данные к каждому пиву и пересобираем ABC_Combined: Revenue+Markup+XYZ.
+        # Маржа остаётся отдельным полем ABC_Margin (не входит в 3-буквенный код).
         beers_with_xyz = []
         xyz_stats = {}
+        abc_stats = {}
+        bucket_stats = {}
 
         for beer in category_result['beers']:
             beer_name = beer['Beer']
@@ -274,21 +278,23 @@ class CategoryAnalysis:
             if not xyz_row.empty:
                 beer['XYZ_Category'] = xyz_row.iloc[0]['XYZ_Category']
                 beer['CoefficientOfVariation'] = xyz_row.iloc[0]['CoefficientOfVariation']
-                beer['ABCXYZ_Combined'] = beer['ABC_Combined'] + '-' + beer['XYZ_Category']
-
-                # Собираем статистику
-                xyz_cat = beer['XYZ_Category']
-                xyz_stats[xyz_cat] = xyz_stats.get(xyz_cat, 0) + 1
             else:
                 beer['XYZ_Category'] = 'Z'
                 beer['CoefficientOfVariation'] = 100
-                beer['ABCXYZ_Combined'] = beer['ABC_Combined'] + '-Z'
-                xyz_stats['Z'] = xyz_stats.get('Z', 0) + 1
+
+            beer['ABC_Combined'] = beer['ABC_Revenue'] + beer['ABC_Markup'] + beer['XYZ_Category']
+            beer['ABC_Bucket'] = get_bucket_key(beer['ABC_Revenue'], beer['ABC_Markup'])
+
+            xyz_stats[beer['XYZ_Category']] = xyz_stats.get(beer['XYZ_Category'], 0) + 1
+            abc_stats[beer['ABC_Combined']] = abc_stats.get(beer['ABC_Combined'], 0) + 1
+            bucket_stats[beer['ABC_Bucket']] = bucket_stats.get(beer['ABC_Bucket'], 0) + 1
 
             beers_with_xyz.append(beer)
 
         category_result['beers'] = beers_with_xyz
         category_result['xyz_stats'] = xyz_stats
+        category_result['abc_stats'] = abc_stats
+        category_result['bucket_stats'] = bucket_stats
 
         return category_result
 
