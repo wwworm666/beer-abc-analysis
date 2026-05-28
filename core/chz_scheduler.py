@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 REFRESH_HOUR = int(os.environ.get("CHZ_REFRESH_HOUR", "3"))
 REFRESH_MINUTE = int(os.environ.get("CHZ_REFRESH_MINUTE", "0"))
-LOCAL_REFRESH_URL = os.environ.get("CHZ_REFRESH_URL", "http://127.0.0.1:5000/api/chz/refresh")
+LOCAL_REFRESH_URL = os.environ.get("CHZ_REFRESH_URL", "http://127.0.0.1:10000/api/chz/refresh")
 
 _started = False
 _lock = threading.Lock()
