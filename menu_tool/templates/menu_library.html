@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Beer Menu — Библиотека</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #2a2824; color: #e5e1d6; font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+
+.layout { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+
+.topbar {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding-bottom: 18px; border-bottom: 1px solid #3a3631; margin-bottom: 22px;
+}
+.topbar h1 {
+    font-family: 'PT Serif', Georgia, serif; font-weight: 700; font-size: 26px;
+    color: #e5cba3; margin: 0;
+}
+.topbar .grow { flex: 1; }
+
+.variant-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; background: #14130f; border: 1px solid #3a3631;
+    border-radius: 4px; font-size: 12px; color: #c2bbad;
+}
+.variant-pill b { color: #e5cba3; }
+
+.btn { padding: 9px 14px; border: none; cursor: pointer; font-size: 13px; font-family: inherit; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: #8a7e62; color: #fff; }
+.btn-primary:hover { background: #756a52; }
+.btn-secondary { background: #2c2925; color: #c2bbad; }
+.btn-secondary:hover { background: #38342f; }
+.btn-danger-ghost { background: transparent; color: #a87575; border: 1px solid #6a4a4a; }
+.btn-danger-ghost:hover { background: #2a1f1f; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+.toolbar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px;
+}
+.search {
+    flex: 1; min-width: 240px;
+    padding: 9px 12px; background: #14130f; border: 1px solid #3a3631;
+    color: #e5e1d6; font-size: 14px; font-family: inherit; border-radius: 4px;
+}
+.search:focus { outline: none; border-color: #8a7e62; }
+
+.counter { font-size: 12px; color: #9c9588; }
+
+table.lib {
+    width: 100%; border-collapse: collapse; background: #1f1d1a;
+    border: 1px solid #2c2925; border-radius: 6px; overflow: hidden;
+    font-size: 13px;
+}
+table.lib thead th {
+    text-align: left; padding: 11px 14px; font-weight: 600;
+    color: #9c9588; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    background: #1a1815; border-bottom: 1px solid #2c2925;
+}
+table.lib tbody td {
+    padding: 11px 14px; border-bottom: 1px solid #2c2925;
+    vertical-align: middle;
+}
+table.lib tbody tr:last-child td { border-bottom: none; }
+table.lib tbody tr.row-link { cursor: pointer; transition: background 0.08s; }
+table.lib tbody tr.row-link:hover { background: #26231f; }
+table.lib .c-n { width: 56px; font-family: 'PT Serif', serif; font-weight: 700; color: #e5cba3; font-size: 15px; }
+table.lib .c-name { font-weight: 600; color: #e5e1d6; }
+table.lib .c-name .latin { display: block; font-weight: 400; color: #8a8580; font-size: 11px; margin-top: 2px; font-style: italic; }
+table.lib .c-style { color: #c2bbad; }
+table.lib .c-abv { color: #c2bbad; font-variant-numeric: tabular-nums; }
+table.lib .c-actions { width: 1%; white-space: nowrap; text-align: right; }
+table.lib .c-actions .btn { margin-left: 6px; }
+
+.empty {
+    padding: 60px 20px; text-align: center; color: #8a8580;
+    border: 1px dashed #3a3631; border-radius: 6px;
+}
+.empty h2 { font-family: 'PT Serif', serif; color: #c2bbad; font-size: 20px; margin-bottom: 10px; }
+.empty p { font-size: 13px; margin-bottom: 18px; }
+</style>
+</head>
+<body>
+<div class="layout">
+    <div class="topbar">
+        <h1>Библиотека пивных карточек</h1>
+        <span class="variant-pill">Вариант разлива: <b id="variant-label">…</b></span>
+        <div class="grow"></div>
+        <a class="btn btn-primary" href="/menu/">+ Новая позиция</a>
+    </div>
+
+    <div class="toolbar">
+        <input class="search" id="search" placeholder="Поиск по названию, латинскому, пивоварне, стране, стилю…" oninput="renderRows()"/>
+        <span class="counter" id="counter">…</span>
+    </div>
+
+    <div id="content"></div>
+</div>
+
+<script>
+let items = [];
+
+const esc = (s) => (s == null ? "" : String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"));
+const pad2 = (n) => String(n || 0).padStart(2, "0");
+
+async function init() {
+    const [iRes, sRes] = await Promise.all([
+        fetch("/menu/api/items"),
+        fetch("/menu/api/settings"),
+    ]);
+    items = await iRes.json();
+    const settings = await sRes.json();
+    document.getElementById("variant-label").textContent =
+        settings.variant === "v2" ? "A · 2 объёма" : "B · 3 объёма";
+    renderRows();
+}
+
+function matchesQuery(item, q) {
+    if (!q) return true;
+    const haystack = [
+        item.name, item.latin, item.brewery, item.country, item.style,
+        ...(Array.isArray(item.tags) ? item.tags : []),
+    ].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(q);
+}
+
+function renderRows() {
+    const q = document.getElementById("search").value.trim().toLowerCase();
+    const filtered = items
+        .filter((i) => matchesQuery(i, q))
+        .sort((a, b) => (a.n || 0) - (b.n || 0));
+
+    const counter = document.getElementById("counter");
+    counter.textContent = q
+        ? `${filtered.length} из ${items.length}`
+        : `всего: ${items.length}`;
+
+    const content = document.getElementById("content");
+    if (items.length === 0) {
+        content.innerHTML = `
+            <div class="empty">
+                <h2>Библиотека пуста</h2>
+                <p>Создайте первую карточку, чтобы она появилась здесь.</p>
+                <a class="btn btn-primary" href="/menu/">+ Новая позиция</a>
+            </div>`;
+        return;
+    }
+    if (filtered.length === 0) {
+        content.innerHTML = `
+            <div class="empty">
+                <h2>Ничего не найдено</h2>
+                <p>Попробуйте изменить запрос или очистить поиск.</p>
+            </div>`;
+        return;
+    }
+
+    const rows = filtered.map((i) => {
+        const tagsStr = Array.isArray(i.tags) ? i.tags.slice(0, 3).join(" · ") : "";
+        const originStr = [i.country, i.brewery].filter(Boolean).join(" · ");
+        return `
+            <tr class="row-link" data-id="${i.id}">
+                <td class="c-n">${pad2(i.n)}</td>
+                <td class="c-name">
+                    ${esc(i.name || "Без названия")}
+                    ${i.latin ? `<span class="latin">${esc(i.latin)}</span>` : ""}
+                </td>
+                <td>${esc(originStr)}</td>
+                <td class="c-style">${esc(i.style || "")}</td>
+                <td class="c-abv">${i.abv ? esc(i.abv) + " %" : ""}</td>
+                <td>${esc(tagsStr)}</td>
+                <td class="c-actions">
+                    <a class="btn btn-secondary btn-sm" href="/menu/?id=${i.id}">Открыть</a>
+                    <button class="btn btn-danger-ghost btn-sm" data-del="${i.id}">Удалить</button>
+                </td>
+            </tr>`;
+    }).join("");
+
+    content.innerHTML = `
+        <table class="lib">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Название</th>
+                    <th>Страна / пивоварня</th>
+                    <th>Стиль</th>
+                    <th>ABV</th>
+                    <th>Дескрипторы</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+
+    // Row click → open in editor (but not when clicking inside .c-actions)
+    content.querySelectorAll("tr.row-link").forEach((tr) => {
+        tr.addEventListener("click", (e) => {
+            if (e.target.closest(".c-actions")) return;
+            window.location.href = `/menu/?id=${tr.dataset.id}`;
+        });
+    });
+    content.querySelectorAll("[data-del]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.del;
+            const item = items.find((i) => String(i.id) === String(id));
+            const label = item ? (item.name || `№ ${pad2(item.n)}`) : "позицию";
+            if (!confirm(`Удалить «${label}»?`)) return;
+            await fetch(`/menu/api/items/${id}`, { method: "DELETE" });
+            items = items.filter((i) => String(i.id) !== String(id));
+            renderRows();
+        });
+    });
+}
+
+init();
+</script>
+</body>
+</html>

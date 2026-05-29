@@ -6,9 +6,13 @@ from .stocks import stocks_bp
 from .dashboard import dashboard_bp
 from .schedule import schedule_bp
 from .misc import misc_bp
-from .menu import menu_bp
 from .expiration import expiration_bp
+from .explorer import explorer_bp
 from .open_check import open_check_bp
+
+# NOTE: menu_bp вынесен в menu_tool/ как отдельное локальное приложение.
+# В прод (Render) больше не включается — Chromium-рендер не помещается
+# в 512 МБ Starter. См. menu_tool/README.md.
 
 
 def register_blueprints(app):
@@ -20,6 +24,6 @@ def register_blueprints(app):
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(schedule_bp)
     app.register_blueprint(misc_bp)
-    app.register_blueprint(menu_bp)
     app.register_blueprint(expiration_bp)
+    app.register_blueprint(explorer_bp)
     app.register_blueprint(open_check_bp)

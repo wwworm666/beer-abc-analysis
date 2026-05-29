@@ -1,0 +1,2006 @@
+[
+  {
+    "name": "Witbier",
+    "latin": "Витбир",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 1,
+    "n": 1
+  },
+  {
+    "name": "Best",
+    "latin": "Бест",
+    "brewery": "Saltaire",
+    "country": "Англия",
+    "style": "Английский Биттер",
+    "abv": "4,4",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 450,
+    "p05": 520,
+    "id": 2,
+    "n": 2
+  },
+  {
+    "name": "Local Lager",
+    "latin": "Локал лагер",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Светлый лагер",
+    "abv": "4",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 180,
+    "p03": null,
+    "p04": 250,
+    "p05": 290,
+    "id": 3,
+    "n": 3
+  },
+  {
+    "name": "Local Weizen",
+    "latin": "Локал Вайцен",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Пшеничное нефильтрованное",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 180,
+    "p03": null,
+    "p04": 250,
+    "p05": 290,
+    "id": 4,
+    "n": 4
+  },
+  {
+    "name": "Ferdinand 10",
+    "latin": "Фердинанд 10",
+    "brewery": "Ferdinand",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "4",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 240,
+    "p03": null,
+    "p04": 370,
+    "p05": 420,
+    "id": 5,
+    "n": 5
+  },
+  {
+    "name": "Delirium Red",
+    "latin": "Делириум Ред",
+    "brewery": "Huyghe",
+    "country": "Бельгия",
+    "style": "Вишневый эль",
+    "abv": "8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 6,
+    "n": 6
+  },
+  {
+    "name": "Sas Pils",
+    "latin": "Сас Пилз",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Пильзнер",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 270,
+    "p03": null,
+    "p04": 420,
+    "p05": 490,
+    "id": 7,
+    "n": 7
+  },
+  {
+    "name": "Helles",
+    "latin": "Хеллес",
+    "brewery": "Hochstiftliches Brauhaus Fulda",
+    "country": "Германия",
+    "style": "Мюнхенский Хеллес",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 250,
+    "p03": null,
+    "p04": 370,
+    "p05": 420,
+    "id": 8,
+    "n": 8
+  },
+  {
+    "name": "IPA",
+    "latin": "ИПА",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Охмеленный бледный эль",
+    "abv": "6,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 230,
+    "p03": null,
+    "p04": 350,
+    "p05": 420,
+    "id": 9,
+    "n": 9
+  },
+  {
+    "name": "Stout",
+    "latin": "Стаут",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Стаут",
+    "abv": "6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 210,
+    "p03": null,
+    "p04": 300,
+    "p05": 350,
+    "id": 10,
+    "n": 10
+  },
+  {
+    "name": "Rodenbach Grand Cru",
+    "latin": "Роденбах Гранд Крю",
+    "brewery": "Palm",
+    "country": "Бельгия",
+    "style": "Фландрский Красный Эль",
+    "abv": "6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 11,
+    "n": 11
+  },
+  {
+    "name": "Astrologer",
+    "latin": "Астрологер",
+    "brewery": "Brew Division",
+    "country": "Россия",
+    "style": "Пильзнер",
+    "abv": "4,7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 230,
+    "p03": null,
+    "p04": 350,
+    "p05": 420,
+    "id": 12,
+    "n": 12
+  },
+  {
+    "name": "Witte",
+    "latin": "Вайт",
+    "brewery": "Sint-Jozef и Martens",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 13,
+    "n": 13
+  },
+  {
+    "name": "Petrus Red",
+    "latin": "Делириум Ред",
+    "brewery": "De Brabandere",
+    "country": "Бельгия",
+    "style": "Вишневый эль",
+    "abv": "8,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 14,
+    "n": 14
+  },
+  {
+    "name": "Hefe Weizen",
+    "latin": "Хефе Вайцен",
+    "brewery": "Hochstiftliches",
+    "country": "Германия",
+    "style": "Пшеничное нефильтрованное",
+    "abv": "5,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 250,
+    "p03": null,
+    "p04": 370,
+    "p05": 420,
+    "id": 15,
+    "n": 15
+  },
+  {
+    "name": "the Pepin",
+    "latin": "Рейдж зе Пепин",
+    "brewery": "Rebel Apple",
+    "country": "Россия",
+    "style": "Сидр",
+    "abv": "6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 240,
+    "p03": null,
+    "p04": 360,
+    "p05": 420,
+    "id": 16,
+    "n": 16
+  },
+  {
+    "name": "Rustiq",
+    "latin": "Рустик",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Сидр полусладкий",
+    "abv": "5,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 250,
+    "p03": null,
+    "p04": 300,
+    "p05": 350,
+    "id": 17,
+    "n": 17
+  },
+  {
+    "name": "Moravan",
+    "latin": "Литовел Мораван",
+    "brewery": "Litovel",
+    "country": "Чехия",
+    "style": "Пильзнер",
+    "abv": "4,6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 420,
+    "p05": 490,
+    "id": 18,
+    "n": 18
+  },
+  {
+    "name": "Palm",
+    "latin": "Палм",
+    "brewery": "Palm",
+    "country": "Бельгия",
+    "style": "Амбер эль",
+    "abv": "5,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 19,
+    "n": 19
+  },
+  {
+    "name": "Brown Bruin",
+    "latin": "Стинбрюгге Браун Брюн",
+    "brewery": "Palm",
+    "country": "Бельгия",
+    "style": "Дюббель",
+    "abv": "6,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 540,
+    "p05": 650,
+    "id": 20,
+    "n": 20
+  },
+  {
+    "name": "Local Weizen",
+    "latin": "Локал Вайцен",
+    "brewery": "Gorkovskaya",
+    "country": "Россия",
+    "style": "Пшеничное нефильтрованное",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 140,
+    "p03": null,
+    "p04": 210,
+    "p05": 250,
+    "id": 21,
+    "n": 21
+  },
+  {
+    "name": "Queency",
+    "latin": "Квинси",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Сидр полусухой",
+    "abv": "5,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 420,
+    "p05": 490,
+    "id": 22,
+    "n": 22
+  },
+  {
+    "name": "Feines Urhell",
+    "latin": "Файнес Урхель",
+    "brewery": "Riegele",
+    "country": "Германия",
+    "style": "Немецкий Лагер",
+    "abv": "4,7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 470,
+    "p03": null,
+    "p04": 670,
+    "p05": 770,
+    "id": 23,
+    "n": 23
+  },
+  {
+    "name": "Абанамат",
+    "latin": "",
+    "brewery": "Заповедник",
+    "country": "Россия",
+    "style": "Сухой сидр",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 390,
+    "p05": 450,
+    "id": 24,
+    "n": 24
+  },
+  {
+    "name": "Averbode",
+    "latin": "Авербод",
+    "brewery": "Huyghe",
+    "country": "Бельгия",
+    "style": "Бельгийский Крепкий Эль",
+    "abv": "7,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 420,
+    "p05": 490,
+    "id": 25,
+    "n": 25
+  },
+  {
+    "name": "Witbier",
+    "latin": "Витбир",
+    "brewery": "Van Steenberge",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 26,
+    "n": 26
+  },
+  {
+    "name": "De Lutin",
+    "latin": "Крик Де Лютин",
+    "brewery": "Василеостровская Пивоварня",
+    "country": "Россия",
+    "style": "Ламбик",
+    "abv": "4",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 240,
+    "p03": null,
+    "p04": 330,
+    "p05": 390,
+    "id": 27,
+    "n": 27
+  },
+  {
+    "name": "Original Helles",
+    "latin": "Ориджинал Хеллес",
+    "brewery": "Privatbrauerei M.C. Wieninger",
+    "country": "Германия",
+    "style": "Немецкий Лагер",
+    "abv": "5,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 590,
+    "p05": 690,
+    "id": 28,
+    "n": 28
+  },
+  {
+    "name": "Wit-Blanche",
+    "latin": "Вит-Бланш",
+    "brewery": "Palm",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 29,
+    "n": 29
+  },
+  {
+    "name": "Helles",
+    "latin": "Хеллес",
+    "brewery": "Welde",
+    "country": "Германия",
+    "style": "Немецкий Лагер",
+    "abv": "5,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 30,
+    "n": 30
+  },
+  {
+    "name": "Mahatma",
+    "latin": "Махатма",
+    "brewery": "Rewort",
+    "country": "Россия",
+    "style": "Hazy IPA",
+    "abv": "6,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 230,
+    "p03": null,
+    "p04": 320,
+    "p05": 380,
+    "id": 31,
+    "n": 31
+  },
+  {
+    "name": "Irish Red",
+    "latin": "Айриш Рэд",
+    "brewery": "Carlow",
+    "country": "Ирландия",
+    "style": "Ирландский красный эль",
+    "abv": "4,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 550,
+    "p05": 650,
+    "id": 32,
+    "n": 32
+  },
+  {
+    "name": "Blond Watou",
+    "latin": "Блонд Вату",
+    "brewery": "Leroy Breweries",
+    "country": "Бельгия",
+    "style": "Бельгийский Крепкий Эль",
+    "abv": "6,6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 590,
+    "p05": 690,
+    "id": 33,
+    "n": 33
+  },
+  {
+    "name": "Premium",
+    "latin": "Литовел Премиум",
+    "brewery": "Litovel",
+    "country": "Чехия",
+    "style": "Чешский Лагер",
+    "abv": "5,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 550,
+    "p05": 650,
+    "id": 34,
+    "n": 34
+  },
+  {
+    "name": "APA",
+    "latin": "АПА",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Охмеленный эль",
+    "abv": "6,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 210,
+    "p03": null,
+    "p04": 320,
+    "p05": 380,
+    "id": 35,
+    "n": 35
+  },
+  {
+    "name": "Blanche des Neiges",
+    "latin": "Бланш де Нейгес",
+    "brewery": "Huyghe",
+    "country": "Бельгия",
+    "style": "Бланш",
+    "abv": "4,9",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 36,
+    "n": 36
+  },
+  {
+    "name": "Full Moon",
+    "latin": "Фулл Мун",
+    "brewery": "BOMBrewery",
+    "country": "Бельгия",
+    "style": "Квадрупель",
+    "abv": "10,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 590,
+    "p05": 690,
+    "id": 37,
+    "n": 37
+  },
+  {
+    "name": "Brown Ale",
+    "latin": "Браун Эль",
+    "brewery": "Baltika Brew",
+    "country": "Россия",
+    "style": "Темный Эль",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 200,
+    "p03": null,
+    "p04": 300,
+    "p05": 350,
+    "id": 38,
+    "n": 38
+  },
+  {
+    "name": "Ковбой Мальборо",
+    "latin": "",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Охмеленный Пейл Эль",
+    "abv": "6,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 370,
+    "p05": 420,
+    "id": 39,
+    "n": 39
+  },
+  {
+    "name": "Cassis Ruby",
+    "latin": "",
+    "brewery": "Konix Brewery",
+    "country": "Россия",
+    "style": "Смородиновый эль",
+    "abv": "7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 270,
+    "p03": null,
+    "p04": 380,
+    "p05": 490,
+    "id": 40,
+    "n": 40
+  },
+  {
+    "name": "Festweisse TAP 04",
+    "latin": "Шнайдер ТАП 04",
+    "brewery": "G.Schneider & Sohn",
+    "country": "Германия",
+    "style": "Пшеничное фестивальное",
+    "abv": "5,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 360,
+    "p03": null,
+    "p04": 480,
+    "p05": 590,
+    "id": 41,
+    "n": 41
+  },
+  {
+    "name": "Oktober",
+    "latin": "Октобер",
+    "brewery": "Dreamteam Brew",
+    "country": "Россия",
+    "style": "Мэрцен",
+    "abv": "5,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 320,
+    "p03": null,
+    "p04": 440,
+    "p05": 550,
+    "id": 42,
+    "n": 42
+  },
+  {
+    "name": "Lager Hell",
+    "latin": "Айингер Хель",
+    "brewery": "Ayinger",
+    "country": "Германия",
+    "style": "Баварский экспорт лагер",
+    "abv": "4,9",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": null,
+    "p03": null,
+    "p04": null,
+    "p05": 590,
+    "id": 43,
+    "n": 43
+  },
+  {
+    "name": "1,0 + брецель + вайсвурст     1500₽ Pilgerstoff Märzen",
+    "latin": "Пилгерштофф Мерцен",
+    "brewery": "Pilgerstoff",
+    "country": "Германия",
+    "style": "Баварский фестивальный лагер",
+    "abv": "5,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 420,
+    "p05": 490,
+    "id": 44,
+    "n": 44
+  },
+  {
+    "name": "FestMärzen",
+    "latin": "Айингер Фестмэрцен",
+    "brewery": "Ayinger",
+    "country": "Германия",
+    "style": "Баварский фестивальный лагер",
+    "abv": "5,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 450,
+    "p03": null,
+    "p04": 650,
+    "p05": 750,
+    "id": 45,
+    "n": 45
+  },
+  {
+    "name": "Oktoberfest",
+    "latin": "Холфброй Октоберфест",
+    "brewery": "Hofbrau",
+    "country": "Германия",
+    "style": "Баварский фестивальный лагер",
+    "abv": "6,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": null,
+    "p03": null,
+    "p04": 550,
+    "p05": 650,
+    "id": 46,
+    "n": 46
+  },
+  {
+    "name": "Мёд и Виноград",
+    "latin": "",
+    "brewery": "Степь и Ветер",
+    "country": "Россия",
+    "style": "Фруктовый мёд",
+    "abv": "6,0",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 390,
+    "p05": 450,
+    "id": 47,
+    "n": 47
+  },
+  {
+    "name": "Helles",
+    "latin": "Джоус Хеллес",
+    "brewery": "Jaws",
+    "country": "Россия",
+    "style": "Светлый лагер",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 230,
+    "p03": null,
+    "p04": 350,
+    "p05": 420,
+    "id": 48,
+    "n": 48
+  },
+  {
+    "name": "Blond Ale",
+    "latin": "Блонд Эль",
+    "brewery": "Baltika Brew",
+    "country": "Россия",
+    "style": "Светлый Эль",
+    "abv": "6,7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 200,
+    "p03": null,
+    "p04": 300,
+    "p05": 350,
+    "id": 49,
+    "n": 49
+  },
+  {
+    "name": "Василиса",
+    "latin": "",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Двойной овсяный стаут",
+    "abv": "8,6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 390,
+    "p05": 490,
+    "id": 50,
+    "n": 50
+  },
+  {
+    "name": "Cherry Ruby",
+    "latin": "",
+    "brewery": "Konix Brewery",
+    "country": "Россия",
+    "style": "Вишневый эль",
+    "abv": "7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 51,
+    "n": 51
+  },
+  {
+    "name": "Hommel",
+    "latin": "Хоммель",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Охмеленный Бельгийский Эль",
+    "abv": "7,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 590,
+    "p05": 690,
+    "id": 52,
+    "n": 52
+  },
+  {
+    "name": "Амброзия",
+    "latin": "",
+    "brewery": "Степь и Ветер",
+    "country": "Россия",
+    "style": "Мёд",
+    "abv": "6,0",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 230,
+    "p03": null,
+    "p04": 360,
+    "p05": 430,
+    "id": 53,
+    "n": 53
+  },
+  {
+    "name": "Overfall",
+    "latin": "Оверфол",
+    "brewery": "Konix Brewery",
+    "country": "Россия",
+    "style": "Охмеленный светлый эль",
+    "abv": "6,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 210,
+    "p03": null,
+    "p04": 330,
+    "p05": 380,
+    "id": 54,
+    "n": 54
+  },
+  {
+    "name": "Blanche de Lutin",
+    "latin": "Бланш",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Бланш",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 210,
+    "p03": null,
+    "p04": 320,
+    "p05": 390,
+    "id": 55,
+    "n": 55
+  },
+  {
+    "name": "De Lutin",
+    "latin": "Бланш Де Лютин",
+    "brewery": "Василеостровская Пивоварня",
+    "country": "Россия",
+    "style": "Витбир",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 210,
+    "p03": null,
+    "p04": 320,
+    "p05": 390,
+    "id": 56,
+    "n": 56
+  },
+  {
+    "name": "Pilsner",
+    "latin": "Радебергер Пилснер",
+    "brewery": "Radeberger Gruppe",
+    "country": "Германия",
+    "style": "Немецкий Пилснер",
+    "abv": "4,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 57,
+    "n": 57
+  },
+  {
+    "name": "Yperman",
+    "latin": "Иперман",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Амбер эль",
+    "abv": "5,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 58,
+    "n": 58
+  },
+  {
+    "name": "IPA",
+    "latin": "Индиа Пейл Эль",
+    "brewery": "True Hops",
+    "country": "Россия",
+    "style": "Охмеленный светлый эль",
+    "abv": "6,0",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 390,
+    "p05": 450,
+    "id": 59,
+    "n": 59
+  },
+  {
+    "name": "Blond",
+    "latin": "Блонд",
+    "brewery": "Palm",
+    "country": "Бельгия",
+    "style": "Бельгийский Эль",
+    "abv": "6,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 490,
+    "p03": null,
+    "p04": 690,
+    "p05": 850,
+    "id": 60,
+    "n": 60
+  },
+  {
+    "name": "Dvanactka",
+    "latin": "Стародубице",
+    "brewery": "Rohozec",
+    "country": "Чехия",
+    "style": "Чешский Пилснер",
+    "abv": "5,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 550,
+    "p05": 650,
+    "id": 61,
+    "n": 61
+  },
+  {
+    "name": "Helles",
+    "latin": "Хелес",
+    "brewery": "Festhaus",
+    "country": "Россия",
+    "style": "Лагер",
+    "abv": "4,9",
+    "tags": [
+      "легкий",
+      "солодовый",
+      "сухой"
+    ],
+    "ratings": {
+      "gor": 2,
+      "plot": 2,
+      "cvet": 1
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 390,
+    "p05": 450,
+    "id": 62,
+    "n": 1
+  },
+  {
+    "name": "Хефевайцен",
+    "latin": "Коникс Хефевайцен",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Пшеничный эль",
+    "abv": "4,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 190,
+    "p03": null,
+    "p04": 290,
+    "p05": 320,
+    "id": 63,
+    "n": 63
+  },
+  {
+    "name": "Knock To Heaven",
+    "latin": "Старлингтонс",
+    "brewery": "Hobsons",
+    "country": "Великобритания",
+    "style": "Английский портер",
+    "abv": "4,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 350,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 64,
+    "n": 64
+  },
+  {
+    "name": "Hefe Weisse",
+    "latin": "Хефе Вайссе",
+    "brewery": "Riegele",
+    "country": "Германия",
+    "style": "Немецкое Пшеничное",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 520,
+    "p05": 620,
+    "id": 65,
+    "n": 65
+  },
+  {
+    "name": "Hell",
+    "latin": "Байройтер",
+    "brewery": "Bayreuther",
+    "country": "Германия",
+    "style": "Немецкий Лагер",
+    "abv": "4,9",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 370,
+    "p03": null,
+    "p04": 570,
+    "p05": 670,
+    "id": 66,
+    "n": 66
+  },
+  {
+    "name": "De Namur",
+    "latin": "Бланш де Намюр",
+    "brewery": "Du Bocq",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 590,
+    "p05": 690,
+    "id": 67,
+    "n": 67
+  },
+  {
+    "name": "Nektar",
+    "latin": "Нектар",
+    "brewery": "Banjalucka",
+    "country": "Босния и Герцеговина",
+    "style": "Лагер",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 390,
+    "p05": 490,
+    "id": 68,
+    "n": 68
+  },
+  {
+    "name": "Day in Paradise",
+    "latin": "Дэй Ин Парадайз",
+    "brewery": "Hobsons",
+    "country": "Великобритания",
+    "style": "Английский Эль",
+    "abv": "4,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 69,
+    "n": 69
+  },
+  {
+    "name": "Black Spot",
+    "latin": "Блэк Спот",
+    "brewery": "Hobsons",
+    "country": "Великобритания",
+    "style": "Английский Стаут",
+    "abv": "4,3",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 70,
+    "n": 70
+  },
+  {
+    "name": "Moonlight",
+    "latin": "Мунлайт",
+    "brewery": "Hobsons",
+    "country": "Великобритания",
+    "style": "Английский Эль",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 220,
+    "p03": null,
+    "p04": 320,
+    "p05": 420,
+    "id": 71,
+    "n": 71
+  },
+  {
+    "name": "Gold Ale",
+    "latin": "Голд Эль",
+    "brewery": "Sullivan's Brewing",
+    "country": "Великобритания",
+    "style": "Английский Эль",
+    "abv": "5,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 270,
+    "p03": null,
+    "p04": 390,
+    "p05": null,
+    "id": 72,
+    "n": 72
+  },
+  {
+    "name": "Niško",
+    "latin": "Нишко",
+    "brewery": "Niška Pivara",
+    "country": "Сербия",
+    "style": "Лагер",
+    "abv": "4,7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 270,
+    "p03": null,
+    "p04": 420,
+    "p05": 490,
+    "id": 73,
+    "n": 73
+  },
+  {
+    "name": "Dickiy Crest",
+    "latin": "Дикий Крест",
+    "brewery": "Rebel Apple",
+    "country": "Россия",
+    "style": "Сухой Сидр",
+    "abv": "6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 370,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 74,
+    "n": 74
+  },
+  {
+    "name": "Gulden Draak",
+    "latin": "Гульден Драак",
+    "brewery": "Van Steenberge",
+    "country": "Бельгия",
+    "style": "Темный Трипель",
+    "abv": "10,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 590,
+    "p03": null,
+    "p04": 790,
+    "p05": 890,
+    "id": 75,
+    "n": 75
+  },
+  {
+    "name": "Semi Dry",
+    "latin": "Семи Драй",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Сидр полусухой",
+    "abv": "5,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 390,
+    "p05": 490,
+    "id": 76,
+    "n": 76
+  },
+  {
+    "name": "Festbier",
+    "latin": "Фестбир",
+    "brewery": "Festhaus",
+    "country": "Россия",
+    "style": "Фестивальный Лагер",
+    "abv": "5,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": null,
+    "id": 77,
+    "n": 77
+  },
+  {
+    "name": "Original Munchner Hell",
+    "latin": "Мюнхнер Хелль",
+    "brewery": "Paulaner",
+    "country": "Германия",
+    "style": "Мюнхенский Лагер",
+    "abv": "4,9",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": null,
+    "p03": null,
+    "p04": null,
+    "p05": 790,
+    "id": 78,
+    "n": 78
+  },
+  {
+    "name": "IPA",
+    "latin": "ИПА",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Охмеленный Эль",
+    "abv": "5,9",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 340,
+    "p03": null,
+    "p04": 440,
+    "p05": 540,
+    "id": 79,
+    "n": 79
+  },
+  {
+    "name": "Bourgogne des Flandres",
+    "latin": "Бургунь Де Фландер",
+    "brewery": "John Martin",
+    "country": "Бельгия",
+    "style": "Фламандский Эль",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 470,
+    "p03": null,
+    "p04": 740,
+    "p05": null,
+    "id": 80,
+    "n": 80
+  },
+  {
+    "name": "Pumpkin Hell",
+    "latin": "Пампкин Хель",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Тыквенный Эль",
+    "abv": "6,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": null,
+    "id": 81,
+    "n": 81
+  },
+  {
+    "name": "De Lutin",
+    "latin": "Руж Де Лютин",
+    "brewery": "Василеостровская Пивоварня",
+    "country": "Россия",
+    "style": "Вишневый Крепкий Эль",
+    "abv": "8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 240,
+    "p03": null,
+    "p04": 340,
+    "p05": 440,
+    "id": 82,
+    "n": 82
+  },
+  {
+    "name": "Old Speckled Hen",
+    "latin": "Олд Спеклд Хен",
+    "brewery": "Greene King",
+    "country": "Англия",
+    "style": "Английский Эль",
+    "abv": "4,8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 440,
+    "p03": null,
+    "p04": 540,
+    "p05": 640,
+    "id": 83,
+    "n": 83
+  },
+  {
+    "name": "Pilsner",
+    "latin": "Порт Пилснер",
+    "brewery": "Dreamteam Brew",
+    "country": "Россия",
+    "style": "Пилснер в баварском стиле",
+    "abv": "4,9",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 320,
+    "p03": null,
+    "p04": 420,
+    "p05": 520,
+    "id": 84,
+    "n": 84
+  },
+  {
+    "name": "Blanche Ma Cherie",
+    "latin": "Бланш ме Шери",
+    "brewery": "Konix Brewery",
+    "country": "Россия",
+    "style": "Бланш",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 220,
+    "p03": null,
+    "p04": 320,
+    "p05": 420,
+    "id": 85,
+    "n": 85
+  },
+  {
+    "name": "Heartless Bitch 2.0",
+    "latin": "Хартлесс Бич 2.0",
+    "brewery": "Gravity Project",
+    "country": "Россия",
+    "style": "Сидр Малина и Мята",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 420,
+    "p05": null,
+    "id": 86,
+    "n": 86
+  },
+  {
+    "name": "Moravský Klas Světlé",
+    "latin": "Моравский Клас",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Пилснер",
+    "abv": "4,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 390,
+    "p05": 490,
+    "id": 87,
+    "n": 87
+  },
+  {
+    "name": "Wave’s Tales Anne Bonny",
+    "latin": "Энн Бонни",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Гозе с айвой",
+    "abv": "5,5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 390,
+    "p05": null,
+    "id": 88,
+    "n": 88
+  },
+  {
+    "name": "Equator",
+    "latin": "Экватор",
+    "brewery": "Red Rocket",
+    "country": "Россия",
+    "style": "Саур эль с апельсином и гуавой",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": null,
+    "id": 89,
+    "n": 89
+  },
+  {
+    "name": "Parhelion",
+    "latin": "Паргелион",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Охмеленный Имперский Эль",
+    "abv": "8",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 320,
+    "p03": null,
+    "p04": 420,
+    "p05": 520,
+    "id": 90,
+    "n": 90
+  },
+  {
+    "name": "Tomato Method",
+    "latin": "Томато Метод",
+    "brewery": "Selfmade",
+    "country": "Россия",
+    "style": "Томатный Гозе",
+    "abv": "5,6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": null,
+    "id": 91,
+    "n": 91
+  },
+  {
+    "name": "Plum Cider",
+    "latin": "Плам Сидр",
+    "brewery": "Yablochny Spas",
+    "country": "Россия",
+    "style": "Сидр со сливой",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 360,
+    "p05": null,
+    "id": 92,
+    "n": 92
+  },
+  {
+    "name": "Black Sheep Irish Stout",
+    "latin": "Блэк Шип",
+    "brewery": "Black Sheep",
+    "country": "Россия",
+    "style": "Азотный сухой стаут",
+    "abv": "4",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 290,
+    "p03": null,
+    "p04": 390,
+    "p05": null,
+    "id": 93,
+    "n": 93
+  },
+  {
+    "name": "Commerzienrat",
+    "latin": "Коммерцинрат",
+    "brewery": "Riegele",
+    "country": "Германия",
+    "style": "Немецкий Лагер",
+    "abv": "5,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 470,
+    "p03": null,
+    "p04": 670,
+    "p05": 770,
+    "id": 94,
+    "n": 94
+  },
+  {
+    "name": "Dortmunder",
+    "latin": "Дортмундер",
+    "brewery": "Konix Brewery",
+    "country": "Россия",
+    "style": "Дортмундерский Лагер",
+    "abv": "5,7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 230,
+    "p03": null,
+    "p04": 350,
+    "p05": 420,
+    "id": 95,
+    "n": 95
+  },
+  {
+    "name": "DaDa №2",
+    "latin": "Дальняя Дача №2",
+    "brewery": "DaDa",
+    "country": "Россия",
+    "style": "Полусухой Нефильтрованный Сидр",
+    "abv": "5",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 330,
+    "p03": null,
+    "p04": 470,
+    "p05": 550,
+    "id": 96,
+    "n": 96
+  },
+  {
+    "name": "Rouge",
+    "latin": "Фем Фаталь Руж",
+    "brewery": "Femme Fatale",
+    "country": "Россия",
+    "style": "Вишневый Эль",
+    "abv": "7",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 97,
+    "n": 97
+  },
+  {
+    "name": "Weissbier",
+    "latin": "Вайсбир",
+    "brewery": "Festhaus",
+    "country": "Россия",
+    "style": "Пшеничное Н/Ф",
+    "abv": "5,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 260,
+    "p03": null,
+    "p04": 390,
+    "p05": 450,
+    "id": 98,
+    "n": 98
+  },
+  {
+    "name": "Guinness",
+    "latin": "Гиннес",
+    "brewery": "Diageo",
+    "country": "Ирландия",
+    "style": "Ирландский Сухой Стаут",
+    "abv": "4,2",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 490,
+    "p03": null,
+    "p04": 750,
+    "p05": 850,
+    "id": 99,
+    "n": 99
+  },
+  {
+    "name": "Zubr",
+    "latin": "Зубр Голд",
+    "brewery": "Zubr",
+    "country": "Чехия",
+    "style": "Чешский Пилснер",
+    "abv": "4,6",
+    "tags": [],
+    "ratings": {
+      "gor": 0,
+      "plot": 0,
+      "cvet": 0
+    },
+    "p025": 390,
+    "p03": null,
+    "p04": 490,
+    "p05": 590,
+    "id": 100,
+    "n": 100
+  }
+]

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конструктор отчётов — Beer Analysis</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+    <script src="/static/libs/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
+    <style>
+        .container { max-width: 1600px; margin: 0 auto; padding: 24px 20px 64px; }
+
+        .toolbar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            align-items: end;
+            margin-bottom: 20px;
+            padding: 18px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        select, input.date-input, button.tb-btn {
+            padding: 9px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.92rem;
+            font-family: inherit;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        select:focus, input.date-input:focus { outline: none; border-color: var(--accent); }
+        button.tb-btn { background: var(--accent); color: white; border: none; font-weight: 600; }
+        button.tb-btn:hover { background: var(--accent-hover); }
+
+        /* Сегментированный переключатель (granularity, view) */
+        .segmented {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--bg-tertiary);
+        }
+        .segmented button {
+            flex: 1;
+            padding: 9px 8px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-family: inherit;
+            transition: all 0.15s ease;
+        }
+        .segmented button + button { border-left: 1px solid var(--border-color); }
+        .segmented button:hover { color: var(--text-primary); }
+        .segmented button.active {
+            background: var(--text-primary);
+            color: var(--bg-secondary);
+        }
+
+        /* KPI */
+        .kpi-strip {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+        @media (max-width: 900px) { .kpi-strip { grid-template-columns: repeat(2, 1fr); } }
+        .kpi-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 18px;
+        }
+        .kpi-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+        .kpi-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
+        }
+        .kpi-hint {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: 6px;
+        }
+
+        /* Контейнер таблицы */
+        .view-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 0;
+            overflow: hidden;
+        }
+        .table-wrap {
+            overflow: auto;
+            max-height: 70vh;
+            position: relative;
+        }
+        table.pivot {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            font-size: 0.88rem;
+            font-variant-numeric: tabular-nums;
+        }
+        table.pivot th, table.pivot td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+            text-align: right;
+        }
+        table.pivot th:first-child, table.pivot td:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background: var(--bg-secondary);
+            z-index: 2;
+            border-right: 1px solid var(--border-color);
+        }
+        table.pivot thead th {
+            position: sticky;
+            top: 0;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            z-index: 3;
+            font-weight: 600;
+        }
+        table.pivot thead th:first-child { z-index: 4; }
+        table.pivot th.total-col, table.pivot td.total-col {
+            background: var(--bg-tertiary);
+            font-weight: 700;
+            position: sticky;
+            right: 0;
+            z-index: 2;
+        }
+        table.pivot tr.total-row td {
+            background: var(--bg-tertiary);
+            font-weight: 700;
+            border-top: 2px solid var(--text-primary);
+            position: sticky;
+            bottom: 0;
+            z-index: 2;
+        }
+        table.pivot tr.total-row td:first-child { z-index: 4; }
+        table.pivot tbody tr:hover td:not(.total-col) {
+            background: var(--bg-tertiary);
+        }
+        table.pivot td.zero { color: var(--text-tertiary); }
+
+        /* Чартовая область */
+        .chart-wrap {
+            padding: 18px;
+            height: 480px;
+            position: relative;
+        }
+
+        .empty {
+            padding: 80px 24px;
+            text-align: center;
+            color: var(--text-tertiary);
+            font-size: 0.95rem;
+        }
+        .loading {
+            padding: 80px 24px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        .spinner {
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .meta-row {
+            display: flex;
+            gap: 14px;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+        .meta-row .formula {
+            font-style: italic;
+        }
+        .error-banner {
+            padding: 14px 18px;
+            background: rgba(220, 53, 69, 0.08);
+            border: 1px solid var(--danger, #dc3545);
+            color: var(--danger, #dc3545);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% set page_title = "Конструктор отчётов" %}
+        {% set page_subtitle = "iiko Parameter Explorer" %}
+        {% include 'shared/nav.html' %}
+
+        <div class="toolbar">
+            <div class="form-group">
+                <label for="venue-select">Бар</label>
+                <select id="venue-select">
+                    <option value="all">Все бары</option>
+                    <option value="bolshoy">Большой пр. В.О</option>
+                    <option value="ligovskiy">Лиговский</option>
+                    <option value="kremenchugskaya">Кременчугская</option>
+                    <option value="varshavskaya">Варшавская</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="date-range">Период</label>
+                <input type="text" id="date-range" class="date-input" placeholder="Выберите даты">
+            </div>
+            <div class="form-group">
+                <label>Гранулярность</label>
+                <div class="segmented" id="granularity-seg">
+                    <button data-value="day">День</button>
+                    <button data-value="week" class="active">Неделя</button>
+                    <button data-value="month">Месяц</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="topcat-select">Верхняя категория</label>
+                <select id="topcat-select">
+                    <option value="">Все</option>
+                    <option value="kitchen">Кухня</option>
+                    <option value="draft">Розлив</option>
+                    <option value="bottled">Фасовка</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="groupby-select">Группировка</label>
+                <select id="groupby-select">
+                    <option value="top_category" selected>Верхняя категория</option>
+                    <option value="second_parent">Категория (2-й уровень)</option>
+                    <option value="third_parent">Подкатегория / стиль</option>
+                    <option value="dish_name">Позиция (SKU)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Вид</label>
+                <div class="segmented" id="view-seg">
+                    <button data-value="table" class="active">Таблица</button>
+                    <button data-value="chart">График</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="error-slot"></div>
+
+        <div id="kpi-strip" class="kpi-strip" style="display: none;"></div>
+
+        <div class="meta-row" id="meta-row" style="display: none;">
+            <span id="meta-info"></span>
+            <span class="formula">Метрика: выручка (Σ DishDiscountSumInt по бакету × измерению)</span>
+        </div>
+
+        <div class="view-card">
+            <div id="content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div style="margin-top: 16px;">Выберите параметры — данные подгрузятся автоматически</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const STATE = {
+    venue: 'all',
+    date_from: null,
+    date_to: null,
+    granularity: 'week',
+    group_by: 'top_category',
+    top_category: '',
+    view: 'table',
+    data: null,
+    chart: null,
+    loading: false,
+    abortCtl: null,
+    debounceTimer: null,
+};
+
+function fmtRub(n) {
+    if (n === null || n === undefined) return '—';
+    if (n === 0) return '0';
+    return Math.round(n).toLocaleString('ru-RU');
+}
+
+function todayIso() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function daysAgoIso(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+}
+
+// ============ URL state sync ============
+function loadStateFromUrl() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.has('venue')) STATE.venue = p.get('venue');
+    if (p.has('date_from')) STATE.date_from = p.get('date_from');
+    if (p.has('date_to')) STATE.date_to = p.get('date_to');
+    if (p.has('granularity')) STATE.granularity = p.get('granularity');
+    if (p.has('group_by')) STATE.group_by = p.get('group_by');
+    if (p.has('top_category')) STATE.top_category = p.get('top_category');
+    if (p.has('view')) STATE.view = p.get('view');
+}
+
+function syncStateToUrl() {
+    const p = new URLSearchParams();
+    p.set('venue', STATE.venue);
+    if (STATE.date_from) p.set('date_from', STATE.date_from);
+    if (STATE.date_to) p.set('date_to', STATE.date_to);
+    p.set('granularity', STATE.granularity);
+    p.set('group_by', STATE.group_by);
+    if (STATE.top_category) p.set('top_category', STATE.top_category);
+    p.set('view', STATE.view);
+    const newUrl = window.location.pathname + '?' + p.toString();
+    history.replaceState(null, '', newUrl);
+}
+
+// ============ UI controls ============
+function applyStateToControls() {
+    document.getElementById('venue-select').value = STATE.venue;
+    document.getElementById('topcat-select').value = STATE.top_category || '';
+    document.getElementById('groupby-select').value = STATE.group_by;
+    document.querySelectorAll('#granularity-seg button').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === STATE.granularity);
+    });
+    document.querySelectorAll('#view-seg button').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === STATE.view);
+    });
+}
+
+function wireControls() {
+    document.getElementById('venue-select').addEventListener('change', e => {
+        STATE.venue = e.target.value; scheduleFetch();
+    });
+    document.getElementById('topcat-select').addEventListener('change', e => {
+        STATE.top_category = e.target.value; scheduleFetch();
+    });
+    document.getElementById('groupby-select').addEventListener('change', e => {
+        STATE.group_by = e.target.value; scheduleFetch();
+    });
+    document.querySelectorAll('#granularity-seg button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            STATE.granularity = btn.dataset.value;
+            applyStateToControls();
+            scheduleFetch();
+        });
+    });
+    document.querySelectorAll('#view-seg button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            STATE.view = btn.dataset.value;
+            applyStateToControls();
+            syncStateToUrl();
+            renderView();  // Только перерисовка, без запроса
+        });
+    });
+
+    flatpickr('#date-range', {
+        mode: 'range',
+        dateFormat: 'Y-m-d',
+        locale: 'ru',
+        defaultDate: [STATE.date_from, STATE.date_to],
+        onChange: (dates) => {
+            if (dates.length === 2) {
+                STATE.date_from = dates[0].toISOString().slice(0, 10);
+                STATE.date_to = dates[1].toISOString().slice(0, 10);
+                scheduleFetch();
+            }
+        }
+    });
+}
+
+function scheduleFetch() {
+    clearTimeout(STATE.debounceTimer);
+    STATE.debounceTimer = setTimeout(fetchPivot, 300);
+}
+
+// ============ Fetch ============
+async function fetchPivot() {
+    if (!STATE.date_from || !STATE.date_to) return;
+    syncStateToUrl();
+
+    if (STATE.abortCtl) STATE.abortCtl.abort();
+    STATE.abortCtl = new AbortController();
+
+    STATE.loading = true;
+    showLoading();
+
+    const params = new URLSearchParams({
+        venue: STATE.venue,
+        date_from: STATE.date_from,
+        date_to: STATE.date_to,
+        granularity: STATE.granularity,
+        group_by: STATE.group_by,
+    });
+    if (STATE.top_category) params.set('top_category', STATE.top_category);
+
+    try {
+        const r = await fetch('/api/explorer/pivot?' + params.toString(), {
+            signal: STATE.abortCtl.signal
+        });
+        if (!r.ok) {
+            const err = await r.json().catch(() => ({error: r.statusText}));
+            showError(err.error || 'Ошибка загрузки');
+            return;
+        }
+        STATE.data = await r.json();
+        STATE.loading = false;
+        renderAll();
+    } catch (e) {
+        if (e.name === 'AbortError') return;
+        showError(e.message);
+    }
+}
+
+function showLoading() {
+    document.getElementById('content').innerHTML = `
+        <div class="loading">
+            <div class="spinner"></div>
+            <div style="margin-top: 16px;">Запрашиваем данные из iiko...</div>
+        </div>`;
+    document.getElementById('error-slot').innerHTML = '';
+}
+
+function showError(msg) {
+    STATE.loading = false;
+    document.getElementById('error-slot').innerHTML = `<div class="error-banner">Ошибка: ${msg}</div>`;
+    document.getElementById('content').innerHTML = '<div class="empty">Не удалось загрузить данные</div>';
+}
+
+// ============ Render ============
+function renderAll() {
+    document.getElementById('error-slot').innerHTML = '';
+    renderKpi();
+    renderMeta();
+    renderView();
+}
+
+function renderKpi() {
+    const d = STATE.data;
+    if (!d) return;
+    const strip = document.getElementById('kpi-strip');
+    strip.style.display = 'grid';
+
+    const granLabel = {day: 'дн.', week: 'нед.', month: 'мес.'}[STATE.granularity];
+    const nonEmptyRows = d.rows.filter(r => r.total > 0).length;
+
+    const topCol = d.columns[0] || '—';
+    const topColShare = d.grand_total > 0 && d.columns[0]
+        ? (d.column_totals[d.columns[0]] / d.grand_total * 100).toFixed(1) + '%'
+        : '—';
+
+    strip.innerHTML = `
+        <div class="kpi-card">
+            <div class="kpi-label">Итого выручка</div>
+            <div class="kpi-value">${fmtRub(d.grand_total)} ₽</div>
+            <div class="kpi-hint">за выбранный период</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Колонок (измерений)</div>
+            <div class="kpi-value">${d.meta.col_count}</div>
+            <div class="kpi-hint">${d.meta.col_count >= 50 ? 'включая «Прочее»' : 'отсортировано по сумме'}</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Бакетов с активностью</div>
+            <div class="kpi-value">${nonEmptyRows} / ${d.meta.row_count}</div>
+            <div class="kpi-hint">${granLabel} с продажами</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Топ колонка</div>
+            <div class="kpi-value" style="font-size: 1.1rem;">${topCol}</div>
+            <div class="kpi-hint">${topColShare} от итога</div>
+        </div>
+    `;
+}
+
+function renderMeta() {
+    const d = STATE.data;
+    if (!d) return;
+    const m = document.getElementById('meta-row');
+    m.style.display = 'flex';
+    const generated = d.meta.generated_at
+        ? new Date(d.meta.generated_at).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})
+        : '—';
+    document.getElementById('meta-info').textContent =
+        `Период: ${d.meta.date_from} – ${d.meta.date_to} · обновлено ${generated}`;
+}
+
+function renderView() {
+    if (STATE.loading) return;
+    if (!STATE.data) return;
+    if (STATE.view === 'table') {
+        renderTable();
+    } else {
+        renderChart();
+    }
+}
+
+function renderTable() {
+    const d = STATE.data;
+    const content = document.getElementById('content');
+
+    if (!d.columns.length) {
+        content.innerHTML = '<div class="empty">Нет данных за выбранный период с этими фильтрами</div>';
+        return;
+    }
+
+    const cols = d.columns;
+    const head = `
+        <thead>
+            <tr>
+                <th>Период</th>
+                ${cols.map(c => `<th title="${escapeHtml(c)}">${escapeHtml(c)}</th>`).join('')}
+                <th class="total-col">Итого</th>
+            </tr>
+        </thead>`;
+
+    const body = `
+        <tbody>
+            ${d.rows.map(r => `
+                <tr>
+                    <td title="${r.bucket}">${escapeHtml(r.label)}</td>
+                    ${cols.map(c => {
+                        const v = r.values[c] || 0;
+                        return `<td class="${v === 0 ? 'zero' : ''}">${fmtRub(v)}</td>`;
+                    }).join('')}
+                    <td class="total-col">${fmtRub(r.total)}</td>
+                </tr>
+            `).join('')}
+            <tr class="total-row">
+                <td>Итого</td>
+                ${cols.map(c => `<td>${fmtRub(d.column_totals[c] || 0)}</td>`).join('')}
+                <td class="total-col">${fmtRub(d.grand_total)}</td>
+            </tr>
+        </tbody>`;
+
+    content.innerHTML = `<div class="table-wrap"><table class="pivot">${head}${body}</table></div>`;
+}
+
+// Палитра, циклится для большого числа серий
+const PALETTE = [
+    '#2563eb', '#dc2626', '#16a34a', '#ea580c', '#9333ea',
+    '#0891b2', '#ca8a04', '#db2777', '#65a30d', '#7c3aed',
+    '#0e7490', '#b45309', '#be185d', '#15803d', '#6366f1',
+];
+
+function renderChart() {
+    const d = STATE.data;
+    const content = document.getElementById('content');
+
+    if (!d.columns.length) {
+        content.innerHTML = '<div class="empty">Нет данных для графика</div>';
+        return;
+    }
+
+    content.innerHTML = '<div class="chart-wrap"><canvas id="explorer-canvas"></canvas></div>';
+    const ctx = document.getElementById('explorer-canvas').getContext('2d');
+    if (STATE.chart) { STATE.chart.destroy(); STATE.chart = null; }
+
+    const labels = d.rows.map(r => r.label);
+    const isMonth = STATE.granularity === 'month';
+
+    // Топ-10 серий по умолчанию; остальные присутствуют, но hidden
+    const TOP_VISIBLE = 10;
+    const datasets = d.columns.map((col, i) => ({
+        label: col,
+        data: d.rows.map(r => r.values[col] || 0),
+        backgroundColor: PALETTE[i % PALETTE.length],
+        borderColor: PALETTE[i % PALETTE.length],
+        borderWidth: 2,
+        tension: 0.25,
+        fill: false,
+        hidden: i >= TOP_VISIBLE,
+    }));
+
+    STATE.chart = new Chart(ctx, {
+        type: isMonth ? 'bar' : 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 10, font: { size: 11 } },
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.dataset.label}: ${fmtRub(ctx.parsed.y)} ₽`,
+                    }
+                }
+            },
+            scales: {
+                x: { stacked: isMonth },
+                y: {
+                    stacked: isMonth,
+                    beginAtZero: true,
+                    ticks: { callback: (v) => fmtRub(v) }
+                }
+            }
+        }
+    });
+}
+
+function escapeHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ============ Init ============
+function init() {
+    // Дефолт: последние 4 недели до сегодня
+    if (!STATE.date_from || !STATE.date_to) {
+        STATE.date_to = todayIso();
+        STATE.date_from = daysAgoIso(27);
+    }
+    loadStateFromUrl();
+    applyStateToControls();
+    wireControls();
+    // Триггер первого запроса (Flatpickr подхватит defaultDate)
+    setTimeout(fetchPivot, 100);
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,21 +1,32 @@
 # Beer ABC/XYZ — Документация
 
-> Карта по проекту. Каждый модуль — отдельный файл.
+> Карта по проекту. Source of truth — корневой [docs/](../docs/).
+> Каждый модуль — отдельный .md.
 
 ---
 
 ## Структура проекта
 
 ```
-Beer ABC/XYZ Analysis
-├── Дашборд План/Факт     → dashboard.md
-├── Employee Dashboard    → employee.md
-├── ABC/XYZ Анализ        → analytics.md
-├── Анализ скидок          → discounts.md
-├── Управление кранами    → taps.md
-├── PWA Виджет Выручки    → pwa-widget.md
-├── Design System         → design-system.md
-└── Общее                 → overview.md
+Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
+├── Архитектура & инфраструктура → overview.md, PROJECT_STRUCTURE.md
+├── Дашборд План/Факт            → dashboard.md
+├── Employee Dashboard           → employee.md
+├── ABC/XYZ Анализ               → abc-xyz-analysis.md
+├── Анализ скидок (RFM)          → discounts.md
+├── Анализ разливного            → draft-beer-errors.md, draft-beer-fixes.md
+├── Конструктор отчётов          → explorer.md
+├── Управление кранами           → taps.md
+├── Остатки + Сводный заказ      → stocks.md
+├── Shelf-Life Cockpit           → expiration.md
+├── iiko ↔ Честный Знак          → chz-stock-integration.md
+├── Open-check Telegram bot      → open-check-bot.md
+├── Планы выручки (4 точки)      → venues-plans.md
+├── График смен                  → schedule.md
+├── PWA Виджет Выручки           → pwa-widget.md
+├── Frontend архитектура         → frontend.md
+├── Design System                → design-system.md
+└── Menu Card Tool (локальный)   → menu_tool/README.md
 ```
 
 ---
@@ -24,26 +35,41 @@ Beer ABC/XYZ Analysis
 
 | Файл | Описание | Статус |
 |------|----------|--------|
-| [context.md](context.md) | Быстрый контекст для Claude | ✅ актуально |
-| [overview.md](docs/overview.md) | Архитектура, технологии, структура кода | ✅ актуально |
-| [employee.md](docs/employee.md) | Employee Dashboard — аналитика сотрудников | ✅ актуально |
-| [venues-plans.md](docs/venues-plans.md) | Торговые точки, планы выручки, weekend weighting | ✅ актуально |
-| [analytics.md](docs/analytics.md) | ABC/XYZ анализ — классификация пива | 📝 TODO |
-| [remote-sync.md](docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale+SSH | ✅ актуально |
-| [connectivity.md](docs/connectivity.md) | Подключение ко всем бар-ПК: SSH, сертификаты, доступ | ✅ актуально |
-| [chz-stock-integration.md](docs/chz-stock-integration.md) | iiko ↔ Честный Знак: dispenser API, КПП-привязка, авторефреш, UI «Сроки годности» | ✅ актуально |
-| [expiration.md](docs/expiration.md) | Shelf-Life Cockpit — страница /expiration с tier-логикой и рекомендациями уценки/перевода | ✅ актуально |
-| [dashboard.md](docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ актуально |
-| [comparison-redesign.md](docs/comparison-redesign.md) | Comparison Module — Modern Fintech Redesign | ✅ актуально |
-| [comparison-fixes-final.md](docs/comparison-fixes-final.md) | Comparison Module — Final Fixes (progress bars, percentages, clarity) | ✅ актуально |
-| [comparison-percentage-fix.md](docs/comparison-percentage-fix.md) | Comparison Module — Percentage Display Fix (19300% → 193%) | ✅ актуально |
-| [optimization-dashboard.md](docs/optimization-dashboard.md) | План оптимизации производительности /dashboard | ✅ актуально |
-| [discounts.md](docs/discounts.md) | Анализ скидок — ROI, сегментация гостей, drill-down по барам | ✅ актуально |
-| [taps.md](docs/taps.md) | Управление 60 кранами | 📝 TODO |
-| [pwa-widget.md](docs/pwa-widget.md) | PWA виджет выручки — 5 баров с %, установка на главный экран | ✅ актуально |
-| [design-system.md](docs/design-system.md) | Дизайн-система: цвета, типографика, компоненты, layout | ✅ актуально |
-| [menu-card.md](docs/menu-card.md) | Конструктор A4-карточек пивного меню | ✅ актуально |
-| [lessons.md](docs/lessons.md) | Баги, ловушки, паттерны | ✅ актуально |
+| [context.md](context.md) | Быстрый контекст для Claude | ✅ |
+| [docs/overview.md](../docs/overview.md) | Архитектура, blueprints, core-модули, внешние API, деплой Selectel | ✅ |
+| [docs/PROJECT_STRUCTURE.md](../docs/PROJECT_STRUCTURE.md) | Дерево репозитория | ✅ |
+| [docs/dashboard.md](../docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ |
+| [docs/employee.md](../docs/employee.md) | Employee Dashboard — аналитика сотрудников, KPI, бонусы | ✅ |
+| [docs/abc-xyz-analysis.md](../docs/abc-xyz-analysis.md) | ABC/XYZ анализ ассортимента пива | ✅ |
+| [docs/discounts.md](../docs/discounts.md) | Анализ скидок — RFM-сегментация, ROI | ✅ |
+| [docs/draft-beer-errors.md](../docs/draft-beer-errors.md) | Ошибки анализа разливного (классификация) | ✅ |
+| [docs/draft-beer-fixes.md](../docs/draft-beer-fixes.md) | Исправления анализа разливного (2026-03-31) | ✅ |
+| [docs/explorer.md](../docs/explorer.md) | Конструктор отчётов — `/explorer`, pivot iiko-данных | ✅ |
+| [docs/taps.md](../docs/taps.md) | Управление 60 кранами (START/STOP/REPLACE) | ✅ |
+| [docs/stocks.md](../docs/stocks.md) | Остатки: taplist/kitchen/bottles + Order Board (velocity) | ✅ |
+| [docs/expiration.md](../docs/expiration.md) | Shelf-Life Cockpit — `/expiration` с tier-логикой и уценкой | ✅ |
+| [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
+| [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
+| [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting | ✅ |
+| [docs/schedule.md](../docs/schedule.md) | График смен, роли, meeting notes | ✅ |
+| [docs/frontend.md](../docs/frontend.md) | JS архитектура дашборда (15+ модулей) | ✅ |
+| [docs/design-system.md](../docs/design-system.md) | Палитра, типографика, компоненты | ✅ |
+| [docs/iiko-integration.md](../docs/iiko-integration.md) | iiko API: OLAP, cashshifts, auth (SHA-1) | ✅ |
+| [docs/lessons.md](../docs/lessons.md) | Баги, ловушки, паттерны (Problem→Cause→Solution) | ✅ |
+| [docs/remote-sync.md](../docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale + SSH | ✅ |
+| [docs/CONNECTIVITY.md](../docs/CONNECTIVITY.md) | Подключение ко всем бар-ПК (SSH, сертификаты, доступ) | ✅ |
+| [menu_tool/README.md](../menu_tool/README.md) | A4-карточки пивного меню — локальный Flask на :5050 | ✅ |
+| [docs/CHANGELOG.md](../docs/CHANGELOG.md) | История изменений по сессиям | ✅ |
+
+### Гайды и историческое (docs/)
+
+| Папка | Что внутри |
+|---|---|
+| [docs/guides/](../docs/guides/) | DEPLOYMENT_GUIDE, BACKUP_SETUP, TAPS_*.md, TELEGRAM_BOT_GUIDE, ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ |
+| [docs/technical/](../docs/technical/) | IIKO_API_REFERENCE, MAPPING_*, SYNC_FLOW_VISUAL, CODE_ANALYSIS_COMPLETE |
+| [docs/changelog/](../docs/changelog/) | Исторические фиксы (BEER_SHARE_CALCULATION_BUG, FIX_DATE_HANDLING, etc.) |
+| [docs/iiko-api/](../docs/iiko-api/) | PDF/MD спецификации iiko API |
+| [docs/archive/](../docs/archive/) | Архивная документация |
 
 ---
 
@@ -51,32 +77,31 @@ Beer ABC/XYZ Analysis
 
 **Быстрый контекст для Claude** → [context.md](context.md)
 
-**Нужно понять как работает проект?** → [overview.md](docs/overview.md)
+**Нужно понять как работает проект?** → [docs/overview.md](../docs/overview.md)
 
-**Словил баг?** → [lessons.md](docs/lessons.md)
+**Словил баг?** → [docs/lessons.md](../docs/lessons.md)
 
-**Работаешь с Employee?** → [employee.md](docs/employee.md)
+**Работаешь с Employee?** → [docs/employee.md](../docs/employee.md)
 
-**Работаешь с Dashboard?** → [dashboard.md](docs/dashboard.md)
+**Работаешь с Dashboard?** → [docs/dashboard.md](../docs/dashboard.md)
+
+**Работаешь с остатками/ЧЗ?** → [docs/stocks.md](../docs/stocks.md), [docs/chz-stock-integration.md](../docs/chz-stock-integration.md)
+
+**Конструктор отчётов?** → [docs/explorer.md](../docs/explorer.md)
 
 ---
 
-## Changelog
+## Changelog (по версиям документации)
 
-- **2026-05-15:** Устранение костылей редактирования планов — удалены 5 legacy/костыльных endpoint'ов (`sync-from-repo`, `migrate-to-monthly`, no-venue варианты), удалены Excel-импорт-скрипты, добавлен cross-worker file lock через portalocker, новый `GET /api/plans/export` (xlsx со всеми планами). UI = единственный путь редактирования.
-- **2026-04-30:** Shelf-Life Cockpit — новая страница /expiration с tier-классификацией (expired/critical/urgent/watch/fresh), рекомендациями уценки/перевода и календарём риска ₽
-- **2026-04-16:** Фикс дашборд-планов — убрана перезапись `/kultura/plansdashboard.json` из repo при рестарте. Удалён импорт из Excel (POST `/api/plans/import-from-excel`) и метод `replace_all_plans`. Правки через UI теперь переживают редеплой Render
-- **2026-04-05:** Удалённый доступ к бар-ПК — Tailscale сеть + OpenSSH Server + paramiko. Настроен SSH-ключ, `sshuser` учётка, утилита `remote_exec.py`
-- **2026-04-05:** Честный ЗНАК — чистка chz_test, единый скрипт chz.py, документация CHZ_INTEGRATION.md. Получены сроки годности пива (v4 API, 8500+ записей)
-- **2026-04-01:** Двухфайловая система планов — `plansdashboard.json` (месячные, 16 метрик) + `daily_plans.json` (ежедневные, auto, Пт/Сб=2x)
-- **2026-03-31:** RFM-сегментация гостей — recency/frequency/monetary, фильтры, scatter plot, гистограмма recency, экспорт CSV, timeline визитов
-- 2026-03-26: PWA виджет выручки — 5 карточек с % выполнения, установка на главный экран (Android/iOS), service worker для офлайн-работы
-- 2026-03-24: Comparison Module финальные фиксы — progress bars привязаны к данным, проценты правильные, clarity улучшен
-- 2026-03-24: Редизайн Comparison Module — modern fintech UX, AI insights, metric cards, comparison slider
-- 2026-03-21: Рефакторинг проекта — Flask Blueprints (app.py: 5199→31 строка). Обновлены overview.md, context.md, lessons.md
-- 2026-03-17: Добавлена страница /wiki — встроенная вики с TOC sidebar (12 разделов). Удалён gitbook/
-- 2026-03-03: Добавлен discounts.md — модуль анализа скидок
-- 2026-02-07: Добавлен optimization-dashboard.md — план оптимизации производительности
-- 2026-01-28: Обновлены employee.md (12 метрик, карты лояльности), overview.md, context.md, lessons.md
-- 2026-01-26: Обновлены overview.md, dashboard.md. Добавлен context.md
-- 2026-01-25: Создана модульная структура документации
+- **2026-05-28:** Ревизия документации — `.claude/docs/*.md` перенесены в корневой `docs/`. SoT теперь в `docs/`. Обновлены `overview.md`, `PROJECT_STRUCTURE.md`, `stocks.md`, `lessons.md`, `INDEX.md`, `CLAUDE.md` под текущую реальность (11 blueprints, 33 core-модуля, menu_tool вынесен, Selectel-деплой).
+- **2026-05-18:** Open-check Telegram bot — ежедневная проверка открытых смен в 4 барах KULT в 14:59 МСК. Позитив в группу, алармы в ЛС админам. Atomic file lock против double-fire под gunicorn 2-workers.
+- **2026-05-17:** Конструктор отчётов — новая страница `/explorer` и API `/api/explorer/pivot`. Произвольная pivot-агрегация выручки из iiko.
+- **2026-05-15:** Устранение костылей редактирования планов — удалены 5 legacy/костыльных endpoint'ов, добавлен cross-worker file lock через portalocker, новый `GET /api/plans/export` (xlsx). UI = единственный путь редактирования.
+- **2026-04-30:** Shelf-Life Cockpit — новая страница `/expiration` с tier-классификацией.
+- **2026-04-26:** Полная интеграция iiko ↔ Честный Знак (dispenser API, КПП-привязка, авторефреш 03:00).
+- **2026-04-16:** Фикс дашборд-планов — убрана перезапись `/kultura/plansdashboard.json` из repo при рестарте.
+- **2026-04-05:** Удалённый доступ к бар-ПК — Tailscale сеть + OpenSSH Server + paramiko.
+- **2026-04-01:** Двухфайловая система планов — `plansdashboard.json` (месячные) + `daily_plans.json` (ежедневные, авто, Пт/Сб=2x).
+- **2026-03-31:** RFM-сегментация гостей в анализе скидок.
+- **2026-03-26:** PWA виджет выручки — 5 карточек с % выполнения.
+- **2026-03-21:** Рефакторинг проекта — Flask Blueprints (app.py: 5199→31 строка).

@@ -69,6 +69,12 @@ api_key.txt
 loyalty_raw.json
 loyalty_test.json
 
+# Локальные дампы explorer/draft/kitchen — фикстуры для разработки
+/explorer_test.json
+/test_bottled_*.json
+/test_draft_*.json
+/test_kitchen_*.json
+
 # Локальные отчеты и экспорты
 data/reports/
 tests/exports/

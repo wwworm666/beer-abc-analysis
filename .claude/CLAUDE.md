@@ -50,14 +50,27 @@ Documentation is written **alongside** code changes, not after.
 
 ```
 .claude/
-├── CLAUDE.md          ← this file
-├── INDEX.md           ← all docs with status
-├── docs/
-│   ├── overview.md    ← architecture, tech stack
-│   ├── <module>.md    ← one file per module
-│   ├── lessons.md     ← bugs & patterns (Problem→Cause→Solution)
-│   └── CHANGELOG.md   ← session-by-session log
+├── CLAUDE.md          ← this file (project principles)
+├── INDEX.md           ← index of all docs with status
+└── context.md         ← quick context for Claude
+
+docs/                  ← Source of truth (модульная документация)
+├── overview.md        ← architecture, tech stack
+├── PROJECT_STRUCTURE.md ← дерево репозитория
+├── <module>.md        ← один файл на модуль (dashboard, employee, taps, ...)
+├── lessons.md         ← баги и паттерны (Problem→Cause→Solution)
+├── CHANGELOG.md       ← session-by-session log
+├── guides/            ← человеко-ориентированные инструкции (deploy, bartenders, ...)
+├── technical/         ← техсправочники iiko API, mapping, sync flow
+├── changelog/         ← исторические записи фиксов (заморожены)
+├── iiko-api/          ← PDF/MD спецификации iiko API
+└── archive/           ← устаревшее
 ```
+
+**Где что лежит:**
+- Модульные .md (overview, dashboard, employee, lessons и т.д.) — в корневом `docs/`.
+- `.claude/` хранит только индекс и принципы (CLAUDE.md/INDEX.md/context.md).
+- `menu_tool/` — отдельное локальное приложение, его доки в `menu_tool/README.md`.
 
 ---
 

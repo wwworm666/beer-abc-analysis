@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>{{ item.name }} — карточка</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=PT+Serif:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper: #e5cba3;
+    --ink:   #1a1a1a;
+    --mute:  #8a8580;
+    --rule:  0.6pt;
+    --mx: 16mm;
+    --my: 16mm;
+  }
+  *{ box-sizing: border-box; margin: 0; padding: 0; }
+  html, body{
+    background: {{ '#2a2824' if not standalone else 'white' }};
+    color: var(--ink);
+  }
+  body{
+    font-family: "PT Serif", Georgia, serif;
+    -webkit-font-smoothing: antialiased;
+    font-variant-numeric: tabular-nums lining-nums;
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 0;
+  }
+
+  .page{
+    width: 210mm; height: 297mm;
+    background: var(--paper);
+    padding: var(--my) var(--mx);
+    position: relative; overflow: hidden;
+    color: var(--ink);
+    display: flex; flex-direction: column;
+  }
+
+  .corner{
+    position:absolute; width: 11mm; height: 11mm;
+    border: var(--rule) solid var(--ink); z-index: 2;
+  }
+  .corner.tl{ top:7mm; left:7mm;     border-right:none; border-bottom:none; }
+  .corner.tr{ top:7mm; right:7mm;    border-left:none;  border-bottom:none; }
+  .corner.bl{ bottom:7mm; left:7mm;  border-right:none; border-top:none; }
+  .corner.br{ bottom:7mm; right:7mm; border-left:none;  border-top:none; }
+
+  .eyebrow{
+    display:flex; justify-content: flex-end; align-items: baseline;
+    line-height:1; padding-bottom: 6mm;
+    border-bottom: var(--rule) solid var(--ink);
+  }
+  .eyebrow .num{ font-weight: 700; font-size: 36pt; letter-spacing: -0.01em; line-height: 1; }
+
+  .hero{ padding-top: 12mm; padding-bottom: 12mm; border-bottom: var(--rule) solid var(--ink); }
+  .trans{
+    margin-bottom: 7mm; font-weight: 400; font-size: 20pt;
+    letter-spacing: 0.10em; text-transform: uppercase; line-height: 1;
+  }
+  .name{
+    font-weight: 700; font-size: 72pt; line-height: 1.05;
+    letter-spacing: 0.02em; text-transform: uppercase; margin: 0;
+  }
+  .name.len-md { font-size: 50pt; }   /* 12–16 chars */
+  .name.len-lg { font-size: 46pt; }   /* 17–22 chars */
+  .name.len-xl { font-size: 38pt; }   /* 23+ chars   */
+  .origin{
+    margin-top: 9mm; font-weight: 400; font-size: 20pt;
+    letter-spacing: 0.10em; text-transform: uppercase; line-height: 1;
+  }
+  .origin .accent{ font-weight: 700; font-size: 24pt; letter-spacing: 0.04em; }
+
+  /* facts & tags share one fixed block height so the 3 dividers are evenly spaced */
+  .facts{
+    height: 30mm;
+    border-bottom: var(--rule) solid var(--ink);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8mm; line-height: 1;
+  }
+  .facts .style{ font-weight: 700; font-size: 43pt; letter-spacing: -0.005em; white-space: nowrap; }
+  .facts .abv  { font-weight: 700; font-size: 51pt; letter-spacing: -0.005em; white-space: nowrap; }
+  .facts .abv .pct{ font-weight: 400; font-size: 39pt; margin-left: 1mm; }
+
+  /* TAGS — single line, never wraps; fitTags() auto-shrinks to inner width. */
+  .tags{
+    height: 30mm;
+    border-bottom: var(--rule) solid var(--ink);
+    display: flex; align-items: center;
+    font-weight: 700; font-size: 26pt; line-height: 1.1;
+    white-space: nowrap; overflow: hidden;
+  }
+  .tags .dot{ color: var(--mute); margin: 0 3mm; }
+
+  /* METERS — vertical stack; label left (44mm), 5 bars right-aligned. */
+  .meters{
+    padding-top: 10mm; padding-bottom: 0;
+    display: flex; flex-direction: column; gap: 7mm;
+  }
+  .meter{
+    display: grid; grid-template-columns: 44mm 1fr;
+    align-items: center; column-gap: 8mm; min-width: 0;
+  }
+  .meter .k{ font-weight: 700; font-size: 26pt; line-height: 1; white-space: nowrap; }
+  .meter .scale{
+    display:flex; gap: 3mm; align-items: center; justify-content: flex-end;
+    height: 10mm;
+  }
+  .meter .scale .d{
+    width: 16mm; height: 8mm;
+    border: var(--rule) solid var(--ink); background: transparent; flex: 0 0 auto;
+  }
+  .meter .scale .d.on{ background: var(--ink); }
+
+  .prices{
+    margin-top: auto; padding-top: 8mm;
+    border-top: var(--rule) solid var(--ink);
+    display: grid; position: relative;
+  }
+  .prices::before, .prices::after{
+    content:""; position:absolute; top: 8mm; bottom: 0;
+    border-left: var(--rule) solid var(--ink);
+  }
+
+  .prices.v2{ grid-template-columns: 1fr 1fr; }
+  .prices.v2::before{ left: 50%; }
+  .prices.v2::after{ display: none; }
+  .prices.v2 .price{
+    display:flex; flex-direction: row; align-items: baseline;
+    gap: 6mm; padding: 0 8mm;
+  }
+  .prices.v2 .price.right{ justify-content: flex-end; }
+  .prices.v2 .price .vol{ font-weight: 400; font-size: 44pt; letter-spacing: -0.01em; line-height: 0.95; }
+  .prices.v2 .price .num{ font-weight: 700; font-size: 80pt; line-height: 0.95; letter-spacing: -0.03em; }
+
+  .prices.v3{ grid-template-columns: 1fr 1fr 1fr; }
+  .prices.v3::before{ left: 33.3333%; }
+  .prices.v3::after { left: 66.6666%; }
+  .prices.v3 .price{
+    display:flex; flex-direction: row; align-items: baseline; justify-content: center;
+    gap: 4mm; padding: 0 3mm;
+  }
+  .prices.v3 .price .vol{ font-weight: 400; font-size: 26pt; letter-spacing: -0.01em; line-height: 0.95; }
+  .prices.v3 .price .num{ font-weight: 700; font-size: 56pt; line-height: 0.95; letter-spacing: -0.03em; }
+
+  @media print{
+    @page{ size: A4; margin: 0; }
+    html, body{ background: white; }
+    .page{ background: white; box-shadow: none; page-break-after: always; break-after: page; }
+  }
+</style>
+</head>
+<body>
+<article class="page" id="menu-card">
+  <span class="corner tl"></span><span class="corner tr"></span>
+  <span class="corner bl"></span><span class="corner br"></span>
+
+  <header class="eyebrow">
+    <span class="num">№ {{ '%02d' % (item.n or 0) }}</span>
+  </header>
+
+  <section class="hero">
+    {% if item.latin %}<div class="trans">[ {{ item.latin }} ]</div>{% endif %}
+    <h1 class="name {{ item._name_class }}">{{ item.name }}</h1>
+    <div class="origin">
+      {% if item.country %}<span class="accent">{{ item.country }}</span>{% endif %}
+      {% if item.country and item.brewery %} · {% endif %}
+      {% if item.brewery %}{{ item.brewery }}{% endif %}
+    </div>
+  </section>
+
+  <section class="facts">
+    <span class="style">{{ item.style }}</span>
+    <span class="abv">{{ item.abv }}<span class="pct">%</span></span>
+  </section>
+
+  <section class="tags">
+    {%- for t in item.tags_list -%}
+      {% if not loop.first %}<span class="dot">·</span>{% endif %}<span>{{ t }}</span>
+    {%- endfor -%}
+  </section>
+
+  <section class="meters">
+    <div class="meter"><span class="k">горечь</span><div class="scale">
+      {% for i in range(1,6) %}<span class="d{% if i <= item.ratings.gor %} on{% endif %}"></span>{% endfor %}
+    </div></div>
+    <div class="meter"><span class="k">плотность</span><div class="scale">
+      {% for i in range(1,6) %}<span class="d{% if i <= item.ratings.plot %} on{% endif %}"></span>{% endfor %}
+    </div></div>
+    <div class="meter"><span class="k">цвет</span><div class="scale">
+      {% for i in range(1,6) %}<span class="d{% if i <= item.ratings.cvet %} on{% endif %}"></span>{% endfor %}
+    </div></div>
+  </section>
+
+  {% if variant == 'v2' %}
+  <section class="prices v2">
+    <div class="price">
+      <span class="vol">0,3</span>
+      <span class="num">{{ item.p03_fmt }}</span>
+    </div>
+    <div class="price right">
+      <span class="vol">0,5</span>
+      <span class="num">{{ item.p05_fmt }}</span>
+    </div>
+  </section>
+  {% else %}
+  <section class="prices v3">
+    <div class="price">
+      <span class="vol">0,25</span>
+      <span class="num">{{ item.p025_fmt }}</span>
+    </div>
+    <div class="price">
+      <span class="vol">0,4</span>
+      <span class="num">{{ item.p04_fmt }}</span>
+    </div>
+    <div class="price">
+      <span class="vol">0,5</span>
+      <span class="num">{{ item.p05_fmt }}</span>
+    </div>
+  </section>
+  {% endif %}
+</article>
+<script>
+  /* Single-line auto-shrink for .tags — starts at the CSS size (26pt) and
+     steps down 1px until it fits the inner width. Runs before Playwright
+     captures (set_content waits for load). */
+  (function fitTags(){
+    document.querySelectorAll('.tags').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      var min = 14;
+      while (el.scrollWidth > el.clientWidth + 1 && size > min){
+        size -= 1;
+        el.style.fontSize = size + 'px';
+      }
+    });
+  })();
+</script>
+</body>
+</html>

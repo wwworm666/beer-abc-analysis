@@ -655,6 +655,92 @@ class OlapReports:
 
         return request
 
+    def get_explorer_sales(self, date_from, date_to, bar_name=None):
+        """OLAP-запрос для конструктора отчётов /explorer.
+
+        Возвращает строки с расширенной иерархией категорий: помимо TopParent
+        включает SecondParent и ThirdParent. Это нужно для произвольной
+        агрегации по подкатегориям/стилям, чего нет в get_all_sales_report().
+
+        Поля строки: Store.Name, DishName, DishGroup.TopParent,
+        DishGroup.SecondParent, DishGroup.ThirdParent, OpenDate.Typed.
+        Поля агрегации: DishDiscountSumInt, DishAmountInt,
+        ProductCostBase.ProductCost, UniqOrderId.OrdersCount.
+
+        Используется отдельным кэш-ключом (explorer_*) в core/explorer.py,
+        чтобы не конфликтовать с DASHBOARD_OLAP_CACHE дашборда (там запрос
+        более узкий и не содержит SecondParent/ThirdParent).
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[EXPLORER OLAP] Period: {date_from} - {date_to}, bar: {bar_name or 'VSE'}")
+
+        request_body = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "DishName",
+                "DishGroup.TopParent",
+                "DishGroup.SecondParent",
+                "DishGroup.ThirdParent",
+                "OpenDate.Typed",
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "UniqOrderId.OrdersCount",
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": date_from,
+                    "to": date_to,
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"],
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"],
+                },
+            },
+        }
+        if bar_name:
+            request_body["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name],
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        for attempt in range(3):
+            try:
+                response = requests.post(url, params=params, json=request_body,
+                                         headers=headers, timeout=120)
+                if response.status_code == 200:
+                    data = response.json()
+                    print(f"[EXPLORER OLAP] OK ({len(data.get('data', []))} zapisey)")
+                    return data
+                print(f"[EXPLORER OLAP] HTTP {response.status_code}: {response.text[:200]}")
+                return None
+            except requests.exceptions.ReadTimeout:
+                print(f"[EXPLORER OLAP] Timeout (attempt {attempt + 1}/3)")
+                if attempt < 2:
+                    import time as _t
+                    _t.sleep(2)
+            except Exception as e:
+                print(f"[EXPLORER OLAP] Oshibka: {e}")
+                return None
+        return None
+
     def _build_all_sales_olap_request(self, date_from, date_to, bar_name=None):
         """
         Построить JSON запрос для комплексного OLAP отчета (все категории за один запрос).
