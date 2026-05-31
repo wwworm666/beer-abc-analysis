@@ -68,7 +68,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/guides/](../docs/guides/) | DEPLOYMENT_GUIDE, BACKUP_SETUP, TAPS_*.md, TELEGRAM_BOT_GUIDE, ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ |
 | [docs/technical/](../docs/technical/) | IIKO_API_REFERENCE, MAPPING_*, SYNC_FLOW_VISUAL, CODE_ANALYSIS_COMPLETE |
 | [docs/changelog/](../docs/changelog/) | Исторические фиксы (BEER_SHARE_CALCULATION_BUG, FIX_DATE_HANDLING, etc.) |
-| [docs/iiko-api/](../docs/iiko-api/) | PDF/MD спецификации iiko API |
+| iiko API спецификации | Локальная копия удалена 2026-05-29. Источник: портал `ru.iiko.help` — markdown через `/helper/articles/{раздел}/{slug}/?action=getMarkdown` (см. CLAUDE.md) |
 | [docs/archive/](../docs/archive/) | Архивная документация |
 
 ---

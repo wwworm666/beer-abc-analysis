@@ -5,8 +5,9 @@
 This registry is the offline source map for every important iiko OLAP request used by the project.
 The audit baseline comes from:
 
-- `docs/iiko-api/md/formirovanie-olap-otcheta-v-api.md`
-- `docs/iiko-api/md/olap-otchety-v2.md`
+- iiko OLAP docs `formirovanie-olap-otcheta-v-api` and `olap-otchety-v2`
+  (local copies under `docs/iiko-api/` removed 2026-05-29; now sourced live from
+  `ru.iiko.help` — see `.claude/CLAUDE.md` for the getMarkdown fetch recipe)
 - local code in `core/`, `routes/`, `scripts/`, `tests/`, and `knowledge_graph/`
 
 ## Source-Of-Truth Rules

@@ -1,0 +1,27239 @@
+# Примеры вызова OLAP-отчетов по продажам
+ [+] [Выручка по типам оплат](javascript:void%280%29)
+ [-] [Выручка по типам оплат](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | https://localhost:8080/resto/api/v2/reports/olap?key=99939171-551a-f54b-5163-366e773c40ac |
+| --- | --- |
+
+#### Тело запроса
+
+
+Код
+
+```
+
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "PayTypes",
+    "OpenDate"
+  ],
+  "aggregateFields": [
+    "GuestNum",
+    "DishSumInt",
+    "DishDiscountSumInt",
+    "UniqOrderId"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "ExcludeValues",
+      "values": ["DELETED_WITH_WRITEOFF","DELETED_WITHOUT_WRITEOFF"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+```
+
+
+#### Ответ
+
+
+Код
+
+```
+
+{
+  "data": [
+    {
+      "DishDiscountSumInt": 0,
+      "DishSumInt": 1600,
+      "GuestNum": 2,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "(без оплаты)",
+      "UniqOrderId": 2
+    },
+    {
+      "DishDiscountSumInt": 0,
+      "DishSumInt": 1835,
+      "GuestNum": 3,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "(без оплаты)",
+      "UniqOrderId": 3
+    },
+    {
+      "DishDiscountSumInt": 179786.5,
+      "DishSumInt": 190460,
+      "GuestNum": 179,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "Наличные",
+      "UniqOrderId": 189
+    },
+    {
+      "DishDiscountSumInt": 274268,
+      "DishSumInt": 285355,
+      "GuestNum": 263,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "Наличные",
+      "UniqOrderId": 278
+    },
+    {
+      "DishDiscountSumInt": 6735,
+      "DishSumInt": 6735,
+      "GuestNum": 5,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "безналичный расчет",
+      "UniqOrderId": 5
+    },
+    {
+      "DishDiscountSumInt": 5050,
+      "DishSumInt": 5050,
+      "GuestNum": 5,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "безналичный расчет",
+      "UniqOrderId": 5
+    }
+  ],
+  "summary": [
+    [
+      {
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 3435,
+        "GuestNum": 5,
+        "UniqOrderId": 5
+      }
+    ],
+    [
+      {
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035,
+        "GuestNum": 457,
+        "UniqOrderId": 482
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.02",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 1835,
+        "GuestNum": 3,
+        "UniqOrderId": 3
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 1600,
+        "GuestNum": 2,
+        "UniqOrderId": 2
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 179786.5,
+        "DishSumInt": 190460,
+        "GuestNum": 179,
+        "UniqOrderId": 189
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.02",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 274268,
+        "DishSumInt": 285355,
+        "GuestNum": 263,
+        "UniqOrderId": 278
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.02",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 5050,
+        "DishSumInt": 5050,
+        "GuestNum": 5,
+        "UniqOrderId": 5
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 6735,
+        "DishSumInt": 6735,
+        "GuestNum": 5,
+        "UniqOrderId": 5
+      }
+    ],
+    [
+      {
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 454054.5,
+        "DishSumInt": 475815,
+        "GuestNum": 442,
+        "UniqOrderId": 467
+      }
+    ],
+    [
+      {
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 11785,
+        "DishSumInt": 11785,
+        "GuestNum": 10,
+        "UniqOrderId": 10
+      }
+    ]
+  ]
+}
+```
+
+ 
+```
+
+
+```
+
+ [+] [Выручка за блюда по кассам](javascript:void%280%29)
+ [-] [Выручка за блюда по кассам](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | https://localhost:8080/resto/api/v2/reports/olap?key=99939171-551a-f54b-5163-366e773c40ac |
+| --- | --- |
+
+#### Тело запроса
+
+
+Код
+
+```
+
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "DishName",
+    "OpenDate",
+    "CashRegisterName"
+  ],
+  "aggregateFields": [
+    "DishSumInt",
+    "DishDiscountSumInt"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+
+```
+
+
+#### Ответ
+
+
+```json
+{
+  "data": [
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 227.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 459.76,
+      "DishName": "Dish_Name",
+      "DishSumInt": 650,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 195,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 102.92,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 390,
+      "DishName": "Dish_Name",
+      "DishSumInt": 390,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 390,
+      "DishName": "Dish_Name",
+      "DishSumInt": 390,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 227.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 165,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 700,
+      "DishName": "Dish_Name",
+      "DishSumInt": 700,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 70,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 355.88,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 450,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 450,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 450,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 337.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 756,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60,
+      "DishName": "Dish_Name",
+      "DishSumInt": 60,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 119.96,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 860,
+      "DishName": "Dish_Name",
+      "DishSumInt": 860,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 403.56,
+      "DishName": "Dish_Name",
+      "DishSumInt": 630,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 630,
+      "DishName": "Dish_Name",
+      "DishSumInt": 630,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 315,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 410.29,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 514.1,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 94.9,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 690,
+      "DishName": "Dish_Name",
+      "DishSumInt": 690,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 172.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 940,
+      "DishName": "Dish_Name",
+      "DishSumInt": 940,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 470,
+      "DishName": "Dish_Name",
+      "DishSumInt": 470,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 940,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1410,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 470,
+      "DishName": "Dish_Name",
+      "DishSumInt": 470,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 760,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1520,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1520,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 165,
+      "DishName": "Dish_Name",
+      "DishSumInt": 165,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 165,
+      "DishName": "Dish_Name",
+      "DishSumInt": 165,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 350,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1578.8,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1800,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1445.89,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1500,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2700,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2700,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 315,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 840,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 508.24,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 355.88,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegis 2000 terName": "Касса Одинцово ",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 860,
+      "DishName": "Dish_Name",
+      "DishSumInt": 860,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 165,
+      "DishName": "Dish_Name",
+      "DishSumInt": 165,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 344.89,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 840,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 315,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 840,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 550,
+      "DishName": "Dish_Name",
+      "DishSumInt": 550,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 550,
+      "DishName": "Dish_Name",
+      "DishSumInt": 550,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2721.98,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2750,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 550,
+      "DishName": "Dish_Name",
+      "DishSumInt": 550,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 125,
+      "DishName": "Dish_Name",
+      "DishSumInt": 125,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 125,
+      "DishName": "Dish_Name",
+      "DishSumInt": 125,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 225,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 215.25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 402.16,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60,
+      "DishName": "Dish_Name",
+      "DishSumInt": 60,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 780,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 135,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02 2000 "
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 148.66,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 860,
+      "DishName": "Dish_Name",
+      "DishSumInt": 860,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1290,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 510,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1530,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1530,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 510,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1530,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1530,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 832.78,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1020,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1020,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1020,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 510,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 690,
+      "DishName": "Dish_Name",
+      "DishSumInt": 690,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1050,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1050,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 350,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 520,
+      "DishName": "Dish_Name",
+      "DishSumInt": 520,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60,
+      "DishName": "Dish_Name",
+      "DishSumInt": 60,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 70,
+      "DishName": "Dish_Name",
+      "DishSumInt": 70,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 154.67,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 380,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 760,
+      "DishName": "Dish_Name",
+      "DishSumInt": 760,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 380,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 380,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 520,
+      "DishName": "Dish_Name",
+      "DishSumInt": 520,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1350,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1350,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 3700.25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 3780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 810,
+      "DishName": "Dish_Name",
+      "DishSumInt": 810,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 810,
+      "DishName": "Dish_Name",
+      "DishSumInt": 810,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterN 2000 ame": "Касса Подольск",
+      "DishDiscountSumInt": 995.62,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1080,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 858.43,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1500,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1080,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1080,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1350,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1350,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 47.35,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 70,
+      "DishName": "Dish_Name",
+      "DishSumInt": 70,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 70,
+      "DishName": "Dish_Name",
+      "DishSumInt": 70,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 275,
+      "DishName": "Dish_Name",
+      "DishSumInt": 330,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 380.25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 127.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300.87,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1290,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1290,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 860,
+      "DishName": "Dish_Name",
+      "DishSumInt": 860,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1290,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 457.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 610,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 610,
+      "DishName": "Dish_Name",
+      "DishSumInt": 610,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 610,
+      "DishName": "Dish_Name",
+      "DishSumInt": 610,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1674.26,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1830,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 273.04,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 356.25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 350,
+      "DishName": "Dish_Name",
+      "DishSumInt": 375,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 656.71,
+      "DishName": "Dish_Name",
+      "DishSumInt": 675,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 112.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 700,
+      "DishName": "Dish_Name",
+      "DishSumInt": 700,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 315,
+      "DishName": "Dish_Name",
+      "DishSumInt": 350,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 331.13,
+      "DishName": "Dish_Name",
+      "DishSumInt": 350,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 884.39,
+      "DishName": "Dish_Name",
+      "DishSumInt": 980,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 330,
+      "DishName": "Dish_Name",
+      "DishSumInt": 440,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 330,
+      "DishName": "Dish_Name",
+      "DishSumInt": 330,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 587.21,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 330,
+      "DishName": "Dish_Name",
+      "DishSumInt": 330,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 85.85,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 720,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 642.16,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 131.48,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 315,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1015.01,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 740,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 740,
+      "DishName": "Dish_Name",
+      "DishSumInt": 740,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1364.38,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 182.6,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1000,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1000,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1000,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1000,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "Dis 2000 hName": "Кроненбург 1664 Бланк 0,5",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1113.1,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 585,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 189.9,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 780,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 715,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 780,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 459.64,
+      "DishName": "Dish_Name",
+      "DishSumInt": 520,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 37.56,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 50,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 113.94,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 4355.56,
+      "DishName": "Dish_Name",
+      "DishSumInt": 4800,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 3200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 3200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 6302.44,
+      "DishName": "Dish_Name",
+      "DishSumInt": 6400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 980,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 408.24,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 870,
+      "DishName": "Dish_Name",
+      "DishSumInt": 870,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 870,
+      "DishName": "Dish_Name",
+      "DishSumInt": 870,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 290,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 290,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1385.85,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2220,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 740,
+      "DishName": "Dish_Name",
+      "DishSumInt": 740,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2893.26,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2960,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      " 2000 CashRegisterName": "Касса Егорьевск",
+      "DishDiscountSumInt": 740,
+      "DishName": "Dish_Name",
+      "DishSumInt": 740,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 740,
+      "DishName": "Dish_Name",
+      "DishSumInt": 740,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2837.21,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2960,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 510,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 157.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 138.44,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 73.28,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 106.3,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 70,
+      "DishName": "Dish_Name",
+      "DishSumInt": 70,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 108.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 26.83,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1079.62,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 135.41,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 275,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 418.82,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 450,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 351.76,
+      "DishName": "Dish_Name",
+      "DishSumInt": 650,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2600,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 650,
+      "DishName": "Dish_Name",
+      "DishSumInt": 650,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 650,
+      "DishName": "Dish_Name",
+      "DishSumInt": 650,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 192.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 700,
+      "DishName": "Dish_Name",
+      "DishSumInt": 700,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 684.15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 722.65,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 780,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 436.8,
+      "DishName": "Dish_Name",
+      "DishSumInt": 520,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 176.77,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 840,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 18.75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 25,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 9100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 9100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2600,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 3900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 3900,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2600,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 16900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 18200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 5200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 5200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 5200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 5200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 18.75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 25,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1500,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 519.12,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 245.9,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 158.13,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1406.75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1440,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 960,
+      "DishName": "Dish_Name",
+      "DishSumInt": 960,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 421.46,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 960,
+      "DishName": "Dish_Name",
+      "DishSumInt": 960,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 680,
+      "DishName": "Dish_Name",
+      "DishSumInt": 680,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2040,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2040,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 680,
+      "DishName": "Dish_Name",
+      "DishSumInt": 680,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 56.25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 550,
+      "DishName": "Dish_Name",
+      "DishSumInt": 550,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscoun 2000 tSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 30,
+      "DishName": "Dish_Name",
+      "DishSumInt": 30,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 969.73,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1080,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 83.9,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 264,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 83.9,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1196.63,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1250,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 125,
+      "DishName": "Dish_Name",
+      "DishSumInt": 125,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 50,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 502.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 860,
+      "DishName": "Dish_Name",
+      "DishSumInt": 860,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1586.76,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1710,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1710,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1710,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 222.92,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 285.39,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 127.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 510,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 141.79,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 203.54,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 321.25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2000400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 148.09,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 380,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 430,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 243.97,
+      "DishName": "Dish_Name",
+      "DishSumInt": 430,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 105,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 105,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 595.74,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 79.46,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20,
+      "DishName": "Dish_Name",
+      "DishSumInt": 20,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 40,
+      "DishName": "Dish_Name",
+      "DishSumInt": 40,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "Cas 2000 hRegisterName": "Касса Егорьевск",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 198.01,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 65,
+      "DishName": "Dish_Name",
+      "DishSumInt": 65,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 94.7,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 50,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 400,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 50,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 327.54,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 414.57,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 45,
+      "DishName": "Dish_Name",
+      "DishSumInt": 45,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 36.88,
+      "DishName": "Dish_Name",
+      "DishSumInt": 45,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 45,
+      "DishName": "Dish_Name",
+      "DishSumInt": 45,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 61.48,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90.16,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230.63,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 109.18,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 750,
+      "DishName": "Dish_Name",
+      "DishSumInt": 750,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 750,
+      "DishName": "Dish_Name",
+      "DishSumInt": 750,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 750,
+      "DishName": "Dish_Name",
+      "DishSumInt": 750,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 750,
+      "DishName": "Dish_Name",
+      "DishSumInt": 750,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 990,
+      "DishName": "Dish_Name",
+      "DishSumInt": 990,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 990,
+      "DishName": "Dish_Name",
+      "DishSumInt": 990,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1800,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscoun 2000 tSumInt": 890,
+      "DishName": "Dish_Name",
+      "DishSumInt": 890,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 650,
+      "DishName": "Dish_Name",
+      "DishSumInt": 650,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1080,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1080,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 330,
+      "DishName": "Dish_Name",
+      "DishSumInt": 330,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 905.33,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 304.69,
+      "DishName": "Dish_Name",
+      "DishSumInt": 330,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 440,
+      "DishName": "Dish_Name",
+      "DishSumInt": 440,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 247.77,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 262.34,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 50,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 11.67,
+      "DishName": "Dish_Name",
+      "DishSumInt": 25,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 25,
+      "DishName": "Dish_Name",
+      "DishSumInt": 25,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 304.58,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 680,
+      "DishName": "Dish_Name",
+      "DishSumInt": 680,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 224.31,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 370,
+      "DishName": "Dish_Name",
+      "DishSumInt": 370,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "Op 2000 enDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 135,
+      "DishName": "Dish_Name",
+      "DishSumInt": 135,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 694.1,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 34.73,
+      "DishName": "Dish_Name",
+      "DishSumInt": 55,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 55,
+      "DishName": "Dish_Name",
+      "DishSumInt": 55,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 37.81,
+      "DishName": "Dish_Name",
+      "DishSumInt": 55,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 230,
+      "DishName": "Dish_Name",
+      "DishSumInt": 230,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 474.33,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 375,
+      "DishName": "Dish_Name",
+      "DishSumInt": 400,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 785.61,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 263.29,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 868.75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 109.14,
+      "DishName": "Dish_Name",
+      "DishSumInt": 115,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 960,
+      "DishName": "Dish_Name",
+      "DishSumInt": 960,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 676.73,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 390,
+      "DishName": "Dish_Name",
+      "DishSumInt": 3902000,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 390,
+      "DishName": "Dish_Name",
+      "DishSumInt": 390,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 571.78,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 474.73,
+      "DishName": "Dish_Name",
+      "DishSumInt": 780,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 650,
+      "DishName": "Dish_Name",
+      "DishSumInt": 650,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 670,
+      "DishName": "Dish_Name",
+      "DishSumInt": 670,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 464.03,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 720,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 51.85,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 113.47,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 263.67,
+      "DishName": "Dish_Name",
+      "DishSumInt": 330,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 260,
+      "DishName": "Dish_Name",
+      "DishSumInt": 260,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 130,
+      "DishName": "Dish_Name",
+      "DishSumInt": 130,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 630,
+      "DishName": "Dish_Name",
+      "DishSumInt": 630,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 90,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 233.88,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 376.17,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 155.74,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 265.41,
+      "DishName": "Dish_Name",
+      "DishSumInt": 270,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2000,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2000,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 320,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 630,
+      "DishName": "Dish_Name",
+      "DishSumInt": 630,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1439.79,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1470,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "D 2000 ishSumInt": 560,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 816.49,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 375,
+      "DishName": "Dish_Name",
+      "DishSumInt": 375,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 51.56,
+      "DishName": "Dish_Name",
+      "DishSumInt": 75,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 358.75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 750,
+      "DishName": "Dish_Name",
+      "DishSumInt": 750,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 250,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 150,
+      "DishName": "Dish_Name",
+      "DishSumInt": 150,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 600,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 290,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 812.29,
+      "DishName": "Dish_Name",
+      "DishSumInt": 870,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 290,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 100,
+      "DishName": "Dish_Name",
+      "DishSumInt": 100,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 380,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1288.95,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1520,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 487.83,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 522.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 570,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 500,
+      "DishName": "Dish_Name",
+      "DishSumInt": 500,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 4250,
+      "DishName": "Dish_Name",
+      "DishSumInt": 4420,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1615,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2040,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1700,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1700,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1870,
+      "DishName": "Dish_Name",
+      "DishSumInt": 2040,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 7674.17,
+      "DishName": "Dish_Name",
+      "DishSumInt": 7820,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 595,
+      "DishName": "Dish_Name",
+      "DishSumInt": 680,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1020,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1020,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 3552.28,
+      "DishName": "Dish_Name",
+      "DishSumInt": 3740,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 110,
+      "DishName": "Dish_Name",
+      "DishSumInt": 110,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 300,
+      "DishName": "Dish_Name",
+      "DishSumInt": 300,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 720,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 184.29,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 290,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 290,
+      "DishName": "Dish_Name",
+      "DishSumInt": 290,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1118.27,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 450,
+      "DishName": "Dish_Name",
+      "DishSumInt": 450,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 30,
+      "DishName": "Dish_Name",
+      "DishSumInt": 30,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 22.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 30,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 30,
+      "DishName": "Dish_Name",
+      "DishSumInt": 30,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 6.74,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 82.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 90,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 30,
+      "DishName": "Dish_Name",
+      "DishSumInt": 30,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 45,
+      "DishName": "Dish_Name",
+      "DishSumInt": 45,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 30,
+      "DishName": "Dish_Name",
+      "DishSumInt": 30,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 10,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 11.52,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 37.5,
+      "DishName": "Dish_Name",
+      "DishSumInt": 45,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 10.95,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 15,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 175.3,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 45,
+      "DishName": "Dish_Name",
+      "DishSumInt": 45,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60,
+      "DishName": "Dish_Name",
+      "DishSumInt": 60,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 140,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "Cash 2000 RegisterName": "Касса Подольск",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 880,
+      "DishName": "Dish_Name",
+      "DishSumInt": 880,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 435,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 580,
+      "DishName": "Dish_Name",
+      "DishSumInt": 580,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1160,
+      "DishName": "Dish_Name",
+      "DishSumInt": 1160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 720,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 6480,
+      "DishName": "Dish_Name",
+      "DishSumInt": 6480,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 720,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 649.12,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 270,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 720,
+      "DishName": "Dish_Name",
+      "DishSumInt": 720,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 900,
+      "DishName": "Dish_Name",
+      "DishSumInt": 900,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 840,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 560,
+      "DishName": "Dish_Name",
+      "DishSumInt": 560,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 316.67,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540.96,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 297.84,
+      "DishName": "Dish_Name",
+      "DishSumInt": 380,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 190,
+      "DishName": "Dish_Name",
+      "DishSumInt": 190,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 468.56,
+      "DishName": "Dish_Name",
+      "DishSumInt": 570,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 440,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 640,
+      "DishName": "Dish_Name",
+      "DishSumInt": 640,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 140,
+      "DishName": "Dish_Name",
+      "DishSumInt": 160,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 495,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 154.1,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 248.93,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 540,
+      "DishName": "Dish_Name",
+      "DishSumInt": 540,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 210,
+      "DishName": "Dish_Name",
+      "DishSumInt": 210,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 581.67,
+      "DishName": "Dish_Name",
+      "DishSumInt": 630,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 361.8,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 460,
+      "DishName": "Dish_Name",
+      "DishSumInt": 460,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 920,
+      "DishName": "Dish_Name",
+      "DishSumInt": 9200020,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 220,
+      "DishName": "Dish_Name",
+      "DishSumInt": 220,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 840,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 288.75,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 660,
+      "DishName": "Dish_Name",
+      "DishSumInt": 660,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 342.15,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 340,
+      "DishName": "Dish_Name",
+      "DishSumInt": 340,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 170,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 170,
+      "DishName": "Dish_Name",
+      "DishSumInt": 510,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 80,
+      "DishName": "Dish_Name",
+      "DishSumInt": 80,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishName": "Dish_Name",
+      "DishSumInt": 0,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 50,
+      "DishName": "Dish_Name",
+      "DishSumInt": 50,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 188.11,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 68.11,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 55.93,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 480,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 188.11,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 320,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 55.93,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 200,
+      "DishName": "Dish_Name",
+      "DishSumInt": 200,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 600,
+      "DishName": "Dish_Name",
+      "DishSumInt": 800,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 180,
+      "DishName": "Dish_Name",
+      "DishSumInt": 180,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 360,
+      "DishName": "Dish_Name",
+      "DishSumInt": 360,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60,
+      "DishName": "Dish_Name",
+      "DishSumInt": 60,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 120,
+      "DishName": "Dish_Name",
+      "DishSumInt": 120,
+      "OpenDate": "2014.01.01"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 240,
+      "DishName": "Dish_Name",
+      "DishSumInt": 240,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 420,
+      "DishName": "Dish_Name",
+      "DishSumInt": 420,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 280,
+      "DishName": "Dish_Name",
+      "DishSumInt": 280,
+      "OpenDate": "2014.01.02"
+    }
+  ],
+  "summary": [
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1514.39,
+        "DishSumInt": 1610
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1766.13,
+        "DishSumInt": 1820
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 3296.76,
+        "DishSumInt": 3420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2280,
+        "DishSumInt": 2850
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 403.56,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 233.88,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1720,
+        "DishSumInt": 1720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 11.52,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1500,
+        "DishSumInt": 1500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 858.43,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2695.74,
+        "DishSumInt": 3200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 682.5,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300.87,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 273.04,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1407.54,
+        "DishSumInt": 1440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 119.96,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 656.71,
+        "DishSumInt": 675
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90.16,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 192.5,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 158.13,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 85.85,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3182.6,
+        "DishSumInt": 3250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1079.62,
+        "DishSumInt": 1100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1530,
+        "DishSumInt": 1530
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1020,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 519.12,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 520,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 980,
+        "DishSumInt": 980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 467.5,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 991.79,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 108.5,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 684.15,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 109.14,
+        "DishSumInt": 115
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3510,
+        "DishSumInt": 3510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 5200,
+        "DishSumInt": 5200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1350,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1015,
+        "DishSumInt": 1160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1740,
+        "DishSumInt": 1740
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1000,
+        "DishSumInt": 1000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 135,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2600,
+        "DishSumInt": 2600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 7200,
+        "DishSumInt": 7200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1113.1,
+        "DishSumInt": 1300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 885.85,
+        "DishSumInt": 1120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 474.33,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 785.61,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2000,
+        "DishSumInt": 2000
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1808.64,
+        "DishSumInt": 1980
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 501.56,
+        "DishSumInt": 525
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 610,
+        "DishSumInt": 610
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1300,
+        "DishSumInt": 1300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2893.26,
+        "DishSumInt": 2960
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1385.85,
+        "DishSumInt": 2220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 750,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 229.18,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 969.73,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1070.63,
+        "DishSumInt": 1140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 455,
+        "DishSumInt": 455
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 21.74,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1575,
+        "DishSumInt": 1620
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1698.27,
+        "DishSumInt": 1740
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1740,
+        "DishSumInt": 1740
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1483.03,
+        "DishSumInt": 1620
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2800,
+        "DishSumInt": 2800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSu 2000 mInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 18.75,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 263.67,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 680,
+        "DishSumInt": 680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5339.39,
+        "DishSumInt": 5920
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 870,
+        "DishSumInt": 870
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1419.39,
+        "DishSumInt": 1620
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 810,
+        "DishSumInt": 810
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1736.8,
+        "DishSumInt": 1820
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 157.5,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1666.8,
+        "DishSumInt": 1820
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1600,
+        "DishSumInt": 1600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540.96,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 10,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 670,
+        "DishSumInt": 670
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 655.3,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 358.75,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 812.29,
+        "DishSumInt": 870
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 750,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 6442.78,
+        "DishSumInt": 6630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 403.56,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "O 2000 penDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1439.79,
+        "DishSumInt": 1470
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 810,
+        "DishSumInt": 810
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 968.24,
+        "DishSumInt": 980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 520,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3351.76,
+        "DishSumInt": 3660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 83.9,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 310.16,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 34.73,
+        "DishSumInt": 55
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1000,
+        "DishSumInt": 1000
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1200,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 858.75,
+        "DishSumInt": 1000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 455,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3600,
+        "DishSumInt": 3600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 696.67,
+        "DishSumInt": 760
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 748.66,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5590,
+        "DishSumInt": 5590
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1497.36,
+        "DishSumInt": 1710
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1696.63,
+        "DishSumInt": 1750
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 225
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 890,
+        "DishSumInt": 890
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1828.62,
+        "DishSumInt": 2040
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3870,
+        "DishSumInt": 3870
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2217.65,
+        "DishSumInt": 2300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1199.33,
+        "DishSumInt": 1300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2148,
+        "DishSumInt": 2600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2734.64,
+        "DishSumInt": 2860
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3360,
+        "DishSumInt": 3360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 135.33,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 9871.98,
+        "DishSumInt": 9900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2090.03,
+        "DishSumInt": 2200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 520,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2225.36,
+        "DishSumInt": 2500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 63.45,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2415,
+        "DishSumInt": 2520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 18.75,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3416.98,
+        "DishSumInt": 3600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "D 2000 ishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 550,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3439.28,
+        "DishSumInt": 3800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 9336.32,
+        "DishSumInt": 10360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 127.5,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 433.54,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1907.21,
+        "DishSumInt": 1980
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5358.43,
+        "DishSumInt": 5400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1360,
+        "DishSumInt": 1360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 290,
+        "DishSumInt": 290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 700,
+        "DishSumInt": 700
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 26.83,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 721.25,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 30,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1740,
+        "DishSumInt": 1740
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1160,
+        "DishSumInt": 1160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 34.73,
+        "DishSumInt": 55
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 202.81,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 514.1,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 79.46,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 219.46,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1400,
+        "DishSumInt": 1400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1296.77,
+        "DishSumInt": 1400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 387.77,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegiste 2000 rName": "Касса Подольск",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 315,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 700,
+        "DishSumInt": 700
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 884.39,
+        "DishSumInt": 980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 109.14,
+        "DishSumInt": 115
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 622.92,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 747.5,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1064.89,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1272.15,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 390,
+        "DishSumInt": 390
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1015.01,
+        "DishSumInt": 1110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1380,
+        "DishSumInt": 1380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 730.05,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1260,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 464.03,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 601.15,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3329.79,
+        "DishSumInt": 3360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3403.6,
+        "DishSumInt": 3640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1200,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt 2000 ": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 176.3,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 51.56,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 109.18,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230.63,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 408.24,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 82.5,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1540,
+        "DishSumInt": 1540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 595.74,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1350,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 965.32,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 315,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1400,
+        "DishSumInt": 1400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1520,
+        "DishSumInt": 1520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 188.11,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 890,
+        "DishSumInt": 890
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3892.78,
+        "DishSumInt": 4080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2550,
+        "DishSumInt": 2550
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 11.52,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 316.67,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 3300,
+        "DishSumInt": 3300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1980,
+        "DishSumInt": 1980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 119.96,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 350,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2580,
+        "DishSumInt": 2580
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2340,
+        "DishSumInt": 2340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 327.54,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1099.12,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 512.15,
+        "DishSumInt": 680
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 680,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 495,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 4882.64,
+        "DishSumInt": 5460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 3200,
+        "DishSumInt": 3200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 980,
+        "DishSumInt": 1600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2194.03,
+        "DishSumInt": 2470
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 548.66,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 263.67,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 224.31,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1900,
+        "DishSumInt": 1900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 978.62,
+        "DishSumInt": 1190
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 850,
+        "DishSumInt": 850
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2664.12,
+        "DishSumInt": 2800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 995.62,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 1140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1350,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3440,
+        "DishSumInt": 3440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2150,
+        "DishSumInt": 2150
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 79.46,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 715,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 290,
+        "DishSumInt": 290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1710,
+        "DishSumInt": 1710
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3495.74,
+        "DishSumInt": 4000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 756,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 867.54,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 188.11,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 499.96,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 740,
+        "DishSumInt": 740
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2284.26,
+        "DishSumInt": 2440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1067.5,
+        "DishSumInt": 1220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 694.7,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 125,
+        "DishSumInt": 125
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "Open 2000 Date": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 37.56,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 109.14,
+        "DishSumInt": 115
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1459.29,
+        "DishSumInt": 1530
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1800,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2600,
+        "DishSumInt": 2600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 135.41,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2600,
+        "DishSumInt": 2600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1520,
+        "DishSumInt": 1520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 571.78,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 11445.87,
+        "DishSumInt": 11880
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 18.75,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1280,
+        "DishSumInt": 1280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1305.88,
+        "DishSumInt": 1400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 940,
+        "DishSumInt": 940
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 355.88,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 470,
+        "DishSumInt": 470
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 455,
+        "DishSumInt": 455
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 501.56,
+        "DishSumInt": 525
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1800,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 920,
+        "DishSumInt": 920
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 773.64,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1035,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1826.51,
+        "DishSumInt": 2340
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 165.85,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1299.81,
+        "DishSumInt": 1380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 154.67,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3058.03,
+        "DishSumInt": 3240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1972.29,
+        "DishSumInt": 2030
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 157.5,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1157.56,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 459.76,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 649.12,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 65,
+        "DishSumInt": 65
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1140,
+        "DishSumInt": 1140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 21.74,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 184.29,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2310.02,
+        "DishSumInt": 2530
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2015.25,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 980,
+        "DishSumInt": 980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3343.5,
+        "DishSumInt": 4050
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 690,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 172.5,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 194.9,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 154.67,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 344.89,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 355.88,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 135,
+        "DishSumInt": 135
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5760,
+        "DishSumInt": 5760
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 740
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 55.93,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": 2000"2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 195,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 9100,
+        "DishSumInt": 9100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 988.31,
+        "DishSumInt": 1040
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 880,
+        "DishSumInt": 880
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2721.98,
+        "DishSumInt": 2750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1145.9,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2019.12,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 273.94,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 436.48,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 940,
+        "DishSumInt": 1410
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1000,
+        "DishSumInt": 1000
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 663.54,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 390,
+        "DishSumInt": 390
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1192.15,
+        "DishSumInt": 1700
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 198.01,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3439.12,
+        "DishSumInt": 3600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 760
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5280,
+        "DishSumInt": 5280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 9155.56,
+        "DishSumInt": 9600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 740,
+        "DishSumInt": 740
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 9682.44,
+        "DishSumInt": 10400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2837.21,
+        "DishSumInt": 2960
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 275,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSum 2000 Int": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 880,
+        "DishSumInt": 880
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 16900,
+        "DishSumInt": 18200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 315,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3040,
+        "DishSumInt": 3040
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1600,
+        "DishSumInt": 1600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 740,
+        "DishSumInt": 740
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 18.75,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 680,
+        "DishSumInt": 680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1360,
+        "DishSumInt": 1360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 520,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 520,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 81.88,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 459.57,
+        "DishSumInt": 495
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 154.1,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2125.85,
+        "DishSumInt": 2960
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1040,
+        "DishSumInt": 1040
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 7210.47,
+        "DishSumInt": 7400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 550,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 375,
+        "DishSumInt": 375
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 4200,
+        "DishSumInt": 4200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 30,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 342.15,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 440,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 165
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 61.48,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1158.43,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 165
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 265.41,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 165
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 215.25,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 337.5,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 550,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 405,
+        "DishSumInt": 585
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 527.77,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 350,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 474.73,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 390,
+        "DishSumInt": 390
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 106.3,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 748.11,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1135.93,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1884.04,
+        "DishSumInt": 2040
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1620,
+        "DishSumInt": 1620
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 350,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 855,
+        "DishSumInt": 1035
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 676.73,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 960,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 290,
+        "DishSumInt": 290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1322.5,
+        "DishSumInt": 1380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2100,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 700,
+        "DishSumInt": 700
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 141.79,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 905.29,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 514.1,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountS 2000 umInt": 980,
+        "DishSumInt": 980
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 157.5,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 421.46,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1110,
+        "DishSumInt": 1110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 3235.01,
+        "DishSumInt": 3700
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2104.38,
+        "DishSumInt": 2220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1406.75,
+        "DishSumInt": 1440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1350,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 285.39,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 870,
+        "DishSumInt": 870
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 304.69,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1102.29,
+        "DishSumInt": 1160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 18.75,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1520,
+        "DishSumInt": 2280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 25,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 194.9,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3121.8,
+        "DishSumInt": 3220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 154.67,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 470,
+        "DishSumInt": 470
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1650.02,
+        "DishSumInt": 1870
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2820,
+        "DishSumInt": 3290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1631.67,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 203.54,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 694.1,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 375,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 263.29,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1868.31,
+        "DishSumInt": 1920
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 904.29,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 408.24,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1033.56,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01. 2000 01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 390,
+        "DishSumInt": 390
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 420.16,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1320,
+        "DishSumInt": 1320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1720,
+        "DishSumInt": 1720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1280,
+        "DishSumInt": 1280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 105,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2880,
+        "DishSumInt": 2880
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1520,
+        "DishSumInt": 1520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 6.74,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 175,
+        "DishSumInt": 175
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1800,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 864.12,
+        "DishSumInt": 1000
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 594.7,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 68.11,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 83.9,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 315,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 46800,
+        "DishSumInt": 48100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 182.6,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 887.9,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 705.88,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSum 2000 Int": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 4760,
+        "DishSumInt": 4760
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1674.26,
+        "DishSumInt": 1830
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1320,
+        "DishSumInt": 1320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3748.21,
+        "DishSumInt": 3840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 37.5,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 5130,
+        "DishSumInt": 5400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 6315.87,
+        "DishSumInt": 6480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 304.58,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 680,
+        "DishSumInt": 680
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1078.13,
+        "DishSumInt": 1150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 56.25,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 700,
+        "DishSumInt": 700
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 177.56,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2100,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 690,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 980,
+        "DishSumInt": 980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 390,
+        "DishSumInt": 390
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 440,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1436.51,
+        "DishSumInt": 1950
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2040,
+        "DishSumInt": 2040
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 5200,
+        "DishSumInt": 5200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 3900,
+        "DishSumInt": 3900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 47.35,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1968.75,
+        "DishSumInt": 2520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        2000"DishDiscountSumInt": 330,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 690,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 402.5,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 920,
+        "DishSumInt": 920
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3700.25,
+        "DishSumInt": 3780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2160,
+        "DishSumInt": 2430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 192.5,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 25,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3316.73,
+        "DishSumInt": 3360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 440,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 67.5,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 920,
+        "DishSumInt": 920
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2201.8,
+        "DishSumInt": 2300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 51.85,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 913.47,
+        "DishSumInt": 1000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 275,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1520,
+        "DishSumInt": 1520
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 760
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 106.3,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1100,
+        "DishSumInt": 1100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 440,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1440,
+        "DishSumInt": 1440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1410,
+        "DishSumInt": 1880
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 715,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1001.67,
+        "DishSumInt": 1050
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1410,
+        "DishSumInt": 1410
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 487.83,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 112.5,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 675,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 10.95,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegi 2000 sterName": "Касса Домодедово",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 165
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 105,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1840,
+        "DishSumInt": 1840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1324.58,
+        "DishSumInt": 1360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 410.29,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1680,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 673.97,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 26.52,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1360,
+        "DishSumInt": 1360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 11.67,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 7674.17,
+        "DishSumInt": 7820
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 960,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 4250,
+        "DishSumInt": 4420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 960,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 6324.69,
+        "DishSumInt": 6600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 370,
+        "DishSumInt": 370
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 45,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 94.9,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 740,
+        "DishSumInt": 740
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1364.38,
+        "DishSumInt": 1480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 338.09,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 832.78,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 105,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 105,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 222.92,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 18838,
+        "DishSumInt": 20000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 264,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1234.1,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1054.1,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2869.28,
+        "DishSumInt": 3230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 247.77,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 541.45,
+        "DishSumInt": 585
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 587.21,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 112.5,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1578.8,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1445.89,
+        "DishSumInt": 1500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3500,
+        "DishSumInt": 3990
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 30,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 275,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1020,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1020,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 508.24,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1144.29,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1704.31,
+        "DishSumInt": 1850
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1121.25,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1280,
+        "DishSumInt": 1280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2900,
+        "DishSumInt": 2900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 30,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1200,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2920000,
+        "DishSumInt": 290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 870,
+        "DishSumInt": 870
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 350,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 390,
+        "DishSumInt": 390
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 102.92,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 227.5,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1100,
+        "DishSumInt": 1100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 918.01,
+        "DishSumInt": 1040
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1370.42,
+        "DishSumInt": 1560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 581.67,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 315,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 262.34,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 23976.45,
+        "DishSumInt": 25160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 687.26,
+        "DishSumInt": 910
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1120,
+        "DishSumInt": 1120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 690,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1415.25,
+        "DishSumInt": 1500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1920,
+        "DishSumInt": 1920
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 131.48,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3840,
+        "DishSumInt": 3840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 263.67,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 25,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 73.28,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1636.73,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1680,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2250,
+        "DishSumInt": 2250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1093.5,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 810,
+        "DishSumInt": 810
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1318.82,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 440,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1350,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 4050,
+        "DishSumInt": 4050
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 113.47,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 11.67,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 960,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 4251.76,
+        "DishSumInt": 4550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3900,
+        "DishSumInt": 3900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2200,
+        "DishSumInt": 2200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 550,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 155.74,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1533.97,
+        "DishSumInt": 1720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 94.7,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 459.64,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 189.9,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 61.48,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 673.94,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 375,
+        "DishSumInt": 675
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3165.02,
+        "DishSumInt": 3300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 380,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 47.35,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 110,
+        "DishSumInt": 110
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 905.33,
+        "DishSumInt": 1100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1320,
+        "DishSumInt": 1320
+      }
+    ],
+    [
+      {
+        "DishNa 2000 me": "Сэндвич ролл с угрём"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 960,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2400,
+        "DishSumInt": 2400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1200,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1696.63,
+        "DishSumInt": 1750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 148.09,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 890,
+        "DishSumInt": 890
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 868.75,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 502.5,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 908.09,
+        "DishSumInt": 950
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 105,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3280.52,
+        "DishSumInt": 3430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5576.76,
+        "DishSumInt": 6270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 290,
+        "DishSumInt": 290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 450,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 18200,
+        "DishSumInt": 18200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 125,
+        "DishSumInt": 125
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 125,
+        "DishSumInt": 125
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 28600,
+        "DishSumInt": 29900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 243.97,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2580,
+        "DishSumInt": 2580
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2160,
+        "DishSumInt": 2160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 707.9,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 361.8,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 682.6,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2500,
+        "DishSumInt": 2500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1582.5,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 520,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1360,
+        "DishSumInt": 1360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 850,
+        "DishSumInt": 850
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 474.58,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3400,
+        "DishSumInt": 3400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 816.49,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2366.75,
+        "DishSumInt": 2400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 4860,
+        "DishSumInt": 4860
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1381.46,
+        "DishSumInt": 1440
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 321.25,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2755,
+        "DishSumInt": 2900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 402.16,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 722.65,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 880,
+        "DishSumInt": 880
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 436.8,
+        "DishSumInt": 520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 3552.28,
+        "DishSumInt": 3740
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1870,
+        "DishSumInt": 2040
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 848.13,
+        "DishSumInt": 920
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 356.25,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 7920,
+        "DishSumInt": 7920
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 595,
+        "DishSumInt": 680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1615,
+        "DishSumInt": 2040
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }2000
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 156.25,
+        "DishSumInt": 175
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 47.35,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 165,
+        "DishSumInt": 165
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3438.27,
+        "DishSumInt": 3480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1548.75,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1160,
+        "DishSumInt": 1160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 4355.56,
+        "DishSumInt": 4800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 6302.44,
+        "DishSumInt": 6400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 810,
+        "DishSumInt": 810
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 947.26,
+        "DishSumInt": 1170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 315,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 155.74,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2069.79,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 445.41,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1260,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 376.17,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 522.5,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 630,
+        "DishSumInt": 630
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1260,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 492.34,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 690
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": " 2000 2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1300,
+        "DishSumInt": 1300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 5368.82,
+        "DishSumInt": 5400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1500,
+        "DishSumInt": 1500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 245.9,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 130,
+        "DishSumInt": 130
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 190,
+        "DishSumInt": 190
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 714.03,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 8151.76,
+        "DishSumInt": 8450
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1400,
+        "DishSumInt": 1400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1140,
+        "DishSumInt": 1140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 468.56,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1110,
+        "DishSumInt": 1110
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 594.31,
+        "DishSumInt": 740
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 990,
+        "DishSumInt": 990
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 670,
+        "DishSumInt": 670
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1220,
+        "DishSumInt": 1710
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2280,
+        "DishSumInt": 2280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1413.63,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 70,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2000430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 170,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 3000,
+        "DishSumInt": 3000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 176.77,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 414.57,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 36.88,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 750,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1980,
+        "DishSumInt": 1980
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 840,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2307.16,
+        "DishSumInt": 2460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 75,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 750,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1280,
+        "DishSumInt": 1280
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 750,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 150
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 990,
+        "DishSumInt": 990
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 175.3,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 990,
+        "DishSumInt": 990
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 6571.98,
+        "DishSumInt": 6600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 80,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 3300,
+        "DishSumInt": 3300
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1635,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 780,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 672.16,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 440
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1196.63,
+        "DishSumInt": 1250
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1350,
+        "DishSumInt": 1350
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1100,
+        "DishSumInt": 1100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1100,
+        "DishSumInt": 1100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 290,
+        "DishSumInt": 290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 56.25,
+        "DishSumInt": 75
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1118.27,
+        "DishSumInt": 1160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 60,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 250,
+        "DishSumInt": 250
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 187.5,
+        "DishSumInt": 195
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 700,
+        "DishSumInt": 700
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 800,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1200,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 760,
+        "DishSumInt": 760
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 125,
+        "DishSumInt": 125
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 275,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 642.16,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 475
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 138.44,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 138.44,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 237.54,
+        "DishSumInt": 275
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 73.28,
+        "DishSumInt": 80
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 990,
+        "DishSumInt": 990
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2415,
+        "DishSumInt": 2520
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 15,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 48.45,
+        "DishSumInt": 60
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 10,
+        "DishSumInt": 15
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1530,
+        "DishSumInt": 1530
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 990,
+        "DishSumInt": 990
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 917.21,
+        "DishSumInt": 990
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 260,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 640,
+        "DishSumInt": 640
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 150,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 55.93,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 570,
+        "DishSumInt": 570
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1586.76,
+        "DishSumInt": 1710
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 37.81,
+        "DishSumInt": 55
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1135.3,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 340,
+        "DishSumInt": 340
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 330,
+        "DishSumInt": 330
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 380.25,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 211.72,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 198.01,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 125,
+        "DishSumInt": 125
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1376.49,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2696.77,
+        "DishSumInt": 2800
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 495,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 248.93,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1096.49,
+        "DishSumInt": 1120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 148.66,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 720,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 51.85,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 30,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 288.75,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 920,
+        "DishSumInt": 920
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 460,
+        "DishSumInt": 460
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 113.94,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 90,
+        "DishSumInt": 90
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1200,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1800,
+        "DishSumInt": 1800
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 55,
+        "DishSumInt": 55
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 22.5,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 350,
+        "DishSumInt": 375
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 844.04,
+        "DishSumInt": 1200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 300,
+        "DishSumInt": 300
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 428.11,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 704.89,
+        "DishSumInt": 720
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 730.05,
+        "DishSumInt": 840
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1219.21,
+        "DishSumInt": 1275
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 860,
+        "DishSumInt": 860
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1129.29,
+        "DishSumInt": 1275
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 510,
+        "DishSumInt": 510
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 430,
+        "DishSumInt": 430
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1050,
+        "DishSumInt": 1050
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 360,
+        "DishSumInt": 360
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 2348.5,
+        "DishSumInt": 2550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1260,
+        "DishSumInt": 1260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 14201.45,
+        "DishSumInt": 14620
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 9775,
+        "DishSumInt": 10540
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 435,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 192.5,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 18.75,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 660,
+        "DishSumInt": 660
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 280,
+        "DishSumInt": 280
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1080,
+        "DishSumInt": 1080
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 952.34,
+        "DishSumInt": 1380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 6480,
+        "DishSumInt": 6480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 297.84,
+        "DishSumInt": 380
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 220,
+        "DishSumInt": 220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 540,
+        "DishSumInt": 540
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 25,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 610,
+        "DishSumInt": 610
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1700,
+        "DishSumInt": 1700
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1020,
+        "DishSumInt": 1020
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 457.5,
+        "DishSumInt": 610
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 30,
+        "DishSumInt": 30
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 100,
+        "DishSumInt": 100
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 37.5,
+        "DishSumInt": 45
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 714.03,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 500,
+        "DishSumInt": 500
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 11.67,
+        "DishSumInt": 25
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 127.5,
+        "DishSumInt": 170
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 105,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1290,
+        "DishSumInt": 1290
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2600,
+        "DishSumInt": 2600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 2700,
+        "DishSumInt": 2700
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 550,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 550,
+        "DishSumInt": 550
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 420,
+        "DishSumInt": 420
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 210,
+        "DishSumInt": 210
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1680,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 180,
+        "DishSumInt": 180
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 331.13,
+        "DishSumInt": 350
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 140,
+        "DishSumInt": 140
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 900,
+        "DishSumInt": 900
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 670,
+        "DishSumInt": 670
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 160,
+        "DishSumInt": 160
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 418.82,
+        "DishSumInt": 450
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 230,
+        "DishSumInt": 230
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1858.75,
+        "DishSumInt": 2000
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 0
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 227.5,
+        "DishSumInt": 260
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.0 e30 1.01"
+      },
+      {
+        "DishDiscountSumInt": 585,
+        "DishSumInt": 780
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 560,
+        "DishSumInt": 560
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 120,
+        "DishSumInt": 120
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 240,
+        "DishSumInt": 240
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 351.76,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 580,
+        "DishSumInt": 580
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1593.63,
+        "DishSumInt": 1980
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 650,
+        "DishSumInt": 650
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 480,
+        "DishSumInt": 480
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 50,
+        "DishSumInt": 50
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 4445.89,
+        "DishSumInt": 4500
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1878.8,
+        "DishSumInt": 2100
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 40,
+        "DishSumInt": 40
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20,
+        "DishSumInt": 20
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 320,
+        "DishSumInt": 320
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 270,
+        "DishSumInt": 270
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 200,
+        "DishSumInt": 200
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 700,
+        "DishSumInt": 700
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 750,
+        "DishSumInt": 750
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 2250,
+        "DishSumInt": 2250
+      }
+    ],
+    [
+      {
+        "DishName": "Dish_Name"
+      },
+      {
+        "DishDiscountSumInt": 1680,
+        "DishSumInt": 1680
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 600,
+        "DishSumInt": 600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 400,
+        "DishSumInt": 400
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "DishName": "Dish_Name",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 1288.95,
+        "DishSumInt": 1520
+      }
+    ]
+  ]
+}
+```
+
+ [+] [Почасовая выручка](javascript:void%280%29)
+ [-] [Почасовая выручка](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | https://localhost:8080/resto/api/v2/reports/olap?key=99939171-551a-f54b-5163-366e773c40ac |
+| --- | --- |
+
+#### Тело запроса
+
+
+Код
+
+```
+
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "OpenDate",
+    "HourClose"
+  ],
+  "aggregateFields": [
+    "GuestNum",
+    "DishSumInt",
+    "DishDiscountSumInt",
+    "UniqOrderId"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+
+```
+
+
+#### Ответ
+
+
+Код
+
+```
+
+{
+  "data": [
+    {
+      "DishDiscountSumInt": 1892.5,
+      "DishSumInt": 1950,
+      "GuestNum": 5,
+      "HourClose": "16",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 5
+    },
+    {
+      "DishDiscountSumInt": 31815.75,
+      "DishSumInt": 34700,
+      "GuestNum": 34,
+      "HourClose": "17",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 34
+    },
+    {
+      "DishDiscountSumInt": 34505,
+      "DishSumInt": 37245,
+      "GuestNum": 30,
+      "HourClose": "18",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 31
+    },
+    {
+      "DishDiscountSumInt": 24276.5,
+      "DishSumInt": 25315,
+      "GuestNum": 22,
+      "HourClose": "19",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 27
+    },
+    {
+      "DishDiscountSumInt": 41170,
+      "DishSumInt": 44870,
+      "GuestNum": 39,
+      "HourClose": "20",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 41
+    },
+    {
+      "DishDiscountSumInt": 31906.25,
+      "DishSumInt": 32480,
+      "GuestNum": 30,
+      "HourClose": "21",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 31
+    },
+    {
+      "DishDiscountSumInt": 20135.5,
+      "DishSumInt": 21415,
+      "GuestNum": 25,
+      "HourClose": "22",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 26
+    },
+    {
+      "DishDiscountSumInt": 820,
+      "DishSumInt": 820,
+      "GuestNum": 1,
+      "HourClose": "23",
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 1
+    },
+    {
+      "DishDiscountSumInt": 175,
+      "DishSumInt": 375,
+      "GuestNum": 1,
+      "HourClose": "10",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 1
+    },
+    {
+      "DishDiscountSumInt": 12167.5,
+      "DishSumInt": 12400,
+      "GuestNum": 9,
+      "HourClose": "11",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 9
+    },
+    {
+      "DishDiscountSumInt": 9342.5,
+      "DishSumInt": 9520,
+      "GuestNum": 11,
+      "HourClose": "12",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 12
+    },
+    {
+      "DishDiscountSumInt": 17672.5,
+      "DishSumInt": 20035,
+      "GuestNum": 20,
+      "HourClose": "13",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 21
+    },
+    {
+      "DishDiscountSumInt": 26517.5,
+      "DishSumInt": 27000,
+      "GuestNum": 27,
+      "HourClose": "14",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 29
+    },
+    {
+      "DishDiscountSumInt": 21980,
+      "DishSumInt": 22500,
+      "GuestNum": 21,
+      "HourClose": "15",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 22
+    },
+    {
+      "DishDiscountSumInt": 19632.5,
+      "DishSumInt": 21500,
+      "GuestNum": 20,
+      "HourClose": "16",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 22
+    },
+    {
+      "DishDiscountSumInt": 29853,
+      "DishSumInt": 31140,
+      "GuestNum": 27,
+      "HourClose": "17",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 28
+    },
+    {
+      "DishDiscountSumInt": 27009,
+      "DishSumInt": 28060,
+      "GuestNum": 27,
+      "HourClose": "18",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 27
+    },
+    {
+      "DishDiscountSumInt": 16019,
+      "DishSumInt": 18485,
+      "GuestNum": 19,
+      "HourClose": "19",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 21
+    },
+    {
+      "DishDiscountSumInt": 20790,
+      "DishSumInt": 20790,
+      "GuestNum": 19,
+      "HourClose": "20",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 21
+    },
+    {
+      "DishDiscountSumInt": 53772,
+      "DishSumInt": 55075,
+      "GuestNum": 42,
+      "HourClose": "21",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 44
+    },
+    {
+      "DishDiscountSumInt": 24387.5,
+      "DishSumInt": 25360,
+      "GuestNum": 28,
+      "HourClose": "22",
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 29
+    }
+  ],
+  "summary": [
+    [
+      {
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 279318,
+        "DishSumInt": 292240,
+        "GuestNum": 271,
+        "UniqOrderId": 286
+      }
+    ],
+    [
+      {
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035,
+        "GuestNum": 457,
+        "UniqOrderId": 482
+      }
+    ],
+    [
+      {
+        "HourClose": "20",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 41170,
+        "DishSumInt": 44870,
+        "GuestNum": 39,
+        "UniqOrderId": 41
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 186521.5,
+        "DishSumInt": 198795,
+        "GuestNum": 186,
+        "UniqOrderId": 196
+      }
+    ],
+    [
+      {
+        "HourClose": "21",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 31906.25,
+        "DishSumInt": 32480,
+        "GuestNum": 30,
+        "UniqOrderId": 31
+      }
+    ],
+    [
+      {
+        "HourClose": "20",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 20790,
+        "DishSumInt": 20790,
+        "GuestNum": 19,
+        "UniqOrderId": 21
+      }
+    ],
+    [
+      {
+        "HourClose": "10",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 175,
+        "DishSumInt": 375,
+        "GuestNum": 1,
+        "UniqOrderId": 1
+      }
+    ],
+    [
+      {
+        "HourClose": "21",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 53772,
+        "DishSumInt": 55075,
+        "GuestNum": 42,
+        "UniqOrderId": 44
+      }
+    ],
+    [
+      {
+        "HourClose": "16",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 1892.5,
+        "DishSumInt": 1950,
+        "GuestNum": 5,
+        "UniqOrderId": 5
+      }
+    ],
+    [
+      {
+        "HourClose": "15",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 21980,
+        "DishSumInt": 22500,
+        "GuestNum": 21,
+        "UniqOrderId": 22
+      }
+    ],
+    [
+      {
+        "HourClose": "17",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 31815.75,
+        "DishSumInt": 34700,
+        "GuestNum": 34,
+        "UniqOrderId": 34
+      }
+    ],
+    [
+      {
+        "HourClose": "16",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 19632.5,
+        "DishSumInt": 21500,
+        "GuestNum": 20,
+        "UniqOrderId": 22
+      }
+    ],
+    [
+      {
+        "HourClose": "18",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 34505,
+        "DishSumInt": 37245,
+        "GuestNum": 30,
+        "UniqOrderId": 31
+      }
+    ],
+    [
+      {
+        "HourClose": "17",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 29853,
+        "DishSumInt": 31140,
+        "GuestNum": 27,
+        "UniqOrderId": 28
+      }
+    ],
+    [
+      {
+        "HourClose": "22",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 20135.5,
+        "DishSumInt": 21415,
+        "GuestNum": 25,
+        "UniqOrderId": 26
+      }
+    ],
+    [
+      {
+        "HourClose": "18",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 27009,
+        "DishSumInt": 28060,
+        "GuestNum": 27,
+        "UniqOrderId": 27
+      }
+    ],
+    [
+      {
+        "HourClose": "23",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 820,
+        "DishSumInt": 820,
+        "GuestNum": 1,
+        "UniqOrderId": 1
+      }
+    ],
+    [
+      {
+        "HourClose": "11",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 12167.5,
+        "DishSumInt": 12400,
+        "GuestNum": 9,
+        "UniqOrderId": 9
+      }
+    ],
+    [
+      {
+        "HourClose": "22",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 24387.5,
+        "DishSumInt": 25360,
+        "GuestNum": 28,
+        "UniqOrderId": 29
+      }
+    ],
+    [
+      {
+        "HourClose": "12",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 9342.5,
+        "DishSumInt": 9520,
+        "GuestNum": 11,
+        "UniqOrderId": 12
+      }
+    ],
+    [
+      {
+        "HourClose": "13",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 17672.5,
+        "DishSumInt": 20035,
+        "GuestNum": 20,
+        "UniqOrderId": 21
+      }
+    ],
+    [
+      {
+        "HourClose": "14",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 26517.5,
+        "DishSumInt": 27000,
+        "GuestNum": 27,
+        "UniqOrderId": 29
+      }
+    ],
+    [
+      {
+        "HourClose": "19",
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 24276.5,
+        "DishSumInt": 25315,
+        "GuestNum": 22,
+        "UniqOrderId": 27
+      }
+    ],
+    [
+      {
+        "HourClose": "19",
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 16019,
+        "DishSumInt": 18485,
+        "GuestNum": 19,
+        "UniqOrderId": 21
+      }
+    ]
+  ]
+}
+```
+
+ [+] [Выручка по категориям блюд](javascript:void%280%29)
+ [-] [Выручка по категориям блюд](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | https://localhost:8080/resto/api/v2/reports/olap?key=99939171-551a-f54b-5163-366e773c40ac |
+| --- | --- |
+#### Тело запроса
+
+
+Код
+
+```
+
+
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "DishCategory"
+  ],
+  "aggregateFields": [
+    "GuestNum",
+    "DishSumInt",
+    "DishDiscountSumInt",
+    "UniqOrderId"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+
+```
+
+
+#### Ответ 
+
+
+Код
+
+```
+
+
+{
+  "data": [
+    {
+      "DishCategory": null,
+      "DishDiscountSumInt": 8967.73,
+      "DishSumInt": 9900,
+      "GuestNum": 88,
+      "UniqOrderId": 93
+    },
+    {
+      "DishCategory": "Без скидки",
+      "DishDiscountSumInt": 80296.57,
+      "DishSumInt": 84800,
+      "GuestNum": 86,
+      "UniqOrderId": 87
+    },
+    {
+      "DishCategory": "Со скидкой",
+      "DishDiscountSumInt": 376575.2,
+      "DishSumInt": 396335,
+      "GuestNum": 425,
+      "UniqOrderId": 449
+    }
+  ],
+  "summary": [
+    [
+      {
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035,
+        "GuestNum": 457,
+        "UniqOrderId": 482
+      }
+    ],
+    [
+      {
+        "DishCategory": "Без скидки"
+      },
+      {
+        "DishDiscountSumInt": 80296.57,
+        "DishSumInt": 84800,
+        "GuestNum": 86,
+        "UniqOrderId": 87
+      }
+    ],
+    [
+      {
+        "DishCategory": "Со скидкой"
+      },
+      {
+        "DishDiscountSumInt": 376575.2,
+        "DishSumInt": 396335,
+        "GuestNum": 425,
+        "UniqOrderId": 449
+      }
+    ],
+    [
+      {
+        "DishCategory": null
+      },
+      {
+        "DishDiscountSumInt": 8967.73,
+        "DishSumInt": 9900,
+        "GuestNum": 88,
+        "UniqOrderId": 93
+      }
+    ]
+  ]
+}
+```
+
+ 
+[+] Выручка станций по дням
+ [-] [Выручка станций по дням](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | https://localhost:8080/resto/api/v2/reports/olap?key=b785c815-f06d-947c-3fb5-3052a2df7fd8 |
+| --- | --- |
+
+#### Тело запроса
+
+
+Код
+
+```
+
+
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "PayTypes",
+    "OpenDate"
+  ],
+  "groupByColFields": [
+    "CashRegisterName"
+  ],
+  "aggregateFields": [
+    "DishSumInt",
+    "DishDiscountSumInt"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+
+```
+
+
+#### Ответ
+
+
+Код
+
+```
+
+{
+  "data": [
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishSumInt": 890,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "(без оплаты)"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishSumInt": 710,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "(без оплаты)"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishSumInt": 70,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "(без оплаты)"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 0,
+      "DishSumInt": 1765,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "(без оплаты)"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 66981.5,
+      "DishSumInt": 73535,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 23976.25,
+      "DishSumInt": 24900,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 6048.75,
+      "DishSumInt": 6315,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 48925,
+      "DishSumInt": 50345,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 33855,
+      "DishSumInt": 35365,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 115178,
+      "DishSumInt": 119185,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 16770,
+      "DishSumInt": 18045,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 20695,
+      "DishSumInt": 22530,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60780,
+      "DishSumInt": 61645,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 60845,
+      "DishSumInt": 63950,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "Наличные"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 5220,
+      "DishSumInt": 5220,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "безналичный расчет"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1515,
+      "DishSumInt": 1515,
+      "OpenDate": "2014.01.01",
+      "PayTypes": "безналичный расчет"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1110,
+      "DishSumInt": 1110,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "безналичный расчет"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 1450,
+      "DishSumInt": 1450,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "безналичный расчет"
+    },
+    {
+      "CashRegisterName": "Cash_Register_Name",
+      "DishDiscountSumInt": 2490,
+      "DishSumInt": 2490,
+      "OpenDate": "2014.01.02",
+      "PayTypes": "безналичный расчет"
+    }
+  ],
+  "summary": [
+    [
+      {
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 3435
+      }
+    ],
+    [
+      {
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.02",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 1835
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 1600
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 6330,
+        "DishSumInt": 6330
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 2490,
+        "DishSumInt": 2490
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 710
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 1450,
+        "DishSumInt": 1450
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 2490,
+        "DishSumInt": 2490
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 1515,
+        "DishSumInt": 1515
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 115178,
+        "DishSumInt": 119185
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name"
+      },
+      {
+        "DishDiscountSumInt": 29708.75,
+        "DishSumInt": 31810
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 66981.5,
+        "DishSumInt": 73535
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 1765
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 1765
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name"
+      },
+      {
+        "DishDiscountSumInt": 112195,
+        "DishSumInt": 116245
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name"
+      },
+      {
+        "DishDiscountSumInt": 94700,
+        "DishSumInt": 99315
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 182159.5,
+        "DishSumInt": 192720
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.02",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 5050,
+        "DishSumInt": 5050
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 6735,
+        "DishSumInt": 6735
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 20695,
+        "DishSumInt": 22530
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 5220,
+        "DishSumInt": 5220
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 6048.75,
+        "DishSumInt": 6315
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 40746.25,
+        "DishSumInt": 42945
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 1110,
+        "DishSumInt": 1110
+      }
+    ],
+    [
+      {
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 454054.5,
+        "DishSumInt": 475815
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 179786.5,
+        "DishSumInt": 190460
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.02",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 274268,
+        "DishSumInt": 285355
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 16770,
+        "DishSumInt": 18045
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 23976.25,
+        "DishSumInt": 24900
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 26743.75,
+        "DishSumInt": 28845
+      }
+    ],
+    [
+      {
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 11785,
+        "DishSumInt": 11785
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 890
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 70
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 33855,
+        "DishSumInt": 35365
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 60780,
+        "DishSumInt": 61645
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 960
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 48925,
+        "DishSumInt": 50345
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.02",
+        "PayType 351 s": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 60845,
+        "DishSumInt": 63950
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 94700,
+        "DishSumInt": 99315
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name"
+      },
+      {
+        "DishDiscountSumInt": 40746.25,
+        "DishSumInt": 43655
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "Наличные"
+      },
+      {
+        "DishDiscountSumInt": 109705,
+        "DishSumInt": 111990
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "PayTypes": "безналичный расчет"
+      },
+      {
+        "DishDiscountSumInt": 2965,
+        "DishSumInt": 2965
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name"
+      },
+      {
+        "DishDiscountSumInt": 188489.5,
+        "DishSumInt": 200010
+      }
+    ],
+    [
+      {
+        "CashRegisterName": "Cash_Register_Name",
+        "OpenDate": "2014.01.01",
+        "PayTypes": "(без оплаты)"
+      },
+      {
+        "DishDiscountSumInt": 0,
+        "DishSumInt": 710
+      }
+    ]
+  ]
+}
+0
+
+```
+
+ [+] [Выручка по дням](javascript:void%280%29)
+ [-] [Выручка по дням](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | https://localhost:8080/resto/api/v2/reports/olap?key=b785c815-f06d-947c-3fb5-3052a2df7fd8 |
+| --- | --- |
+
+#### Тело запроса
+
+
+Код
+
+```
+
+
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "OpenDate"
+  ],
+  "aggregateFields": [
+    "GuestNum",
+    "DishSumInt",
+    "DishDiscountSumInt",
+    "UniqOrderId"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+
+```
+
+
+#### **Ответ**
+
+
+Код
+
+```
+
+
+{
+  "data": [
+    {
+      "DishDiscountSumInt": 186521.5,
+      "DishSumInt": 198795,
+      "GuestNum": 186,
+      "OpenDate": "2014.01.01",
+      "UniqOrderId": 196
+    },
+    {
+      "DishDiscountSumInt": 279318,
+      "DishSumInt": 292240,
+      "GuestNum": 271,
+      "OpenDate": "2014.01.02",
+      "UniqOrderId": 286
+    }
+  ],
+  "summary": [
+    [
+      {
+        "OpenDate": "2014.01.02"
+      },
+      {
+        "DishDiscountSumInt": 279318,
+        "DishSumInt": 292240,
+        "GuestNum": 271,
+        "UniqOrderId": 286
+      }
+    ],
+    [
+      {
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035,
+        "GuestNum": 457,
+        "UniqOrderId": 482
+      }
+    ],
+    [
+      {
+        "OpenDate": "2014.01.01"
+      },
+      {
+        "DishDiscountSumInt": 186521.5,
+        "DishSumInt": 198795,
+        "GuestNum": 186,
+        "UniqOrderId": 196
+      }
+    ]
+  ]
+}
+```
+
+ [+] [Выручка по официантам](javascript:void%280%29)
+ [-] [Выручка по официантам](javascript:void%280%29)
+ | ![POST Request](/resources/Storage/api-documentations/http_request_post.png) | 
+```
+https://localhost:8080/resto/api/v2/reports/olap?key=b785c815-f06d-947c-3fb5-3052a2df7fd8 
+```
+ |
+| --- | --- |
+
+#### Запрос
+
+
+```json
+{
+  "reportType": "SALES",
+  "groupByRowFields": [
+    "WaiterName"
+  ],
+  "aggregateFields": [
+    "DishSumInt",
+    "DishDiscountSumInt"
+  ],
+  "filters": {
+    "OpenDate": {
+      "filterType": "DateRange",
+      "periodType": "CUSTOM",
+      "from": "2014-01-01T00:00:00.000", 
+      "to": "2014-01-03T00:00:00.000" 
+    },
+  "DeletedWithWriteoff": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    },
+   "OrderDeleted": {
+      "filterType": "IncludeValues",
+      "values": ["NOT_DELETED"]
+    }
+  }
+}
+```
+
+
+#### Ответ
+
+
+```json
+{
+  "data": [
+    {
+      "DishDiscountSumInt": 36186.25,
+      "DishSumInt": 38475,
+      "WaiterName": "Water_Name"
+      
+    },
+    {
+      "DishDiscountSumInt": 29935,
+      "DishSumInt": 31445,
+      "WaiterName": "Water_Name"
+      
+    },
+    {
+      "DishDiscountSumInt": 76610,
+      "DishSumInt": 78970,
+      "WaiterName": "Water_Name"
+      
+    },
+    {
+      "DishDiscountSumInt": 119425,
+      "DishSumInt": 129130,
+      "WaiterName": "Water_Name"
+      
+    },
+    {
+      "DishDiscountSumInt": 139081.5,
+      "DishSumInt": 145085,
+      "WaiterName": "Water_Name"
+      
+    },
+    {
+      "DishDiscountSumInt": 29708.75,
+      "DishSumInt": 31810,
+      "WaiterName": "Water_Name"
+      
+    },
+    {
+      "DishDiscountSumInt": 34893,
+      "DishSumInt": 36120,
+      "WaiterName": "Water_Name"
+      
+    }
+    
+  ],
+  "summary": [
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 29935,
+        "DishSumInt": 31445
+        
+      }
+      
+    ],
+    [
+      {
+        
+        
+      },
+      {
+        "DishDiscountSumInt": 465839.5,
+        "DishSumInt": 491035
+        
+      }
+      
+    ],
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 29708.75,
+        "DishSumInt": 31810
+        
+      }
+      
+    ],
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 34893,
+        "DishSumInt": 36120
+        
+      }
+      
+    ],
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 36186.25,
+        "DishSumInt": 38475
+        
+      }
+      
+    ],
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 139081.5,
+        "DishSumInt": 145085
+        
+      }
+      
+    ],
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 119425,
+        "DishSumInt": 129130
+        
+      }
+      
+    ],
+    [
+      {
+        "WaiterName": "Water_Name"
+        
+      },
+      {
+        "DishDiscountSumInt": 76610,
+        "DishSumInt": 78970
+        
+      }
+      
+    ]
+    
+  ]
+}
+```
+
+
+ 
+```
+
+
+```

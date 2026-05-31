@@ -267,10 +267,8 @@ docs/
 │   ├── DASHBOARD_FIX_REPORT.md, DASHBOARD_NOTES.md
 │   ├── FINAL_DIAGNOSIS.md, FIX_DATE_HANDLING.md
 │
-├── iiko-api/                # iiko API спецификации
-│   ├── md/                  # Markdown версии
-│   └── pdf/                 # PDF версии
-│
+│                            # iiko-api/ удалена 2026-05-29 — спеки берём с портала
+│                            # ru.iiko.help (см. .claude/CLAUDE.md)
 ├── plans/                   # Старые ТЗ (статус DONE/IN PROGRESS)
 ├── planning/                # Архитектурные заметки
 ├── external/                # Внешние документы

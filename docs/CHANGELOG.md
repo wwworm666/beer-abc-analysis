@@ -1,5 +1,41 @@
 ﻿# Changelog
 
+### 2026-05-29 — Локальный снапшот OLAP-документации iiko (полнота проверена)
+
+Собран полный набор документации по OLAP-отчётам iiko в папку `iiko-olap-docs/` (источник истины — портал, снапшот в репозитории). Сбор шёл не «по очевидным slug'ам», а с проверкой полноты.
+
+**Что:**
+
+- **9 OLAP-страниц** скачаны в `iiko-olap-docs/` (~767 КБ): `formirovanie-olap-otcheta-v-api`, `olap-otchety-v1/v2`, `otchety-v1`, `otchety-dostavka-v1`, `otchety-vv2`, `primery-vyzova-olap-otchet-v2`, `prednastroennye-olap-otchety-vv2`, `olap-otchety-po-dostavke`. Создан `README.md` (индекс + рецепт обновления + веб-ссылки).
+- **Полнота верифицирована** многоагентным workflow (17 агентов) по всем 158 статьям раздела `api-documentations` + сканирование iikoCloud/iiko-biz TOC + completeness-критик + детерминированная сверка внутренних ссылок скачанных страниц. Ложные кандидаты (`spravochniki`, `kody-bazovykh-tipov`, `scheta`, `sobytiya`, `frontwebapi` и др.) отсеяны по содержимому. Пропущенных страниц нет.
+- **Закрыт пробел:** `olap-otchety-po-dostavke` не было в прежней копии `docs/iiko-api/`.
+
+**Почему:**
+
+- Нужна офлайн-копия именно OLAP-материалов (проект строит ABC-аналитику на iiko OLAP). Снапшот обновляем командой из README; портал остаётся источником истины.
+
+**Файлы:** `iiko-olap-docs/` (новая, в git), `docs/CHANGELOG.md`.
+
+---
+
+### 2026-05-29 — Прямой канал к ru.iiko.help + удаление локальной копии iiko-api
+
+Разобран механизм портала `ru.iiko.help` (SPA на ClickHelp, hashbang-роутинг `#!` — поэтому обычный fetch видел только пустую JS-оболочку). Найден прямой источник чистого markdown, локальная замороженная копия спек удалена за ненадобностью.
+
+**Что:**
+
+- **Найден markdown-endpoint:** `https://ru.iiko.help/helper/articles/{раздел}/{slug}/?action=getMarkdown` отдаёт `text/plain` markdown статьи (таблицы, код, примеры запросов). Обход всех статей раздела — через `sitemaps/sitemap_publication_{раздел}.xml`. Фолбэк — `?_escaped_fragment_={раздел}/{slug}` (prerender HTML).
+- **Удалена `docs/iiko-api/`** (6.2 МБ: 11 md + 12 pdf, OLAP-отчёты/события/поставщики/явки/кассовые смены). Каждый файл проверен на доступность через портал перед удалением — ничего невосстановимого.
+- **Обновлены ссылки** в `.claude/CLAUDE.md`, `.claude/INDEX.md`, `docs/PROJECT_STRUCTURE.md`, `docs/technical/audits/OLAP_REQUEST_REGISTRY_2026-04-03.md` — вместо путей к удалённой папке указан портал как источник истины + рецепт getMarkdown.
+
+**Почему:**
+
+- Портал всегда актуален; локальная копия — замороженный снапшот, требовавший ручной синхронизации и занимавший 6.2 МБ в git.
+
+**Файлы:** `docs/iiko-api/` (удалена), `.claude/CLAUDE.md`, `.claude/INDEX.md`, `docs/PROJECT_STRUCTURE.md`, `docs/technical/audits/OLAP_REQUEST_REGISTRY_2026-04-03.md`, `docs/CHANGELOG.md`.
+
+---
+
 ### 2026-05-28 — Ревизия документации: консолидация в `docs/`, синхронизация с фактом
 
 После накопления изменений (Selectel-миграция, удаление menu, появление explorer/expiration/open-check, atomic-locks под gunicorn 2) — документация рассинхронизировалась с кодом. Проведён двух-агентный аудит (фактическое состояние кода vs текущая документация), сведены расхождения, переписаны ключевые модули.
