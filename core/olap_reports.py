@@ -1,5 +1,6 @@
 import requests
 import json
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -456,9 +457,12 @@ class OlapReports:
         params = {"key": self.token}
         headers = {"Content-Type": "application/json"}
 
-        # Retry logic для нестабильного iiko API
-        max_retries = 3
-        timeout = 120  # Увеличенный timeout для большого запроса
+        # Retry logic для нестабильного iiko API.
+        # ВАЖНО: суммарный бюджет (timeout × попытки + backoff) обязан укладываться
+        # в gunicorn --timeout (180с), иначе воркер убьют SIGKILL ещё до ретраев.
+        # 2 × 60 + ~2-4с backoff < 180.
+        max_retries = 2
+        timeout = 60  # per-attempt
 
         for attempt in range(max_retries):
             try:
@@ -481,13 +485,15 @@ class OlapReports:
                     print(f"   Otvet servera: {response.text}")
                     return None
 
-            except requests.exceptions.ReadTimeout as e:
-                print(f"[WARN] Timeout na popitke {attempt + 1}: {e}")
+            except (requests.exceptions.ReadTimeout,
+                    requests.exceptions.ConnectTimeout,
+                    requests.exceptions.ConnectionError) as e:
+                # Ретраим сетевые сбои и таймауты (раньше — только ReadTimeout).
+                print(f"[WARN] Setevoy sboy na popitke {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
-                    import time
-                    time.sleep(2)  # Pauza pered povtorom
+                    time.sleep(2 * (attempt + 1))  # лёгкий backoff
                 else:
-                    print(f"[ERROR] Timeout posle {max_retries} popytok")
+                    print(f"[ERROR] Sboy posle {max_retries} popytok")
                     return None
             except Exception as e:
                 print(f"[ERROR] Oshibka: {e}")

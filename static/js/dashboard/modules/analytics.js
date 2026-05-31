@@ -26,6 +26,8 @@ class Analytics {
         this.employeeData = null;  // Кэш данных по сотрудникам
         this.expandedCard = null;  // Текущая раскрытая карточка
         this.isProcessing = false; // Флаг для предотвращения множественных кликов
+        this._inflightKey = null;     // Ключ выполняющегося запроса (дедупликация)
+        this._inflightPromise = null; // Промис выполняющегося запроса
     }
 
     /**
@@ -37,11 +39,11 @@ class Analytics {
         this.setupEventListeners();
         this.initialized = true;
 
-        // Если период и заведение уже установлены - загружаем данные сразу
-        if (state.currentVenue && state.currentPeriod) {
-            console.log('[Analytics] Период и заведение уже установлены, загружаем данные...');
-            this.loadAnalytics();
-        }
+        // Начальную загрузку инициирует main.js loadInitialData() строго после
+        // analytics.init(). Здесь НЕ вызываем loadAnalytics() повторно — иначе на
+        // старте уходит два идентичных /api/dashboard-analytics, которые попадают
+        // на оба воркера gunicorn одновременно и оба берут один и тот же OLAP
+        // (стампед, блокировка всего пула на ~17с). См. docs/lessons.md.
     }
 
     /**
@@ -60,13 +62,35 @@ class Analytics {
      * Загрузить данные аналитики
      */
     async loadAnalytics() {
-        this.employeeData = null;  // Сбрасываем кэш сотрудников при смене бара/периода
-        console.log('[Analytics] loadAnalytics вызван. state.currentPeriod:', state.currentPeriod);
-
         if (!state.currentVenue || !state.currentPeriod) {
             console.log('[Analytics] Пропуск загрузки - нет venue или period');
             return;
         }
+
+        // Дедупликация запросов: если идентичный запрос (бар+период) уже выполняется,
+        // переиспользуем его промис, а не шлём ещё один. Защищает от двойного триггера
+        // на старте и от подписки venueChanged/periodChanged, срабатывающей одновременно.
+        const inflightKey = `${state.currentVenue}|${state.currentPeriod.start}|${state.currentPeriod.end}`;
+        if (this._inflightKey === inflightKey && this._inflightPromise) {
+            console.log('[Analytics] Запрос уже выполняется, переиспользую промис:', inflightKey);
+            return this._inflightPromise;
+        }
+
+        this._inflightKey = inflightKey;
+        this._inflightPromise = this._loadAnalyticsImpl();
+        try {
+            return await this._inflightPromise;
+        } finally {
+            if (this._inflightKey === inflightKey) {
+                this._inflightKey = null;
+                this._inflightPromise = null;
+            }
+        }
+    }
+
+    async _loadAnalyticsImpl() {
+        this.employeeData = null;  // Сбрасываем кэш сотрудников при смене бара/периода
+        console.log('[Analytics] loadAnalytics вызван. state.currentPeriod:', state.currentPeriod);
 
         this.showLoading();
 

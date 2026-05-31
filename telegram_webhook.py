@@ -9,6 +9,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Update
+from aiogram.client.session.aiohttp import AiohttpSession
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +32,10 @@ BARS_CONFIG = {
     'bar4': 'Варшавская',
 }
 
-# Инициализация бота (без polling)
-bot = Bot(token=BOT_TOKEN)
+# Инициализация бота (без polling).
+# Явный таймаут сессии (15с вместо дефолтных 60): обработка webhook идёт внутри
+# Flask-воркера, а их всего 2 — медленный Telegram не должен надолго занять воркер.
+bot = Bot(token=BOT_TOKEN, session=AiohttpSession(timeout=15))
 dp = Dispatcher()
 
 

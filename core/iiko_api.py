@@ -1,9 +1,21 @@
 import hashlib
+import time
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from config import IIKO_BASE_URL, IIKO_LOGIN, IIKO_PASSWORD
+
+# Дефолтный таймаут для всех iiko-запросов: (connect, read).
+# Без него зависший iiko/Tailscale держит sync-воркер gunicorn до SIGKILL по
+# --timeout, а два таких зависа исчерпывают пул из 2 воркеров — сайт не отвечает.
+DEFAULT_TIMEOUT = (5, 60)
+
+# Кэш статичного маппинга торговых точек (get_groups_with_pos): XML /corporation/groups
+# меняется редко, но перечитывался на каждый employee-запрос.
+_GROUPS_CACHE = {'data': None, 'timestamp': 0.0}
+_GROUPS_CACHE_TTL = 600  # 10 минут
+
 
 class IikoAPI:
     """Класс для работы с iiko API"""
@@ -20,8 +32,13 @@ class IikoAPI:
     
     def authenticate(self):
         """Получить токен авторизации"""
+        if not self.login or not self.password:
+            print("[ERROR] IIKO_LOGIN/IIKO_PASSWORD не заданы — авторизация невозможна. "
+                  "Проверьте .env / переменные окружения.")
+            return False
+
         password_hash = self.get_sha1_hash(self.password)
-        
+
         url = f"{self.base_url}/auth"
         params = {
             "login": self.login,
@@ -58,8 +75,9 @@ class IikoAPI:
         try:
             requests.get(url, params=params, timeout=5)
             print("[OK] Token osvobozhden")
-        except:
-            pass
+        except Exception as e:
+            # Логируем: неосвобождённый слот лицензии важно видеть, а не глотать молча.
+            print(f"[WARN] Ne udalos osvobodit token (slot licenzii mozhet techt): {e}")
 
     # =====================================================
     # ATTENDANCE API (Явки сотрудников) - DEPRECATED
@@ -115,7 +133,7 @@ class IikoAPI:
         print(f"[ATTENDANCE] Загружаю явки с {date_from} по {date_to}...")
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
 
             if response.status_code == 200:
                 return self._parse_attendance_xml(response.text)
@@ -252,7 +270,7 @@ class IikoAPI:
         print(f"[CASHSHIFTS] Загружаю кассовые смены с {date_from} по {date_to}...")
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
 
             if response.status_code == 200:
                 data = response.json()
@@ -279,13 +297,18 @@ class IikoAPI:
             print("[ERROR] Нужна авторизация")
             return {}
 
+        # Кэш: статичный маппинг точек не нужно перечитывать на каждый запрос.
+        if _GROUPS_CACHE['data'] is not None and \
+                (time.time() - _GROUPS_CACHE['timestamp']) < _GROUPS_CACHE_TTL:
+            return _GROUPS_CACHE['data']
+
         url = f"{self.base_url}/corporation/groups"
         params = {"key": self.token}
 
         print("[GROUPS] Загружаю группы (торговые точки)...")
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
 
             if response.status_code == 200:
                 pos_mapping = {}
@@ -300,6 +323,8 @@ class IikoAPI:
                             pos_mapping[pos_id] = name
 
                 print(f"[OK] Загружено {len(pos_mapping)} точек продаж")
+                _GROUPS_CACHE['data'] = pos_mapping
+                _GROUPS_CACHE['timestamp'] = time.time()
                 return pos_mapping
             else:
                 print(f"[ERROR] Ошибка: {response.status_code}")
@@ -524,7 +549,7 @@ class IikoAPI:
         print("[EMPLOYEES] Загружаю список сотрудников...")
 
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
 
             if response.status_code == 200:
                 return self._parse_employees_xml(response.text)

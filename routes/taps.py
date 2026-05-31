@@ -561,6 +561,7 @@ def get_draft_beers():
 @taps_bp.route('/api/update-nomenclature', methods=['POST'])
 def update_nomenclature():
     """Обновить список продуктов из iiko"""
+    api = None
     try:
         import requests
         import xml.etree.ElementTree as ET
@@ -581,7 +582,6 @@ def update_nomenclature():
         response = requests.get(url, params=params, timeout=30)
 
         if response.status_code != 200:
-            api.logout()
             print(f"[ERROR] Ошибка получения продуктов: {response.status_code}")
             return jsonify({'success': False, 'error': f'API error: {response.status_code}'}), 500
 
@@ -607,8 +607,6 @@ def update_nomenclature():
         with open(products_file, 'w', encoding='utf-8') as f:
             json.dump(products, f, indent=2, ensure_ascii=False)
 
-        api.logout()
-
         print(f"[OK] Обновлено продуктов: {len(products)}")
         return jsonify({'success': True, 'count': len(products)})
 
@@ -617,3 +615,8 @@ def update_nomenclature():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        # Логаут в любом случае: даже если ET.fromstring/запись файла бросили исключение
+        # (logout() — no-op без токена, безопасно при неудачной авторизации).
+        if api is not None:
+            api.logout()

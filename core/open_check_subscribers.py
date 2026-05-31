@@ -21,6 +21,7 @@ from contextlib import contextmanager
 import portalocker
 
 from core.storage_paths import get_data_path
+from core.json_store import atomic_write_json
 
 KINDS = ('positive', 'alarm')
 
@@ -51,12 +52,9 @@ def _read() -> dict:
 
 
 def _write(d: dict) -> None:
-    p = _path()
-    directory = os.path.dirname(p)
-    if directory and not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
-    with open(p, 'w', encoding='utf-8') as f:
-        json.dump(d, f, ensure_ascii=False, indent=2)
+    # Атомарная запись (tmp+fsync+replace): при гонке чтение/запись или падении
+    # читатель не увидит усечённый файл (раньше был open(..., 'w') — усекающий).
+    atomic_write_json(_path(), d)
 
 
 @contextmanager

@@ -90,13 +90,20 @@ def _run_once() -> None:
 
 def _loop() -> None:
     while True:
-        wait = _seconds_until_next_run(CHECK_HOUR, CHECK_MINUTE)
-        next_at = datetime.now(MOSCOW_TZ) + timedelta(seconds=wait)
-        print(f"[OPEN-CHECK] следующая проверка: {next_at.isoformat()} (через {wait/3600:.1f}ч)")
-        time.sleep(wait)
-        _run_once()
-        # Не дать циклу прокрутиться слишком быстро, если _run_once упал мгновенно.
-        time.sleep(60)
+        try:
+            wait = _seconds_until_next_run(CHECK_HOUR, CHECK_MINUTE)
+            next_at = datetime.now(MOSCOW_TZ) + timedelta(seconds=wait)
+            print(f"[OPEN-CHECK] следующая проверка: {next_at.isoformat()} (через {wait/3600:.1f}ч)")
+            time.sleep(wait)
+            _run_once()
+            # Не дать циклу прокрутиться слишком быстро, если _run_once упал мгновенно.
+            time.sleep(60)
+        except Exception as e:
+            # Не даём исключению (например OSError из lock-файла) молча убить
+            # daemon-поток — иначе проверка открытых смен перестанет срабатывать
+            # до рестарта. Логируем и продолжаем после паузы.
+            print(f"[OPEN-CHECK] исключение в цикле планировщика: {e}")
+            time.sleep(60)
 
 
 def start_scheduler() -> None:

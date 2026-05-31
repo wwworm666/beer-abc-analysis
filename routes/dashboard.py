@@ -9,7 +9,7 @@ from core.weeks_generator import WeeksGenerator
 from extensions import (
     venues_manager, plans_manager, notes_manager, taps_manager,
     comparison_calculator, trends_analyzer, export_manager,
-    DASHBOARD_OLAP_CACHE, DASHBOARD_OLAP_CACHE_TTL
+    DASHBOARD_OLAP_CACHE, DASHBOARD_OLAP_CACHE_TTL, cached_olap
 )
 
 dashboard_bp = Blueprint('dashboard', __name__)
@@ -41,52 +41,30 @@ def dashboard_analytics():
         print(f"   Period (requested): {date_from} - {date_to}")
         print(f"   Period (iiko API): {date_from} - {date_to_inclusive}")
 
-        # Проверяем кеш OLAP данных
+        # OLAP-данные через общий кэш + single-flight (защита от стампеда внутри воркера).
         cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
-        now = time.time()
 
-        if cache_key in DASHBOARD_OLAP_CACHE:
-            cached_entry = DASHBOARD_OLAP_CACHE[cache_key]
-            if (now - cached_entry['timestamp']) < DASHBOARD_OLAP_CACHE_TTL:
-                all_sales_data = cached_entry['data']
-                ttl_remaining = DASHBOARD_OLAP_CACHE_TTL - (now - cached_entry['timestamp'])
-                print(f"   [CACHE] Использую кешированные OLAP данные (истекает через {int(ttl_remaining // 60)} мин {int(ttl_remaining % 60)} сек)")
-            else:
-                # Кеш устарел, удаляем
-                del DASHBOARD_OLAP_CACHE[cache_key]
-                all_sales_data = None
-        else:
-            all_sales_data = None
-
-        # Если данных нет в кеше - запрашиваем из iiko API
-        if not all_sales_data:
-            # Подключаемся к iiko API
+        def _fetch_all_sales():
             olap = OlapReports()
             if not olap.connect():
-                return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-            # 1. Получаем ВСЕ данные ОДНИМ запросом (оптимизация: 1 запрос вместо 3)
-            print("   [1/5] Запуск комплексного OLAP запроса...")
-            start_time = time.time()
-
-            all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
-
-            if not all_sales_data or not all_sales_data.get('data'):
+                print("   [ERROR] Не удалось подключиться к iiko API")
+                return None
+            try:
+                # 1. Получаем ВСЕ данные ОДНИМ запросом (оптимизация: 1 запрос вместо 3)
+                print("   [1/5] Запуск комплексного OLAP запроса...")
+                start_time = time.time()
+                data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
+                if not data or not data.get('data'):
+                    return None
+                print(f"   [OK] Комплексный запрос выполнен за {time.time() - start_time:.2f}s")
+                return data
+            finally:
                 olap.disconnect()
-                return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
-            elapsed = time.time() - start_time
-            print(f"   [OK] Комплексный запрос выполнен за {elapsed:.2f}s")
+        all_sales_data = cached_olap(cache_key, _fetch_all_sales)
 
-            # Отключаемся от iiko API
-            olap.disconnect()
-
-            # Сохраняем в кеш
-            DASHBOARD_OLAP_CACHE[cache_key] = {
-                'data': all_sales_data,
-                'timestamp': now
-            }
-            print(f"   [CACHE] Данные закешированы на {DASHBOARD_OLAP_CACHE_TTL // 60} минут")
+        if not all_sales_data or not all_sales_data.get('data'):
+            return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
         # 2. Создаем калькулятор метрик и рассчитываем из СЫРЫХ данных
         print("   [2/5] Расчет метрик из сырых OLAP данных...")
@@ -613,36 +591,28 @@ def revenue_metrics():
         date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
 
         cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
-        now = time.time()
 
-        # Очищаем кеш для отладки
-        DASHBOARD_OLAP_CACHE.clear()
-
-        all_sales_data = None
-        if cache_key in DASHBOARD_OLAP_CACHE:
-            cached_entry = DASHBOARD_OLAP_CACHE[cache_key]
-            if (now - cached_entry['timestamp']) < DASHBOARD_OLAP_CACHE_TTL:
-                all_sales_data = cached_entry['data']
-                print(f"   [CACHE] Using cached OLAP data")
-            else:
-                print(f"   [CACHE] Cache expired, fetching new")
-        else:
-            print(f"   [CACHE] Cache miss, fetching new")
-
-        if not all_sales_data:
+        def _fetch_all_sales():
             olap = OlapReports()
             if not olap.connect():
-                return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+                print("   [ERROR] Не удалось подключиться к iiko API")
+                return None
+            try:
+                print("   [DEBUG] Calling get_all_sales_report...")
+                data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
+                print(f"   [DEBUG] Got {len(data.get('data', [])) if data else 0} records")
+                if not data or not data.get('data'):
+                    return None
+                return data
+            finally:
+                olap.disconnect()
 
-            print(f"   [DEBUG] Calling get_all_sales_report...")
-            all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
-            print(f"   [DEBUG] Got {len(all_sales_data.get('data', [])) if all_sales_data else 0} records")
-            olap.disconnect()
+        # Общий кэш + single-flight (тот же, что у dashboard-analytics). Кэш теперь
+        # шарится между вкладками, а не обнуляется отладочным .clear() на каждом запросе.
+        all_sales_data = cached_olap(cache_key, _fetch_all_sales)
 
-            DASHBOARD_OLAP_CACHE[cache_key] = {
-                'data': all_sales_data,
-                'timestamp': now
-            }
+        if not all_sales_data:
+            return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
         # Считаем метрики из сырых OLAP данных
         calculator = DashboardMetrics()

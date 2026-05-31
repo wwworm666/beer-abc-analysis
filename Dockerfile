@@ -14,9 +14,18 @@ COPY . .
 
 EXPOSE 10000
 
+# worker-class gthread + threads: блокирующий iiko/OLAP-вызов больше не занимает
+#   весь воркер целиком (другие запросы обслуживаются другими потоками воркера).
+# --timeout 180: запас под retry-бюджет OLAP (2 попытки × 60с + backoff).
+# --max-requests + jitter: периодический рециклинг воркеров против накопления
+#   per-worker кэшей/истории (anti-leak на длинном аптайме).
 CMD ["gunicorn", "app:app", \
      "--bind", "0.0.0.0:10000", \
-     "--timeout", "120", \
+     "--worker-class", "gthread", \
      "--workers", "2", \
+     "--threads", "4", \
+     "--timeout", "180", \
+     "--max-requests", "800", \
+     "--max-requests-jitter", "100", \
      "--access-logfile", "-", \
      "--error-logfile", "-"]

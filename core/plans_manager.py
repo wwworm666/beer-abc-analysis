@@ -182,6 +182,11 @@ class PlansManager:
             temp_file = self.data_file + '.tmp'
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())  # durability: данные на диске до replace
+                except OSError:
+                    pass  # некоторые ФС (сетевые маунты) не поддерживают fsync
 
             # Атомарно переименовываем (на Unix это атомарно)
             os.replace(temp_file, self.data_file)

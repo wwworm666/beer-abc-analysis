@@ -28,6 +28,19 @@ app.jinja_env.globals['app_version'] = APP_VERSION
 register_blueprints(app)
 
 
+# Ранняя проверка конфигурации: без iiko-кредов все iiko-фичи молча отвечают
+# «недоступно» на каждом запросе. Лучше явно предупредить при старте контейнера.
+def _validate_config():
+    from config import IIKO_LOGIN, IIKO_PASSWORD
+    if not IIKO_LOGIN or not IIKO_PASSWORD:
+        print("[CONFIG WARNING] IIKO_LOGIN/IIKO_PASSWORD не заданы — "
+              "интеграция с iiko (дашборд, выручка, сотрудники) работать не будет. "
+              "Проверьте .env / переменные окружения.")
+
+
+_validate_config()
+
+
 @app.route('/static/manifest.json')
 def serve_manifest():
     """Отдача manifest.json для PWA"""

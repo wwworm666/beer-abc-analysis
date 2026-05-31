@@ -86,14 +86,21 @@ def _trigger_refresh():
 
 def _loop():
     while True:
-        wait = _seconds_until_next_run(REFRESH_HOUR, REFRESH_MINUTE)
-        next_at = datetime.now() + timedelta(seconds=wait)
-        print(f"[CHZ-SCHED] следующий авторефреш: {next_at.isoformat()} (через {wait/3600:.1f}ч)")
-        time.sleep(wait)
-        _trigger_refresh()
-        # На всякий случай не дать циклу прокрутиться слишком быстро если
-        # _trigger_refresh падает мгновенно
-        time.sleep(60)
+        try:
+            wait = _seconds_until_next_run(REFRESH_HOUR, REFRESH_MINUTE)
+            next_at = datetime.now() + timedelta(seconds=wait)
+            print(f"[CHZ-SCHED] следующий авторефреш: {next_at.isoformat()} (через {wait/3600:.1f}ч)")
+            time.sleep(wait)
+            _trigger_refresh()
+            # На всякий случай не дать циклу прокрутиться слишком быстро если
+            # _trigger_refresh падает мгновенно
+            time.sleep(60)
+        except Exception as e:
+            # Не даём исключению (например OSError из lock-файла на full/RO диске)
+            # молча убить daemon-поток — иначе авторефреш перестанет работать до
+            # рестарта. Логируем и продолжаем после паузы.
+            print(f"[CHZ-SCHED] исключение в цикле планировщика: {e}")
+            time.sleep(60)
 
 
 def start_scheduler():

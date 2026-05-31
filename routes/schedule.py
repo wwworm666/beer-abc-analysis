@@ -119,6 +119,7 @@ def schedule_update_revenue(date_str, location_id):
 @schedule_bp.route('/api/schedule/revenue/sync/<date_str>', methods=['POST'])
 def schedule_sync_revenue(date_str):
     """Синхронизировать фактическую выручку из iiko за дату."""
+    iiko = None
     try:
         iiko = IikoAPI()
         iiko.authenticate()
@@ -150,6 +151,10 @@ def schedule_sync_revenue(date_str):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+    finally:
+        # Освобождаем слот лицензии iiko в любом случае (иначе утечка слотов).
+        if iiko is not None:
+            iiko.logout()
 
 
 @schedule_bp.route('/api/schedule/wishes', methods=['GET'])

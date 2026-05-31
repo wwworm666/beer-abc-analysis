@@ -33,7 +33,9 @@ def webhook_secret() -> str:
     return hashlib.sha256(("ocwh:" + (_token() or "")).encode()).hexdigest()[:40]
 
 
-def api_call(method: str, payload: dict = None, timeout: int = 20):
+def api_call(method: str, payload: dict = None, timeout: int = 8):
+    # timeout=8 (было 20): webhook-хендлер вызывает api_call синхронно, а воркеров
+    # всего 2 — долгий ответ Telegram не должен надолго занимать воркер.
     token = _token()
     if not token:
         log.error("TELEGRAM_OPEN_CHECK_BOT_TOKEN не задан")

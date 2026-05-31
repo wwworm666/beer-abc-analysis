@@ -10,6 +10,9 @@ class XYZAnalysis:
         dataframe: DataFrame с данными (должен содержать YearWeek, DishName, DishAmountInt)
         """
         self.df = dataframe.copy()
+        # Мемоизация XYZ по бару: результат детерминирован для (bar, min_weeks),
+        # но раньше пересчитывался для каждой категории в цикле (дорогой groupby).
+        self._xyz_by_bar_cache = {}
     
     def calculate_coefficient_of_variation(self, weekly_sales):
         """
@@ -61,12 +64,18 @@ class XYZAnalysis:
         
         Возвращает: DataFrame с XYZ категориями
         """
+        cache_key = (bar_name, min_weeks)
+        if cache_key in self._xyz_by_bar_cache:
+            return self._xyz_by_bar_cache[cache_key]
+
         # Фильтруем по бару
         bar_data = self.df[self.df['Store.Name'] == bar_name].copy()
-        
+
         if len(bar_data) == 0:
             print(f"[WARN]  Нет данных для бара: {bar_name}")
-            return pd.DataFrame()
+            empty = pd.DataFrame()
+            self._xyz_by_bar_cache[cache_key] = empty
+            return empty
         
         print(f"\n[EMOJI] XYZ анализ для бара: {bar_name}")
         
@@ -110,7 +119,8 @@ class XYZAnalysis:
             print(f"      X (стабильный): {(result_df['XYZ_Category'] == 'X').sum()} шт")
             print(f"      Y (средний): {(result_df['XYZ_Category'] == 'Y').sum()} шт")
             print(f"      Z (нестабильный): {(result_df['XYZ_Category'] == 'Z').sum()} шт")
-        
+
+        self._xyz_by_bar_cache[cache_key] = result_df
         return result_df
     
     def get_weekly_sales_chart_data(self, bar_name, beer_name):

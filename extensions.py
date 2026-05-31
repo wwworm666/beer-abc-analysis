@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import threading
 import subprocess
 from datetime import datetime, timedelta
 from core.taps_manager import TapsManager
@@ -55,6 +56,76 @@ EMPLOYEES_CACHE_TTL = 300  # 5 минут
 
 DASHBOARD_OLAP_CACHE = {}
 DASHBOARD_OLAP_CACHE_TTL = 600  # 10 минут
+DASHBOARD_OLAP_CACHE_MAX_KEYS = 64  # мягкий bound против неограниченного роста кэша
+
+# Per-key блокировки для single-flight: не дать параллельным одинаковым запросам
+# внутри одного воркера дёргать дорогой OLAP по разу каждый (защита от стампеда).
+_OLAP_INFLIGHT_LOCKS = {}
+_OLAP_INFLIGHT_LOCKS_GUARD = threading.Lock()
+
+
+def _get_olap_inflight_lock(cache_key):
+    """Вернуть (создав при необходимости) per-key lock для single-flight."""
+    with _OLAP_INFLIGHT_LOCKS_GUARD:
+        lock = _OLAP_INFLIGHT_LOCKS.get(cache_key)
+        if lock is None:
+            lock = threading.Lock()
+            _OLAP_INFLIGHT_LOCKS[cache_key] = lock
+        # Лёгкая уборка: не копить локи для ключей, которых давно нет в кэше.
+        if len(_OLAP_INFLIGHT_LOCKS) > 2 * DASHBOARD_OLAP_CACHE_MAX_KEYS:
+            for k in [k for k in _OLAP_INFLIGHT_LOCKS
+                      if k != cache_key and k not in DASHBOARD_OLAP_CACHE]:
+                _OLAP_INFLIGHT_LOCKS.pop(k, None)
+        return lock
+
+
+def _evict_stale_olap_cache(now):
+    """Удалить протухшие ключи и ограничить размер кэша (anti-leak)."""
+    stale = [k for k, v in DASHBOARD_OLAP_CACHE.items()
+             if (now - v.get('timestamp', 0)) >= DASHBOARD_OLAP_CACHE_TTL]
+    for k in stale:
+        DASHBOARD_OLAP_CACHE.pop(k, None)
+    if len(DASHBOARD_OLAP_CACHE) > DASHBOARD_OLAP_CACHE_MAX_KEYS:
+        # Выкинуть самые старые сверх лимита
+        ordered = sorted(DASHBOARD_OLAP_CACHE.items(), key=lambda kv: kv[1].get('timestamp', 0))
+        for k, _ in ordered[:len(DASHBOARD_OLAP_CACHE) - DASHBOARD_OLAP_CACHE_MAX_KEYS]:
+            DASHBOARD_OLAP_CACHE.pop(k, None)
+
+
+def cached_olap(cache_key, fetch_fn, ttl=DASHBOARD_OLAP_CACHE_TTL):
+    """
+    Получить OLAP-данные с кэшем и single-flight (защита от стампеда внутри воркера).
+
+    1. Проверяем кэш + TTL — при попадании возвращаем сразу.
+    2. При промахе берём per-key lock, чтобы одновременные одинаковые запросы
+       в этом воркере не дёргали iiko по разу каждый.
+    3. Под локом повторно проверяем кэш (double-checked locking) — мог наполнить
+       другой поток, пока мы ждали лок.
+    4. Иначе вызываем fetch_fn(), кэшируем НЕпустой результат и возвращаем.
+
+    fetch_fn() должна вернуть данные; falsy-результат (ошибка iiko) НЕ кэшируется.
+    Шаринг между воркерами не делается (per-process кэш) — двойной запрос с фронта
+    устранён на клиенте; этого хватает, см. docs/lessons.md.
+    """
+    now = time.time()
+    entry = DASHBOARD_OLAP_CACHE.get(cache_key)
+    if entry and (now - entry['timestamp']) < ttl:
+        return entry['data']
+
+    lock = _get_olap_inflight_lock(cache_key)
+    with lock:
+        # double-check: пока ждали лок, кэш мог наполнить другой поток
+        now = time.time()
+        entry = DASHBOARD_OLAP_CACHE.get(cache_key)
+        if entry and (now - entry['timestamp']) < ttl:
+            return entry['data']
+
+        data = fetch_fn()
+        if data:
+            DASHBOARD_OLAP_CACHE[cache_key] = {'data': data, 'timestamp': time.time()}
+            _evict_stale_olap_cache(time.time())
+        return data
+
 
 nomenclature_cache = {
     'data': None,

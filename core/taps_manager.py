@@ -9,6 +9,8 @@ import json
 import os
 import threading
 
+from core.json_store import file_lock
+
 class ActionType(Enum):
     """Типы действий с кранами"""
     START = "start"      # Подключение кеги
@@ -63,6 +65,9 @@ class TapsManager:
         'bar4': {'name': 'Бар 4', 'taps': 12},
     }
 
+    # Максимум событий в истории одного крана (защита от неограниченного роста файла)
+    MAX_TAP_HISTORY = 200
+
     @staticmethod
     def _now():
         """Возвращает текущее время в московской timezone"""
@@ -78,7 +83,8 @@ class TapsManager:
         """
         self.data_file = data_file
         self.bars: Dict[str, Bar] = {}
-        self._lock = threading.Lock()  # Lock для thread-safe операций
+        self._lock = threading.Lock()  # in-process lock
+        self._lock_path = self.data_file + '.lock'  # cross-worker advisory lock
         self._init_bars()
         self._load_data()
 
@@ -86,6 +92,16 @@ class TapsManager:
         """Инициализация баров"""
         for bar_id, config in self.BARS_CONFIG.items():
             self.bars[bar_id] = Bar(bar_id, config['name'], config['taps'])
+
+    def _reload(self):
+        """
+        Перечитать состояние кранов с диска (rebuild из конфига + наложение файла).
+        Вызывать внутри лока перед мутацией — иначе под gunicorn 2 workers второй
+        воркер пишет из устаревшего in-memory снимка и затирает чужие изменения
+        (last-writer-wins, потеря истории/состояния кег).
+        """
+        self._init_bars()
+        self._load_data()
 
     def _load_data(self):
         """Загрузка данных из файла"""
@@ -125,9 +141,15 @@ class TapsManager:
 
             data = {}
             for bar_id, bar in self.bars.items():
+                taps_list = []
+                for tap in bar.taps.values():
+                    # Тримминг истории до последних MAX_TAP_HISTORY событий
+                    if len(tap.history) > self.MAX_TAP_HISTORY:
+                        tap.history = tap.history[-self.MAX_TAP_HISTORY:]
+                    taps_list.append(tap.to_dict())
                 data[bar_id] = {
                     'name': bar.name,
-                    'taps': [tap.to_dict() for tap in bar.taps.values()]
+                    'taps': taps_list
                 }
 
             tmp_path = self.data_file + '.tmp'
@@ -186,7 +208,8 @@ class TapsManager:
         Returns:
             Результат операции
         """
-        with self._lock:
+        with self._lock, file_lock(self._lock_path):
+            self._reload()  # свежее состояние с диска перед мутацией (cross-worker)
             if bar_id not in self.bars:
                 return {'success': False, 'error': f'Бар {bar_id} не найден'}
 
@@ -239,7 +262,8 @@ class TapsManager:
         Returns:
             Результат операции
         """
-        with self._lock:
+        with self._lock, file_lock(self._lock_path):
+            self._reload()  # свежее состояние с диска перед мутацией (cross-worker)
             if bar_id not in self.bars:
                 return {'success': False, 'error': f'Бар {bar_id} не найден'}
 
@@ -286,7 +310,8 @@ class TapsManager:
         Returns:
             Результат операции
         """
-        with self._lock:
+        with self._lock, file_lock(self._lock_path):
+            self._reload()  # свежее состояние с диска перед мутацией (cross-worker)
             if bar_id not in self.bars:
                 return {'success': False, 'error': f'Бар {bar_id} не найден'}
 

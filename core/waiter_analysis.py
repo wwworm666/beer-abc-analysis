@@ -42,6 +42,10 @@ class WaiterAnalysis:
         ]
         self.df = self.df[~self.df['WaiterName'].isin(system_users)]
 
+        # Флаг мемоизации prepare_waiter_data: подготовка идемпотентна, но раньше
+        # гонялась заново на каждого официанта (regex по всему df W+1 раз).
+        self._prepared = False
+
     def extract_beer_info(self, dish_name):
         """
         Извлекает название пива и объем порции из DishName
@@ -86,7 +90,12 @@ class WaiterAnalysis:
         return dish_name, 0.0
 
     def prepare_waiter_data(self):
-        """Подготовка данных для анализа по официантам"""
+        """Подготовка данных для анализа по официантам (мемоизировано)."""
+        # Подготовка идемпотентна — выполняем один раз на экземпляр, чтобы regex
+        # по всему df не гонялся повторно на каждого официанта.
+        if self._prepared:
+            return self.df
+
         # Извлекаем название пива и объем порции
         beer_info = self.df['DishName'].apply(self.extract_beer_info)
         self.df['BeerName'] = beer_info.apply(lambda x: x[0])
@@ -110,6 +119,7 @@ class WaiterAnalysis:
         if 'DishDiscountSumInt' in self.df.columns and 'ProductCostBase.ProductCost' in self.df.columns:
             self.df['Margin'] = self.df['DishDiscountSumInt'] - self.df['ProductCostBase.ProductCost']
 
+        self._prepared = True
         return self.df
 
     def get_waiter_summary(self, bar_name=None):

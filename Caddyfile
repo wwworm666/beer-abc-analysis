@@ -1,5 +1,11 @@
 {$APP_DOMAIN} {
 	encode gzip
+
+	# Кэширование статики на стороне клиента. Ассеты версионируются ?v=<hash>,
+	# поэтому длинный max-age безопасен (новая версия = новый URL).
+	@static path /static/*
+	header @static Cache-Control "public, max-age=2592000"
+
 	reverse_proxy localhost:10000
 
 	log {
