@@ -1,5 +1,28 @@
 ﻿# Changelog
 
+### 2026-05-29 — Аудит стабильности/скорости: дедуп фронта, single-flight, atomic-write, таймауты iiko/Telegram
+
+Измерение прод-логов вскрыло первопричину тормозов дашборда: фронт слал `/api/dashboard-analytics` дважды, пара попадала на оба gunicorn-воркера одновременно, оба мимо кэша (стампед), оба на 16-17с заняты одним OLAP — на это время весь сайт без свободных воркеров. Hit-rate кэша был ~17%.
+
+**Что:**
+
+- **Tier 1 (первопричина):** убран двойной запрос фронта + in-flight guard ([static/js/dashboard/modules/analytics.js](../static/js/dashboard/modules/analytics.js)); backend single-flight `cached_olap()` с per-key lock ([extensions.py](../extensions.py)); удалён отладочный `DASHBOARD_OLAP_CACHE.clear()` ([routes/dashboard.py](../routes/dashboard.py)).
+- **Tier 2 (iiko):** `timeout` на 4 вызовах без него, кэш `get_groups_with_pos`, logout bare-except → лог, guard `authenticate()` при пустых кредах ([core/iiko_api.py](../core/iiko_api.py)); retry-бюджет OLAP < gunicorn timeout ([core/olap_reports.py](../core/olap_reports.py)); try/finally+logout от утечки слотов ([routes/schedule.py](../routes/schedule.py), [routes/taps.py](../routes/taps.py)); валидация конфига ([app.py](../app.py)).
+- **Tier 3 (конкурентность):** общий [core/json_store.py](../core/json_store.py) (atomic write + cross-worker lock) применён к taps/meeting_notes/subscribers; fsync в plans_manager; try/except вокруг циклов шедулеров.
+- **Tier 4 (Telegram):** таймауты (api_call 8с, aiogram session 15с).
+- **Tier 5 (нужен редеплой):** gunicorn `gthread`/`threads=4`/`timeout=180`/`max-requests=800` ([Dockerfile](../Dockerfile)); Caddy `Cache-Control` для `/static` ([Caddyfile](../Caddyfile)).
+- **Tier 6:** мемоизация `prepare_waiter_data` и `perform_xyz_analysis_by_bar`, убран лишний `df.copy()` по категориям (эквивалентность проверена).
+
+**Почему:**
+
+- Главная причина тормозов — одновременная блокировка обоих воркеров идентичным OLAP. Дедуп фронта + single-flight снимают её; остальное закрывает реальные риски доступности под gunicorn 2 workers.
+
+**Проверка (offline):** регрессии `OK (expected failures=3)` (идентично baseline), draft 30 passed, compileall без ошибок, эквивалентность Tier 6 подтверждена. Детали — [docs/audit-findings-2026-05-29.md](audit-findings-2026-05-29.md).
+
+**Файлы:** см. список в [docs/audit-findings-2026-05-29.md](audit-findings-2026-05-29.md). Коммит `97bb43e` (код), деплой-конфиг вступит в силу после редеплоя.
+
+---
+
 ### 2026-05-29 — Локальный снапшот OLAP-документации iiko (полнота проверена)
 
 Собран полный набор документации по OLAP-отчётам iiko в папку `iiko-olap-docs/` (источник истины — портал, снапшот в репозитории). Сбор шёл не «по очевидным slug'ам», а с проверкой полноты.
