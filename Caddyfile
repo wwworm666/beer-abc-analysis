@@ -1,4 +1,4 @@
-{$APP_DOMAIN} {
+beerkultura.ru {
 	encode gzip
 
 	# Кэширование статики на стороне клиента. Ассеты версионируются ?v=<hash>,
@@ -15,4 +15,9 @@
 		}
 		format console
 	}
+}
+
+# www → apex редирект (Caddy сам выпустит второй LE-сертификат)
+www.beerkultura.ru {
+	redir https://beerkultura.ru{uri} permanent
 }
