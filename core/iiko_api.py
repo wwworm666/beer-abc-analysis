@@ -44,25 +44,41 @@ class IikoAPI:
             "login": self.login,
             "pass": password_hash
         }
-        
+
         print(f"[AUTH] Podklyuchaus k {self.base_url}...")
 
-        try:
-            response = requests.get(url, params=params, timeout=30)
+        # iiko периодически принудительно сбрасывает соединение на авторизации
+        # (ConnectionResetError 10054), особенно при всплеске сессий. Ретраим
+        # транзиентные сетевые сбои с лёгким backoff — auth идемпотентна.
+        # HTTP-ошибки (неверный логин/пароль) НЕ ретраим — это не транзиентно.
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = requests.get(url, params=params, timeout=30)
 
-            if response.status_code == 200:
-                # Токен приходит в формате <string>токен</string>
-                self.token = response.text.strip().replace("<string>", "").replace("</string>", "")
-                print(f"[OK] Uspeshno poluchen token: {self.token[:20]}...")
-                return True
-            else:
-                print(f"[ERROR] Oshibka avtorizacii: {response.status_code}")
-                print(f"   Otvet servera: {response.text}")
+                if response.status_code == 200:
+                    # Токен приходит в формате <string>токен</string>
+                    self.token = response.text.strip().replace("<string>", "").replace("</string>", "")
+                    print(f"[OK] Uspeshno poluchen token: {self.token[:20]}...")
+                    return True
+                else:
+                    print(f"[ERROR] Oshibka avtorizacii: {response.status_code}")
+                    print(f"   Otvet servera: {response.text}")
+                    return False
+
+            except (requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout) as e:
+                print(f"[WARN] Setevoy sboy avtorizacii (popitka {attempt}/{max_attempts}): {e}")
+                if attempt < max_attempts:
+                    time.sleep(1.5 * attempt)
+                else:
+                    print(f"[ERROR] Avtorizaciya ne udalas posle {max_attempts} popytok")
+                    return False
+            except Exception as e:
+                print(f"[ERROR] Oshibka podklyucheniya: {e}")
                 return False
 
-        except Exception as e:
-            print(f"[ERROR] Oshibka podklyucheniya: {e}")
-            return False
+        return False
     
     def logout(self):
         """Освободить токен (освободить слот лицензии)"""

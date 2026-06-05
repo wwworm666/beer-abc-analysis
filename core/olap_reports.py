@@ -1703,6 +1703,79 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return {}
 
+    def get_new_guests_count(self, date_from, date_to, bar_name=None):
+        """
+        Количество НОВЫХ гостей за период — уникальные карты лояльности (по телефону),
+        у которых дата создания клиента (Delivery.CustomerCreatedDateTyped) попадает
+        в выбранный период.
+
+        В отличие от get_new_loyalty_cards_by_waiter() (группировка по официанту, при
+        суммировании возможен двойной учёт телефона между официантами), здесь телефоны
+        считаются уникально суммарно.
+
+        Returns:
+            int - количество уникальных новых телефонов (новых карт)
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return 0
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": ["Delivery.CustomerPhone"],
+            "groupByColFields": [],
+            "aggregateFields": ["UniqOrderId.OrdersCount"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                # Дата создания клиента в пределах периода — признак "новый гость"
+                "Delivery.CustomerCreatedDateTyped": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(url, params=params, json=request, headers=headers, timeout=60)
+            if response.status_code == 200:
+                phones = set()
+                for record in response.json().get('data', []):
+                    phone = record.get('Delivery.CustomerPhone', '')
+                    if phone:
+                        phones.add(phone)
+                return len(phones)
+            else:
+                print(f"[ERROR] get_new_guests_count HTTP {response.status_code}")
+                return 0
+        except Exception as e:
+            print(f"[ERROR] get_new_guests_count: {e}")
+            return 0
+
     def get_discount_names(self, date_from, date_to):
         """
         Лёгкий OLAP запрос — только список названий скидок за период.

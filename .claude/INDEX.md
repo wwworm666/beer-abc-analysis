@@ -39,6 +39,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/overview.md](../docs/overview.md) | Архитектура, blueprints, core-модули, внешние API, деплой Selectel | ✅ |
 | [docs/PROJECT_STRUCTURE.md](../docs/PROJECT_STRUCTURE.md) | Дерево репозитория | ✅ |
 | [docs/dashboard.md](../docs/dashboard.md) | Дашборд План/Факт — 15 метрик, AI-анализ | ✅ |
+| [docs/monthly-report.md](../docs/monthly-report.md) | Вкладка «Месячный отчёт» — помесячная динамика, 16 графиков, YoY, кэш | ✅ |
 | [docs/employee.md](../docs/employee.md) | Employee Dashboard — аналитика сотрудников, KPI, бонусы | ✅ |
 | [docs/abc-xyz-analysis.md](../docs/abc-xyz-analysis.md) | ABC/XYZ анализ ассортимента пива | ✅ |
 | [docs/discounts.md](../docs/discounts.md) | Анализ скидок — RFM-сегментация, ROI | ✅ |
@@ -93,6 +94,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-06-04:** Новая вкладка дашборда «Месячный отчёт» — помесячная динамика метрик за год, 16 графиков, YoY-наложение, помесячный дисковый кэш. Док: [monthly-report.md](../docs/monthly-report.md).
 - **2026-05-28:** Ревизия документации — `.claude/docs/*.md` перенесены в корневой `docs/`. SoT теперь в `docs/`. Обновлены `overview.md`, `PROJECT_STRUCTURE.md`, `stocks.md`, `lessons.md`, `INDEX.md`, `CLAUDE.md` под текущую реальность (11 blueprints, 33 core-модуля, menu_tool вынесен, Selectel-деплой).
 - **2026-05-18:** Open-check Telegram bot — ежедневная проверка открытых смен в 4 барах KULT в 14:59 МСК. Позитив в группу, алармы в ЛС админам. Atomic file lock против double-fire под gunicorn 2-workers.
 - **2026-05-17:** Конструктор отчётов — новая страница `/explorer` и API `/api/explorer/pivot`. Произвольная pivot-агрегация выручки из iiko.

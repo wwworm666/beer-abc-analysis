@@ -59,6 +59,12 @@ data/temp/
 # Кэши
 data/cache/
 
+# Месячный отчёт: генерируемая витрина + lock-файлы шедулера
+# (на проде живут на /kultura и /srv/beer/data, в репо не нужны)
+data/monthly_cache/
+data/.monthly_report_lock_*
+data/.monthly_report_startup_*
+
 # API ключи и секреты
 апи
 .env

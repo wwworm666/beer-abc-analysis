@@ -1,0 +1,392 @@
+<!-- Страница "Месячный отчёт": помесячная динамика метрик за год -->
+
+<div class="mr-controls">
+    <div class="mr-controls-left">
+        <div class="mr-bar-buttons" id="mr-bar-buttons">
+            <!-- Легенда баров добавляется через JS -->
+        </div>
+    </div>
+    <div class="mr-controls-right">
+        <select id="mr-year" class="control-input mr-year-select" title="Год"></select>
+        <span class="mr-refreshed" id="mr-refreshed" title="Данные обновляются автоматически 1-го числа каждого месяца"></span>
+    </div>
+</div>
+<div class="mr-stacked-note" id="mr-stacked-note"></div>
+
+<!-- Loading -->
+<div id="mr-loading" class="loading-container hidden">
+    <div class="loading-spinner"></div>
+</div>
+
+<!-- No Data -->
+<div id="mr-no-data" class="no-data-state hidden">
+    <h3>Нет данных</h3>
+    <p>За выбранный год пока нет данных для построения графиков.</p>
+</div>
+
+<div id="mr-content">
+    <!-- ========================= БЛОК 1: ВЫРУЧКА ========================= -->
+    <h2 class="mr-section-title">Выручка</h2>
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Выручка</h3>
+                <p class="chart-subtitle">Сумма продаж со скидкой за месяц. Формула: Σ DishDiscountSumInt</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-revenue"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Выручка по категориям</h3>
+                <p class="chart-subtitle">Стопкой за месяц: Кухня + Фасовка + Розлив = общая выручка месяца</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-revenue-stacked" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-revenue-stacked"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Наценка, %</h3>
+                <p class="chart-subtitle">Средневзвешенная по себестоимости. Формула: Σ(Наценка×Себест.) / Σ Себест.</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-markup-pct"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Наценка по категориям, %</h3>
+                <p class="chart-subtitle">Розлив / Фасовка / Кухня — взвешенная наценка по каждой (выбор бара)</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-markup-cat" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-markup-cat"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Наценка, ₽ (маржа)</h3>
+                <p class="chart-subtitle">Валовая прибыль. Формула: Выручка − Себестоимость</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-margin"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Количество чеков</h3>
+                <p class="chart-subtitle">Уникальные заказы. Формула: count(DISTINCT UniqOrderId)</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-checks"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Средний чек</h3>
+                <p class="chart-subtitle">Формула: Выручка / Количество чеков</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-avg-check"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ==================== БЛОК 2: ПРОДУКТОВЫЙ РАЗРЕЗ ==================== -->
+    <h2 class="mr-section-title">Продуктовый разрез</h2>
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Доли категорий, %</h3>
+                <p class="chart-subtitle">Кухня / Фасовка / Розлив, нормировано к 100% за месяц</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-shares" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-shares"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Расход розлива и фасовки</h3>
+                <p class="chart-subtitle">Розлив / Фасовка за месяц. Деньги (₽) или штуки (порции/бутылки), выбор бара</p>
+            </div>
+            <div class="mr-toggle-row">
+                <div class="mr-toggle" id="mr-consumption-toggle">
+                    <button class="mr-toggle-btn active" data-mode="money">Деньги</button>
+                    <button class="mr-toggle-btn" data-mode="units">Штуки</button>
+                </div>
+                <select class="control-input mr-bar-select" data-chart="mr-consumption" title="Бар"></select>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-consumption"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Проливы в литрах по стилям</h3>
+                <p class="chart-subtitle">Стопкой по стилям за месяц. Литры = порции × объём порции (оценка из названия)</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-liters" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-liters"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Локал / импорт — фасовка</h3>
+                <p class="chart-subtitle">Доля выручки. Локал = Россия (поле страны), импорт = прочие страны</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-li-packaged" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-li-packaged"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Локал / импорт — розлив</h3>
+                <p class="chart-subtitle">Доля выручки. Локал = Россия, импорт = прочие страны</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-li-draft" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-li-draft"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ======================= БЛОК 3: ЛОЯЛЬНОСТЬ ======================= -->
+    <h2 class="mr-section-title">Лояльность</h2>
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Новые гости</h3>
+                <p class="chart-subtitle">Новые карты лояльности за месяц (по дате регистрации клиента)</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-new-guests"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Выручка: по картам / без карт</h3>
+                <p class="chart-subtitle">Стопкой за месяц: разбивка по наличию карты лояльности в чеке</p>
+            </div>
+            <select class="control-input mr-bar-select" data-chart="mr-revenue-card" title="Бар"></select>
+            <div class="chart-wrapper"><canvas id="mr-revenue-card"></canvas></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3>Списанные баллы</h3>
+                <p class="chart-subtitle">Сумма всех скидок за месяц. Формула: Σ DiscountSum</p>
+            </div>
+            <div class="chart-wrapper"><canvas id="mr-loyalty-writeoffs"></canvas></div>
+        </div>
+
+        <div class="chart-card mr-top-guests-card">
+            <div class="chart-header mr-top-guests-header">
+                <div>
+                    <h3>ТОП-5 гостей по тратам</h3>
+                    <p class="chart-subtitle">Держатели карт лояльности за выбранный месяц</p>
+                </div>
+                <div class="mr-top-selects">
+                    <select class="control-input mr-bar-select" data-chart="mr-top-guests" title="Бар"></select>
+                    <select id="mr-top-month" class="control-input mr-month-select">
+                        <!-- Месяцы добавляются через JS -->
+                    </select>
+                </div>
+            </div>
+            <div class="mr-top-guests-body">
+                <table class="mr-top-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Гость</th>
+                            <th>Карта</th>
+                            <th>Визитов</th>
+                            <th>Траты</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mr-top-guests-body">
+                        <!-- Заполняется через JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Сетка графиков (раньше бралась из charts_tab.html; теперь страница самодостаточна) */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.mr-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    margin: var(--spacing-md) 0 var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.mr-controls-left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.mr-controls-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.mr-refreshed {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+}
+
+.mr-year-select {
+    max-width: 110px;
+    padding: 8px 12px;
+}
+
+/* Выпадающий выбор бара на столбчатых графиках */
+.mr-bar-select {
+    max-width: 140px;
+    padding: 6px 10px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.mr-top-selects {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Легенда баров (цвет -> бар), сверху; все бары показываются всегда */
+.mr-bar-buttons {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.mr-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+}
+
+.mr-bar-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bar-color, var(--accent));
+    flex-shrink: 0;
+}
+
+.mr-stacked-note {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin: 0 0 var(--spacing-md);
+}
+
+/* Переключатель Деньги/Штуки и селекторы категории */
+.mr-toggle {
+    display: inline-flex;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+}
+
+/* Ряд из нескольких переключателей (Деньги/Штуки + категория) */
+.mr-toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.mr-toggle-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border-radius: 999px;
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.mr-toggle-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.mr-toggle-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.mr-section-title {
+    margin: var(--spacing-xl) 0 var(--spacing-md);
+    color: var(--accent);
+    font-size: 1.3rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--spacing-sm);
+}
+
+.mr-top-guests-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+}
+
+.mr-month-select {
+    max-width: 160px;
+}
+
+.mr-top-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: var(--spacing-md);
+}
+
+.mr-top-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.mr-top-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-variant-numeric: tabular-nums;
+}
+
+.mr-top-table tbody tr:hover {
+    background: var(--bg-tertiary);
+}
+
+.mr-top-guests-card .chart-wrapper {
+    height: auto;
+}
+
+.mr-empty-row td {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: var(--spacing-lg);
+}
+</style>

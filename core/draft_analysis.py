@@ -339,6 +339,42 @@ class DraftAnalysis:
         summary = self.get_beer_summary(bar_name)
         return summary.head(top_n)
 
+    def get_style_summary(self, bar_name=None):
+        """
+        Сводка проливов в литрах по СТИЛЯМ пива (DishGroup.ThirdParent).
+
+        Аналог get_beer_summary(), но группировка по стилю (ИПА, Вайсс, Сауэр...),
+        а не по конкретной позиции. Литраж считается так же:
+        VolumeInLiters = DishAmountInt * PortionVolume (объём порции из названия).
+
+        Returns:
+            DataFrame с колонками Style, TotalLiters, TotalPortions
+            (отсортировано по литрам убыв.)
+        """
+        df = self.prepare_draft_data()
+
+        # Фильтр по бару, если указан
+        if bar_name:
+            df = df[df['Store.Name'] == bar_name]
+
+        style_col = 'DishGroup.ThirdParent'
+        if style_col not in df.columns:
+            df[style_col] = '(без стиля)'
+
+        df['_style'] = (
+            df[style_col].fillna('(без стиля)').astype(str).replace('', '(без стиля)')
+        )
+
+        summary = df.groupby('_style').agg({
+            'VolumeInLiters': 'sum',
+            'DishAmountInt': 'sum',
+        }).reset_index()
+
+        summary.columns = ['Style', 'TotalLiters', 'TotalPortions']
+        summary = summary.sort_values('TotalLiters', ascending=False).reset_index(drop=True)
+
+        return summary
+
     def get_weekly_chart_data(self, beer_name, bar_name=None):
         """
         Данные для графика продаж по неделям (в литрах)

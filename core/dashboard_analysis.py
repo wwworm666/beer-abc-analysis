@@ -269,3 +269,91 @@ class DashboardMetrics:
             if order_id:
                 unique_order_ids.add(str(order_id))
         return len(unique_order_ids)
+
+    # ========== ДОПОЛНИТЕЛЬНЫЕ РАЗРЕЗЫ (для месячного отчёта) ==========
+
+    # Россия = локальное производство; любая другая страна (или пусто) = импорт.
+    # Решение бизнеса: классификация по полю DishForeignName (страна).
+    LOCAL_COUNTRY = 'Россия'
+
+    def local_import_revenue(self, records, top_parent):
+        """
+        Разбить выручку категории на локальную и импортную по стране (DishForeignName).
+
+        Локал = страна 'Россия'. Импорт = все остальные страны (и пустое значение).
+
+        Args:
+            records: list - сырые OLAP записи (get_all_sales_report -> data)
+            top_parent: str - 'Напитки Фасовка' или 'Напитки Розлив'
+
+        Returns:
+            dict - {'local': ₽, 'import': ₽}
+        """
+        local_sum = 0.0
+        import_sum = 0.0
+        for record in records:
+            if record.get('DishGroup.TopParent', '') != top_parent:
+                continue
+            revenue = record.get('DishDiscountSumInt', 0)
+            try:
+                revenue = float(revenue) if revenue else 0.0
+            except (ValueError, TypeError):
+                continue
+            country = (record.get('DishForeignName') or '').strip()
+            if country == self.LOCAL_COUNTRY:
+                local_sum += revenue
+            else:
+                import_sum += revenue
+        return {'local': round(local_sum, 2), 'import': round(import_sum, 2)}
+
+    def category_units(self, records, top_parent):
+        """
+        Сумма проданных единиц (DishAmountInt) по категории.
+
+        Для фасовки единица = бутылка/банка, для розлива = порция (0.3/0.5 л).
+
+        Args:
+            records: list - сырые OLAP записи
+            top_parent: str - 'Напитки Фасовка' или 'Напитки Розлив'
+
+        Returns:
+            float - суммарное количество единиц
+        """
+        total = 0.0
+        for record in records:
+            if record.get('DishGroup.TopParent', '') != top_parent:
+                continue
+            amount = record.get('DishAmountInt', 0)
+            try:
+                total += float(amount) if amount else 0.0
+            except (ValueError, TypeError):
+                continue
+        return round(total, 2)
+
+    def revenue_card_split(self, rfm_rows):
+        """
+        Разбить выручку на «по картам лояльности» и «без карты».
+
+        Признак карты — непустое поле Delivery.CustomerCardNumber в строках
+        RFM-отчёта (get_rfm_report).
+
+        Args:
+            rfm_rows: list - строки get_rfm_report -> data
+
+        Returns:
+            dict - {'card': ₽, 'nocard': ₽}
+        """
+        card_sum = 0.0
+        nocard_sum = 0.0
+        for row in rfm_rows:
+            card = (row.get('Delivery.CustomerCardNumber') or '').strip()
+            revenue = row.get('DishDiscountSumInt', 0)
+            try:
+                revenue = float(revenue) if revenue else 0.0
+            except (ValueError, TypeError):
+                continue
+            if card:
+                card_sum += revenue
+            else:
+                nocard_sum += revenue
+        return {'card': round(card_sum, 2), 'nocard': round(nocard_sum, 2)}

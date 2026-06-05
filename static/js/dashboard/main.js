@@ -99,6 +99,8 @@ class Dashboard {
         const tabContents = document.querySelectorAll('.tab-content');
 
         tabButtons.forEach(button => {
+            // Ссылки-вкладки (напр. «Месячный отчёт» -> /monthly-report) просто переходят
+            if (button.tagName === 'A') return;
             button.addEventListener('click', () => {
                 const tabId = button.getAttribute('data-tab');
 

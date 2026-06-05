@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Месячный отчёт — Культура пива</title>
+
+    <!-- Шрифты + дизайн-система (как на дашборде) -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/cards.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/charts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/animations.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+
+    <!-- Chart.js (локальная копия) -->
+    <script src="/static/libs/chart.umd.min.js"></script>
+</head>
+<body>
+
+    {% set page_title = "Месячный отчёт" %}
+    {% set page_subtitle = "Помесячная динамика метрик за год" %}
+
+    <div class="container">
+        {% include 'shared/nav.html' %}
+
+        <div id="mr-page">
+            {% include 'dashboard/monthly_tab.html' %}
+        </div>
+    </div>
+
+    <!-- Контейнер сообщений -->
+    <div id="messages-container" class="messages-container"></div>
+
+    <!-- Инициализация модуля месячного отчёта (ES6 module) -->
+    <script type="module">
+        const APP_VERSION = "{{ app_version }}";
+        import(`/static/js/dashboard/modules/monthly_report.js?v=${APP_VERSION}`)
+            .then(({ monthlyReport }) => {
+                monthlyReport.init();
+                monthlyReport.load();
+                console.log('Месячный отчёт загружен');
+            })
+            .catch((err) => console.error('Ошибка загрузки месячного отчёта:', err));
+    </script>
+
+    <script src="/static/logo.js"></script>
+</body>
+</html>

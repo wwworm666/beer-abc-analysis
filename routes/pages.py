@@ -74,6 +74,12 @@ def dashboard():
     return render_template('dashboard.html', bars=BARS, app_version=APP_VERSION)
 
 
+@pages_bp.route('/monthly-report')
+def monthly_report_page():
+    """Отдельная страница «Месячный отчёт» (помесячная динамика метрик за год)"""
+    return render_template('monthly_report.html', app_version=APP_VERSION)
+
+
 @pages_bp.route('/taps/<bar_id>')
 def taps_bar(bar_id):
     """Страница управления кранами конкретного бара"""

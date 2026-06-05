@@ -55,6 +55,10 @@ start_scheduler()
 from core.open_check_scheduler import start_scheduler as start_open_check_scheduler
 start_open_check_scheduler()
 
+# Запустить фоновый пересчёт витрины «Месячный отчёт» (ночной + стартовый бэкфилл)
+from core.monthly_report_scheduler import start_scheduler as start_monthly_report_scheduler
+start_monthly_report_scheduler()
+
 
 if __name__ == '__main__':
     # Под gunicorn эта ветка не исполняется — это только для локального запуска `python app.py`.

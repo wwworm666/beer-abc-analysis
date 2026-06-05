@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
 from core.dashboard_analysis import DashboardMetrics
 from core.weeks_generator import WeeksGenerator
+from core import monthly_report
 from extensions import (
     venues_manager, plans_manager, notes_manager, taps_manager,
     comparison_calculator, trends_analyzer, export_manager,
@@ -144,6 +145,98 @@ def dashboard_analytics():
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
+
+
+# ============================================================================
+# MONTHLY REPORT API - Месячный отчёт (вкладка дашборда, помесячная динамика)
+# ============================================================================
+
+def _parse_years_arg(years_arg):
+    """'2026,2025' -> [2026, 2025] (уник., убыв., максимум 3). Пусто -> текущий год."""
+    if years_arg:
+        years = [int(y) for y in years_arg.split(',') if y.strip().isdigit()]
+    else:
+        years = [datetime.now().year]
+    if not years:
+        years = [datetime.now().year]
+    return sorted(set(years), reverse=True)[:3]
+
+
+def _maybe_refresh(block, venue):
+    """Ручной пересчёт через query-параметры (UI-кнопки «Обновить» больше нет —
+    данные обновляются автоматически ночным шедулером при закрытии месяца):
+    - force=1 — досчитать недостающие закрытые месяцы текущего года;
+    - full=1  — глубокий пересчёт всего текущего года (для ретро-правок в iiko).
+    Прошлые годы заморожены и не трогаются. Возвращает True если был пересчёт."""
+    force = request.args.get('force', '') in ('1', 'true', 'yes')
+    full = request.args.get('full', '') in ('1', 'true', 'yes')
+    if not (force or full):
+        return False
+    monthly_report.refresh_block(block, venue, datetime.now().year, force=full)
+    return True
+
+
+@dashboard_bp.route('/api/monthly-report', methods=['GET'])
+def monthly_report_core():
+    """Core-блок месячного отчёта: выручка/наценка/доли/маржа/чеки/баллы/локал-импорт
+    помесячно за указанные годы (years=2026,2025 для наложения год-к-году).
+    Читается из витрины (диск). force=1 — пересчитать текущий месяц."""
+    try:
+        venue = request.args.get('venue', 'all') or 'all'
+        years = _parse_years_arg(request.args.get('years', ''))
+        _maybe_refresh('core', venue)
+        return jsonify(monthly_report.get_core(venue, years))
+    except Exception as e:
+        print(f"[ERROR] /api/monthly-report: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
+
+
+@dashboard_bp.route('/api/monthly-report/loyalty', methods=['GET'])
+def monthly_report_loyalty():
+    """Лояльность помесячно за год: новые гости + выручка по картам/без карт."""
+    try:
+        venue = request.args.get('venue', 'all') or 'all'
+        year = int(request.args.get('year', datetime.now().year))
+        _maybe_refresh('loyalty', venue)
+        return jsonify(monthly_report.get_loyalty(venue, year))
+    except Exception as e:
+        print(f"[ERROR] /api/monthly-report/loyalty: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
+
+
+@dashboard_bp.route('/api/monthly-report/draft-liters', methods=['GET'])
+def monthly_report_draft_liters():
+    """Проливы розлива в литрах по стилям, помесячно за год."""
+    try:
+        venue = request.args.get('venue', 'all') or 'all'
+        year = int(request.args.get('year', datetime.now().year))
+        _maybe_refresh('liters', venue)
+        return jsonify(monthly_report.get_draft_liters(venue, year))
+    except Exception as e:
+        print(f"[ERROR] /api/monthly-report/draft-liters: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
+
+
+@dashboard_bp.route('/api/monthly-report/top-guests', methods=['GET'])
+def monthly_report_top_guests():
+    """ТОП гостей по тратам за конкретный месяц (свой селектор месяца)."""
+    try:
+        venue = request.args.get('venue', 'all') or 'all'
+        year = int(request.args.get('year', datetime.now().year))
+        month = int(request.args.get('month', datetime.now().month))
+        _maybe_refresh('topguests', venue)
+        return jsonify(monthly_report.get_top_guests(venue, year, month))
+    except Exception as e:
+        print(f"[ERROR] /api/monthly-report/top-guests: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
 
 
 # ============================================================================
