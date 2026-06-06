@@ -34,6 +34,7 @@ class DailyPlansViewer {
     cacheElements() {
         this.monthSelect = document.getElementById('daily-month-select');
         this.yearSelect = document.getElementById('daily-year-select');
+        this.venueSelect = document.getElementById('daily-venue-select');
         this.venueLabel = document.getElementById('daily-venue-label');
         this.loadingState = document.getElementById('daily-loading');
         this.noDataState = document.getElementById('daily-no-data');
@@ -60,15 +61,9 @@ class DailyPlansViewer {
             btn.addEventListener('click', () => this.switchSubtab(btn));
         });
 
+        this.venueSelect?.addEventListener('change', () => this.loadData());
         this.monthSelect?.addEventListener('change', () => this.loadData());
         this.yearSelect?.addEventListener('change', () => this.loadData());
-
-        // Смена заведения/периода в глобальных селекторах
-        state.subscribe((event) => {
-            if ((event === 'venueChanged' || event === 'periodChanged') && this.isDailyActive()) {
-                this.loadData();
-            }
-        });
 
         // Модалка
         this.modalCloseBtn?.addEventListener('click', () => this.closeModal());
@@ -91,6 +86,12 @@ class DailyPlansViewer {
     }
 
     initDefaults() {
+        // Заведение по умолчанию: текущее из верхнего селектора, если это конкретный
+        // бар; иначе первый бар — чтобы сразу были доступны кнопки редактирования.
+        const REAL = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
+        if (this.venueSelect) {
+            this.venueSelect.value = REAL.includes(state.currentVenue) ? state.currentVenue : 'bolshoy';
+        }
         // Месяц/год по умолчанию — из текущего периода либо текущая дата
         const src = (state.currentPeriod && state.currentPeriod.start)
             || new Date().toISOString().slice(0, 10);
@@ -119,10 +120,14 @@ class DailyPlansViewer {
         return !!(el && el.classList.contains('active'));
     }
 
+    _venue() {
+        return this.venueSelect ? this.venueSelect.value : 'all';
+    }
+
     async loadData() {
         if (!this.isDailyActive()) return;
 
-        const venue = state.currentVenue || 'all';
+        const venue = this._venue();
         const year = this.yearSelect?.value;
         const month = this.monthSelect ? parseInt(this.monthSelect.value, 10) : null;
         if (!year || !month) return;
@@ -224,7 +229,7 @@ class DailyPlansViewer {
             state.addMessage('error', 'Вес дня должен быть числом не меньше 0');
             return;
         }
-        const venue = state.currentVenue || 'all';
+        const venue = this._venue();
         const year = this.yearSelect.value;
         const month = parseInt(this.monthSelect.value, 10);
         try {
@@ -245,7 +250,7 @@ class DailyPlansViewer {
     }
 
     async resetDay(dateStr) {
-        const venue = state.currentVenue || 'all';
+        const venue = this._venue();
         const year = this.yearSelect.value;
         const month = parseInt(this.monthSelect.value, 10);
         try {
