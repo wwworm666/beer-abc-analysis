@@ -56,6 +56,10 @@ data/*.log
 *.temp
 data/temp/
 
+# Advisory lock-файлы (portalocker: plans, daily_plans, day_weight_overrides)
+*.lock
+data/*.lock
+
 # Кэши
 data/cache/
 

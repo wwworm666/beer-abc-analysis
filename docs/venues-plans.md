@@ -79,14 +79,29 @@ daily_plan = plan_per_weight × weight(день)
 - План на будни: 1 201 750 / 40 × 1 = 30 044 ₽
 - План на Пт/Сб: 1 201 750 / 40 × 2 = 60 088 ₽
 
+**Override веса дня:** для конкретной даты заведения вес можно переопределить
+(праздник = например 5, закрытый день = 0). Вес дня берётся из
+`day_weight_overrides.json`, иначе — значение по умолчанию (1 или 2). Так как в
+знаменателе стоит сумма ВСЕХ весов месяца, при повышении веса одного дня остальные
+автоматически уменьшаются, а сумма за месяц остаётся равной месячному плану.
+
+**Агрегат `all`:** дневной `all` = сумма дневных планов реальных точек за день
+(каждая со своими override). Отдельный месячный план `all_*` для подневной
+разбивки не используется.
+
 ## Файлы
 
+- [`core/day_weights.py`](../../core/day_weights.py) — **канонический модуль весов дня** (единый источник формулы, override-aware)
+- [`core/day_weight_overrides.py`](../../core/day_weight_overrides.py) — менеджер override весов дней (праздники, закрытые дни)
 - [`core/venues_config.py`](../../core/venues_config.py) — конфигурация 4 точек
 - [`core/venues_manager.py`](../../core/venues_manager.py) — маппинг venue_key → название
-- [`core/plans_manager.py`](../../core/plans_manager.py) — CRUD планов, расчёт периода
-- [`core/daily_plans_generator.py`](../../core/daily_plans_generator.py) — авто-расчёт ежедневных планов
-- [`data/plansdashboard.json`](../../data/plansdashboard.json) — месячные планы (16 метрик, UI)
-- [`data/daily_plans.json`](../../data/daily_plans.json) — ежедневные планы (auto-generated)
+- [`core/plans_manager.py`](../../core/plans_manager.py) — CRUD планов, расчёт периода (импортирует веса из `day_weights`)
+- [`core/daily_plans_generator.py`](../../core/daily_plans_generator.py) — материализация `daily_plans.json` (производный кэш)
+- [`data/plansdashboard.json`](../../data/plansdashboard.json) — месячные планы (16 метрик, UI) — **источник правды**
+- [`data/day_weight_overrides.json`](../../data/day_weight_overrides.json) — override весов дней по `(venue, date)`
+- [`data/daily_plans.json`](../../data/daily_plans.json) — ежедневные планы (**производный кэш** из месячных + override)
+
+> **Единый механизм (2026-06-06).** Вся логика веса дня живёт в `core/day_weights.py` и больше нигде не дублируется. И генератор дневного плана, и расчёт плана за период (`plans_manager.calculate_plan_for_period`) берут вес дня оттуда. Источник правды — месячные планы + override весов; `daily_plans.json` лишь материализует результат для потребителей (бонусы сотрудников, метрики выручки).
 
 ---
 
@@ -216,25 +231,26 @@ def _get_months_in_period(self, start_date, end_date):
     return months
 ```
 
-#### Шаг 2: Weekend weighting
+#### Шаг 2: Weekend weighting (единый модуль)
+
+Логика веса дня вынесена в `core/day_weights.py` и больше НЕ дублируется в
+`plans_manager`. `plans_manager._get_months_in_period` вызывает `weighted_days`
+оттуда, передавая override весов конкретного заведения за месяц.
 
 ```python
-# core/plans_manager.py:386-400
-WEEKEND_WEIGHT = 2.0  # Пт/Сб приносят ~2x выручки
+# core/day_weights.py
 WEEKDAY_WEIGHT = 1.0
+WEEKEND_WEIGHT = 2.0  # пятница(4)/суббота(5)
 
-def _day_weight(self, d: date) -> float:
-    """вес дня: пт(4)/сб(5) = 2x, остальные = 1x"""
-    return self.WEEKEND_WEIGHT if d.weekday() in (4, 5) else self.WEEKDAY_WEIGHT
+def get_day_weight(d, overrides=None):
+    """Вес дня: override[date] если задан (в т.ч. 0.0), иначе пт/сб=2, остальные=1."""
+    if overrides and d.isoformat() in overrides:
+        return float(overrides[d.isoformat()])
+    return WEEKEND_WEIGHT if d.weekday() in (4, 5) else WEEKDAY_WEIGHT
 
-def _weighted_days(self, start: date, end: date) -> float:
-    """Сумма весов дней в диапазоне"""
-    total = 0.0
-    d = start
-    while d <= end:
-        total += self._day_weight(d)
-        d += timedelta(days=1)
-    return total
+def weighted_days(start, end, overrides=None):
+    """Сумма весов дней в инклюзивном диапазоне [start, end]."""
+    ...
 ```
 
 **Пример:**
@@ -387,6 +403,62 @@ if (Math.abs(sharesSum - 100) > 1) {
 
 ---
 
+## Override весов дней и страница «Планы по дням»
+
+### Зачем
+
+Позволяет заложить особый вес для конкретного дня (праздник = например 5, закрытый
+день = 0). Остальные дни месяца пересчитываются автоматически по той же формуле,
+сумма дневных планов за месяц остаётся равной месячному плану.
+
+### Хранилище
+
+`data/day_weight_overrides.json` (на проде — `/kultura/`):
+```json
+{
+  "overrides": {
+    "bolshoy":   { "2025-11-04": 5.0 },
+    "ligovskiy": { "2025-12-31": 0.0 }
+  },
+  "metadata": { "version": "1.0", "lastUpdate": "..." }
+}
+```
+
+Хранятся только исключения по `(venue, date)`. Обычные дни (1 или 2) в файле
+отсутствуют. Если выставить вес, равный значению по умолчанию для этого дня, запись
+не сохраняется (no-op cleanup). Менеджер `core/day_weight_overrides.py` — атомарная
+запись + блокировки как в `PlansManager`. Изменение override запускает точечную
+регенерацию `daily_plans.json` для этого заведения+месяца и пересчёт агрегата `all`.
+
+### Страница «Планы по дням»
+
+Подвкладка внутри вкладки «Планы» дашборда:
+- [`templates/dashboard/plans_tab.html`](../../templates/dashboard/plans_tab.html) — подвкладки «Месячные»/«По дням», таблица дней, модалка веса дня
+- [`static/js/dashboard/modules/daily_plans.js`](../../static/js/dashboard/modules/daily_plans.js) — `DailyPlansViewer`
+
+Таблица показывает по каждому дню месяца: дату, день недели, вес, план на день,
+кнопки «Изменить»/«Сброс». Пт/сб и дни-override подсвечены. Футер-валидация
+показывает сумму по дням, месячный план и совпадают ли они (`sum_check`). Заведение
+берётся из глобального селектора; месяц — из локального селектора. Для `all` —
+только просмотр (агрегат не редактируется).
+
+### Поведение по дизайну (подтверждено, НЕ баги)
+
+Эти эффекты вытекают из детерминизма «план дня = функция(месячный план, веса)» и
+подтверждены как намеренные:
+
+- **Ретроактивность.** Правка месячного плана или веса дня переписывает ВСЕ дни
+  месяца, включая уже прошедшие. Бонусы не снапшотятся — пересчитываются на лету,
+  поэтому изменение задним числом меняет бонусы за уже отработанные смены. Оставлено
+  как есть (детерминизм и прозрачность важнее заморозки).
+- **Праздник = выше планка.** Override веса вверх (например ×5) поднимает ПЛАН этого
+  дня, поэтому бонус за смену в праздник, как правило, обнуляется (план недостижим).
+  Это намеренно: больше вес = выше плановая планка.
+- **Закрытый день (вес 0).** Вес 0 означает «бар не работает» → смен нет → премий
+  нет. Если по плану 0, дневной бонус за этот день = 0 (включая базовую 1000).
+- **Верхней границы веса нет** (по текущему решению). Вес валидируется только на
+  `>= 0`.
+
 ## API endpoint'ы
 
 Все правки идут только через эти endpoint'ы (UI = единственный путь редактирования).
@@ -457,6 +529,35 @@ GET /api/storage/diagnose
 Response: { "persistent_storage_active": bool, "plansdashboard": {...}, "daily_plans": {...} }
 ```
 
+### Подневная разбивка (страница «Планы по дням»)
+
+```
+GET /api/plans/daily/<venue_key>/<year>/<month>
+Response: {
+    "venue": "bolshoy", "year": 2025, "month": 11,
+    "editable": true,                 # false для агрегата 'all'
+    "monthly_revenue": 1000500.0,
+    "month_weight": 43.0,             # null для 'all'
+    "days": [ { "date": "2025-11-01", "weekday": 5, "weekday_name": "сб",
+                "weight": 2.0, "is_override": false, "daily_plan": 46534.88 }, ... ],
+    "daily_sum": 1000500.06,
+    "tolerance": 1.0,
+    "sum_check": true                 # |daily_sum - monthly_revenue| <= tolerance
+}
+```
+
+```
+POST /api/plans/daily/<venue_key>/<year>/<month>
+Body: { "date": "2025-11-04", "weight": 5.0 }   # вес >= 0; 'all' -> 400
+Response: обновлённая подневная разбивка (как GET)
+```
+
+```
+DELETE /api/plans/daily/<venue_key>/<year>/<month>/<date>
+# сброс override веса дня к умолчанию (идемпотентно)
+Response: обновлённая подневная разбивка (как GET)
+```
+
 ---
 
 ## Формулы
@@ -499,6 +600,23 @@ weighted_days = Σ(weight(день) для каждого дня)
 ---
 
 ## Changelog
+
+### 2026-06-06 — Единый механизм дневного плана + override весов + страница «Планы по дням»
+
+**Что сделано:**
+- Логика веса дня сведена к одному каноническому модулю `core/day_weights.py`; убран дубль `_day_weight`/`_weighted_days` из `plans_manager.py` — теперь он импортирует `weighted_days` оттуда. И генератор дневного плана, и расчёт периода берут вес из одного места.
+- Добавлены **override весов дней** (`core/day_weight_overrides.py` + `data/day_weight_overrides.json`): праздник = N, закрытый день = 0; остальные дни месяца пересчитываются автоматически, сумма за месяц = месячному плану.
+- Агрегат `all` в `daily_plans.json` теперь = сумма дневных планов реальных точек (override точек автоматически в него попадают).
+- `calculate_plan_for_period` стал override-aware: доли месяцев считаются с override конкретного заведения (консистентно с дневной разбивкой).
+- Новая редактируемая под-вкладка «Планы по дням» внутри вкладки «Планы» + 3 эндпоинта `/api/plans/daily/...` (GET/POST/DELETE) с проверкой «сумма дней = месяц».
+- Попутно: `save_daily_plans` стал атомарным (tmp+os.replace+backup) и сбрасывает кэш `DailyPlansReader` (`clear_plans_cache` + инвалидация по mtime, в т.ч. между gunicorn-воркерами); удаление месячного плана обнуляет дневные значения удалённой точки (фикс «призрачных» значений и завышенного агрегата `all`), подчищает override и пересобирает `all`.
+
+**Изменённые файлы:**
+- `core/day_weights.py` (новый), `core/day_weight_overrides.py` (новый), `data/day_weight_overrides.json` (новый)
+- `core/daily_plans_generator.py` — импорт из `day_weights`, overrides, атомарная запись, агрегат `all`
+- `core/plans_manager.py` — удалён дубль весов, override-aware расчёт периода
+- `routes/dashboard.py` — 3 эндпоинта daily + подчистка override при delete; `extensions.py` — менеджер override
+- `templates/dashboard/plans_tab.html`, `static/js/dashboard/modules/daily_plans.js` (новый), `static/js/dashboard/core/{api,config}.js`, `static/js/dashboard/main.js`
 
 ### 2026-05-15 — Устранение костылей редактирования планов + экспорт
 

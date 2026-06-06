@@ -16,6 +16,7 @@ import { exportModule } from './modules/export.js';
 import { meetingNotes } from './modules/meeting_notes.js';
 import { revenueMetricsModule } from './modules/revenue_metrics.js';
 import { plansViewer } from './modules/plans.js';
+import { dailyPlansViewer } from './modules/daily_plans.js';
 
 class Dashboard {
     constructor() {
@@ -69,6 +70,9 @@ class Dashboard {
 
             plansViewer.init();
             console.log(' Модуль просмотра планов инициализирован');
+
+            dailyPlansViewer.init();
+            console.log(' Модуль планов по дням инициализирован');
 
             // 4. Настраиваем вкладки
             this.setupTabs();

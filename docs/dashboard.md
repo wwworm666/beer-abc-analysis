@@ -119,27 +119,25 @@ def calculate_plan_for_period(self, venue_key, start_date_str, end_date_str):
             result[metric] = weighted_sums[metric] / total_weight
 ```
 
-#### Weekend Weighting
+#### Weekend Weighting (единый модуль)
 
-Пт/Сб приносят ~2x выручки — учитывается при расчёте пропорциональной доли:
+Пт/Сб приносят ~2x выручки. Логика веса дня живёт в `core/day_weights.py` (единый
+источник, override-aware) и НЕ дублируется в plans_manager — он импортирует
+`weighted_days` оттуда:
 
 ```python
-# core/plans_manager.py:386-400
-WEEKEND_WEIGHT = 2.0
+# core/day_weights.py
 WEEKDAY_WEIGHT = 1.0
+WEEKEND_WEIGHT = 2.0  # пятница(4)/суббота(5)
 
-def _day_weight(self, d: date) -> float:
-    """вес дня: пт(4)/сб(5) = 2x, остальные = 1x"""
-    return self.WEEKEND_WEIGHT if d.weekday() in (4, 5) else self.WEEKDAY_WEIGHT
+def get_day_weight(d, overrides=None):
+    if overrides and d.isoformat() in overrides:
+        return float(overrides[d.isoformat()])  # праздник/закрытый день
+    return WEEKEND_WEIGHT if d.weekday() in (4, 5) else WEEKDAY_WEIGHT
 
-def _weighted_days(self, start: date, end: date) -> float:
-    """Сумма весов дней в диапазоне"""
-    total = 0.0
-    d = start
-    while d <= end:
-        total += self._day_weight(d)
-        d += timedelta(days=1)
-    return total
+def weighted_days(start, end, overrides=None):
+    """Сумма весов дней в инклюзивном диапазоне [start, end]."""
+    ...
 ```
 
 **Формула ratio:**
@@ -232,7 +230,15 @@ DELETE /api/plans/<venue>/<period>            — удалить план
 GET    /api/plans                             — дамп всех планов (JSON)
 GET    /api/plans/calculate/<v>/<from>/<to>   — пропорциональный план за период
 GET    /api/plans/export                      — экспорт всех планов в xlsx
+GET    /api/plans/daily/<v>/<year>/<month>    — подневная разбивка (страница «Планы по дням»)
+POST   /api/plans/daily/<v>/<year>/<month>    — задать override веса дня {date, weight}
+DELETE /api/plans/daily/<v>/<year>/<month>/<date> — сброс override веса дня
 ```
+
+> Подвкладка «Планы по дням» (внутри вкладки «Планы») показывает подневную разбивку
+> месячного плана и позволяет задать особый вес дня (праздник/закрытый день) с
+> авто-ренормализацией остальных дней. Единый расчёт — `core/day_weights.py`.
+> Подробнее: [venues-plans.md](venues-plans.md).
 
 ### Сравнение
 
@@ -272,4 +278,5 @@ POST /api/export/pdf
 
 ## Changelog
 
+- **2026-06-06** — Подвкладка «Планы по дням» + 3 эндпоинта `/api/plans/daily/...`. Логика веса дня унифицирована в `core/day_weights.py`; добавлены override весов дней (праздник/закрытый день). Подробнее: [venues-plans.md](venues-plans.md).
 - **2026-03-27** — Создан документ dashboard.md с описанием 15 метрик, формул расчёта, планов и weekend weighting

@@ -22,6 +22,7 @@ import threading
 import shutil
 import portalocker
 from core.storage_paths import get_data_path
+from core.day_weights import weighted_days
 
 
 class PlansManager:
@@ -64,6 +65,8 @@ class PlansManager:
         self._lock = threading.Lock()
         # Cross-process advisory lock — защита от гонки между gunicorn-воркерами
         self._lock_path = self.data_file + '.lock'
+        # Ленивый менеджер override весов дней (для override-aware расчёта периода)
+        self._overrides_mgr = None
 
         # Инициализируем структуру файла если нужно
         self._initialize_file()
@@ -455,29 +458,33 @@ class PlansManager:
         """Парсинг даты из строки YYYY-MM-DD"""
         return datetime.strptime(date_str, '%Y-%m-%d').date()
 
-    # Вес дня для расчёта плана: пт/сб приносят ~2x выручки
-    WEEKEND_WEIGHT = 2.0
-    WEEKDAY_WEIGHT = 1.0
+    def _overrides_for_venue(self, venue_key: str):
+        """Вернуть функцию (year, month) -> {date: weight} для override этого заведения.
 
-    def _day_weight(self, d: date) -> float:
-        """Вес дня: пт(4)/сб(5) = 2x, остальные = 1x"""
-        return self.WEEKEND_WEIGHT if d.weekday() in (4, 5) else self.WEEKDAY_WEIGHT
+        Override весов дней — единый источник из core/day_weight_overrides.py.
+        При ошибке/отсутствии менеджера возвращает пустые override (поведение как
+        раньше — байт-в-байт).
+        """
+        try:
+            from core.day_weight_overrides import DayWeightOverridesManager
+            if self._overrides_mgr is None:
+                self._overrides_mgr = DayWeightOverridesManager()
+            mgr = self._overrides_mgr
+            return lambda y, m: mgr.get_for_venue_month(venue_key, y, m)
+        except Exception as e:
+            print(f"[PLANS WARN] overrides недоступны для {venue_key}: {e}")
+            return lambda y, m: {}
 
-    def _weighted_days(self, start: date, end: date) -> float:
-        """Сумма весов дней в диапазоне [start, end]"""
-        total = 0.0
-        d = start
-        while d <= end:
-            total += self._day_weight(d)
-            d += timedelta(days=1)
-        return total
-
-    def _get_months_in_period(self, start_date: date, end_date: date) -> list:
+    def _get_months_in_period(self, start_date: date, end_date: date,
+                              overrides_for=None) -> list:
         """
         Получить список месяцев в периоде с взвешенными долями
 
-        Пт/Сб имеют вес 2x, остальные дни — 1x.
-        ratio = взвешенные_дни_периода_в_месяце / взвешенные_дни_месяца
+        Вес дня (пт/сб = 2x, override — из core/day_weights) берётся для конкретного
+        заведения: ratio = взвешенные_дни_периода_в_месяце / взвешенные_дни_месяца
+
+        Args:
+            overrides_for: callable(year, month) -> {date: weight} или None
 
         Returns:
             List of tuples: (year, month, ratio)
@@ -495,9 +502,12 @@ class PlansManager:
             month_end = current.replace(day=days_in_month)
             period_end = min(end_date, month_end)
 
+            # Override весов этого заведения за месяц (если заданы)
+            ov = overrides_for(year, month) if overrides_for else None
+
             # Взвешенная доля: сколько «веса» периода vs весь месяц
-            period_weight = self._weighted_days(period_start, period_end)
-            month_weight = self._weighted_days(current, month_end)
+            period_weight = weighted_days(period_start, period_end, ov)
+            month_weight = weighted_days(current, month_end, ov)
             ratio = period_weight / month_weight if month_weight > 0 else 0
 
             months.append((year, month, ratio))
@@ -551,12 +561,6 @@ class PlansManager:
                 print(f"[PLANS] Некорректный период: {start_date_str} > {end_date_str}")
                 return None
 
-            # Получаем список месяцев в периоде
-            months_data = self._get_months_in_period(start_date, end_date)
-
-            if not months_data:
-                return None
-
             # Абсолютные метрики (суммируются пропорционально)
             absolute_metrics = [
                 'revenue', 'profit', 'checks', 'loyaltyWriteoffs',
@@ -579,9 +583,13 @@ class PlansManager:
             # Если venue_key пустой - суммируем по всем заведениям
             venues_to_check = [venue_key] if venue_key else ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
 
-            for year, month, ratio in months_data:
+            for venue in venues_to_check:
+                # Доли месяцев считаем с override весов ИМЕННО этого заведения,
+                # чтобы дневная разбивка и расчёт периода были консистентны.
+                months_data = self._get_months_in_period(
+                    start_date, end_date, self._overrides_for_venue(venue))
 
-                for venue in venues_to_check:
+                for year, month, ratio in months_data:
                     month_plan = self.get_monthly_plan(venue, year, month)
 
                     if month_plan:

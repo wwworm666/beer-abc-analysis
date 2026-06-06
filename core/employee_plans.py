@@ -64,20 +64,32 @@ class DailyPlansReader:
 
         self.filepath = filepath
         self._plans_cache = None
+        self._cache_mtime = None
 
     def _load_plans(self) -> Dict:
-        """Загружает daily_plans.json."""
-        if self._plans_cache is not None:
-            return self._plans_cache
+        """Загружает daily_plans.json с инвалидацией по mtime.
 
+        Важно для нескольких gunicorn-воркеров: clear_plans_cache() сбрасывает кэш
+        только в воркере-писателе, поэтому остальные воркеры перечитывают файл сами,
+        как только его mtime на диске изменился (после регенерации daily_plans.json).
+        """
         if not os.path.exists(self.filepath):
             print(f"[EMPLOYEE_PLANS] daily_plans.json не найден: {self.filepath}")
             return {}
 
         try:
+            mtime = os.path.getmtime(self.filepath)
+        except OSError:
+            mtime = None
+
+        if self._plans_cache is not None and mtime == self._cache_mtime:
+            return self._plans_cache
+
+        try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             self._plans_cache = data.get('plans', {})
+            self._cache_mtime = mtime
             print(f"[EMPLOYEE_PLANS] Загружено {len(self._plans_cache)} дней")
             return self._plans_cache
         except Exception as e:
@@ -138,6 +150,7 @@ class DailyPlansReader:
     def clear_cache(self):
         """Очищает кэш."""
         self._plans_cache = None
+        self._cache_mtime = None
 
 
 # Глобальный экземпляр

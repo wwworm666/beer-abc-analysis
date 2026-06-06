@@ -1,0 +1,8 @@
+{
+  "overrides": {},
+  "metadata": {
+    "version": "1.0",
+    "notes": "absolute day weight per (venue, date); default weekday=1, Fri/Sat=2; closed day=0",
+    "lastUpdate": "2026-06-06T16:57:02.355648"
+  }
+}

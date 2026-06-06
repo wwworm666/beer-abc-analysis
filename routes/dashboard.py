@@ -10,6 +10,7 @@ from core import monthly_report
 from extensions import (
     venues_manager, plans_manager, notes_manager, taps_manager,
     comparison_calculator, trends_analyzer, export_manager,
+    day_weight_overrides_manager,
     DASHBOARD_OLAP_CACHE, DASHBOARD_OLAP_CACHE_TTL, cached_olap
 )
 
@@ -388,6 +389,24 @@ def delete_plan_with_venue(venue_key, period_key):
         success = plans_manager.delete_plan(composite_key)
         if success:
             print(f"[PLANS API] План удален")
+            # Подчистить override весов и обнулить «призрачные» дневные значения
+            # удалённой точки в daily_plans.json, затем пересобрать агрегат 'all'.
+            try:
+                if len(period_key) == 7:
+                    y, m = int(period_key[:4]), int(period_key[5:7])
+                    removed = day_weight_overrides_manager.delete_venue_month(venue_key, y, m)
+                    from core.daily_plans_generator import (
+                        regenerate_daily_plan_for_venue_month,
+                        regenerate_all_aggregate_for_month,
+                    )
+                    # После удаления revenue плана нет -> compute_daily_plan вернёт 0.0
+                    # для всех дней точки (чистит призраков); внутри пересчитывается агрегат.
+                    regenerate_daily_plan_for_venue_month(venue_key, y, m)
+                    regenerate_all_aggregate_for_month(y, m)
+                    if removed:
+                        print(f"[PLANS API] Удалено override весов: {removed}")
+            except Exception as cleanup_err:
+                print(f"[PLANS API WARN] Не удалось подчистить daily/override: {cleanup_err}")
             return jsonify({
                 'success': True,
                 'message': 'Plan deleted successfully'
@@ -396,6 +415,136 @@ def delete_plan_with_venue(venue_key, period_key):
             return jsonify({'error': 'Plan not found'}), 404
     except Exception as e:
         print(f"[PLANS API ERROR] Ошибка при удалении плана: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+REAL_VENUES = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
+
+
+def _daily_breakdown_payload(venue_key: str, year: int, month: int) -> dict:
+    """Собрать подневную разбивку плана для страницы «Планы по дням».
+
+    Для конкретной точки — month_breakdown с её override.
+    Для 'all'/'total'/'' — сумма дневных планов реальных точек (агрегат, без правки).
+    """
+    from core.day_weights import month_breakdown, month_weight as compute_month_weight
+
+    is_aggregate = venue_key in ('all', 'total', 'общая', '')
+
+    if not is_aggregate:
+        mp = plans_manager.get_monthly_plan(venue_key, year, month)
+        monthly_revenue = float(mp.get('revenue', 0.0)) if mp else 0.0
+        overrides = day_weight_overrides_manager.get_for_venue_month(venue_key, year, month)
+        days = month_breakdown(year, month, monthly_revenue, overrides)
+        mw = compute_month_weight(year, month, overrides)
+        daily_sum = round(sum(d['daily_plan'] for d in days), 2)
+        tolerance = 1.0
+        return {
+            'venue': venue_key,
+            'year': year,
+            'month': month,
+            'editable': True,
+            'monthly_revenue': round(monthly_revenue, 2),
+            'month_weight': mw,
+            'days': days,
+            'daily_sum': daily_sum,
+            'tolerance': tolerance,
+            'sum_check': abs(daily_sum - monthly_revenue) <= tolerance,
+        }
+
+    # Агрегат 'all' = сумма дневных планов реальных точек (каждая со своими override)
+    per_venue_days = {}
+    monthly_revenue = 0.0
+    venues_with_plan = 0
+    for v in REAL_VENUES:
+        mp = plans_manager.get_monthly_plan(v, year, month)
+        rev = float(mp.get('revenue', 0.0)) if mp else 0.0
+        if rev > 0:
+            venues_with_plan += 1
+        monthly_revenue += rev
+        ov = day_weight_overrides_manager.get_for_venue_month(v, year, month)
+        per_venue_days[v] = month_breakdown(year, month, rev, ov)
+
+    template = per_venue_days[REAL_VENUES[0]]
+    days = []
+    for idx, ref in enumerate(template):
+        daily = round(sum(per_venue_days[v][idx]['daily_plan'] for v in REAL_VENUES), 2)
+        any_override = any(per_venue_days[v][idx]['is_override'] for v in REAL_VENUES)
+        days.append({
+            'date': ref['date'],
+            'weekday': ref['weekday'],
+            'weekday_name': ref['weekday_name'],
+            'weight': None,  # для агрегата вес отдельного дня не определён
+            'is_override': any_override,
+            'daily_plan': daily,
+        })
+    daily_sum = round(sum(d['daily_plan'] for d in days), 2)
+    tolerance = max(1.0, venues_with_plan * 1.0)
+    return {
+        'venue': 'all',
+        'year': year,
+        'month': month,
+        'editable': False,
+        'monthly_revenue': round(monthly_revenue, 2),
+        'month_weight': None,
+        'days': days,
+        'daily_sum': daily_sum,
+        'tolerance': tolerance,
+        'sum_check': abs(daily_sum - monthly_revenue) <= tolerance,
+    }
+
+
+@dashboard_bp.route('/api/plans/daily/<venue_key>/<int:year>/<int:month>')
+def get_daily_breakdown(venue_key, year, month):
+    """Подневная разбивка месячного плана для страницы «Планы по дням»."""
+    try:
+        payload = _daily_breakdown_payload(venue_key, year, month)
+        return jsonify(payload)
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка подневной разбивки: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@dashboard_bp.route('/api/plans/daily/<venue_key>/<int:year>/<int:month>', methods=['POST'])
+def set_day_weight(venue_key, year, month):
+    """Задать override веса дня (праздник = N, закрытый день = 0)."""
+    try:
+        data = request.json or {}
+        date_str = data.get('date')
+        weight = data.get('weight')
+        if not date_str or weight is None:
+            return jsonify({'error': 'Требуются поля date и weight'}), 400
+
+        d = datetime.strptime(date_str, '%Y-%m-%d').date()
+        if d.year != year or d.month != month:
+            return jsonify({'error': 'Дата не принадлежит указанному месяцу'}), 400
+
+        day_weight_overrides_manager.set_override(venue_key, date_str, float(weight))
+        return jsonify(_daily_breakdown_payload(venue_key, year, month))
+
+    except ValueError as e:
+        return jsonify({'error': f'Validation error: {str(e)}'}), 400
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка установки веса дня: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@dashboard_bp.route('/api/plans/daily/<venue_key>/<int:year>/<int:month>/<date_str>', methods=['DELETE'])
+def reset_day_weight(venue_key, year, month, date_str):
+    """Сбросить override веса дня к значению по умолчанию. Идемпотентно."""
+    try:
+        day_weight_overrides_manager.delete_override(venue_key, date_str)
+        return jsonify(_daily_breakdown_payload(venue_key, year, month))
+    except ValueError as e:
+        return jsonify({'error': f'Validation error: {str(e)}'}), 400
+    except Exception as e:
+        print(f"[PLANS API ERROR] Ошибка сброса веса дня: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

@@ -163,6 +163,9 @@ export const API = {
     PLAN: (venueKey, periodKey) => `/api/plans/${venueKey}/${periodKey}`,
     // Новый endpoint для расчёта плана на произвольный период
     CALCULATE_PLAN: (venueKey, startDate, endDate) => `/api/plans/calculate/${venueKey || 'total'}/${startDate}/${endDate}`,
+    // Подневная разбивка месячного плана (страница «Планы по дням»)
+    DAILY_BREAKDOWN: (venueKey, year, month) => `/api/plans/daily/${venueKey || 'all'}/${year}/${month}`,
+    DAILY_WEIGHT_RESET: (venueKey, year, month, dateStr) => `/api/plans/daily/${venueKey || 'all'}/${year}/${month}/${dateStr}`,
     ANALYTICS: '/api/dashboard-analytics',  // ИСПРАВЛЕНО: было dashboard-analytics-multi
     COMPARISON_PERIODS: '/api/comparison/periods',
     COMPARISON_VENUES: '/api/comparison/venues',

@@ -51,11 +51,14 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/expiration.md](../docs/expiration.md) | Shelf-Life Cockpit — `/expiration` с tier-логикой и уценкой | ✅ |
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
-| [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting | ✅ |
+| [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting, override весов дней, «Планы по дням» | ✅ |
 | [docs/schedule.md](../docs/schedule.md) | График смен, роли, meeting notes | ✅ |
 | [docs/frontend.md](../docs/frontend.md) | JS архитектура дашборда (15+ модулей) | ✅ |
 | [docs/design-system.md](../docs/design-system.md) | Палитра, типографика, компоненты | ✅ |
 | [docs/iiko-integration.md](../docs/iiko-integration.md) | iiko API: OLAP, cashshifts, auth (SHA-1) | ✅ |
+| [docs/technical/OLAP_REPORTS_COLLECTION.md](../docs/technical/OLAP_REPORTS_COLLECTION.md) | Копии всех 24 OLAP-запросов проекта (дословные JSON-тела + потребители) | ✅ |
+| [docs/technical/OLAP_REPORT_BUILDING_RULES.md](../docs/technical/OLAP_REPORT_BUILDING_RULES.md) | Правила создания OLAP-отчётов (iiko API): тело запроса, поля, фильтры, даты, чек-лист | ✅ |
+| [docs/technical/audits/OLAP_AUDIT_2026-06-02.md](../docs/technical/audits/OLAP_AUDIT_2026-06-02.md) | Аудит OLAP-отчётов: 26 issue (4 high), приоритеты, рекомендации (без правок) | ✅ |
 | [docs/lessons.md](../docs/lessons.md) | Баги, ловушки, паттерны (Problem→Cause→Solution) | ✅ |
 | [docs/remote-sync.md](../docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale + SSH | ✅ |
 | [docs/CONNECTIVITY.md](../docs/CONNECTIVITY.md) | Подключение ко всем бар-ПК (SSH, сертификаты, доступ) | ✅ |
@@ -94,6 +97,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-06-06:** Единый механизм дневного плана (`core/day_weights.py`) + override весов дней (праздник/закрытый день) + редактируемая под-вкладка «Планы по дням». Док: [venues-plans.md](../docs/venues-plans.md).
 - **2026-06-04:** Новая вкладка дашборда «Месячный отчёт» — помесячная динамика метрик за год, 16 графиков, YoY-наложение, помесячный дисковый кэш. Док: [monthly-report.md](../docs/monthly-report.md).
 - **2026-05-28:** Ревизия документации — `.claude/docs/*.md` перенесены в корневой `docs/`. SoT теперь в `docs/`. Обновлены `overview.md`, `PROJECT_STRUCTURE.md`, `stocks.md`, `lessons.md`, `INDEX.md`, `CLAUDE.md` под текущую реальность (11 blueprints, 33 core-модуля, menu_tool вынесен, Selectel-деплой).
 - **2026-05-18:** Open-check Telegram bot — ежедневная проверка открытых смен в 4 барах KULT в 14:59 МСК. Позитив в группу, алармы в ЛС админам. Atomic file lock против double-fire под gunicorn 2-workers.

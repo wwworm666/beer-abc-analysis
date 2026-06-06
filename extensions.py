@@ -8,6 +8,7 @@ from core.taps_manager import TapsManager
 from core.shifts_manager import get_shifts_manager
 from core.meeting_notes import MeetingNotesManager
 from core.plans_manager import PlansManager
+from core.day_weight_overrides import DayWeightOverridesManager
 from core.venues_manager import VenuesManager
 from core.comparison_calculator import ComparisonCalculator
 from core.trends_analyzer import TrendsAnalyzer
@@ -41,6 +42,7 @@ else:
 
 taps_manager = TapsManager(data_file=TAPS_DATA_PATH)
 plans_manager = PlansManager()
+day_weight_overrides_manager = DayWeightOverridesManager()
 notes_manager = MeetingNotesManager()
 venues_manager = VenuesManager()
 shifts_mgr = get_shifts_manager()

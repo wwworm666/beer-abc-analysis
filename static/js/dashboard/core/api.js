@@ -118,6 +118,34 @@ export async function deletePlan(venueKey, periodKey) {
 }
 
 /**
+ * Получить подневную разбивку месячного плана (страница «Планы по дням»)
+ */
+export async function getDailyBreakdown(venueKey, year, month) {
+    return await fetchAPI(API.DAILY_BREAKDOWN(venueKey, year, month));
+}
+
+/**
+ * Задать override веса дня (праздник = N, закрытый день = 0).
+ * Возвращает обновлённую подневную разбивку.
+ */
+export async function setDayWeight(venueKey, year, month, dateStr, weight) {
+    return await fetchAPI(API.DAILY_BREAKDOWN(venueKey, year, month), {
+        method: 'POST',
+        body: JSON.stringify({ date: dateStr, weight })
+    });
+}
+
+/**
+ * Сбросить override веса дня к значению по умолчанию.
+ * Возвращает обновлённую подневную разбивку.
+ */
+export async function resetDayWeight(venueKey, year, month, dateStr) {
+    return await fetchAPI(API.DAILY_WEIGHT_RESET(venueKey, year, month, dateStr), {
+        method: 'DELETE'
+    });
+}
+
+/**
  * Получить фактические данные (аналитика)
  */
 export async function getAnalytics(venueKey, dateFrom, dateTo) {
