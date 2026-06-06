@@ -19,6 +19,9 @@ const VENUE_NAMES = {
 const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
     'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
+// Плановое списание баллов лояльности — фиксированная доля выручки (5%)
+const LOYALTY_WRITEOFF_RATE = 0.05;
+
 class PlansViewer {
     constructor() {
         this.loadingState = document.getElementById('plans-loading');
@@ -207,6 +210,11 @@ class PlansViewer {
         // Чеки = выручка / средний чек (целое)
         if (this.formFields.checks) {
             this.formFields.checks.value = averageCheck > 0 ? String(Math.round(revenue / averageCheck)) : '0';
+        }
+
+        // Списания баллов = 5% от выручки (программа лояльности)
+        if (this.formFields.loyaltyWriteoffs) {
+            this.formFields.loyaltyWriteoffs.value = (revenue * LOYALTY_WRITEOFF_RATE).toFixed(2);
         }
 
         // Выручка по категориям
