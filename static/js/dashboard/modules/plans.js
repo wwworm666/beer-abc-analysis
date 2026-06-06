@@ -4,14 +4,9 @@
  */
 
 import { state } from '../core/state.js';
-import { getPlan, getAnalytics, savePlan, deletePlan, calculatePlan } from '../core/api.js';
+import { getPlan, savePlan, deletePlan } from '../core/api.js';
 import { METRICS } from '../core/config.js';
-import {
-    formatValue,
-    calculatePercent,
-    calculateDiff,
-    getStatus
-} from '../core/utils.js';
+import { formatValue } from '../core/utils.js';
 
 class PlansViewer {
     constructor() {
@@ -217,29 +212,12 @@ class PlansViewer {
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
             this.currentPeriodKey = `${year}-${month}`;
 
-            // Загружаем план и факт параллельно
-            const [planResult, actualResult] = await Promise.allSettled([
-                getPlan(state.currentVenue, this.currentPeriodKey),
-                getAnalytics(
-                    state.currentVenue,
-                    state.currentPeriod.start,
-                    state.currentPeriod.end
-                )
-            ]);
-
-            // Извлекаем план (может быть null если не найден)
-            this.currentPlan = planResult.status === 'fulfilled' ? planResult.value : null;
-            this.currentActual = actualResult.status === 'fulfilled' ? actualResult.value : null;
-
-            // Проверяем что факт загрузился успешно
-            if (actualResult.status === 'rejected') {
-                throw new Error('Не удалось загрузить фактические данные');
-            }
-
-            const actual = actualResult.value;
+            // Вкладка «Планы» показывает только плановые значения — факт не загружаем.
+            // getPlan возвращает null, если плана нет (404).
+            this.currentPlan = await getPlan(state.currentVenue, this.currentPeriodKey);
 
             // Отображаем данные
-            this.displayData(this.currentPlan, actual);
+            this.displayData(this.currentPlan);
 
         } catch (error) {
             console.error('Ошибка загрузки данных:', error);
@@ -264,7 +242,7 @@ class PlansViewer {
     /**
      * Отобразить данные в таблице
      */
-    displayData(plan, actual) {
+    displayData(plan) {
         this.hideLoading();
         this.hideNoData();
         this.showTable();
@@ -305,7 +283,7 @@ class PlansViewer {
             const headerRow = document.createElement('tr');
             headerRow.className = 'section-header';
             headerRow.innerHTML = `
-                <td colspan="5">${section.name}</td>
+                <td colspan="2">${section.name}</td>
             `;
             this.tableBody.appendChild(headerRow);
 
@@ -315,18 +293,13 @@ class PlansViewer {
                 if (!metric) return;
 
                 let planValue = plan ? plan[metric.planKey] : null;
-                const actualValue = actual[metric.actualKey];
 
                 // Для активности кранов план всегда 100% (если не задан вручную)
                 if (metric.id === 'tapActivity' && !planValue) {
                     planValue = 100;
                 }
 
-                const row = this.createMetricRow(
-                    metric,
-                    planValue,
-                    actualValue
-                );
+                const row = this.createMetricRow(metric, planValue);
 
                 this.tableBody.appendChild(row);
             });
@@ -341,37 +314,15 @@ class PlansViewer {
     /**
      * Создать строку таблицы для метрики
      */
-    createMetricRow(metric, planValue, actualValue) {
+    createMetricRow(metric, planValue) {
         const row = document.createElement('tr');
 
-        // Вычисляем процент и отклонение
-        const percent = planValue ? calculatePercent(actualValue, planValue) : null;
-        const diff = planValue ? calculateDiff(actualValue, planValue) : null;
-        const status = planValue ? getStatus(percent) : 'neutral';
-
-        // Форматируем значения
+        // Вкладка «Планы» показывает только плановые значения
         const formattedPlan = planValue !== null ? formatValue(planValue, metric.format) : '—';
-        const formattedActual = formatValue(actualValue, metric.format);
-        const formattedDiff = diff !== null ? formatValue(Math.abs(diff), metric.format) : '—';
-        const formattedPercent = percent !== null ? `${percent.toFixed(1)}%` : '—';
 
-        // Класс для отклонения
-        let diffClass = 'neutral';
-        if (diff !== null) {
-            if (diff > 0) diffClass = 'positive';
-            else if (diff < 0) diffClass = 'negative';
-        }
-
-        // Префикс для отклонения
-        const diffPrefix = diff !== null && diff > 0 ? '+' : '';
-
-        // HTML строки
         row.innerHTML = `
             <td class="metric-name">${metric.name}</td>
             <td class="value-col plan-col">${formattedPlan}</td>
-            <td class="value-col fact-col">${formattedActual}</td>
-            <td class="value-col diff-col ${diffClass}">${diffPrefix}${formattedDiff}</td>
-            <td class="value-col percent-col ${status}">${formattedPercent}</td>
         `;
 
         return row;
@@ -704,7 +655,7 @@ class PlansViewer {
             }
 
             // Обновляем таблицу с новыми данными
-            this.displayData(this.currentPlan, this.currentActual || {}, true);
+            this.displayData(this.currentPlan);
 
         } catch (error) {
             console.error('Ошибка сохранения плана:', error);
@@ -746,7 +697,7 @@ class PlansViewer {
             }
 
             // Обновляем таблицу
-            this.displayData(null, this.currentActual || {}, true);
+            this.displayData(null);
 
         } catch (error) {
             console.error('Ошибка удаления плана:', error);
