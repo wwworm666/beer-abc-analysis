@@ -152,24 +152,35 @@ class PlansViewer {
         this.formFields.markupPackaged?.addEventListener('input', () => this.autoCalculateDerivedMetrics());
         this.formFields.markupKitchen?.addEventListener('input', () => this.autoCalculateDerivedMetrics());
 
-        // Авто-расчёт при изменении выручки
+        // Авто-расчёт при изменении выручки и среднего чека (от них зависят чеки/прибыль/наценка)
         this.formFields.revenue?.addEventListener('input', () => {
+            this.autoCalculateDerivedMetrics();
+        });
+        this.formFields.averageCheck?.addEventListener('input', () => {
             this.autoCalculateDerivedMetrics();
         });
     }
 
     /**
-     * Обновить сумму долей
+     * Доля кухни считается автоматически (добивает розлив+фасовку до 100%),
+     * поэтому здесь же её и пересчитываем, и показываем сумму/предупреждение.
      */
     updateSharesSum() {
         const draft = parseFloat(this.formFields.draftShare?.value) || 0;
         const packaged = parseFloat(this.formFields.packagedShare?.value) || 0;
-        const kitchen = parseFloat(this.formFields.kitchenShare?.value) || 0;
+
+        // Доля кухни = 100 - розлив - фасовка (не уходим в минус)
+        const kitchen = Math.max(0, 100 - draft - packaged);
+        if (this.formFields.kitchenShare) {
+            this.formFields.kitchenShare.value = kitchen.toFixed(2);
+        }
+
         const sum = draft + packaged + kitchen;
+        this.sharesSumLabel.textContent =
+            `Розлив + фасовка: ${(draft + packaged).toFixed(1)}% · Кухня (авто): ${kitchen.toFixed(1)}%`;
 
-        this.sharesSumLabel.textContent = `Сумма: ${sum.toFixed(1)}%`;
-
-        if (Math.abs(sum - 100) > 1) {
+        // Ошибка только если розлив+фасовка превысили 100% (кухне не из чего взяться)
+        if (draft + packaged > 100 + 0.01) {
             this.sharesSumLabel.classList.add('error');
         } else {
             this.sharesSumLabel.classList.remove('error');
@@ -177,34 +188,57 @@ class PlansViewer {
     }
 
     /**
-     * Авто-расчёт производных метрик
+     * Авто-расчёт производных метрик. Формулы повторяют расчёт факта
+     * (core/dashboard_analysis.py), чтобы план и факт были сравнимы.
+     *
+     *   чеки            = выручка / средний чек
+     *   выручка_кат     = выручка × доля_кат / 100
+     *   себестоимость_кат = выручка_кат / (1 + наценка_кат/100)   (наценка% = маржа/себест.×100)
+     *   прибыль         = выручка − Σ себестоимость_кат
+     *   % наценки       = 100 × выручка / Σ себестоимость − 100   (взвешена по себестоимости)
      */
     autoCalculateDerivedMetrics() {
         const revenue = parseFloat(this.formFields.revenue?.value) || 0;
+        const averageCheck = parseFloat(this.formFields.averageCheck?.value) || 0;
         const draftShare = parseFloat(this.formFields.draftShare?.value) || 0;
         const packagedShare = parseFloat(this.formFields.packagedShare?.value) || 0;
         const kitchenShare = parseFloat(this.formFields.kitchenShare?.value) || 0;
 
-        // Выручка по категориям
-        if (this.formFields.revenueDraft) {
-            this.formFields.revenueDraft.value = (revenue * draftShare / 100).toFixed(2);
-        }
-        if (this.formFields.revenuePackaged) {
-            this.formFields.revenuePackaged.value = (revenue * packagedShare / 100).toFixed(2);
-        }
-        if (this.formFields.revenueKitchen) {
-            this.formFields.revenueKitchen.value = (revenue * kitchenShare / 100).toFixed(2);
+        // Чеки = выручка / средний чек (целое)
+        if (this.formFields.checks) {
+            this.formFields.checks.value = averageCheck > 0 ? String(Math.round(revenue / averageCheck)) : '0';
         }
 
-        // Общая наценка как взвешенное среднее наценок по категориям
-        // Формула: markupPercent = (draftMarkup × draftShare + packagedMarkup × packagedShare + kitchenMarkup × kitchenShare) / 100
+        // Выручка по категориям
+        const revenueDraft = revenue * draftShare / 100;
+        const revenuePackaged = revenue * packagedShare / 100;
+        const revenueKitchen = revenue * kitchenShare / 100;
+        if (this.formFields.revenueDraft) this.formFields.revenueDraft.value = revenueDraft.toFixed(2);
+        if (this.formFields.revenuePackaged) this.formFields.revenuePackaged.value = revenuePackaged.toFixed(2);
+        if (this.formFields.revenueKitchen) this.formFields.revenueKitchen.value = revenueKitchen.toFixed(2);
+
+        // Наценки по категориям
         const markupDraft = parseFloat(this.formFields.markupDraft?.value) || 0;
         const markupPackaged = parseFloat(this.formFields.markupPackaged?.value) || 0;
         const markupKitchen = parseFloat(this.formFields.markupKitchen?.value) || 0;
 
+        // Себестоимость категории = выручка_кат / (1 + наценка_кат/100)
+        const costOf = (rev, markup) => {
+            const factor = 1 + markup / 100;
+            return factor > 0 ? rev / factor : 0;
+        };
+        const totalCost = costOf(revenueDraft, markupDraft)
+            + costOf(revenuePackaged, markupPackaged)
+            + costOf(revenueKitchen, markupKitchen);
+
+        // Прибыль (маржа) = выручка − себестоимость
+        if (this.formFields.profit) {
+            this.formFields.profit.value = (revenue - totalCost).toFixed(2);
+        }
+        // Общая наценка, взвешенная по себестоимости
         if (this.formFields.markupPercent) {
-            const weightedMarkup = (markupDraft * draftShare + markupPackaged * packagedShare + markupKitchen * kitchenShare) / 100;
-            this.formFields.markupPercent.value = weightedMarkup.toFixed(2);
+            const markupPercent = totalCost > 0 ? (100 * revenue / totalCost - 100) : 0;
+            this.formFields.markupPercent.value = markupPercent.toFixed(2);
         }
     }
 
