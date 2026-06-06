@@ -13,6 +13,11 @@
             <div>
                 <h2>Плановые показатели</h2>
                 <p class="subtitle">Просмотр и редактирование плановых значений метрик</p>
+                <div class="plans-context" id="plans-context" aria-live="polite">
+                    <span class="plans-context-chip" id="plans-context-venue">—</span>
+                    <span class="plans-context-chip" id="plans-context-period">—</span>
+                </div>
+                <p class="plans-context-hint">Заведение и месяц задаются селекторами вверху страницы.</p>
             </div>
             <div class="plans-actions">
                 <button id="btn-create-plan" class="btn btn-primary">
@@ -487,6 +492,30 @@
 .plans-header-row .subtitle {
     color: var(--text-secondary);
     font-size: 0.9rem;
+}
+
+/* Контекст «какой бар / какой месяц» на вкладке Месячные */
+.plans-context {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.plans-context-chip {
+    background: var(--accent);
+    color: #fff;
+    padding: 4px 14px;
+    border-radius: var(--border-radius-pill, 999px);
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.plans-context-hint {
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
 }
 
 .plans-actions {

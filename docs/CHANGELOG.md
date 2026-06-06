@@ -9,6 +9,7 @@
 - Таблица плановых показателей теперь содержит только две колонки: **Метрика | План**. Колонки Факт, Отклонение, % убраны из шапки ([templates/dashboard/plans_tab.html](../templates/dashboard/plans_tab.html)) и из рендера строк ([static/js/dashboard/modules/plans.js](../static/js/dashboard/modules/plans.js)).
 - `PlansViewer.loadData` больше **не запрашивает аналитику** (`getAnalytics`) — грузит только план. Это убирает лишний запрос факта и его как источник ошибок на вкладке «Планы». `createMetricRow`/`displayData` упрощены до плановых значений; неиспользуемые импорты `calculatePercent`/`calculateDiff`/`getStatus`/`getAnalytics`/`calculatePlan` удалены.
 - Текст заглушки «нет плана» поправлен (убрано «Показаны только фактические данные»).
+- **Плашки контекста** в шапке «Месячные»: видно, чей план и за какой месяц показан (`Заведение: … · План за <Месяц> <Год>`) — раньше это задавалось только верхними селекторами дашборда и было неочевидно. Обновляются при каждой загрузке (`PlansViewer.updateContextLabel`); под ними подсказка, что бар/месяц меняются селекторами вверху страницы.
 
 **Файлы:** `templates/dashboard/plans_tab.html`, `static/js/dashboard/modules/plans.js`, `docs/dashboard.md`.
 

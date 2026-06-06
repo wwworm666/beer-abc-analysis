@@ -8,12 +8,27 @@ import { getPlan, savePlan, deletePlan } from '../core/api.js';
 import { METRICS } from '../core/config.js';
 import { formatValue } from '../core/utils.js';
 
+const VENUE_NAMES = {
+    'all': 'Все заведения',
+    'bolshoy': 'Большой пр. В.О',
+    'ligovskiy': 'Лиговский',
+    'kremenchugskaya': 'Кременчугская',
+    'varshavskaya': 'Варшавская'
+};
+
+const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
 class PlansViewer {
     constructor() {
         this.loadingState = document.getElementById('plans-loading');
         this.noDataState = document.getElementById('plans-no-data');
         this.tableContainer = document.getElementById('plans-table-container');
         this.tableBody = document.getElementById('plans-table-body');
+
+        // Плашки контекста: какой бар / какой месяц показан
+        this.contextVenue = document.getElementById('plans-context-venue');
+        this.contextPeriod = document.getElementById('plans-context-period');
 
         // Кнопки управления
         this.btnCreatePlan = document.getElementById('btn-create-plan');
@@ -212,6 +227,9 @@ class PlansViewer {
             const month = String(dateObj.getMonth() + 1).padStart(2, '0');
             this.currentPeriodKey = `${year}-${month}`;
 
+            // Показываем, чей план и за какой месяц сейчас отображается
+            this.updateContextLabel(year, dateObj.getMonth());
+
             // Вкладка «Планы» показывает только плановые значения — факт не загружаем.
             // getPlan возвращает null, если плана нет (404).
             this.currentPlan = await getPlan(state.currentVenue, this.currentPeriodKey);
@@ -236,6 +254,21 @@ class PlansViewer {
         }
         if (this.btnDeletePlan) {
             this.btnDeletePlan.disabled = !hasPlan;
+        }
+    }
+
+    /**
+     * Обновить плашки контекста: какое заведение и за какой месяц показан план.
+     * Заведение и период берутся из верхних селекторов дашборда (state).
+     */
+    updateContextLabel(year, monthIndex) {
+        const venueName = VENUE_NAMES[state.currentVenue] || state.currentVenue || '—';
+        if (this.contextVenue) {
+            this.contextVenue.textContent = `Заведение: ${venueName}`;
+        }
+        if (this.contextPeriod) {
+            const monthName = MONTH_NAMES[monthIndex] || '';
+            this.contextPeriod.textContent = `План за ${monthName} ${year}`.trim();
         }
     }
 
