@@ -282,9 +282,26 @@ def get_weeks():
 
 @dashboard_bp.route('/api/plans/<venue_key>/<period_key>')
 def get_plan_with_venue(venue_key, period_key):
-    """Получить план за конкретное заведение и период"""
+    """Получить план за конкретное заведение и период.
+
+    «Общее» (all/total/пусто) за месячный ключ YYYY-MM возвращается как агрегат —
+    сумма баров (calculate_plan_for_period за полный месяц), а не отдельная запись all_*.
+    """
     try:
         print(f"\n[PLANS API] Запрос плана для заведения: {venue_key}, период: {period_key}")
+
+        is_month = len(period_key) == 7 and period_key[4] == '-'
+        if venue_key in ('all', 'total', '') and is_month:
+            y, m = int(period_key[:4]), int(period_key[5:7])
+            mstart = f"{period_key}-01"
+            mnext = datetime(y + 1, 1, 1) if m == 12 else datetime(y, m + 1, 1)
+            mend = (mnext - timedelta(days=1)).strftime('%Y-%m-%d')
+            plan = plans_manager.calculate_plan_for_period('', mstart, mend)
+            if plan:
+                print(f"[PLANS API] Агрегат «Общее» рассчитан: выручка={plan.get('revenue', 0):.0f}")
+                return jsonify(plan)
+            return jsonify({'error': 'Plan not found'}), 404
+
         composite_key = f"{venue_key}_{period_key}"
         print(f"[PLANS API] Составной ключ: {composite_key}")
         plan = plans_manager.get_plan(composite_key)
@@ -892,10 +909,17 @@ def revenue_metrics():
         # 'revenue' = вся выручка после маппинга
         actual_revenue = mapped.get('revenue', 0)
 
-        # Получаем план за ВЕСЬ месяц из plansdashboard.json через единый менеджер
-        month_key = f"{venue_key if venue_key else 'all'}_{datetime.strptime(date_from, '%Y-%m-%d').strftime('%Y-%m')}"
+        # План за ВЕСЬ месяц. «Общее» (all/пусто) = сумма баров (calculate_plan_for_period
+        # суммирует по 4 точкам за полный месяц); конкретный бар — его месячный план.
+        _pdt = datetime.strptime(date_from, '%Y-%m-%d')
+        _mstart = _pdt.replace(day=1).strftime('%Y-%m-%d')
+        _mnext = datetime(_pdt.year + 1, 1, 1) if _pdt.month == 12 else datetime(_pdt.year, _pdt.month + 1, 1)
+        _mend = (_mnext - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        month_plan = plans_manager.get_plan(month_key) or {}
+        if not venue_key or venue_key in ('all', 'total'):
+            month_plan = plans_manager.calculate_plan_for_period('', _mstart, _mend) or {}
+        else:
+            month_plan = plans_manager.get_monthly_plan(venue_key, _pdt.year, _pdt.month) or {}
         plan_revenue = month_plan.get('revenue', 0.0)
 
         # Расчёт метрик

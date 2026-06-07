@@ -580,6 +580,10 @@ class PlansManager:
             total_weight = 0.0
             months_found = 0
 
+            # «Общее» считается как сумма баров: нормализуем агрегатные ключи к пустому.
+            if venue_key in ('all', 'total', 'общая'):
+                venue_key = ''
+
             # Если venue_key пустой - суммируем по всем заведениям
             venues_to_check = [venue_key] if venue_key else ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']
 

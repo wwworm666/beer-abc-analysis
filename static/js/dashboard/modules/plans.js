@@ -295,12 +295,13 @@ class PlansViewer {
      * Обновить состояние кнопок
      */
     updateButtonStates(hasPlan) {
-        // Кнопки активны только если есть план
+        // «Общее» — производное (сумма баров): редактировать/удалять нечего.
+        const isAggregate = ['all', 'total', ''].includes(state.currentVenue);
         if (this.btnEditPlan) {
-            this.btnEditPlan.disabled = !hasPlan;
+            this.btnEditPlan.disabled = !hasPlan || isAggregate;
         }
         if (this.btnDeletePlan) {
-            this.btnDeletePlan.disabled = !hasPlan;
+            this.btnDeletePlan.disabled = !hasPlan || isAggregate;
         }
     }
 
@@ -311,7 +312,11 @@ class PlansViewer {
     updateContextLabel() {
         const venueName = VENUE_NAMES[state.currentVenue] || state.currentVenue || '—';
         if (this.contextVenue) {
-            this.contextVenue.textContent = `Заведение: ${venueName} (выбирается селектором «Бар» вверху)`;
+            const isAggregate = ['all', 'total', ''].includes(state.currentVenue);
+            const suffix = isAggregate
+                ? ' — сумма баров (считается автоматически)'
+                : ' (выбирается селектором «Бар» вверху)';
+            this.contextVenue.textContent = `Заведение: ${venueName}${suffix}`;
         }
     }
 
@@ -427,7 +432,9 @@ class PlansViewer {
             this.planYearSelect.value = now.getFullYear().toString();
         }
         if (this.planVenueSelect) {
-            this.planVenueSelect.value = state.currentVenue || 'all';
+            // «Общее» считается автоматически (сумма баров) — план задаётся по барам.
+            const cv = state.currentVenue;
+            this.planVenueSelect.value = (cv && !['all', 'total', ''].includes(cv)) ? cv : 'bolshoy';
         }
 
         // Отключаем секцию метрик до загрузки
