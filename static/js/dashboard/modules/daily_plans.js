@@ -41,6 +41,7 @@ class DailyPlansViewer {
         this.tableContainer = document.getElementById('daily-table-container');
         this.tableBody = document.getElementById('daily-table-body');
         this.footer = document.getElementById('daily-validation-footer');
+        this.baseRate = document.getElementById('daily-base-rate');
         this.sumValue = document.getElementById('daily-sum-value');
         this.monthlyValue = document.getElementById('daily-monthly-value');
         this.sumCheck = document.getElementById('daily-sum-check');
@@ -70,6 +71,13 @@ class DailyPlansViewer {
         this.cancelBtn?.addEventListener('click', () => this.closeModal());
         this.saveBtn?.addEventListener('click', () => this.saveWeight());
         this.resetBtn?.addEventListener('click', () => this.resetWeightFromModal());
+
+        // Кнопки-пресеты веса дня
+        document.querySelectorAll('.day-weight-preset').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (this.weightInput) this.weightInput.value = btn.getAttribute('data-weight');
+            });
+        });
 
         // Делегирование кликов по кнопкам строк таблицы
         this.tableBody?.addEventListener('click', (e) => {
@@ -162,6 +170,12 @@ class DailyPlansViewer {
         });
 
         // Футер-валидация
+        // Базовая ставка = месячный план / сумма весов месяца (план дня = ставка x вес).
+        // Для агрегата «Все заведения» month_weight = null (сумма точек) — ставку не показываем.
+        if (this.baseRate) {
+            const mw = payload.month_weight || 0;
+            this.baseRate.textContent = mw > 0 ? formatMoney(payload.monthly_revenue / mw) : '—';
+        }
         this.sumValue.textContent = formatMoney(payload.daily_sum);
         this.monthlyValue.textContent = formatMoney(payload.monthly_revenue);
         if (payload.sum_check) {
@@ -181,8 +195,10 @@ class DailyPlansViewer {
         if (day.is_override) tr.classList.add('override-day');
 
         const weightText = day.weight == null ? '—' : String(day.weight);
+        const weightCls = day.is_override ? 'daily-weight is-override' : 'daily-weight';
+        const tag = day.is_override ? '<span class="daily-tag">особый</span>' : '';
 
-        let actionHtml = '<span class="value-col">—</span>';
+        let actionHtml = '<span class="daily-muted">—</span>';
         if (editable) {
             actionHtml = `<button class="btn btn-secondary btn-day" data-edit-date="${day.date}">Изменить</button>`;
             if (day.is_override) {
@@ -193,7 +209,7 @@ class DailyPlansViewer {
         tr.innerHTML = `
             <td class="metric-name">${this.formatDate(day.date)}</td>
             <td>${day.weekday_name}</td>
-            <td class="value-col">${weightText}</td>
+            <td class="daily-weight-col"><span class="${weightCls}">${weightText}</span>${tag}</td>
             <td class="value-col">${formatValue(day.daily_plan, 'money')}</td>
             <td class="value-col daily-action-col">${actionHtml}</td>
         `;

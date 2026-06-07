@@ -138,7 +138,7 @@
                     <tr>
                         <th class="metric-name">Дата</th>
                         <th>День недели</th>
-                        <th class="value-col">Вес</th>
+                        <th class="daily-weight-col">Вес</th>
                         <th class="value-col">План на день</th>
                         <th class="value-col daily-action-col">Действие</th>
                     </tr>
@@ -150,8 +150,19 @@
         </div>
 
         <div id="daily-validation-footer" class="daily-footer hidden">
-            <span>Сумма по дням: <strong id="daily-sum-value">—</strong></span>
-            <span>Месячный план: <strong id="daily-monthly-value">—</strong></span>
+            <div class="daily-footer-item">
+                <span class="daily-footer-label">Базовая ставка</span>
+                <strong id="daily-base-rate">—</strong>
+                <span class="daily-footer-sub">месячный / сумма весов · план дня = ставка x вес</span>
+            </div>
+            <div class="daily-footer-item">
+                <span class="daily-footer-label">Сумма по дням</span>
+                <strong id="daily-sum-value">—</strong>
+            </div>
+            <div class="daily-footer-item">
+                <span class="daily-footer-label">Месячный план</span>
+                <strong id="daily-monthly-value">—</strong>
+            </div>
             <span id="daily-sum-check" class="daily-check"></span>
         </div>
     </div>
@@ -362,6 +373,12 @@
                 <label>Вес дня (обычный будний = 1, пятница/суббота = 2, закрытый день = 0)</label>
                 <input type="number" id="day-weight-input" class="form-input" step="0.5" min="0">
             </div>
+            <div class="day-weight-presets">
+                <button type="button" class="day-weight-preset" data-weight="0">0 · закрыт</button>
+                <button type="button" class="day-weight-preset" data-weight="1">1 · будни</button>
+                <button type="button" class="day-weight-preset" data-weight="2">2 · пт/сб</button>
+                <button type="button" class="day-weight-preset" data-weight="5">5 · праздник</button>
+            </div>
             <p class="day-weight-hint">Остальные дни месяца пересчитаются автоматически — сумма за месяц останется равной месячному плану.</p>
         </div>
         <div class="modal-footer">
@@ -422,12 +439,57 @@
     font-size: 0.9rem;
 }
 
+/* Выходные (пт/сб) — мягкая подсветка строки */
 .daily-plans-table tr.weekend-day td {
-    background: var(--bg-tertiary);
+    background: color-mix(in srgb, var(--bg-tertiary) 55%, transparent);
 }
 
+/* Особый день (override) — единый акцентный стиль, перекрывает выходной.
+   Акцентная полоса только слева у всей строки, без рамок на каждой ячейке. */
 .daily-plans-table tr.override-day td {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.daily-plans-table tr.override-day td:first-child {
     border-left: 3px solid var(--accent);
+    font-weight: 600;
+}
+
+.daily-plans-table th.daily-weight-col,
+.daily-plans-table td.daily-weight-col {
+    text-align: center;
+    white-space: nowrap;
+    min-width: 110px;
+}
+
+/* Вес дня — компактный чип */
+.daily-weight {
+    display: inline-block;
+    min-width: 32px;
+    padding: 2px 10px;
+    border-radius: var(--border-radius-pill, 999px);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: center;
+}
+
+.daily-weight.is-override {
+    background: var(--accent);
+    color: #fff;
+}
+
+.daily-tag {
+    margin-left: 8px;
+    font-size: 0.7rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+.daily-muted {
+    color: var(--text-secondary);
 }
 
 .daily-plans-table th.daily-action-col,
@@ -436,18 +498,18 @@
 }
 
 .daily-plans-table .btn-day {
-    padding: 4px 10px;
+    padding: 4px 12px;
     font-size: 0.8rem;
-    margin-left: 4px;
+    margin-left: 6px;
 }
 
 .daily-footer {
     display: flex;
-    gap: var(--spacing-lg);
+    gap: var(--spacing-xl, 32px);
     flex-wrap: wrap;
     align-items: center;
     margin-top: var(--spacing-md);
-    padding: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
@@ -458,20 +520,73 @@
     display: none;
 }
 
+.daily-footer-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.daily-footer-label {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.daily-footer-item strong {
+    font-size: 1.05rem;
+    font-family: 'Courier New', monospace;
+}
+
+.daily-footer-sub {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+
+.daily-check {
+    padding: 6px 14px;
+    border-radius: var(--border-radius-pill, 999px);
+    font-weight: 600;
+}
+
 .daily-check.ok {
     color: var(--success);
-    font-weight: 600;
+    background: color-mix(in srgb, var(--success) 15%, transparent);
 }
 
 .daily-check.bad {
     color: var(--danger);
-    font-weight: 600;
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
 }
 
 .day-weight-hint {
     color: var(--text-secondary);
     font-size: 0.85rem;
     margin-top: var(--spacing-sm);
+}
+
+.day-weight-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.day-weight-preset {
+    padding: 6px 14px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: var(--border-radius-pill, 999px);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.day-weight-preset:hover {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
 }
 
 .plans-header {
