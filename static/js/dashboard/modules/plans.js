@@ -29,9 +29,10 @@ class PlansViewer {
         this.tableContainer = document.getElementById('plans-table-container');
         this.tableBody = document.getElementById('plans-table-body');
 
-        // Плашки контекста: какой бар / какой месяц показан
+        // Строка контекста (какой бар) + локальные селекторы месяца/года
         this.contextVenue = document.getElementById('plans-context-venue');
-        this.contextPeriod = document.getElementById('plans-context-period');
+        this.monthlyMonthSelect = document.getElementById('plans-month-select');
+        this.monthlyYearSelect = document.getElementById('plans-year-select');
 
         // Кнопки управления
         this.btnCreatePlan = document.getElementById('btn-create-plan');
@@ -99,12 +100,20 @@ class PlansViewer {
      * Настроить обработчики событий
      */
     setupEventListeners() {
-        // Подписка на изменения состояния
+        // Подписка на изменения состояния. Смена бара — перезагрузка;
+        // смена верхнего периода — синхронизируем локальные Месяц/Год и грузим.
         state.subscribe((event) => {
-            if (event === 'venueChanged' || event === 'periodChanged') {
+            if (event === 'venueChanged') {
+                this.loadData();
+            } else if (event === 'periodChanged') {
+                this.syncPeriodSelectorsFromState();
                 this.loadData();
             }
         });
+
+        // Локальные селекторы Месяц/Год (вкладка «Месячные»)
+        this.monthlyMonthSelect?.addEventListener('change', () => this.loadData());
+        this.monthlyYearSelect?.addEventListener('change', () => this.loadData());
 
         // Кнопки управления
         this.btnCreatePlan?.addEventListener('click', () => this.createPlan());
@@ -254,7 +263,7 @@ class PlansViewer {
      * Загрузить план и факт
      */
     async loadData() {
-        if (!state.currentVenue || !state.currentPeriod) {
+        if (!state.currentVenue) {
             return;
         }
 
@@ -262,15 +271,28 @@ class PlansViewer {
         this.updateButtonStates(false);
 
         try {
-            // Для планов используем месячный ключ: venue_YYYY-MM
-            const periodDate = state.currentPeriod.start;
-            const dateObj = new Date(periodDate);
-            const year = dateObj.getFullYear();
-            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            // Период берём из локальных селекторов Месяц/Год; при первом заходе —
+            // из верхнего глобального периода (и проставляем селекторы).
+            let year = this.monthlyYearSelect?.value;
+            let month = this.monthlyMonthSelect?.value;
+            if (!year || !month) {
+                const src = state.currentPeriod?.start;
+                const dateObj = src ? new Date(src) : new Date();
+                year = String(dateObj.getFullYear());
+                month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                if (this.monthlyYearSelect && [...this.monthlyYearSelect.options].some(o => o.value === year)) {
+                    this.monthlyYearSelect.value = year;
+                }
+                if (this.monthlyMonthSelect) {
+                    this.monthlyMonthSelect.value = month;
+                }
+            }
+
+            // Месячный ключ плана: venue_YYYY-MM
             this.currentPeriodKey = `${year}-${month}`;
 
-            // Показываем, чей план и за какой месяц сейчас отображается
-            this.updateContextLabel(year, dateObj.getMonth());
+            // Показываем, чей план сейчас отображается (бар — из верхнего селектора)
+            this.updateContextLabel();
 
             // Вкладка «Планы» показывает только плановые значения — факт не загружаем.
             // getPlan возвращает null, если плана нет (404).
@@ -303,14 +325,27 @@ class PlansViewer {
      * Обновить плашки контекста: какое заведение и за какой месяц показан план.
      * Заведение и период берутся из верхних селекторов дашборда (state).
      */
-    updateContextLabel(year, monthIndex) {
+    updateContextLabel() {
         const venueName = VENUE_NAMES[state.currentVenue] || state.currentVenue || '—';
         if (this.contextVenue) {
-            this.contextVenue.textContent = `Заведение: ${venueName}`;
+            this.contextVenue.textContent = `Заведение: ${venueName} (выбирается селектором «Бар» вверху)`;
         }
-        if (this.contextPeriod) {
-            const monthName = MONTH_NAMES[monthIndex] || '';
-            this.contextPeriod.textContent = `План за ${monthName} ${year}`.trim();
+    }
+
+    /**
+     * Синхронизировать локальные Месяц/Год с верхним глобальным периодом.
+     */
+    syncPeriodSelectorsFromState() {
+        const src = state.currentPeriod?.start;
+        if (!src) return;
+        const dateObj = new Date(src);
+        const year = String(dateObj.getFullYear());
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        if (this.monthlyYearSelect && [...this.monthlyYearSelect.options].some(o => o.value === year)) {
+            this.monthlyYearSelect.value = year;
+        }
+        if (this.monthlyMonthSelect) {
+            this.monthlyMonthSelect.value = month;
         }
     }
 

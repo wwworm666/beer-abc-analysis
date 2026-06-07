@@ -163,10 +163,11 @@ class DailyPlansViewer {
             return;
         }
 
-        // Рендер строк
+        // Рендер строк. maxPlan — для масштаба мини-бара (самый крупный день = полный бар).
         this.tableBody.innerHTML = '';
+        const maxPlan = payload.days.reduce((m, d) => Math.max(m, d.daily_plan || 0), 0);
         payload.days.forEach(day => {
-            this.tableBody.appendChild(this.createDayRow(day, payload.editable));
+            this.tableBody.appendChild(this.createDayRow(day, payload.editable, maxPlan));
         });
 
         // Футер-валидация
@@ -189,7 +190,7 @@ class DailyPlansViewer {
         this.showTable();
     }
 
-    createDayRow(day, editable) {
+    createDayRow(day, editable, maxPlan) {
         const tr = document.createElement('tr');
         if (day.weekday === 4 || day.weekday === 5) tr.classList.add('weekend-day');
         if (day.is_override) tr.classList.add('override-day');
@@ -206,11 +207,20 @@ class DailyPlansViewer {
             }
         }
 
+        // Сумма + мини-бар: ширина = доля дня от самого крупного дня месяца.
+        const plan = day.daily_plan || 0;
+        const pct = maxPlan > 0 ? Math.round((plan / maxPlan) * 100) : 0;
+        const planCell = `
+            <div class="daily-plan-cell">
+                <span class="daily-plan-amount">${formatValue(plan, 'money')}</span>
+                <span class="daily-plan-track"><span class="daily-plan-fill" style="width: ${pct}%"></span></span>
+            </div>`;
+
         tr.innerHTML = `
             <td class="metric-name">${this.formatDate(day.date)}</td>
             <td>${day.weekday_name}</td>
             <td class="daily-weight-col"><span class="${weightCls}">${weightText}</span>${tag}</td>
-            <td class="value-col">${formatValue(day.daily_plan, 'money')}</td>
+            <td class="value-col">${planCell}</td>
             <td class="value-col daily-action-col">${actionHtml}</td>
         `;
         return tr;

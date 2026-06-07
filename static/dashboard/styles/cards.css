@@ -590,6 +590,22 @@
     gap: 12px;
 }
 
+/* Группа бара: подпись (раньше ряды не подписывались) + ряд карточек */
+.revenue-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.revenue-bar-name {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-family: var(--font-family);
+}
+
 /* Ряд карточек (один бар) */
 .revenue-metrics-row {
     display: grid;
@@ -635,11 +651,10 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);  /* UI/UX: elevation-1 */
 }
 
-/* UI/UX: Hover feedback с transform (не width/height) */
+/* Hover feedback — единый с эталонной .metric-card (без accent-рамки) */
 .revenue-metric-card:hover {
-    transform: scale(1.02);  /* UI/UX: Bento Grid hover scale */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);  /* UI/UX: elevation-2 */
-    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
 }
 
 /* Карточка выполнения с progress bar */
@@ -660,17 +675,17 @@
 /* Progress bar для карточки выполнения */
 .rmc-progress {
     width: 100%;
-    height: 4px;            /* UI/UX: видимый прогресс */
+    height: 5px;
     background: var(--bg-tertiary);
-    border-radius: 4px;
+    border-radius: var(--border-radius-pill);
     overflow: hidden;
 }
 
 .rmc-progress-bar {
     height: 100%;
     background: var(--accent);
-    border-radius: 4px;
-    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);  /* UI/UX: 150-300ms */
+    border-radius: var(--border-radius-pill);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);  /* как .progress-bar эталона */
 }
 
 /* Footer карточки */

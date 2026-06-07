@@ -1,74 +1,58 @@
 <!-- Вкладка "Сравнение периодов" — Modern Fintech Design -->
 
 <div class="comparison-container">
-    <!-- Hero Section — Smart Period Selection -->
-    <div class="comparison-hero">
-        <div class="comparison-hero-title">
-            Сравнение периодов
-        </div>
-        <div class="comparison-hero-subtitle">
-            Анализ изменений ключевых метрик между периодами
-        </div>
+    <!-- Режим сравнения -->
+    <div class="comparison-mode-tabs">
+        <button class="comparison-mode-tab active" data-mode="week">
+            Неделя к неделе
+        </button>
+        <button class="comparison-mode-tab" data-mode="month">
+            Месяц к месяцу
+        </button>
+        <button class="comparison-mode-tab" data-mode="year">
+            Год к году
+        </button>
+    </div>
 
-        <!-- Comparison Mode Tabs -->
-        <div class="comparison-mode-tabs">
-            <button class="comparison-mode-tab active" data-mode="week">
-                Week-over-Week
-            </button>
-            <button class="comparison-mode-tab" data-mode="month">
-                Month-over-Month
-            </button>
-            <button class="comparison-mode-tab" data-mode="year">
-                Year-over-Year
-            </button>
-        </div>
-
-        <!-- Period Selectors -->
-        <div class="comparison-periods">
-            <div class="period-selector">
-                <div class="period-label">Период 1</div>
-                <select id="comparison-period-1" class="period-select">
+    <!-- Периоды — единый блок управления как у дашборда -->
+    <div class="dashboard-controls">
+        <div class="controls-row">
+            <div class="control-group">
+                <label for="comparison-period-1">Период 1</label>
+                <select id="comparison-period-1" class="control-input">
                     <option value="">Загрузка...</option>
                 </select>
             </div>
-
-            <div class="vs-divider">vs</div>
-
-            <div class="period-selector">
-                <div class="period-label">Период 2</div>
-                <select id="comparison-period-2" class="period-select">
+            <div class="control-group">
+                <label for="comparison-period-2">Период 2</label>
+                <select id="comparison-period-2" class="control-input">
                     <option value="">Загрузка...</option>
                 </select>
             </div>
-        </div>
-
-        <!-- Compare Action -->
-        <div class="comparison-actions">
-            <button id="btn-compare" class="btn-compare">
-                Сравнить периоды
-            </button>
+            <div class="control-group control-group-button">
+                <label>&nbsp;</label>
+                <button id="btn-compare" class="btn">
+                    Сравнить периоды
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Loading State -->
-    <div id="comparison-loading" class="comparison-loading hidden">
-        <div class="comparison-loading-spinner"></div>
-        <div class="comparison-loading-text">Загрузка данных...</div>
+    <div id="comparison-loading" class="loading-container hidden">
+        <div class="loading-spinner"></div>
+        <span class="loading-text">Загрузка данных...</span>
     </div>
 
     <!-- Empty State -->
-    <div id="comparison-empty" class="comparison-empty">
-        <div class="comparison-empty-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-        </div>
-        <div class="comparison-empty-title">Выберите периоды для сравнения</div>
-        <div class="comparison-empty-text">
-            Используйте селекторы выше или переключите режим сравнения
-        </div>
+    <div id="comparison-empty" class="no-data-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+        <h3>Выберите периоды для сравнения</h3>
+        <p>Используйте селекторы выше или переключите режим сравнения</p>
     </div>
 
     <!-- Results Container -->
@@ -94,8 +78,8 @@
         <div class="comparison-table-section">
             <div class="comparison-table-header">
                 <div class="comparison-table-title">Детальное сравнение</div>
-                <button id="btn-export-comparison" class="comparison-table-export">
-                    Экспорт ↓
+                <button id="btn-export-comparison" class="btn btn-secondary">
+                    Экспорт
                 </button>
             </div>
             <div class="table-wrapper">

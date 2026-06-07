@@ -33,11 +33,31 @@ class RevenueMetricsModule {
             loading: revenueTab.querySelector('#revenue-loading'),
             noData: revenueTab.querySelector('#revenue-no-data'),
             metricsContainer: revenueTab.querySelector('#revenue-metrics-container'),
-            metricsRows: revenueTab.querySelector('#revenue-metrics-rows')
+            metricsRows: revenueTab.querySelector('#revenue-metrics-rows'),
+            monthSelect: revenueTab.querySelector('#revenue-month-select'),
+            yearSelect: revenueTab.querySelector('#revenue-year-select')
         };
     }
 
     setupListeners() {
+        // Значения по умолчанию — текущий месяц/год
+        const now = new Date();
+        if (this.elements.monthSelect && !this.elements.monthSelect.dataset.init) {
+            this.elements.monthSelect.value = String(now.getMonth() + 1).padStart(2, '0');
+            this.elements.monthSelect.dataset.init = '1';
+        }
+        if (this.elements.yearSelect && !this.elements.yearSelect.dataset.init) {
+            const y = String(now.getFullYear());
+            if ([...this.elements.yearSelect.options].some(o => o.value === y)) {
+                this.elements.yearSelect.value = y;
+            }
+            this.elements.yearSelect.dataset.init = '1';
+        }
+
+        // Перезагрузка при смене месяца/года
+        this.elements.monthSelect?.addEventListener('change', () => this.loadAllMetrics());
+        this.elements.yearSelect?.addEventListener('change', () => this.loadAllMetrics());
+
         state.subscribe((_event, _data) => {
             const activeTab = document.querySelector('.tab-button.active');
             if (activeTab && activeTab.getAttribute('data-tab') === 'tab-revenue') {
@@ -67,14 +87,22 @@ class RevenueMetricsModule {
     async loadAllMetrics() {
         const venue = state.currentVenue;
 
-        // Период: с 1-го числа текущего месяца по сегодня
+        // Период: выбранный месяц (с 1-го числа; для текущего месяца — по сегодня,
+        // чтобы «Ожидаемая» оставалась осмысленной проекцией).
         const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth();
-        const day = now.getDate();
+        const monthNum = this.elements.monthSelect?.value
+            ? parseInt(this.elements.monthSelect.value, 10)
+            : now.getMonth() + 1;
+        const year = this.elements.yearSelect?.value
+            ? parseInt(this.elements.yearSelect.value, 10)
+            : now.getFullYear();
+        const isCurrentMonth = (year === now.getFullYear() && monthNum === now.getMonth() + 1);
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const toDay = isCurrentMonth ? now.getDate() : lastDay;
+        const mm = String(monthNum).padStart(2, '0');
 
-        const dateFrom = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        const dateTo = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dateFrom = `${year}-${mm}-01`;
+        const dateTo = `${year}-${mm}-${String(toDay).padStart(2, '0')}`;
 
         console.log('[RevenueMetrics] loadAllMetrics:', venue, dateFrom, '-', dateTo);
 
@@ -154,8 +182,17 @@ class RevenueMetricsModule {
             const data = results[bar];
             if (!data) continue;
 
-            const rowEl = this.createBarRow(data, barNames[bar]);
-            container.appendChild(rowEl);
+            // Группа = подпись бара (ряд раньше не подписывался) + ряд из 5 карточек
+            const group = document.createElement('div');
+            group.className = 'revenue-bar-group';
+
+            const label = document.createElement('div');
+            label.className = 'revenue-bar-name';
+            label.textContent = barNames[bar];
+            group.appendChild(label);
+
+            group.appendChild(this.createBarRow(data, barNames[bar]));
+            container.appendChild(group);
         }
     }
 

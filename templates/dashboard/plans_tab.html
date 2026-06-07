@@ -13,11 +13,7 @@
             <div>
                 <h2>Плановые показатели</h2>
                 <p class="subtitle">Просмотр и редактирование плановых значений метрик</p>
-                <div class="plans-context" id="plans-context" aria-live="polite">
-                    <span class="plans-context-chip" id="plans-context-venue">—</span>
-                    <span class="plans-context-chip" id="plans-context-period">—</span>
-                </div>
-                <p class="plans-context-hint">Заведение и месяц задаются селекторами вверху страницы.</p>
+                <p class="plans-context-hint" id="plans-context-venue">—</p>
             </div>
             <div class="plans-actions">
                 <button id="btn-create-plan" class="btn btn-primary">
@@ -45,6 +41,37 @@
                     </svg>
                     Экспорт
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Месяц/Год: единый селектор периода (бар выбирается селектором «Бар» вверху) -->
+    <div class="dashboard-controls">
+        <div class="controls-row">
+            <div class="control-group">
+                <label for="plans-month-select">Месяц</label>
+                <select id="plans-month-select" class="control-input">
+                    <option value="01">Январь</option>
+                    <option value="02">Февраль</option>
+                    <option value="03">Март</option>
+                    <option value="04">Апрель</option>
+                    <option value="05">Май</option>
+                    <option value="06">Июнь</option>
+                    <option value="07">Июль</option>
+                    <option value="08">Август</option>
+                    <option value="09">Сентябрь</option>
+                    <option value="10">Октябрь</option>
+                    <option value="11">Ноябрь</option>
+                    <option value="12">Декабрь</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="plans-year-select">Год</label>
+                <select id="plans-year-select" class="control-input">
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                </select>
             </div>
         </div>
     </div>
@@ -89,15 +116,25 @@
                     <h2>Планы по дням</h2>
                     <p class="subtitle">Подневная разбивка месячного плана. Вес дня: обычный будний = 1, пятница/суббота = 2. Можно задать особый вес (праздник, закрытый день) — остальные дни пересчитаются автоматически, сумма за месяц останется равной месячному плану.</p>
                 </div>
-                <div class="daily-controls">
-                    <select id="daily-venue-select" class="form-input">
+            </div>
+            <div class="daily-venue-label" id="daily-venue-label"></div>
+        </div>
+
+        <div class="dashboard-controls">
+            <div class="controls-row">
+                <div class="control-group">
+                    <label for="daily-venue-select">Бар</label>
+                    <select id="daily-venue-select" class="control-input">
                         <option value="bolshoy">Большой пр. В.О</option>
                         <option value="ligovskiy">Лиговский</option>
                         <option value="kremenchugskaya">Кременчугская</option>
                         <option value="varshavskaya">Варшавская</option>
                         <option value="all">Все заведения (итог)</option>
                     </select>
-                    <select id="daily-month-select" class="form-input">
+                </div>
+                <div class="control-group">
+                    <label for="daily-month-select">Месяц</label>
+                    <select id="daily-month-select" class="control-input">
                         <option value="01">Январь</option>
                         <option value="02">Февраль</option>
                         <option value="03">Март</option>
@@ -111,14 +148,16 @@
                         <option value="11">Ноябрь</option>
                         <option value="12">Декабрь</option>
                     </select>
-                    <select id="daily-year-select" class="form-input">
+                </div>
+                <div class="control-group">
+                    <label for="daily-year-select">Год</label>
+                    <select id="daily-year-select" class="control-input">
                         <option value="2025">2025</option>
                         <option value="2026">2026</option>
                         <option value="2027">2027</option>
                     </select>
                 </div>
             </div>
-            <div class="daily-venue-label" id="daily-venue-label"></div>
         </div>
 
         <div id="daily-loading" class="loading-state hidden">
@@ -391,31 +430,42 @@
 
 <style>
 .plans-container {
-    max-width: 1200px;
+    max-width: 1400px;
 }
 
-/* Подвкладки Планов */
+/* Подвкладки Планов — единая пилюля как у верхних табов (tabs.css) */
 .plans-subtabs {
-    display: flex;
-    gap: var(--spacing-sm);
+    display: inline-flex;
+    gap: var(--spacing-xs);
     margin-bottom: var(--spacing-lg);
+    padding: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-pill, 999px);
 }
 
 .plans-subtab-btn {
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
     color: var(--text-secondary);
     border-radius: var(--border-radius-pill, 999px);
     cursor: pointer;
     font-weight: 500;
-    transition: background-color 0.2s, color 0.2s;
+    font-family: var(--font-family);
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+}
+
+.plans-subtab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
 }
 
 .plans-subtab-btn.active {
     background: var(--accent);
     color: #fff;
-    border-color: var(--accent);
+    box-shadow: var(--shadow-sm);
 }
 
 .plans-sub-content {
@@ -427,12 +477,6 @@
 }
 
 /* Планы по дням */
-.daily-controls {
-    display: flex;
-    gap: var(--spacing-sm);
-    flex-shrink: 0;
-}
-
 .daily-venue-label {
     margin-top: var(--spacing-sm);
     color: var(--text-secondary);
@@ -444,12 +488,8 @@
     background: color-mix(in srgb, var(--bg-tertiary) 55%, transparent);
 }
 
-/* Особый день (override) — единый акцентный стиль, перекрывает выходной.
-   Акцентная полоса только слева у всей строки, без рамок на каждой ячейке. */
-.daily-plans-table tr.override-day td {
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
+/* Особый день (override): акцент только полосой слева + чип веса,
+   без заливки всей строки (иначе оранжевого слишком много). */
 .daily-plans-table tr.override-day td:first-child {
     border-left: 3px solid var(--accent);
     font-weight: 600;
@@ -482,10 +522,41 @@
 .daily-tag {
     margin-left: 8px;
     font-size: 0.7rem;
-    color: var(--accent);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     vertical-align: middle;
+}
+
+/* Ячейка «План на день»: сумма + мини-бар (сдержанный accent эталона) */
+.daily-plan-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.daily-plan-amount {
+    font-family: var(--font-family);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.daily-plan-track {
+    width: 100%;
+    max-width: 160px;
+    height: 5px;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-pill, 999px);
+    overflow: hidden;
+}
+
+.daily-plan-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: var(--border-radius-pill, 999px);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .daily-muted {
@@ -535,7 +606,9 @@
 
 .daily-footer-item strong {
     font-size: 1.05rem;
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-family);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
 }
 
 .daily-footer-sub {
@@ -609,24 +682,7 @@
     font-size: 0.9rem;
 }
 
-/* Контекст «какой бар / какой месяц» на вкладке Месячные */
-.plans-context {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-sm);
-}
-
-.plans-context-chip {
-    background: var(--accent);
-    color: #fff;
-    padding: 4px 14px;
-    border-radius: var(--border-radius-pill, 999px);
-    font-weight: 600;
-    font-size: 0.9rem;
-    white-space: nowrap;
-}
-
+/* Строка «какой бар показан» на вкладке Месячные (бар выбирается вверху) */
 .plans-context-hint {
     margin-top: 6px;
     color: var(--text-secondary);
@@ -776,7 +832,7 @@
 
 .auto-calc-badge {
     font-size: 0.75rem;
-    color: var(--accent);
+    color: var(--text-secondary);
     background: var(--bg-tertiary);
     padding: 2px 8px;
     border-radius: 12px;
@@ -808,7 +864,7 @@
     background: var(--bg-primary);
     color: var(--text-primary);
     font-size: 0.95rem;
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-family);
     transition: border-color 0.2s;
 }
 
@@ -825,7 +881,7 @@
 
 .shares-sum {
     font-weight: 600;
-    color: var(--accent);
+    color: var(--text-secondary);
     padding-top: 8px;
     display: block;
 }
@@ -903,6 +959,9 @@
     padding: var(--spacing-md);
     text-align: left;
     font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--text-secondary);
     border-bottom: 2px solid var(--border-color);
 }
@@ -928,7 +987,10 @@
 .plans-table tbody tr.section-header td {
     background: var(--bg-tertiary);
     font-weight: 700;
-    color: var(--accent);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
     padding-top: var(--spacing-lg);
     padding-bottom: var(--spacing-sm);
 }
@@ -944,11 +1006,13 @@
 
 .plans-table td.value-col {
     text-align: right;
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-family);
+    font-variant-numeric: tabular-nums;
 }
 
 .plans-table td.plan-col {
-    color: var(--accent);
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 .plans-table td.fact-col {

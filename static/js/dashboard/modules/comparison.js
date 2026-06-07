@@ -428,7 +428,9 @@ class ComparisonModule {
             const diff = val1 - val2;
             const diffPercent = val2 !== 0 ? ((diff / val2) * 100) : 0;
 
+            // Семантический цвет — только в колонке Δ%; абсолютная Δ нейтральна.
             const diffClass = diff > 0 ? 'value-positive' : diff < 0 ? 'value-negative' : '';
+            const trendArrow = diff > 0 ? '↗' : diff < 0 ? '↘' : '→';
 
             // Для процентных метрик показываем разницу в п.п., для остальных - через formatter
             let formattedDiff;
@@ -443,13 +445,11 @@ class ComparisonModule {
                     <td>${metric.label}</td>
                     <td>${metric.formatter(val1)}</td>
                     <td>${metric.formatter(val2)}</td>
-                    <td class="${diffClass}">
-                        ${formattedDiff}
-                    </td>
+                    <td>${formattedDiff}</td>
                     <td class="${diffClass}">
                         ${diffPercent >= 0 ? '+' : ''}${diffPercent.toFixed(1)}%
                     </td>
-                    <td><span class="comparison-sparkline-mini">▁▃▅▇▅▃▁</span></td>
+                    <td><span class="comparison-trend">${trendArrow}</span></td>
                 </tr>
             `;
         }).join('');

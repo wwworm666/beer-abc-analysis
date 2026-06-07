@@ -100,6 +100,18 @@ body {
     box-shadow: var(--shadow-sm);
 }
 
+/* Опасное действие (удаление) — красный, а не accent */
+.btn-danger {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: var(--danger);
+    filter: brightness(0.92);
+    box-shadow: var(--shadow-md);
+}
+
 /* Инпуты */
 input, select, textarea {
     padding: 12px 16px;
