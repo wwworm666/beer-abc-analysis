@@ -27,14 +27,11 @@ class DailyPlansViewer {
         if (this.initialized) return;
         this.cacheElements();
         this.setupEventListeners();
-        this.initDefaults();
         this.initialized = true;
     }
 
     cacheElements() {
-        this.monthSelect = document.getElementById('daily-month-select');
-        this.yearSelect = document.getElementById('daily-year-select');
-        this.venueSelect = document.getElementById('daily-venue-select');
+        // Бар и месяц/год — глобальные (верхний бар), локальных селектов больше нет.
         this.venueLabel = document.getElementById('daily-venue-label');
         this.loadingState = document.getElementById('daily-loading');
         this.noDataState = document.getElementById('daily-no-data');
@@ -62,9 +59,12 @@ class DailyPlansViewer {
             btn.addEventListener('click', () => this.switchSubtab(btn));
         });
 
-        this.venueSelect?.addEventListener('change', () => this.loadData());
-        this.monthSelect?.addEventListener('change', () => this.loadData());
-        this.yearSelect?.addEventListener('change', () => this.loadData());
+        // Бар и месяц/год — глобальные (верхний бар). Перегружаем, когда подвкладка активна.
+        state.subscribe((event) => {
+            if ((event === 'venueChanged' || event === 'monthChanged') && this.isDailyActive()) {
+                this.loadData();
+            }
+        });
 
         // Модалка
         this.modalCloseBtn?.addEventListener('click', () => this.closeModal());
@@ -93,23 +93,6 @@ class DailyPlansViewer {
         });
     }
 
-    initDefaults() {
-        // Заведение по умолчанию: текущее из верхнего селектора, если это конкретный
-        // бар; иначе первый бар — чтобы сразу были доступны кнопки редактирования.
-        const REAL = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
-        if (this.venueSelect) {
-            this.venueSelect.value = REAL.includes(state.currentVenue) ? state.currentVenue : 'bolshoy';
-        }
-        // Месяц/год по умолчанию — текущий месяц (не из верхнего «Периода анализа»)
-        const now = new Date();
-        const y = String(now.getFullYear());
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        if (this.monthSelect) this.monthSelect.value = m;
-        if (this.yearSelect && [...this.yearSelect.options].some(o => o.value === y)) {
-            this.yearSelect.value = y;
-        }
-    }
-
     switchSubtab(btn) {
         const target = btn.getAttribute('data-subtab');
         document.querySelectorAll('.plans-subtab-btn').forEach(b => {
@@ -129,15 +112,15 @@ class DailyPlansViewer {
     }
 
     _venue() {
-        return this.venueSelect ? this.venueSelect.value : 'all';
+        return state.currentVenue || 'all';
     }
 
     async loadData() {
         if (!this.isDailyActive()) return;
 
         const venue = this._venue();
-        const year = this.yearSelect?.value;
-        const month = this.monthSelect ? parseInt(this.monthSelect.value, 10) : null;
+        const year = state.currentYear ? String(state.currentYear) : null;
+        const month = state.currentMonth ? parseInt(state.currentMonth, 10) : null;
         if (!year || !month) return;
 
         this.showLoading();
@@ -256,8 +239,8 @@ class DailyPlansViewer {
             return;
         }
         const venue = this._venue();
-        const year = this.yearSelect.value;
-        const month = parseInt(this.monthSelect.value, 10);
+        const year = String(state.currentYear);
+        const month = parseInt(state.currentMonth, 10);
         try {
             const payload = await setDayWeight(venue, year, month, this.editingDate, weight);
             this.currentPayload = payload;
@@ -277,8 +260,8 @@ class DailyPlansViewer {
 
     async resetDay(dateStr) {
         const venue = this._venue();
-        const year = this.yearSelect.value;
-        const month = parseInt(this.monthSelect.value, 10);
+        const year = String(state.currentYear);
+        const month = parseInt(state.currentMonth, 10);
         try {
             const payload = await resetDayWeight(venue, year, month, dateStr);
             this.currentPayload = payload;

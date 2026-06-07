@@ -29,10 +29,8 @@ class PlansViewer {
         this.tableContainer = document.getElementById('plans-table-container');
         this.tableBody = document.getElementById('plans-table-body');
 
-        // Строка контекста (какой бар) + локальные селекторы месяца/года
+        // Строка контекста (какой бар). Месяц/год — глобальные (верхний селектор).
         this.contextVenue = document.getElementById('plans-context-venue');
-        this.monthlyMonthSelect = document.getElementById('plans-month-select');
-        this.monthlyYearSelect = document.getElementById('plans-year-select');
 
         // Кнопки управления
         this.btnCreatePlan = document.getElementById('btn-create-plan');
@@ -93,39 +91,20 @@ class PlansViewer {
         if (this.initialized) return;
 
         this.setupEventListeners();
-        this.initDefaults();
         this.initialized = true;
-    }
-
-    /**
-     * Значения селекторов по умолчанию — текущий месяц/год
-     * (а не месяц из верхнего «Периода анализа»).
-     */
-    initDefaults() {
-        const now = new Date();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const y = String(now.getFullYear());
-        if (this.monthlyMonthSelect) this.monthlyMonthSelect.value = m;
-        if (this.monthlyYearSelect && [...this.monthlyYearSelect.options].some(o => o.value === y)) {
-            this.monthlyYearSelect.value = y;
-        }
     }
 
     /**
      * Настроить обработчики событий
      */
     setupEventListeners() {
-        // Месяц задаётся локальным селектором (по умолчанию — текущий), не верхним
-        // периодом. На смену бара/периода просто перегружаем с текущими селекторами.
+        // Месяц/год — глобальные (верхний адаптивный селектор). Перегружаем при смене
+        // месяца/года/бара. periodChanged (диапазон Аналитики) Планам не нужен.
         state.subscribe((event) => {
-            if (event === 'venueChanged' || event === 'periodChanged') {
+            if (event === 'venueChanged' || event === 'monthChanged') {
                 this.loadData();
             }
         });
-
-        // Локальные селекторы Месяц/Год (вкладка «Месячные»)
-        this.monthlyMonthSelect?.addEventListener('change', () => this.loadData());
-        this.monthlyYearSelect?.addEventListener('change', () => this.loadData());
 
         // Кнопки управления
         this.btnCreatePlan?.addEventListener('click', () => this.createPlan());
@@ -283,10 +262,9 @@ class PlansViewer {
         this.updateButtonStates(false);
 
         try {
-            // Период — из локальных селекторов Месяц/Год (по умолчанию текущий месяц,
-            // задаётся в initDefaults). Фолбэк на текущую дату — на всякий случай.
-            let year = this.monthlyYearSelect?.value;
-            let month = this.monthlyMonthSelect?.value;
+            // Период — из глобального state (верхний Месяц/Год). Фолбэк — текущая дата.
+            let year = state.currentYear ? String(state.currentYear) : null;
+            let month = state.currentMonth;
             if (!year || !month) {
                 const now = new Date();
                 year = String(now.getFullYear());

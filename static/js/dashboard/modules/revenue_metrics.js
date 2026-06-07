@@ -33,32 +33,15 @@ class RevenueMetricsModule {
             loading: revenueTab.querySelector('#revenue-loading'),
             noData: revenueTab.querySelector('#revenue-no-data'),
             metricsContainer: revenueTab.querySelector('#revenue-metrics-container'),
-            metricsRows: revenueTab.querySelector('#revenue-metrics-rows'),
-            monthSelect: revenueTab.querySelector('#revenue-month-select'),
-            yearSelect: revenueTab.querySelector('#revenue-year-select')
+            metricsRows: revenueTab.querySelector('#revenue-metrics-rows')
         };
     }
 
     setupListeners() {
-        // Значения по умолчанию — текущий месяц/год
-        const now = new Date();
-        if (this.elements.monthSelect && !this.elements.monthSelect.dataset.init) {
-            this.elements.monthSelect.value = String(now.getMonth() + 1).padStart(2, '0');
-            this.elements.monthSelect.dataset.init = '1';
-        }
-        if (this.elements.yearSelect && !this.elements.yearSelect.dataset.init) {
-            const y = String(now.getFullYear());
-            if ([...this.elements.yearSelect.options].some(o => o.value === y)) {
-                this.elements.yearSelect.value = y;
-            }
-            this.elements.yearSelect.dataset.init = '1';
-        }
-
-        // Перезагрузка при смене месяца/года
-        this.elements.monthSelect?.addEventListener('change', () => this.loadAllMetrics());
-        this.elements.yearSelect?.addEventListener('change', () => this.loadAllMetrics());
-
-        state.subscribe((_event, _data) => {
+        // Перезагрузка при смене глобального месяца/года или бара — когда вкладка активна.
+        // Месяц/год задаётся верхним адаптивным селектором (period_controls.js).
+        state.subscribe((event) => {
+            if (event !== 'monthChanged' && event !== 'venueChanged') return;
             const activeTab = document.querySelector('.tab-button.active');
             if (activeTab && activeTab.getAttribute('data-tab') === 'tab-revenue') {
                 this.loadAllMetrics();
@@ -88,14 +71,10 @@ class RevenueMetricsModule {
         const venue = state.currentVenue;
 
         // Период: выбранный месяц (с 1-го числа; для текущего месяца — по сегодня,
-        // чтобы «Ожидаемая» оставалась осмысленной проекцией).
+        // чтобы «Ожидаемая» оставалась осмысленной проекцией). Месяц/год — из глобального state.
         const now = new Date();
-        const monthNum = this.elements.monthSelect?.value
-            ? parseInt(this.elements.monthSelect.value, 10)
-            : now.getMonth() + 1;
-        const year = this.elements.yearSelect?.value
-            ? parseInt(this.elements.yearSelect.value, 10)
-            : now.getFullYear();
+        const monthNum = state.currentMonth ? parseInt(state.currentMonth, 10) : now.getMonth() + 1;
+        const year = state.currentYear || now.getFullYear();
         const isCurrentMonth = (year === now.getFullYear() && monthNum === now.getMonth() + 1);
         const lastDay = new Date(year, monthNum, 0).getDate();
         const toDay = isCurrentMonth ? now.getDate() : lastDay;

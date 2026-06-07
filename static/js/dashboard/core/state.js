@@ -13,6 +13,12 @@ class DashboardState {
         // Текущий период
         this.currentPeriod = this.loadFromStorage(STORAGE_KEYS.SELECTED_PERIOD) || null;
 
+        // Текущий месяц/год для месячных вкладок (Выручка, Планы).
+        // По умолчанию — текущий месяц; намеренно НЕ персистим, чтобы всегда стартовать с него.
+        const _now = new Date();
+        this.currentMonth = String(_now.getMonth() + 1).padStart(2, '0'); // '01'..'12'
+        this.currentYear = _now.getFullYear(); // число
+
         // Список всех заведений
         this.venues = [];
 
@@ -86,6 +92,17 @@ class DashboardState {
         this.currentPeriod = period;
         this.saveToStorage(STORAGE_KEYS.SELECTED_PERIOD, period);
         this.notify('periodChanged', period);
+    }
+
+    /**
+     * Установить текущий месяц/год (месячные вкладки: Выручка, Планы).
+     * @param {string} month — '01'..'12'
+     * @param {number} year
+     */
+    setMonthYear(month, year) {
+        this.currentMonth = month;
+        this.currentYear = year;
+        this.notify('monthChanged', { month, year });
     }
 
     /**
