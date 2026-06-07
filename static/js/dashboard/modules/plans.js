@@ -93,20 +93,32 @@ class PlansViewer {
         if (this.initialized) return;
 
         this.setupEventListeners();
+        this.initDefaults();
         this.initialized = true;
+    }
+
+    /**
+     * Значения селекторов по умолчанию — текущий месяц/год
+     * (а не месяц из верхнего «Периода анализа»).
+     */
+    initDefaults() {
+        const now = new Date();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const y = String(now.getFullYear());
+        if (this.monthlyMonthSelect) this.monthlyMonthSelect.value = m;
+        if (this.monthlyYearSelect && [...this.monthlyYearSelect.options].some(o => o.value === y)) {
+            this.monthlyYearSelect.value = y;
+        }
     }
 
     /**
      * Настроить обработчики событий
      */
     setupEventListeners() {
-        // Подписка на изменения состояния. Смена бара — перезагрузка;
-        // смена верхнего периода — синхронизируем локальные Месяц/Год и грузим.
+        // Месяц задаётся локальным селектором (по умолчанию — текущий), не верхним
+        // периодом. На смену бара/периода просто перегружаем с текущими селекторами.
         state.subscribe((event) => {
-            if (event === 'venueChanged') {
-                this.loadData();
-            } else if (event === 'periodChanged') {
-                this.syncPeriodSelectorsFromState();
+            if (event === 'venueChanged' || event === 'periodChanged') {
                 this.loadData();
             }
         });
@@ -271,21 +283,14 @@ class PlansViewer {
         this.updateButtonStates(false);
 
         try {
-            // Период берём из локальных селекторов Месяц/Год; при первом заходе —
-            // из верхнего глобального периода (и проставляем селекторы).
+            // Период — из локальных селекторов Месяц/Год (по умолчанию текущий месяц,
+            // задаётся в initDefaults). Фолбэк на текущую дату — на всякий случай.
             let year = this.monthlyYearSelect?.value;
             let month = this.monthlyMonthSelect?.value;
             if (!year || !month) {
-                const src = state.currentPeriod?.start;
-                const dateObj = src ? new Date(src) : new Date();
-                year = String(dateObj.getFullYear());
-                month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                if (this.monthlyYearSelect && [...this.monthlyYearSelect.options].some(o => o.value === year)) {
-                    this.monthlyYearSelect.value = year;
-                }
-                if (this.monthlyMonthSelect) {
-                    this.monthlyMonthSelect.value = month;
-                }
+                const now = new Date();
+                year = String(now.getFullYear());
+                month = String(now.getMonth() + 1).padStart(2, '0');
             }
 
             // Месячный ключ плана: venue_YYYY-MM
@@ -329,23 +334,6 @@ class PlansViewer {
         const venueName = VENUE_NAMES[state.currentVenue] || state.currentVenue || '—';
         if (this.contextVenue) {
             this.contextVenue.textContent = `Заведение: ${venueName} (выбирается селектором «Бар» вверху)`;
-        }
-    }
-
-    /**
-     * Синхронизировать локальные Месяц/Год с верхним глобальным периодом.
-     */
-    syncPeriodSelectorsFromState() {
-        const src = state.currentPeriod?.start;
-        if (!src) return;
-        const dateObj = new Date(src);
-        const year = String(dateObj.getFullYear());
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        if (this.monthlyYearSelect && [...this.monthlyYearSelect.options].some(o => o.value === year)) {
-            this.monthlyYearSelect.value = year;
-        }
-        if (this.monthlyMonthSelect) {
-            this.monthlyMonthSelect.value = month;
         }
     }
 

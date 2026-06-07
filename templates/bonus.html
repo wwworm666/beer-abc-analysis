@@ -332,17 +332,42 @@
             margin-top: 16px;
         }
         .targets-content.active { display: block; }
+        /* Контейнер задаёт единый вертикальный ритм между секциями */
+        .targets-content .card { display: flex; flex-direction: column; gap: 20px; }
 
-        .targets-month-selector { display: grid; grid-template-columns: auto auto 1fr; gap: 12px; align-items: end; margin-bottom: 20px; }
-        .defaults-row { display: grid; grid-template-columns: repeat(3, auto); gap: 12px; margin-bottom: 20px; }
-        .defaults-row .form-group label { font-size: 0.85rem; }
-        .defaults-row input { width: 100px; }
+        /* Единый стиль ВСЕХ полей редактора — перекрывает глобальный base.css (pill 24px) */
+        .targets-content input,
+        .targets-content select {
+            width: 100%;
+            padding: 8px 10px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            line-height: 1.2;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            outline: none;
+            box-shadow: none;
+            transition: border-color 150ms ease;
+        }
+        .targets-content input:focus,
+        .targets-content select:focus { border-color: var(--accent); box-shadow: none; }
+        .targets-content input::placeholder { color: var(--text-tertiary); }
+
+        /* Секции редактора: единый заголовок + внутренний ритм */
+        .editor-section { display: flex; flex-direction: column; gap: 12px; }
+        .targets-content h4.section-title { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+        .targets-content .form-group label { font-size: 0.8rem; font-weight: 500; color: var(--text-secondary); }
+
+        .targets-month-selector { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+        .defaults-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
 
         /* Заголовок секции метрик + степпер количества KPI */
         .kpi-config-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
         .kpi-config-head h4 { margin: 0; }
         .kpi-stepper { display: flex; align-items: center; gap: 8px; }
-        .kpi-stepper-label { font-size: 0.85rem; color: var(--text-secondary); }
+        .kpi-stepper-label { font-size: 0.8rem; color: var(--text-secondary); }
         .kpi-step-btn {
             width: 30px; height: 30px;
             border: 1px solid var(--border-color);
@@ -358,41 +383,39 @@
         .kpi-stepper-count { min-width: 22px; text-align: center; font-weight: 600; font-size: 1rem; color: var(--text-primary); }
 
         .kpi-config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
-        .kpi-config-card { background: var(--bg-tertiary); border-radius: 10px; padding: 14px; }
+        .kpi-config-card { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; }
         .kpi-config-label { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
-        .kpi-config-card select, .kpi-config-card input { width: 100%; margin-top: 6px; }
-        .kpi-name-input { font-size: 0.8rem; }
+        .kpi-config-card select, .kpi-config-card input { margin-top: 6px; }
 
-        /* Живая подпись «фонд / N = X за каждый» */
+        /* Живая подпись «фонд / N = X за каждый» — в стиле баннера фонда в результатах */
         .kpi-split-label {
             font-size: 0.85rem;
             color: var(--text-secondary);
-            background: var(--bg-secondary);
-            border: 1px dashed var(--border-color);
-            border-radius: 8px;
-            padding: 8px 14px;
-            margin-bottom: 20px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 18px;
         }
         .kpi-split-label strong { color: var(--accent); }
 
         .targets-grid {
             display: grid;
             grid-template-columns: 140px repeat(4, 1fr);
-            gap: 4px;
-            margin-bottom: 20px;
+            gap: 8px;
+            align-items: center;
         }
-        .tg-cell { padding: 6px 8px; }
-        .tg-header { font-weight: 600; font-size: 0.8rem; text-align: center; color: var(--text-primary); }
+        .tg-cell { padding: 0; }
+        .tg-header { font-weight: 600; font-size: 0.8rem; text-align: center; color: var(--text-primary); padding-bottom: 4px; }
         .tg-label { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center; }
-        .tg-input-group { display: flex; align-items: center; gap: 2px; }
-        .tg-input { width: 60px; padding: 4px; text-align: center; font-size: 0.8rem; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); font-family: inherit; }
-        .tg-sep { color: var(--text-tertiary); font-size: 0.8rem; }
+        .tg-input-group { display: flex; align-items: center; gap: 6px; width: 100%; }
+        .tg-input { flex: 1 1 0; min-width: 0; text-align: center; padding: 6px 4px; }
+        .tg-sep { color: var(--text-tertiary); font-size: 0.8rem; flex: 0 0 auto; }
 
         .targets-actions { display: flex; gap: 12px; }
         .btn-secondary {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
+            border-radius: 8px;
             padding: 10px 20px;
             font-family: inherit;
             font-size: 0.9rem;
@@ -413,8 +436,9 @@
             .summary-row { grid-template-columns: repeat(2, 1fr); }
             .kpi-metrics-grid { grid-template-columns: repeat(3, 1fr); }
             .kpi-config-grid { grid-template-columns: 1fr; }
-            .targets-grid { grid-template-columns: 100px repeat(4, 1fr); }
-            .tg-input { width: 44px; }
+            .targets-grid { grid-template-columns: 90px repeat(4, 1fr); gap: 6px; }
+            .tg-input { padding: 6px 2px; }
+            .tg-input-group { gap: 4px; }
             .defaults-row { grid-template-columns: 1fr; }
             .targets-month-selector { grid-template-columns: 1fr; }
         }

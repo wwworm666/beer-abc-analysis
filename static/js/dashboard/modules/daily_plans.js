@@ -100,12 +100,12 @@ class DailyPlansViewer {
         if (this.venueSelect) {
             this.venueSelect.value = REAL.includes(state.currentVenue) ? state.currentVenue : 'bolshoy';
         }
-        // Месяц/год по умолчанию — из текущего периода либо текущая дата
-        const src = (state.currentPeriod && state.currentPeriod.start)
-            || new Date().toISOString().slice(0, 10);
-        const [y, m] = src.split('-');
-        if (this.monthSelect && m) this.monthSelect.value = m;
-        if (this.yearSelect && y && [...this.yearSelect.options].some(o => o.value === y)) {
+        // Месяц/год по умолчанию — текущий месяц (не из верхнего «Периода анализа»)
+        const now = new Date();
+        const y = String(now.getFullYear());
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        if (this.monthSelect) this.monthSelect.value = m;
+        if (this.yearSelect && [...this.yearSelect.options].some(o => o.value === y)) {
             this.yearSelect.value = y;
         }
     }
