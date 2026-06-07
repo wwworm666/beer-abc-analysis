@@ -1,6 +1,7 @@
 {
   "defaults": {
     "norm_shifts": 15,
+    "kpi_pool": 15000,
     "base_premium": 5000,
     "max_ratio": 2
   },

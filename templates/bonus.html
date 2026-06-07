@@ -255,10 +255,24 @@
         }
         .kpi-detail-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
         .kpi-detail-premium { font-weight: 600; font-size: 0.9rem; }
+        .kpi-detail-max { font-weight: 500; font-size: 0.78rem; color: var(--text-tertiary); }
+
+        /* Шапка фонда KPI: фонд / N = база за каждый */
+        .kpi-fund-banner {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px 18px;
+            margin-bottom: 12px;
+        }
+        .kpi-fund-main { font-size: 1rem; color: var(--text-secondary); }
+        .kpi-fund-main strong { color: var(--success); font-size: 1.15rem; }
+        .kpi-fund-sub { font-size: 0.8rem; color: var(--text-tertiary); margin-top: 4px; }
+        .kpi-fund-sub strong { color: var(--text-primary); }
 
         .kpi-metrics-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 8px;
             margin-bottom: 10px;
         }
@@ -324,11 +338,42 @@
         .defaults-row .form-group label { font-size: 0.85rem; }
         .defaults-row input { width: 100px; }
 
-        .kpi-config-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+        /* Заголовок секции метрик + степпер количества KPI */
+        .kpi-config-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+        .kpi-config-head h4 { margin: 0; }
+        .kpi-stepper { display: flex; align-items: center; gap: 8px; }
+        .kpi-stepper-label { font-size: 0.85rem; color: var(--text-secondary); }
+        .kpi-step-btn {
+            width: 30px; height: 30px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-radius: 8px;
+            font-size: 1.1rem; line-height: 1;
+            cursor: pointer;
+            transition: all 150ms ease;
+        }
+        .kpi-step-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .kpi-step-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .kpi-stepper-count { min-width: 22px; text-align: center; font-weight: 600; font-size: 1rem; color: var(--text-primary); }
+
+        .kpi-config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 12px; }
         .kpi-config-card { background: var(--bg-tertiary); border-radius: 10px; padding: 14px; }
         .kpi-config-label { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
         .kpi-config-card select, .kpi-config-card input { width: 100%; margin-top: 6px; }
         .kpi-name-input { font-size: 0.8rem; }
+
+        /* Живая подпись «фонд / N = X за каждый» */
+        .kpi-split-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 8px 14px;
+            margin-bottom: 20px;
+        }
+        .kpi-split-label strong { color: var(--accent); }
 
         .targets-grid {
             display: grid;
@@ -417,8 +462,8 @@
                             <input type="number" id="def-norm" value="15" min="1" max="31">
                         </div>
                         <div class="form-group">
-                            <label>База /KPI</label>
-                            <input type="number" id="def-base" value="5000" min="0" step="500">
+                            <label>Фонд KPI</label>
+                            <input type="number" id="def-pool" value="15000" min="0" step="500" oninput="updateKpiSplitLabel()">
                         </div>
                         <div class="form-group">
                             <label>Макс. множитель</label>
@@ -454,7 +499,7 @@
                 <strong>Премия за план:</strong> за каждую смену где выручка >= плана ТТ <code>1 000 + перевыполнение x 5%</code><br>
                 <strong>За передачу смены:</strong> <code>500 x смены</code><br>
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
-                <strong>KPI-премия:</strong> <code>множитель x Коэффициент x база</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / 15<br>
+                <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
                 <strong>Ставка:</strong> <code>часы x 300</code>
             </div>
 
@@ -477,8 +522,19 @@
         const HOURLY_RATE = 300;
         const LOCATIONS = ['Кременчугская', 'Варшавская', 'Лиговский', 'Большой пр В.О.'];
         const LOC_SHORT = {'Кременчугская': 'Крем', 'Варшавская': 'Варш', 'Лиговский': 'Лиг', 'Большой пр В.О.': 'ВО'};
-        const KPI_KEYS = ['kpi1', 'kpi2', 'kpi3'];
+        const DEFAULT_KPI_KEYS = ['kpi1', 'kpi2', 'kpi3'];
+        const MIN_KPI = 1;
+        const MAX_KPI = 6;
+        // Активные ключи KPI в редакторе целей (динамическое количество)
+        let editorKpiKeys = DEFAULT_KPI_KEYS.slice();
         let availableMetrics = {};
+
+        // Ключи KPI, отсортированные по номеру (kpi1, kpi2, ... kpi10)
+        function sortedKpiKeys(obj) {
+            return Object.keys(obj || {})
+                .filter(key => /^kpi\d+$/.test(key))
+                .sort((a, b) => (parseInt(a.slice(3)) || 0) - (parseInt(b.slice(3)) || 0));
+        }
 
         // ===================== INIT =====================
         document.addEventListener('DOMContentLoaded', function() {
@@ -877,46 +933,57 @@
             const k = emp.kpi;
             if (!k || !k.kpis) return;
 
+            const keys = sortedKpiKeys(k.kpis);
             const monthTargets = kpiData.month_targets || {};
             const locs = Object.entries(k.shifts_per_location || {});
             const totalShifts = locs.reduce((s, [, c]) => s + c, 0);
-            const fmtKpi = (key, v) => key === 'kpi3' ? formatNum(v, 0) : formatNum(v, 1);
+            const maxRatio = kpiData.defaults.max_ratio || 2;
             const normShifts = kpiData.defaults.norm_shifts || 15;
+            const basePerKpi = k.base_per_kpi || 0;
+            const pool = k.kpi_pool != null ? k.kpi_pool : basePerKpi * keys.length;
+            // Формат значения метрики по её decimals (а не по номеру KPI)
+            const fmtKpiVal = (kpi, v) => {
+                const dec = availableMetrics[kpi.metric] ? availableMetrics[kpi.metric].decimals : 1;
+                return formatNum(v, dec);
+            };
             // total_shifts из API считает только смены на точках с настроенными целями
             const koefTitle = `Смены на точках с настроенными целями (${k.total_shifts}) / норма (${normShifts})`;
 
-            let html = '<div class="kpi-detail-cards">';
+            // Шапка фонда: показывает деление фонда на количество показателей
+            let html = `<div class="kpi-fund-banner">
+                <div class="kpi-fund-main">KPI-премия: <strong>${formatMoney(k.total_premium)}</strong></div>
+                <div class="kpi-fund-sub">Фонд ${formatMoney(pool)} / ${keys.length} ${keys.length === 1 ? 'показатель' : 'показателя'} = <strong>${formatMoney(basePerKpi)}</strong> за каждый
+                    &nbsp;&middot;&nbsp; Коэффициент смен <span title="${koefTitle}">x${formatNum(k.koef, 2)}</span> (${k.total_shifts} из ${normShifts})</div>
+            </div>`;
 
-            KPI_KEYS.forEach(key => {
+            html += '<div class="kpi-detail-cards">';
+
+            keys.forEach(key => {
                 const kpi = k.kpis[key];
                 if (!kpi) return;
                 const color = ratioColor(kpi.capped_ratio);
-                const perKpiPremium = k.koef * kpi.capped_ratio * (kpiData.defaults.base_premium || 5000);
+                const perKpiPremium = (kpi.intermediate_premium || 0) * k.koef;
                 const premColor = perKpiPremium > 0 ? 'var(--success)' : 'var(--text-tertiary)';
-                const pct = Math.min(kpi.capped_ratio / 2 * 100, 100);
+                const pct = Math.min(kpi.capped_ratio / maxRatio * 100, 100);
 
                 html += `<div class="kpi-detail-card">
                     <div class="kpi-detail-header">
                         <span class="kpi-detail-name">${kpi.name}</span>
-                        <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(perKpiPremium)}</span>
+                        <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(perKpiPremium)} <span class="kpi-detail-max">/ ${formatMoney(basePerKpi)}</span></span>
                     </div>
 
                     <div class="kpi-metrics-grid">
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Факт</div>
-                            <div class="kpi-metric-val" style="color:${color};">${fmtKpi(key, kpi.fact)}</div>
+                            <div class="kpi-metric-val" style="color:${color};">${fmtKpiVal(kpi, kpi.fact)}</div>
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Цель (взвеш.)</div>
-                            <div class="kpi-metric-val">${fmtKpi(key, kpi.target)}</div>
+                            <div class="kpi-metric-val">${fmtKpiVal(kpi, kpi.target)}</div>
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Минимум</div>
-                            <div class="kpi-metric-val">${fmtKpi(key, kpi.min)}</div>
-                        </div>
-                        <div class="kpi-metric-item" title="${koefTitle}">
-                            <div class="kpi-metric-label">Коэффициент</div>
-                            <div class="kpi-metric-val">x${formatNum(k.koef, 2)}</div>
+                            <div class="kpi-metric-val">${fmtKpiVal(kpi, kpi.min)}</div>
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Множитель</div>
@@ -929,7 +996,7 @@
                     </div>
 
                     <table class="loc-breakdown">
-                        <thead><tr><th>Точка</th><th>Смены</th><th>Вес</th><th>Цель ТТ</th><th>Мін ТТ</th></tr></thead>
+                        <thead><tr><th>Точка</th><th>Смены</th><th>Вес</th><th>Цель ТТ</th><th>Мин ТТ</th></tr></thead>
                         <tbody>`;
 
                 locs.forEach(([loc, cnt]) => {
@@ -941,29 +1008,28 @@
                         <td>${loc}</td>
                         <td>${cnt}</td>
                         <td>${formatNum(weight, 0)}%</td>
-                        <td>${typeof t === 'number' ? fmtKpi(key, t) : t}</td>
-                        <td>${typeof m === 'number' ? fmtKpi(key, m) : m}</td>
+                        <td>${typeof t === 'number' ? fmtKpiVal(kpi, t) : t}</td>
+                        <td>${typeof m === 'number' ? fmtKpiVal(kpi, m) : m}</td>
                     </tr>`;
                 });
 
                 html += `<tr class="loc-weighted">
                     <td>Взвешенное</td><td>${totalShifts}</td><td>100%</td>
-                    <td>${fmtKpi(key, kpi.target)}</td><td>${fmtKpi(key, kpi.min)}</td>
+                    <td>${fmtKpiVal(kpi, kpi.target)}</td><td>${fmtKpiVal(kpi, kpi.min)}</td>
                 </tr>`;
 
                 html += `</tbody></table></div>`;
             });
 
             // Premium calc summary
-            const basePrem = kpiData.defaults.base_premium || 5000;
             let calcSum = 0;
             html += `<div class="kpi-calc-summary"><strong>Расчёт:</strong><br>`;
-            KPI_KEYS.forEach(key => {
+            keys.forEach(key => {
                 const kpi = k.kpis[key];
                 if (!kpi) return;
-                const kpiPremCalc = k.koef * kpi.capped_ratio * basePrem;
+                const kpiPremCalc = k.koef * kpi.capped_ratio * basePerKpi;
                 calcSum += kpiPremCalc;
-                html += `${kpi.name}: ${formatNum(k.koef, 2)} x ${formatNum(kpi.capped_ratio, 2)} x ${formatNum(basePrem, 0)} = ${formatMoney(kpiPremCalc)}<br>`;
+                html += `${kpi.name}: ${formatNum(k.koef, 2)} x ${formatNum(kpi.capped_ratio, 2)} x ${formatNum(basePerKpi, 0)} = ${formatMoney(kpiPremCalc)}<br>`;
             });
             html += `<br>Итого: <strong>${formatMoney(calcSum)}</strong></div>`;
 
@@ -1001,10 +1067,42 @@
             }
         }
 
+        // Конфиг KPI по умолчанию (для новых месяцев и первых трёх слотов)
+        const DEFAULT_KPI_CONFIG = {
+            kpi1: {metric: 'kitchen_share', name: 'Доля кухни (%)'},
+            kpi2: {metric: 'draft_share', name: 'Доля розлива (%)'},
+            kpi3: {metric: 'avg_check', name: 'Средний чек (₽)'},
+        };
+
+        function metricLabel(metric) {
+            const info = availableMetrics[metric] || {};
+            return info.name ? info.name + (info.unit ? ' (' + info.unit + ')' : '') : metric;
+        }
+
+        // Метрика по умолчанию для нового KPI: первая ещё не использованная
+        function defaultMetricForNewKpi(usedMetrics) {
+            const all = Object.keys(availableMetrics);
+            return all.find(m => !usedMetrics.includes(m)) || all[0] || '';
+        }
+
+        function getCurrentPool() {
+            return parseInt(document.getElementById('def-pool').value) || 0;
+        }
+
+        // Живая подпись «фонд / N = X за каждый» — ключевой элемент модели «пул поровну»
+        function updateKpiSplitLabel() {
+            const el = document.getElementById('kpi-split-label');
+            if (!el) return;
+            const n = editorKpiKeys.length;
+            const pool = getCurrentPool();
+            const per = n > 0 ? Math.round(pool / n) : 0;
+            el.innerHTML = `Фонд ${formatMoney(pool)} / ${n} = <strong>${formatMoney(per)}</strong> за каждый KPI`;
+        }
+
         function loadDefaults() {
             const d = targetsData.defaults || {};
             document.getElementById('def-norm').value = d.norm_shifts || 15;
-            document.getElementById('def-base').value = d.base_premium || 5000;
+            document.getElementById('def-pool').value = (d.kpi_pool != null ? d.kpi_pool : ((d.base_premium || 5000) * 3));
             document.getElementById('def-max-ratio').value = d.max_ratio || 2;
         }
 
@@ -1014,37 +1112,40 @@
             if (!targetsData.months) targetsData.months = {};
 
             if (!targetsData.months[month]) {
-                targetsData.months[month] = {
-                    kpi_config: {
-                        kpi1: {metric: 'kitchen_share', name: 'Доля кухни (%)'},
-                        kpi2: {metric: 'draft_share', name: 'Доля розлива (%)'},
-                        kpi3: {metric: 'avg_check', name: 'Средний чек (₽)'},
-                    }
-                };
+                const cfg = {};
+                DEFAULT_KPI_KEYS.forEach(k => { cfg[k] = { ...DEFAULT_KPI_CONFIG[k] }; });
+                targetsData.months[month] = { kpi_config: cfg };
                 LOCATIONS.forEach(loc => {
                     targetsData.months[month][loc] = {};
-                    KPI_KEYS.forEach(k => {
+                    DEFAULT_KPI_KEYS.forEach(k => {
                         targetsData.months[month][loc][k] = { target: 0, min: 0 };
                     });
                 });
             }
 
             const monthData = targetsData.months[month];
+            editorKpiKeys = sortedKpiKeys(monthData.kpi_config || {});
+            if (editorKpiKeys.length === 0) editorKpiKeys = DEFAULT_KPI_KEYS.slice();
             renderKpiConfig(monthData.kpi_config || {});
             renderTargetsGrid(monthData);
         }
 
         function renderKpiConfig(kpiConfig) {
-            const defaultConfig = {
-                kpi1: {metric: 'kitchen_share', name: 'Доля кухни (%)'},
-                kpi2: {metric: 'draft_share', name: 'Доля розлива (%)'},
-                kpi3: {metric: 'avg_check', name: 'Средний чек (₽)'},
-            };
+            const n = editorKpiKeys.length;
 
-            let html = '<h4 style="margin-bottom:12px;">Метрики KPI</h4><div class="kpi-config-grid">';
+            let html = `<div class="kpi-config-head">
+                <h4>Метрики KPI</h4>
+                <div class="kpi-stepper">
+                    <span class="kpi-stepper-label">Показателей:</span>
+                    <button type="button" class="kpi-step-btn" onclick="removeKpi()" ${n <= MIN_KPI ? 'disabled' : ''}>&minus;</button>
+                    <span class="kpi-stepper-count" id="kpi-count">${n}</span>
+                    <button type="button" class="kpi-step-btn" onclick="addKpi()" ${n >= MAX_KPI ? 'disabled' : ''}>+</button>
+                </div>
+            </div>
+            <div class="kpi-config-grid">`;
 
-            KPI_KEYS.forEach((k, i) => {
-                const conf = kpiConfig[k] || defaultConfig[k] || {};
+            editorKpiKeys.forEach((k, i) => {
+                const conf = kpiConfig[k] || DEFAULT_KPI_CONFIG[k] || {};
                 const currentMetric = conf.metric || '';
                 const currentName = conf.name || '';
 
@@ -1063,15 +1164,70 @@
             });
 
             html += '</div>';
+            html += `<div class="kpi-split-label" id="kpi-split-label"></div>`;
             document.getElementById('kpi-config-section').innerHTML = html;
+            updateKpiSplitLabel();
         }
 
         function onMetricChange(kpiKey) {
             const sel = document.getElementById('kpi-metric-' + kpiKey);
-            const metric = sel.value;
-            const info = availableMetrics[metric] || {};
             const nameInput = document.getElementById('kpi-name-' + kpiKey);
-            nameInput.value = info.name + (info.unit ? ' (' + info.unit + ')' : '');
+            nameInput.value = metricLabel(sel.value);
+        }
+
+        // Считывает текущие значения редактора в targetsData (чтобы при +/- KPI ввод не терялся)
+        function readEditorInputs(month) {
+            if (!targetsData.months) targetsData.months = {};
+            const kpiConfig = {};
+            editorKpiKeys.forEach(k => {
+                const metricSel = document.getElementById('kpi-metric-' + k);
+                const nameInput = document.getElementById('kpi-name-' + k);
+                if (metricSel) {
+                    kpiConfig[k] = { metric: metricSel.value, name: (nameInput && nameInput.value) || metricLabel(metricSel.value) };
+                }
+            });
+            const md = { kpi_config: kpiConfig };
+            LOCATIONS.forEach(loc => {
+                md[loc] = {};
+                editorKpiKeys.forEach(k => {
+                    const tEl = document.getElementById(`tg-${k}-${loc}-target`);
+                    const mEl = document.getElementById(`tg-${k}-${loc}-min`);
+                    md[loc][k] = {
+                        target: tEl ? (parseFloat(tEl.value) || 0) : 0,
+                        min: mEl ? (parseFloat(mEl.value) || 0) : 0,
+                    };
+                });
+            });
+            targetsData.months[month] = md;
+            return md;
+        }
+
+        function addKpi() {
+            if (editorKpiKeys.length >= MAX_KPI) return;
+            const month = document.getElementById('target-month').value;
+            if (!month) { alert('Выберите месяц'); return; }
+            const md = readEditorInputs(month);
+            const maxNum = editorKpiKeys.reduce((mx, k) => Math.max(mx, parseInt(k.slice(3)) || 0), 0);
+            const newKey = `kpi${maxNum + 1}`;
+            editorKpiKeys.push(newKey);
+            const used = Object.values(md.kpi_config).map(c => c.metric).filter(Boolean);
+            const metric = (DEFAULT_KPI_CONFIG[newKey] && DEFAULT_KPI_CONFIG[newKey].metric) || defaultMetricForNewKpi(used);
+            md.kpi_config[newKey] = { metric, name: metricLabel(metric) };
+            LOCATIONS.forEach(loc => { md[loc] = md[loc] || {}; md[loc][newKey] = { target: 0, min: 0 }; });
+            renderKpiConfig(md.kpi_config);
+            renderTargetsGrid(md);
+        }
+
+        function removeKpi() {
+            if (editorKpiKeys.length <= MIN_KPI) return;
+            const month = document.getElementById('target-month').value;
+            if (!month) { alert('Выберите месяц'); return; }
+            const md = readEditorInputs(month);
+            const removed = editorKpiKeys.pop();
+            delete md.kpi_config[removed];
+            LOCATIONS.forEach(loc => { if (md[loc]) delete md[loc][removed]; });
+            renderKpiConfig(md.kpi_config);
+            renderTargetsGrid(md);
         }
 
         function renderTargetsGrid(monthData) {
@@ -1083,7 +1239,7 @@
                 html += `<div class="tg-cell tg-header">${LOC_SHORT[loc] || loc}</div>`;
             });
 
-            KPI_KEYS.forEach(k => {
+            editorKpiKeys.forEach(k => {
                 const conf = kpiConfig[k] || {};
                 const label = conf.name || document.getElementById('kpi-name-' + k)?.value || k;
                 html += `<div class="tg-cell tg-label">${label}</div>`;
@@ -1114,6 +1270,8 @@
             const prevData = (targetsData.months || {})[prevMonth];
             if (!prevData) { alert(`Нет данных за ${prevMonth}`); return; }
 
+            editorKpiKeys = sortedKpiKeys(prevData.kpi_config || {});
+            if (editorKpiKeys.length === 0) editorKpiKeys = DEFAULT_KPI_KEYS.slice();
             renderKpiConfig(prevData.kpi_config || {});
             renderTargetsGrid(prevData);
         }
@@ -1124,12 +1282,13 @@
 
             targetsData.defaults = {
                 norm_shifts: parseInt(document.getElementById('def-norm').value) || 15,
-                base_premium: parseInt(document.getElementById('def-base').value) || 5000,
+                kpi_pool: parseInt(document.getElementById('def-pool').value) || 15000,
+                base_premium: (targetsData.defaults && targetsData.defaults.base_premium) || 5000,
                 max_ratio: parseFloat(document.getElementById('def-max-ratio').value) || 2,
             };
 
             const kpiConfig = {};
-            KPI_KEYS.forEach(k => {
+            editorKpiKeys.forEach(k => {
                 const metricSel = document.getElementById('kpi-metric-' + k);
                 const nameInput = document.getElementById('kpi-name-' + k);
                 if (metricSel && nameInput) {
@@ -1142,7 +1301,7 @@
 
             LOCATIONS.forEach(loc => {
                 targetsData.months[month][loc] = {};
-                KPI_KEYS.forEach(k => {
+                editorKpiKeys.forEach(k => {
                     const target = parseFloat(document.getElementById(`tg-${k}-${loc}-target`).value) || 0;
                     const min = parseFloat(document.getElementById(`tg-${k}-${loc}-min`).value) || 0;
                     targetsData.months[month][loc][k] = { target, min };

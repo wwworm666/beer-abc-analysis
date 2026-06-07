@@ -357,13 +357,14 @@ mergedEmployees.forEach(emp => {
 
 ```python
 # core/kpi_calculator.py — calculate_premium()
-def calculate_premium(self, fact, target, min_val, defaults):
+def calculate_premium(self, fact, target, min_val, defaults, base_premium=None):
     """
     ratio              = (Факт - Мин) / (Цель - Мин)
     capped_ratio       = max(0, min(ratio, max_ratio))
-    intermediate_premium = capped_ratio × base_premium
+    intermediate_premium = capped_ratio × base_premium   # base_premium = фонд / кол-во KPI
     """
-    base_premium = defaults.get('base_premium', 5000)
+    if base_premium is None:                 # легаси-режим (нет kpi_pool)
+        base_premium = defaults.get('base_premium', 5000)
     max_ratio = defaults.get('max_ratio', 2)
 
     if target == min_val:
@@ -386,43 +387,55 @@ def calculate_premium(self, fact, target, min_val, defaults):
 Финальный шаг — в `calculate_employee()`:
 
 ```python
-koef = total_shifts / norm_shifts        # total_shifts = смены ТОЛЬКО на точках с целями
-total_intermediate = Σ intermediate_premium  # по всем 3 KPI
+base_per_kpi = kpi_pool / kpi_count          # фонд делится поровну (15000 / 2 = 7500)
+koef = total_shifts / norm_shifts            # total_shifts = смены ТОЛЬКО на точках с целями
+total_intermediate = Σ intermediate_premium  # по всем KPI месяца
 total_premium = total_intermediate × koef    # коэффициент применяется один раз к сумме
 ```
+
+**Фонд KPI делится поровну на количество показателей.** Количество KPI задаётся помесячно
+(`kpi_config` — переменное число ключей `kpi1..kpiN`), фонд `kpi_pool` — глобально в `defaults`.
+Важное свойство: и потенциал на цели (`= kpi_pool`), и потолок (`= max_ratio × kpi_pool`)
+**не зависят** от количества KPI — меняется только «вес» каждого. При фонде 15000: 2 KPI → по 7500 ₽,
+3 KPI → по 5000 ₽. Легаси: если `kpi_pool` не задан, берётся `base_premium` за каждый KPI
+(тогда сумма растёт с количеством — старое поведение).
 
 Инверсные метрики (`late_count`, `cancelled_count`): задайте `min > target`
 (например target=0, min=3). Формула `(fact - min) / (target - min)` даст
 положительный ratio при низком факте и clamp в 0 при `fact > min`.
 
-#### 3 KPI метрики
+#### Метрики KPI (количество настраивается)
 
-Конфигурация KPI привязана к месяцу и хранится в `data/kpi_targets.json`:
+Конфигурация KPI привязана к месяцу и хранится в `data/kpi_targets.json`. Количество показателей —
+переменное (`kpi1..kpiN`), задаётся в редакторе целей степпером «Показателей: − N +». Цели по точкам
+содержат столько же ключей. Пример с 2 KPI:
 
 ```json
 {
   "months": {
-    "2026-03": {
+    "2026-07": {
       "kpi_config": {
         "kpi1": {"metric": "kitchen_share", "name": "Доля кухни (%)"},
-        "kpi2": {"metric": "draft_share", "name": "Доля розлива (%)"},
-        "kpi3": {"metric": "avg_check", "name": "Средний чек (₽)"}
+        "kpi2": {"metric": "draft_share", "name": "Доля розлива (%)"}
       },
       "Кременчугская": {
-        "kpi1": {"target": 25.0, "min": 15.0},
-        "kpi2": {"target": 45.0, "min": 35.0},
-        "kpi3": {"target": 750, "min": 500}
+        "kpi1": {"target": 18.0, "min": 13.0},
+        "kpi2": {"target": 61.0, "min": 57.0}
       },
       ...
     }
   },
   "defaults": {
     "norm_shifts": 15,
+    "kpi_pool": 15000,
     "base_premium": 5000,
     "max_ratio": 2
   }
 }
 ```
+
+`kpi_pool` — общий премиальный фонд за KPI; делится поровну на количество показателей месяца.
+`base_premium` остаётся как легаси-fallback (используется, только если `kpi_pool` отсутствует).
 
 #### Взвешенные цели
 
@@ -459,8 +472,9 @@ def calculate_employee(self, employee_name, metrics, shift_locations, month):
         return None  # нет точек с настроенными KPI → премия не считается
 
     # 3. Промежуточная премия по каждому KPI (без множителя на смены)
+    #    kpi_keys — динамически из kpi_config месяца (kpi1..kpiN)
     total_intermediate = 0.0
-    for kpi_key in ['kpi1', 'kpi2', 'kpi3']:
+    for kpi_key in kpi_keys:
         metric_field = kpi_config[kpi_key]['metric']
         fact = metrics.get(metric_field, 0)
         targets = weighted_targets.get(kpi_key)
@@ -562,9 +576,10 @@ POST /api/kpi-calculate
 
 ### KPI ratio
 ```
+base_per_kpi         = kpi_pool / кол-во KPI              # фонд делится поровну
 ratio                = (Факт - Мин) / (Цель - Мин)
 capped_ratio         = clamp(ratio, 0, max_ratio)
-intermediate_premium = capped_ratio × base_premium       # per KPI
+intermediate_premium = capped_ratio × base_per_kpi       # per KPI
 total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ```
 

@@ -111,9 +111,24 @@ class KpiTargetsReader:
         data = self._load()
         return data.get('defaults', {
             'norm_shifts': 15,
+            'kpi_pool': 15000,
             'base_premium': 5000,
             'max_ratio': 2,
         })
+
+    def get_kpi_keys_for_month(self, month_str: str) -> List[str]:
+        """
+        Ключи KPI для месяца (динамическое количество).
+
+        Берёт ключи из kpi_config месяца, отсортированные по номеру (kpi1, kpi2, ...).
+        Если конфига нет — дефолтные 3 ключа.
+        """
+        kpi_config = self.get_kpi_config_for_month(month_str)
+        keys = [k for k in kpi_config.keys() if k.startswith('kpi')]
+        if not keys:
+            return list(KPI_KEYS)
+        # Сортируем по числовому суффиксу: kpi1, kpi2, kpi10
+        return sorted(keys, key=lambda k: int(k[3:]) if k[3:].isdigit() else 0)
 
     def get_month_data(self, month_str: str) -> dict:
         """Все данные месяца (kpi_config + targets по точкам)."""
@@ -241,6 +256,7 @@ class KpiCalculator:
         target: float,
         min_val: float,
         defaults: dict,
+        base_premium: float = None,
     ) -> dict:
         """
         Расчёт промежуточной премии по одному KPI (без учёта смен).
@@ -252,10 +268,15 @@ class KpiCalculator:
 
         Коэффициент (смены / норма) применяется позже к общей сумме.
 
+        Args:
+            base_premium: база за ОДИН KPI (фонд / количество KPI). Если None —
+                          легаси-режим: берётся defaults['base_premium'].
+
         Returns:
             {ratio, capped_ratio, intermediate_premium}
         """
-        base_premium = defaults.get('base_premium', 5000)
+        if base_premium is None:
+            base_premium = defaults.get('base_premium', 5000)
         max_ratio = defaults.get('max_ratio', 2)
 
         if target == min_val:
@@ -303,6 +324,19 @@ class KpiCalculator:
         # Конфиг KPI из месяца (какие метрики используются)
         kpi_config = self.reader.get_kpi_config_for_month(month)
 
+        # Динамическое количество KPI: ключи берём из конфига месяца
+        kpi_keys = self.reader.get_kpi_keys_for_month(month)
+        kpi_count = len(kpi_keys)
+
+        # База за ОДИН KPI: фонд делится поровну на количество KPI.
+        # Легаси (нет kpi_pool): фиксированная база за каждый KPI (сумма растёт с количеством).
+        kpi_pool = defaults.get('kpi_pool')
+        if kpi_pool is not None and kpi_count > 0:
+            base_per_kpi = round(kpi_pool / kpi_count, 2)
+        else:
+            base_per_kpi = defaults.get('base_premium', 5000)
+            kpi_pool = round(base_per_kpi * kpi_count, 2)
+
         # Считаем смены по точкам
         shifts_per_location = self.count_shifts_per_location(shift_locations)
         total_shifts_all = sum(shifts_per_location.values())
@@ -312,7 +346,7 @@ class KpiCalculator:
 
         # Взвешенные цели (только по точкам с целями)
         weighted_targets, total_shifts = self.calculate_weighted_targets(
-            shifts_per_location, month_targets, KPI_KEYS
+            shifts_per_location, month_targets, kpi_keys
         )
 
         if total_shifts == 0:
@@ -322,10 +356,11 @@ class KpiCalculator:
         kpis = {}
         total_intermediate = 0.0
 
-        for kpi_key in KPI_KEYS:
+        for kpi_key in kpi_keys:
             # Берём metric field из конфига месяца
             kpi_conf = kpi_config.get(kpi_key, DEFAULT_KPI_CONFIG.get(kpi_key, {}))
-            metric_field = kpi_conf.get('metric', DEFAULT_KPI_CONFIG[kpi_key]['metric'])
+            default_conf = DEFAULT_KPI_CONFIG.get(kpi_key, {})
+            metric_field = kpi_conf.get('metric', default_conf.get('metric', ''))
             kpi_name = kpi_conf.get('name', kpi_key)
 
             fact = metrics.get(metric_field, 0)
@@ -336,6 +371,7 @@ class KpiCalculator:
                 target=targets['target'],
                 min_val=targets['min'],
                 defaults=defaults,
+                base_premium=base_per_kpi,
             )
 
             kpis[kpi_key] = {
@@ -358,6 +394,9 @@ class KpiCalculator:
             'koef': koef,
             'shifts_per_location': shifts_per_location,
             'kpis': kpis,
+            'kpi_count': kpi_count,
+            'kpi_pool': kpi_pool,
+            'base_per_kpi': base_per_kpi,
             'total_premium': total_premium,
         }
 
