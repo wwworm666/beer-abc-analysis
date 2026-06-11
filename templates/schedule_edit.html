@@ -130,10 +130,10 @@
                     <select id="shiftRole" required></select>
                 </div>
                 <div class="form-group">
-                    <label for="shiftStartTime">Плановое начало (пусто = стандартная смена)</label>
+                    <label for="shiftStartTime">Плановое начало (пусто = день, с 14:00)</label>
                     <input type="text" id="shiftStartTime" placeholder="18:00"
                            pattern="^([01]\d|2[0-3]):[0-5]\d$" autocomplete="off">
-                    <div class="form-hint">Формат: ЧЧ:ММ, например 14:00 или 18:00</div>
+                    <div class="form-hint">18:00 = вечер; другое время — для нестандартных случаев</div>
                 </div>
                 <div class="actions">
                     <button type="button" class="btn btn-danger" id="shiftDelete">Удалить</button>

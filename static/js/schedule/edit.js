@@ -7,13 +7,12 @@
 
     var S = window.Schedule;
 
-    /* Пресеты планового времени. 'standard' = NULL start_time (стандартная
-       смена точки), роль — первая по sort_order («бармен»). Вечерние пресеты
-       по умолчанию дают вторую роль («второй бармен»); роль меняется в модалке. */
+    /* Смены двух типов: день (с 14:00, норма — start_time NULL, бейдж не
+       показывается) и вечер (с 18:00 — второй бармен по умолчанию, роль
+       меняется в модалке). Других времён нет; нестандарт — через модалку. */
     var TIME_PRESETS = [
-        { key: 'standard', label: 'Стандарт', startTime: null, roleIndex: 0 },
-        { key: 'p14', label: 'с 14:00', startTime: '14:00', roleIndex: 1 },
-        { key: 'p18', label: 'с 18:00', startTime: '18:00', roleIndex: 1 }
+        { key: 'day', label: 'День (с 14:00)', startTime: null, roleIndex: 0 },
+        { key: 'evening', label: 'Вечер (с 18:00)', startTime: '18:00', roleIndex: 1 }
     ];
 
     var selectedEmployee = null;
