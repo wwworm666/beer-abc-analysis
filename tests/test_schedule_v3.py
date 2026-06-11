@@ -77,6 +77,11 @@ def test_fresh_db_creates_v3_schema(tmp_path):
     assert keys['Кременчугская'] == 'kremenchugskaya'
     assert keys['Лиговский'] == 'ligovskiy'
 
+    # Канонические сокращения владельца: Варш, Крем, ВО, Лиг
+    shorts = {loc['name']: loc['short_name'] for loc in locations}
+    assert shorts == {'Варшавская': 'Варш', 'Большой пр. В.О': 'ВО',
+                      'Кременчугская': 'Крем', 'Лиговский': 'Лиг'}
+
     conn = sqlite3.connect(mgr.db_path)
     assert conn.execute("PRAGMA user_version").fetchone()[0] == ShiftsManager.SCHEMA_VERSION
     cols = {row[1] for row in conn.execute("PRAGMA table_info(shifts)")}
@@ -104,8 +109,10 @@ def test_migration_v2_to_v3_preserves_data_and_makes_backup(tmp_path):
     assert revenue[0]['plan_revenue'] == 50000
     assert revenue[0]['fact_revenue'] == 48000
 
-    # venue_key мигрированной точке проставлен
-    assert mgr.get_locations()[0]['venue_key'] == 'varshavskaya'
+    # venue_key мигрированной точке проставлен, устаревшее сокращение починено
+    migrated = mgr.get_locations()[0]
+    assert migrated['venue_key'] == 'varshavskaya'
+    assert migrated['short_name'] == 'Варш'
 
     # Бэкап перед миграцией создан и читается
     backup = db_path + '.backup_v2'

@@ -236,10 +236,11 @@ class ShiftsManager:
         """Начальные данные: точки и роли."""
         cursor.execute('SELECT COUNT(*) FROM locations')
         if cursor.fetchone()[0] == 0:
+            # Сокращения — канонические, как у владельца: Варш, Крем, ВО, Лиг
             locations = [
-                ('Варшавская', 'Вар'),
+                ('Варшавская', 'Варш'),
                 ('Большой пр. В.О', 'ВО'),
-                ('Кременчугская', 'Кр'),
+                ('Кременчугская', 'Крем'),
                 ('Лиговский', 'Лиг'),
             ]
             cursor.executemany(
@@ -254,6 +255,17 @@ class ShiftsManager:
                 "UPDATE locations SET venue_key = ? WHERE name = ? "
                 "AND (venue_key IS NULL OR venue_key = '')",
                 (venue_key, name)
+            )
+
+        # Починить устаревшие сокращения в существующих БД (только известные
+        # старые значения — пользовательские правки не трогаются)
+        for name, old_short, new_short in (
+            ('Варшавская', 'Вар', 'Варш'),
+            ('Кременчугская', 'Кр', 'Крем'),
+        ):
+            cursor.execute(
+                "UPDATE locations SET short_name = ? WHERE name = ? AND short_name = ?",
+                (new_short, name, old_short)
             )
 
         cursor.execute('SELECT COUNT(*) FROM roles')
