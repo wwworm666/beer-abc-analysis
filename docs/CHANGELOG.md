@@ -1,5 +1,21 @@
 ﻿# Changelog
 
+### 2026-06-11 — График смен: факт выручки автоматически из iiko OLAP
+
+Сразу после деплоя редизайна «Факт»/«Средняя» показывали «нет данных» — факт ждал ручного синка в `daily_revenue`. По указанию пользователя факт переведён на живой API, как на дашборде.
+
+**Что:**
+- **`core/olap_reports.py`** — новый `get_store_daily_revenue(date_from, date_to)`: OLAP `Store.Name + OpenDate.Typed`, агрегат `DishDiscountSumInt` (та же метрика «выручка», что у дашборда), крошечный отчёт 4 точки x дни.
+- **`routes/schedule.py`** — `_fetch_month_fact_olap()`: общий кэш дашборда `cached_olap` (TTL 10 мин + single-flight, ключ `schedule_fact_{YYYY-MM}`), маппинг `Store.Name -> venue_key` через `venues_manager`. Подмешивается в `plans`/`summary`.
+- **`core/schedule_plans.py`** — `build_month_plans(..., olap_fact=)`: приоритет факта — OLAP; iiko недоступен -> фоллбэк на сохранённый `daily_revenue.fact_revenue`; нет продаж за день -> «нет данных», не 0.
+- **UI** — кнопки «Синк iiko за день» / «Синк факта за месяц» убраны (факт обновляется сам); эндпоинты sync оставлены как legacy-наполнение фоллбэк-кэша.
+
+**Проверка:** `tests/test_schedule_v3.py` +1 тест (приоритет OLAP/фоллбэк), 10 зелёных; смоук test-client 200.
+
+**Файлы:** `core/olap_reports.py`, `core/schedule_plans.py`, `routes/schedule.py`, `static/js/schedule/edit.js`, `templates/schedule_edit.html`, `tests/test_schedule_v3.py`, `docs/schedule.md`.
+
+---
+
 ### 2026-06-10 — Редизайн графика смен: две страницы, факт часов, планы из весов
 
 График разделён по назначению (дизайн утверждён в обсуждении: вариант с переключателем видов отвергнут как переусложнённый): **`/schedule`** — просмотр для барменов (кто где работает, без финансовых цифр) + **`/schedule/edit`** — рабочий стол владельца.

@@ -210,6 +210,29 @@ def test_build_month_plans_sources_and_fallback():
     assert len(plans) == 30
 
 
+def test_build_month_plans_olap_fact_priority():
+    """Факт из iiko OLAP (как на дашборде) приоритетнее сохранённого daily_revenue;
+    при недоступном iiko (olap_fact=None) — фоллбэк на сохранённый факт."""
+    manual_rows = [
+        {'date': '2026-06-01', 'location_id': 1, 'plan_revenue': 0, 'fact_revenue': 11111},
+    ]
+    olap_fact = {
+        '2026-06-01': {'varshavskaya': 50000.0},
+        '2026-06-02': {'ligovskiy': 20000.0},
+    }
+
+    plans = build_month_plans(2026, 6, LOCATIONS, {}, manual_rows, olap_fact=olap_fact)
+    # OLAP перекрывает сохранённый факт
+    assert plans['2026-06-01']['locations'][1]['fact'] == 50000.0
+    # OLAP успешен, но по точке/дню данных нет -> факта нет (не из manual)
+    assert plans['2026-06-01']['locations'][2]['fact'] is None
+    assert plans['2026-06-02']['locations'][2]['fact'] == 20000.0
+
+    # iiko недоступен -> фоллбэк на сохранённый daily_revenue
+    plans_offline = build_month_plans(2026, 6, LOCATIONS, {}, manual_rows, olap_fact=None)
+    assert plans_offline['2026-06-01']['locations'][1]['fact'] == 11111.0
+
+
 def test_compute_month_summary_formulas():
     daily_plans = {
         '2026-06-01': {'varshavskaya': 10000.0, 'ligovskiy': 5000.0},

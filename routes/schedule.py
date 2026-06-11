@@ -171,12 +171,58 @@ def schedule_delete_dayoff(request_id):
     return jsonify({'ok': True})
 
 
+def _fetch_month_fact_olap(year, month):
+    """Факт выручки по дням и точкам из iiko OLAP — тот же источник и кэш,
+    что «Факт» на дашборде (cached_olap: TTL 10 мин + single-flight).
+
+    Returns:
+        {date_str: {venue_key: revenue}} или None, если iiko недоступен
+        (тогда вызывающий код падает на сохранённый daily_revenue).
+    """
+    from extensions import cached_olap, venues_manager
+    from core.olap_reports import OlapReports
+
+    first_day = f"{year}-{month:02d}-01"
+    if month == 12:
+        next_month_first = f"{year + 1}-01-01"
+    else:
+        next_month_first = f"{year}-{month + 1:02d}-01"
+
+    def _fetch():
+        olap = OlapReports()
+        if not olap.connect():
+            return None
+        try:
+            return olap.get_store_daily_revenue(first_day, next_month_first)
+        finally:
+            olap.disconnect()
+
+    stores_daily = cached_olap(f"schedule_fact_{year}-{month:02d}", _fetch)
+    if not stores_daily:
+        return None
+
+    month_prefix = f"{year}-{month:02d}-"
+    by_day = {}
+    for store_name, days in stores_daily.items():
+        venue_key = venues_manager.get_key_by_iiko_name(store_name)
+        if not venue_key:
+            continue
+        for date_str, revenue in days.items():
+            if not date_str.startswith(month_prefix):
+                continue
+            day_map = by_day.setdefault(date_str, {})
+            day_map[venue_key] = day_map.get(venue_key, 0.0) + revenue
+    return by_day
+
+
 def _month_inputs(year, month):
     """Общие входные данные планов/сводки месяца."""
     locations = shifts_mgr.get_locations()
     daily_plans = DailyPlansGenerator().load_daily_plans()
     manual_rows = shifts_mgr.get_revenue_for_month(year, month)
-    return locations, build_month_plans(year, month, locations, daily_plans, manual_rows)
+    olap_fact = _fetch_month_fact_olap(year, month)
+    return locations, build_month_plans(year, month, locations, daily_plans,
+                                        manual_rows, olap_fact=olap_fact)
 
 
 @schedule_bp.route('/api/schedule/plans/<int:year>/<int:month>', methods=['GET'])

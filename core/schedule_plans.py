@@ -25,7 +25,7 @@ PLAN_FORMULA_TEXT = (
     'override на странице «Планы по дням».'
 )
 EXPECTED_FORMULA_TEXT = (
-    'Ожидаемая = сумма по дням месяца: факт дня, если он синкнут из iiko, '
+    'Ожидаемая = сумма по дням месяца: факт дня из iiko, если есть, '
     'иначе план дня. Веса пт/сб и override учтены в плане автоматически.'
 )
 AVG_FORMULA_TEXT = 'Средняя = сумма факта / количество дней с фактом.'
@@ -42,7 +42,8 @@ def month_date_strs(year: int, month: int) -> List[str]:
 
 
 def build_month_plans(year: int, month: int, locations: List[Dict],
-                      daily_plans: Dict, manual_rows: List[Dict]) -> Dict:
+                      daily_plans: Dict, manual_rows: List[Dict],
+                      olap_fact: Optional[Dict] = None) -> Dict:
     """Собрать план/факт по дням месяца для всех точек.
 
     Args:
@@ -51,6 +52,10 @@ def build_month_plans(year: int, month: int, locations: List[Dict],
                      ({'YYYY-MM-DD': {'bolshoy': 123.0, ..., 'all': ...}}).
         manual_rows: записи daily_revenue за месяц
                      [{date, location_id, plan_revenue, fact_revenue}].
+        olap_fact: факт из iiko OLAP {date_str: {venue_key: revenue}} —
+                   тот же источник, что «Факт» на дашборде. None = iiko
+                   недоступен, факт берётся из сохранённого daily_revenue
+                   (фоллбэк-кэш).
 
     Returns:
         {date_str: {
@@ -66,6 +71,7 @@ def build_month_plans(year: int, month: int, locations: List[Dict],
 
     for date_str in month_date_strs(year, month):
         day_plans = daily_plans.get(date_str, {}) or {}
+        olap_day = olap_fact.get(date_str, {}) if olap_fact is not None else None
         locs = {}
         plan_values = []
         fact_values = []
@@ -87,7 +93,12 @@ def build_month_plans(year: int, month: int, locations: List[Dict],
                     plan = round(float(manual_plan), 2)
                     plan_source = 'manual'
 
-            fact = manual.get('fact_revenue')
+            # Факт: живой OLAP (как на дашборде); если iiko недоступен —
+            # сохранённый daily_revenue. Отсутствие продаж за день = нет факта.
+            if olap_day is not None:
+                fact = olap_day.get(venue_key) if venue_key else None
+            else:
+                fact = manual.get('fact_revenue')
             fact = round(float(fact), 2) if fact is not None else None
 
             locs[loc_id] = {'plan': plan, 'plan_source': plan_source, 'fact': fact}

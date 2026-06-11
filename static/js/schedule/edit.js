@@ -37,8 +37,6 @@
         document.getElementById('shiftForm').addEventListener('submit', onShiftFormSubmit);
         document.getElementById('shiftDelete').addEventListener('click', onShiftDelete);
         document.getElementById('shiftCancel').addEventListener('click', closeShiftModal);
-        document.getElementById('syncDayBtn').addEventListener('click', syncDay);
-        document.getElementById('syncMonthBtn').addEventListener('click', syncMonth);
         document.getElementById('empSyncBtn').addEventListener('click', syncEmployees);
         document.getElementById('empAdminToggle').addEventListener('click', function () {
             var body = document.getElementById('empAdminBody');
@@ -417,7 +415,7 @@
             }
             var factHtml = cell.fact != null
                 ? '<span class="v fact">' + S.formatMoney(cell.fact) + '</span>'
-                : '<span class="v empty">не синкнуто</span>';
+                : '<span class="v empty">нет данных</span>';
 
             return '<div class="day-panel-card">'
                 + '<div class="location">' + loc.name + '</div>'
@@ -426,32 +424,6 @@
                 + sourceHtml
                 + '</div>';
         }).join('');
-    }
-
-    function syncDay() {
-        if (!selectedDate) return;
-        var btn = document.getElementById('syncDayBtn');
-        btn.disabled = true;
-        S.api('/api/schedule/revenue/sync/' + selectedDate, { method: 'POST' })
-            .then(function (res) {
-                S.showToast('Синк дня: обновлено точек ' + res.updated);
-                return reload();
-            })
-            .catch(function (err) { S.showToast('Ошибка синка: ' + err.message, true); })
-            .then(function () { btn.disabled = false; });
-    }
-
-    function syncMonth() {
-        var btn = document.getElementById('syncMonthBtn');
-        btn.disabled = true;
-        S.api('/api/schedule/revenue/sync-month/' + S.state.year + '/' + S.state.month,
-            { method: 'POST' })
-            .then(function (res) {
-                S.showToast('Синк месяца: дней ' + res.updated_days);
-                return reload();
-            })
-            .catch(function (err) { S.showToast('Ошибка синка: ' + err.message, true); })
-            .then(function () { btn.disabled = false; });
     }
 
     // ==================== Нагрузка и сводка ====================
@@ -509,7 +481,7 @@
 
         grid.innerHTML =
             item('План месяца', m.plan_total, f.plan, true)
-            + item('Факт', m.fact_total, 'Сумма синкнутого из iiko факта по всем точкам.', true)
+            + item('Факт', m.fact_total, 'Выручка из iiko по всем точкам месяца — тот же источник, что на дашборде. Обновляется автоматически (кэш 10 минут).', true)
             + item('Средняя в день', m.avg_fact, f.avg_fact, true)
             + item('Ожидаемая', m.expected, f.expected, true)
             + item('Выполнение', m.completion_pct != null ? m.completion_pct + '%' : null, f.completion_pct, false);

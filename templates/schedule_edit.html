@@ -26,10 +26,6 @@
         <div class="current-month" id="currentMonth"></div>
         <button class="nav-btn" id="nextMonth">След &rarr;</button>
         <span class="nav-spacer"></span>
-        <button class="btn btn-success" id="syncMonthBtn"
-                title="Подтянуть факт выручки из iiko за весь месяц одним запросом">
-            Синк факта за месяц
-        </button>
         <a class="page-switch" href="/schedule">Просмотр</a>
     </div>
 
@@ -53,14 +49,11 @@
             <div class="schedule-grid" id="scheduleGrid"></div>
 
             <!-- Панель плана/факта дня: открывается кликом по дате.
-                 План read-only — считается из весов дней (страница «Планы по дням»). -->
+                 План read-only — из весов дней; факт — живой iiko OLAP
+                 (тот же источник, что на дашборде, кэш 10 минут). -->
             <div class="day-panel" id="dayPanel">
                 <h3>
                     <span>День: <span id="dayPanelDate"></span></span>
-                    <button class="btn btn-success" id="syncDayBtn"
-                            title="Подтянуть факт выручки из iiko за этот день">
-                        Синк iiko за день
-                    </button>
                 </h3>
                 <div class="day-panel-grid" id="dayPanelGrid"></div>
             </div>
