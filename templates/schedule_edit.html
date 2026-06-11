@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График смен: редактор — Пивная культура</title>
+    <!-- Shared CSS -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/schedule/schedule.css?v={{ app_version }}">
+</head>
+<body class="schedule-page">
+    <div class="container">
+        {% set page_title = "График: редактор" %}
+        {% set page_subtitle = "Смены, планы, нагрузка" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <div class="month-nav">
+        <button class="nav-btn" id="prevMonth">&larr; Пред</button>
+        <div class="current-month" id="currentMonth"></div>
+        <button class="nav-btn" id="nextMonth">След &rarr;</button>
+        <span class="nav-spacer"></span>
+        <button class="btn btn-success" id="syncMonthBtn"
+                title="Подтянуть факт выручки из iiko за весь месяц одним запросом">
+            Синк факта за месяц
+        </button>
+        <a class="page-switch" href="/schedule">Просмотр</a>
+    </div>
+
+    <div class="paint-toolbar" id="paintToolbar">
+        <div class="toolbar-row">
+            <span class="label">Кисть:</span>
+            <div class="toolbar-row" id="employeeButtons" style="gap: 6px; flex: 1;"></div>
+            <button class="emp-btn eraser" id="eraserBtn">Ластик</button>
+        </div>
+        <div class="toolbar-row">
+            <span class="label">Время:</span>
+            <div class="toolbar-row" id="presetButtons" style="gap: 6px;"></div>
+            <span class="paint-hint" id="paintHint">Выбери сотрудника и время, потом кликай по ячейкам</span>
+        </div>
+    </div>
+
+    <div class="warnings-row" id="warningsRow"></div>
+
+    <main class="main-content">
+        <div class="schedule-container">
+            <div class="schedule-grid" id="scheduleGrid"></div>
+
+            <!-- Панель плана/факта дня: открывается кликом по дате.
+                 План read-only — считается из весов дней (страница «Планы по дням»). -->
+            <div class="day-panel" id="dayPanel">
+                <h3>
+                    <span>День: <span id="dayPanelDate"></span></span>
+                    <button class="btn btn-success" id="syncDayBtn"
+                            title="Подтянуть факт выручки из iiko за этот день">
+                        Синк iiko за день
+                    </button>
+                </h3>
+                <div class="day-panel-grid" id="dayPanelGrid"></div>
+            </div>
+        </div>
+
+        <!-- Нагрузка: смены и факт часов по сотрудникам.
+             Часы — только введённый барменами факт (план часов не существует). -->
+        <div class="section-card">
+            <h2>Нагрузка по сотрудникам</h2>
+            <table class="load-table">
+                <thead>
+                    <tr>
+                        <th>Сотрудник</th>
+                        <th title="Число смен в месяце">Смен</th>
+                        <th title="Сумма факта, введённого барменом в конце смены">Часов (факт)</th>
+                        <th title="Прошедшие смены без введённого факта часов">Без часов</th>
+                    </tr>
+                </thead>
+                <tbody id="loadTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Сводка месяца: формулы каждого числа — в тултипе у знака вопроса -->
+        <div class="section-card">
+            <h2>Сводка месяца</h2>
+            <div class="summary-grid" id="summaryGrid"></div>
+            <div style="margin-top: 14px;" id="summaryLocations"></div>
+        </div>
+
+        <div class="section-card">
+            <h2>Пожелания</h2>
+            <div class="wishes-grid" id="wishesGrid"></div>
+        </div>
+
+        <div class="section-card">
+            <h2 style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="cursor: pointer;" id="empAdminToggle">Сотрудники (показать/скрыть)</span>
+                <button class="btn btn-secondary" id="empSyncBtn"
+                        title="Добавить в реестр новые имена из iiko. Никого не удаляет.">
+                    Обновить из iiko
+                </button>
+            </h2>
+            <div id="empAdminBody" style="display: none;">
+                <table class="emp-admin-table">
+                    <thead>
+                        <tr>
+                            <th>Имя (как в iiko)</th>
+                            <th title="Короткая подпись для сетки, например РЮ">Метка</th>
+                            <th title="Порядок кнопок кисти">Порядок</th>
+                            <th title="Неактивные скрыты из кисти, история остаётся">Активен</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            Загрузка...
+        </div>
+    </main>
+
+    <!-- Модалка смены: роль + плановое время начала -->
+    <div class="modal-overlay" id="shiftModal">
+        <div class="modal">
+            <h2 id="shiftModalTitle">Смена</h2>
+            <div class="warning-box" id="dayoffWarning" style="display: none;">
+                Сотрудник просил выходной на эту дату
+            </div>
+            <form id="shiftForm">
+                <div class="form-group">
+                    <label for="shiftRole">Роль</label>
+                    <select id="shiftRole" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="shiftStartTime">Плановое начало (пусто = стандартная смена)</label>
+                    <input type="text" id="shiftStartTime" placeholder="18:00"
+                           pattern="^([01]\d|2[0-3]):[0-5]\d$" autocomplete="off">
+                    <div class="form-hint">Формат: ЧЧ:ММ, например 14:00 или 18:00</div>
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn btn-danger" id="shiftDelete">Удалить</button>
+                    <button type="button" class="btn btn-secondary" id="shiftCancel">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="/static/js/schedule/common.js?v={{ app_version }}"></script>
+    <script src="/static/js/schedule/edit.js?v={{ app_version }}"></script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

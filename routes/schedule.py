@@ -1,20 +1,64 @@
+import re
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 from extensions import shifts_mgr, notes_manager
 from core.iiko_api import IikoAPI
+from core.daily_plans_generator import DailyPlansGenerator
+from core.schedule_plans import (
+    build_month_plans,
+    compute_month_summary,
+    compute_employees_load,
+    PLAN_FORMULA_TEXT,
+)
 
 schedule_bp = Blueprint('schedule', __name__)
+
+# Плановое время начала смены: 'HH:MM' (24ч). NULL = стандартная смена.
+START_TIME_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+
+
+def _validate_start_time(value):
+    """None или 'HH:MM'. Возвращает (ok, normalized)."""
+    if value in (None, ''):
+        return True, None
+    if isinstance(value, str) and START_TIME_RE.match(value):
+        return True, value
+    return False, None
 
 
 @schedule_bp.route('/api/schedule/employees', methods=['GET'])
 def schedule_get_employees():
-    """Список сотрудников — переиспользуем /api/employees."""
+    """Реестр сотрудников графика (быстро, из shifts.db, без похода в iiko).
+
+    Имена из исторических смен подмешиваются автоматически. Пополнение
+    из iiko — отдельным POST /api/schedule/employees/sync.
+    """
+    include_inactive = request.args.get('all') == '1'
+    return jsonify(shifts_mgr.get_schedule_employees(include_inactive=include_inactive))
+
+
+@schedule_bp.route('/api/schedule/employees/sync', methods=['POST'])
+def schedule_sync_employees():
+    """Пополнить реестр именами из iiko (OLAP за 30 дней). Ничего не удаляет."""
     from routes.employee import get_employees_list
     result = get_employees_list()
     data = result.get_json()
-    # /api/employees возвращает {employees: [...]}, нам нужен [{name: ...}]
     names = data.get('employees', []) if isinstance(data, dict) else []
-    return jsonify([{'name': n} for n in names])
+    added = shifts_mgr.upsert_schedule_employees(names)
+    return jsonify({'added': added, 'total_from_iiko': len(names)})
+
+
+@schedule_bp.route('/api/schedule/employee/<name>', methods=['PUT'])
+def schedule_update_employee(name):
+    """Обновить сотрудника в реестре: short_label, active, sort_order."""
+    data = request.get_json() or {}
+    shifts_mgr.update_schedule_employee(
+        name=name,
+        short_label=data.get('short_label'),
+        active=data.get('active'),
+        sort_order=data.get('sort_order'),
+    )
+    return jsonify({'ok': True})
 
 
 @schedule_bp.route('/api/schedule/roles', methods=['GET'])
@@ -37,23 +81,53 @@ def schedule_get_month(year, month):
 
 @schedule_bp.route('/api/schedule/shift', methods=['POST'])
 def schedule_create_shift():
-    """Создать смену."""
+    """Создать смену. start_time 'HH:MM' — плановое начало (опционально)."""
     data = request.get_json()
+    ok, start_time = _validate_start_time(data.get('start_time'))
+    if not ok:
+        return jsonify({'error': 'start_time должен быть в формате HH:MM'}), 400
     shift_id = shifts_mgr.create_shift(
         date_str=data['date'],
         employee_name=data['employee_name'],
         location_id=data['location_id'],
         role_id=data['role_id'],
-        notes=data.get('notes')
+        notes=data.get('notes'),
+        start_time=start_time,
     )
     return jsonify({'id': shift_id})
 
 
 @schedule_bp.route('/api/schedule/shift/<int:shift_id>', methods=['PUT'])
 def schedule_update_shift(shift_id):
-    """Обновить смену."""
-    data = request.get_json()
+    """Обновить смену (роль, плановое время и т.д.)."""
+    data = request.get_json() or {}
+    if 'start_time' in data:
+        ok, start_time = _validate_start_time(data.get('start_time'))
+        if not ok:
+            return jsonify({'error': 'start_time должен быть в формате HH:MM'}), 400
+        data['start_time'] = start_time
     shifts_mgr.update_shift(shift_id, **data)
+    return jsonify({'ok': True})
+
+
+@schedule_bp.route('/api/schedule/shift/<int:shift_id>/fact', methods=['PUT'])
+def schedule_set_shift_fact(shift_id):
+    """Записать факт отработанных минут (вводится барменом в конце смены).
+
+    Body: {"fact_minutes": int 0..1440} либо {"fact_minutes": null} для очистки.
+    """
+    data = request.get_json() or {}
+    fact = data.get('fact_minutes')
+    if fact is not None:
+        try:
+            fact = int(fact)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'fact_minutes должен быть целым числом минут'}), 400
+        if not (0 <= fact <= 1440):
+            return jsonify({'error': 'fact_minutes должен быть в диапазоне 0..1440'}), 400
+    updated = shifts_mgr.set_shift_fact(shift_id, fact)
+    if not updated:
+        return jsonify({'error': 'Смена не найдена'}), 404
     return jsonify({'ok': True})
 
 
@@ -97,6 +171,33 @@ def schedule_delete_dayoff(request_id):
     return jsonify({'ok': True})
 
 
+def _month_inputs(year, month):
+    """Общие входные данные планов/сводки месяца."""
+    locations = shifts_mgr.get_locations()
+    daily_plans = DailyPlansGenerator().load_daily_plans()
+    manual_rows = shifts_mgr.get_revenue_for_month(year, month)
+    return locations, build_month_plans(year, month, locations, daily_plans, manual_rows)
+
+
+@schedule_bp.route('/api/schedule/plans/<int:year>/<int:month>', methods=['GET'])
+def schedule_get_plans(year, month):
+    """План/факт по дням месяца. План — read-only из daily_plans (веса дней);
+    фоллбэк — замороженный ручной plan_revenue (source='manual')."""
+    _, month_plans = _month_inputs(year, month)
+    return jsonify({'days': month_plans, 'plan_formula': PLAN_FORMULA_TEXT})
+
+
+@schedule_bp.route('/api/schedule/summary/<int:year>/<int:month>', methods=['GET'])
+def schedule_get_summary(year, month):
+    """Сводка месяца: план/факт/средняя/ожидаемая/выполнение % + нагрузка людей."""
+    locations, month_plans = _month_inputs(year, month)
+    summary = compute_month_summary(month_plans, locations)
+    shifts = shifts_mgr.get_shifts_for_month(year, month)
+    summary['employees_load'] = compute_employees_load(
+        shifts, datetime.now().strftime('%Y-%m-%d'))
+    return jsonify(summary)
+
+
 @schedule_bp.route('/api/schedule/revenue/<date_str>', methods=['GET'])
 def schedule_get_revenue(date_str):
     """Выручка по всем точкам за день."""
@@ -105,15 +206,44 @@ def schedule_get_revenue(date_str):
 
 @schedule_bp.route('/api/schedule/revenue/<date_str>/<int:location_id>', methods=['PUT'])
 def schedule_update_revenue(date_str, location_id):
-    """Обновить план/факт выручки."""
-    data = request.get_json()
+    """Обновить факт выручки.
+
+    Ручной ввод ПЛАНА заморожен (2026-06): план дня считается из весов
+    (см. /api/schedule/plans). plan_revenue в body игнорируется.
+    """
+    data = request.get_json() or {}
+    if 'plan_revenue' in data:
+        print(f"[SCHEDULE] plan_revenue в PUT revenue игнорируется (план заморожен): {date_str}")
     shifts_mgr.update_revenue(
         date_str=date_str,
         location_id=location_id,
-        plan_revenue=data.get('plan_revenue'),
         fact_revenue=data.get('fact_revenue')
     )
     return jsonify({'ok': True})
+
+
+def _aggregate_cash_shifts_by_day(cash_shifts, locations):
+    """Сгруппировать кассовые смены iiko: {date: {location_name: revenue}}.
+
+    Выручка кассовой смены = cashOrders + cardOrders (как в дневном синке).
+    Дата — openDate кассовой смены (первые 10 символов ISO).
+    Маппинг точки — по вхождению имени/short_name локации в pointOfSale.
+    """
+    by_day = {}
+    for shift in cash_shifts or []:
+        open_date = (shift.get('openDate') or '')[:10]
+        if not open_date:
+            continue
+        point_of_sale = shift.get('pointOfSale', '')
+        revenue = (shift.get('payOrders', {}).get('cashOrders', 0) or 0) + \
+                  (shift.get('payOrders', {}).get('cardOrders', 0) or 0)
+
+        for loc in locations:
+            if loc['name'].lower() in point_of_sale.lower() or \
+               loc['short_name'].lower() in point_of_sale.lower():
+                day_map = by_day.setdefault(open_date, {})
+                day_map[loc['name']] = day_map.get(loc['name'], 0) + revenue
+    return by_day
 
 
 @schedule_bp.route('/api/schedule/revenue/sync/<date_str>', methods=['POST'])
@@ -128,20 +258,8 @@ def schedule_sync_revenue(date_str):
         date_to = (datetime.strptime(date_str, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
         cash_shifts = iiko.get_cash_shifts(date_str, date_to)
 
-        # Собираем выручку по точкам
-        revenue_by_location = {}
-        if cash_shifts:
-            for shift in cash_shifts:
-                point_of_sale = shift.get('pointOfSale', '')
-                revenue = (shift.get('payOrders', {}).get('cashOrders', 0) or 0) + \
-                          (shift.get('payOrders', {}).get('cardOrders', 0) or 0)
-
-                # Маппинг имён точек продаж на locations в shifts.db
-                for loc in shifts_mgr.get_locations():
-                    if loc['name'].lower() in point_of_sale.lower() or \
-                       loc['short_name'].lower() in point_of_sale.lower():
-                        loc_name = loc['name']
-                        revenue_by_location[loc_name] = revenue_by_location.get(loc_name, 0) + revenue
+        by_day = _aggregate_cash_shifts_by_day(cash_shifts, shifts_mgr.get_locations())
+        revenue_by_location = by_day.get(date_str, {})
 
         updated = shifts_mgr.sync_revenue_from_iiko(date_str, revenue_by_location)
         return jsonify({'updated': updated, 'revenue': revenue_by_location})
@@ -153,6 +271,48 @@ def schedule_sync_revenue(date_str):
         return jsonify({'error': str(e)}), 500
     finally:
         # Освобождаем слот лицензии iiko в любом случае (иначе утечка слотов).
+        if iiko is not None:
+            iiko.logout()
+
+
+@schedule_bp.route('/api/schedule/revenue/sync-month/<int:year>/<int:month>', methods=['POST'])
+def schedule_sync_revenue_month(year, month):
+    """Синхронизировать факт выручки из iiko за весь месяц одним запросом.
+
+    Нужно для сводки месяца («Ожидаемая», «Выполнение %») — днями синкать
+    месяц было бы 30 запросов к iiko.
+    """
+    iiko = None
+    try:
+        first_day = f"{year}-{month:02d}-01"
+        if month == 12:
+            next_month_first = f"{year + 1}-01-01"
+        else:
+            next_month_first = f"{year}-{month + 1:02d}-01"
+
+        iiko = IikoAPI()
+        iiko.authenticate()
+        cash_shifts = iiko.get_cash_shifts(first_day, next_month_first)
+
+        by_day = _aggregate_cash_shifts_by_day(cash_shifts, shifts_mgr.get_locations())
+
+        updated_days = 0
+        updated_rows = 0
+        month_prefix = f"{year}-{month:02d}-"
+        for date_str, revenue_map in sorted(by_day.items()):
+            if not date_str.startswith(month_prefix):
+                continue
+            updated_rows += shifts_mgr.sync_revenue_from_iiko(date_str, revenue_map)
+            updated_days += 1
+
+        return jsonify({'updated_days': updated_days, 'updated_rows': updated_rows})
+
+    except Exception as e:
+        print(f"[SCHEDULE SYNC MONTH ERROR] {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
         if iiko is not None:
             iiko.logout()
 

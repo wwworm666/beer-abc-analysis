@@ -102,8 +102,15 @@ def taps_bar(bar_id):
 
 @pages_bp.route('/schedule')
 def schedule():
-    """Страница графика смен"""
-    return render_template('schedule.html')
+    """График смен — просмотр (для барменов: кто где работает, ввод факта часов).
+    Финансовых данных на странице нет."""
+    return render_template('schedule.html', app_version=APP_VERSION)
+
+
+@pages_bp.route('/schedule/edit')
+def schedule_edit():
+    """График смен — рабочий стол владельца: кисть, планы/факты, нагрузка, пожелания."""
+    return render_template('schedule_edit.html', app_version=APP_VERSION)
 
 
 @pages_bp.route('/dashboard/widget')

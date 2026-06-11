@@ -52,7 +52,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
 | [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting, override весов дней, «Планы по дням» | ✅ |
-| [docs/schedule.md](../docs/schedule.md) | График смен, роли, meeting notes | ✅ |
+| [docs/schedule.md](../docs/schedule.md) | График смен: /schedule (просмотр, факт часов) + /schedule/edit (кисть, планы, нагрузка), meeting notes | ✅ |
 | [docs/frontend.md](../docs/frontend.md) | JS архитектура дашборда (15+ модулей) | ✅ |
 | [docs/design-system.md](../docs/design-system.md) | Палитра, типографика, компоненты | ✅ |
 | [docs/iiko-integration.md](../docs/iiko-integration.md) | iiko API: OLAP, cashshifts, auth (SHA-1) | ✅ |

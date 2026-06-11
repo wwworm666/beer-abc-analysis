@@ -12,11 +12,23 @@ from typing import List, Dict, Optional
 from contextlib import contextmanager
 
 
+# Маппинг точек на ключи заведений в data/daily_plans.json / plansdashboard.json.
+# Единственное место связи locations <-> venue_key.
+LOCATION_VENUE_KEYS = {
+    'Варшавская': 'varshavskaya',
+    'Большой пр. В.О': 'bolshoy',
+    'Кременчугская': 'kremenchugskaya',
+    'Лиговский': 'ligovskiy',
+}
+
+
 class ShiftsManager:
     """Thread-safe менеджер для работы со сменами в SQLite."""
 
-    # Версия схемы — при увеличении старая БД пересоздаётся
-    SCHEMA_VERSION = 2
+    # Версия схемы. Миграции ТОЛЬКО additive (ALTER TABLE ADD COLUMN /
+    # CREATE TABLE IF NOT EXISTS) — DROP запрещён: в проде живые данные.
+    # Перед миграцией файл БД копируется в shifts.db.backup_v{N}.
+    SCHEMA_VERSION = 3
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -49,8 +61,51 @@ class ShiftsManager:
         finally:
             conn.close()
 
+    def _backup_before_migration(self, conn, current_version: int):
+        """Снять консистентный снапшот БД перед миграцией схемы.
+
+        Используется SQLite backup API (а не копирование файла): при WAL-режиме
+        простой copy главного файла без -wal даёт неконсистентный снимок.
+        """
+        if not os.path.exists(self.db_path):
+            return
+        backup_path = f"{self.db_path}.backup_v{current_version}"
+        try:
+            dst = sqlite3.connect(backup_path)
+            try:
+                conn.backup(dst)
+            finally:
+                dst.close()
+            print(f"[ShiftsManager] Бэкап БД перед миграцией: {backup_path}")
+        except Exception as e:
+            print(f"[ShiftsManager WARNING] Не удалось создать бэкап БД: {e}")
+
+    @staticmethod
+    def _ensure_columns(cursor, table: str, columns: Dict[str, str]):
+        """Additive-миграция: добавить недостающие колонки таблицы.
+
+        columns: {имя: SQL-объявление типа}. Существующие колонки не трогаются —
+        ALTER TABLE ADD COLUMN в SQLite не меняет имеющиеся данные.
+
+        'duplicate column' глотается: под gunicorn 2 воркера мигрируют
+        одновременно, и второй может проиграть гонку между проверкой и ALTER.
+        """
+        cursor.execute(f"PRAGMA table_info({table})")
+        existing = {row[1] for row in cursor.fetchall()}
+        for name, decl in columns.items():
+            if name in existing:
+                continue
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+                print(f"[ShiftsManager] Миграция: ALTER TABLE {table} ADD COLUMN {name} {decl}")
+            except sqlite3.OperationalError as e:
+                if 'duplicate column' in str(e).lower():
+                    print(f"[ShiftsManager] Колонка {table}.{name} уже добавлена другим воркером")
+                else:
+                    raise
+
     def _init_database(self):
-        """Создать таблицы, если не существуют."""
+        """Создать недостающие таблицы/колонки. Никогда не удаляет данные."""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -60,21 +115,16 @@ class ShiftsManager:
                 current_version = cursor.fetchone()[0]
 
                 if current_version < self.SCHEMA_VERSION:
-                    # Пересоздаём все таблицы
-                    cursor.execute('DROP TABLE IF EXISTS shifts')
-                    cursor.execute('DROP TABLE IF EXISTS day_off_requests')
-                    cursor.execute('DROP TABLE IF EXISTS daily_revenue')
-                    cursor.execute('DROP TABLE IF EXISTS employees')  # старая таблица
-                    cursor.execute('DROP TABLE IF EXISTS locations')
-                    cursor.execute('DROP TABLE IF EXISTS roles')
-                    print(f"[ShiftsManager] Миграция схемы v{current_version} -> v{self.SCHEMA_VERSION}")
+                    self._backup_before_migration(conn, current_version)
+                    print(f"[ShiftsManager] Миграция схемы v{current_version} -> v{self.SCHEMA_VERSION} (additive)")
 
-                # Точки (бары)
+                # Точки (бары). venue_key — мост к планам (data/daily_plans.json).
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS locations (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL UNIQUE,
-                        short_name TEXT NOT NULL
+                        short_name TEXT NOT NULL,
+                        venue_key TEXT
                     )
                 ''')
 
@@ -89,7 +139,11 @@ class ShiftsManager:
                     )
                 ''')
 
-                # Смены — employee_name хранится напрямую (из iiko API)
+                # Смены — employee_name хранится напрямую (из iiko API).
+                # start_time — ПЛАНОВОЕ время начала 'HH:MM'; NULL = стандартная смена.
+                # fact_minutes — ФАКТ отработанных минут, вводится барменом руками
+                # в конце смены (единственный источник факта часов: смена может
+                # длиться дольше кассовой, по API это не вытащить).
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS shifts (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -98,6 +152,8 @@ class ShiftsManager:
                         location_id INTEGER NOT NULL,
                         role_id INTEGER NOT NULL,
                         notes TEXT,
+                        start_time TEXT,
+                        fact_minutes INTEGER,
                         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (location_id) REFERENCES locations(id),
@@ -140,6 +196,28 @@ class ShiftsManager:
                     )
                 ''')
 
+                # Реестр сотрудников графика. iiko — поставщик кандидатов (upsert,
+                # никогда не удаляет): сотрудник в отпуске >30 дней пропадает из
+                # OLAP-выборки, но остаётся здесь. Ключ — имя как в iiko, чтобы
+                # не мигрировать shifts.employee_name.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_employees (
+                        name TEXT PRIMARY KEY,
+                        short_label TEXT,
+                        active INTEGER NOT NULL DEFAULT 1,
+                        sort_order INTEGER NOT NULL DEFAULT 0
+                    )
+                ''')
+
+                # Additive-миграции для БД, созданных прошлыми версиями схемы
+                self._ensure_columns(cursor, 'shifts', {
+                    'start_time': 'TEXT',
+                    'fact_minutes': 'INTEGER',
+                })
+                self._ensure_columns(cursor, 'locations', {
+                    'venue_key': 'TEXT',
+                })
+
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_employee ON shifts(employee_name)')
@@ -169,6 +247,14 @@ class ShiftsManager:
                 locations
             )
             print(f"[ShiftsManager] Добавлено {len(locations)} точек")
+
+        # Проставить venue_key существующим точкам (идемпотентно)
+        for name, venue_key in LOCATION_VENUE_KEYS.items():
+            cursor.execute(
+                "UPDATE locations SET venue_key = ? WHERE name = ? "
+                "AND (venue_key IS NULL OR venue_key = '')",
+                (venue_key, name)
+            )
 
         cursor.execute('SELECT COUNT(*) FROM roles')
         if cursor.fetchone()[0] == 0:
@@ -221,6 +307,7 @@ class ShiftsManager:
                 cursor.execute('''
                     SELECT
                         s.id, s.date, s.employee_name, s.notes,
+                        s.start_time, s.fact_minutes,
                         l.id as location_id, l.name as location_name, l.short_name as location_short,
                         r.id as role_id, r.name as role_name, r.short_name as role_short, r.color as role_color
                     FROM shifts s
@@ -232,21 +319,37 @@ class ShiftsManager:
                 return [dict(row) for row in cursor.fetchall()]
 
     def create_shift(self, date_str: str, employee_name: str, location_id: int,
-                     role_id: int, notes: str = None) -> int:
-        """Создать смену. Возвращает ID."""
+                     role_id: int, notes: str = None, start_time: str = None) -> int:
+        """Создать смену. start_time 'HH:MM' — плановое начало (NULL = стандарт)."""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO shifts (date, employee_name, location_id, role_id, notes)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (date_str, employee_name, location_id, role_id, notes))
+                    INSERT INTO shifts (date, employee_name, location_id, role_id, notes, start_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (date_str, employee_name, location_id, role_id, notes, start_time))
                 conn.commit()
                 return cursor.lastrowid
 
+    def set_shift_fact(self, shift_id: int, fact_minutes: Optional[int]) -> bool:
+        """Записать факт отработанных минут (None = очистить).
+
+        Вводится барменом руками в конце смены — единственный источник факта часов.
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'UPDATE shifts SET fact_minutes = ?, updated_at = ? WHERE id = ?',
+                    (fact_minutes, datetime.now().isoformat(), shift_id)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+
     def update_shift(self, shift_id: int, **kwargs) -> bool:
         """Обновить смену."""
-        allowed = {'date', 'employee_name', 'location_id', 'role_id', 'notes'}
+        allowed = {'date', 'employee_name', 'location_id', 'role_id', 'notes',
+                   'start_time', 'fact_minutes'}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return False
@@ -339,6 +442,25 @@ class ShiftsManager:
                 ''', (date_str,))
                 return [dict(row) for row in cursor.fetchall()]
 
+    def get_revenue_for_month(self, year: int, month: int) -> List[Dict]:
+        """Все записи план/факт выручки за месяц (для сводки и фоллбэка планов)."""
+        first_day = date(year, month, 1)
+        if month == 12:
+            last_day = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            last_day = date(year, month + 1, 1) - timedelta(days=1)
+
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT date, location_id, plan_revenue, fact_revenue
+                    FROM daily_revenue
+                    WHERE date >= ? AND date <= ?
+                    ORDER BY date, location_id
+                ''', (first_day.isoformat(), last_day.isoformat()))
+                return [dict(row) for row in cursor.fetchall()]
+
     def update_revenue(self, date_str: str, location_id: int,
                        plan_revenue: float = None, fact_revenue: float = None) -> bool:
         """Обновить или создать запись о выручке."""
@@ -414,6 +536,82 @@ class ShiftsManager:
                         text = excluded.text,
                         updated_at = excluded.updated_at
                 ''', (employee_name, text, datetime.now().isoformat()))
+                conn.commit()
+                return True
+
+    # ==================== SCHEDULE EMPLOYEES ====================
+
+    def get_schedule_employees(self, include_inactive: bool = False) -> List[Dict]:
+        """Реестр сотрудников графика + имена из смен, которых нет в реестре.
+
+        Имена из shifts добавляются виртуально (active=1, без short_label),
+        чтобы история смен никогда не оставалась без сотрудника в списке.
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT name, short_label, active, sort_order, 1 as in_registry
+                    FROM schedule_employees
+                    UNION
+                    SELECT DISTINCT s.employee_name, NULL, 1, 999, 0
+                    FROM shifts s
+                    WHERE s.employee_name NOT IN (SELECT name FROM schedule_employees)
+                    ORDER BY sort_order, name
+                ''')
+                rows = [dict(row) for row in cursor.fetchall()]
+        if not include_inactive:
+            rows = [r for r in rows if r['active']]
+        return rows
+
+    def upsert_schedule_employees(self, names: List[str]) -> int:
+        """Добавить новые имена в реестр (существующие не трогаются).
+
+        Возвращает число добавленных. Никогда ничего не удаляет — iiko лишь
+        поставщик кандидатов, источник правды о составе — владелец.
+        """
+        added = 0
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                for name in names:
+                    name = (name or '').strip()
+                    if not name:
+                        continue
+                    cursor.execute(
+                        'INSERT OR IGNORE INTO schedule_employees (name) VALUES (?)',
+                        (name,)
+                    )
+                    added += cursor.rowcount
+                conn.commit()
+        return added
+
+    def update_schedule_employee(self, name: str, short_label: str = None,
+                                 active: int = None, sort_order: int = None) -> bool:
+        """Обновить параметры сотрудника в реестре (создаст запись, если нет)."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'INSERT OR IGNORE INTO schedule_employees (name) VALUES (?)',
+                    (name,)
+                )
+                updates, params = [], []
+                if short_label is not None:
+                    updates.append('short_label = ?')
+                    params.append(short_label.strip() or None)
+                if active is not None:
+                    updates.append('active = ?')
+                    params.append(1 if active else 0)
+                if sort_order is not None:
+                    updates.append('sort_order = ?')
+                    params.append(int(sort_order))
+                if updates:
+                    params.append(name)
+                    cursor.execute(
+                        f'UPDATE schedule_employees SET {", ".join(updates)} WHERE name = ?',
+                        params
+                    )
                 conn.commit()
                 return True
 

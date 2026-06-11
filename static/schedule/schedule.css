@@ -1,0 +1,613 @@
+/* Стили страниц графика смен: /schedule (просмотр) и /schedule/edit (редактор).
+   Цветовая дисциплина: цвет ячейки кодирует СТАТУС (дыра/конфликт/сегодня),
+   роль кодируется цветом бейджа из roles.color (БД), не хардкодом. */
+
+.schedule-page {
+    --sch-radius: 12px;
+    --sch-radius-sm: 8px;
+}
+
+/* ==================== Month nav ==================== */
+.month-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--bg-secondary);
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.month-nav button.nav-btn {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    padding: 8px 12px;
+    border-radius: var(--sch-radius-sm);
+    cursor: pointer;
+    color: var(--text-primary);
+    font-family: inherit;
+    transition: all 150ms ease;
+}
+
+.month-nav button.nav-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.month-nav .current-month {
+    font-size: 1.05rem;
+    font-weight: 600;
+    min-width: 170px;
+    text-align: center;
+}
+
+.month-nav .nav-spacer { flex: 1; }
+
+.month-nav .page-switch {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border: 1px solid var(--border-color);
+    padding: 8px 14px;
+    border-radius: var(--sch-radius-sm);
+    transition: all 150ms ease;
+}
+
+.month-nav .page-switch:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+/* ==================== Grid ==================== */
+.schedule-container {
+    background: var(--bg-secondary);
+    border-radius: var(--sch-radius);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.schedule-grid {
+    display: grid;
+    /* grid-template-columns задаётся из JS по числу точек */
+    min-width: 640px;
+}
+
+.schedule-header { display: contents; }
+
+.schedule-header > div {
+    background: var(--bg-tertiary);
+    padding: 14px 10px;
+    font-weight: 600;
+    text-align: center;
+    border-bottom: 2px solid var(--border-color);
+    font-size: 0.9rem;
+}
+
+.schedule-cell {
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    min-height: 44px;
+    position: relative;
+    transition: background 150ms ease;
+}
+
+.schedule-cell:last-child { border-right: none; }
+
+.schedule-cell.date-cell {
+    background: var(--bg-tertiary);
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 6px;
+    gap: 1px;
+}
+
+.schedule-cell.date-cell .day-name {
+    font-size: 0.7rem;
+    color: var(--text-tertiary);
+}
+
+.schedule-cell.date-cell .day-number { font-size: 0.9rem; }
+
+.schedule-cell.date-cell .day-plan {
+    font-size: 0.68rem;
+    color: var(--text-tertiary);
+}
+
+.schedule-cell.weekend-col { background: var(--accent-light); }
+
+/* Сегодня — рамка строки */
+.schedule-cell.today {
+    box-shadow: inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent);
+}
+
+.schedule-cell.today.date-cell .day-number { color: var(--accent); }
+
+/* Дыра: будущая дата без смен на точке. Прошедшие пустые дни нейтральны. */
+.schedule-cell.hole {
+    background: var(--warning-bg);
+}
+
+.schedule-cell.hole::after {
+    content: 'не закрыто';
+    display: block;
+    text-align: center;
+    font-size: 0.68rem;
+    color: var(--warning);
+    padding: 14px 4px;
+}
+
+/* ==================== Shift chips ==================== */
+.shift-chip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 1px;
+    padding: 5px 6px;
+    min-height: 44px;
+    font-size: 0.8rem;
+    color: white;
+    cursor: pointer;
+    text-align: center;
+    transition: opacity 150ms;
+}
+
+.shift-chip:hover { opacity: 0.85; }
+
+.shift-chip + .shift-chip { border-top: 1px solid rgba(255, 255, 255, 0.35); }
+
+.shift-chip .chip-name { font-weight: 500; line-height: 1.2; }
+
+.shift-chip .chip-badges {
+    display: flex;
+    gap: 6px;
+    font-size: 0.66rem;
+    opacity: 0.92;
+}
+
+.shift-chip .chip-time { white-space: nowrap; }
+.shift-chip .chip-fact { white-space: nowrap; font-weight: 600; }
+
+/* Конфликт: смена в день, на который сотрудник просил выходной */
+.shift-chip.conflict {
+    box-shadow: inset 0 0 0 2px var(--danger);
+}
+
+.conflict-note {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.62rem;
+    color: var(--danger);
+    background: var(--danger-bg);
+    border-radius: 4px;
+    padding: 0 4px;
+    z-index: 2;
+    cursor: help;
+}
+
+/* Штриховка day-off: данные заявки, не закраска руками */
+.schedule-cell.dayoff-hatch {
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 6px,
+        var(--border-color) 6px,
+        var(--border-color) 7px
+    );
+}
+
+/* ==================== Paint mode (только /schedule/edit) ==================== */
+.paint-toolbar {
+    background: var(--bg-secondary);
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.paint-toolbar .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.paint-toolbar .label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: 64px;
+}
+
+.emp-btn, .preset-btn {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 2px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 150ms ease;
+    user-select: none;
+    min-height: 36px;
+}
+
+.emp-btn:hover, .preset-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.emp-btn.selected, .preset-btn.selected {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.emp-btn.eraser { background: transparent; border-style: dashed; }
+
+.emp-btn.eraser.selected {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+    border-style: solid;
+}
+
+.paint-hint {
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
+}
+
+.paint-hint .hint-wish { color: var(--warning); }
+
+body.paint-mode .schedule-cell.shift-cell { cursor: crosshair; }
+body.paint-mode .schedule-cell.shift-cell:hover { background: var(--bg-hover); }
+body.eraser-mode .shift-chip { cursor: not-allowed; }
+
+/* ==================== Warnings row ==================== */
+.warnings-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--warning-bg);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.82rem;
+}
+
+.warnings-row:empty { display: none; }
+
+.warnings-row .warning-item { color: var(--warning); cursor: pointer; }
+.warnings-row .warning-item.danger { color: var(--danger); }
+
+/* ==================== Day panel (план/факт дня) ==================== */
+.day-panel {
+    background: var(--bg-tertiary);
+    padding: 16px 24px;
+    border-top: 2px solid var(--accent);
+    display: none;
+}
+
+.day-panel.active { display: block; }
+
+.day-panel h3 {
+    margin-bottom: 14px;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.day-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.day-panel-card {
+    background: var(--bg-secondary);
+    padding: 14px;
+    border-radius: var(--sch-radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.day-panel-card .location { font-weight: 600; margin-bottom: 10px; font-size: 0.88rem; }
+
+.day-panel-card .metric {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.84rem;
+    margin-bottom: 6px;
+}
+
+.day-panel-card .metric .k { color: var(--text-secondary); }
+.day-panel-card .metric .v { font-weight: 600; }
+.day-panel-card .metric .v.fact { color: var(--success); }
+.day-panel-card .metric .v.empty { color: var(--text-tertiary); font-weight: 400; }
+.day-panel-card .plan-source { font-size: 0.68rem; color: var(--text-tertiary); }
+
+/* ==================== Load (нагрузка) + summary ==================== */
+.section-card {
+    background: var(--bg-secondary);
+    border-radius: var(--sch-radius);
+    border: 1px solid var(--border-color);
+    padding: 18px 24px;
+}
+
+.section-card h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+    color: var(--text-secondary);
+}
+
+.load-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+.load-table th {
+    text-align: left;
+    color: var(--text-secondary);
+    font-weight: 500;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.load-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-light); }
+
+.load-table tr:last-child td { border-bottom: none; }
+
+.load-table .load-max { color: var(--danger); font-weight: 600; }
+.load-table .load-min { color: var(--success); font-weight: 600; }
+.load-table .missing-fact { color: var(--warning); }
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.summary-item {
+    background: var(--bg-tertiary);
+    border-radius: var(--sch-radius-sm);
+    padding: 12px 14px;
+}
+
+.summary-item .k {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.summary-item .v { font-size: 1.05rem; font-weight: 600; }
+.summary-item .v.empty { color: var(--text-tertiary); font-weight: 400; }
+
+/* Тултип с формулой: текст в title + видимый знак вопроса */
+.formula-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    border: 1px solid var(--text-tertiary);
+    color: var(--text-tertiary);
+    font-size: 0.62rem;
+    cursor: help;
+    flex: none;
+}
+
+/* ==================== Wishes ==================== */
+.wishes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.wish-card {
+    background: var(--bg-tertiary);
+    border-radius: var(--sch-radius-sm);
+    padding: 14px;
+    border: 1px solid var(--border-color);
+}
+
+.wish-card .emp-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
+
+.wish-card textarea {
+    width: 100%;
+    min-height: 50px;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.85rem;
+    resize: vertical;
+}
+
+.wish-card textarea:focus { outline: none; border-color: var(--accent); }
+.wish-card textarea::placeholder { color: var(--text-tertiary); }
+
+/* ==================== Employees admin ==================== */
+.emp-admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+.emp-admin-table th {
+    text-align: left;
+    color: var(--text-secondary);
+    font-weight: 500;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.emp-admin-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-light); }
+
+.emp-admin-table input[type="text"], .emp-admin-table input[type="number"] {
+    width: 70px;
+    padding: 5px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.84rem;
+}
+
+.emp-admin-table .inactive-row { opacity: 0.5; }
+
+/* ==================== Modal ==================== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.modal-overlay.active { display: flex; }
+
+.modal {
+    background: var(--bg-secondary);
+    border-radius: var(--sch-radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: var(--shadow-md);
+}
+
+.modal h2 { margin-bottom: 18px; font-size: 1.05rem; }
+
+.modal .form-group { margin-bottom: 14px; }
+
+.modal .form-group label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.modal .form-group select,
+.modal .form-group input {
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--sch-radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.modal .form-group select:focus,
+.modal .form-group input:focus { outline: none; border-color: var(--accent); }
+
+.modal .form-hint { font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px; }
+
+.modal .warning-box {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning);
+    border-radius: var(--sch-radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 0.85rem;
+    color: var(--warning);
+}
+
+.modal .actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+/* ==================== Buttons / misc ==================== */
+.btn {
+    padding: 10px 18px;
+    border-radius: var(--sch-radius-sm);
+    border: none;
+    font-family: inherit;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 150ms ease;
+}
+
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+.btn-secondary:hover { background: var(--bg-hover); }
+.btn-danger { background: var(--danger); color: white; }
+.btn-success { background: var(--success); color: white; }
+.btn[disabled] { opacity: 0.6; cursor: wait; }
+
+.main-content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    color: var(--text-tertiary);
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: sch-spin 0.8s linear infinite;
+    margin-right: 12px;
+}
+
+@keyframes sch-spin { to { transform: rotate(360deg); } }
+
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--success);
+    padding: 12px 20px;
+    border-radius: var(--sch-radius-sm);
+    font-size: 0.85rem;
+    box-shadow: var(--shadow-md);
+    z-index: 2000;
+    transition: opacity 300ms, transform 300ms;
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.error { border-left-color: var(--danger); }
+
+@media (max-width: 700px) {
+    .schedule-container { overflow-x: auto; }
+    .main-content { padding: 14px; gap: 16px; }
+    .month-nav { padding: 10px 14px; gap: 8px; }
+    .paint-toolbar { padding: 10px 14px; }
+    .warnings-row { padding: 8px 14px; }
+}

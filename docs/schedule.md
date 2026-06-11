@@ -2,343 +2,148 @@
 
 ## Что это
 
-Модуль управления графиком работы сотрудников: смены, роли, локации, revenue plan/fact, meeting notes.
+Управление графиком смен сети из 4 баров. Две страницы с разным назначением:
+
+- **`/schedule` — просмотр** (для барменов): сетка «дни x бары», кто где работает,
+  ввод факта отработанных часов. Финансовых данных на странице нет.
+- **`/schedule/edit` — рабочий стол владельца**: кисть для назначения смен с
+  пресетами времени, предупреждения (незакрытые точки, конфликты с выходными),
+  план/факт выручки по дням, нагрузка по сотрудникам, сводка месяца, пожелания,
+  реестр сотрудников.
+
+Эталоном функционала была гугл-таблица владельца (дни x сотрудники, часы, итоги);
+веб-версия хранит те же данные в SQLite и считает агрегаты сама.
 
 ## Файлы
 
-- [`core/shifts_manager.py`](../../core/shifts_manager.py) — управление сменами
-- [`core/meeting_notes.py`](../../core/meeting_notes.py) — заметки по периодам
-- [`routes/schedule.py`](../../routes/schedule.py) — Flask endpoint'ы
-
----
+| Файл | Роль |
+|------|------|
+| `routes/pages.py` | роуты страниц `/schedule`, `/schedule/edit` |
+| `routes/schedule.py` | все API `/api/schedule/*` + meeting-notes |
+| `core/shifts_manager.py` | SQLite-менеджер (`data/shifts.db`, на проде `/kultura/shifts.db`) |
+| `core/schedule_plans.py` | чистые функции: план дня с фоллбэком, сводка месяца, нагрузка |
+| `core/meeting_notes.py` | заметки совещаний (без изменений) |
+| `templates/schedule.html` | страница просмотра |
+| `templates/schedule_edit.html` | страница редактора |
+| `static/schedule/schedule.css` | общие стили обеих страниц |
+| `static/js/schedule/common.js` | API-клиент, состояние, рендер сетки |
+| `static/js/schedule/view.js` | логика просмотра + модалка факта часов |
+| `static/js/schedule/edit.js` | кисть, предупреждения, панель дня, сводка, реестр |
+| `tests/test_schedule_v3.py` | миграция схемы, факт часов, реестр, формулы |
 
 ## Как работает
 
-### Структура смены
-
-```python
-# core/shifts_manager.py
-class Shift:
-    """
-    Смена сотрудника
-    """
-    def __init__(self):
-        self.date: str           # YYYY-MM-DD
-        self.employee_id: str    # ID сотрудника
-        self.employee_name: str  # Имя сотрудника
-        self.role: str           # Роль (бармен, официант...)
-        self.location: str       # Локация (бар)
-        self.start_time: str     # HH:MM
-        self.end_time: str       # HH:MM
-        self.plan_revenue: float # План выручки
-        self.fact_revenue: float # Факт выручки
-```
-
----
-
-### Операции со сменами
-
-#### Создание смены
-
-```python
-def create_shift(self, date, employee_id, employee_name, role, location,
-                 start_time=None, end_time=None):
-    shift = Shift()
-    shift.date = date
-    shift.employee_id = employee_id
-    shift.employee_name = employee_name
-    shift.role = role
-    shift.location = location
-    shift.start_time = start_time
-    shift.end_time = end_time
-
-    self.shifts.append(shift)
-    self._save_data()
-```
-
-#### Обновление revenue
-
-```python
-def update_revenue(self, date, employee_id, plan_revenue=None, fact_revenue=None):
-    for shift in self.shifts:
-        if shift.date == date and shift.employee_id == employee_id:
-            if plan_revenue is not None:
-                shift.plan_revenue = plan_revenue
-            if fact_revenue is not None:
-                shift.fact_revenue = fact_revenue
-
-    self._save_data()
-```
-
-#### Синхронизация из iiko
-
-```python
-# routes/schedule.py
-def sync_revenue_from_iiko(date):
-    """
-    Синхронизирует fact_revenue из кассовых смен iiko
-    """
-    # 1. Получаем кассовые смены за date
-    shifts = iiko_api.get_cash_shifts(date, date)
-
-    # 2. Для каждой смены находим сотрудника
-    for shift in shifts:
-        emp_id = shift.get('responsibleUserId')
-        revenue = shift.get('payOrders', 0) + shift.get('payOrdersCash', 0)
-
-        # 3. Обновляем fact_revenue
-        shifts_manager.update_revenue(date, emp_id, fact_revenue=revenue)
-```
-
----
-
-### Meeting Notes
-
-#### Структура
-
-```python
-# core/meeting_notes.py
-class MeetingNote:
-    def __init__(self):
-        self.id: str           # Уникальный ID
-        self.period: str       # Период (YYYY-MM-DD или YYYY-MM)
-        self.bar: str          # Бар
-        self.author: str       # Автор заметки
-        self.content: str      # Текст заметки
-        self.created_at: str   # ISO timestamp
-        self.updated_at: str   # ISO timestamp
-```
-
-#### Операции
-
-```python
-# core/meeting_notes.py
-def create_note(self, period, bar, author, content):
-    note = MeetingNote()
-    note.id = str(uuid.uuid4())
-    note.period = period
-    note.bar = bar
-    note.author = author
-    note.content = content
-    note.created_at = datetime.now().isoformat()
-    note.updated_at = note.created_at
-
-    self.notes.append(note)
-    self._save_data()
-    return note
-
-def update_note(self, note_id, content):
-    for note in self.notes:
-        if note.id == note_id:
-            note.content = content
-            note.updated_at = datetime.now().isoformat()
-            self._save_data()
-            return note
-
-def get_notes_for_period(self, period):
-    return [n for n in self.notes if n.period == period]
-```
-
----
-
-### Выходные дни
-
-#### Структура
-
-```python
-# core/shifts_manager.py
-class DayOff:
-    def __init__(self):
-        self.date: str           # YYYY-MM-DD
-        self.employee_id: str    # ID сотрудника
-        self.employee_name: str  # Имя
-        self.reason: str         # Причина (опционально)
-```
-
-#### Операции
-
-```python
-def add_day_off(self, date, employee_id, employee_name, reason=None):
-    day_off = DayOff()
-    day_off.date = date
-    day_off.employee_id = employee_id
-    day_off.employee_name = employee_name
-    day_off.reason = reason
-
-    self.days_off.append(day_off)
-    self._save_data()
-
-def get_day_offs_for_period(self, date_from, date_to):
-    return [
-        d for d in self.days_off
-        if date_from <= d.date <= date_to
-    ]
-```
-
----
-
-## API endpoint'ы
-
-### Смены
-
-```
-# Получить смены за период
-GET /api/schedule/shifts?dateFrom=...&dateTo=...&employee=...
-
-# Создать смену
-POST /api/schedule/shift
-Body: {
-    "date": "YYYY-MM-DD",
-    "employeeId": "...",
-    "employeeName": "...",
-    "role": "barman",
-    "location": "bolshoy",
-    "startTime": "14:00",
-    "endTime": "23:00"
-}
-
-# Обновить смену
-PUT /api/schedule/shift/:id
-Body: {...}
-
-# Удалить смену
-DELETE /api/schedule/shift/:id
-```
-
-### Revenue
-
-```
-# Получить revenue
-GET /api/schedule/revenue/:date
-
-# Обновить revenue
-PUT /api/schedule/revenue/:date
-Body: {
-    "plan": 100000,
-    "fact": 95000
-}
-
-# Синхронизировать из iiko
-POST /api/schedule/revenue/sync/:date
-```
-
-### Выходные
-
-```
-# Добавить выходной
-POST /api/schedule/dayoff
-Body: {
-    "date": "YYYY-MM-DD",
-    "employeeId": "...",
-    "employeeName": "...",
-    "reason": "..."
-}
-
-# Получить выходные
-GET /api/schedule/dayoffs?dateFrom=...&dateTo=...
-```
-
-### Meeting Notes
-
-```
-# Получить заметки
-GET /api/schedule/notes?period=...&bar=...
-
-# Создать заметку
-POST /api/schedule/notes
-Body: {
-    "period": "2026-03",
-    "bar": "bolshoy",
-    "author": "...",
-    "content": "..."
-}
-
-# Обновить заметку
-PUT /api/schedule/notes/:id
-Body: {"content": "..."}
-
-# Удалить заметку
-DELETE /api/schedule/notes/:id
-```
-
----
-
-## Формат данных (JSON)
-
-```json
-{
-  "shifts": [
-    {
-      "date": "2026-03-27",
-      "employee_id": "emp-123",
-      "employee_name": "Иван Петров",
-      "role": "barman",
-      "location": "bolshoy",
-      "start_time": "14:00",
-      "end_time": "23:00",
-      "plan_revenue": 100000,
-      "fact_revenue": 95000
-    }
-  ],
-  "days_off": [
-    {
-      "date": "2026-03-28",
-      "employee_id": "emp-123",
-      "employee_name": "Иван Петров",
-      "reason": "Отгул"
-    }
-  ],
-  "meeting_notes": [
-    {
-      "id": "note-456",
-      "period": "2026-03",
-      "bar": "bolshoy",
-      "author": "Менеджер",
-      "content": "Заменить кран №5",
-      "created_at": "2026-03-01T10:00:00",
-      "updated_at": "2026-03-01T10:00:00"
-    }
-  ]
-}
-```
-
----
-
-## Формулы
-
-### Plan/Fact %
-
-```
-Plan/Fact % = (fact_revenue / plan_revenue) × 100%
-```
-
-### Выручка за период
-
-```
-Total_revenue = Σ(fact_revenue для всех смен в периоде)
-```
-
-### % выполнения плана
-
-```
-Выполнение % = (Σfact / Σplan) × 100%
-```
-
----
-
-## Зависимости
-
-### От каких модулей зависит
-- `core/iiko_api.py` → синхронизация revenue из кассовых смен
-- `data/daily_plans.json` → ежедневные планы выручки (авто, Пт/Сб=2x)
-
-### Кто использует
-- Frontend графика (`schedule.html`)
-- Дашборд (метрики сотрудников)
-- Telegram bot (напоминания о сменах)
-
----
+### Схема БД (v3)
+
+SQLite `shifts.db`, WAL + busy_timeout (gunicorn 2 workers). Миграции **только
+additive** (`PRAGMA table_info` -> `ALTER TABLE ADD COLUMN`); перед миграцией
+менеджер снимает консистентный бэкап через SQLite backup API в
+`shifts.db.backup_v{старая_версия}`. DROP таблиц запрещён — в проде живые данные.
+
+- `locations` — 4 бара; `venue_key` — мост к планам
+  (`varshavskaya`, `bolshoy`, `kremenchugskaya`, `ligovskiy`).
+- `roles` — бармен / второй бармен / стажёр; `color` используется в UI чипов.
+- `shifts` — смена: `date`, `employee_name` (имя как в iiko), `location_id`,
+  `role_id`, `start_time`, `fact_minutes`.
+- `day_off_requests`, `wishes`, `daily_revenue` — как раньше.
+- `schedule_employees` — реестр: `name` (PK), `short_label` («РЮ»), `active`,
+  `sort_order`. iiko — только поставщик кандидатов (upsert, никогда не удаляет).
+
+### Два слоя времени смены
+
+- **План**: `start_time` `'HH:MM'`; `NULL` = стандартная смена точки.
+  Пресеты кисти: «Стандарт» (NULL, роль бармен), «с 14:00», «с 18:00»
+  (роль по умолчанию — второй бармен; меняется в модалке смены).
+- **Факт**: `fact_minutes` — вводится **барменом руками в конце смены**
+  (страница просмотра, клик по своей смене). Смена может длиться дольше
+  кассовой, поэтому по API iiko факт часов вытащить нельзя — ручной ввод
+  является единственным источником факта часов. Агрегат «Часов» в нагрузке
+  считается только по факту; прошедшие смены без факта попадают в «Без часов».
+
+### План выручки дня — read-only
+
+Ручной ввод плана на странице графика **заморожен** (2026-06). Источник —
+конвейер планов: `plansdashboard.json` -> `core/day_weights.py`
+(пт/сб вес 2.0, override праздников) -> `data/daily_plans.json`.
+
+Правило отображения плана точки на дату (`core/schedule_plans.py`):
+
+1. есть `venue_key` в `daily_plans` за дату и значение > 0 -> план «из весов»;
+2. иначе есть старый ручной `daily_revenue.plan_revenue` > 0 -> «ручной (устар.)»;
+3. иначе — **«нет плана»** (None, никогда не 0: отсутствие плана не равно нулю).
+
+Менять план — через «Планы по дням» в дашборде (override веса), не здесь.
+
+### Факт выручки
+
+Синк из iiko (`/v2/cashshifts/list`, выручка кассовой смены =
+`cashOrders + cardOrders`): за день (кнопка в панели дня) или за весь месяц
+одним запросом (кнопка «Синк факта за месяц»; иначе месяц = 30 запросов к iiko).
+Маппинг точки — по вхождению имени/short_name локации в `pointOfSale`.
+Лицензионный слот iiko освобождается в `finally` (`logout`).
+
+### Формулы сводки месяца (тултипы в UI показывают эти же тексты)
+
+| Метрика | Формула |
+|---------|---------|
+| План месяца | сумма планов всех дней, где план есть |
+| Факт | сумма синкнутого факта |
+| Средняя в день | факт / число дней с фактом |
+| Ожидаемая | сумма по дням: факт, если есть, иначе план (веса пт/сб учтены в плане) |
+| Выполнение % | факт / план тех же дней, где факт уже есть, x 100 |
+
+«Ожидаемая» здесь — сознательно ДРУГАЯ метрика, чем `expected` дашборда
+(`core/revenue_metrics.py` — линейная экстраполяция среднего): формула графика
+weight-aware — повышенные планы пт/сб и праздничные override в остатке месяца
+учитываются автоматически.
+
+### Предупреждения (детерминированные, считаются на клиенте)
+
+- **Не закрыто**: будущая дата (включая сегодня), точка без единой смены.
+  Прошедшие пустые дни нейтральны — дырой не считаются.
+- **Конфликт с выходным**: смена в день, попадающий в интервал day-off заявки
+  того же сотрудника. Назначить можно (подтверждение), маркер остаётся.
+
+### API
+
+| Метод | Путь | Что делает |
+|-------|------|-----------|
+| GET | `/api/schedule/employees[?all=1]` | реестр (+имена из истории смен) |
+| POST | `/api/schedule/employees/sync` | пополнить реестр из iiko |
+| PUT | `/api/schedule/employee/<name>` | short_label / active / sort_order |
+| GET | `/api/schedule/roles`, `/api/schedule/locations` | справочники |
+| GET | `/api/schedule/<year>/<month>` | смены месяца |
+| POST/PUT/DELETE | `/api/schedule/shift[/<id>]` | CRUD смены (+`start_time` HH:MM) |
+| PUT | `/api/schedule/shift/<id>/fact` | факт минут (0..1440 или null) |
+| GET/POST/DELETE | `/api/schedule/dayoff` | заявки на выходные |
+| GET | `/api/schedule/plans/<year>/<month>` | план/факт по дням (план read-only) |
+| GET | `/api/schedule/summary/<year>/<month>` | сводка месяца + нагрузка людей |
+| GET | `/api/schedule/revenue/<date>` | план/факт дня по точкам |
+| PUT | `/api/schedule/revenue/<date>/<loc>` | факт дня (`plan_revenue` игнорируется) |
+| POST | `/api/schedule/revenue/sync/<date>` | синк факта за день из iiko |
+| POST | `/api/schedule/revenue/sync-month/<y>/<m>` | синк факта за месяц |
+| GET/POST | `/api/meeting-notes[...]` | заметки совещаний (без изменений) |
 
 ## Changelog
 
-- **2026-03-27** — Создан документ schedule.md с описанием смен, revenue, meeting notes
+### 2026-06-10 — редизайн: две страницы, факт часов, планы из весов
+- Страница разделена: `/schedule` (просмотр, без денег) + `/schedule/edit`
+  (рабочий стол). JS вынесен из inline (957 строк) в `static/js/schedule/`.
+- Схема v3: `shifts.start_time`, `shifts.fact_minutes`, `locations.venue_key`,
+  таблица `schedule_employees`. Миграции переведены с DROP (терял прод-данные
+  при бампе версии) на additive + автоматический бэкап.
+- Факт часов вводится барменом (модалка на просмотре) — единственный источник
+  факта часов; агрегат «Часов» — только по факту.
+- План дня read-only из daily_plans (веса дней), ручной ввод заморожен,
+  фоллбэк-цепочка для непокрытых месяцев.
+- Сводка месяца (план/факт/средняя/ожидаемая/выполнение %) с формулами
+  в тултипах; синк факта за месяц одним запросом.
+- Нагрузка по сотрудникам (смены/часы/«без часов», подсветка перекоса),
+  предупреждения о дырах и конфликтах, пресеты времени кисти
+  («с 14:00», «с 18:00»), реестр сотрудников с короткими метками.
+- Убраны эмодзи из UI, цвета ролей берутся из БД (`roles.color`),
+  число колонок сетки — из `locations` (не хардкод 4).
+
+### 2026-03-27 — первая версия документа
+Описывала модель с `employee_id`/`end_time`/`plan_revenue` на объекте Shift,
+которой в коде никогда не было. Расхождение закрыто переписыванием 2026-06-10.

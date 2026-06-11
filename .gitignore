@@ -92,6 +92,7 @@ tests/exports/
 # Артефакты анализов
 data/*.csv
 data/*.db
+data/*.db.backup_v*
 
 # Архив скриптов
 archive/
