@@ -221,6 +221,43 @@ def compute_month_summary(month_plans: Dict, locations: List[Dict]) -> Dict:
     }
 
 
+def _normalize_name(name: str) -> set:
+    """Имя как множество слов в нижнем регистре (для матчинга OLAP vs iiko)."""
+    if not name:
+        return set()
+    return set(name.lower().strip().split())
+
+
+def match_iiko_hours(names: List[str], hours_by_iiko_name: Optional[Dict[str, float]]) -> Dict[str, Optional[float]]:
+    """Сопоставить расчётные часы iiko (по полным ФИО из справочника iiko)
+    с именами реестра графика (OLAP-стиль «Имя Фамилия»).
+
+    Та же логика, что на странице расчёта ЗП (routes/employee.py):
+    точное совпадение -> совпадение множеств слов -> имя реестра является
+    подмножеством ФИО iiko (минимум 2 слова).
+
+    Returns:
+        {имя_реестра: часы или None (нет матча / iiko недоступен)}.
+    """
+    result = {}
+    if not hours_by_iiko_name:
+        return {name: None for name in names}
+
+    iiko_normalized = {iiko_name: _normalize_name(iiko_name)
+                       for iiko_name in hours_by_iiko_name}
+
+    for name in names:
+        hours = hours_by_iiko_name.get(name)
+        if hours is None:
+            norm = _normalize_name(name)
+            for iiko_name, iiko_norm in iiko_normalized.items():
+                if norm == iiko_norm or (norm and len(norm) >= 2 and norm.issubset(iiko_norm)):
+                    hours = hours_by_iiko_name[iiko_name]
+                    break
+        result[name] = round(float(hours), 2) if hours is not None else None
+    return result
+
+
 def compute_employees_load(shifts: List[Dict], today_str: str) -> List[Dict]:
     """Нагрузка по сотрудникам за месяц.
 

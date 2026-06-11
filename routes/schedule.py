@@ -8,6 +8,7 @@ from core.schedule_plans import (
     build_month_plans,
     compute_month_summary,
     compute_employees_load,
+    match_iiko_hours,
     PLAN_FORMULA_TEXT,
 )
 
@@ -233,14 +234,60 @@ def schedule_get_plans(year, month):
     return jsonify({'days': month_plans, 'plan_formula': PLAN_FORMULA_TEXT})
 
 
+def _fetch_month_iiko_hours(year, month):
+    """Расчётные часы по сотрудникам из кассовых смен iiko за месяц.
+
+    Тот же источник, что «N ч (авт)» на странице расчёта ЗП:
+    IikoAPI.get_employee_metrics_from_shifts -> total_hours
+    (закрытие кассовой смены минус открытие, ключ responsibleUserId).
+    Кэш 10 минут (cached_olap). Возвращает {ФИО_iiko: часы} или None.
+    """
+    from extensions import cached_olap
+
+    first_day = f"{year}-{month:02d}-01"
+    if month == 12:
+        next_month_first = f"{year + 1}-01-01"
+    else:
+        next_month_first = f"{year}-{month + 1:02d}-01"
+
+    def _fetch():
+        iiko = IikoAPI()
+        if not iiko.authenticate():
+            return None
+        try:
+            id_to_name = {e['id']: e['name']
+                          for e in (iiko.get_employees() or []) if e.get('id')}
+            metrics = iiko.get_employee_metrics_from_shifts(first_day, next_month_first)
+            hours_by_name = {}
+            for emp_id, m in (metrics or {}).items():
+                name = id_to_name.get(emp_id)
+                if name:
+                    hours_by_name[name] = hours_by_name.get(name, 0.0) + (m.get('total_hours') or 0.0)
+            # Обёртка, чтобы пустой месяц тоже кэшировался (cached_olap не кэширует falsy)
+            return {'hours_by_iiko_name': hours_by_name}
+        finally:
+            iiko.logout()
+
+    data = cached_olap(f"schedule_iiko_hours_{year}-{month:02d}", _fetch)
+    return data.get('hours_by_iiko_name') if data else None
+
+
 @schedule_bp.route('/api/schedule/summary/<int:year>/<int:month>', methods=['GET'])
 def schedule_get_summary(year, month):
     """Сводка месяца: план/факт/средняя/ожидаемая/выполнение % + нагрузка людей."""
     locations, month_plans = _month_inputs(year, month)
     summary = compute_month_summary(month_plans, locations)
     shifts = shifts_mgr.get_shifts_for_month(year, month)
-    summary['employees_load'] = compute_employees_load(
-        shifts, datetime.now().strftime('%Y-%m-%d'))
+    load = compute_employees_load(shifts, datetime.now().strftime('%Y-%m-%d'))
+
+    # Расчётные часы из iiko (как на странице ЗП) — рядом с ручным фактом
+    iiko_hours = match_iiko_hours(
+        [r['employee_name'] for r in load],
+        _fetch_month_iiko_hours(year, month))
+    for row in load:
+        row['iiko_hours'] = iiko_hours.get(row['employee_name'])
+
+    summary['employees_load'] = load
     return jsonify(summary)
 
 

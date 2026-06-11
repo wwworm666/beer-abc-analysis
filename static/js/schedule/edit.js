@@ -438,7 +438,7 @@
     function renderLoad(rows) {
         var tbody = document.getElementById('loadTableBody');
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="4" class="missing-fact">Смен в этом месяце нет</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="missing-fact">Смен в этом месяце нет</td></tr>';
             return;
         }
         var counts = rows.map(function (r) { return r.shifts_count; });
@@ -450,6 +450,9 @@
             if (rows.length > 1 && r.shifts_count === max && max !== min) cls = 'load-max';
             else if (rows.length > 1 && r.shifts_count === min && max !== min) cls = 'load-min';
             var hours = r.fact_minutes > 0 ? S.minutesToHhMm(r.fact_minutes) : '0:00';
+            var iikoHours = r.iiko_hours != null
+                ? S.minutesToHhMm(Math.round(r.iiko_hours * 60))
+                : '<span style="color:var(--text-tertiary)">нет данных</span>';
             var missing = r.missing_fact > 0
                 ? '<span class="missing-fact">' + r.missing_fact + '</span>' : '';
             return '<tr>'
@@ -459,6 +462,7 @@
                 + S.escapeHtml(S.employeeShortName(r.employee_name)) + '</span></td>'
                 + '<td class="' + cls + '">' + r.shifts_count + '</td>'
                 + '<td title="Сумма часов, введённых барменом в конце смены">' + hours + '</td>'
+                + '<td title="Расчётные часы из кассовых смен iiko, как на странице ЗП">' + iikoHours + '</td>'
                 + '<td>' + missing + '</td>'
                 + '</tr>';
         }).join('');

@@ -15,6 +15,7 @@ from core.schedule_plans import (
     build_month_plans,
     compute_month_summary,
     compute_employees_load,
+    match_iiko_hours,
 )
 
 
@@ -284,6 +285,23 @@ def test_compute_month_summary_empty_month():
     assert m['avg_fact'] is None
     assert m['expected'] is None
     assert m['completion_pct'] is None
+
+
+def test_match_iiko_hours():
+    """Матчинг имён реестра (OLAP-стиль) с ФИО iiko — как на странице ЗП."""
+    iiko_hours = {
+        'Романов Юрий Сергеевич': 132.5,   # реестр: «Юрий Романов» (subset, другой порядок)
+        'Иванова Елена': 96.0,             # точное совпадение
+    }
+    result = match_iiko_hours(
+        ['Юрий Романов', 'Иванова Елена', 'Неизвестный Никто'], iiko_hours)
+    assert result['Юрий Романов'] == 132.5
+    assert result['Иванова Елена'] == 96.0
+    assert result['Неизвестный Никто'] is None
+
+    # iiko недоступен -> все None
+    offline = match_iiko_hours(['Юрий Романов'], None)
+    assert offline == {'Юрий Романов': None}
 
 
 def test_compute_employees_load():
