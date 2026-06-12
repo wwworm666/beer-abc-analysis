@@ -55,6 +55,11 @@ start_scheduler()
 from core.open_check_scheduler import start_scheduler as start_open_check_scheduler
 start_open_check_scheduler()
 
+# Long-polling меню open-check бота: webhook от Telegram не доставляется
+# из-за магистральных блокировок, апдейты забираем сами через getUpdates
+from core.open_check_polling import start_polling as start_open_check_polling
+start_open_check_polling()
+
 # Запустить фоновый пересчёт витрины «Месячный отчёт» (ночной + стартовый бэкфилл)
 from core.monthly_report_scheduler import start_scheduler as start_monthly_report_scheduler
 start_monthly_report_scheduler()

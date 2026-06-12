@@ -6,6 +6,13 @@ services:
     restart: unless-stopped
     env_file: .env
     network_mode: host
+    extra_hosts:
+      # Системный DNS отдаёт для api.telegram.org адрес 149.154.166.110,
+      # который заблокирован на магистрали (ТСПУ) для датацентровых сетей;
+      # 149.154.167.220 из того же пула доступен. Если Telegram перестанет
+      # отвечать — проверить актуальность IP (docs/open-check-bot.md,
+      # раздел "Блокировки").
+      - "api.telegram.org:149.154.167.220"
     volumes:
       - /srv/kultura:/kultura
       - /srv/beer/data:/app/data

@@ -8,7 +8,7 @@
 - **Хоть один закрыт** → ЛС каждому из админов со списком закрытых баров.
 - **iiko недоступен** → ЛС каждому админу с текстом ошибки (отдельный формат, не путаем с «все закрыты»).
 
-Хендлеров команд у бота нет — только outbound-отправка. Поэтому webhook регистрировать не нужно.
+Команды (`/start`, `/status`) и кнопки меню бот получает через **long-polling** (`getUpdates`), а не через webhook: входящие соединения от Telegram до сервера блокируются на магистрали (см. раздел «Блокировки»).
 
 ## Файлы
 
@@ -17,6 +17,7 @@
 | [core/open_check_bot.py](../core/open_check_bot.py) | Логика проверки, форматирование, отправка (sync, через `requests`) |
 | [core/open_check_telegram.py](../core/open_check_telegram.py) | Telegram HTTP API + интерактивное меню (inline-кнопки) + webhook-хелперы |
 | [core/open_check_subscribers.py](../core/open_check_subscribers.py) | Хранилище подписанных чатов (`data/open_check_subscribers.json` + portalocker) |
+| [core/open_check_polling.py](../core/open_check_polling.py) | Long-polling getUpdates (входящие команды; webhook не доставляется из-за блокировок) |
 | [core/open_check_scheduler.py](../core/open_check_scheduler.py) | Daemon-thread, ежедневный запуск в 14:59 МСК, защита от двойного срабатывания |
 | [routes/open_check.py](../routes/open_check.py) | `run-now` (ручной триггер) + webhook-эндпоинты бота |
 | [app.py](../app.py) | Стартует шедулер рядом с CHZ |
@@ -36,11 +37,23 @@
 - Тревоги/ошибки → `TELEGRAM_ALARM_CHAT_IDS` (env) + подписчики `alarm` (меню).
 - Списки объединяются и дедуплицируются. То есть env и меню работают вместе.
 
-**Webhook (нужен для интерактива):**
+**Доставка команд: long-polling (основной режим).**
+`core/open_check_polling.py` — daemon-thread, стартует из app.py. Снимает webhook
+(не сбрасывая очередь) и крутит `getUpdates(timeout=25)` → `handle_update()`.
+Singleton под `gunicorn --workers 2`: эксклюзивный flock (portalocker) на
+`data/.open_check_polling.lock` живёт, пока жив процесс; второй воркер лок не
+получает и тихо выходит, replacement-воркер подхватывает. Отключение:
+`OPEN_CHECK_POLLING=0`.
+
+**Webhook (выключен, оставлен как fallback):**
 - `POST /telegram/openbot/webhook` — точка входа Telegram. Проверяет секрет в заголовке `X-Telegram-Bot-Api-Secret-Token` (выводится из токена, отдельная env не нужна).
-- `GET /telegram/openbot/setup-webhook` — зарегистрировать webhook у Telegram (вызвать **один раз** после деплоя). Также ставит командное меню `/start`, `/status`.
-- `GET /telegram/openbot/webhook-info` — диагностика.
+- `GET /telegram/openbot/setup-webhook` — зарегистрировать webhook у Telegram. Также ставит командное меню `/start`, `/status`. **Не вызывать при включённом polling** — polling снимет webhook обратно при первом 409.
+- `GET /telegram/openbot/webhook-info` — диагностика (`getWebhookInfo`).
 - `POST /telegram/openbot/delete-webhook` — снять webhook.
+
+Webhook не работает, пока ТСПУ блокирует входящие соединения от Telegram
+(см. «Блокировки»). Если когда-нибудь домен переедет за Cloudflare-прокси —
+можно выставить `OPEN_CHECK_POLLING=0` и вернуть setup-webhook.
 
 Реализация на чистом `requests` (без aiogram, без async) — бот простой, синхронный путь надёжнее и тестируется локально.
 
@@ -133,11 +146,60 @@ curl -X POST "https://beerkultura.ru/api/admin/open-check/run-now" \
 
 Эндпоинт возвращает JSON-результат с состоянием 4 баров и отчётом об отправке.
 
+## Блокировки: связь сервер ↔ Telegram
+
+Инцидент 2026-06-12: бот перестал отвечать на команды, исходящая отправка
+тоже отвалилась после 14:59. Диагностика показала:
+
+- **Исходящие**: системный DNS отдаёт для `api.telegram.org` адрес
+  `149.154.166.110` — он заблокирован на магистрали (ТСПУ) для датацентровых
+  сетей (таймаут со всех проверенных российских ДЦ, из Европы доступен).
+  Соседний `149.154.167.220` из того же пула при этом доступен. До инцидента
+  DNS отдавал «живой» IP — бот работал, пока выдача не переключилась.
+- **Входящие**: SYN-пакеты от подсетей Telegram (`149.154.160.0/20`,
+  `91.108.4.0/22`) вообще не доходят до сервера (tcpdump 150с — ноль пакетов
+  при активных ретраях доставки webhook). Локальный файрвол чист (fail2ban
+  только sshd, iptables без блоков) — режется до сервера, локально не лечится.
+
+**Решение:**
+1. Исходящие — пин IP в `docker-compose.yml` → `extra_hosts:
+   "api.telegram.org:149.154.167.220"` (контейнер в `network_mode: host`,
+   но `/etc/hosts` у него свой, extra_hosts работает).
+2. Входящие — long-polling вместо webhook (`core/open_check_polling.py`):
+   команды забираются исходящими `getUpdates`, входящая связь не нужна.
+
+**Если бот снова замолчал** — первым делом проверить, жив ли запиненный IP:
+
+```
+ssh root@139.100.200.92
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 8 https://149.154.167.220/  # 302 = жив
+# найти живой IP, если этот умер (кандидаты — соседние подсети Telegram):
+for ip in 149.154.167.220 149.154.166.110 149.154.167.99 149.154.165.120; do
+  printf '%s: ' $ip; curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 https://$ip/ || echo timeout
+done
+```
+
+Живой IP прописать в `extra_hosts` в docker-compose.yml и передеплоить.
+Диагностика доставки со стороны Telegram: `GET /telegram/openbot/webhook-info`
+(при включённом polling должен показывать пустой `url`).
+
 ## Деталь реализации: без aiogram
 
 Изначально отправка шла через aiogram, но бот простой (отчёт + меню), поэтому весь open-check переведён на синхронный `requests` напрямую к Telegram Bot API ([core/open_check_telegram.py](../core/open_check_telegram.py)). `send_report` синхронный, `run_check` без `asyncio`. Плюсы: нет async-плумбинга, нет утечки `aiohttp.ClientSession`, работает и тестируется в окружении без aiogram.
 
 ## Changelog
+
+### 2026-06-12 — Long-polling вместо webhook, пин IP api.telegram.org
+
+**Что:**
+- `core/open_check_polling.py` — getUpdates-цикл в daemon-thread, singleton
+  через flock; webhook снят (без сброса очереди недоставленных команд).
+- `docker-compose.yml` — `extra_hosts: api.telegram.org:149.154.167.220`.
+- Раздел «Блокировки» в этом доке.
+
+**Почему:** ТСПУ режет входящие соединения от Telegram до сервера (webhook
+мёртв), а DNS стал отдавать заблокированный IP для api.telegram.org
+(исходящие мертвы). Подробности и инструкция по смене IP — раздел «Блокировки».
 
 ### 2026-05-18 — Open-check telegram bot
 
