@@ -155,8 +155,12 @@ def api_call(method: str, payload: dict = None, timeout: int = 8):
     return None
 
 
-def send_message(chat_id, text: str, reply_markup: dict = None) -> bool:
+def send_message(chat_id, text: str, reply_markup: dict = None, html: bool = False) -> bool:
+    # html=True — для отчётов open-check (<b> в тревоге/ошибке); меню и прочие
+    # сообщения шлются плоским текстом, чтобы не экранировать всё подряд.
     payload = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    if html:
+        payload["parse_mode"] = "HTML"
     if reply_markup is not None:
         payload["reply_markup"] = reply_markup
     data = api_call("sendMessage", payload)

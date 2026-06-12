@@ -16,10 +16,14 @@ status=OPEN, чей pointOfSaleId маппится в имя бара через
 - тревоги/ошибки → TELEGRAM_ALARM_CHAT_IDS + подписчики 'alarm'
 
 Матрица результата → действие:
-- iiko_error=True         → получатели тревог: [Open-check ERROR]
-- closed_keys == []       → получатели "всё открыто": [Open-check]
-- closed_keys != []       → получатели тревог: [Open-check ALARM]
+- iiko_error=True         → получатели тревог: «!!! ОШИБКА: iiko недоступен !!!»
+- closed_keys == []       → получатели "всё открыто": «Все 4 бара открыты — HH:MM МСК»
+- closed_keys != []       → получатели тревог: «!!! ALARM !!!» + «ЗАКРЫТ(Ы) — …»
+
+Тревога и ошибка идут с parse_mode=HTML (<b>жирный заголовок</b>), динамический
+текст ошибок iiko экранируется html.escape.
 """
+import html
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -163,19 +167,25 @@ def _short(key: str) -> str:
 
 
 def format_positive_message(state: dict, check_dt: datetime) -> str:
-    """Все бары открыты — построчно: <код> — <время открытия>."""
+    """Все бары открыты — спокойный тон, построчно: <код> — <время открытия>."""
     times = state.get('open_times', {})
-    lines = [f"Open-check {_fmt_time(check_dt)} МСК", "Все 4 бара открыты:"]
+    lines = [f"Все 4 бара открыты — {_fmt_time(check_dt)} МСК"]
     for k in PHYSICAL_VENUES:
         lines.append(f"{_short(k)} — {times.get(k, '—')}")
     return "\n".join(lines)
 
 
 def format_alarm_message(state: dict, check_dt: datetime) -> str:
-    """Часть баров закрыта — список закрытых + открытые с временем."""
+    """Часть баров закрыта. Первые две строки жирным (HTML) и капсом — они
+    видны в пуш-уведомлении и списке чатов. ЗАКРЫТ/ЗАКРЫТЫ — по числу баров."""
     times = state.get('open_times', {})
-    closed = ', '.join(_short(k) for k in state['closed_keys'])
-    lines = [f"Open-check ALARM {_fmt_time(check_dt)} МСК", f"Закрыты: {closed}"]
+    closed = [_short(k) for k in state['closed_keys']]
+    word = "ЗАКРЫТ" if len(closed) == 1 else "ЗАКРЫТЫ"
+    lines = [
+        "<b>!!! ALARM !!!</b>",
+        f"<b>{word} — {', '.join(closed)}</b>",
+        f"Проверка {_fmt_time(check_dt)} МСК",
+    ]
     open_list = [k for k in PHYSICAL_VENUES if k in state['open_keys']]
     if open_list:
         lines.append("Открыты:")
@@ -188,10 +198,11 @@ def format_alarm_message(state: dict, check_dt: datetime) -> str:
 
 def format_iiko_error_message(state: dict, check_dt: datetime) -> str:
     err = state.get('error_msg') or 'unknown_error'
+    # err — произвольный текст исключения, экранируем под HTML parse_mode
     return (
-        f"Open-check ERROR {_fmt_time(check_dt)} МСК\n"
-        f"iiko недоступен: {err}\n"
-        "Проверка не выполнена"
+        "<b>!!! ОШИБКА: iiko недоступен !!!</b>\n"
+        f"Проверка {_fmt_time(check_dt)} МСК не выполнена\n"
+        f"Причина: {html.escape(err)}"
     )
 
 
@@ -261,7 +272,8 @@ def send_report(state: dict, check_dt: datetime) -> dict:
     from core.open_check_telegram import send_message
     sent = 0
     for chat_id in recipients:
-        if send_message(chat_id, text):
+        # html=True: шаблоны тревоги/ошибки содержат <b>; динамика экранирована
+        if send_message(chat_id, text, html=True):
             sent += 1
 
     log.info("send_report target=%s dry_run=%s sent=%d/%d text=%r",
