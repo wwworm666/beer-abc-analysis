@@ -12,12 +12,84 @@
 import hashlib
 import logging
 import os
+import time
 
 import requests
 
 log = logging.getLogger("open-check-tg")
 
-_API = "https://api.telegram.org"
+_API_HOST = "api.telegram.org"
+_API = f"https://{_API_HOST}"
+
+# --- запасной путь при блокировке основного IP ------------------------------
+# Основной путь — имя api.telegram.org, запиненное на живой IP в
+# docker-compose.yml (extra_hosts). Если заблокируют и его, api_call
+# автоматически пробует запасные адреса: TLS к голому IP с SNI и проверкой
+# сертификата на имя api.telegram.org (_SNIAdapter) + заголовок Host.
+# Кандидаты: кэш последнего живого -> статический список -> текущие A-записи
+# через DoH (мимо системного DNS, который может отдавать заблокированный IP).
+# После сбоя основного пути _PRIMARY_COOLDOWN секунд ходим сразу через
+# запасной, чтобы getUpdates-цикл не ждал таймаут на каждом вызове.
+# Гонки потоков (polling + шедулер) на этих глобалах безвредны: худший
+# случай — лишний перебор кандидатов.
+_FALLBACK_IPS = ["149.154.167.220", "149.154.166.110"]
+_DOH_URLS = (
+    "https://dns.google/resolve?name=api.telegram.org&type=A",
+    "https://cloudflare-dns.com/dns-query?name=api.telegram.org&type=A",
+)
+_PRIMARY_COOLDOWN = 300  # секунд
+_primary_dead_until = 0.0
+_working_ip = None
+
+
+class _SNIAdapter(requests.adapters.HTTPAdapter):
+    """TLS к голому IP с SNI и проверкой сертификата на имя api.telegram.org."""
+
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs["server_hostname"] = _API_HOST
+        kwargs["assert_hostname"] = _API_HOST
+        return super().init_poolmanager(*args, **kwargs)
+
+
+def _doh_resolve() -> list:
+    """Текущие A-записи api.telegram.org через DNS-over-HTTPS. Best-effort."""
+    for url in _DOH_URLS:
+        try:
+            r = requests.get(url, headers={"accept": "application/dns-json"}, timeout=4)
+            answers = r.json().get("Answer") or []
+            ips = [a["data"] for a in answers if a.get("type") == 1]
+            if ips:
+                return ips
+        except Exception:
+            continue
+    return []
+
+
+def _iter_candidate_ips():
+    """Запасные IP в порядке перспективности; DoH дёргается только если
+    статический список не помог (ленивый генератор)."""
+    seen = set()
+    head = ([_working_ip] if _working_ip else []) + _FALLBACK_IPS
+    for ip in head:
+        if ip not in seen:
+            seen.add(ip)
+            yield ip
+    for ip in _doh_resolve():
+        if ip not in seen:
+            seen.add(ip)
+            yield ip
+
+
+def _post_via_ip(ip: str, method: str, token: str, payload: dict, timeout) -> dict:
+    """POST к Bot API по голому IP (SNI + Host = api.telegram.org)."""
+    s = requests.Session()
+    s.mount("https://", _SNIAdapter())
+    try:
+        r = s.post(f"https://{ip}/bot{token}/{method}", json=payload or {},
+                   headers={"Host": _API_HOST}, timeout=timeout)
+        return r.json()
+    finally:
+        s.close()
 
 
 def _token():
@@ -36,19 +108,43 @@ def webhook_secret() -> str:
 def api_call(method: str, payload: dict = None, timeout: int = 8):
     # timeout=8 (было 20): webhook-хендлер вызывает api_call синхронно, а воркеров
     # всего 2 — долгий ответ Telegram не должен надолго занимать воркер.
+    # timeout трактуется как read-timeout; на connect всегда 5с — заблокированный
+    # IP отваливается на connect, и длинный read-timeout getUpdates его не ждёт.
+    global _primary_dead_until, _working_ip
     token = _token()
     if not token:
         log.error("TELEGRAM_OPEN_CHECK_BOT_TOKEN не задан")
         return None
-    try:
-        r = requests.post(f"{_API}/bot{token}/{method}", json=payload or {}, timeout=timeout)
-        data = r.json()
+
+    if time.time() >= _primary_dead_until:
+        try:
+            r = requests.post(f"{_API}/bot{token}/{method}", json=payload or {},
+                              timeout=(5, timeout))
+            data = r.json()
+            if not data.get("ok"):
+                log.warning("TG %s -> %s", method, data.get("description"))
+            return data
+        except Exception as e:
+            _primary_dead_until = time.time() + _PRIMARY_COOLDOWN
+            log.warning("TG %s: основной путь не работает (%s) — пробуем запасные IP",
+                        method, e)
+
+    for ip in _iter_candidate_ips():
+        try:
+            data = _post_via_ip(ip, method, token, payload, (5, timeout))
+        except Exception as e:
+            log.warning("TG %s via %s failed: %s", method, ip, e)
+            continue
+        if _working_ip != ip:
+            log.warning("TG: переключился на запасной IP %s", ip)
+            _working_ip = ip
         if not data.get("ok"):
             log.warning("TG %s -> %s", method, data.get("description"))
         return data
-    except Exception as e:
-        log.warning("TG %s failed: %s", method, e)
-        return None
+
+    log.warning("TG %s failed: все пути исчерпаны (основной + %d запасных)",
+                method, len(_FALLBACK_IPS))
+    return None
 
 
 def send_message(chat_id, text: str, reply_markup: dict = None) -> bool:
