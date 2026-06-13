@@ -24,6 +24,23 @@ class OlapReports:
         """Отключиться и освободить токен"""
         self.api.logout()
 
+    @staticmethod
+    def _alias_auth_to_waiter(data):
+        """Переименовать ключ AuthUser -> WaiterName в строках OLAP-ответа.
+
+        Идентичность сотрудника во всех отчётах считается по AuthUser ("Авторизовал",
+        кто пробил чек) — единый ключ для согласованных метрик (аудит OLAP #11).
+        Downstream-код и фронтенд исторически читают ключ WaiterName, поэтому на
+        границе геттера значение AuthUser выставляется под именем WaiterName — это
+        избавляет от правок всех потребителей.
+        """
+        if not data or not isinstance(data, dict):
+            return data
+        for row in data.get('data', []) or []:
+            if isinstance(row, dict) and 'AuthUser' in row:
+                row['WaiterName'] = row.pop('AuthUser')
+        return data
+
     def get_store_balances(self, timestamp=None):
         """
         Получить остатки товаров на складах (iiko API v2)
@@ -365,7 +382,7 @@ class OlapReports:
 
             if response.status_code == 200:
                 print("[OK] Otchet po razlivnomu s oficiiantami uspeshno poluchen!")
-                return response.json()
+                return self._alias_auth_to_waiter(response.json())
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
                 print(f"   Otvet servera: {response.text}")
@@ -822,11 +839,12 @@ class OlapReports:
 
         # Добавляем поля официантов если требуется
         if include_waiter:
-            # ВАЖНО: Используем ТОЛЬКО WaiterName (официант блюда)
-            # Добавление OrderWaiter.Name в groupByRowFields создаёт дублирование строк!
-            # Если WaiterName и OrderWaiter.Name различаются, OLAP создаст отдельные строки,
-            # что приведёт к двойному учёту одних и тех же продаж.
-            groupByRowFields.append("WaiterName")
+            # Идентичность сотрудника во всех отчётах — AuthUser ("Авторизовал", кто пробил
+            # чек): единый ключ для согласованных метрик (аудит OLAP #11). AuthUser — одно
+            # поле, дублирования строк (как было бы с OrderWaiter.Name) не создаёт. Геттеры
+            # переименовывают AuthUser -> WaiterName в ответе (_alias_auth_to_waiter),
+            # поэтому downstream продолжает читать ключ WaiterName.
+            groupByRowFields.append("AuthUser")
 
         request = {
             "reportType": "SALES",
@@ -1006,7 +1024,7 @@ class OlapReports:
 
             if response.status_code == 200:
                 print("[OK] Otchet po fasovke s oficiantami uspeshno poluchen!")
-                return response.json()
+                return self._alias_auth_to_waiter(response.json())
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
                 print(f"   Otvet servera: {response.text}")
@@ -1053,7 +1071,7 @@ class OlapReports:
 
             if response.status_code == 200:
                 print("[OK] Otchet po kukhne s oficiantami uspeshno poluchen!")
-                return response.json()
+                return self._alias_auth_to_waiter(response.json())
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
                 print(f"   Otvet servera: {response.text}")
@@ -1100,7 +1118,7 @@ class OlapReports:
 
             if response.status_code == 200:
                 print("[OK] Otchet po otmenam/vozvratam uspeshno poluchen!")
-                return response.json()
+                return self._alias_auth_to_waiter(response.json())
             else:
                 print(f"[ERROR] Oshibka polucheniya otcheta: {response.status_code}")
                 print(f"   Otvet servera: {response.text}")
@@ -1121,7 +1139,7 @@ class OlapReports:
                 "DishGroup.TopParent",
                 "DishForeignName",
                 "OpenDate.Typed",
-                "WaiterName"  # Добавляем официанта
+                "AuthUser"  # Сотрудник (Авторизовал) — единый ключ идентичности (аудит OLAP #11)
             ],
             "groupByColFields": [],
             "aggregateFields": [
@@ -1170,7 +1188,7 @@ class OlapReports:
         request = {
             "reportType": "SALES",
             "groupByRowFields": [
-                "WaiterName"
+                "AuthUser"
             ],
             "groupByColFields": [],
             "aggregateFields": [
@@ -1202,7 +1220,7 @@ class OlapReports:
     def get_employee_aggregated_metrics(self, date_from, date_to, bar_name=None):
         """
         Получить агрегированные метрики по каждому сотруднику.
-        Группировка только по WaiterName - API сам агрегирует данные.
+        Группировка только по AuthUser ("Авторизовал") - API сам агрегирует данные.
 
         Возвращает dict с ключами по именам сотрудников:
         {
@@ -1300,9 +1318,9 @@ class OlapReports:
         """
         Получить все OLAP данные для расчёта KPI за 2 легковесных запроса (вместо 4 тяжёлых).
 
-        Запрос 1 (summary): группировка только по WaiterName
+        Запрос 1 (summary): группировка только по AuthUser
             -> чеки, выручка, скидки (~30-50 строк)
-        Запрос 2 (categories): группировка по WaiterName + DishGroup.TopParent
+        Запрос 2 (categories): группировка по AuthUser + DishGroup.TopParent
             -> доли категорий, наценка (~100-200 строк)
 
         Текущие 4 запроса возвращают тысячи строк (группировка по DishName × Store × Date),
@@ -1340,7 +1358,7 @@ class OlapReports:
         summary_request = {
             "reportType": "SALES",
             "buildSummary": "false",
-            "groupByRowFields": ["WaiterName"],
+            "groupByRowFields": ["AuthUser"],
             "groupByColFields": [],
             "aggregateFields": [
                 "UniqOrderId.OrdersCount",
@@ -1354,7 +1372,7 @@ class OlapReports:
         categories_request = {
             "reportType": "SALES",
             "buildSummary": "false",
-            "groupByRowFields": ["WaiterName", "DishGroup.TopParent"],
+            "groupByRowFields": ["AuthUser", "DishGroup.TopParent"],
             "groupByColFields": [],
             "aggregateFields": [
                 "DishDiscountSumInt",
@@ -1398,7 +1416,7 @@ class OlapReports:
         # Парсинг summary: {waiter_name: {total_checks, total_revenue, discount_sum}}
         summary = {}
         for row in summary_raw.get('data', []):
-            name = row.get('WaiterName', '')
+            name = row.get('AuthUser', '')
             if name:
                 summary[name] = {
                     'total_checks': int(row.get('UniqOrderId.OrdersCount', 0) or 0),
@@ -1410,7 +1428,7 @@ class OlapReports:
         categories = {}
         if categories_raw:
             for row in categories_raw.get('data', []):
-                name = row.get('WaiterName', '')
+                name = row.get('AuthUser', '')
                 category = row.get('DishGroup.TopParent', '')
                 if name:
                     if name not in categories:
@@ -1508,7 +1526,7 @@ class OlapReports:
     def get_employee_daily_revenue(self, date_from, date_to):
         """
         Получить дневную выручку по каждому сотруднику.
-        Группировка по WaiterName + OpenDate.Typed.
+        Группировка по AuthUser + OpenDate.Typed.
 
         Возвращает dict:
         {
@@ -1529,7 +1547,7 @@ class OlapReports:
         request = {
             "reportType": "SALES",
             "groupByRowFields": [
-                "WaiterName",
+                "AuthUser",
                 "OpenDate.Typed"
             ],
             "groupByColFields": [],
@@ -1574,7 +1592,7 @@ class OlapReports:
                 # Преобразуем в dict {name: {date: revenue}}
                 employees_daily = {}
                 for record in result.get('data', []):
-                    waiter_name = record.get('WaiterName', '')
+                    waiter_name = record.get('AuthUser', '')
                     date_str = record.get('OpenDate.Typed', '')
                     revenue = float(record.get('DishDiscountSumInt', 0) or 0)
 
@@ -1716,7 +1734,7 @@ class OlapReports:
         request = {
             "reportType": "SALES",
             "groupByRowFields": [
-                "WaiterName",
+                "AuthUser",
                 "Delivery.CustomerPhone"  # Телефон клиента (идентификатор карты лояльности)
             ],
             "groupByColFields": [],
@@ -1774,7 +1792,7 @@ class OlapReports:
                 # Считаем уникальные телефоны по сотрудникам
                 waiter_cards = {}
                 for record in result.get('data', []):
-                    waiter_name = record.get('WaiterName', '')
+                    waiter_name = record.get('AuthUser', '')
                     phone = record.get('Delivery.CustomerPhone', '')
 
                     if waiter_name and phone:

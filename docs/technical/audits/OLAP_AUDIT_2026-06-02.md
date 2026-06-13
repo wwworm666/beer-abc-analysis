@@ -137,6 +137,8 @@ Severity: critical = неверные числа в проде или паден
 
 ### 11. [HIGH] Выручка/чеки сотрудника берутся по AuthUser, а категории/доли — по WaiterName: разные ключи идентичности в одном отчёте
 
+> **Статус: ИСПРАВЛЕНО 2026-06-02.** Все отчёты по сотрудникам/официантам переведены на единый ключ `AuthUser` («Авторизовал»); геттеры алиасят `AuthUser` -> `WaiterName` в ответе, downstream не менялся. Проверено `py -3`: доли категорий сходятся к 100%, выручка/чеки согласованы; регрессии — OK (expected failures=3). Радиус — «везде» (включая `waiter_analysis`, `knowledge_graph`, `/analysis`). См. CHANGELOG 2026-06-02.
+
 - ID: `employee_authuser_vs_waitername_identity` · источники: `employee_breakdown_authuser_vs_waitername_join`, `employee_revenue_authuser_vs_waitername`
 - Где: `core/olap_reports.py:1230-1231`; `core/olap_reports.py:1282-1287`; `core/employee_analysis.py:57`; `core/employee_analysis.py:80`; `core/employee_analysis.py:96-98`; `core/employee_analysis.py:204`; `routes/employee.py:80-83`; `routes/employee.py:245-248`; `routes/employee.py:965-968`; `routes/employee.py:996-1021`
 - Затронутые отчёты: `employee_aggregated_metrics (#9)`, `olap_request_base draft/bottles (#5)`, `kitchen_olap_request_with_waiter (#7)`

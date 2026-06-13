@@ -5,6 +5,12 @@
 > [OLAP_REQUEST_REGISTRY_2026-04-03.md](audits/OLAP_REQUEST_REGISTRY_2026-04-03.md).
 > Этот файл дополняет реестр **дословными копиями JSON-тел**.
 
+> **Обновление 2026-06-02:** идентичность сотрудника во всех отчётах переведена с `WaiterName`
+> на `AuthUser` («Авторизовал», кто пробил чек) — единый ключ (см.
+> [audits/OLAP_AUDIT_2026-06-02.md](audits/OLAP_AUDIT_2026-06-02.md) #11 и CHANGELOG). Затронуты
+> отчёты #7, #8, #10, #11, #12, #13 и вариант #5 с `include_waiter`. Геттеры алиасят `AuthUser`
+> -> `WaiterName` в ответе, поэтому downstream читает прежний ключ. JSON-тела ниже обновлены.
+
 ## Что это
 
 Полный инвентарь из **24 OLAP-запросов** — каждое тело скопировано из исходного кода
@@ -26,7 +32,7 @@
 - JSON приведён **дословно**; f-string подстановки заменены плейсхолдерами:
   `{date_from}`, `{date_to}`, `{bar_name}`, `{field}`, `{employee_name}`.
 - `Динамика` описывает, как параметры мутируют тело (например `bar_name` добавляет фильтр
-  `Store.Name`; `draft` меняет значение `DishGroup.TopParent`; `include_waiter` добавляет `WaiterName`).
+  `Store.Name`; `draft` меняет значение `DishGroup.TopParent`; `include_waiter` добавляет `AuthUser`).
 - Один builder может обслуживать несколько публичных отчётов — тело учтено **один раз**,
   варианты перечислены в `Динамика`/`Заметка` (см. `Потребители`).
 
@@ -289,7 +295,7 @@
   - `core/olap_reports.py:get_draft_sales_report (L284)`
   - `core/olap_reports.py:get_draft_sales_by_waiter_report (L331)`
   - `core/olap_reports.py:get_bottles_sales_by_waiter_report (L972)`
-- Динамика: drink_group вычисляется на L812: draft=True -> "Напитки Розлив"; draft=False (по умолчанию) -> "Напитки Фасовка"; это значение попадает в DishGroup.TopParent.values. include_waiter=True добавляет "WaiterName" в конец groupByRowFields (на L829, до объявления request; показано тело без него). Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. Базовое тело показано для draft=False, include_waiter=False.
+- Динамика: drink_group вычисляется на L812: draft=True -> "Напитки Розлив"; draft=False (по умолчанию) -> "Напитки Фасовка"; это значение попадает в DishGroup.TopParent.values. include_waiter=True добавляет "AuthUser" в конец groupByRowFields (на L829, до объявления request; показано тело без него). Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. Базовое тело показано для draft=False, include_waiter=False.
 - Заметка: Центральный builder. Геттеры: get_beer_sales_report (draft=False), get_draft_sales_report (draft=True), get_draft_sales_by_waiter_report (draft=True, include_waiter=True), get_bottles_sales_by_waiter_report (draft=False, include_waiter=True). Не дублировать — тело учтено один раз.
 
 ```json
@@ -393,7 +399,7 @@
 - Endpoint: `/v2/reports/olap` · reportType: `SALES` · статус: **PRODUCTION**
 - Потребители:
   - `core/olap_reports.py:get_kitchen_sales_by_waiter_report (L1019)`
-- Динамика: Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. Отличается от _build_kitchen_olap_request наличием "WaiterName" в groupByRowFields.
+- Динамика: Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. Отличается от _build_kitchen_olap_request наличием "AuthUser" в groupByRowFields.
 - Заметка: Builder; публичный геттер get_kitchen_sales_by_waiter_report (L1019).
 
 ```json
@@ -405,7 +411,7 @@
     "DishGroup.TopParent",
     "DishForeignName",
     "OpenDate.Typed",
-    "WaiterName"
+    "AuthUser"
   ],
   "groupByColFields": [],
   "aggregateFields": [
@@ -462,7 +468,7 @@
 {
   "reportType": "SALES",
   "groupByRowFields": [
-    "WaiterName"
+    "AuthUser"
   ],
   "groupByColFields": [],
   "aggregateFields": [
@@ -549,7 +555,7 @@
   "reportType": "SALES",
   "buildSummary": "false",
   "groupByRowFields": [
-    "WaiterName"
+    "AuthUser"
   ],
   "groupByColFields": [],
   "aggregateFields": [
@@ -588,14 +594,14 @@
 - Потребители:
   - `routes/employee.py:773`
 - Динамика: Статичное тело (bar_name не используется). filters берётся из общей переменной base_filters (L1322). buildSummary="false" (строка). Второй из двух запросов метода; выполняется параллельно через ThreadPoolExecutor(max_workers=2).
-- Заметка: Второе из ДВУХ тел в get_kpi_olap_data (categories_request). Группировка по WaiterName + DishGroup.TopParent.
+- Заметка: Второе из ДВУХ тел в get_kpi_olap_data (categories_request). Группировка по AuthUser + DishGroup.TopParent.
 
 ```json
 {
   "reportType": "SALES",
   "buildSummary": "false",
   "groupByRowFields": [
-    "WaiterName",
+    "AuthUser",
     "DishGroup.TopParent"
   ],
   "groupByColFields": [],
@@ -633,14 +639,14 @@
 - Источник: `core/olap_reports.py:1529-1555` — builder `get_employee_daily_revenue`
 - Endpoint: `/v2/reports/olap` · reportType: `SALES` · статус: **PRODUCTION**
 - Потребители: _внешних вызовов не найдено_
-- Динамика: Статичное тело — нет параметра bar_name, фильтр по Store.Name не добавляется. Группировка по WaiterName + OpenDate.Typed.
+- Динамика: Статичное тело — нет параметра bar_name, фильтр по Store.Name не добавляется. Группировка по AuthUser + OpenDate.Typed.
 - Заметка: Inline тело в публичном методе (def L1508). Результат: dict {name: {date: revenue}}. Внешних вызовов не найдено.
 
 ```json
 {
   "reportType": "SALES",
   "groupByRowFields": [
-    "WaiterName",
+    "AuthUser",
     "OpenDate.Typed"
   ],
   "groupByColFields": [],
@@ -686,7 +692,7 @@
 {
   "reportType": "SALES",
   "groupByRowFields": [
-    "WaiterName",
+    "AuthUser",
     "Delivery.CustomerPhone"
   ],
   "groupByColFields": [],

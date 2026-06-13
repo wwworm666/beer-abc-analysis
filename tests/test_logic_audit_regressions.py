@@ -106,7 +106,9 @@ class OlapContractGuards(unittest.TestCase):
             request["filters"]["OrderDeleted"]["values"],
         )
 
-    def test_waiter_requests_do_not_group_by_order_waiter_name(self):
+    def test_waiter_requests_group_by_authuser_not_order_waiter_name(self):
+        # Идентичность сотрудника во всех отчётах — AuthUser ("Авторизовал"),
+        # единый ключ (аудит OLAP #11). Геттеры алиасят AuthUser -> WaiterName в ответе.
         request = OlapReports()._build_olap_request(
             "2026-03-01",
             "2026-04-01",
@@ -115,7 +117,8 @@ class OlapContractGuards(unittest.TestCase):
             include_waiter=True,
         )
 
-        self.assertIn("WaiterName", request["groupByRowFields"])
+        self.assertIn("AuthUser", request["groupByRowFields"])
+        self.assertNotIn("WaiterName", request["groupByRowFields"])
         self.assertNotIn("OrderWaiter.Name", request["groupByRowFields"])
 
 

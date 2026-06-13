@@ -1,5 +1,130 @@
 ﻿# Changelog
 
+### 2026-06-13 — Open-check бот: новые шаблоны сообщений
+
+По запросу владельца: убран префикс «Open-check», тревога стала заметной.
+
+**Что:**
+- **`core/open_check_bot.py`** — позитив: «Все 4 бара открыты — HH:MM МСК» + времена;
+  тревога: жирные (HTML) строки `!!! ALARM !!!` и `ЗАКРЫТ(Ы) — <бары>` (склонение по
+  числу), затем «Проверка HH:MM МСК» и открытые с временами; ошибка iiko: жирный
+  `!!! ОШИБКА: iiko недоступен !!!` + экранированная причина (`html.escape`).
+- **`core/open_check_telegram.py`** — `send_message(..., html=True)` -> `parse_mode=HTML`
+  (только для отчётов; меню шлётся плоским текстом).
+- **`docs/open-check-bot.md`** — матрица и примеры обновлены.
+
+**Почему:** первая строка видна в пуш-уведомлении — тревога должна кричать, а не
+выглядеть как обычный отчёт.
+
+**Файлы:** `core/open_check_bot.py`, `core/open_check_telegram.py`,
+`docs/open-check-bot.md`, `docs/CHANGELOG.md`.
+
+---
+
+### 2026-06-13 — Open-check бот: автоперебор запасных IP api.telegram.org
+
+После фикса 2026-06-12 единственной точкой отказа остался запиненный в
+docker-compose IP — а прецедент блокировки соседнего адреса уже был.
+
+**Что:**
+- **`core/open_check_telegram.py`** — `api_call` при сбое основного пути автоматически
+  пробует запасные адреса: TLS к голому IP с SNI и проверкой сертификата на имя
+  api.telegram.org + заголовок Host (`_SNIAdapter`, `_post_via_ip`). Кандидаты: кэш
+  последнего живого -> статический `_FALLBACK_IPS` -> текущие A-записи через DoH
+  (dns.google / cloudflare-dns.com, мимо системного DNS). Кулдаун основного пути 5 мин,
+  connect-timeout 5с (заблокированный IP отваливается быстро, не задерживая getUpdates).
+- **`docs/open-check-bot.md`** — раздел «Блокировки» дополнен самолечением.
+
+**Почему:** ручная смена пина нужна теперь только при блокировке всех адресов разом;
+бот переживает ротацию блокировок без участия человека.
+
+**Файлы:** `core/open_check_telegram.py`, `docs/open-check-bot.md`, `docs/CHANGELOG.md`.
+
+---
+
+### 2026-06-13 — Правка концепта ИИ-агента: рекомендации != лимиты
+
+По фидбеку владельца исправлен `docs/ai-agent-concept.md`: «период не длиннее месяца» и
+«запросы строго последовательно» — это рекомендации iiko по нагрузке (ogranicheniya-i-rekomendatsii.md),
+а не жёсткие лимиты API; они были ошибочно поданы как «нельзя». Практика подтверждает: OLAP-запросы
+за 3+ года выполняются, наш прод параллелит запросы (ThreadPoolExecutor, `core/olap_reports.py:1388`).
+«Обязательный фильтр по дате» (5.5+) — тривиальное правило исполнителя (диапазон «от открытия баров
+до сегодня»), не ограничение. Раздел «Чего нельзя получить» разделён на жёсткие лимиты схемы /
+рекомендации / операционное; поправлены пункты #7 и #13 матрицы и таблица рисков.
+
+Вторым фидбеком уточнены «литры»: меры нет только в OLAP SALES; складской контур литры отдаёт
+(balance/stores — остатки, `routes/stocks.py:315` уже пишет remaining_liters; OLAP TRANSACTIONS
+Amount.Out / storeOperations с documentTypes=SALES_DOCUMENT — расход за период). Вопрос №1
+матрицы повышен до «да» (итого 9/5/1), парсинг объёмов из названий — фоллбэк.
+
+**Файлы:** `docs/ai-agent-concept.md`.
+
+---
+
+### 2026-06-12 — Open-check бот: long-polling вместо webhook, пин IP api.telegram.org
+
+Бот перестал отвечать на `/start`/`/status`, а после 14:59 умерла и исходящая отправка.
+Причина — магистральные блокировки (ТСПУ): входящие соединения от подсетей Telegram до
+сервера не доходят вовсе (tcpdump — ноль пакетов), а DNS стал отдавать для
+`api.telegram.org` заблокированный для датацентров IP `149.154.166.110`
+(сосед `149.154.167.220` доступен). Локальный файрвол чист — локально не лечится.
+
+**Что:**
+- **`core/open_check_polling.py`** (новый) — long-polling `getUpdates` в daemon-thread:
+  команды меню забираются исходящими запросами, входящая связь от Telegram не нужна.
+  Singleton под `gunicorn --workers 2` через эксклюзивный flock (portalocker) на
+  `data/.open_check_polling.lock`; webhook снимается без сброса очереди. Гейт:
+  `TELEGRAM_OPEN_CHECK_BOT_TOKEN`; отключение: `OPEN_CHECK_POLLING=0`.
+- **`docker-compose.yml`** — `extra_hosts: api.telegram.org:149.154.167.220` (пин на
+  живой IP; работает и при `network_mode: host` — /etc/hosts у контейнера свой).
+- **`app.py`** — старт polling рядом с шедулерами.
+- **`docs/open-check-bot.md`** — раздел «Блокировки» (диагностика, инструкция по смене
+  IP, когда можно вернуть webhook).
+
+**Почему:** рассылка 14:59 и ответы на команды — единственный канал контроля открытия
+баров; webhook при текущих блокировках не доставляется в принципе.
+
+**Файлы:** `core/open_check_polling.py`, `app.py`, `docker-compose.yml`,
+`docs/open-check-bot.md`, `docs/CHANGELOG.md`.
+
+---
+
+### 2026-06-12 — Концепт ИИ-агента: feasibility-исследование по документации iiko API
+
+Исследована идея нового модуля: пользователь задаёт вопрос на человеческом языке, LLM собирает
+структурированный запрос к iiko Server API, детерминированный исполнитель возвращает реальные цифры.
+
+**Что:**
+- **`docs/ai-agent-concept.md`** (новый) — итог исследования: матрица 15 типовых вопросов менеджера
+  (8 «да» / 6 «частично» / 1 «нет»), консолидированный список «чего нельзя получить по API»
+  (период <= месяца, строго последовательные запросы, нет сортировки/top-N/HAVING, платная лицензия
+  iikoAPIServer со слотами, токен ~1 час, iikoCloud без аналитики), предлагаемая архитектура
+  (компилятор по библиотеке шаблонов, не free-form генерация), список проверок на живом сервере, риски.
+
+**Почему:** преднастроенных отчётов стало много — пользователи теряются; сырой OLAP сложен.
+Исследование (10 агентов по 155 статьям `docs/iiko-api/`, кодовой базе и внешним источникам)
+показало: идея реализуема, семантический слой для агента в проекте фактически уже есть
+(24 OLAP-тела + правила + живой `/v2/reports/olap/columns`).
+
+**Файлы:** `docs/ai-agent-concept.md`, `.claude/INDEX.md`.
+
+---
+
+### 2026-06-12 — Локальная копия документации iiko API
+
+Восстановлена локальная копия API-документации iiko (предыдущая удалена 2026-05-29) — по запросу владельца, чтобы вся документация по API была под рукой в репозитории, а не только OLAP-справочники.
+
+**Что:**
+- **`scripts/fetch_iiko_api_docs.py`** (новый) — скачивает все статьи раздела `api-documentations` портала `ru.iiko.help`: список из sitemap, markdown через `?action=getMarkdown`, 8 потоков, 3 ретрая, валидация «не HTML/не пусто». Файлы — точные копии портала (без добавок), поэтому повторный запуск даёт чистый diff. Генерирует `INDEX.md` — дерево разделов как на портале.
+- **`scripts/fetch_iiko_api_toc.py`** (новый) — названия статей и иерархия разделов (`docs/iiko-api/_toc.json`). Отдельный скрипт, потому что markdown-эндпоинт названий не отдаёт, а TOC-эндпоинты ClickHelp закрыты логином: страница портала рендерится в headless Chrome, дерево забирается из embedded JSON в DOM-дампе. Требует Chrome; запускать только при изменении структуры портала.
+- **`docs/iiko-api/`** (новая папка) — 153 статьи: iikoServer API (resto), iikoCloud API, iikoFront API, iikoCard, biz API, EDI 5.x, веб-хуки, OLAP v1/v2, накладные, инвентаризации, сотрудники/смены, ошибки, лимиты. Оглавление с датами обновления на портале — `docs/iiko-api/INDEX.md`.
+
+**Почему:** портал остаётся источником истины, но локальная копия нужна для офлайн-поиска по всей документации сразу.
+
+**Файлы:** `scripts/fetch_iiko_api_docs.py`, `scripts/fetch_iiko_api_toc.py`, `docs/iiko-api/*` (155 файлов), `.claude/CLAUDE.md`, `.claude/INDEX.md`.
+
+---
+
 ### 2026-06-11 — График смен: факт выручки автоматически из iiko OLAP
 
 Сразу после деплоя редизайна «Факт»/«Средняя» показывали «нет данных» — факт ждал ручного синка в `daily_revenue`. По указанию пользователя факт переведён на живой API, как на дашборде.
@@ -350,6 +475,29 @@
 **Документация:** [docs/monthly-report.md](monthly-report.md) (формулы, кэш, ограничения).
 
 **Файлы:** `core/monthly_report.py` (новый), `core/dashboard_analysis.py`, `core/draft_analysis.py`, `core/olap_reports.py`, `routes/dashboard.py`, `templates/dashboard/base.html`, `templates/dashboard/monthly_tab.html` (новый), `static/js/dashboard/modules/monthly_report.js` (новый), `static/js/dashboard/main.js`, `docs/monthly-report.md` (новый), `.claude/INDEX.md`.
+
+---
+
+### 2026-06-02 — Фикс аудита #11: единый ключ идентичности сотрудника — AuthUser
+
+Исправлена находка #11 аудита OLAP: выручка/чеки сотрудника считались по `AuthUser` («Авторизовал»),
+а категории/доли — по `WaiterName` («официант блюда»), что при несовпадении имён давало
+рассогласованные доли и обнуление категорий в breakdown. По решению владельца — считать **везде по `AuthUser`**.
+
+**Что:**
+
+- Все OLAP-запросы по сотрудникам/официантам в `core/olap_reports.py` группируются по `AuthUser` вместо `WaiterName`: `_build_olap_request(include_waiter)`, `_build_kitchen_olap_request_with_waiter`, `_build_cancelled_orders_request`, `get_kpi_olap_data` (summary+categories), `get_new_loyalty_cards_by_waiter`, `get_employee_daily_revenue`.
+- Добавлен helper `OlapReports._alias_auth_to_waiter()`: геттеры (`get_draft/bottles/kitchen_sales_by_waiter_report`, `get_cancelled_orders_by_waiter`) переименовывают ключ `AuthUser` -> `WaiterName` в строках ответа. Весь downstream (`employee_analysis`, `waiter_analysis`, `routes/analysis`, `knowledge_graph/etl`, шаблоны) и фронтенд читают прежний ключ `WaiterName` без правок — значение теперь «кто пробил чек».
+- Тест `tests/test_logic_audit_regressions.py` обновлён: ассертит `AuthUser` в groupByRowFields (был `WaiterName`).
+- Доки: баннер и JSON-тела #5(waiter)/#7/#8/#10/#11/#12/#13 в `OLAP_REPORTS_COLLECTION.md`; статус #11 = ИСПРАВЛЕНО в `audits/OLAP_AUDIT_2026-06-02.md`.
+
+**Почему:** единый ключ убирает рассогласование числителя (категории) и знаменателя (итог); доли категорий сходятся к 100%, средний чек согласован с разбивкой.
+
+**Смысловое следствие (принято):** аналитика официантов/розлива (`waiter_analysis`), граф знаний и `/analysis` теперь атрибутируют продажи тому, кто **пробил чек**, а не официанту блюда.
+
+**Проверка (`py -3`):** builders группируют по `AuthUser`, alias маппит `AuthUser`->`WaiterName`; `EmployeeMetricsCalculator.calculate` на синтетике даёт сумму долей = 100% и согласованные выручку/чеки; `py -3 -m unittest tests.test_logic_audit_regressions` -> OK (expected failures=3).
+
+**Файлы:** `core/olap_reports.py`, `tests/test_logic_audit_regressions.py`, `docs/technical/OLAP_REPORTS_COLLECTION.md`, `docs/technical/audits/OLAP_AUDIT_2026-06-02.md`, `docs/CHANGELOG.md`.
 
 ---
 
