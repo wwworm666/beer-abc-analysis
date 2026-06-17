@@ -24,6 +24,7 @@ status=OPEN, чей pointOfSaleId маппится в имя бара через
 текст ошибок iiko экранируется html.escape.
 """
 import html
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -32,6 +33,8 @@ from typing import Callable, List, Optional
 from core.iiko_api import IikoAPI
 from core.employee_plans import BAR_NAME_MAPPING, normalize_bar_name
 from core.venues_config import PHYSICAL_VENUES
+from core.storage_paths import get_data_path
+from core.json_store import atomic_write_json
 
 # Имена точек в кассовых сменах (corporation/groups) НЕ совпадают с OLAP
 # Store.Name: например, "Пивная культура" в сменах = Кременчугская, есть и
@@ -64,6 +67,54 @@ def _env_chat_ids(var_name: str) -> List[str]:
 
 def _is_dry_run() -> bool:
     return os.environ.get('OPEN_CHECK_DRY_RUN', '').lower() in ('1', 'true', 'yes', 'on')
+
+
+# Выученные привязки pointOfSaleId -> venue_key, сохранённые на диск.
+# Зачем: iiko /corporation/groups периодически отдаёт НЕПОЛНЫЙ список точек
+# (узлы iiko рассинхронизированы после перезаведения кассы — 2026-06-17 так
+# "пропадала" Варшавская, касса №50 / pos f4099015, хотя её смена была открыта).
+# Без резерва одна неполная выдача -> ложное "ЗАКРЫТ" и тревога на пустом месте.
+# Решение: всё, что хоть раз успешно смаппилось в бар, запоминаем на диск и
+# используем как fallback, когда живая выдача эту точку не вернула. Карта только
+# растёт (pos_id-ы стабильны; смена id у бара даст новую запись при первой же
+# полной выдаче). См. docs/lessons.md.
+_POS_MAP_FILE = 'open_check_pos_map.json'
+
+# Базовый резерв: текущие pointOfSaleId 4 баров (подтверждено 2026-06-17 прямым
+# запросом к iiko, см. docs/lessons.md). Нужен, чтобы детект работал сразу даже
+# если /corporation/groups отдаёт неполный список (как было с Варшавской). Файл
+# learned-кэша ПЕРЕКРЫВАЕТ эти значения — при смене pos_id бар переучится с
+# первой же полной выдачи, а устаревшая seed-запись просто перестанет совпадать
+# с реальными сменами и ни на что не повлияет.
+_SEED_POS_MAP = {
+    '1bad0cb6-d514-4133-8254-1c19c0ebc32a': 'bolshoy',
+    '842eb54e-9903-48b1-ba58-56a6235a494a': 'ligovskiy',
+    '9ad18ed4-e837-4d3f-90ba-1bcbd2749320': 'kremenchugskaya',
+    'f4099015-5072-4652-a10c-e5638ca1dd53': 'varshavskaya',
+}
+
+
+def _load_pos_map() -> dict:
+    """Выученные pointOfSaleId -> venue_key (резерв при неполной выдаче iiko).
+    Базовый seed перекрывается значениями из файла learned-кэша."""
+    file_d = {}
+    try:
+        with open(get_data_path(_POS_MAP_FILE), encoding='utf-8') as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            file_d = {str(k): str(v) for k, v in d.items()}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        log.warning("open_check_pos_map не читается (%s) — только seed", e)
+    return {**_SEED_POS_MAP, **file_d}
+
+
+def _save_pos_map(d: dict) -> None:
+    try:
+        atomic_write_json(get_data_path(_POS_MAP_FILE), d)
+    except Exception:
+        log.exception("не удалось сохранить open_check_pos_map")
 
 
 def check_bars_state(
@@ -116,6 +167,16 @@ def check_bars_state(
     finally:
         api.logout()
 
+    # Дополнить выученную карту тем, что сейчас вернула живая выдача (обучение).
+    learned = _load_pos_map()
+    fresh_learned = dict(learned)
+    for pid, nm in (pos_map or {}).items():
+        vk = BAR_NAME_MAPPING.get(normalize_bar_name(nm))
+        if vk:
+            fresh_learned[pid] = vk
+    if fresh_learned != learned:
+        _save_pos_map(fresh_learned)
+
     open_keys = set()
     other_open: List[str] = []
     unknown_pos: List[str] = []
@@ -126,13 +187,24 @@ def check_bars_state(
         if not pos_id:
             continue
         pos_name = pos_map.get(pos_id)
-        if not pos_name:
-            continue
-        venue_key = BAR_NAME_MAPPING.get(normalize_bar_name(pos_name))
-        if not venue_key:
-            if pos_name not in unknown_pos:
-                unknown_pos.append(pos_name)
-            continue
+        if pos_name:
+            venue_key = BAR_NAME_MAPPING.get(normalize_bar_name(pos_name))
+            if not venue_key:
+                # Имя есть, но неизвестно маппингу — это настоящий unknown.
+                if pos_name not in unknown_pos:
+                    unknown_pos.append(pos_name)
+                continue
+        else:
+            # pos_id нет в живой /corporation/groups (неполная выдача iiko) —
+            # резерв из выученной карты, иначе смена молча терялась бы.
+            venue_key = fresh_learned.get(pos_id)
+            if venue_key:
+                log.warning("pos_id=%s отсутствует в /corporation/groups сейчас — "
+                            "взят из learned-кэша как %s", pos_id, venue_key)
+            else:
+                log.warning("OPEN-смена pos_id=%s нет ни в группах, ни в learned-кэше — "
+                            "пропуск (бар может ложно числиться закрытым)", pos_id)
+                continue
         open_dt = api._parse_iso_datetime(sh.get('openDate', ''))
         if not (open_dt and open_dt <= check_dt):
             continue
