@@ -559,12 +559,16 @@ Body: {
 Response: {
     "checks": [               # все чеки со скидкой, сортировка по сумме скидки убыв.
         {"date", "store", "check", "type", "discount", "check_sum",
+         "check_gross",       # полная сумма чека без скидки (DishSumInt)
+         "discount_pct",      # % скидки от полной суммы = discount / check_gross * 100
          "guest_name", "guest_card", "has_loyalty"}
     ],
     "by_type": [              # свод по типам скидок
-        {"type", "count", "discount"}
+        {"type", "count", "discount", "gross", "discount_pct"}
     ],
     "total_discount": 28163.0,
+    "total_gross": 146865.0,
+    "total_discount_pct": 19.2,
     "total_checks": 91,
     "loyalty_checks": 72      # на скольких чеках проведена карта лояльности (опознан гость)
 }
@@ -620,9 +624,15 @@ Delivery.CustomerName, Delivery.CustomerCardNumber]`,
 
 ### Скидки по чекам (детализация)
 ```
-Скидка по типу   = Σ(DiscountSum) по чекам с этим OrderDiscount.Type
-Всего скидок      = Σ(DiscountSum) по всем чекам сотрудника со скидкой
+Скидка по типу    = Σ(DiscountSum) по чекам с этим OrderDiscount.Type
+Всего скидок       = Σ(DiscountSum) по всем чекам сотрудника со скидкой
+% скидки (чек)     = DiscountSum / DishSumInt × 100   (DishSumInt = полная сумма без скидки)
+% скидки (тип)     = Σ(DiscountSum) / Σ(DishSumInt) по типу × 100
+% скидки (всего)   = total_discount / total_gross × 100
 ```
+Проверка формулы на живых данных: именованные скидки дают ровно свой процент
+(«30% сотруднику» → 30.0%, «5%…» → 5.0%, «сикспак (10%)» → 10.0%);
+DishSumInt = DishDiscountSumInt + DiscountSum на всех чеках (2026-06-17).
 **Сходимость:** «Всего скидок» из детализации в точности равно метрике `discount_sum`
 (карточка «% скидок»), т.к. оба считаются как Σ(DiscountSum) по AuthUser за период —
 менеджер всегда может сверить разбивку с общей цифрой (проверено на живых данных 2026-06-17).
@@ -656,6 +666,18 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ---
 
 ## Changelog
+
+### 2026-06-17 — Скидки по чекам: % скидки от полной суммы чека
+
+**Добавлено:** колонка «% скидки» в таблицу чеков и в свод по типам, общий процент в сводке.
+В OLAP-запрос добавлена мера `DishSumInt` (полная сумма без скидки). Формула:
+`% = DiscountSum / DishSumInt × 100`. В ответе — `check_gross`, `discount_pct` на чек,
+`gross`/`discount_pct` по типам, `total_gross`/`total_discount_pct`. Последняя колонка таблицы
+теперь «Сумма чека (полная)» = DishSumInt (раньше показывала сумму со скидкой).
+Файлы: `core/olap_reports.py`, `routes/employee.py`, `templates/employee.html`.
+
+**Проверка (живые данные 2026-06-17):** именованные скидки считаются ровно в свой процент
+(30% → 30.0%, 5% → 5.0%, 10% → 10.0%); DishSumInt = DishDiscountSumInt + DiscountSum на всех чеках.
 
 ### 2026-06-17 — Скидки по чекам: гость (имя + карта/телефон) и пометка лояльности
 

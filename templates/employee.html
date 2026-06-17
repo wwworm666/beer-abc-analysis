@@ -1120,9 +1120,10 @@
                 const share = data.total_discount > 0 ? (t.discount / data.total_discount * 100) : 0;
                 return `
                     <tr>
-                        <td><strong>${t.type}</strong></td>
+                        <td><strong>${escapeHtml(t.type)}</strong></td>
                         <td>${formatNumber(t.count)}</td>
                         <td>${formatMoney(t.discount)}</td>
+                        <td>${(t.discount_pct ?? 0).toFixed(1)}%</td>
                         <td>${share.toFixed(1)}%</td>
                     </tr>
                 `;
@@ -1139,14 +1140,17 @@
                     <td>${c.guest_name ? escapeHtml(c.guest_name) : dash}</td>
                     <td>${c.guest_card ? escapeHtml(c.guest_card) : dash}</td>
                     <td>${formatMoney(c.discount)}</td>
-                    <td>${formatMoney(c.check_sum)}</td>
+                    <td>${(c.discount_pct ?? 0).toFixed(1)}%</td>
+                    <td>${formatMoney(c.check_gross)}</td>
                 </tr>
             `).join('');
 
             container.innerHTML = `
                 <h3 class="section-title">Скидки по чекам — ${data.employee_name}</h3>
                 <p style="color: var(--text-secondary); margin-bottom: 16px;">
-                    Всего скидок: <strong>${formatMoney(data.total_discount)}</strong> на <strong>${formatNumber(data.total_checks)}</strong> чеках.
+                    Всего скидок: <strong>${formatMoney(data.total_discount)}</strong>
+                    (<strong>${(data.total_discount_pct ?? 0).toFixed(1)}%</strong> от полной суммы ${formatMoney(data.total_gross)})
+                    на <strong>${formatNumber(data.total_checks)}</strong> чеках.
                     Карта лояльности проведена на <strong>${formatNumber(data.loyalty_checks || 0)}</strong> из ${formatNumber(data.total_checks)} чеков
                     (на остальных имя/телефон гостя пусты — карта не проводилась).
                     Только действующие чеки (без удалённых/сторно); удаления «за счёт заведения» — отдельный механизм.
@@ -1156,7 +1160,7 @@
                 <div style="overflow-x: auto; margin-bottom: 24px;">
                     <table>
                         <thead>
-                            <tr><th>Тип скидки</th><th>Чеков</th><th>Сумма скидки</th><th>Доля</th></tr>
+                            <tr><th>Тип скидки</th><th>Чеков</th><th>Сумма скидки</th><th>% скидки</th><th>Доля</th></tr>
                         </thead>
                         <tbody>${byTypeRows}</tbody>
                     </table>
@@ -1166,7 +1170,7 @@
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
-                            <tr><th>#</th><th>Дата</th><th>Бар</th><th>Чек</th><th>Тип скидки</th><th>Гость</th><th>Карта / тел.</th><th>Скидка</th><th>Сумма чека</th></tr>
+                            <tr><th>#</th><th>Дата</th><th>Бар</th><th>Чек</th><th>Тип скидки</th><th>Гость</th><th>Карта / тел.</th><th>Скидка</th><th>% скидки</th><th>Сумма чека (полная)</th></tr>
                         </thead>
                         <tbody>${checkRows}</tbody>
                     </table>

@@ -1120,6 +1120,7 @@ def employee_discount_checks():
         checks = []
         by_type = {}
         total_discount = 0.0
+        total_gross = 0.0   # полная сумма чеков без скидки (база для общего % скидки)
         loyalty_checks = 0  # чеки с проведённой картой лояльности (опознан гость)
         for row in rows:
             discount = float(row.get('DiscountSum', 0) or 0)
@@ -1129,30 +1130,41 @@ def employee_discount_checks():
             guest_name = (row.get('Delivery.CustomerName') or '').strip()
             guest_card = (row.get('Delivery.CustomerCardNumber') or '').strip()
             has_loyalty = bool(guest_name or guest_card)  # пусто = карта не проводилась
+            check_sum = float(row.get('DishDiscountSumInt', 0) or 0)   # со скидкой (заплачено)
+            check_gross = float(row.get('DishSumInt', 0) or 0)         # полная сумма без скидки
+            # % скидки от полной суммы чека = DiscountSum / DishSumInt
+            discount_pct = (discount / check_gross * 100) if check_gross > 0 else 0.0
             checks.append({
                 'date': row.get('OpenDate.Typed', ''),
                 'store': row.get('Store.Name', ''),
                 'check': row.get('OrderNum', ''),
                 'type': dtype,
                 'discount': round(discount, 2),
-                'check_sum': round(float(row.get('DishDiscountSumInt', 0) or 0), 2),
+                'check_sum': round(check_sum, 2),
+                'check_gross': round(check_gross, 2),
+                'discount_pct': round(discount_pct, 1),
                 'guest_name': guest_name,
                 'guest_card': guest_card,  # карта/телефон гостя (телефон, если регистрировался по нему)
                 'has_loyalty': has_loyalty,
             })
             total_discount += discount
+            total_gross += check_gross
             if has_loyalty:
                 loyalty_checks += 1
             if dtype not in by_type:
-                by_type[dtype] = {'type': dtype, 'discount': 0.0, 'count': 0}
+                by_type[dtype] = {'type': dtype, 'discount': 0.0, 'gross': 0.0, 'count': 0}
             by_type[dtype]['discount'] += discount
+            by_type[dtype]['gross'] += check_gross
             by_type[dtype]['count'] += 1
 
         # Сортировка: чеки — по сумме скидки убыв.; свод по типам — тоже
         checks.sort(key=lambda x: x['discount'], reverse=True)
         by_type_list = sorted(by_type.values(), key=lambda x: x['discount'], reverse=True)
         for t in by_type_list:
+            # % скидки от полной суммы чеков этого типа = sum(DiscountSum) / sum(DishSumInt)
+            t['discount_pct'] = round((t['discount'] / t['gross'] * 100) if t['gross'] > 0 else 0.0, 1)
             t['discount'] = round(t['discount'], 2)
+            t['gross'] = round(t['gross'], 2)
 
         print(f"[OK] Skidki po chekam: {employee_name} — {len(checks)} chekov, {len(by_type_list)} tipov")
 
@@ -1161,6 +1173,8 @@ def employee_discount_checks():
             'checks': checks,
             'by_type': by_type_list,
             'total_discount': round(total_discount, 2),
+            'total_gross': round(total_gross, 2),
+            'total_discount_pct': round((total_discount / total_gross * 100) if total_gross > 0 else 0.0, 1),
             'total_checks': len(checks),
             'loyalty_checks': loyalty_checks,
             'period': {'from': date_from, 'to': date_to},

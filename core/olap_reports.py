@@ -1330,7 +1330,8 @@ class OlapReports:
         Delivery.Phone в OLAP для зала всегда пуст; телефон, если гость регистрировался по нему,
         попадает в Delivery.CustomerCardNumber (проверено на живых данных 2026-06-17).
 
-        Меры: DiscountSum (сумма скидки), DishDiscountSumInt (сумма чека со скидкой — контекст).
+        Меры: DiscountSum (сумма скидки), DishDiscountSumInt (сумма со скидкой — что заплатил гость),
+        DishSumInt (полная сумма чека без скидки — база для процента скидки: DiscountSum/DishSumInt).
 
         Фильтры: только действующие чеки (DeletedWithWriteoff/OrderDeleted = NOT_DELETED) —
         скидка это отдельный механизм от «удаления со списанием за счёт заведения».
@@ -1368,8 +1369,9 @@ class OlapReports:
             ],
             "groupByColFields": [],
             "aggregateFields": [
-                "DiscountSum",         # сумма скидки
-                "DishDiscountSumInt"   # сумма чека со скидкой (контекст)
+                "DiscountSum",          # сумма скидки
+                "DishDiscountSumInt",   # сумма чека со скидкой (что гость заплатил)
+                "DishSumInt"            # полная сумма чека без скидки (база для % скидки)
             ],
             "filters": {
                 "OpenDate.Typed": {
