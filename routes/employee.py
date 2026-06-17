@@ -1120,11 +1120,15 @@ def employee_discount_checks():
         checks = []
         by_type = {}
         total_discount = 0.0
+        loyalty_checks = 0  # чеки с проведённой картой лояльности (опознан гость)
         for row in rows:
             discount = float(row.get('DiscountSum', 0) or 0)
             if discount <= 0:  # страховка: оставляем только чеки со скидкой
                 continue
             dtype = row.get('OrderDiscount.Type') or 'Без типа'
+            guest_name = (row.get('Delivery.CustomerName') or '').strip()
+            guest_card = (row.get('Delivery.CustomerCardNumber') or '').strip()
+            has_loyalty = bool(guest_name or guest_card)  # пусто = карта не проводилась
             checks.append({
                 'date': row.get('OpenDate.Typed', ''),
                 'store': row.get('Store.Name', ''),
@@ -1132,8 +1136,13 @@ def employee_discount_checks():
                 'type': dtype,
                 'discount': round(discount, 2),
                 'check_sum': round(float(row.get('DishDiscountSumInt', 0) or 0), 2),
+                'guest_name': guest_name,
+                'guest_card': guest_card,  # карта/телефон гостя (телефон, если регистрировался по нему)
+                'has_loyalty': has_loyalty,
             })
             total_discount += discount
+            if has_loyalty:
+                loyalty_checks += 1
             if dtype not in by_type:
                 by_type[dtype] = {'type': dtype, 'discount': 0.0, 'count': 0}
             by_type[dtype]['discount'] += discount
@@ -1153,6 +1162,7 @@ def employee_discount_checks():
             'by_type': by_type_list,
             'total_discount': round(total_discount, 2),
             'total_checks': len(checks),
+            'loyalty_checks': loyalty_checks,
             'period': {'from': date_from, 'to': date_to},
         })
 

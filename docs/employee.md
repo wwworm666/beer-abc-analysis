@@ -558,20 +558,31 @@ Body: {
 }
 Response: {
     "checks": [               # все чеки со скидкой, сортировка по сумме скидки убыв.
-        {"date", "store", "check", "type", "discount", "check_sum"}
+        {"date", "store", "check", "type", "discount", "check_sum",
+         "guest_name", "guest_card", "has_loyalty"}
     ],
     "by_type": [              # свод по типам скидок
         {"type", "count", "discount"}
     ],
     "total_discount": 28163.0,
-    "total_checks": 91
+    "total_checks": 91,
+    "loyalty_checks": 72      # на скольких чеках проведена карта лояльности (опознан гость)
 }
 ```
 
 Источник — `OlapReports.get_employee_discount_checks()`: OLAP SALES,
-`groupByRowFields = [AuthUser, OpenDate.Typed, Store.Name, OrderNum, OrderDiscount.Type]`,
+`groupByRowFields = [AuthUser, OpenDate.Typed, Store.Name, OrderNum, OrderDiscount.Type,
+Delivery.CustomerName, Delivery.CustomerCardNumber]`,
 `aggregateFields = [DiscountSum, DishDiscountSumInt]`, фильтры `NOT_DELETED × 2`.
 Ключ чека — дата + касса + номер (OrderNum уникален только в пределах дня и кассы).
+
+**Гость (карта лояльности).** `guest_name` (Delivery.CustomerName) и `guest_card`
+(Delivery.CustomerCardNumber) заполнены, ТОЛЬКО если на чеке проведена карта — это и есть
+пометка лояльности (`has_loyalty`). Пустые = карта не проводилась (служебные скидки
+«30% сотруднику», «5% проблемы с лояльностью» и т.п.). `guest_card` содержит идентификатор
+лояльности: для гостей, зарегистрированных по телефону, это телефон (`+7…`), иначе — номер карты.
+Поле `Delivery.Phone` в OLAP для зала всегда пусто (проверено на живых данных 2026-06-17),
+поэтому телефон берётся из `Delivery.CustomerCardNumber`.
 Отбор чеков со скидкой (`DiscountSum > 0`) — постобработкой: сервер запрещает фильтрацию
 по `DiscountSum` (HTTP 400 «Filtering is not allowed for field 'DiscountSum'»), поэтому
 запрос всегда ограничен одним сотрудником через фильтр `AuthUser`.
@@ -645,6 +656,18 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ---
 
 ## Changelog
+
+### 2026-06-17 — Скидки по чекам: гость (имя + карта/телефон) и пометка лояльности
+
+**Добавлено:** в детализацию скидок по чекам — колонки «Гость» (Delivery.CustomerName) и
+«Карта / тел.» (Delivery.CustomerCardNumber), счётчик `loyalty_checks` в ответе и пометка
+`has_loyalty` на каждом чеке. Пустые имя/карта = карта лояльности не проводилась.
+Файлы: `core/olap_reports.py`, `routes/employee.py`, `templates/employee.html`.
+
+**Реальность данных (проверено на живых данных 2026-06-17):** `Delivery.Phone` в OLAP для зала
+всегда пуст — телефона как отдельного поля нет. Телефон гостя (если регистрировался по нему)
+лежит в `Delivery.CustomerCardNumber` вперемешку с внутренними номерами карт, поэтому колонка
+называется «Карта / тел.». Имя гостя заполняется надёжно (в тесте — 72 из 91 чека со скидкой).
 
 ### 2026-06-17 — Детализация скидок по чекам («кто кому сколько списывает»)
 

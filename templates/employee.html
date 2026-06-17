@@ -1100,6 +1100,13 @@
             }
         }
 
+        function escapeHtml(s) {
+            if (s === undefined || s === null) return '';
+            return String(s).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[ch]));
+        }
+
         function renderDiscountTable(container, data) {
             if (!data.checks || data.checks.length === 0) {
                 container.innerHTML = `
@@ -1121,13 +1128,16 @@
                 `;
             }).join('');
 
+            const dash = '<span style="color: var(--text-tertiary)">—</span>';
             const checkRows = data.checks.map((c, i) => `
                 <tr>
                     <td>${i + 1}</td>
                     <td>${c.date}</td>
                     <td>${c.store}</td>
                     <td>№ ${c.check}</td>
-                    <td>${c.type}</td>
+                    <td>${escapeHtml(c.type)}</td>
+                    <td>${c.guest_name ? escapeHtml(c.guest_name) : dash}</td>
+                    <td>${c.guest_card ? escapeHtml(c.guest_card) : dash}</td>
                     <td>${formatMoney(c.discount)}</td>
                     <td>${formatMoney(c.check_sum)}</td>
                 </tr>
@@ -1137,6 +1147,8 @@
                 <h3 class="section-title">Скидки по чекам — ${data.employee_name}</h3>
                 <p style="color: var(--text-secondary); margin-bottom: 16px;">
                     Всего скидок: <strong>${formatMoney(data.total_discount)}</strong> на <strong>${formatNumber(data.total_checks)}</strong> чеках.
+                    Карта лояльности проведена на <strong>${formatNumber(data.loyalty_checks || 0)}</strong> из ${formatNumber(data.total_checks)} чеков
+                    (на остальных имя/телефон гостя пусты — карта не проводилась).
                     Только действующие чеки (без удалённых/сторно); удаления «за счёт заведения» — отдельный механизм.
                 </p>
 
@@ -1154,7 +1166,7 @@
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
-                            <tr><th>#</th><th>Дата</th><th>Бар</th><th>Чек</th><th>Тип скидки</th><th>Скидка</th><th>Сумма чека</th></tr>
+                            <tr><th>#</th><th>Дата</th><th>Бар</th><th>Чек</th><th>Тип скидки</th><th>Гость</th><th>Карта / тел.</th><th>Скидка</th><th>Сумма чека</th></tr>
                         </thead>
                         <tbody>${checkRows}</tbody>
                     </table>
