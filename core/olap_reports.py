@@ -1314,6 +1314,100 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return None
 
+    def get_employee_discount_checks(self, date_from, date_to, bar_name=None, employee=None):
+        """
+        Детализация скидок ДО ЧЕКА по сотруднику: каждый чек со скидкой —
+        с типом скидки и суммой. Отвечает на вопрос «кто кому сколько списывает».
+
+        Группировка: AuthUser ("Авторизовал", кто пробил) + OpenDate.Typed + Store.Name +
+        OrderNum + OrderDiscount.Type. Ключ чека = дата + касса + номер, потому что OrderNum
+        уникален только в пределах одного учётного дня и кассы (см. lessons.md).
+
+        Меры: DiscountSum (сумма скидки), DishDiscountSumInt (сумма чека со скидкой — контекст).
+
+        Фильтры: только действующие чеки (DeletedWithWriteoff/OrderDeleted = NOT_DELETED) —
+        скидка это отдельный механизм от «удаления со списанием за счёт заведения».
+        Отбор чеков именно со скидкой (DiscountSum > 0) делается ПОСТОБРАБОТКОЙ:
+        живой сервер запрещает фильтрацию по DiscountSum
+        (HTTP 400 "Filtering is not allowed for field 'DiscountSum'", проверено 2026-06-13).
+        Поэтому всегда передавайте employee, чтобы выборка была ограничена одним сотрудником.
+
+        Параметры:
+            bar_name — Store.Name бара (None = все бары)
+            employee — значение AuthUser для фильтра по одному сотруднику (None = все)
+
+        Возвращает сырой OLAP-ответ {data, summary} с алиасом AuthUser -> WaiterName.
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Detalizatsiya skidok po chekam...")
+        print(f"   Period: {date_from} - {date_to}")
+        print(f"   Bar: {bar_name or 'VSE'}, Employee: {employee or 'VSE'}")
+
+        request = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "AuthUser",            # "Авторизовал" — кто пробил чек (единый ключ идентичности)
+                "OpenDate.Typed",      # учётный день (часть ключа чека)
+                "Store.Name",          # касса/бар (часть ключа чека)
+                "OrderNum",            # номер чека (уникален только в пределах дня+кассы)
+                "OrderDiscount.Type"   # тип скидки — "кому/за что" списано
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DiscountSum",         # сумма скидки
+                "DishDiscountSumInt"   # сумма чека со скидкой (контекст)
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        if employee:
+            request["filters"]["AuthUser"] = {
+                "filterType": "IncludeValues",
+                "values": [employee]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = requests.post(
+                url, params=params, json=request, headers=headers, timeout=90
+            )
+            if response.status_code == 200:
+                print("[OK] Detalizatsiya skidok poluchena!")
+                return self._alias_auth_to_waiter(response.json())
+            print(f"[ERROR] Oshibka: {response.status_code}")
+            print(f"   Otvet: {response.text}")
+            return None
+        except Exception as e:
+            print(f"[ERROR] Oshibka: {e}")
+            return None
+
     def get_kpi_olap_data(self, date_from, date_to):
         """
         Получить все OLAP данные для расчёта KPI за 2 легковесных запроса (вместо 4 тяжёлых).

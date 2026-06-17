@@ -1079,3 +1079,85 @@ def employee_metrics_breakdown():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@employee_bp.route('/api/employee-discount-checks', methods=['POST'])
+def employee_discount_checks():
+    """
+    Детализация скидок ДО ЧЕКА по одному сотруднику: каждый чек со скидкой
+    (дата, касса, номер чека, тип скидки, сумма скидки, сумма чека) + свод по типам.
+
+    Отвечает на вопрос «кто кому сколько списывает»: разворачивает общую сумму
+    скидок сотрудника (поле «% скидок» на карточке) в построчный список чеков.
+
+    Тело запроса: employee_name, bar (Store.Name или null = все), date_from, date_to.
+    """
+    try:
+        data = request.json
+        employee_name = data.get('employee_name')
+        bar_name = data.get('bar')  # None = все бары
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        if not employee_name or not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: employee_name, date_from, date_to'}), 400
+
+        # OLAP трактует to-дату как exclusive → +1 день (чеки после полуночи — следующий день)
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+        try:
+            resp = olap.get_employee_discount_checks(
+                date_from, olap_date_to, bar_name=bar_name, employee=employee_name
+            )
+        finally:
+            olap.disconnect()
+
+        rows = (resp or {}).get('data', []) or []
+
+        checks = []
+        by_type = {}
+        total_discount = 0.0
+        for row in rows:
+            discount = float(row.get('DiscountSum', 0) or 0)
+            if discount <= 0:  # страховка: оставляем только чеки со скидкой
+                continue
+            dtype = row.get('OrderDiscount.Type') or 'Без типа'
+            checks.append({
+                'date': row.get('OpenDate.Typed', ''),
+                'store': row.get('Store.Name', ''),
+                'check': row.get('OrderNum', ''),
+                'type': dtype,
+                'discount': round(discount, 2),
+                'check_sum': round(float(row.get('DishDiscountSumInt', 0) or 0), 2),
+            })
+            total_discount += discount
+            if dtype not in by_type:
+                by_type[dtype] = {'type': dtype, 'discount': 0.0, 'count': 0}
+            by_type[dtype]['discount'] += discount
+            by_type[dtype]['count'] += 1
+
+        # Сортировка: чеки — по сумме скидки убыв.; свод по типам — тоже
+        checks.sort(key=lambda x: x['discount'], reverse=True)
+        by_type_list = sorted(by_type.values(), key=lambda x: x['discount'], reverse=True)
+        for t in by_type_list:
+            t['discount'] = round(t['discount'], 2)
+
+        print(f"[OK] Skidki po chekam: {employee_name} — {len(checks)} chekov, {len(by_type_list)} tipov")
+
+        return jsonify({
+            'employee_name': employee_name,
+            'checks': checks,
+            'by_type': by_type_list,
+            'total_discount': round(total_discount, 2),
+            'total_checks': len(checks),
+            'period': {'from': date_from, 'to': date_to},
+        })
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/employee-discount-checks: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500

@@ -760,6 +760,7 @@
         let employeesList = [];
         let currentMetrics = null;
         let categoryChart = null;
+        let currentDiscountParams = null;  // параметры последнего анализа для детализации скидок
         let radarChart = null;
         let selectedEmployees = new Set();
 
@@ -909,6 +910,12 @@
 
                 const data = await response.json();
                 currentMetrics = data;
+                currentDiscountParams = {
+                    employee_name: employeeName,
+                    bar: barName || null,
+                    date_from: dateFrom,
+                    date_to: dateTo
+                };
                 displayResults(data);
 
             } catch (error) {
@@ -979,9 +986,10 @@
                             <div class="label">Наценка</div>
                             <div class="value">${data.avg_markup.toFixed(0)}<span class="unit">%</span></div>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card" onclick="openDiscountTable()" style="cursor: pointer;" title="Открыть детализацию скидок по чекам">
                             <div class="label">% скидок</div>
                             <div class="value">${data.discount_percent.toFixed(1)}<span class="unit">%</span></div>
+                            <div class="change" style="color: var(--accent, #D97757);">${formatMoney(data.discount_sum)} · детализация</div>
                         </div>
                         <div class="metric-card">
                             <div class="label">Отмены</div>
@@ -1048,6 +1056,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="discount-detail" class="card" style="display: none; margin-top: 16px;"></div>
             `;
 
             resultsDiv.innerHTML = metricsHTML;
@@ -1055,6 +1064,102 @@
 
             // Create pie chart
             createCategoryChart(data);
+        }
+
+        async function openDiscountTable() {
+            const container = document.getElementById('discount-detail');
+            if (!container || !currentDiscountParams) return;
+
+            // Повторный клик — свернуть
+            if (container.style.display !== 'none' && container.dataset.loaded === '1') {
+                container.style.display = 'none';
+                container.dataset.loaded = '';
+                return;
+            }
+
+            container.style.display = 'block';
+            container.innerHTML = '<p style="color: var(--text-secondary);">Загрузка детализации скидок...</p>';
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            try {
+                const response = await fetch('/api/employee-discount-checks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentDiscountParams)
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Ошибка при получении детализации');
+                }
+                const data = await response.json();
+                renderDiscountTable(container, data);
+                container.dataset.loaded = '1';
+            } catch (error) {
+                console.error('Error:', error);
+                container.innerHTML = `<p style="color: var(--danger);">Ошибка: ${error.message}</p>`;
+            }
+        }
+
+        function renderDiscountTable(container, data) {
+            if (!data.checks || data.checks.length === 0) {
+                container.innerHTML = `
+                    <h3 class="section-title">Детализация скидок</h3>
+                    <div class="empty-state"><p>За выбранный период у сотрудника нет чеков со скидкой</p></div>
+                `;
+                return;
+            }
+
+            const byTypeRows = data.by_type.map(t => {
+                const share = data.total_discount > 0 ? (t.discount / data.total_discount * 100) : 0;
+                return `
+                    <tr>
+                        <td><strong>${t.type}</strong></td>
+                        <td>${formatNumber(t.count)}</td>
+                        <td>${formatMoney(t.discount)}</td>
+                        <td>${share.toFixed(1)}%</td>
+                    </tr>
+                `;
+            }).join('');
+
+            const checkRows = data.checks.map((c, i) => `
+                <tr>
+                    <td>${i + 1}</td>
+                    <td>${c.date}</td>
+                    <td>${c.store}</td>
+                    <td>№ ${c.check}</td>
+                    <td>${c.type}</td>
+                    <td>${formatMoney(c.discount)}</td>
+                    <td>${formatMoney(c.check_sum)}</td>
+                </tr>
+            `).join('');
+
+            container.innerHTML = `
+                <h3 class="section-title">Скидки по чекам — ${data.employee_name}</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 16px;">
+                    Всего скидок: <strong>${formatMoney(data.total_discount)}</strong> на <strong>${formatNumber(data.total_checks)}</strong> чеках.
+                    Только действующие чеки (без удалённых/сторно); удаления «за счёт заведения» — отдельный механизм.
+                </p>
+
+                <div class="chart-title">Свод по типам скидок</div>
+                <div style="overflow-x: auto; margin-bottom: 24px;">
+                    <table>
+                        <thead>
+                            <tr><th>Тип скидки</th><th>Чеков</th><th>Сумма скидки</th><th>Доля</th></tr>
+                        </thead>
+                        <tbody>${byTypeRows}</tbody>
+                    </table>
+                </div>
+
+                <div class="chart-title">Все чеки со скидкой (${formatNumber(data.total_checks)})</div>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr><th>#</th><th>Дата</th><th>Бар</th><th>Чек</th><th>Тип скидки</th><th>Скидка</th><th>Сумма чека</th></tr>
+                        </thead>
+                        <tbody>${checkRows}</tbody>
+                    </table>
+                </div>
+            `;
         }
 
         function createCategoryChart(data) {

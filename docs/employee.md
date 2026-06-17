@@ -543,6 +543,39 @@ POST /api/bonus-calculate
 POST /api/kpi-calculate
 ```
 
+### Детализация скидок по чекам
+
+Разворачивает общую метрику «% скидок» сотрудника в построчный список чеков со скидкой
+(«кто кому сколько списывает»). Вызывается кликом по карточке «% скидок» на странице сотрудника.
+
+```
+POST /api/employee-discount-checks
+Body: {
+    "employee_name": "...",   # значение AuthUser (как на карточке)
+    "bar": "Кременчугская"|null,  # Store.Name, null = все бары
+    "date_from": "YYYY-MM-DD",
+    "date_to": "YYYY-MM-DD"
+}
+Response: {
+    "checks": [               # все чеки со скидкой, сортировка по сумме скидки убыв.
+        {"date", "store", "check", "type", "discount", "check_sum"}
+    ],
+    "by_type": [              # свод по типам скидок
+        {"type", "count", "discount"}
+    ],
+    "total_discount": 28163.0,
+    "total_checks": 91
+}
+```
+
+Источник — `OlapReports.get_employee_discount_checks()`: OLAP SALES,
+`groupByRowFields = [AuthUser, OpenDate.Typed, Store.Name, OrderNum, OrderDiscount.Type]`,
+`aggregateFields = [DiscountSum, DishDiscountSumInt]`, фильтры `NOT_DELETED × 2`.
+Ключ чека — дата + касса + номер (OrderNum уникален только в пределах дня и кассы).
+Отбор чеков со скидкой (`DiscountSum > 0`) — постобработкой: сервер запрещает фильтрацию
+по `DiscountSum` (HTTP 400 «Filtering is not allowed for field 'DiscountSum'»), поэтому
+запрос всегда ограничен одним сотрудником через фильтр `AuthUser`.
+
 ---
 
 ## Формулы
@@ -574,6 +607,15 @@ POST /api/kpi-calculate
 План/факт % = (Факт / План) × 100%
 ```
 
+### Скидки по чекам (детализация)
+```
+Скидка по типу   = Σ(DiscountSum) по чекам с этим OrderDiscount.Type
+Всего скидок      = Σ(DiscountSum) по всем чекам сотрудника со скидкой
+```
+**Сходимость:** «Всего скидок» из детализации в точности равно метрике `discount_sum`
+(карточка «% скидок»), т.к. оба считаются как Σ(DiscountSum) по AuthUser за период —
+менеджер всегда может сверить разбивку с общей цифрой (проверено на живых данных 2026-06-17).
+
 ### KPI ratio
 ```
 base_per_kpi         = kpi_pool / кол-во KPI              # фонд делится поровну
@@ -603,6 +645,24 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ---
 
 ## Changelog
+
+### 2026-06-17 — Детализация скидок по чекам («кто кому сколько списывает»)
+
+**Добавлено:**
+- `OlapReports.get_employee_discount_checks()` — OLAP SALES с группировкой
+  `[AuthUser, OpenDate.Typed, Store.Name, OrderNum, OrderDiscount.Type]`, меры
+  `DiscountSum`, `DishDiscountSumInt`. Разворачивает общую скидку сотрудника до каждого чека с типом.
+- `POST /api/employee-discount-checks` — отдаёт список чеков со скидкой + свод по типам.
+- Карточка «% скидок» на странице сотрудника стала кликабельной: открывает таблицу
+  (свод по типам + все чеки со скидкой). Файлы: `core/olap_reports.py`, `routes/employee.py`,
+  `templates/employee.html`.
+
+**Почему:** раньше на карточке была только общая сумма скидок — не было видно, какими
+типами скидок и на каких чеках сотрудник списывает деньги.
+
+**Проверено на живых данных (2026-06-17):** сумма скидок по чекам в точности сходится с
+общей метрикой `discount_sum`. Сервер запрещает фильтрацию по `DiscountSum`
+(HTTP 400) — отбор чеков со скидкой делается постобработкой, запрос ограничен одним сотрудником.
 
 ### 2026-06-06 — Дневной план: единый источник + override весов + фикс устаревания кэша
 
