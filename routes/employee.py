@@ -1157,8 +1157,15 @@ def employee_discount_checks():
             by_type[dtype]['gross'] += check_gross
             by_type[dtype]['count'] += 1
 
-        # Сортировка: чеки — по сумме скидки убыв.; свод по типам — тоже
-        checks.sort(key=lambda x: x['discount'], reverse=True)
+        # Сортировка: чеки — хронологически (по дате, затем по номеру чека, по возрастанию);
+        # свод по типам — по сумме скидки убыв.
+        def _check_order(c):
+            try:
+                num = int(c['check'])
+            except (TypeError, ValueError):
+                num = 0
+            return (c['date'], num)
+        checks.sort(key=_check_order)
         by_type_list = sorted(by_type.values(), key=lambda x: x['discount'], reverse=True)
         for t in by_type_list:
             # % скидки от полной суммы чеков этого типа = sum(DiscountSum) / sum(DishSumInt)

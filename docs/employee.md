@@ -557,7 +557,7 @@ Body: {
     "date_to": "YYYY-MM-DD"
 }
 Response: {
-    "checks": [               # все чеки со скидкой, сортировка по сумме скидки убыв.
+    "checks": [               # все чеки со скидкой, сортировка хронологическая (дата, № чека)
         {"date", "store", "check", "type", "discount", "check_sum",
          "check_gross",       # полная сумма чека без скидки (DishSumInt)
          "discount_pct",      # % скидки от полной суммы = discount / check_gross * 100
