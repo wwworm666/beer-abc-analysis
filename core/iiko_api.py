@@ -1,4 +1,5 @@
 import hashlib
+import re
 import time
 import requests
 import xml.etree.ElementTree as ET
@@ -230,10 +231,26 @@ class IikoAPI:
             return []
 
     def _parse_iso_datetime(self, iso_str: str) -> Optional[datetime]:
-        """Парсинг ISO datetime строки. Если есть таймзона — конвертируем в МСК (UTC+3)."""
+        """Парсинг ISO datetime строки. Если есть таймзона — конвертируем в МСК (UTC+3).
+
+        iiko отдаёт дробные секунды с РАЗНЫМ числом цифр (напр. openDate
+        '2026-06-17T13:42:51.45' — 2 цифры, т.к. iiko срезает хвостовой ноль), а
+        datetime.fromisoformat в Python 3.10 (база docker-образа) требует РОВНО 3
+        или 6 цифр и иначе бросает ValueError. Это давало ложное "бар закрыт" в
+        open-check (смена с такой датой молча отбрасывалась). Нормализуем дробную
+        часть до 6 цифр, чтобы парс работал на всех версиях Python.
+        См. docs/lessons.md."""
         MOSCOW_TZ = timezone(timedelta(hours=3))
+        if not iso_str:
+            return None
+        s = iso_str.strip()
+        # Дополнить/обрезать дробные секунды до 6 цифр (tz-суффикс сохраняем).
+        m = re.match(r'^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})\.(\d+)(.*)$', s)
+        if m:
+            frac = (m.group(2) + '000000')[:6]
+            s = f"{m.group(1)}.{frac}{m.group(3)}"
         try:
-            dt = datetime.fromisoformat(iso_str)
+            dt = datetime.fromisoformat(s)
             if dt.tzinfo is not None:
                 # Конвертируем в московское время и убираем tzinfo
                 dt = dt.astimezone(MOSCOW_TZ).replace(tzinfo=None)

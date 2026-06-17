@@ -26,26 +26,32 @@ for field 'DiscountSum'») — поэтому запрос всегда огра
 
 ---
 
-### 2026-06-17 — Open-check бот: устойчивость к неполной выдаче iiko (ложное «закрыт»)
+### 2026-06-17 — Open-check бот: ложное «ЗАКРЫТ — Варш» (дробные секунды iiko + Py 3.10)
 
-Бот слал «ЗАКРЫТ — Варш» при открытой смене Варшавской. Диагностика (прямые
-запросы к iiko с VPS) показала: `/corporation/groups` периодически отдаёт
-НЕПОЛНЫЙ список точек (узлы iiko рассинхронизированы после смены pos_id у кассы
-№50, `f4099015`), и открытая смена с «неизвестным» pos_id молча отбрасывалась
-в `check_bars_state` (`unknown_pos` при этом пуст). Разбор — `docs/lessons.md`.
+Бот слал «ЗАКРЫТ — Варш» при открытой смене Варшавской. Локально (Python 3.14)
+всё верно, на проде (контейнер, Python 3.10) — «закрыт».
+
+**Root cause:** `openDate` Варшавской = `2026-06-17T13:42:51.45` (2 цифры дробной
+секунды — iiko срезал хвостовой ноль). `datetime.fromisoformat` в Python 3.10
+требует ровно 3/6 цифр → `ValueError` → `_parse_iso_datetime` возвращал `None` →
+смена молча отбрасывалась в `check_bars_state`. У остальных баров дробь 3-значная,
+поэтому только Варшавская страдала. Лог-след: `[WARN] _parse_iso_datetime failed
+for '2026-06-17T13:42:51.45'`. Разбор — `docs/lessons.md`.
 
 **Что:**
-- **`core/open_check_bot.py`** — резерв `pointOfSaleId -> venue_key`, который не
-  сжимается: `_SEED_POS_MAP` (текущие pos_id 4 баров, подтверждены запросом к
-  iiko) + выученные привязки на диске `open_check_pos_map.json` (каждая полная
-  выдача дополняет). У открытой смены без `pos_id` в живой выдаче бар берётся из
-  резерва (с `log.warning`), а не выкидывается. Молчаливый `continue` → лог.
+- **`core/iiko_api.py`** (фикс корня) — `_parse_iso_datetime` нормализует дробную
+  часть секунд до 6 цифр перед `fromisoformat`; работает на всех версиях Python.
+  Общий фикс: те же даты парсятся в employee-метриках.
+- **`core/open_check_bot.py`** (защита заодно) — резерв `pointOfSaleId -> venue_key`
+  (`_SEED_POS_MAP` + learned-кэш `open_check_pos_map.json`) на случай неполной
+  выдачи `/corporation/groups`: смена с неизвестным `pos_id` логируется и берётся
+  из резерва, а не теряется молча.
 
-**Почему:** одна неполная выдача iiko не должна давать ложную тревогу. При смене
-pos_id бар переучивается с первой же полной выдачи; устаревший seed безвреден.
+**Урок:** dev-Python (3.14) новее прод-Python (3.10) — `fromisoformat` ведёт себя
+по-разному; проверять на версии из docker-образа.
 
-**Файлы:** `core/open_check_bot.py`, `docs/lessons.md`, `docs/open-check-bot.md`,
-`docs/CHANGELOG.md`.
+**Файлы:** `core/iiko_api.py`, `core/open_check_bot.py`, `docs/lessons.md`,
+`docs/open-check-bot.md`, `docs/CHANGELOG.md`.
 
 ---
 
