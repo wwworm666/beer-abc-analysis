@@ -10,10 +10,10 @@ status=OPEN, чей pointOfSaleId маппится в имя бара через
 Диапазон запроса — yesterday..today, потому что ночная смена, открытая вчера и
 ещё не закрытая, имеет openDate=вчера; без yesterday она потерялась бы.
 
-Получатели = env-переменные ПЛЮС чаты, подключённые кнопками в самом боте
-(core/open_check_subscribers.py):
-- "всё открыто"  → TELEGRAM_GROUP_CHAT_ID + подписчики 'positive'
-- тревоги/ошибки → TELEGRAM_ALARM_CHAT_IDS + подписчики 'alarm'
+Получатели = env-переменные ПЛЮС чаты, самоподписавшиеся кнопкой в боте
+(core/open_check_subscribers.py — единый список, подписчик получает всё):
+- "всё открыто"  → TELEGRAM_GROUP_CHAT_ID + подписчики
+- тревоги/ошибки → TELEGRAM_ALARM_CHAT_IDS + подписчики
 
 Матрица результата → действие:
 - iiko_error=True         → получатели тревог: «!!! ОШИБКА: iiko недоступен !!!»
@@ -206,6 +206,23 @@ def format_iiko_error_message(state: dict, check_dt: datetime) -> str:
     )
 
 
+def format_status_reply(state: dict, check_dt: datetime) -> str:
+    """Ответ на команду /status — спокойная сводка по каждому бару на текущий
+    момент. Это запрос пользователя, а не авто-тревога, поэтому без «!!! ALARM !!!»:
+    открытые с временем открытия, закрытые жирным. iiko-ошибка переиспользует
+    шаблон ошибки."""
+    if state['iiko_error']:
+        return format_iiko_error_message(state, check_dt)
+    times = state.get('open_times', {})
+    lines = [f"Статус на {_fmt_time(check_dt)} МСК"]
+    for k in PHYSICAL_VENUES:
+        if k in state['open_keys']:
+            lines.append(f"{_short(k)} — открыт ({times.get(k, '—')})")
+        else:
+            lines.append(f"<b>{_short(k)} — закрыт</b>")
+    return "\n".join(lines)
+
+
 def _dedupe(items: List[str]) -> List[str]:
     seen, out = set(), []
     for x in items:
@@ -217,19 +234,17 @@ def _dedupe(items: List[str]) -> List[str]:
 
 
 def _positive_recipients() -> List[str]:
-    """Кому слать "всё открыто": env TELEGRAM_GROUP_CHAT_ID + подписчики 'positive'."""
+    """Кому слать "всё открыто": env TELEGRAM_GROUP_CHAT_ID + самоподписавшиеся чаты."""
     from core import open_check_subscribers as subs
-    env = []
     g = os.environ.get('TELEGRAM_GROUP_CHAT_ID', '').strip()
-    if g:
-        env.append(g)
-    return _dedupe(env + subs.get_recipients('positive'))
+    env = [g] if g else []
+    return _dedupe(env + subs.get_recipients())
 
 
 def _alarm_recipients() -> List[str]:
-    """Кому слать тревоги/ошибки: env TELEGRAM_ALARM_CHAT_IDS + подписчики 'alarm'."""
+    """Кому слать тревоги/ошибки: env TELEGRAM_ALARM_CHAT_IDS + самоподписавшиеся чаты."""
     from core import open_check_subscribers as subs
-    return _dedupe(_env_chat_ids('TELEGRAM_ALARM_CHAT_IDS') + subs.get_recipients('alarm'))
+    return _dedupe(_env_chat_ids('TELEGRAM_ALARM_CHAT_IDS') + subs.get_recipients())
 
 
 def send_report(state: dict, check_dt: datetime) -> dict:

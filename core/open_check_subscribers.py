@@ -1,20 +1,23 @@
 """Хранилище чатов, подписанных на уведомления open-check бота.
 
-Подписка управляется кнопками в самом боте (см. core/open_check_telegram.py),
-поэтому список нужно хранить персистентно — JSON на Render Disk через
-storage_paths.get_data_path. Запись защищена portalocker (как в plans_manager),
-т.к. webhook может прийти в любой из gunicorn-воркеров.
+Подписка — одна кнопка в самом боте (см. core/open_check_telegram.py): человек
+открывает бота, жмёт «Подписаться» и его чат начинает получать ВСЕ уведомления
+(и «все открыты», и тревоги, и ошибки iiko). Раньше был раздельный выбор
+positive/alarm пятью кнопками — убрано как лишняя сложность по запросу владельца.
 
-Структура файла:
-    {
-        "positive": ["670033096", "-1001234567890"],  # кому слать "всё открыто"
-        "alarm":    ["670033096"]                       # кому слать тревоги
-    }
+Список персистентный — JSON на постоянном диске (storage_paths.get_data_path).
+Запись под portalocker + atomic_write_json (как в plans_manager): polling/webhook
+могут прийти в любой из gunicorn-воркеров, плюс шедулер читает список параллельно.
+
+Структура файла: {"chats": ["670033096", "-1001234567890"]}
 
 chat_id всегда строки (у групп они отрицательные).
 """
 import json
+import logging
 import os
+import re
+import shutil
 import threading
 from contextlib import contextmanager
 
@@ -23,7 +26,10 @@ import portalocker
 from core.storage_paths import get_data_path
 from core.json_store import atomic_write_json
 
-KINDS = ('positive', 'alarm')
+log = logging.getLogger("open-check")
+
+# Валидный Telegram chat_id — целое (личка) или отрицательное целое (группа).
+_CHAT_ID_RE = re.compile(r'^-?\d+$')
 
 _PATH = None
 _thread_lock = threading.Lock()
@@ -36,25 +42,63 @@ def _path() -> str:
     return _PATH
 
 
-def _read() -> dict:
+def _clean(chats) -> list:
+    """str + trim + дедуп с сохранением порядка + отбрасывание невалидных
+    chat_id (None, дробные, мусор из битого legacy-файла). Отброшенное логируем,
+    чтобы порча была видна, а не утекала молча в send_message."""
+    out, seen, dropped = [], set(), []
+    for x in chats:
+        s = str(x).strip()
+        if not _CHAT_ID_RE.match(s):
+            dropped.append(s)
+            continue
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    if dropped:
+        log.warning("open_check_subscribers: отброшены невалидные chat_id: %s", dropped)
+    return out
+
+
+def _read() -> list:
+    """Список подписанных chat_id. Читает и старый формат {positive,alarm}
+    (миграция на лету: подписчик любого типа становится подписчиком на всё).
+
+    Без портлока — безопасно: запись атомарна (atomic_write_json: tmp+fsync+
+    os.replace), читатель никогда не видит полу-файл, в худшем случае — снимок
+    на миллисекунды раньше записи (для рассылки несущественно). Поэтому read-путь
+    не зависит от захвата лока (важно для критичного send_report в шедулере)."""
     p = _path()
     if not os.path.exists(p):
-        return {'positive': [], 'alarm': []}
+        return []
     try:
         with open(p, encoding='utf-8') as f:
             d = json.load(f)
-        for k in KINDS:
-            d.setdefault(k, [])
-            d[k] = [str(x) for x in d[k]]
-        return d
-    except Exception:
-        return {'positive': [], 'alarm': []}
+    except Exception as e:
+        # Файл ЕСТЬ, но не парсится — это порча, а не «нет подписчиков». Молча
+        # вернуть [] нельзя: следующая запись затрёт всех. Логируем громко и
+        # сохраняем копию, чтобы данные можно было восстановить.
+        log.error("open_check_subscribers.json не читается (%s) — сохраняю копию .corrupt", e)
+        try:
+            shutil.copy2(p, p + '.corrupt')
+        except Exception:
+            pass
+        return []
+    if isinstance(d, list):
+        chats = d
+    elif isinstance(d, dict):
+        chats = list(d.get('chats') or [])
+        for legacy_kind in ('positive', 'alarm'):
+            chats += d.get(legacy_kind) or []
+    else:
+        log.error("open_check_subscribers.json: неожиданный тип %s — игнорирую",
+                  type(d).__name__)
+        return []
+    return _clean(chats)
 
 
-def _write(d: dict) -> None:
-    # Атомарная запись (tmp+fsync+replace): при гонке чтение/запись или падении
-    # читатель не увидит усечённый файл (раньше был open(..., 'w') — усекающий).
-    atomic_write_json(_path(), d)
+def _write(chats: list) -> None:
+    atomic_write_json(_path(), {'chats': chats})
 
 
 @contextmanager
@@ -68,37 +112,35 @@ def _locked():
             yield
 
 
-def get_recipients(kind: str) -> list:
-    """Список chat_id, подписанных на данный тип ('positive' | 'alarm')."""
-    return list(_read().get(kind, []))
+def get_recipients() -> list:
+    """Все подписанные чаты (для send_report). Read-путь намеренно без лока —
+    см. _read (атомарная запись делает чтение безопасным)."""
+    return _read()
 
 
-def subscribe(chat_id, kinds) -> dict:
-    """Подписать чат на один или несколько типов уведомлений."""
+def is_subscribed(chat_id) -> bool:
+    return str(chat_id) in _read()
+
+
+def subscribe(chat_id) -> bool:
+    """Подписать чат на все уведомления. True если добавили (False если уже был)."""
     chat_id = str(chat_id)
     with _locked():
-        d = _read()
-        for k in kinds:
-            if k in KINDS and chat_id not in d[k]:
-                d[k].append(chat_id)
-        _write(d)
-        return d
+        chats = _read()
+        if chat_id in chats:
+            return False
+        chats.append(chat_id)
+        _write(chats)
+        return True
 
 
-def unsubscribe(chat_id) -> dict:
-    """Отключить чат от всех уведомлений."""
+def unsubscribe(chat_id) -> bool:
+    """Отписать чат. True если удалили (False если не был подписан)."""
     chat_id = str(chat_id)
     with _locked():
-        d = _read()
-        for k in KINDS:
-            if chat_id in d[k]:
-                d[k].remove(chat_id)
-        _write(d)
-        return d
-
-
-def status(chat_id) -> dict:
-    """Что сейчас получает данный чат: {'positive': bool, 'alarm': bool}."""
-    chat_id = str(chat_id)
-    d = _read()
-    return {k: chat_id in d[k] for k in KINDS}
+        chats = _read()
+        if chat_id not in chats:
+            return False
+        chats.remove(chat_id)
+        _write(chats)
+        return True

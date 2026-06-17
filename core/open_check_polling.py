@@ -51,6 +51,8 @@ def _poll_loop() -> None:
 
     # Снять webhook, сохранив очередь недоставленных апдейтов.
     tg.api_call("deleteWebhook", {"drop_pending_updates": False})
+    # Обновить список команд в меню Telegram (/status, /start).
+    tg.set_my_commands()
 
     me = tg.api_call("getMe")
     if me and me.get("ok"):
@@ -77,9 +79,10 @@ def _poll_loop() -> None:
                 try:
                     tg.handle_update(upd)
                 except Exception as e:
-                    print(f"[OPEN-CHECK-POLL] handle_update failed: {e}")
+                    # _scrub: исключения requests содержат URL с токеном бота
+                    print(f"[OPEN-CHECK-POLL] handle_update failed: {tg._scrub(e)}")
         except Exception as e:
-            print(f"[OPEN-CHECK-POLL] исключение в цикле: {e}")
+            print(f"[OPEN-CHECK-POLL] исключение в цикле: {tg._scrub(e)}")
             time.sleep(10)
 
 

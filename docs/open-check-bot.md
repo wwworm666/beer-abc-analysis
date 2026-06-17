@@ -8,34 +8,41 @@
 - **Хоть один закрыт** → ЛС каждому из админов со списком закрытых баров.
 - **iiko недоступен** → ЛС каждому админу с текстом ошибки (отдельный формат, не путаем с «все закрыты»).
 
-Команды (`/start`, `/status`) и кнопки меню бот получает через **long-polling** (`getUpdates`), а не через webhook: входящие соединения от Telegram до сервера блокируются на магистрали (см. раздел «Блокировки»).
+Помимо ежедневного авто-оповещения, бот интерактивный: человек открывает бота, жмёт одну кнопку «Подписаться» — и его чат начинает получать уведомления. Команды `/start` (меню подписки), `/status` (статус баров сейчас) и переключение подписки забираются через **long-polling** (`getUpdates`), а не через webhook: входящие соединения от Telegram до сервера блокируются на магистрали (см. раздел «Блокировки»). Получатели = env-чаты ПЛЮС самоподписавшиеся.
 
 ## Файлы
 
 | Файл | Что делает |
 |---|---|
 | [core/open_check_bot.py](../core/open_check_bot.py) | Логика проверки, форматирование, отправка (sync, через `requests`) |
-| [core/open_check_telegram.py](../core/open_check_telegram.py) | Telegram HTTP API + интерактивное меню (inline-кнопки) + webhook-хелперы |
-| [core/open_check_subscribers.py](../core/open_check_subscribers.py) | Хранилище подписанных чатов (`data/open_check_subscribers.json` + portalocker) |
-| [core/open_check_polling.py](../core/open_check_polling.py) | Long-polling getUpdates (входящие команды; webhook не доставляется из-за блокировок) |
+| [core/open_check_telegram.py](../core/open_check_telegram.py) | Telegram HTTP API + меню подписки (кнопка) + команды `/start` `/status` + webhook-хелперы |
+| [core/open_check_subscribers.py](../core/open_check_subscribers.py) | Хранилище самоподписавшихся чатов (`open_check_subscribers.json`, единый список + portalocker) |
+| [core/open_check_polling.py](../core/open_check_polling.py) | Long-polling getUpdates (входящие команды/кнопки; webhook не доставляется из-за блокировок) |
 | [core/open_check_scheduler.py](../core/open_check_scheduler.py) | Daemon-thread, ежедневный запуск в 14:59 МСК, защита от двойного срабатывания |
 | [routes/open_check.py](../routes/open_check.py) | `run-now` (ручной триггер) + webhook-эндпоинты бота |
 | [app.py](../app.py) | Стартует шедулер рядом с CHZ |
 | [render.yaml](../render.yaml) | env vars нового бота |
 
-## Меню подключения чатов (интерактив)
+## Меню подписки и команды
 
-Чтобы не вписывать chat_id руками, бот принимает команды и показывает меню.
+Самоподписка в одно нажатие (раньше было 5 кнопок positive/alarm/both/off/status —
+упрощено по запросу владельца до одного переключателя):
 
-**Как пользоваться:**
-1. Личный чат: написать боту `/start`. Группа: добавить бота и написать `/start@kultura_open_bot`.
-2. Появятся кнопки: «Сюда слать: все открыто», «Сюда слать: тревоги», «Подключить оба типа», «Отключить этот чат», «Статус».
-3. Нажатие подписывает **текущий** чат на выбранный тип. Подписки хранятся в `data/open_check_subscribers.json`.
+1. Человек открывает бота → `/start`. В группе: `/start@kultura_open_bot`.
+2. Бот показывает короткое описание, «Уведомления приходят в этот чат: да/нет», «ID этого чата» и две кнопки:
+   - **Подписаться на уведомления** / **Отписаться от уведомлений** — переключатель (callback `oc_on` / `oc_off`).
+   - **Статус баров сейчас** — живой опрос iiko (callback `oc_status`), то же что команда `/status`.
+3. Подписавшийся чат получает **все** типы уведомлений (и «все открыты», и тревоги, и ошибки iiko). Раздельного выбора нет.
 
-**Кто в итоге получает уведомления** (`send_report`):
-- «Все открыто» → `TELEGRAM_GROUP_CHAT_ID` (env) + подписчики `positive` (меню).
-- Тревоги/ошибки → `TELEGRAM_ALARM_CHAT_IDS` (env) + подписчики `alarm` (меню).
-- Списки объединяются и дедуплицируются. То есть env и меню работают вместе.
+Команды (дублируют кнопки для тех, кто любит текст): `/status`, `/subscribe`, `/unsubscribe` (`/stop`).
+
+Подписки хранятся в `open_check_subscribers.json` (единый список `{"chats":[...]}`,
+[core/open_check_subscribers.py](../core/open_check_subscribers.py)). Старый формат
+`{"positive":[],"alarm":[]}` читается с миграцией на лету — существующие подписчики не теряются.
+
+**Кому уходят авто-оповещения** (`send_report`) — env ПЛЮС самоподписавшиеся, объединяются и дедуплицируются:
+- «Все открыто» → `TELEGRAM_GROUP_CHAT_ID` + подписчики.
+- Тревоги/ошибки → `TELEGRAM_ALARM_CHAT_IDS` (comma-separated) + подписчики.
 
 **Доставка команд: long-polling (основной режим).**
 `core/open_check_polling.py` — daemon-thread, стартует из app.py. Снимает webhook
@@ -105,6 +112,15 @@ Webhook не работает, пока ТСПУ блокирует входящ
 Причина: auth_failed
 ```
 
+Ответ на команду `/status` (`format_status_reply`) — спокойный тон, по запросу пользователя, без «ALARM»; закрытые помечены жирным:
+```
+Статус на 15:30 МСК
+ВО — открыт (14:30)
+Лиг — открыт (13:58)
+<b>Крем — закрыт</b>
+Варш — открыт (13:26)
+```
+
 `other_open` (открытая 5-я точка «Планерная») и `unknown_pos` (имя POS, которое вообще не маппится) выводятся только в лог, в сообщения не идут.
 
 ### 3. Расписание
@@ -131,9 +147,9 @@ Webhook не работает, пока ТСПУ блокирует входящ
 
 ### 5. Получение chat_id
 
-Бот не отвечает на сообщения, поэтому стандартный подход:
+Проще всего — написать боту `/start`: он ответит строкой «ID этого чата: …». Альтернативы:
 - Пользователь пишет любое сообщение боту @userinfobot и копирует свой numeric chat_id → в `TELEGRAM_ALARM_CHAT_IDS`.
-- Группа: бот добавляется в группу, потом курлим `https://api.telegram.org/bot<TOKEN>/getUpdates` — там видно `chat.id` с минусом (отрицательное число для групп) → в `TELEGRAM_GROUP_CHAT_ID`.
+- Группа: добавить бота в группу и написать `/start@kultura_open_bot` — в ответе будет `chat.id` с минусом (отрицательное число для групп) → в `TELEGRAM_GROUP_CHAT_ID`.
 
 ### 6. Тестирование
 
@@ -203,9 +219,62 @@ done
 
 ## Деталь реализации: без aiogram
 
-Изначально отправка шла через aiogram, но бот простой (отчёт + меню), поэтому весь open-check переведён на синхронный `requests` напрямую к Telegram Bot API ([core/open_check_telegram.py](../core/open_check_telegram.py)). `send_report` синхронный, `run_check` без `asyncio`. Плюсы: нет async-плумбинга, нет утечки `aiohttp.ClientSession`, работает и тестируется в окружении без aiogram.
+Изначально отправка шла через aiogram, но бот простой, поэтому весь open-check переведён на синхронный `requests` напрямую к Telegram Bot API ([core/open_check_telegram.py](../core/open_check_telegram.py)). `send_report` синхронный, `run_check` без `asyncio`. Плюсы: нет async-плумбинга, нет утечки `aiohttp.ClientSession`, работает и тестируется в окружении без aiogram.
 
 ## Changelog
+
+### 2026-06-17 — Самоподписка одной кнопкой (упрощённая, вместо удалённых подписок)
+
+Откат к самоподписке после правки 2026-06-16: владелец уточнил, что человек должен
+**сам** подписываться, открыв бота. Но не «простыня» из 5 кнопок, а один переключатель.
+
+**Что:**
+- Возвращён `core/open_check_subscribers.py`, но упрощён: единый список `{"chats":[...]}`
+  вместо раздельных `positive`/`alarm`. Подписчик получает все типы уведомлений.
+  Старый формат читается с миграцией на лету (существующие подписчики не теряются).
+- В `open_check_telegram.py` вернулись `_menu_keyboard` (одна кнопка-переключатель
+  подписки + «Статус баров сейчас»), `answer_callback`, `edit_message_text`,
+  обработка `callback_query` (`_handle_callback`). Команды: `/start` (меню),
+  `/status`, `/subscribe`, `/unsubscribe`/`/stop`.
+- `_positive_recipients` / `_alarm_recipients` снова подмешивают `subs.get_recipients()`.
+- `allowed_updates` (polling и `set_webhook`) опять включает `callback_query`.
+
+**Почему:** самоподписка нужна (новый человек подключается сам), а сложность была
+в выборе типов уведомлений — его и убрали. Теперь: открыл бота → одна кнопка → готово.
+
+**Hardening (по адверсариальному ревью):**
+- `_read` логирует битый JSON и сохраняет `.corrupt`-копию (не теряем подписчиков молча);
+  невалидные chat_id (None/дробные/мусор) отбрасываются с логом.
+- `_handle_callback` отвечает рано при отсутствии callback id (кнопка не «зависает»),
+  меню рисуется по уже известному состоянию (без повторного чтения файла).
+- `_poll_loop` прогоняет исключения через `_scrub` (в URL requests есть токен бота).
+- Read-путь (`get_recipients`/`is_subscribed`) намеренно без лока — атомарная запись
+  делает чтение безопасным, а критичный `send_report` не зависит от захвата лока.
+
+**Файлы:** `core/open_check_subscribers.py` (заново), `core/open_check_bot.py`,
+`core/open_check_telegram.py`, `core/open_check_polling.py`, `routes/open_check.py`.
+
+### 2026-06-16 — Упрощение: только авто-оповещения + /status, подписки убраны (отменено 2026-06-17)
+
+**Что:**
+- Убраны inline-меню и система подписок: удалён `core/open_check_subscribers.py`,
+  из `open_check_telegram.py` убраны `_menu_keyboard`, `answer_callback`,
+  `edit_message_text` и вся обработка `callback_query`.
+- Получатели авто-оповещений теперь только из env (`TELEGRAM_GROUP_CHAT_ID`,
+  `TELEGRAM_ALARM_CHAT_IDS`) — `_positive_recipients` / `_alarm_recipients`
+  больше не подмешивают подписчиков.
+- `/status` переосмыслен: вместо «что получает этот чат» теперь опрашивает iiko
+  и присылает статус 4 баров на текущий момент (`format_status_reply` в
+  open_check_bot.py). `/start` — короткая справка + ID чата.
+- `set_my_commands` вызывается при старте polling; `allowed_updates` сужен до
+  `["message"]` (callback больше не нужен).
+
+**Почему:** по запросу владельца — меню/подписки оказались лишней сложностью.
+Боту нужны ровно две функции: всегда слать оповещения и отдавать статус по запросу.
+
+**Файлы:** `core/open_check_bot.py`, `core/open_check_telegram.py`,
+`core/open_check_polling.py`, `routes/open_check.py`; удалён
+`core/open_check_subscribers.py`.
 
 ### 2026-06-13 — Новые шаблоны сообщений: без «Open-check», заметная тревога
 

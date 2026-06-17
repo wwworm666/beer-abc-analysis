@@ -1,13 +1,21 @@
-"""Telegram-слой open-check бота: HTTP-вызовы и интерактивное меню.
+"""Telegram-слой open-check бота: HTTP-вызовы и обработка команд/меню.
 
-Реализовано на чистом requests (без aiogram) — бот простой (меню + подписка),
-синхронный requests надёжнее и тестируется локально без лишних зависимостей.
+Реализовано на чистом requests (без aiogram) — бот простой, синхронный requests
+надёжнее и тестируется локально без лишних зависимостей.
+
+Бот делает две вещи:
+- авто-оповещения (см. core/open_check_bot.py) шлются на чаты из env и на тех,
+  кто сам подписался кнопкой в боте (core/open_check_subscribers.py);
+- отвечает на команды /start (меню: подписаться/отписаться + статус) и /status
+  (опросить iiko и показать статус 4 баров прямо сейчас).
+
+Меню простое: одна кнопка-переключатель подписки + «Статус баров сейчас».
+Подписчик получает все типы уведомлений (раздельный выбор positive/alarm убран).
 
 Содержит:
 - низкоуровневые вызовы Telegram Bot API (send_message, editMessageText, ...);
 - регистрацию webhook (set_webhook / delete_webhook / get_webhook_info);
-- обработку входящих апдейтов (handle_update) — меню с inline-кнопками для
-  подключения текущего чата к уведомлениям (см. core/open_check_subscribers.py).
+- обработку входящих апдейтов (handle_update) — команды + callback подписки.
 """
 import hashlib
 import logging
@@ -201,77 +209,108 @@ def get_webhook_info():
 
 def set_my_commands():
     return api_call("setMyCommands", {"commands": [
-        {"command": "start", "description": "Меню подключения чата"},
-        {"command": "status", "description": "Что получает этот чат"},
+        {"command": "start", "description": "Подписка и меню"},
+        {"command": "status", "description": "Статус баров сейчас"},
     ]})
 
 
-# ---------------------------------------------------------------- меню
+# ---------------------------------------------------------------- меню/команды
 
-def _menu_keyboard() -> dict:
+def _menu_keyboard(subscribed: bool) -> dict:
+    """Простое меню: одна кнопка подписки-переключателя + статус.
+    Раньше было 5 кнопок (positive/alarm/both/off/status) — упрощено."""
+    toggle = ({"text": "Отписаться от уведомлений", "callback_data": "oc_off"} if subscribed
+              else {"text": "Подписаться на уведомления", "callback_data": "oc_on"})
     return {"inline_keyboard": [
-        [{"text": "Сюда слать: все открыто", "callback_data": "oc_pos"}],
-        [{"text": "Сюда слать: тревоги", "callback_data": "oc_alarm"}],
-        [{"text": "Подключить оба типа", "callback_data": "oc_both"}],
-        [{"text": "Отключить этот чат", "callback_data": "oc_off"}],
-        [{"text": "Статус", "callback_data": "oc_status"}],
+        [toggle],
+        [{"text": "Статус баров сейчас", "callback_data": "oc_status"}],
     ]}
 
 
-def _status_text(chat_id, st: dict) -> str:
-    pos = "да" if st.get("positive") else "нет"
-    al = "да" if st.get("alarm") else "нет"
+def _start_text(chat_id, subscribed: bool) -> str:
+    state = "да" if subscribed else "нет"
     return (
-        "Open-check бот.\n"
+        "Бот мониторинга открытия баров KULT.\n"
+        "Раз в день в 14:59 МСК присылает сводку: все бары открыты или какой-то закрыт.\n\n"
+        f"Уведомления приходят в этот чат: {state}\n"
         f"ID этого чата: {chat_id}\n\n"
-        "Сейчас этот чат получает:\n"
-        f"- Все открыто (14:59): {pos}\n"
-        f"- Тревоги (бар закрыт): {al}\n\n"
-        "Выберите, что присылать в этот чат:"
+        "Кнопкой ниже можно подписаться или отписаться. "
+        "«Статус баров сейчас» — проверить вручную в любой момент."
     )
 
 
+def _live_status_text() -> str:
+    """Опросить iiko прямо сейчас и собрать ответ на /status."""
+    from core.open_check_bot import check_bars_state, format_status_reply, now_msk
+    dt = now_msk()
+    return format_status_reply(check_bars_state(dt), dt)
+
+
+def _send_menu(chat_id, subs) -> None:
+    sub = subs.is_subscribed(chat_id)
+    send_message(chat_id, _start_text(chat_id, sub), reply_markup=_menu_keyboard(sub))
+
+
+def _handle_callback(cq: dict, subs) -> None:
+    cq_id = cq.get("id")
+    if not cq_id:
+        return  # малформед-апдейт без callback id — подтверждать нечем
+    data = cq.get("data")
+    message = cq.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    message_id = message.get("message_id")
+    if chat_id is None:
+        answer_callback(cq_id)
+        return
+
+    if data == "oc_status":
+        answer_callback(cq_id, "Проверяю...")
+        send_message(chat_id, _live_status_text(), html=True)
+        return
+
+    # subscribed = состояние ПОСЛЕ переключения (не перечитываем файл повторно).
+    if data == "oc_on":
+        subs.subscribe(chat_id)
+        subscribed, note = True, "Подписка оформлена"
+    elif data == "oc_off":
+        subs.unsubscribe(chat_id)
+        subscribed, note = False, "Подписка отключена"
+    else:
+        answer_callback(cq_id)
+        return
+
+    answer_callback(cq_id, note)
+    if message_id is not None:
+        edit_message_text(chat_id, message_id, _start_text(chat_id, subscribed),
+                          reply_markup=_menu_keyboard(subscribed))
+
+
 def handle_update(update: dict) -> None:
-    """Обработать один webhook-апдейт от Telegram."""
+    """Обработать один апдейт. Команды: /start (меню+подписка), /status, /subscribe,
+    /unsubscribe. Подписка переключается кнопкой (callback_query)."""
     from core import open_check_subscribers as subs
 
-    msg = update.get("message")
     cq = update.get("callback_query")
-
-    if msg:
-        text = (msg.get("text") or "").strip()
-        chat_id = msg.get("chat", {}).get("id")
-        cmd = text.split("@")[0].split()[0] if text else ""
-        if cmd in ("/start", "/menu"):
-            send_message(chat_id, _status_text(chat_id, subs.status(chat_id)),
-                         reply_markup=_menu_keyboard())
-        elif cmd == "/status":
-            send_message(chat_id, _status_text(chat_id, subs.status(chat_id)),
-                         reply_markup=_menu_keyboard())
-        return
-
     if cq:
-        data = cq.get("data")
-        cq_id = cq.get("id")
-        message = cq.get("message", {})
-        chat_id = message.get("chat", {}).get("id")
-        message_id = message.get("message_id")
-
-        note = None
-        if data == "oc_pos":
-            subs.subscribe(chat_id, ["positive"]); note = "Подключено: все открыто"
-        elif data == "oc_alarm":
-            subs.subscribe(chat_id, ["alarm"]); note = "Подключено: тревоги"
-        elif data == "oc_both":
-            subs.subscribe(chat_id, ["positive", "alarm"]); note = "Подключено: оба типа"
-        elif data == "oc_off":
-            subs.unsubscribe(chat_id); note = "Этот чат отключен"
-        elif data == "oc_status":
-            note = "Обновлено"
-
-        answer_callback(cq_id, note)
-        if chat_id is not None and message_id is not None:
-            edit_message_text(chat_id, message_id,
-                              _status_text(chat_id, subs.status(chat_id)),
-                              reply_markup=_menu_keyboard())
+        _handle_callback(cq, subs)
         return
+
+    msg = update.get("message")
+    if not msg:
+        return
+    text = (msg.get("text") or "").strip()
+    chat_id = msg.get("chat", {}).get("id")
+    if not text or chat_id is None:
+        return
+    cmd = text.split("@")[0].split()[0]
+    if cmd in ("/start", "/menu", "/help"):
+        _send_menu(chat_id, subs)
+    elif cmd == "/status":
+        # html=True: format_status_reply помечает закрытые бары <b>…</b>
+        send_message(chat_id, _live_status_text(), html=True)
+    elif cmd == "/subscribe":
+        subs.subscribe(chat_id)
+        send_message(chat_id, "Подписка оформлена. Уведомления будут приходить в этот чат.")
+    elif cmd in ("/unsubscribe", "/stop"):
+        subs.unsubscribe(chat_id)
+        send_message(chat_id, "Подписка отключена. Уведомления больше не приходят.")

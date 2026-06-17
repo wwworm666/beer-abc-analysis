@@ -83,8 +83,9 @@
 - [chz_scheduler.py](../core/chz_scheduler.py) — daemon-thread, авторефреш ЧЗ-кэша в 03:00 МСК + atomic lock-файл
 - [open_check_scheduler.py](../core/open_check_scheduler.py) — daemon-thread, проверка открытых смен в 14:59 МСК + atomic lock-файл
 - [open_check_bot.py](../core/open_check_bot.py) — логика проверки + форматирование сообщений
-- [open_check_telegram.py](../core/open_check_telegram.py) — Telegram Bot API (sync через `requests`), inline-меню
-- [open_check_subscribers.py](../core/open_check_subscribers.py) — хранилище подписок (`data/open_check_subscribers.json` + portalocker)
+- [open_check_telegram.py](../core/open_check_telegram.py) — Telegram Bot API (sync через `requests`), меню подписки (кнопка) + команды `/start` `/status`
+- [open_check_subscribers.py](../core/open_check_subscribers.py) — хранилище самоподписавшихся чатов (`open_check_subscribers.json`, единый список + portalocker)
+- [open_check_polling.py](../core/open_check_polling.py) — long-polling getUpdates (входящие команды/кнопки; webhook не доставляется из-за блокировок)
 
 #### Конфиг и утилиты
 - [venue_config.py](../core/venue_config.py) — 4 канонических бара + маппинги имён OLAP/UI
@@ -127,7 +128,7 @@ data/
 ├── kpi_targets.json        # KPI цели по месяцам
 ├── taps_data.json          # Состояние 60 кранов + история (atomic-write)
 ├── meeting_notes.json      # Заметки совещаний
-├── open_check_subscribers.json  # Telegram-подписки open-check бота
+├── open_check_subscribers.json  # Самоподписавшиеся чаты open-check бота
 ├── nomenclature_cache.json # Кэш номенклатуры iiko (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
 ├── beer_report.json, kegs_products.json, keg_mapping.json

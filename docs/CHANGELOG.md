@@ -1,5 +1,73 @@
 ﻿# Changelog
 
+### 2026-06-17 — Open-check бот: самоподписка одной кнопкой
+
+Уточнение к правке 2026-06-16: человек должен **сам** подписываться, открыв бота.
+Самоподписку вернули, но в простом виде — один переключатель вместо пяти кнопок.
+
+**Что:**
+- **`core/open_check_subscribers.py`** — возвращён, но упрощён до единого списка
+  `{"chats":[...]}` (был раздельный `positive`/`alarm`). Подписчик получает все
+  типы уведомлений. `_read` читает старый формат с миграцией на лету (atomic write +
+  portalocker сохранены) — существующие подписчики не теряются.
+- **`core/open_check_telegram.py`** — вернулись `_menu_keyboard` (одна
+  кнопка-переключатель подписки + «Статус баров сейчас»), `answer_callback`,
+  `edit_message_text`, обработка `callback_query` (`_handle_callback`). Команды:
+  `/start` (меню), `/status`, `/subscribe`, `/unsubscribe`/`/stop`.
+- **`core/open_check_bot.py`** — `_positive_recipients` / `_alarm_recipients` снова
+  объединяют env-чаты с `subs.get_recipients()` (дедуп).
+- **`core/open_check_polling.py`**, **`set_webhook`** — `allowed_updates` опять
+  включает `callback_query`.
+
+**Почему:** самоподписка нужна (новый человек подключается сам), лишней была только
+гранулярность типов уведомлений — её и убрали.
+
+**Hardening (по адверсариальному ревью изменений):**
+- `_read` больше не теряет подписчиков молча при битом JSON — логирует и сохраняет
+  `.corrupt`-копию; невалидные chat_id (None/дробные/мусор из legacy-файла) отбрасываются.
+- `_handle_callback` отвечает рано, если у callback нет `id` (кнопка не «висит» спиннером),
+  и перерисовывает меню по уже известному состоянию (без повторного чтения файла).
+- `_poll_loop` логирует исключения через `_scrub` (в URL из requests-исключений есть токен).
+- Read-путь подписчиков оставлен без лока сознательно (атомарная запись делает чтение
+  безопасным; критичный `send_report` не должен зависеть от захвата файлового лока).
+
+**Файлы:** `core/open_check_subscribers.py`, `core/open_check_bot.py`,
+`core/open_check_telegram.py`, `core/open_check_polling.py`, `routes/open_check.py`,
+`docs/open-check-bot.md`, `docs/CHANGELOG.md`.
+
+---
+
+### 2026-06-16 — Open-check бот: упрощение (только оповещения + /status)
+
+По запросу владельца: бот стал слишком сложным (меню подключения чатов и
+подписки). Оставлены ровно две функции — всегда слать авто-оповещения и
+отдавать статус по команде.
+
+**Что:**
+- **Удалён `core/open_check_subscribers.py`** (JSON-хранилище подписок) — больше
+  не нужно.
+- **`core/open_check_telegram.py`** — выпилены inline-меню (`_menu_keyboard`),
+  `answer_callback`, `edit_message_text` и вся ветка `callback_query` в
+  `handle_update`. Теперь бот реагирует только на `/start` (справка + ID чата) и
+  `/status` (живой опрос iiko через `_live_status_text`). `set_my_commands`
+  обновлён, `allowed_updates` сужен до `["message"]`.
+- **`core/open_check_bot.py`** — `_positive_recipients` / `_alarm_recipients`
+  берут чаты только из env (без подмешивания подписчиков). Добавлен
+  `format_status_reply` — спокойная посменная сводка для ответа на `/status`.
+- **`core/open_check_polling.py`** — вызывает `set_my_commands()` при старте;
+  `getUpdates` слушает только `message`.
+- **`routes/open_check.py`** — docstring приведён в соответствие.
+
+**Почему:** меню/подписки оказались лишними; получателей проще держать в env.
+Авто-оповещения уходят всегда, `/status` даёт текущий статус баров по запросу.
+
+**Файлы:** `core/open_check_bot.py`, `core/open_check_telegram.py`,
+`core/open_check_polling.py`, `routes/open_check.py`,
+`docs/open-check-bot.md`, `docs/CHANGELOG.md`; удалён
+`core/open_check_subscribers.py`.
+
+---
+
 ### 2026-06-13 — Open-check бот: новые шаблоны сообщений
 
 По запросу владельца: убран префикс «Open-check», тревога стала заметной.

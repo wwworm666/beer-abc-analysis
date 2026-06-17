@@ -87,8 +87,9 @@ beer-abc-analysis/
 | `chz_scheduler.py` | Daemon-thread, ЧЗ refresh в 03:00 МСК + atomic lock |
 | `open_check_scheduler.py` | Daemon-thread, open-check в 14:59 МСК + atomic lock |
 | `open_check_bot.py` | Логика проверки + форматирование |
-| `open_check_telegram.py` | Telegram Bot API sync через requests, inline-меню |
-| `open_check_subscribers.py` | Хранилище подписок (portalocker) |
+| `open_check_telegram.py` | Telegram Bot API sync, меню подписки (кнопка) + команды /start /status |
+| `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
+| `open_check_polling.py` | Long-polling getUpdates (входящие команды/кнопки) |
 
 ### Конфиг и утилиты (5+)
 | Файл | Что делает |
@@ -169,7 +170,7 @@ data/
 ├── kpi_targets.json        # KPI цели
 ├── taps_data.json          # 60 кранов + история (atomic-write)
 ├── meeting_notes.json      # Заметки совещаний
-├── open_check_subscribers.json   # Telegram-подписки open-check
+├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
 ├── beer_report.json, kegs_products.json, keg_mapping.json

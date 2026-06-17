@@ -4,11 +4,14 @@
    POST /api/admin/open-check/run-now
    Headers: X-Remote-Pass: <REMOTE_PASS>
 
-2. Telegram webhook (интерактивное меню подключения чатов):
+2. Telegram webhook (команды /start, /status + кнопка подписки):
    POST /telegram/openbot/webhook           — точка входа для Telegram
    GET  /telegram/openbot/setup-webhook     — зарегистрировать webhook (1 раз после деплоя)
    GET  /telegram/openbot/webhook-info      — диагностика
    POST /telegram/openbot/delete-webhook    — снять webhook
+
+В проде команды забираются через long-polling (webhook не доставляется из-за
+ТСПУ, см. core/open_check_polling.py); эти эндпоинты — запасной путь.
 
 Бот реализован на чистом requests (см. core/open_check_telegram.py), поэтому
 async/run_async не нужен.
