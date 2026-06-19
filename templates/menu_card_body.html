@@ -1,0 +1,49 @@
+{# Разметка одной A4-карточки. item — декорированная позиция (см. routes/menu_editor._decorate).
+   Используется и одиночным превью (menu_card.html), и печатью набора (menu_print.html). #}
+<article class="page">
+  <span class="corner tl"></span><span class="corner tr"></span>
+  <span class="corner bl"></span><span class="corner br"></span>
+
+  <header class="eyebrow">
+    <span class="num">№ {{ '%02d' % (item.tap or item.n or 0) }}</span>
+  </header>
+
+  <section class="hero">
+    {% if item.latin %}<div class="trans">[ {{ item.latin }} ]</div>{% endif %}
+    <h1 class="name {{ item._name_class }}">{{ item.name }}</h1>
+    <div class="origin">
+      {% if item.country %}<span class="accent">{{ item.country }}</span>{% endif %}
+      {% if item.country and item.brewery %} · {% endif %}
+      {% if item.brewery %}{{ item.brewery }}{% endif %}
+    </div>
+  </section>
+
+  <section class="facts">
+    <span class="style">{{ item.style }}</span>
+    <span class="abv">{{ item.abv }}<span class="pct">%</span></span>
+  </section>
+
+  <section class="tags">
+    {%- for t in item.tags_list -%}
+      {% if not loop.first %}<span class="dot">·</span>{% endif %}<span>{{ t }}</span>
+    {%- endfor -%}
+  </section>
+
+  <section class="meters">
+    <div class="meter"><span class="k">горечь</span><div class="scale">
+      {% for i in range(1,6) %}<span class="d{% if i <= item.ratings.gor %} on{% endif %}"></span>{% endfor %}
+    </div></div>
+    <div class="meter"><span class="k">плотность</span><div class="scale">
+      {% for i in range(1,6) %}<span class="d{% if i <= item.ratings.plot %} on{% endif %}"></span>{% endfor %}
+    </div></div>
+    <div class="meter"><span class="k">цвет</span><div class="scale">
+      {% for i in range(1,6) %}<span class="d{% if i <= item.ratings.cvet %} on{% endif %}"></span>{% endfor %}
+    </div></div>
+  </section>
+
+  <section class="prices">
+    <div class="price"><span class="vol">0,25</span><span class="num">{{ item.p025_fmt }}</span></div>
+    <div class="price"><span class="vol">0,4</span><span class="num">{{ item.p04_fmt }}</span></div>
+    <div class="price"><span class="vol">0,5</span><span class="num">{{ item.p05_fmt }}</span></div>
+  </section>
+</article>

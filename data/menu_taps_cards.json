@@ -1,0 +1,694 @@
+[
+  {
+    "tap": 1,
+    "name_ru": "ФестХаус Хеллес",
+    "latin": "FestHaus Helles",
+    "brewery": "ФестХаус",
+    "country": "Россия",
+    "style_ru": "Хеллес",
+    "abv": "5,2",
+    "ibu": 18,
+    "srm": 4,
+    "og_plato": 11.5,
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "tags": [
+      "солодовый",
+      "медовый",
+      "освежающий"
+    ],
+    "confidence": "medium",
+    "notes": "Brewery/country ПОДТВЕРЖДЕНЫ независимо: FestHaus — российский бренд («Производство: Россия» на beerkontora.ru), создан профессионалами отрасли «с 30-летним опытом» в баварской традиции, дрожжи Weihenstephan, немецкое сырьё. Несмотря на немецкое название — это НЕ импорт. Style=Хеллес (мюнхенский светлый лагер) подтверждён. Профиль вкуса уточнён по описанию именно этого сорта (rus-beer/ритейл): «сладковато-медовый, травянистый, пряный, нота карамельного солода, мягкая хмелевая горечь, освежающий финиш с медовой горчинкой» — заменил generic «хлебный» на «освежающий» (атрибут именно этого пива). Числовые параметры (ABV ~5,2%, IBU ~18, OG ~11,5°P, SRM ~4) — оценка по эталону BJCP 4A Munich Helles (OG 1.044-1.048, IBU 16-22, SRM 3-5, ABV 4,7-5,4%); точные заводские цифры для конкретного SKU в открытых источниках не опубликованы (для сравнения FestHaus Weizen той же линейки = 5,3%). Шкалы: горечь 2 (IBU 12-22), плотность 2 (лёгкое 10-12°P), цвет 1 (соломенный SRM 2-4). Confidence=medium: бренд/страна/стиль и вкусопрофиль подтверждены, точные числа — оценочные.",
+    "sources": [
+      "https://beerkontora.ru/product/pivo-festhaus-vaytsen-festhaus-weizen-30l-keg",
+      "https://rus-beer.ru/beer/51150_moy_bier/",
+      "https://styles.bjcp.org/bjcp-2021-beer/4/4a-munich-helles",
+      "https://ru.wikipedia.org/wiki/%D0%9C%D1%8E%D0%BD%D1%85%D0%B5%D0%BD%D1%81%D0%BA%D0%B8%D0%B9_%D1%85%D0%B5%D0%BB%D0%BB%D0%B5%D1%81",
+      "https://alcofan.com/stil-piva-myunxenskij-xelles.html"
+    ],
+    "_changed": [
+      "tags",
+      "notes",
+      "sources",
+      "confidence"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 2,
+    "name_ru": "Гулден Драк 708",
+    "latin": "Gulden Draak 708",
+    "brewery": "Van Steenberge",
+    "country": "Бельгия",
+    "style_ru": "Тёмный трипель",
+    "abv": "10,5",
+    "ibu": 21,
+    "srm": 28,
+    "og_plato": 22,
+    "gor": 2,
+    "plot": 5,
+    "cvet": 4,
+    "tags": [
+      "карамельный",
+      "сливовый",
+      "солодовый"
+    ],
+    "confidence": "high",
+    "notes": "Кеговая (разливная) версия классического Gulden Draak от бельгийской пивоварни Van Steenberge (Эвергем/Эртвелде, Восточная Фландрия). «708» — артикул кега. Официальная спецификация Van Steenberge: стиль — тёмный барливайн / рубиново-красный трипель со вторичной ферментацией на винных дрожжах. ABV 10,5%; горечь 21 EBU/IBU; цвет EBC 56 (~SRM 28, тёмно-медный/коричневый с рубиновым отливом); начальная плотность 22 °Plato. Аромат и вкус: солодово-сладкая основа, карамель, сухофрукты (инжир, изюм), спелая слива, лёгкая пряность (гвоздика), плотное тело, сбалансированный сладковатый финиш. Шкалы: gor=2 (IBU 21, диапазон 12-22), plot=5 (22 °Plato, >18 — очень плотное), cvet=4 (EBC 56 / SRM ~28, диапазон 17-30 коричневый/тёмный). Все цифры черновика подтверждены официальным сайтом производителя — расхождений нет. Примечание: не путать с вариантом Gulden Draak 9000 Quadruple (тоже 10,5%, но светлый янтарный квадрюпель) — здесь именно тёмная классика.",
+    "sources": [
+      "https://www.vansteenberge.com/en/our-beers/gulden-draak/",
+      "https://en.wikipedia.org/wiki/Gulden_Draak",
+      "https://www.beeradvocate.com/beer/profile/48/155/"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 3,
+    "name_ru": "ФестХаус Вайцен",
+    "latin": "FestHaus Weizen",
+    "brewery": "FestHaus",
+    "country": "Россия",
+    "style_ru": "Хефевайцен",
+    "abv": "5,3",
+    "ibu": 14,
+    "srm": 4,
+    "og_plato": 12.5,
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "confidence": "medium",
+    "notes": "Российское пиво в баварском стиле хефевайцен (нефильтрованное пшеничное верхнего брожения), дрожжи академии Вайнштефан. Источник (Beerkontora) подтверждает: производитель FestHaus, страна Россия, стиль «светлое пшеничное / баварское пшеничное нефильтрованное», верхнее брожение, ABV 5,3%. Плотность (OG ~12,5°P) и IBU (~14) производителем не указаны — оценены по стилю (BJCP Weissbier OG 11,7-13,8°P, IBU 8-15; Weihenstephaner ~12-15 IBU), поэтому confidence=medium. Описание вкуса от продавца: очень мягкий, сбалансированный, нежная горчинка; в послевкусии пшеница и немного цитрусовых; аромат банана, гвоздики и свежеиспечённого бисквита. Бренд позиционируется как первое в России пиво, вдохновлённое баварской пивной культурой; не путать с немецким импортом.",
+    "sources": [
+      "https://beerkontora.ru/product/pivo-festhaus-vaytsen-festhaus-weizen-30l-keg",
+      "https://www.bjcp.org/style/2015/10/10A/weissbier/",
+      "https://byo.com/articles/german-weiss-weissbier-in-the-south-hefeweizen-in-the-north/"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 5,
+    "name_ru": "Плэн Би Эманейшн",
+    "latin": "Plan B Emanation",
+    "brewery": "Plan B Brewery",
+    "country": "Россия",
+    "style_ru": "НЕ ИПА",
+    "abv": "6,7",
+    "ibu": 40,
+    "srm": 4,
+    "og_plato": 17,
+    "gor": 4,
+    "plot": 4,
+    "cvet": 1,
+    "tags": [
+      "тропический",
+      "сочный",
+      "хмелевой"
+    ],
+    "confidence": "high",
+    "notes": "New England IPA (NEIPA) от ярославской крафтовой пивоварни Plan B Brewery (основана в 2013, Дмитрий Горев и Сергей Берёзкин). Хмели: Citra CRYO, Simcoe, Strata, Sabro. Экстремальный аромат тропических фруктов, мягкая сочная текстура, мутное светло-золотистое тело, приглушённая горечь. Untappd 3,98 (2261 оценка). ABV 6,7%, IBU 40 (подтверждено Untappd). Начальная плотность 17% (≈17 °Plato) — подтверждено российскими магазинами. gor=4 по IBU 40 (39-60); plot=4 по 17 °P (15-18); cvet=1 — светлое мутное золотистое тело NEIPA, SRM ~4. Бренд и страна (Россия, Ярославль) перепроверены: не путать с одноимёнными зарубежными Plan B.",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-emanation/4396676",
+      "https://craftbeer78.ru/beer/emanation-plan-b",
+      "https://beeribo.ru/catalog/pivo/emanation/",
+      "https://www.hmelnovv.ru/plan-b/",
+      "https://www.viderzhka.ru/collection/rossiya/product/butylka-05-emanation-plan-b-yaroslavl"
+    ],
+    "_changed": [
+      "brewery",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 6,
+    "name_ru": "Островица Гозе",
+    "latin": "Ostrovica Gose",
+    "brewery": "Островица (Ostrovica)",
+    "country": "Россия",
+    "style_ru": "Гозе",
+    "abv": "5,0",
+    "ibu": null,
+    "srm": 3,
+    "og_plato": 12.5,
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "tags": [
+      "кислый",
+      "солёный",
+      "освежающий"
+    ],
+    "confidence": "high",
+    "notes": "Традиционный гозе от пивоварни Островица (г. Аша, Челябинская обл., основана в 2014). Кисло-солоноватый, с кориандром и добавлением соли; нефильтрованное, непастеризованное, неосветлённое. ABV 5%, плотность 12,5 °P — подтверждено двумя независимыми ритейлерами (rusbeershop, craftbeer78) и Untappd. IBU нигде не указан (гозе всегда низкохмельной), поэтому оставлен null; gor=1 по стилю. SRM ~3 (соломенный) — оценка по стилю. Untappd рейтинг 3,78 (1512 оценок). Бренд и страна перепроверены — Россия, не перепутаны.",
+    "sources": [
+      "https://rusbeershop.ru/catalog/beer-68498/",
+      "https://craftbeer78.ru/beer/gose-ostrovica-brewery",
+      "https://untappd.com/b/ostrovica-gose/4516626",
+      "https://rusbeershop.ru/brewery/Ostrovica/"
+    ],
+    "_changed": [
+      "ibu",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 7,
+    "name_ru": "Брюлок ИПА",
+    "latin": "Brewlok IPA",
+    "brewery": "Brewlok (Брюлок)",
+    "country": "Россия",
+    "style_ru": "Английский ИПА",
+    "abv": "6,2",
+    "ibu": 40,
+    "srm": 8,
+    "og_plato": 15,
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "tags": [
+      "хмелевой",
+      "цитрусовый",
+      "травянистый"
+    ],
+    "confidence": "medium",
+    "notes": "Brewlok (Брюлок) — крафтовая пивоварня из Воронежа (Россия), осн. 2015 (М. Бушин, С. Белов; название изменено с Brewlock после спора с Heineken, суд выигран). Untappd-карточка \\\"BREWLOK IPA\\\" подтверждена напрямую: стиль IPA-English, ABV 6,2%, IBU N/A, рейтинг 3,75/5 (80 оценок). Описание пивоварни: яркий английский IPA, сбалансированная горечь, переходящая в свежий цитрусово-тропический букет отборных сортов хмеля; акцент на баланс. IBU официально не указан — оценён ~40 по стилю (English IPA, сбалансированная горечь); gor=4 по нижней границе диапазона IPA. OG/плотность официально не публикуется — оценка OG ~15°P, тело среднее → plot=3. Цвет золотистый/светлый янтарь для English IPA → SRM~8, cvet=2. Все ключевые факты (пивоварня, город, страна, стиль, ABV) подтверждены независимыми источниками; черновик верен, исправлений не потребовалось.",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-brewlok-ipa/6214849",
+      "https://craftbeer78.ru/brewery/brewlok",
+      "https://your.beer/brewery/brewlok",
+      "https://craftdepot.ru/stas-belov-brewlok-interview/",
+      "https://brewlok.ru/beer/"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 8,
+    "name_ru": "Степь и Ветер Мёд и Абрикос",
+    "latin": "Steppe & Wind Apricot Mead",
+    "brewery": "Степь и Ветер (Steppe & Wind Meadery)",
+    "country": "Россия",
+    "style_ru": "Медовуха",
+    "abv": "6,0",
+    "ibu": null,
+    "srm": 6,
+    "og_plato": null,
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "tags": [
+      "медовый",
+      "абрикосовый",
+      "сладкий"
+    ],
+    "confidence": "high",
+    "notes": "Медовуха (фруктовая, melomel), а не пиво. Производитель — медоварня «Степь и Ветер» (Steppe & Wind Meadery), г. Оренбург, Россия (ООО «Степь и Ветер», ИНН 5609188140, ОГРН 1175658024893, рег. 2017-12-04; деятельность — переработка мёда и производство сброженных напитков из мёда, соков и фруктов). На Untappd значится как Apricot Mead, стиль Mead - Melomel, ABV 6%, IBU N/A, рейтинг 4,05/5 (~1946 оценок). Официальное описание: «Мёд и сочный абрикос: сладко, с освежающим послевкусием» — точно соответствует названию «Мёд и Абрикос». Профиль: мёд + сочный абрикос, сладкий, со свежим послевкусием. Хмелевой горечи нет (IBU отсутствует) → gor=1. Тело лёгкое-среднее с остаточной медовой сладостью → plot=2. Цвет светло-золотистый/янтарный от мёда и абрикоса (SRM оценочно ~5-7) → cvet=2. OG/°Plato и SRM для медовухи не публикуются. Существует также крепкая версия 14% (исходно для личного пользования), но на кране — лёгкая 6%. Проверка независимыми источниками (веб-поиск, Untappd, реестр ЕГРЮЛ): черновик подтверждён, исправлений по данным не требуется.",
+    "sources": [
+      "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-apricot-mead/5070663",
+      "https://untappd.com/SteppeNwind",
+      "https://stepiveter.ru/",
+      "https://spark-interfax.ru/orenburgskaya-oblast-orenburg/ooo-step-i-veter-inn-5609188140-ogrn-1175658024893-5ff4cdcadde603b4e0531b9aa8c042d8"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 9,
+    "name_ru": "Завод Морнинг Маня",
+    "latin": "Zavod Morning Manya",
+    "brewery": "Zavod (Завод)",
+    "country": "Россия",
+    "style_ru": "Томатная гозе",
+    "abv": "4,1",
+    "ibu": 7,
+    "srm": 4,
+    "og_plato": 11,
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "tags": [
+      "томатный",
+      "солёный",
+      "кислый"
+    ],
+    "confidence": "high",
+    "notes": "Гозе с томатами — флагманская линейка томатных гозе пивоварни Zavod (Химки, Московская обл., Россия; основана в 2016 Осановым и Горбачёвым). Подаётся как «лучшее утреннее пиво»: яркий томат, лёгкость, умеренные специи, освежающая кислинка и соль. Untappd 3.86 (4432 оценки). Стиль (Tomato/Vegetable Gose), ABV 4,1% и IBU 7 подтверждены Untappd, your.beer и craftbeer78. Внимание: your.beer ошибочно помечает страну «Беларусь» — это лишь рынок экспорта; пивоварня российская (подтверждено страницей бренда Untappd и рус. магазинами). OG (~11°P) — оценка по стилю (плотность пивоварня не публикует). Цвет: базовая гозе соломенная (SRM ~4 → cvet 1); craftbeer78 указывает «смешанный цвет» из-за томатного оттенка. Исправлено: cvet 2→1 (по шкале SRM 2-4 = соломенный/жёлтый).",
+    "sources": [
+      "https://untappd.com/b/zavod-morning-manya/3267395",
+      "https://untappd.com/Zavodbrewery",
+      "https://your.beer/beer/zavod-morning-manya",
+      "https://craftbeer78.ru/beer/morning-manya-zavod-brewery"
+    ],
+    "_changed": [
+      "cvet"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 10,
+    "name_ru": "Бюльви Рустик Полусухой",
+    "latin": "Bullevie Rustiq Semi Dry",
+    "brewery": "Bullevie (сидерия «Крафтье»)",
+    "country": "Россия",
+    "style_ru": "Сидр полусухой",
+    "abv": "5,5",
+    "ibu": null,
+    "srm": null,
+    "og_plato": null,
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "tags": [
+      "яблочный",
+      "кисло-сладкий",
+      "бархатистый"
+    ],
+    "confidence": "high",
+    "notes": "Это сидр (полусухой газированный яблочный), а не пиво. Бренд Bullevie («пузырьки жизни», франц.), производитель — Craftier Ltd. / сидерия «Крафтье», основатель Дмитрий Тихомиров, Ленинградская обл. (Лужский р-н), Россия. Сидр из 100% сброженного сока прямого отжима без добавления воды, сахара и концентратов. ABV 5,5%; остаточный сахар 20 г/л. Цвет — яркий мутный оранжевый. Вкус полнотелый, плотный, но питкий и свежий, бархатистый, с тонкой сладостью десертного яблока и сочной фруктовой кислинкой; аромат фруктово-цветочный с нотами запечённого яблока. Подача 8–12°C, бутылка 0,45 л. IBU/SRM/OG к сидру неприменимы — null. Шкалы по характеру: горечь минимальна (хмеля нет) gor=1; тело среднее/питкое plot=2; цвет золотисто-оранжевый cvet=2. Имя в iiko и большинстве магазинов — «Бюльви» (через Ю), не «Бьюльви».",
+    "sources": [
+      "https://winestyle.ru/products/Bullevie-Rustiq-Semi-Dry.html",
+      "https://www.ladogaspb.ru/catalog/other/byulvi_rustik/",
+      "https://beers.su/beer/bullevie-rustiq-semi-dry",
+      "https://www.cider-geeks.com/en/cidreries/bullevie-cidre",
+      "https://sraml.com/case-study/craftier-ltd-russia-2018/"
+    ],
+    "_changed": [
+      "name_ru",
+      "latin",
+      "brewery",
+      "tags",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 12,
+    "name_ru": "Бургунь де Фландер",
+    "latin": "Bourgogne des Flandres",
+    "brewery": "Bourgogne des Flandres (John Martin / Timmermans)",
+    "country": "Бельгия",
+    "style_ru": "Фландрский эль",
+    "abv": "5,0",
+    "ibu": 19,
+    "srm": 16,
+    "og_plato": 12.5,
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "tags": [
+      "кисло-сладкий",
+      "вишнёвый",
+      "карамельный"
+    ],
+    "confidence": "high",
+    "notes": "Купаж коричневого верхового эля (Bruinen Os) с ламбиком Timmermans, выдержка в дубовых бочках, смешанная ферментация. Винный кисло-сладкий профиль, ноты спелой вишни, жжёной карамели и солода, кремовая пена. На Untappd классифицирован как Sour - Flanders Red Ale (несмотря на название Brune/Bruin). ABV 5% и IBU 19 — подтверждены Untappd и Wikipedia. OG ~12,5°P — середина диапазона BJCP Flanders Red (1.046-1.054, ~11,5-13,5°P), plot=3 (12-15°P). SRM ~16 (красно-коричневый, верх диапазона BJCP 10-16) — cvet=3. Производит Timmermans (Дилбек, Бельгия), бренд John Martin / Anthony Martin.",
+    "sources": [
+      "https://untappd.com/b/brewery-john-martin-brewery-timmermans-bourgogne-des-flandres-brune-bruin/561371",
+      "https://en.wikipedia.org/wiki/Bourgogne_des_Flandres",
+      "https://www.bjcp.org/beer-styles/17b-flanders-red-ale/",
+      "https://www.beeradvocate.com/beer/profile/46541/6564/"
+    ],
+    "_changed": [
+      "ibu",
+      "plot",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 13,
+    "name_ru": "Реворт Натти Нат",
+    "latin": "Rewort Nutty Nut",
+    "brewery": "Rewort",
+    "country": "Россия",
+    "style_ru": "Ореховый портер",
+    "abv": "6,9",
+    "ibu": 30,
+    "srm": null,
+    "og_plato": 19.8,
+    "gor": 3,
+    "plot": 5,
+    "cvet": 5,
+    "tags": [
+      "ореховый",
+      "фундучный",
+      "сладкий"
+    ],
+    "confidence": "high",
+    "notes": "Дабл-портер с фундуком (добавлялся на варке, при холодном охмелении и выдержке). Профиль: мощный ореховый аромат фундука + лактозно-молочная сладость на тёмной портерной базе, лёгкая хмелевая горчинка. Подтверждено: ABV 6,9% (везде), IBU 30 (Untappd/pet-beer/birdekel), плотность 19,8 °Plato (Winestyle/birdekel) -> plot=5. Untappd относит к \"Porter - Other\"; российские ритейлеры маркируют как Double Porter (\"Дабл Портер\"). Цвет: тёмный, практически чёрный -> cvet=5; точного SRM/EBC ни один источник не приводит (в черновике SRM 78/EBC 155 — оценка без источника, поэтому srm обнулён). Пивоварня Rewort (ReWort), основана 2016, Сергиев Посад, Московская обл. -> Россия. Внимание: в названии крана значилось \"Rework\" — это опечатка; верно \"Rewort\" (как и в iiko). Тег \"шоколадный\" из черновика заменён на \"фундучный\" — источники подчёркивают именно фундук, не шоколад. Подавать 8-12°C.",
+    "sources": [
+      "https://winestyle.ru/products/ReWort-Nutty-Nut.html",
+      "https://untappd.com/b/rewort-brewery-nutty-nut/2976231",
+      "https://birdekel.shop/product/rewort-nutty-nut-double-porter",
+      "https://www.pet-beer.ru/nutty-nut-porter-tem-n-f-alk-6-9-ibu30-0-5l",
+      "https://craftbeer78.ru/beer/nutty-nut-rewort",
+      "https://www.viderzhka.ru/collection/rossiya/product/banka-05-nutty-nut-rewort-msk"
+    ],
+    "_changed": [
+      "srm",
+      "tags",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 14,
+    "name_ru": "Трипель ЛеФорт",
+    "latin": "Tripel LeFort",
+    "brewery": "Omer Vander Ghinste",
+    "country": "Бельгия",
+    "style_ru": "Трипель",
+    "abv": "8,8",
+    "ibu": 20,
+    "srm": 7,
+    "og_plato": 18.5,
+    "gor": 2,
+    "plot": 4,
+    "cvet": 2,
+    "tags": [
+      "фруктовый",
+      "ванильный",
+      "солодовый"
+    ],
+    "confidence": "high",
+    "notes": "Бельгийский трипель от Omer Vander Ghinste (Bellegem, бывш. пивоварня Bockor), Бельгия. ABV 8,8% подтверждён официальным сайтом, Untappd, BeerAdvocate, Belgian Family Brewers и магазинами; IBU 20 — по данным Untappd. Золотистое мутное пиво с плотной белой пеной; аромат ваниль-гвоздика с нотами цитруса/лайма и роз, вкус фруктовый (банан, красное яблоко), мягкое полнотелое тело, сухой финиш. Награды: золото World Beer Cup 2018 и World Beer Awards 2018 (лучший трипель мира), European Beer Star 2016, Brussels Beer Challenge 2020, Concours International de Lyon 2024. Горечь нетипично низкая для трипеля: IBU 20 попадает в полосу gor=2 (12-22) по правилу IBU. OG/Plato официально не публикуется; ~18,5 °P оценено по стилю при 8,8% ABV -> plot=4 (трипель — эталон полосы 15-18 °P). SRM ~7 оценочно (золотистый -> cvet=2). Проверено независимыми источниками: исходный черновик подтверждён, правок по сути не потребовалось.",
+    "sources": [
+      "https://www.omervanderghinste.be/en/onze-bieren/tripel-lefort",
+      "https://belgianfamilybrewers.be/belgian-beers/tripel-lefort/",
+      "https://untappd.com/b/omer-vander-ghinste-tripel-lefort/1533976",
+      "https://www.beeradvocate.com/beer/profile/223/232808/",
+      "https://store.belgianshop.com/abbey-beers/2363-tripel-lefort-88-13l.html"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 15,
+    "name_ru": "Блэк Кэт Культурный Код: Клюквенная Пастила",
+    "latin": "Black Cat Culture Code: Pastila Cranberry",
+    "brewery": "Black Cat Brewery",
+    "country": "Россия",
+    "style_ru": "Смузи-сауэр",
+    "abv": "5,0",
+    "ibu": null,
+    "srm": 4,
+    "og_plato": 12.5,
+    "gor": 1,
+    "plot": 3,
+    "cvet": 1,
+    "tags": [
+      "клюквенный",
+      "ванильный",
+      "кисло-сладкий"
+    ],
+    "confidence": "high",
+    "notes": "Smoothie/pastry sour («смузи-сауэр») серии «Культурный Код» — плотный фруктовый эль (смузи фруктовый эль) с добавлением яблока, клюквы и ванили, в честь десерта «пастила». Густая текстура с фруктовой мякотью, кисло-сладкий профиль, почти без горечи. Untappd 4.11 (2700+ оценок), стиль Sour - Smoothie / Pastry. IBU не указан (для стиля <10). Официальный состав называет яблоко, клюкву и ваниль; лактоза для стиля типична, но в составе явно не указана. OG/SRM не публикуются — оценены по стилю и крепости 5%. Цвет светлый с розово-клюквенным оттенком. Объём банки 0,45 л.",
+    "sources": [
+      "https://untappd.com/b/black-cat-brewery-culture-code-pastila-cranberry/3849751",
+      "https://craftbeer78.ru/beer/kulturnyj-kod-klyukvennaya-pastila-black-cat",
+      "https://untappd.com/BlackCatBrewery",
+      "https://blackcatbeer.ru/"
+    ],
+    "_changed": [
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 16,
+    "name_ru": "Полночный Проджект Сигнал Файр",
+    "latin": "Polnochnyj Project Signal Fire",
+    "brewery": "Polnochnyj Project",
+    "country": "Россия",
+    "style_ru": "Копчёный стаут",
+    "abv": "8,1",
+    "ibu": 35,
+    "srm": 37,
+    "og_plato": 18.5,
+    "gor": 3,
+    "plot": 5,
+    "cvet": 5,
+    "tags": [
+      "копчёный",
+      "торфяной",
+      "жжёный"
+    ],
+    "confidence": "high",
+    "notes": "Копчёный стаут от пивоварни Polnochnyj Project. Бренд возник как Midnight Project (Минск, Беларусь), но с 2021 года имеет собственные мощности в России и под названием Polnochnyj Project варится именно в РФ (Санкт-Петербург) — поэтому для этого сорта country=Россия корректна. База — копчёный бельгийский солод плюс английский солод, прокопчённый на торфе: эффект сигнального костра, разожжённого в ночи (отсылка к сигнальным огням Гондора). Глубокий чёрный цвет, тона жжёного солода, тёмного шоколада и кофе с выраженной дымной торфяной нотой. Плотный, крепкий (8,1%, ОГ 18,5°P). Параметры (ABV 8,1%, IBU 35, ОГ 18,5%, EBC ~72) подтверждены независимо карточкой ретейлера craftbeer78.ru (СПб). SRM пересчитан из EBC 72 (72/1,97 ≈ 37). Шкалы: IBU 35 → gor 3 (23-38); EBC 72 → SRM 37 → cvet 5 (31+, чёрный); ОГ 18,5°P → plot 5 (>18°P). Тег «шоколадный» в черновике заменён на «жжёный» как более точный дескриптор именно копчёного/торфяного стаута (шоколад — лишь вторичная нота).",
+    "sources": [
+      "https://craftbeer78.ru/beer/signal-fire-polnochnyj-project",
+      "https://your.beer/brewery/midnight-project-brewery",
+      "https://www.nice-beer.ru/proizvoditel/polnochnyj-project/"
+    ],
+    "_changed": [
+      "tags",
+      "notes"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 17,
+    "name_ru": "Коникс Черри Руби",
+    "latin": "Konix Cherry Ruby",
+    "brewery": "Konix Brewery",
+    "country": "Россия",
+    "style_ru": "Фрутбир",
+    "abv": "7,0",
+    "ibu": 10,
+    "og_plato": 17,
+    "srm": null,
+    "gor": 1,
+    "plot": 4,
+    "cvet": 3,
+    "tags": [
+      "вишнёвый",
+      "кисло-сладкий",
+      "миндальный"
+    ],
+    "confidence": "high",
+    "notes": "Крепкий фрутбир. Вкус насыщенный, слегка пряный, кисло-сладкий с интонациями вишни и лёгкой горечью миндаля. Финиширует гармоничным освежающим послевкусием. Хмель Northern Brewer; солод ячменный светлый, карамельный, пшеничный. Нефильтрованное, неосветлённое, непастеризованное. Untappd 4,08 (~3600 оценок). SRM не указан; рубиново-красный цвет от вишни (cvet=3). OG 17°P, IBU 10, ABV 7% — подтверждено офсайтом konixbrewery.ru и Untappd. Пивоварня Konix — Заречный, Пензенская область (Россия). Все поля черновика подтверждены независимыми источниками.",
+    "sources": [
+      "https://konixbrewery.ru/catalog/cherry_ruby",
+      "https://untappd.com/b/konix-brewery-cherry-ruby/3158806"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 18,
+    "name_ru": "Палм Спесиаль",
+    "latin": "Palm Spéciale",
+    "brewery": "Brouwerij Palm",
+    "country": "Бельгия",
+    "style_ru": "Бельгийский эль",
+    "abv": "5,2",
+    "ibu": 18,
+    "srm": 13,
+    "og_plato": 12.8,
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "tags": [
+      "солодовый",
+      "карамельный",
+      "медовый"
+    ],
+    "confidence": "high",
+    "notes": "Palm Spéciale (Palm Amber / ранее Palm Special Belge, ныне Palm Belgisch Amber) — флагманский бельгийский янтарный эль в стиле Spéciale Belge Ale пивоварни Brouwerij Palm (Стенхюффел, подмуниципалитет Лондерзела, Фландрия, Бельгия; основана в 1747). Янтарно-медный цвет даёт обжаренный «шампанский» солод. Вкус мягкий, солодовый с карамелью и медовыми нотами, ореховым хлебом и фруктово-дрожжевым ароматом (английский хмель, французский ячмень, собственные дрожжи). ABV 5,2% и IBU 18 подтверждены независимыми источниками (BeerTourism, Untappd, pintplease). OG ~12,8°P — по этикетке немецкого ритейлера (некоторые бутылочные версии маркируются 12°/5,0%). SRM ~13 оценён по янтарному стилю (точного значения в источниках нет). Проверка: brewery/country/ABV/IBU/стиль — подтверждены; og_plato уточнён с 12,4 до 12,8 по этикетке. Остальные поля черновика верны.",
+    "sources": [
+      "https://www.beertourism.com/blogs/belgian-beer/palm",
+      "https://untappd.com/b/brouwerij-palm-palm-speciale/7754",
+      "https://pintplease.com/en/beer/700/palm_speciale",
+      "https://www.beermonthclub.com/brouwerij-palm-palm-speciale-belge-2021",
+      "https://www.beershop.eu/p/palm-amber",
+      "https://nl.wikipedia.org/wiki/Brouwerij_Palm"
+    ],
+    "_changed": [
+      "og_plato"
+    ],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 20,
+    "name_ru": "Аляска Фейхоа",
+    "latin": "Alaska Feijoa",
+    "brewery": "Alaska Brewery",
+    "country": "Россия",
+    "style_ru": "Фруктовый сауэр",
+    "abv": "5,5",
+    "ibu": 8,
+    "srm": 4,
+    "og_plato": 11.5,
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "tags": [
+      "кислый",
+      "фруктовый",
+      "освежающий"
+    ],
+    "confidence": "high",
+    "notes": "Фруктовый кислый эль (sour - fruited) с соком/мякотью фейхоа. Яркий кисло-сладкий аромат спелого фейхоа, туманный светлый цвет, мелкозернистая пена. На вкус уверенная приятная кислотность, фрукт нарастает с каждым глотком, завершается вяжущей ягодной горчинкой. Untappd: стиль Sour - Fruited, ABV 5.5%, рейтинг 3.9 (~4577 оценок), IBU не указан. Старт выпуска 06.07.2020. Пивоварня ALASKA brewery — г. Железнодорожный, Московская область (проект BeerDelivery, с 2016), нефильтрованное/непастеризованное. IBU/SRM/OG в источниках отсутствуют — оценены по стилю fruited sour (горечь минимальная <12, тело лёгкое, цвет светло-соломенный). ИСПРАВЛЕНО: cvet 2->1 (SRM 4 = соломенный/жёлтый по шкале, а не золотой).",
+    "sources": [
+      "https://untappd.com/b/alaska-brewery-fejhoa/3860629",
+      "https://craftovik.ru/beer/alaska-brewery-fejhoa-feijoa",
+      "https://your.beer/brewery/alaska-brewery",
+      "https://untappd.com/AlaskaBreweryCo"
+    ],
+    "_changed": [
+      "cvet"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 21,
+    "name_ru": "Островица Холи ДИПА",
+    "latin": "Ostrovica Holy DIPA",
+    "brewery": "Островица (Ostrovica)",
+    "country": "Россия",
+    "style_ru": "ДИПА",
+    "abv": "8,2",
+    "ibu": 100,
+    "srm": 9,
+    "og_plato": 19,
+    "gor": 5,
+    "plot": 5,
+    "cvet": 2,
+    "tags": [
+      "хмелевой",
+      "цитрусовый",
+      "горький"
+    ],
+    "confidence": "high",
+    "notes": "Двойной IPA (ДИПА), щедро охмелён Citra, Cascade, Simcoe, Centennial. Солод: Pils, Munich, Pale Ale, Caramel. Яркий цитрусово-тропический хмелевой аромат, мощная насыщенная горечь 100 IBU, полнотелый, минимум сладости. Рейтинг Untappd 3,91 (~7 тыс. оценок). Пивоварня Островица — семейное предприятие в г. Аша, Челябинская обл. (осн. 2014, Евгений Балыклов с сыновьями). ABV 8,2% и IBU 100 подтверждены Untappd, BeerAdvocate и российскими ритейлерами. Плотность скорректирована: ритейлер wine-shopper.ru указывает 19% (19 °P) — это >18 °P, поэтому plot=5 (а не 4). SRM ~9 оценён по светло-янтарной засыпи.",
+    "sources": [
+      "https://untappd.com/b/ostrovica-holy-dipa/1962051",
+      "https://www.beeradvocate.com/beer/profile/48947/277744/",
+      "https://wine-shopper.ru/ostrovica-holy-dipa-0-5l/",
+      "https://www.brewmapp.com/brewery/ostrovica/",
+      "https://winestyle.ru/products/Ostrovica-Holy-DIPA.html"
+    ],
+    "_changed": [
+      "og_plato",
+      "plot",
+      "sources",
+      "notes"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 22,
+    "name_ru": "Гравити Хартлесс Бич 2.0",
+    "latin": "Gravity Project Heartless Bitch 2.0",
+    "brewery": "Gravity Project",
+    "country": "Россия",
+    "style_ru": "Фрукт. сидр",
+    "abv": "4,5",
+    "ibu": null,
+    "srm": null,
+    "og_plato": null,
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "tags": [
+      "малиновый",
+      "мятный",
+      "полусладкий"
+    ],
+    "confidence": "high",
+    "notes": "ВНИМАНИЕ: это не пиво, а СИДР. Полусладкий яблочный сидр с малиной и мятой (стиль Untappd: Cider - Other Fruit). Состав: вода, восстановленный яблочный сок, натуральный мёд, концентраты малинового и клубничного сока, экстракт мяты, винные дрожжи. ABV 4,5% (подтверждено Untappd, Winestyle, craftbeer78). Рейтинг Untappd ~3,93/5 (~2300 оценок). Производитель — экспериментальная сидрерия Gravity Project, Санкт-Петербург, РФ (производство на площадке бывшего з-да «Степан Разин»; яблоневые сады во Всеволожском р-не Ленобласти; сидроделы Валерий Шишкалов и Татьяна Никифорова с 2017 г.). Версия «Беларусь» — ошибка, это СПб (подтверждено craftbeer78.ru, dp.ru, Instagram сидрерии). Название отсылает к цитате Шелдона Купера из «Теории большого взрыва». IBU/SRM/плотность не публикуются: горечь 1 (хмеля нет), плотность 2 (лёгкий полусладкий), цвет 1 (светлый золотисто-розовый). Для печатной карточки стиль можно указать как «Сидр с малиной и мятой».",
+    "sources": [
+      "https://untappd.com/b/gravity-project-heartless-bitch-2-0/3300416",
+      "https://craftbeer78.ru/cider/heartless-bitch-2-0-gravity-project",
+      "https://winestyle.ru/products/Gravity-Project-Heartless-Bitch-2-0.html",
+      "https://www.dp.ru/a/2020/08/19/Naliv_iz_jablok",
+      "https://www.instagram.com/sidreriagravity/"
+    ],
+    "_changed": [
+      "style_ru",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  },
+  {
+    "tap": 23,
+    "name_ru": "Ригеле Коммерциенрат Приват",
+    "latin": "Riegele Commerzienrat Privat",
+    "brewery": "Brauhaus Riegele",
+    "country": "Германия",
+    "style_ru": "Экспорт-лагер",
+    "abv": "5,2",
+    "ibu": 18,
+    "srm": 5,
+    "og_plato": 12.8,
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "tags": [
+      "солодовый",
+      "зерновой",
+      "пряный"
+    ],
+    "confidence": "high",
+    "notes": "Премиальный золотистый лагер из Аугсбурга (Бавария), самое титулованное пиво Riegele. Стиль трактуют как Dortmunder/European Export или Lager-Helles (на Untappd — Helles); по сути золотистый солодовый экспорт-лагер «wurzig und mild» (пряный и мягкий), не пилс. Чистый, сбалансированный вкус: сладковатый солод, зерно и мягкая пряная хмелевая горчинка благодаря фирменной сепарации шелухи (husk separation), убирающей дубильную горечь. Stammwurze 12,8 °P, ABV 5,2 %, IBU ~18. Untappd ~3,4 (30k+ оценок). Награды: DLG Gold (9x), European Gold Star (6x), World Beer Cup, «Beer of the Decade». Подтверждено независимыми источниками: официальный сайт riegele.de, Bierentdecker, Untappd, BeerAdvocate.",
+    "sources": [
+      "https://www.riegele.de/bier/commerzienrat-riegele-privat/",
+      "https://www.bierentdecker.com/bierfinder/details/riegele-commerzienrat-privat",
+      "https://untappd.com/b/brauhaus-riegele-commerzienrat-riegele-privat/40567",
+      "https://www.beeradvocate.com/beer/profile/5850/61875/"
+    ],
+    "_changed": [],
+    "_verdict": "ok"
+  },
+  {
+    "tap": 24,
+    "name_ru": "Брюлок Стаут",
+    "latin": "Brewlok Stout",
+    "brewery": "Brewlok Brewery",
+    "country": "Россия",
+    "style_ru": "Овсяный стаут",
+    "abv": "4,5",
+    "ibu": 25,
+    "srm": 35,
+    "og_plato": 11.5,
+    "gor": 3,
+    "plot": 2,
+    "cvet": 5,
+    "tags": [
+      "шоколадный",
+      "кофейный",
+      "кремовый"
+    ],
+    "confidence": "medium",
+    "notes": "Brewlok Brewery — крафтовая пивоварня из Воронежа (Россия, основана 2014). Кран №24 «Brewlok Stout» — обобщённое название; ближайший базовый сорт пивоварни — их Oatmeal Stout. По Untappd (Oatmeal Stout, Brewlok Brewery): ABV 4,5%, IBU 25 (подтверждено независимо), стиль Stout - Oatmeal, рейтинг 3,4-3,5. Описание пивоварни: тёмный эль верхового брожения в английской традиции с овсом, карамельным, меланоидиновым и обжаренным солодом; плотная стойкая пена, кремовое сладковатое послевкусие, «лёгкий». Отзывы подтверждают выраженный шоколадный тон и мягкую кремовость; кофейность — типичный дескриптор обжарки для стиля. ИСПРАВЛЕНО: og_plato 12,5->11,5 и plot 3->2. При 4,5% ABV и характеристике «лёгкий» начальная плотность ~11°P (диапазон plot 2 = 10-12°P), черновые 12,5°P завышены для такого ABV. SRM/OG пивоварня не публикует — оценочно по стилю и ABV, поэтому confidence=medium. У Brewlok много именных стаутов (Кикимора 6,5%, Маслёна 6,4%, Призрак Белогорья 6,9%, Холодное пламя 8,6%, Василиса 8,6%, Extra Stout 8%); если на кране налит именно именной — параметры (ABV, плотность, цвет) будут иными.",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-oatmeal-stout/1134130",
+      "https://untappd.com/Brewlokbrewery/beer",
+      "https://craftbeer78.ru/brewery/brewlok",
+      "https://beerexpert.livejournal.com/275965.html"
+    ],
+    "_changed": [
+      "og_plato",
+      "plot",
+      "notes",
+      "sources"
+    ],
+    "_verdict": "corrected"
+  }
+]

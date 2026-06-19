@@ -2,6 +2,23 @@
 
 Вспомогательные скрипты проекта, организованные по категориям.
 
+## Документация iiko API
+
+- `fetch_iiko_api_docs.py` — скачивает все статьи API-документации с портала `ru.iiko.help` в `docs/iiko-api/` и собирает оглавление `INDEX.md`. Запуск: `py -3 scripts/fetch_iiko_api_docs.py`.
+- `fetch_iiko_api_toc.py` — обновляет `docs/iiko-api/_toc.json` (названия статей и дерево разделов; рендерит портал в headless Chrome). Нужен только при изменении структуры портала.
+
+## Меню (`/menu`) — сборка каталога и цены
+
+См. [docs/menu-editor.md](../docs/menu-editor.md). Канонический файл — `data/menu_cards.json`.
+
+- `build_menu.py` — детерминированная пересборка каталога одной командой: каталог → цены → ресёрч. `py -3 scripts/build_menu.py` (цены из кэша) или `--live` (свежие из iiko).
+- `build_menu_catalog.py` — дедуп исторической библиотеки + слияние 21 крана + ручные семантические дубли (`SEMANTIC_DUPES`) → скелет `menu_cards.json`.
+- `find_menu_dupes.py` — поиск кандидатов в семантические дубли (транслитерация имени + равенство крепости + близость цен) → `data/_dupe_candidates.txt` (ревью, данные не меняет).
+- `fill_menu_prices.py` — заливка текущих цен из iiko (`core.menu_pricing`). По умолчанию из кэша, `--live` — из iiko. Та же логика, что у серверной кнопки «Обновить цены».
+- `apply_research.py` — вносит теги/шкалы из `data/menu_research_output.json` в карточки по `id`.
+- `gen_research_workflow.py` — генерирует workflow-скрипт веб-исследования (данные о сортах вшиты), запускать через Workflow по `scriptPath`.
+- `menu_prices.py` — исходный (ручной словарь кранов) разовый сбор цен; обобщён в `core/menu_pricing.py`.
+
 ## Структура
 
 ```

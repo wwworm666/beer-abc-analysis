@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактор меню — KULT Analytics</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/menu/ptserif.css">
+    <link rel="stylesheet" href="/static/menu/menu_card.css">
+    <style>
+      .menu-wrap{ max-width: 1180px; margin: 0 auto; padding: 0 8px 80px; }
+      .menu-toolbar{
+        position: sticky; top: 0; z-index: 20; background: var(--bg-color, #fff);
+        border-bottom: 1px solid var(--border-color, #e2e2e2);
+        display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+        padding: 12px 4px;
+      }
+      .menu-toolbar .grow{ flex: 1; }
+      .mbtn{
+        border: 1px solid var(--border-color, #ccc); background: var(--card-bg, #fff);
+        color: var(--text-color, #1a1a1a); border-radius: 8px; padding: 8px 14px;
+        font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      }
+      .mbtn:hover{ border-color: var(--accent-color, #0e7c5a); }
+      .mbtn.primary{ background: #0e7c5a; color: #fff; border-color: #0e7c5a; }
+      .mbtn.primary:disabled{ opacity: .6; cursor: progress; }
+      .seg{ display: inline-flex; border: 1px solid var(--border-color, #ccc); border-radius: 8px; overflow: hidden; }
+      .seg button{ border: 0; background: var(--card-bg, #fff); color: var(--text-color,#1a1a1a);
+        padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+      .seg button.on{ background: #0e7c5a; color: #fff; }
+      .menu-search{ border: 1px solid var(--border-color, #ccc); border-radius: 8px; padding: 8px 12px;
+        font-size: 13px; min-width: 160px; background: var(--card-bg,#fff); color: var(--text-color,#1a1a1a); }
+      .savestate{ font-size: 12px; color: var(--text-muted, #8a8a8a); min-width: 90px; }
+      .menu-count{ font-size: 12px; color: var(--text-muted, #8a8a8a); }
+
+      .crow{ display: flex; gap: 20px; align-items: flex-start; padding: 16px 4px;
+        border-bottom: 1px solid var(--border-color, #ececec); }
+      .cprev{ width: 256px; height: 360px; flex: 0 0 256px; overflow: hidden;
+        background: #e5cba3; border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
+      .cprev .scaler{ width: 794px; transform: scale(.3225); transform-origin: top left; }
+      .cprev .page{ box-shadow: none; }
+      .cform{ flex: 1; min-width: 0; }
+      .cform .head{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+      .cform .head .ttl{ font-size: 14px; font-weight: 700; }
+      .cform .head .tap-badge{ font-size: 11px; font-weight: 700; color: #0e7c5a; }
+      .fgrid{ display: grid; gap: 8px 12px; margin-bottom: 8px; }
+      .fgrid.c4{ grid-template-columns: 70px 1.4fr 1.4fr 1fr; }
+      .fgrid.c2{ grid-template-columns: 1fr 1fr; }
+      .fgrid.c3{ grid-template-columns: 1fr 1fr 1fr; }
+      .fgrid.prices{ grid-template-columns: 1fr 1fr 1fr; max-width: 360px; }
+      label.f{ display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted,#8a8a8a); }
+      label.f input{ background: var(--card-bg,#fff); border: 1px solid var(--border-color,#d4d4d4);
+        border-radius: 6px; color: var(--text-color,#1a1a1a); padding: 7px 9px; font-size: 13px; font-family: inherit; }
+      label.f input:focus{ outline: none; border-color: #0e7c5a; }
+      .meterrow{ display: grid; grid-template-columns: 80px 1fr; gap: 6px 12px; align-items: center; margin-top: 6px; max-width: 360px; }
+      .meterrow > span{ font-size: 12px; color: var(--text-color,#444); }
+      .dots{ display: flex; gap: 5px; }
+      .dotbtn{ width: 26px; height: 15px; border: 1px solid #9a9488; background: transparent; border-radius: 3px; cursor: pointer; padding: 0; }
+      .dotbtn.on{ background: #6a6052; border-color: #6a6052; }
+      .crow .del{ margin-top: 10px; background: none; border: 0; color: #b54a3a; font-size: 12px; cursor: pointer; padding: 0; }
+      .toast{ position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+        background: #1c1a17; color: #ece7dc; padding: 12px 18px; border-radius: 10px; font-size: 13px;
+        box-shadow: 0 6px 24px rgba(0,0,0,.3); z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 80vw; }
+      .toast.show{ opacity: 1; }
+    </style>
+</head>
+<body>
+<div class="container">
+    {% set page_title = "Редактор меню" %}
+    {% set page_subtitle = "вкусы, теги, цены, печать" %}
+    {% include 'shared/nav.html' %}
+
+    <div class="menu-wrap">
+      <div class="menu-toolbar">
+        <div class="seg" id="filterSeg">
+          <button data-f="tap" class="on">На кране</button>
+          <button data-f="all">Все сорта</button>
+        </div>
+        <input class="menu-search" id="search" placeholder="Поиск по названию...">
+        <span class="menu-count" id="count"></span>
+        <span class="grow"></span>
+        <span class="savestate" id="savestate"></span>
+        <button class="mbtn primary" id="btnPrices" onclick="refreshPrices()">Обновить цены из iiko</button>
+        <button class="mbtn" onclick="openPrint()">Печать</button>
+        <button class="mbtn" onclick="exportPdf()">Скачать PDF</button>
+        <button class="mbtn" onclick="addCard()">+ Сорт</button>
+      </div>
+      <div id="rows"></div>
+    </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const esc = s => (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const fmt = v => (v===null||v===undefined||v==="")?"—":String(v).replace(".",",");
+const pad2 = n => String(n||0).padStart(2,"0");
+let CARDS = [], FILTER = "tap", QUERY = "";
+const saveTimers = {};
+
+function nameClass(n){const l=(n||"").length;if(l>22)return"len-xl";if(l>16)return"len-lg";if(l>11)return"len-md";return"";}
+function dotsHTML(n){let h="";for(let i=1;i<=5;i++)h+=`<span class="d${i<=(n||0)?" on":""}"></span>`;return h;}
+
+function cardInner(it){
+  const trans = it.latin ? `<div class="trans">[ ${esc(it.latin)} ]</div>` : "";
+  const op = [];
+  if(it.country) op.push(`<span class="accent">${esc(it.country)}</span>`);
+  if(it.brewery) op.push(esc(it.brewery));
+  const tags = (it.tags||[]).filter(t=>t&&t.trim()).map((t,i)=>`${i?'<span class="dot">·</span>':""}<span>${esc(t)}</span>`).join("");
+  const r = it.ratings||{};
+  const num = it.tap || it.n || 0;
+  return `<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <header class="eyebrow"><span class="num">№ ${pad2(num)}</span></header>
+    <section class="hero">${trans}<h1 class="name ${nameClass(it.name)}">${esc(it.name)}</h1>
+      <div class="origin">${op.join(" · ")}</div></section>
+    <section class="facts"><span class="style">${esc(it.style)}</span>
+      <span class="abv">${esc(it.abv)}<span class="pct">%</span></span></section>
+    <section class="tags">${tags}</section>
+    <section class="meters">
+      <div class="meter"><span class="k">горечь</span><div class="scale">${dotsHTML(r.gor)}</div></div>
+      <div class="meter"><span class="k">плотность</span><div class="scale">${dotsHTML(r.plot)}</div></div>
+      <div class="meter"><span class="k">цвет</span><div class="scale">${dotsHTML(r.cvet)}</div></div></section>
+    <section class="prices">
+      <div class="price"><span class="vol">0,25</span><span class="num">${fmt(it.p025)}</span></div>
+      <div class="price"><span class="vol">0,4</span><span class="num">${fmt(it.p04)}</span></div>
+      <div class="price"><span class="vol">0,5</span><span class="num">${fmt(it.p05)}</span></div></section>`;
+}
+function fitName(el){if(!el)return;el.style.fontSize="";let s=parseFloat(getComputedStyle(el).fontSize);while(el.scrollHeight>140&&s>36){s-=1;el.style.fontSize=s+"px";}}
+function fitTags(el){if(!el)return;el.style.fontSize="";let s=parseFloat(getComputedStyle(el).fontSize);while(el.scrollWidth>el.clientWidth+1&&s>14){s-=1;el.style.fontSize=s+"px";}}
+
+function paint(id){
+  const it = CARDS.find(c=>c.id===id); if(!it) return;
+  const art = document.getElementById("prev-"+id); if(!art) return;
+  art.innerHTML = cardInner(it);
+  fitName(art.querySelector(".name")); fitTags(art.querySelector(".tags"));
+}
+
+function setField(id, key, val){ const it=CARDS.find(c=>c.id===id); if(!it)return; it[key]=val; paint(id); scheduleSave(id); }
+function setPrice(id, key, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
+  const n = val.trim()===""?null:parseInt(val.replace(/\D/g,""),10); it[key]=isNaN(n)?null:n; paint(id); scheduleSave(id); }
+function setTag(id, j, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
+  const t=(it.tags||["","",""]).slice(); while(t.length<3)t.push(""); t[j]=val; it.tags=t.slice(0,3); paint(id); scheduleSave(id); }
+function setRating(id, key, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
+  it.ratings=it.ratings||{}; it.ratings[key]=val; paint(id); renderDots(id,key); scheduleSave(id); }
+function setTap(id, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
+  const n=val.trim()===""?null:parseInt(val.replace(/\D/g,""),10); it.tap=isNaN(n)?null:n; paint(id); scheduleSave(id); }
+
+function renderDots(id, only){
+  ["gor","plot","cvet"].forEach(k=>{
+    if(only&&only!==k)return;
+    const box=document.getElementById(`dots-${id}-${k}`); if(!box)return;
+    const it=CARDS.find(c=>c.id===id); const val=(it.ratings||{})[k]||0; box.innerHTML="";
+    for(let n=1;n<=5;n++){const b=document.createElement("button");b.type="button";
+      b.className="dotbtn"+(n<=val?" on":""); b.onclick=()=>setRating(id,k,(val===n?n-1:n)); box.appendChild(b);}
+  });
+}
+
+function scheduleSave(id){
+  setState("saving");
+  clearTimeout(saveTimers[id]);
+  saveTimers[id]=setTimeout(()=>save(id), 600);
+}
+async function save(id){
+  const it=CARDS.find(c=>c.id===id); if(!it)return;
+  try{
+    const r=await fetch(`/menu/api/items/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(it)});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    setState("saved");
+  }catch(e){ setState("error"); toast("Ошибка сохранения: "+e.message); }
+}
+function setState(s){
+  const el=document.getElementById("savestate");
+  el.textContent = s==="saving"?"сохранение...":s==="saved"?"сохранено":s==="error"?"ошибка":"";
+}
+
+function rowHTML(it){
+  const tag=it.tags||[];
+  const tapBadge = it.tap ? `<span class="tap-badge">кран №${it.tap}</span>` : "";
+  return `<div class="crow" id="row-${it.id}">
+    <div class="cprev"><div class="scaler"><article class="page" id="prev-${it.id}"></article></div></div>
+    <div class="cform">
+      <div class="head"><span class="ttl">${esc(it.name)||"(без названия)"}</span>${tapBadge}</div>
+      <div class="fgrid c4">
+        <label class="f">Кран №<input value="${it.tap==null?"":it.tap}" inputmode="numeric" oninput="setTap(${it.id},this.value)"></label>
+        <label class="f">Название<input value="${esc(it.name)}" oninput="setField(${it.id},'name',this.value)"></label>
+        <label class="f">Транскрипция (латиница)<input value="${esc(it.latin)}" oninput="setField(${it.id},'latin',this.value)"></label>
+        <label class="f">Крепость, %<input value="${esc(it.abv)}" oninput="setField(${it.id},'abv',this.value)"></label>
+      </div>
+      <div class="fgrid c3">
+        <label class="f">Пивоварня<input value="${esc(it.brewery)}" oninput="setField(${it.id},'brewery',this.value)"></label>
+        <label class="f">Страна<input value="${esc(it.country)}" oninput="setField(${it.id},'country',this.value)"></label>
+        <label class="f">Стиль<input value="${esc(it.style)}" oninput="setField(${it.id},'style',this.value)"></label>
+      </div>
+      <div class="fgrid c3">
+        <label class="f">Тег 1 (вкус)<input value="${esc(tag[0]||"")}" oninput="setTag(${it.id},0,this.value)"></label>
+        <label class="f">Тег 2<input value="${esc(tag[1]||"")}" oninput="setTag(${it.id},1,this.value)"></label>
+        <label class="f">Тег 3<input value="${esc(tag[2]||"")}" oninput="setTag(${it.id},2,this.value)"></label>
+      </div>
+      <div class="fgrid prices">
+        <label class="f">Цена 0,25<input value="${it.p025==null?"":it.p025}" inputmode="numeric" oninput="setPrice(${it.id},'p025',this.value)"></label>
+        <label class="f">Цена 0,4<input value="${it.p04==null?"":it.p04}" inputmode="numeric" oninput="setPrice(${it.id},'p04',this.value)"></label>
+        <label class="f">Цена 0,5<input value="${it.p05==null?"":it.p05}" inputmode="numeric" oninput="setPrice(${it.id},'p05',this.value)"></label>
+      </div>
+      <div class="meterrow">
+        <span>Горечь</span><div class="dots" id="dots-${it.id}-gor"></div>
+        <span>Плотность</span><div class="dots" id="dots-${it.id}-plot"></div>
+        <span>Цвет</span><div class="dots" id="dots-${it.id}-cvet"></div>
+      </div>
+      <button class="del" onclick="deleteCard(${it.id})">Удалить сорт</button>
+    </div>
+  </div>`;
+}
+
+function visibleCards(){
+  let list = CARDS.slice();
+  if(FILTER==="tap") list = list.filter(c=>c.tap);
+  if(QUERY){ const q=QUERY.toLowerCase();
+    list = list.filter(c=>((c.name||"")+" "+(c.latin||"")+" "+(c.brewery||"")).toLowerCase().includes(q)); }
+  list.sort((a,b)=>{
+    const at=a.tap?0:1, bt=b.tap?0:1;
+    if(at!==bt) return at-bt;
+    return (a.tap||a.n||0)-(b.tap||b.n||0);
+  });
+  return list;
+}
+function render(){
+  const list = visibleCards();
+  document.getElementById("rows").innerHTML = list.map(rowHTML).join("");
+  document.getElementById("count").textContent = `${list.length} из ${CARDS.length}`;
+  list.forEach(it=>{ paint(it.id); renderDots(it.id); });
+}
+
+async function load(){
+  const r = await fetch("/menu/api/items");
+  CARDS = await r.json();
+  render();
+}
+
+async function refreshPrices(){
+  const btn=document.getElementById("btnPrices");
+  btn.disabled=true; const old=btn.textContent; btn.textContent="Обновляю из iiko...";
+  try{
+    const r = await fetch("/menu/api/refresh-prices",{method:"POST"});
+    const data = await r.json();
+    if(!r.ok) throw new Error(data.error||("HTTP "+r.status));
+    await load();
+    const ch = (data.updated||[]).length;
+    toast(`Цены обновлены: совпало ${data.matched}/${data.total}, изменено ${ch}. Период ${data.date_from}…${data.date_to}.`);
+  }catch(e){ toast("Не удалось обновить цены: "+e.message); }
+  finally{ btn.disabled=false; btn.textContent=old; }
+}
+async function addCard(){
+  const r = await fetch("/menu/api/items",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+  const it = await r.json();
+  await load();
+  const row=document.getElementById("row-"+it.id); if(row) row.scrollIntoView({behavior:"smooth",block:"center"});
+}
+async function deleteCard(id){
+  const it=CARDS.find(c=>c.id===id);
+  if(!confirm(`Удалить «${it?it.name:""}»?`)) return;
+  await fetch(`/menu/api/items/${id}`,{method:"DELETE"});
+  await load();
+}
+function openPrint(){ window.open("/menu/print?filter="+FILTER, "_blank"); }
+function exportPdf(){ window.location = "/menu/api/export-pdf?filter="+FILTER; }
+
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), 4200);
+}
+
+document.getElementById("filterSeg").addEventListener("click", e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  FILTER=b.dataset.f;
+  document.querySelectorAll("#filterSeg button").forEach(x=>x.classList.toggle("on", x===b));
+  render();
+});
+let searchTimer;
+document.getElementById("search").addEventListener("input", e=>{
+  clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ QUERY=e.target.value.trim(); render(); }, 200);
+});
+
+if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>{ visibleCards().forEach(it=>paint(it.id)); }); }
+load();
+</script>
+</body>
+</html>

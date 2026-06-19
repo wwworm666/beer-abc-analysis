@@ -1,7 +1,7 @@
 [
   {
-    "name": "Witbier",
-    "latin": "Витбир",
+    "name": "Витбир",
+    "latin": "Witbier",
     "brewery": "Leroy",
     "country": "Бельгия",
     "style": "Витбир",
@@ -20,8 +20,8 @@
     "n": 1
   },
   {
-    "name": "Best",
-    "latin": "Бест",
+    "name": "Бест",
+    "latin": "Best",
     "brewery": "Saltaire",
     "country": "Англия",
     "style": "Английский Биттер",
@@ -40,8 +40,8 @@
     "n": 2
   },
   {
-    "name": "Local Lager",
-    "latin": "Локал лагер",
+    "name": "Локал лагер",
+    "latin": "Local Lager",
     "brewery": "Василеостровская",
     "country": "Россия",
     "style": "Светлый лагер",
@@ -60,8 +60,8 @@
     "n": 3
   },
   {
-    "name": "Local Weizen",
-    "latin": "Локал Вайцен",
+    "name": "Локал Вайцен",
+    "latin": "Local Weizen",
     "brewery": "Василеостровская",
     "country": "Россия",
     "style": "Пшеничное нефильтрованное",
@@ -80,8 +80,8 @@
     "n": 4
   },
   {
-    "name": "Ferdinand 10",
-    "latin": "Фердинанд 10",
+    "name": "Фердинанд 10",
+    "latin": "Ferdinand 10",
     "brewery": "Ferdinand",
     "country": "Чехия",
     "style": "Чешский лагер",
@@ -100,8 +100,8 @@
     "n": 5
   },
   {
-    "name": "Delirium Red",
-    "latin": "Делириум Ред",
+    "name": "Делириум Ред",
+    "latin": "Delirium Red",
     "brewery": "Huyghe",
     "country": "Бельгия",
     "style": "Вишневый эль",
@@ -120,8 +120,8 @@
     "n": 6
   },
   {
-    "name": "Sas Pils",
-    "latin": "Сас Пилз",
+    "name": "Сас Пилз",
+    "latin": "Sas Pils",
     "brewery": "Leroy",
     "country": "Бельгия",
     "style": "Пильзнер",
@@ -140,8 +140,8 @@
     "n": 7
   },
   {
-    "name": "Helles",
-    "latin": "Хеллес",
+    "name": "Хеллес",
+    "latin": "Helles",
     "brewery": "Hochstiftliches Brauhaus Fulda",
     "country": "Германия",
     "style": "Мюнхенский Хеллес",
@@ -160,8 +160,8 @@
     "n": 8
   },
   {
-    "name": "IPA",
-    "latin": "ИПА",
+    "name": "ИПА",
+    "latin": "IPA",
     "brewery": "Brewlok",
     "country": "Россия",
     "style": "Охмеленный бледный эль",
@@ -180,8 +180,8 @@
     "n": 9
   },
   {
-    "name": "Stout",
-    "latin": "Стаут",
+    "name": "Стаут",
+    "latin": "Stout",
     "brewery": "Brewlok",
     "country": "Россия",
     "style": "Стаут",
@@ -200,8 +200,8 @@
     "n": 10
   },
   {
-    "name": "Rodenbach Grand Cru",
-    "latin": "Роденбах Гранд Крю",
+    "name": "Роденбах Гранд Крю",
+    "latin": "Rodenbach Grand Cru",
     "brewery": "Palm",
     "country": "Бельгия",
     "style": "Фландрский Красный Эль",
@@ -220,8 +220,8 @@
     "n": 11
   },
   {
-    "name": "Astrologer",
-    "latin": "Астрологер",
+    "name": "Астрологер",
+    "latin": "Astrologer",
     "brewery": "Brew Division",
     "country": "Россия",
     "style": "Пильзнер",
@@ -240,8 +240,8 @@
     "n": 12
   },
   {
-    "name": "Witte",
-    "latin": "Вайт",
+    "name": "Вайт",
+    "latin": "Witte",
     "brewery": "Sint-Jozef и Martens",
     "country": "Бельгия",
     "style": "Витбир",
@@ -260,8 +260,8 @@
     "n": 13
   },
   {
-    "name": "Petrus Red",
-    "latin": "Делириум Ред",
+    "name": "Делириум Ред",
+    "latin": "Petrus Red",
     "brewery": "De Brabandere",
     "country": "Бельгия",
     "style": "Вишневый эль",
@@ -280,8 +280,8 @@
     "n": 14
   },
   {
-    "name": "Hefe Weizen",
-    "latin": "Хефе Вайцен",
+    "name": "Хефе Вайцен",
+    "latin": "Hefe Weizen",
     "brewery": "Hochstiftliches",
     "country": "Германия",
     "style": "Пшеничное нефильтрованное",
@@ -300,8 +300,8 @@
     "n": 15
   },
   {
-    "name": "the Pepin",
-    "latin": "Рейдж зе Пепин",
+    "name": "Рейдж зе Пепин",
+    "latin": "the Pepin",
     "brewery": "Rebel Apple",
     "country": "Россия",
     "style": "Сидр",
@@ -320,8 +320,8 @@
     "n": 16
   },
   {
-    "name": "Rustiq",
-    "latin": "Рустик",
+    "name": "Рустик",
+    "latin": "Rustiq",
     "brewery": "Bullevie",
     "country": "Россия",
     "style": "Сидр полусладкий",
@@ -340,8 +340,8 @@
     "n": 17
   },
   {
-    "name": "Moravan",
-    "latin": "Литовел Мораван",
+    "name": "Литовел Мораван",
+    "latin": "Moravan",
     "brewery": "Litovel",
     "country": "Чехия",
     "style": "Пильзнер",
@@ -360,8 +360,8 @@
     "n": 18
   },
   {
-    "name": "Palm",
-    "latin": "Палм",
+    "name": "Палм",
+    "latin": "Palm",
     "brewery": "Palm",
     "country": "Бельгия",
     "style": "Амбер эль",
@@ -380,8 +380,8 @@
     "n": 19
   },
   {
-    "name": "Brown Bruin",
-    "latin": "Стинбрюгге Браун Брюн",
+    "name": "Стинбрюгге Браун Брюн",
+    "latin": "Brown Bruin",
     "brewery": "Palm",
     "country": "Бельгия",
     "style": "Дюббель",
@@ -400,8 +400,8 @@
     "n": 20
   },
   {
-    "name": "Local Weizen",
-    "latin": "Локал Вайцен",
+    "name": "Локал Вайцен",
+    "latin": "Local Weizen",
     "brewery": "Gorkovskaya",
     "country": "Россия",
     "style": "Пшеничное нефильтрованное",
@@ -420,8 +420,8 @@
     "n": 21
   },
   {
-    "name": "Queency",
-    "latin": "Квинси",
+    "name": "Квинси",
+    "latin": "Queency",
     "brewery": "Bullevie",
     "country": "Россия",
     "style": "Сидр полусухой",
@@ -440,8 +440,8 @@
     "n": 22
   },
   {
-    "name": "Feines Urhell",
-    "latin": "Файнес Урхель",
+    "name": "Файнес Урхель",
+    "latin": "Feines Urhell",
     "brewery": "Riegele",
     "country": "Германия",
     "style": "Немецкий Лагер",
@@ -480,8 +480,8 @@
     "n": 24
   },
   {
-    "name": "Averbode",
-    "latin": "Авербод",
+    "name": "Авербод",
+    "latin": "Averbode",
     "brewery": "Huyghe",
     "country": "Бельгия",
     "style": "Бельгийский Крепкий Эль",
@@ -500,8 +500,8 @@
     "n": 25
   },
   {
-    "name": "Witbier",
-    "latin": "Витбир",
+    "name": "Витбир",
+    "latin": "Witbier",
     "brewery": "Van Steenberge",
     "country": "Бельгия",
     "style": "Витбир",
@@ -520,8 +520,8 @@
     "n": 26
   },
   {
-    "name": "De Lutin",
-    "latin": "Крик Де Лютин",
+    "name": "Крик Де Лютин",
+    "latin": "De Lutin",
     "brewery": "Василеостровская Пивоварня",
     "country": "Россия",
     "style": "Ламбик",
@@ -540,8 +540,8 @@
     "n": 27
   },
   {
-    "name": "Original Helles",
-    "latin": "Ориджинал Хеллес",
+    "name": "Ориджинал Хеллес",
+    "latin": "Original Helles",
     "brewery": "Privatbrauerei M.C. Wieninger",
     "country": "Германия",
     "style": "Немецкий Лагер",
@@ -560,8 +560,8 @@
     "n": 28
   },
   {
-    "name": "Wit-Blanche",
-    "latin": "Вит-Бланш",
+    "name": "Вит-Бланш",
+    "latin": "Wit-Blanche",
     "brewery": "Palm",
     "country": "Бельгия",
     "style": "Витбир",
@@ -580,8 +580,8 @@
     "n": 29
   },
   {
-    "name": "Helles",
-    "latin": "Хеллес",
+    "name": "Хеллес",
+    "latin": "Helles",
     "brewery": "Welde",
     "country": "Германия",
     "style": "Немецкий Лагер",
@@ -600,8 +600,8 @@
     "n": 30
   },
   {
-    "name": "Mahatma",
-    "latin": "Махатма",
+    "name": "Махатма",
+    "latin": "Mahatma",
     "brewery": "Rewort",
     "country": "Россия",
     "style": "Hazy IPA",
@@ -620,8 +620,8 @@
     "n": 31
   },
   {
-    "name": "Irish Red",
-    "latin": "Айриш Рэд",
+    "name": "Айриш Рэд",
+    "latin": "Irish Red",
     "brewery": "Carlow",
     "country": "Ирландия",
     "style": "Ирландский красный эль",
@@ -640,8 +640,8 @@
     "n": 32
   },
   {
-    "name": "Blond Watou",
-    "latin": "Блонд Вату",
+    "name": "Блонд Вату",
+    "latin": "Blond Watou",
     "brewery": "Leroy Breweries",
     "country": "Бельгия",
     "style": "Бельгийский Крепкий Эль",
@@ -660,8 +660,8 @@
     "n": 33
   },
   {
-    "name": "Premium",
-    "latin": "Литовел Премиум",
+    "name": "Литовел Премиум",
+    "latin": "Premium",
     "brewery": "Litovel",
     "country": "Чехия",
     "style": "Чешский Лагер",
@@ -680,8 +680,8 @@
     "n": 34
   },
   {
-    "name": "APA",
-    "latin": "АПА",
+    "name": "АПА",
+    "latin": "APA",
     "brewery": "Brewlok",
     "country": "Россия",
     "style": "Охмеленный эль",
@@ -700,8 +700,8 @@
     "n": 35
   },
   {
-    "name": "Blanche des Neiges",
-    "latin": "Бланш де Нейгес",
+    "name": "Бланш де Нейгес",
+    "latin": "Blanche des Neiges",
     "brewery": "Huyghe",
     "country": "Бельгия",
     "style": "Бланш",
@@ -720,8 +720,8 @@
     "n": 36
   },
   {
-    "name": "Full Moon",
-    "latin": "Фулл Мун",
+    "name": "Фулл Мун",
+    "latin": "Full Moon",
     "brewery": "BOMBrewery",
     "country": "Бельгия",
     "style": "Квадрупель",
@@ -740,8 +740,8 @@
     "n": 37
   },
   {
-    "name": "Brown Ale",
-    "latin": "Браун Эль",
+    "name": "Браун Эль",
+    "latin": "Brown Ale",
     "brewery": "Baltika Brew",
     "country": "Россия",
     "style": "Темный Эль",
@@ -800,8 +800,8 @@
     "n": 40
   },
   {
-    "name": "Festweisse TAP 04",
-    "latin": "Шнайдер ТАП 04",
+    "name": "Шнайдер ТАП 04",
+    "latin": "Festweisse TAP 04",
     "brewery": "G.Schneider & Sohn",
     "country": "Германия",
     "style": "Пшеничное фестивальное",
@@ -820,8 +820,8 @@
     "n": 41
   },
   {
-    "name": "Oktober",
-    "latin": "Октобер",
+    "name": "Октобер",
+    "latin": "Oktober",
     "brewery": "Dreamteam Brew",
     "country": "Россия",
     "style": "Мэрцен",
@@ -840,8 +840,8 @@
     "n": 42
   },
   {
-    "name": "Lager Hell",
-    "latin": "Айингер Хель",
+    "name": "Айингер Хель",
+    "latin": "Lager Hell",
     "brewery": "Ayinger",
     "country": "Германия",
     "style": "Баварский экспорт лагер",
@@ -880,8 +880,8 @@
     "n": 44
   },
   {
-    "name": "FestMärzen",
-    "latin": "Айингер Фестмэрцен",
+    "name": "Айингер Фестмэрцен",
+    "latin": "FestMärzen",
     "brewery": "Ayinger",
     "country": "Германия",
     "style": "Баварский фестивальный лагер",
@@ -900,8 +900,8 @@
     "n": 45
   },
   {
-    "name": "Oktoberfest",
-    "latin": "Холфброй Октоберфест",
+    "name": "Холфброй Октоберфест",
+    "latin": "Oktoberfest",
     "brewery": "Hofbrau",
     "country": "Германия",
     "style": "Баварский фестивальный лагер",
@@ -940,8 +940,8 @@
     "n": 47
   },
   {
-    "name": "Helles",
-    "latin": "Джоус Хеллес",
+    "name": "Джоус Хеллес",
+    "latin": "Helles",
     "brewery": "Jaws",
     "country": "Россия",
     "style": "Светлый лагер",
@@ -960,8 +960,8 @@
     "n": 48
   },
   {
-    "name": "Blond Ale",
-    "latin": "Блонд Эль",
+    "name": "Блонд Эль",
+    "latin": "Blond Ale",
     "brewery": "Baltika Brew",
     "country": "Россия",
     "style": "Светлый Эль",
@@ -1020,8 +1020,8 @@
     "n": 51
   },
   {
-    "name": "Hommel",
-    "latin": "Хоммель",
+    "name": "Хоммель",
+    "latin": "Hommel",
     "brewery": "Leroy",
     "country": "Бельгия",
     "style": "Охмеленный Бельгийский Эль",
@@ -1060,8 +1060,8 @@
     "n": 53
   },
   {
-    "name": "Overfall",
-    "latin": "Оверфол",
+    "name": "Оверфол",
+    "latin": "Overfall",
     "brewery": "Konix Brewery",
     "country": "Россия",
     "style": "Охмеленный светлый эль",
@@ -1080,8 +1080,8 @@
     "n": 54
   },
   {
-    "name": "Blanche de Lutin",
-    "latin": "Бланш",
+    "name": "Бланш",
+    "latin": "Blanche de Lutin",
     "brewery": "Василеостровская",
     "country": "Россия",
     "style": "Бланш",
@@ -1100,8 +1100,8 @@
     "n": 55
   },
   {
-    "name": "De Lutin",
-    "latin": "Бланш Де Лютин",
+    "name": "Бланш Де Лютин",
+    "latin": "De Lutin",
     "brewery": "Василеостровская Пивоварня",
     "country": "Россия",
     "style": "Витбир",
@@ -1120,8 +1120,8 @@
     "n": 56
   },
   {
-    "name": "Pilsner",
-    "latin": "Радебергер Пилснер",
+    "name": "Радебергер Пилснер",
+    "latin": "Pilsner",
     "brewery": "Radeberger Gruppe",
     "country": "Германия",
     "style": "Немецкий Пилснер",
@@ -1140,8 +1140,8 @@
     "n": 57
   },
   {
-    "name": "Yperman",
-    "latin": "Иперман",
+    "name": "Иперман",
+    "latin": "Yperman",
     "brewery": "Leroy",
     "country": "Бельгия",
     "style": "Амбер эль",
@@ -1160,8 +1160,8 @@
     "n": 58
   },
   {
-    "name": "IPA",
-    "latin": "Индиа Пейл Эль",
+    "name": "Индиа Пейл Эль",
+    "latin": "IPA",
     "brewery": "True Hops",
     "country": "Россия",
     "style": "Охмеленный светлый эль",
@@ -1180,8 +1180,8 @@
     "n": 59
   },
   {
-    "name": "Blond",
-    "latin": "Блонд",
+    "name": "Блонд",
+    "latin": "Blond",
     "brewery": "Palm",
     "country": "Бельгия",
     "style": "Бельгийский Эль",
@@ -1200,8 +1200,8 @@
     "n": 60
   },
   {
-    "name": "Dvanactka",
-    "latin": "Стародубице",
+    "name": "Стародубице",
+    "latin": "Dvanactka",
     "brewery": "Rohozec",
     "country": "Чехия",
     "style": "Чешский Пилснер",
@@ -1220,8 +1220,8 @@
     "n": 61
   },
   {
-    "name": "Helles",
-    "latin": "Хелес",
+    "name": "Хелес",
+    "latin": "Helles",
     "brewery": "Festhaus",
     "country": "Россия",
     "style": "Лагер",
@@ -1264,8 +1264,8 @@
     "n": 63
   },
   {
-    "name": "Knock To Heaven",
-    "latin": "Старлингтонс",
+    "name": "Старлингтонс",
+    "latin": "Knock To Heaven",
     "brewery": "Hobsons",
     "country": "Великобритания",
     "style": "Английский портер",
@@ -1284,8 +1284,8 @@
     "n": 64
   },
   {
-    "name": "Hefe Weisse",
-    "latin": "Хефе Вайссе",
+    "name": "Хефе Вайссе",
+    "latin": "Hefe Weisse",
     "brewery": "Riegele",
     "country": "Германия",
     "style": "Немецкое Пшеничное",
@@ -1304,8 +1304,8 @@
     "n": 65
   },
   {
-    "name": "Hell",
-    "latin": "Байройтер",
+    "name": "Байройтер",
+    "latin": "Hell",
     "brewery": "Bayreuther",
     "country": "Германия",
     "style": "Немецкий Лагер",
@@ -1324,8 +1324,8 @@
     "n": 66
   },
   {
-    "name": "De Namur",
-    "latin": "Бланш де Намюр",
+    "name": "Бланш де Намюр",
+    "latin": "De Namur",
     "brewery": "Du Bocq",
     "country": "Бельгия",
     "style": "Витбир",
@@ -1344,8 +1344,8 @@
     "n": 67
   },
   {
-    "name": "Nektar",
-    "latin": "Нектар",
+    "name": "Нектар",
+    "latin": "Nektar",
     "brewery": "Banjalucka",
     "country": "Босния и Герцеговина",
     "style": "Лагер",
@@ -1364,8 +1364,8 @@
     "n": 68
   },
   {
-    "name": "Day in Paradise",
-    "latin": "Дэй Ин Парадайз",
+    "name": "Дэй Ин Парадайз",
+    "latin": "Day in Paradise",
     "brewery": "Hobsons",
     "country": "Великобритания",
     "style": "Английский Эль",
@@ -1384,8 +1384,8 @@
     "n": 69
   },
   {
-    "name": "Black Spot",
-    "latin": "Блэк Спот",
+    "name": "Блэк Спот",
+    "latin": "Black Spot",
     "brewery": "Hobsons",
     "country": "Великобритания",
     "style": "Английский Стаут",
@@ -1404,8 +1404,8 @@
     "n": 70
   },
   {
-    "name": "Moonlight",
-    "latin": "Мунлайт",
+    "name": "Мунлайт",
+    "latin": "Moonlight",
     "brewery": "Hobsons",
     "country": "Великобритания",
     "style": "Английский Эль",
@@ -1424,8 +1424,8 @@
     "n": 71
   },
   {
-    "name": "Gold Ale",
-    "latin": "Голд Эль",
+    "name": "Голд Эль",
+    "latin": "Gold Ale",
     "brewery": "Sullivan's Brewing",
     "country": "Великобритания",
     "style": "Английский Эль",
@@ -1444,8 +1444,8 @@
     "n": 72
   },
   {
-    "name": "Niško",
-    "latin": "Нишко",
+    "name": "Нишко",
+    "latin": "Niško",
     "brewery": "Niška Pivara",
     "country": "Сербия",
     "style": "Лагер",
@@ -1464,8 +1464,8 @@
     "n": 73
   },
   {
-    "name": "Dickiy Crest",
-    "latin": "Дикий Крест",
+    "name": "Дикий Крест",
+    "latin": "Dickiy Crest",
     "brewery": "Rebel Apple",
     "country": "Россия",
     "style": "Сухой Сидр",
@@ -1484,8 +1484,8 @@
     "n": 74
   },
   {
-    "name": "Gulden Draak",
-    "latin": "Гульден Драак",
+    "name": "Гульден Драак",
+    "latin": "Gulden Draak",
     "brewery": "Van Steenberge",
     "country": "Бельгия",
     "style": "Темный Трипель",
@@ -1504,8 +1504,8 @@
     "n": 75
   },
   {
-    "name": "Semi Dry",
-    "latin": "Семи Драй",
+    "name": "Семи Драй",
+    "latin": "Semi Dry",
     "brewery": "Bullevie",
     "country": "Россия",
     "style": "Сидр полусухой",
@@ -1524,8 +1524,8 @@
     "n": 76
   },
   {
-    "name": "Festbier",
-    "latin": "Фестбир",
+    "name": "Фестбир",
+    "latin": "Festbier",
     "brewery": "Festhaus",
     "country": "Россия",
     "style": "Фестивальный Лагер",
@@ -1544,8 +1544,8 @@
     "n": 77
   },
   {
-    "name": "Original Munchner Hell",
-    "latin": "Мюнхнер Хелль",
+    "name": "Мюнхнер Хелль",
+    "latin": "Original Munchner Hell",
     "brewery": "Paulaner",
     "country": "Германия",
     "style": "Мюнхенский Лагер",
@@ -1564,8 +1564,8 @@
     "n": 78
   },
   {
-    "name": "IPA",
-    "latin": "ИПА",
+    "name": "ИПА",
+    "latin": "IPA",
     "brewery": "Paradox",
     "country": "Россия",
     "style": "Охмеленный Эль",
@@ -1584,8 +1584,8 @@
     "n": 79
   },
   {
-    "name": "Bourgogne des Flandres",
-    "latin": "Бургунь Де Фландер",
+    "name": "Бургунь Де Фландер",
+    "latin": "Bourgogne des Flandres",
     "brewery": "John Martin",
     "country": "Бельгия",
     "style": "Фламандский Эль",
@@ -1604,8 +1604,8 @@
     "n": 80
   },
   {
-    "name": "Pumpkin Hell",
-    "latin": "Пампкин Хель",
+    "name": "Пампкин Хель",
+    "latin": "Pumpkin Hell",
     "brewery": "Paradox",
     "country": "Россия",
     "style": "Тыквенный Эль",
@@ -1624,8 +1624,8 @@
     "n": 81
   },
   {
-    "name": "De Lutin",
-    "latin": "Руж Де Лютин",
+    "name": "Руж Де Лютин",
+    "latin": "De Lutin",
     "brewery": "Василеостровская Пивоварня",
     "country": "Россия",
     "style": "Вишневый Крепкий Эль",
@@ -1644,8 +1644,8 @@
     "n": 82
   },
   {
-    "name": "Old Speckled Hen",
-    "latin": "Олд Спеклд Хен",
+    "name": "Олд Спеклд Хен",
+    "latin": "Old Speckled Hen",
     "brewery": "Greene King",
     "country": "Англия",
     "style": "Английский Эль",
@@ -1664,8 +1664,8 @@
     "n": 83
   },
   {
-    "name": "Pilsner",
-    "latin": "Порт Пилснер",
+    "name": "Порт Пилснер",
+    "latin": "Pilsner",
     "brewery": "Dreamteam Brew",
     "country": "Россия",
     "style": "Пилснер в баварском стиле",
@@ -1684,8 +1684,8 @@
     "n": 84
   },
   {
-    "name": "Blanche Ma Cherie",
-    "latin": "Бланш ме Шери",
+    "name": "Бланш ме Шери",
+    "latin": "Blanche Ma Cherie",
     "brewery": "Konix Brewery",
     "country": "Россия",
     "style": "Бланш",
@@ -1704,8 +1704,8 @@
     "n": 85
   },
   {
-    "name": "Heartless Bitch 2.0",
-    "latin": "Хартлесс Бич 2.0",
+    "name": "Хартлесс Бич 2.0",
+    "latin": "Heartless Bitch 2.0",
     "brewery": "Gravity Project",
     "country": "Россия",
     "style": "Сидр Малина и Мята",
@@ -1724,8 +1724,8 @@
     "n": 86
   },
   {
-    "name": "Moravský Klas Světlé",
-    "latin": "Моравский Клас",
+    "name": "Моравский Клас",
+    "latin": "Moravský Klas Světlé",
     "brewery": "Velka Morava",
     "country": "Россия",
     "style": "Пилснер",
@@ -1744,8 +1744,8 @@
     "n": 87
   },
   {
-    "name": "Wave’s Tales Anne Bonny",
-    "latin": "Энн Бонни",
+    "name": "Энн Бонни",
+    "latin": "Wave’s Tales Anne Bonny",
     "brewery": "Plan B",
     "country": "Россия",
     "style": "Гозе с айвой",
@@ -1764,8 +1764,8 @@
     "n": 88
   },
   {
-    "name": "Equator",
-    "latin": "Экватор",
+    "name": "Экватор",
+    "latin": "Equator",
     "brewery": "Red Rocket",
     "country": "Россия",
     "style": "Саур эль с апельсином и гуавой",
@@ -1784,8 +1784,8 @@
     "n": 89
   },
   {
-    "name": "Parhelion",
-    "latin": "Паргелион",
+    "name": "Паргелион",
+    "latin": "Parhelion",
     "brewery": "Plan B",
     "country": "Россия",
     "style": "Охмеленный Имперский Эль",
@@ -1804,8 +1804,8 @@
     "n": 90
   },
   {
-    "name": "Tomato Method",
-    "latin": "Томато Метод",
+    "name": "Томато Метод",
+    "latin": "Tomato Method",
     "brewery": "Selfmade",
     "country": "Россия",
     "style": "Томатный Гозе",
@@ -1824,8 +1824,8 @@
     "n": 91
   },
   {
-    "name": "Plum Cider",
-    "latin": "Плам Сидр",
+    "name": "Плам Сидр",
+    "latin": "Plum Cider",
     "brewery": "Yablochny Spas",
     "country": "Россия",
     "style": "Сидр со сливой",
@@ -1844,8 +1844,8 @@
     "n": 92
   },
   {
-    "name": "Black Sheep Irish Stout",
-    "latin": "Блэк Шип",
+    "name": "Блэк Шип",
+    "latin": "Black Sheep Irish Stout",
     "brewery": "Black Sheep",
     "country": "Россия",
     "style": "Азотный сухой стаут",
@@ -1864,8 +1864,8 @@
     "n": 93
   },
   {
-    "name": "Commerzienrat",
-    "latin": "Коммерцинрат",
+    "name": "Коммерцинрат",
+    "latin": "Commerzienrat",
     "brewery": "Riegele",
     "country": "Германия",
     "style": "Немецкий Лагер",
@@ -1884,8 +1884,8 @@
     "n": 94
   },
   {
-    "name": "Dortmunder",
-    "latin": "Дортмундер",
+    "name": "Дортмундер",
+    "latin": "Dortmunder",
     "brewery": "Konix Brewery",
     "country": "Россия",
     "style": "Дортмундерский Лагер",
@@ -1904,8 +1904,8 @@
     "n": 95
   },
   {
-    "name": "DaDa №2",
-    "latin": "Дальняя Дача №2",
+    "name": "Дальняя Дача №2",
+    "latin": "DaDa №2",
     "brewery": "DaDa",
     "country": "Россия",
     "style": "Полусухой Нефильтрованный Сидр",
@@ -1924,8 +1924,8 @@
     "n": 96
   },
   {
-    "name": "Rouge",
-    "latin": "Фем Фаталь Руж",
+    "name": "Фем Фаталь Руж",
+    "latin": "Rouge",
     "brewery": "Femme Fatale",
     "country": "Россия",
     "style": "Вишневый Эль",
@@ -1944,8 +1944,8 @@
     "n": 97
   },
   {
-    "name": "Weissbier",
-    "latin": "Вайсбир",
+    "name": "Вайсбир",
+    "latin": "Weissbier",
     "brewery": "Festhaus",
     "country": "Россия",
     "style": "Пшеничное Н/Ф",
@@ -1964,8 +1964,8 @@
     "n": 98
   },
   {
-    "name": "Guinness",
-    "latin": "Гиннес",
+    "name": "Гиннес",
+    "latin": "Guinness",
     "brewery": "Diageo",
     "country": "Ирландия",
     "style": "Ирландский Сухой Стаут",
@@ -1984,8 +1984,8 @@
     "n": 99
   },
   {
-    "name": "Zubr",
-    "latin": "Зубр Голд",
+    "name": "Зубр Голд",
+    "latin": "Zubr",
     "brewery": "Zubr",
     "country": "Чехия",
     "style": "Чешский Пилснер",

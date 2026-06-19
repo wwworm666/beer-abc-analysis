@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>Меню — печать ({{ items|length }})</title>
+<link rel="stylesheet" href="/static/menu/ptserif.css" />
+<link rel="stylesheet" href="/static/menu/menu_card.css" />
+<style>
+  /* Шаблон карточки рассчитан на ОДНУ .page; для буклета складываем вертикально,
+     каждая на своей A4-странице. */
+  html, body{ background: #2a2824; margin: 0; }
+  body{ display: block; }
+  .page{ margin: 0 auto; background: #e5cba3; }
+  .page + .page{ margin-top: 8mm; }
+  @media print{
+    html, body{ background: #fff; }
+    .page{ margin: 0 auto; }
+    .page + .page{ margin-top: 0; }
+  }
+</style>
+</head>
+<body class="mc-root">
+{% for item in items %}{% include 'menu_card_body.html' %}{% endfor %}
+<script>
+  (function fitName(){
+    var MAX = 140, MIN = 36;
+    document.querySelectorAll('.name').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollHeight > MAX && size > MIN){ size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  })();
+  (function fitTags(){
+    document.querySelectorAll('.tags').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      var min = 14;
+      while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  })();
+</script>
+</body>
+</html>

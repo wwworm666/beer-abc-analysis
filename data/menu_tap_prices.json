@@ -1,0 +1,916 @@
+{
+  "1": {
+    "tap": 1,
+    "label": "ФестХаус Хеллес",
+    "matched_names": [
+      "ФестХаус Хеллес"
+    ],
+    "prices": {
+      "p025": 230,
+      "p04": 390,
+      "p05": 450
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 230,
+        "portions_at_list": 91,
+        "portions_total": 234,
+        "distinct": [
+          230,
+          260,
+          270,
+          320
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 538,
+        "portions_total": 599,
+        "distinct": [
+          350,
+          390
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p05": {
+        "list_price": 450,
+        "portions_at_list": 2414,
+        "portions_total": 4900,
+        "distinct": [
+          420,
+          450,
+          470,
+          490
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "2": {
+    "tap": 2,
+    "label": "Гулден Драк 708",
+    "matched_names": [
+      "Гулден Драк 708"
+    ],
+    "prices": {
+      "p025": 550,
+      "p04": 890,
+      "p05": 990
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 550,
+        "portions_at_list": 62,
+        "portions_total": 62,
+        "distinct": [
+          550
+        ],
+        "latest_date": "2026-06-13"
+      },
+      "p04": {
+        "list_price": 890,
+        "portions_at_list": 55,
+        "portions_total": 55,
+        "distinct": [
+          890
+        ],
+        "latest_date": "2026-06-16"
+      },
+      "p05": {
+        "list_price": 990,
+        "portions_at_list": 139,
+        "portions_total": 139,
+        "distinct": [
+          990
+        ],
+        "latest_date": "2026-06-17"
+      }
+    },
+    "found": true
+  },
+  "3": {
+    "tap": 3,
+    "label": "ФестХаус Вайцен",
+    "matched_names": [
+      "ФестХаус Вайцен"
+    ],
+    "prices": {
+      "p025": 230,
+      "p04": 390,
+      "p05": 450
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 230,
+        "portions_at_list": 39,
+        "portions_total": 85,
+        "distinct": [
+          230,
+          260,
+          320
+        ],
+        "latest_date": "2026-06-11"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 86,
+        "portions_total": 94,
+        "distinct": [
+          350,
+          390
+        ],
+        "latest_date": "2026-06-17"
+      },
+      "p05": {
+        "list_price": 450,
+        "portions_at_list": 571,
+        "portions_total": 1232,
+        "distinct": [
+          420,
+          450,
+          490
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "5": {
+    "tap": 5,
+    "label": "Plan B Emanation",
+    "matched_names": [
+      "Plan B Emanation"
+    ],
+    "prices": {
+      "p025": 290,
+      "p04": 420,
+      "p05": 520
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 290,
+        "portions_at_list": 14,
+        "portions_total": 14,
+        "distinct": [
+          290
+        ],
+        "latest_date": "2026-06-06"
+      },
+      "p04": {
+        "list_price": 420,
+        "portions_at_list": 24,
+        "portions_total": 24,
+        "distinct": [
+          420
+        ],
+        "latest_date": "2026-06-05"
+      },
+      "p05": {
+        "list_price": 520,
+        "portions_at_list": 126,
+        "portions_total": 126,
+        "distinct": [
+          520
+        ],
+        "latest_date": "2026-06-06"
+      }
+    },
+    "found": true
+  },
+  "6": {
+    "tap": 6,
+    "label": "Островица Гозе",
+    "matched_names": [
+      "Островица Гозе"
+    ],
+    "prices": {
+      "p025": 260,
+      "p04": 390,
+      "p05": 450
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 260,
+        "portions_at_list": 5,
+        "portions_total": 5,
+        "distinct": [
+          260
+        ],
+        "latest_date": "2026-06-05"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 11,
+        "portions_total": 11,
+        "distinct": [
+          390
+        ],
+        "latest_date": "2026-06-11"
+      },
+      "p05": {
+        "list_price": 450,
+        "portions_at_list": 14,
+        "portions_total": 26,
+        "distinct": [
+          450,
+          490
+        ],
+        "latest_date": "2026-06-12"
+      }
+    },
+    "found": true
+  },
+  "7": {
+    "tap": 7,
+    "label": "Brewlok IPA",
+    "matched_names": [
+      "Brewlok IPA"
+    ],
+    "prices": {
+      "p025": 270,
+      "p04": 390,
+      "p05": 490
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 270,
+        "portions_at_list": 73,
+        "portions_total": 73,
+        "distinct": [
+          270
+        ],
+        "latest_date": "2026-06-16"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 96,
+        "portions_total": 96,
+        "distinct": [
+          390
+        ],
+        "latest_date": "2026-06-15"
+      },
+      "p05": {
+        "list_price": 490,
+        "portions_at_list": 653,
+        "portions_total": 653,
+        "distinct": [
+          490
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "8": {
+    "tap": 8,
+    "label": "Степь и Ветер Мёд и Абрикос",
+    "matched_names": [
+      "Степь и Ветер Мёд и Абрикос"
+    ],
+    "prices": {
+      "p025": 290,
+      "p04": 390,
+      "p05": 490
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 290,
+        "portions_at_list": 22,
+        "portions_total": 22,
+        "distinct": [
+          290
+        ],
+        "latest_date": "2026-06-13"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 47,
+        "portions_total": 47,
+        "distinct": [
+          390
+        ],
+        "latest_date": "2026-06-17"
+      },
+      "p05": {
+        "list_price": 490,
+        "portions_at_list": 93,
+        "portions_total": 93,
+        "distinct": [
+          490
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "9": {
+    "tap": 9,
+    "label": "Zavod Morning Manya",
+    "matched_names": [
+      "Zavod Morning Manya"
+    ],
+    "prices": {
+      "p025": 290,
+      "p04": 390,
+      "p05": 490
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 290,
+        "portions_at_list": 16,
+        "portions_total": 16,
+        "distinct": [
+          290
+        ],
+        "latest_date": "2026-06-07"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 32,
+        "portions_total": 32,
+        "distinct": [
+          390
+        ],
+        "latest_date": "2026-06-13"
+      },
+      "p05": {
+        "list_price": 490,
+        "portions_at_list": 33,
+        "portions_total": 33,
+        "distinct": [
+          490
+        ],
+        "latest_date": "2026-06-16"
+      }
+    },
+    "found": true
+  },
+  "10": {
+    "tap": 10,
+    "label": "Бьюльви Рустик полусухой",
+    "matched_names": [
+      "Бюльви Рустик полусухой"
+    ],
+    "prices": {
+      "p025": 260,
+      "p04": 390,
+      "p05": 490
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 260,
+        "portions_at_list": 13,
+        "portions_total": 13,
+        "distinct": [
+          260
+        ],
+        "latest_date": "2026-06-02"
+      },
+      "p04": {
+        "list_price": 390,
+        "portions_at_list": 27,
+        "portions_total": 27,
+        "distinct": [
+          390
+        ],
+        "latest_date": "2026-06-04"
+      },
+      "p05": {
+        "list_price": 490,
+        "portions_at_list": 55,
+        "portions_total": 55,
+        "distinct": [
+          490
+        ],
+        "latest_date": "2026-06-04"
+      }
+    },
+    "found": true
+  },
+  "12": {
+    "tap": 12,
+    "label": "Бургунь де Фландер",
+    "matched_names": [
+      "Бургунь де Фландер"
+    ],
+    "prices": {
+      "p025": 470,
+      "p04": 740,
+      "p05": 910
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 470,
+        "portions_at_list": 28,
+        "portions_total": 28,
+        "distinct": [
+          470
+        ],
+        "latest_date": "2026-05-29"
+      },
+      "p04": {
+        "list_price": 740,
+        "portions_at_list": 73,
+        "portions_total": 73,
+        "distinct": [
+          740
+        ],
+        "latest_date": "2026-05-29"
+      },
+      "p05": {
+        "list_price": 910,
+        "portions_at_list": 50,
+        "portions_total": 50,
+        "distinct": [
+          910
+        ],
+        "latest_date": "2026-05-29"
+      }
+    },
+    "found": true
+  },
+  "13": {
+    "tap": 13,
+    "label": "Rework Nutty Nut",
+    "matched_names": [
+      "Rewort Nutty Nut"
+    ],
+    "prices": {
+      "p025": 250,
+      "p04": 370,
+      "p05": 440
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 250,
+        "portions_at_list": 9,
+        "portions_total": 13,
+        "distinct": [
+          250,
+          290
+        ],
+        "latest_date": "2026-06-15"
+      },
+      "p04": {
+        "list_price": 370,
+        "portions_at_list": 21,
+        "portions_total": 25,
+        "distinct": [
+          370,
+          390
+        ],
+        "latest_date": "2026-06-15"
+      },
+      "p05": {
+        "list_price": 440,
+        "portions_at_list": 44,
+        "portions_total": 61,
+        "distinct": [
+          440,
+          490
+        ],
+        "latest_date": "2026-06-16"
+      }
+    },
+    "found": true
+  },
+  "14": {
+    "tap": 14,
+    "label": "ЛеФорт Трипель",
+    "matched_names": [
+      "ЛеФорт Трипель"
+    ],
+    "prices": {
+      "p025": 550,
+      "p04": 890,
+      "p05": 990
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 550,
+        "portions_at_list": 11,
+        "portions_total": 11,
+        "distinct": [
+          550
+        ],
+        "latest_date": "2026-06-15"
+      },
+      "p04": {
+        "list_price": 890,
+        "portions_at_list": 47,
+        "portions_total": 47,
+        "distinct": [
+          890
+        ],
+        "latest_date": "2026-06-11"
+      },
+      "p05": {
+        "list_price": 990,
+        "portions_at_list": 123,
+        "portions_total": 123,
+        "distinct": [
+          990
+        ],
+        "latest_date": "2026-06-17"
+      }
+    },
+    "found": true
+  },
+  "15": {
+    "tap": 15,
+    "label": "Black Cat Клюквенная Пастила",
+    "matched_names": [
+      "Black Cat Клюквенная Пастила"
+    ],
+    "prices": {
+      "p025": 380,
+      "p04": 550,
+      "p05": 650
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 380,
+        "portions_at_list": 17,
+        "portions_total": 17,
+        "distinct": [
+          380
+        ],
+        "latest_date": "2026-06-13"
+      },
+      "p04": {
+        "list_price": 550,
+        "portions_at_list": 14,
+        "portions_total": 14,
+        "distinct": [
+          550
+        ],
+        "latest_date": "2026-06-11"
+      },
+      "p05": {
+        "list_price": 650,
+        "portions_at_list": 14,
+        "portions_total": 14,
+        "distinct": [
+          650
+        ],
+        "latest_date": "2026-06-13"
+      }
+    },
+    "found": true
+  },
+  "16": {
+    "tap": 16,
+    "label": "Polnochnyj Project Signal Fire",
+    "matched_names": [
+      "Polnochnyj Project Signal Fire"
+    ],
+    "prices": {
+      "p025": 420,
+      "p04": 520,
+      "p05": 620
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 420,
+        "portions_at_list": 4,
+        "portions_total": 4,
+        "distinct": [
+          420
+        ],
+        "latest_date": "2026-06-02"
+      },
+      "p04": {
+        "list_price": 520,
+        "portions_at_list": 11,
+        "portions_total": 11,
+        "distinct": [
+          520
+        ],
+        "latest_date": "2026-06-11"
+      },
+      "p05": {
+        "list_price": 620,
+        "portions_at_list": 19,
+        "portions_total": 19,
+        "distinct": [
+          620
+        ],
+        "latest_date": "2026-06-12"
+      }
+    },
+    "found": true
+  },
+  "17": {
+    "tap": 17,
+    "label": "Коникс Черри Руби",
+    "matched_names": [
+      "Коникс Черри Руби"
+    ],
+    "prices": {
+      "p025": 390,
+      "p04": 440,
+      "p05": 590
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 390,
+        "portions_at_list": 56,
+        "portions_total": 84,
+        "distinct": [
+          290,
+          390
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p04": {
+        "list_price": 440,
+        "portions_at_list": 51,
+        "portions_total": 101,
+        "distinct": [
+          440,
+          490
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p05": {
+        "list_price": 590,
+        "portions_at_list": 295,
+        "portions_total": 422,
+        "distinct": [
+          540,
+          590
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "18": {
+    "tap": 18,
+    "label": "Палм",
+    "matched_names": [
+      "Палм"
+    ],
+    "prices": {
+      "p025": 390,
+      "p04": 550,
+      "p05": 650
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 390,
+        "portions_at_list": 78,
+        "portions_total": 80,
+        "distinct": [
+          300,
+          390
+        ],
+        "latest_date": "2026-06-15"
+      },
+      "p04": {
+        "list_price": 550,
+        "portions_at_list": 71,
+        "portions_total": 96,
+        "distinct": [
+          450,
+          550,
+          590
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p05": {
+        "list_price": 650,
+        "portions_at_list": 510,
+        "portions_total": 603,
+        "distinct": [
+          550,
+          650,
+          656,
+          690
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "20": {
+    "tap": 20,
+    "label": "Alaska Фейхоа",
+    "matched_names": [
+      "Alaska Фейхоа"
+    ],
+    "prices": {
+      "p025": 320,
+      "p04": 420,
+      "p05": 520
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 320,
+        "portions_at_list": 35,
+        "portions_total": 35,
+        "distinct": [
+          320
+        ],
+        "latest_date": "2026-06-05"
+      },
+      "p04": {
+        "list_price": 420,
+        "portions_at_list": 74,
+        "portions_total": 74,
+        "distinct": [
+          420
+        ],
+        "latest_date": "2026-06-05"
+      },
+      "p05": {
+        "list_price": 520,
+        "portions_at_list": 61,
+        "portions_total": 61,
+        "distinct": [
+          520
+        ],
+        "latest_date": "2026-06-05"
+      }
+    },
+    "found": true
+  },
+  "21": {
+    "tap": 21,
+    "label": "Островица Холи ДИПА",
+    "matched_names": [
+      "Островица Холи ДИПА"
+    ],
+    "prices": {
+      "p025": 350,
+      "p04": 450,
+      "p05": 550
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 350,
+        "portions_at_list": 10,
+        "portions_total": 10,
+        "distinct": [
+          350
+        ],
+        "latest_date": "2026-06-03"
+      },
+      "p04": {
+        "list_price": 450,
+        "portions_at_list": 23,
+        "portions_total": 23,
+        "distinct": [
+          450
+        ],
+        "latest_date": "2026-06-02"
+      },
+      "p05": {
+        "list_price": 550,
+        "portions_at_list": 50,
+        "portions_total": 50,
+        "distinct": [
+          550
+        ],
+        "latest_date": "2026-06-03"
+      }
+    },
+    "found": true
+  },
+  "22": {
+    "tap": 22,
+    "label": "Gravity Heartless Bitch 2.0",
+    "matched_names": [
+      "Gravity Project Heartless Bitch 2.0"
+    ],
+    "prices": {
+      "p025": 330,
+      "p04": 420,
+      "p05": 520
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 330,
+        "portions_at_list": 21,
+        "portions_total": 30,
+        "distinct": [
+          330,
+          340
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p04": {
+        "list_price": 420,
+        "portions_at_list": 39,
+        "portions_total": 59,
+        "distinct": [
+          420,
+          490
+        ],
+        "latest_date": "2026-06-18"
+      },
+      "p05": {
+        "list_price": 520,
+        "portions_at_list": 83,
+        "portions_total": 110,
+        "distinct": [
+          520,
+          590
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  },
+  "23": {
+    "tap": 23,
+    "label": "Ригеле Коммерцинрат",
+    "matched_names": [
+      "Ригеле Коммерциенрат"
+    ],
+    "prices": {
+      "p025": 470,
+      "p04": 670,
+      "p05": 770
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 470,
+        "portions_at_list": 69,
+        "portions_total": 69,
+        "distinct": [
+          470
+        ],
+        "latest_date": "2026-06-13"
+      },
+      "p04": {
+        "list_price": 670,
+        "portions_at_list": 60,
+        "portions_total": 60,
+        "distinct": [
+          670
+        ],
+        "latest_date": "2026-06-09"
+      },
+      "p05": {
+        "list_price": 770,
+        "portions_at_list": 725,
+        "portions_total": 725,
+        "distinct": [
+          770
+        ],
+        "latest_date": "2026-06-13"
+      }
+    },
+    "found": true
+  },
+  "24": {
+    "tap": 24,
+    "label": "Brewlok Stout",
+    "matched_names": [
+      "Brewlok Stout"
+    ],
+    "prices": {
+      "p025": 250,
+      "p04": 340,
+      "p05": 440
+    },
+    "price_history": {
+      "p025": {
+        "list_price": 250,
+        "portions_at_list": 7,
+        "portions_total": 16,
+        "distinct": [
+          220,
+          250,
+          290
+        ],
+        "latest_date": "2026-06-17"
+      },
+      "p04": {
+        "list_price": 340,
+        "portions_at_list": 29,
+        "portions_total": 34,
+        "distinct": [
+          340,
+          390
+        ],
+        "latest_date": "2026-06-12"
+      },
+      "p05": {
+        "list_price": 440,
+        "portions_at_list": 155,
+        "portions_total": 177,
+        "distinct": [
+          440,
+          490
+        ],
+        "latest_date": "2026-06-18"
+      }
+    },
+    "found": true
+  }
+}

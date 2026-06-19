@@ -1,0 +1,212 @@
+[
+  {
+    "tap": 1,
+    "label": "ФестХаус Хеллес",
+    "iiko_name": "ФестХаус Хеллес",
+    "prices": {
+      "p025": 230,
+      "p04": 390,
+      "p05": 450
+    }
+  },
+  {
+    "tap": 2,
+    "label": "Гулден Драк 708",
+    "iiko_name": "Гулден Драк 708",
+    "prices": {
+      "p025": 550,
+      "p04": 890,
+      "p05": 990
+    }
+  },
+  {
+    "tap": 3,
+    "label": "ФестХаус Вайцен",
+    "iiko_name": "ФестХаус Вайцен",
+    "prices": {
+      "p025": 230,
+      "p04": 390,
+      "p05": 450
+    }
+  },
+  {
+    "tap": 5,
+    "label": "Plan B Emanation",
+    "iiko_name": "Plan B Emanation",
+    "prices": {
+      "p025": 290,
+      "p04": 420,
+      "p05": 520
+    }
+  },
+  {
+    "tap": 6,
+    "label": "Островица Гозе",
+    "iiko_name": "Островица Гозе",
+    "prices": {
+      "p025": 260,
+      "p04": 390,
+      "p05": 450
+    }
+  },
+  {
+    "tap": 7,
+    "label": "Brewlok IPA",
+    "iiko_name": "Brewlok IPA",
+    "prices": {
+      "p025": 270,
+      "p04": 390,
+      "p05": 490
+    }
+  },
+  {
+    "tap": 8,
+    "label": "Степь и Ветер Мёд и Абрикос",
+    "iiko_name": "Степь и Ветер Мёд и Абрикос",
+    "prices": {
+      "p025": 290,
+      "p04": 390,
+      "p05": 490
+    }
+  },
+  {
+    "tap": 9,
+    "label": "Zavod Morning Manya",
+    "iiko_name": "Zavod Morning Manya",
+    "prices": {
+      "p025": 290,
+      "p04": 390,
+      "p05": 490
+    }
+  },
+  {
+    "tap": 10,
+    "label": "Бьюльви Рустик полусухой",
+    "iiko_name": "Бюльви Рустик полусухой",
+    "prices": {
+      "p025": 260,
+      "p04": 390,
+      "p05": 490
+    }
+  },
+  {
+    "tap": 12,
+    "label": "Бургунь де Фландер",
+    "iiko_name": "Бургунь де Фландер",
+    "prices": {
+      "p025": 470,
+      "p04": 740,
+      "p05": 910
+    }
+  },
+  {
+    "tap": 13,
+    "label": "Rework Nutty Nut",
+    "iiko_name": "Rewort Nutty Nut",
+    "prices": {
+      "p025": 250,
+      "p04": 370,
+      "p05": 440
+    }
+  },
+  {
+    "tap": 14,
+    "label": "ЛеФорт Трипель",
+    "iiko_name": "ЛеФорт Трипель",
+    "prices": {
+      "p025": 550,
+      "p04": 890,
+      "p05": 990
+    }
+  },
+  {
+    "tap": 15,
+    "label": "Black Cat Клюквенная Пастила",
+    "iiko_name": "Black Cat Клюквенная Пастила",
+    "prices": {
+      "p025": 380,
+      "p04": 550,
+      "p05": 650
+    }
+  },
+  {
+    "tap": 16,
+    "label": "Polnochnyj Project Signal Fire",
+    "iiko_name": "Polnochnyj Project Signal Fire",
+    "prices": {
+      "p025": 420,
+      "p04": 520,
+      "p05": 620
+    }
+  },
+  {
+    "tap": 17,
+    "label": "Коникс Черри Руби",
+    "iiko_name": "Коникс Черри Руби",
+    "prices": {
+      "p025": 390,
+      "p04": 440,
+      "p05": 590
+    }
+  },
+  {
+    "tap": 18,
+    "label": "Палм",
+    "iiko_name": "Палм",
+    "prices": {
+      "p025": 390,
+      "p04": 550,
+      "p05": 650
+    }
+  },
+  {
+    "tap": 20,
+    "label": "Alaska Фейхоа",
+    "iiko_name": "Alaska Фейхоа",
+    "prices": {
+      "p025": 320,
+      "p04": 420,
+      "p05": 520
+    }
+  },
+  {
+    "tap": 21,
+    "label": "Островица Холи ДИПА",
+    "iiko_name": "Островица Холи ДИПА",
+    "prices": {
+      "p025": 350,
+      "p04": 450,
+      "p05": 550
+    }
+  },
+  {
+    "tap": 22,
+    "label": "Gravity Heartless Bitch 2.0",
+    "iiko_name": "Gravity Project Heartless Bitch 2.0",
+    "prices": {
+      "p025": 330,
+      "p04": 420,
+      "p05": 520
+    }
+  },
+  {
+    "tap": 23,
+    "label": "Ригеле Коммерцинрат",
+    "iiko_name": "Ригеле Коммерциенрат",
+    "prices": {
+      "p025": 470,
+      "p04": 670,
+      "p05": 770
+    }
+  },
+  {
+    "tap": 24,
+    "label": "Brewlok Stout",
+    "iiko_name": "Brewlok Stout",
+    "prices": {
+      "p025": 250,
+      "p04": 340,
+      "p05": 440
+    }
+  }
+]

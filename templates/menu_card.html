@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>{{ item.name }} — карточка</title>
+<link rel="stylesheet" href="/static/menu/ptserif.css" />
+<link rel="stylesheet" href="/static/menu/menu_card.css" />
+<style>
+  html, body{ background: {{ '#2a2824' if not standalone else 'white' }}; color: #1a1a1a; margin: 0; }
+  body{ display: flex; justify-content: center; align-items: flex-start; padding: 0; }
+</style>
+</head>
+<body class="mc-root">
+{% include 'menu_card_body.html' %}
+<script>
+  /* Авто-уменьшение заголовка по высоте: короткое двухсловное имя на 72pt всё равно
+     переносится в 2 строки и переполняет hero -> уменьшаем шрифт, пока влезает. */
+  (function fitName(){
+    var MAX = 140, MIN = 36;
+    document.querySelectorAll('.name').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollHeight > MAX && size > MIN){ size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  })();
+  /* Теги в одну строку: уменьшаем, пока не влезут по ширине. */
+  (function fitTags(){
+    document.querySelectorAll('.tags').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      var min = 14;
+      while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  })();
+</script>
+</body>
+</html>

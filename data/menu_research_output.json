@@ -1,0 +1,1525 @@
+[
+  {
+    "id": 1,
+    "tags": [
+      "цитрусовый",
+      "кориандр",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/leroy-breweries-watou-s-witbier-biere-blanche-watou/2170676",
+      "https://untappd.com/Leroybreweries",
+      "https://www.craftbeer.com/styles/belgian-style-wit"
+    ]
+  },
+  {
+    "id": 2,
+    "tags": [
+      "мармеладный",
+      "ореховый",
+      "карамельный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://saltairebrewery.com/products/saltaire-best",
+      "https://untappd.com/b/saltaire-brewery-best/3126441",
+      "https://saltairebrewery.com/blogs/news/cask-ale-of-the-year-2021-best",
+      "https://pintplease.com/en/beer/173734/best"
+    ]
+  },
+  {
+    "id": 3,
+    "tags": [
+      "хлебный",
+      "солодовый",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "low",
+    "sources": [
+      "https://untappd.com/VasileostrovskayaBrewery",
+      "https://winestyle.ru/products/Vasileostrovskaya-Pivovarnya-Hop-Lager.html",
+      "https://eatbeer.ru/styles/light-lagers/european-light-lager/",
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-vasileostrovskoe-svetlyj-nefiltrovannyj-lager-domashnee-vasileostrovskoe-ligth-unfiltered-lager-aka-domashnee/55784"
+    ]
+  },
+  {
+    "id": 4,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/VasileostrovskayaBrewery/beer",
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-vasileostrovskoe-hlebnoe/5888857",
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-weizenfeld-weissbier/2567363",
+      "http://www.vpspb.ru/varim_krugliy_god"
+    ]
+  },
+  {
+    "id": 5,
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.pivovarferdinand.cz/vycepni-svetle/",
+      "https://untappd.com/w/pivovar-ferdinand/15989/beer",
+      "https://www.pivnici.cz/pivo/ferdinand-vycepni-pivo-svetle/",
+      "http://www.atlaspiv.cz/?page=detail&beer_id=31"
+    ]
+  },
+  {
+    "id": 6,
+    "tags": [
+      "вишнёвый",
+      "миндальный",
+      "кисло-сладкий"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://www.delirium.be/en/beers/delirium-red",
+      "https://untappd.com/b/delirium-huyghe-brewery-delirium-red/33040",
+      "https://www.beeradvocate.com/beer/profile/180/68452/",
+      "https://www.beermerchants.com/delirium-red"
+    ]
+  },
+  {
+    "id": 7,
+    "tags": [
+      "солодовый",
+      "хмелевой",
+      "хлебный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/leroy-breweries-sas-pils/163373",
+      "https://www.beeradvocate.com/beer/profile/634/130344/",
+      "https://pintplease.com/en/beer/31621/sas_pils",
+      "https://birrapedia.com/en/leroy-breweries--sas-pils/f-632c13eb1603daf899c0e6e5"
+    ]
+  },
+  {
+    "id": 8,
+    "tags": [
+      "солодовый",
+      "злаковый",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/hochstiftliches-brauhaus-fulda-fuldaer-stadtbrau-hell/6345628",
+      "https://www.beertasting.com/en/beers/hochstift-fulda-fuldaer-stadtbrau-hell",
+      "https://www.hochstift.de/bierwissen/bierkunde",
+      "https://untappd.com/w/hochstiftliches-brauhaus-fulda/33919/beer"
+    ]
+  },
+  {
+    "id": 9,
+    "tags": [
+      "цитрусовый",
+      "тропический",
+      "хмелевой"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-brewlok-ipa/6214849",
+      "https://untappd.com/b/brewlok-brewery-ipa/5857981",
+      "https://pivokom.ru/brands/brewlok/",
+      "https://craftbeer78.ru/brewery/brewlok"
+    ]
+  },
+  {
+    "id": 10,
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "жжёный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "medium",
+    "sources": [
+      "https://beers.su/beer/brewlok-naglecy-iz-voronezha-stout",
+      "https://winestyle.ru/products/Brewlok-SoS-Stay-One-Stout.html",
+      "https://untappd.com/b/brewlok-brewery-naglecy-iz-voronezha-stout/4963607/nearby",
+      "https://untappd.com/b/brewlok-craft-and-classic-brewery-sos-stay-one-stout/1469973"
+    ]
+  },
+  {
+    "id": 11,
+    "tags": [
+      "вишнёвый",
+      "кислый",
+      "дубовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-rodenbach-rodenbach-grand-cru/8021",
+      "https://www.beermonthclub.com/brouwerij-rodenbach-rodenbach-grand-cru-2017",
+      "https://oakbarrel.com.au/product/rodenbach-grand-cru-flanders-red-ale-330ml-6/",
+      "https://vinepair.com/articles/best-sour-beer-rodenbach-belgium/"
+    ]
+  },
+  {
+    "id": 12,
+    "tags": [
+      "медовый",
+      "цветочный",
+      "хмелевой"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brew-division-astrologer/1823327",
+      "https://your.beer/beer/brew-division-astrologer",
+      "https://beers.su/beer/brew-division-astrologer",
+      "https://winestyle.ru/products/Brew-Division-Astrologer.html"
+    ]
+  },
+  {
+    "id": 13,
+    "tags": [
+      "цитрусовый",
+      "пряный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-martens-martens-witte/211677",
+      "https://beerconnoisseur.com/beer/brouwerij-martens/martens-witte/",
+      "https://www.beeradvocate.com/beer/profile/3517/85353/"
+    ]
+  },
+  {
+    "id": 15,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/will-brau-hochstiftliches-brauhaus-in-bayern-hefeweizen/423038",
+      "https://untappd.com/w/will-bra-u-hochstiftliches-brauhaus-in-bayern/661/beer",
+      "https://pintplease.com/en/beer/11336/will_brau_original_bayerisch_hefe_weizen",
+      "https://www.beeradvocate.com/beer/profile/3291/13535/"
+    ]
+  },
+  {
+    "id": 16,
+    "tags": [
+      "яблочный",
+      "карамельный",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rebel-apple-rage-against-the-pepin/4376171",
+      "https://winestyle.ru/products/Rebel-Apple-Rage-Against-the-Pepin-in-can.html",
+      "https://profile.pintplease.com/en/beer/286561/rage_against_the_pepin",
+      "https://www.tasteatlas.com/rebel-apple-rage-against-the-pepin"
+    ]
+  },
+  {
+    "id": 18,
+    "tags": [
+      "солодовый",
+      "карамельный",
+      "травянистый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.domaci-pivoteka.cz/litovel-moravan-11/",
+      "https://www.litovel.cz/nase-piva",
+      "https://www.pivnidenicek.cz/pivni-znacky/pivo/3897-litovel-11-moravan",
+      "http://www.atlaspiv.cz/?page=detail&beer_id=248"
+    ]
+  },
+  {
+    "id": 20,
+    "tags": [
+      "карамельный",
+      "фруктовый",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-palm-steenbrugge-dubbel-bruin/16648",
+      "https://www.palm.be/nl/degoudenboom/beers/15/dubbelbruin",
+      "https://www.ratebeer.com/Ratings/Beer/Beer-Ratings.asp?BeerID=396",
+      "https://pintplease.com/en/beer/1250/steenbrugge_dubbel_bruin"
+    ]
+  },
+  {
+    "id": 22,
+    "tags": [
+      "яблочный",
+      "кислинка",
+      "танинный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bullevie-queency/3930388",
+      "https://winestyle.ru/products/Bullevie-Queency.html",
+      "https://darwin-wine.ru/product/6648/sidr-byulvi-kvinsi-bullevie-queency-yablochnyy-polusuhoy-igristyy-05l-krepost-55/",
+      "https://krymwine.spb.ru/product/sidr-bullevie-queency-0-5-l/"
+    ]
+  },
+  {
+    "id": 23,
+    "tags": [
+      "солодовый",
+      "травянистый",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brauhaus-riegele-feines-urhell/8656",
+      "https://www.riegele.de/en/beers/beer-classics/feines-urhell/",
+      "https://www.bierentdecker.com/bierfinder/details/riegele-feines-urhell",
+      "https://www.beyondbeer.de/en/riegele-feines-urhell/"
+    ]
+  },
+  {
+    "id": 24,
+    "tags": [
+      "яблочный",
+      "терпкий",
+      "винный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/zapovednik-abanamat/1963594",
+      "https://craftbeer78.ru/cider/abanamat-sidreriya-zapovednik",
+      "https://beers.su/beer/zapovednik-abanamat",
+      "https://zapovednick.com/catalog"
+    ]
+  },
+  {
+    "id": 25,
+    "tags": [
+      "цветочный",
+      "яблочный",
+      "травянистый"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/huisbrouwerij-averbode-averbode/657805",
+      "https://www.beermerchants.com/averbode",
+      "https://www.bienmanger.com/2F47623_Averbode_Belgian_Blonde_Beer.html",
+      "https://beersecret.com/online-beer-tasting-series-averbode-and-its-sibling-delirium/"
+    ]
+  },
+  {
+    "id": 27,
+    "tags": [
+      "вишнёвый",
+      "кисло-сладкий",
+      "фруктовый"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-kriek-de-lutin/2535914",
+      "https://winestyle.ru/products/Vasileostrovskaya-Pivovarnya-Kriek-De-Lutin.html",
+      "https://brugespub.ru/pivo-pivnoy-napitok/rozliv/krik-de-lyutin-napitok-pivnoy-pasterizovannyy-nefiltrovannyy-osvetlennyy/",
+      "https://rusbeershop.ru/catalog/beer-60602/"
+    ]
+  },
+  {
+    "id": 28,
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "ореховый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/privatbrauerei-m-c-wieninger-helles-lagerbier/6778",
+      "https://www.beeradvocate.com/beer/profile/4680/10052/",
+      "https://wieninger.de/produkte/bierspezialitaeten/braumeisterbiere/helles-lagerbier~p12547",
+      "https://untappd.com/b/privatbrauerei-m-c-wieninger-weissmuller-original-helles/5344123"
+    ]
+  },
+  {
+    "id": 29,
+    "tags": [
+      "цитрусовый",
+      "кориандровый",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://www.palm.be/nl/degoudenboom/beers/17/wit",
+      "https://untappd.com/b/brouwerij-palm-steenbrugge-blanche/40022",
+      "https://www.ratebeer.com/Ratings/Beer/Beer-Ratings.asp?BeerID=85696",
+      "https://untappd.com/b/brouwerij-palm-st-pierre-blanche/4281464"
+    ]
+  },
+  {
+    "id": 31,
+    "tags": [
+      "мандариновый",
+      "цитрусовый",
+      "хмельной"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rewort-brewery-poetry-of-love-mahatma-g/2367269",
+      "https://www.pintplease.com/en/beer/198081/mahatma_g",
+      "https://beerpal.com/beer/rewort-mahatma-g"
+    ]
+  },
+  {
+    "id": 32,
+    "tags": [
+      "карамельный",
+      "поджаренный",
+      "солодовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://www.carlowbrewing.com/our-beers/oharas-irish-red/",
+      "https://untappd.com/b/o-hara-s-brewery-o-hara-s-irish-red/13675",
+      "https://www.beeradvocate.com/beer/profile/646/22181/",
+      "https://www.beermonthclub.com/carlow-brewing-company-o-hara-s-irish-red"
+    ]
+  },
+  {
+    "id": 33,
+    "tags": [
+      "цитрусовый",
+      "медовый",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.bierista.nl/kapittel-watou-blond",
+      "https://www.biernet.nl/bier/merken/kapittel-blond",
+      "https://souriredessaveurs.com/en/1945-beer-kapittel-watou-blond-belgium-65-33-cl.html",
+      "https://www.beeradvocate.com/beer/profile/634/13566/"
+    ]
+  },
+  {
+    "id": 34,
+    "tags": [
+      "солодовый",
+      "золотистый",
+      "медовый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/litovel-premium/90600",
+      "https://www.metrpiva.cz/produkty/pivo-ceske-svetle/litovel-premium-svetly-lezak-12-0-2c5l.html",
+      "http://www.atlaspiv.cz/?page=detail&beer_id=250",
+      "https://www.beeradvocate.com/beer/profile/4108/10104/"
+    ]
+  },
+  {
+    "id": 35,
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "цветочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://beers.su/beer/brewlok-brewlok-apa",
+      "https://untappd.com/b/brewlok-brewery-apa-ver-2/1603417",
+      "https://craftbeer78.ru/brewery/brewlok",
+      "https://untappd.com/b/brewlok-brewery-ivan-tsarevich-ivan-carevich/3500303"
+    ]
+  },
+  {
+    "id": 36,
+    "tags": [
+      "цитрусовый",
+      "пряный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/delirium-huyghe-brewery-blanche-des-neiges/17826",
+      "https://www.beeradvocate.com/beer/profile/180/5407/",
+      "https://birrapedia.com/delirium---huyghe-brewery-blanche-des-neiges/f-6128a00a1603da248e4c6562",
+      "https://www.brouwerijhuyghe.be/en/beers/blanche-des-neiges"
+    ]
+  },
+  {
+    "id": 37,
+    "tags": [
+      "карамельный",
+      "дубовый",
+      "сухофруктовый"
+    ],
+    "gor": 2,
+    "plot": 5,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bombrewery-triporteur-full-moon-12/904938",
+      "https://www.beeradvocate.com/beer/profile/31311/162299/",
+      "https://craftbeer78.ru/beer/triporteur-full-moon-12-330ml-bombrewery",
+      "https://extrabeers.com/beer/belgian-beer/triporteur-full-moon-12-33cl.html"
+    ]
+  },
+  {
+    "id": 38,
+    "tags": [
+      "карамельный",
+      "солодовый",
+      "тостовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://corporate.baltika.ru/brands/baltika/baltika-temnoe-braun-el/",
+      "https://untappd.com/b/baltika-breweries-baltika-dark-brown-ale-tyomnoe-braun-el/4187005",
+      "https://winestyle.ru/products/Baltika-Brown-Ale.html"
+    ]
+  },
+  {
+    "id": 39,
+    "tags": [
+      "цитрусовый",
+      "тропический",
+      "хвойный"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://yarbochonok.ru/tproduct/453013774-573842932361-pivo-plan-b-kovboi-malboro-aipa-alk-65-p",
+      "https://craftbeer78.ru/beer/kovboj-malboro-plan-b",
+      "https://winestyle.ru/products/Plan-B-Cowboy-Marlborough.html",
+      "https://pivanych.clients.site/service/kovboj-malboro-plan-b/TYCOON_46942793834"
+    ]
+  },
+  {
+    "id": 40,
+    "tags": [
+      "смородиновый",
+      "кисло-сладкий",
+      "терпкий"
+    ],
+    "gor": 1,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-cassis-ruby/3539672",
+      "https://konixbrewery.ru/catalog/cassis_ruby",
+      "https://craftbeer78.ru/beer/cassis-ruby-konix-brewery",
+      "https://winestyle.ru/products/Konix-Brewery-Cassis-Ruby.html"
+    ]
+  },
+  {
+    "id": 41,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/schneider-weisse-g-schneider-and-sohn-festweisse-tap04/11827",
+      "https://schneider-weisse.de/en/node/51",
+      "https://www.beeradvocate.com/beer/profile/72/759/",
+      "https://www.drinkmonger.com/schneider-weisse-tap-4-festweisse-6-50cl/"
+    ]
+  },
+  {
+    "id": 42,
+    "tags": [
+      "солодовый",
+      "карамельный",
+      "хлебный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/dreamteam-brew-oktober/3991487",
+      "https://rusbeershop.ru/catalog/beer-53837/",
+      "https://dreamteambrew.ru/",
+      "https://eatbeer.ru/styles/amber-lagers/marzen/"
+    ]
+  },
+  {
+    "id": 43,
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/ayinger-privatbrauerei-ayinger-lager-hell/87338",
+      "https://www.beeradvocate.com/beer/profile/39/8995/",
+      "https://www.falstaff.com/en/beers/brauerei-aying-franz-inselkammer-ayinger-lager-hell-1",
+      "https://bavariasbestbeer.com/product/ayinger-lager-hell/"
+    ]
+  },
+  {
+    "id": 44,
+    "tags": [
+      "карамельный",
+      "солодовый",
+      "хлебный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://pintplease.com/en/beer/51332/pilgerstoff_maria_ehrenberger",
+      "https://www.willbraeu.de/pilgerstoff",
+      "https://untappd.com/b/will-brau-hochstiftliches-brauhaus-in-bayern-pilgerstoff-marzen/4984024",
+      "https://www.biermarket.de/will-braeu-ehrenberger-pilgerstoff"
+    ]
+  },
+  {
+    "id": 45,
+    "tags": [
+      "солодовый",
+      "карамельный",
+      "ореховый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/ayinger-privatbrauerei-oktober-fest-marzen/5964",
+      "https://www.beeradvocate.com/beer/profile/39/1361/",
+      "https://birrapedia.com/en/ayinger-oktober-fest-marzen/f-5d935c6c1603dafc328b45a6",
+      "https://germanbeer.co.uk/product/ayinger-festmarzen/"
+    ]
+  },
+  {
+    "id": 46,
+    "tags": [
+      "солодовый",
+      "медовый",
+      "карамельный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/staatliches-hofbrauhaus-munchen-hofbrau-oktoberfestbier/40139",
+      "https://www.hofbraeu-muenchen.de/en/beers-of-hb-muenchen/hofbraeu-oktoberfestbier",
+      "https://hofbrauhausimport.us/beer/oktoberfestbier/",
+      "https://www.brewersfriend.com/homebrew/recipe/view/1214146/hofbruhaus-oktoberfestbier"
+    ]
+  },
+  {
+    "id": 47,
+    "tags": [
+      "медовый",
+      "виноградный",
+      "цветочный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://jawsdealer.ru/catalog/fasovka/step_i_veter_1/2012/",
+      "https://vkusvill.ru/goods/medovukha-myed-i-vinograd-99901.html",
+      "https://untappd.com/SteppeNwind",
+      "https://pivokom.ru/catalog/sidr_medovukha_v_butylkakh_i_bankakh/97330/"
+    ]
+  },
+  {
+    "id": 48,
+    "tags": [
+      "солодовый",
+      "цветочный",
+      "сухой"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/jaws-brewery-helles/4308822",
+      "https://jawsbeer.ru/jawshelles",
+      "https://winestyle.ru/products/Jaws-Brewery-Jaws-Helles.html",
+      "https://craftbeer78.ru/beer/helles-jaws"
+    ]
+  },
+  {
+    "id": 49,
+    "tags": [
+      "фруктовый",
+      "цветочный",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/baltika-brew-blond-blond/5985263",
+      "https://untappd.com/b/baltika-breweries-baltika-baltika-brew-blond/5985263"
+    ]
+  },
+  {
+    "id": 50,
+    "tags": [
+      "вишнёвый",
+      "шоколадный",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-vasilisa-vasilisa/4585406",
+      "https://your.beer/beer/brewlok-brewery-vasilisa",
+      "https://craftovik.ru/beer/brewlok-brewery-vasilisa",
+      "https://winestyle.ru/products/Brewlok-Vasilisa.html"
+    ]
+  },
+  {
+    "id": 52,
+    "tags": [
+      "травянистый",
+      "цитрусовый",
+      "медовый"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/leroy-breweries-poperings-hommelbier/836",
+      "https://www.leroybreweries.be/en/products/hommelbier-poperinge",
+      "https://www.belgiansmaak.com/belgian-hops-poperings-hommelbier-westhoek/",
+      "https://untappd.com/b/leroy-breweries-poperings-hommelbier-limited-edition-2022/4604554"
+    ]
+  },
+  {
+    "id": 53,
+    "tags": [
+      "медовый",
+      "гвоздичный",
+      "коричный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-ambrosia-mead/2886478",
+      "https://your.beer/beer/steppe-and-wind-ambrosia-mead",
+      "https://craftbeer78.ru/beer/ambrosia-mead-steppe-and-wind",
+      "https://winestyle.ru/products/Steppe-Wind-Ambrosia-Mead.html"
+    ]
+  },
+  {
+    "id": 54,
+    "tags": [
+      "цитрусовый",
+      "манговый",
+      "хвойный"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-overfall/1451436",
+      "https://birrapedia.com/en/konix-brewery-overfall/f-64ad31da1603da2444de68a2",
+      "https://konixbrewery.ru/catalog/overfall_ipa",
+      "https://pintplease.com/en/beer/55653/overfall_ipa"
+    ]
+  },
+  {
+    "id": 55,
+    "tags": [
+      "цитрусовый",
+      "пшеничный",
+      "кориандровый"
+    ],
+    "gor": 2,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-blanche-de-lutin/1014215",
+      "https://www.brewmapp.com/beer/blanche-de-lutin-vasileostrovskaya-brewery/",
+      "https://beerexpert.livejournal.com/267434.html",
+      "https://ruslanviktorov.livejournal.com/640695.html"
+    ]
+  },
+  {
+    "id": 57,
+    "tags": [
+      "хмелевой",
+      "травянистый",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.radeberger.com/beers/pilsner/",
+      "https://untappd.com/b/radeberger-gruppe-radeberger-pilsner/1589",
+      "https://www.beeradvocate.com/beer/profile/2974/799/",
+      "https://www.beerandbrewing.com/review/pilsner-radeberger"
+    ]
+  },
+  {
+    "id": 58,
+    "tags": [
+      "карамельный",
+      "солодовый",
+      "пряный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://www.leroybreweries.be/en/products/yperman",
+      "https://www.beeradvocate.com/beer/profile/3516/18143/",
+      "https://untappd.com/b/leroy-breweries-yperman/11874",
+      "https://winestyleonline.com/products/Leroy-Breweries-Yperman.html"
+    ]
+  },
+  {
+    "id": 59,
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "травянистый"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/new-riga-s-brewery-true-hops-ipa/5930694"
+    ]
+  },
+  {
+    "id": 60,
+    "tags": [
+      "фруктовый",
+      "карамельный",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/brouwerijpalm/beer",
+      "https://pintplease.com/en/beer/221129/st_pierre_blond",
+      "https://www.beeradvocate.com/beer/profile/889/43829/",
+      "https://www.bjcp.org/style/2015/25/25A/belgian-blond-ale/"
+    ]
+  },
+  {
+    "id": 61,
+    "tags": [
+      "солодовый",
+      "травяной",
+      "цветочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rohozec-starodubice-dvanactka/5459832",
+      "https://www.pivorohozec.cz/produkt/dvanactka-12",
+      "https://www.ratebeer.com/Ratings/Beer/Beer-Ratings.asp?BeerID=50378",
+      "https://www.beershop.cz/p/rohozec-dvanactka"
+    ]
+  },
+  {
+    "id": 63,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "хлебный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-hefeweizen/2523298",
+      "https://rus-beer.ru/beer/43981_konix_hefeweizen/",
+      "https://winestyle.ru/products/Konix-Brewery-Hefeweizen.html",
+      "https://beeribo.ru/catalog/pivo/hefeweizen_1/"
+    ]
+  },
+  {
+    "id": 64,
+    "tags": [
+      "шоколадный",
+      "солодовый",
+      "карамельный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://leolsbeer.ru/catalog/pivo/starlingtons-knock-to-heaven/",
+      "https://birdekel.shop/product/",
+      "https://winestyle.ru/products/Starlingtons-Knock-To-Heaven.html",
+      "https://www.hobsons-brewery.co.uk/products/postmans-knock"
+    ]
+  },
+  {
+    "id": 65,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.riegele.de/en/beers/beer-classics/hefe-weisse/",
+      "https://untappd.com/b/brauhaus-riegele-hefe-weisse/81931",
+      "https://www.riegele.de/wp-content/uploads/2023/11/Riegele-Traditionsbiere_Bierbeschreibung_englisch.pdf"
+    ]
+  },
+  {
+    "id": 66,
+    "tags": [
+      "медовый",
+      "солодовый",
+      "цветочный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bayreuther-bierbrauerei-bayreuther-hell/116296",
+      "https://bayreuther-brauhaus.de/unser-bier/",
+      "https://www.bierentdecker.com/bierfinder/details/bayreuther-hell",
+      "https://www.maiselandfriends.com/de/bayreuther-hell-0-33-l-p1257/"
+    ]
+  },
+  {
+    "id": 67,
+    "tags": [
+      "кориандровый",
+      "апельсиновый",
+      "цитрусовый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brasserie-du-bocq-blanche-de-namur/222",
+      "https://www.beeradvocate.com/beer/profile/805/6057/",
+      "https://www.beerandbrewing.com/review/blanche-de-namur",
+      "https://bocq.be/en/"
+    ]
+  },
+  {
+    "id": 68,
+    "tags": [
+      "хлебный",
+      "медовый",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/banjalucka-pivara-nektar-pivo/21163",
+      "https://www.beeradvocate.com/beer/profile/16331/43104/",
+      "https://pintplease.com/en/beer/26218/nektar_lager_svijetlo_pivo",
+      "https://thebalkanpour.com/balkan-beers/bosnian-beers/banjalucka-pivara/"
+    ]
+  },
+  {
+    "id": 69,
+    "tags": [
+      "солодовый",
+      "цитрусовый",
+      "цветочный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/hobsons-brewery-starlingtons-day-in-paradise/5978413",
+      "https://www.hobsons-brewery.co.uk/",
+      "https://untappd.com/HobsonsBrewery/beer"
+    ]
+  },
+  {
+    "id": 70,
+    "tags": [
+      "кофейный",
+      "жжёный",
+      "лакричный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/hobsons-brewery-starlingtons-black-spot/5983764",
+      "https://www.hobsons-brewery.co.uk/products/dhustone-stout",
+      "https://untappd.com/HobsonsBrewery/beer"
+    ]
+  },
+  {
+    "id": 71,
+    "tags": [
+      "солодовый",
+      "цветочный",
+      "фруктовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "low",
+    "sources": [
+      "https://untappd.com/HobsonsBrewery/beer",
+      "https://www.hobsons-brewery.co.uk/pages/pints",
+      "https://untappd.com/b/arkell-s-brewery-moonlight/6230"
+    ]
+  },
+  {
+    "id": 72,
+    "tags": [
+      "цитрусовый",
+      "медовый",
+      "абрикосовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/sullivan-s-brewing-company-irish-gold/2666018",
+      "https://shop.sullivansbrewingcompany.com/products/sullivan-s-irish-gold-ale",
+      "https://www.globalbeer.com/beers/sullivans-irish-gold-ale/",
+      "https://www.totalwine.com/beer/ale/blonde-ale/american-blonde-ale/sullivans-irish-gold-golden-ale/p/330701152"
+    ]
+  },
+  {
+    "id": 73,
+    "tags": [
+      "солодовый",
+      "травянистый",
+      "медовый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/niska-pivara-nisko-nishko/228208",
+      "https://www.beertasting.com/en/beers/nisko-pivo",
+      "https://niskapivara.com/en/products/nisko/",
+      "https://www.beeradvocate.com/beer/profile/37738/147026/"
+    ]
+  },
+  {
+    "id": 74,
+    "tags": [
+      "яблочный",
+      "кислый",
+      "сухой"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rebel-apple-dickiy-crest-dry/4276330",
+      "https://winestyleonline.com/products/Rebel-Apple-Dickiy-Crest-Dry.html",
+      "https://vinnayagramota.ru/sidr/sidr-rebel-apple-dickiy-crest-dry-045-l",
+      "https://vino.ru/atlas-rossiyskikh-vinodelen/winery/rebel-apple/"
+    ]
+  },
+  {
+    "id": 76,
+    "tags": [
+      "яблочный",
+      "терпкий",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bullevie-rustiq-semi-dry/4061644",
+      "https://winestyle.ru/products/Bullevie-Semi-Dry.html",
+      "https://beers.su/beer/bullevie-bullevie-semi-dry",
+      "https://winestyle.ru/products/Bullevie-Rustiq-Semi-Dry.html"
+    ]
+  },
+  {
+    "id": 77,
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "поджаристый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://profibeer.ru/tech/home_brewing/festbir-xarakteristiki-stilya-i-reczept/",
+      "https://alcofan.com/stil-piva-festbir.html",
+      "https://www.brewersfriend.com/styles/festbier/",
+      "https://altstadtbeer.com/beers/festbier/"
+    ]
+  },
+  {
+    "id": 78,
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "сладковатый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.beeradvocate.com/beer/profile/124/388/",
+      "https://www.paulaner.com/our-products/muenchner-hell",
+      "https://www.brewersfriend.com/homebrew/recipe/print/1268081",
+      "https://homebarkit.com/paulaner-munchner-hell-beer-review/"
+    ]
+  },
+  {
+    "id": 81,
+    "tags": [
+      "тыквенный",
+      "пряный",
+      "копчёный"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/paradox-pumpkin-hell/6415786",
+      "https://untappd.com/paradox-beer/beer"
+    ]
+  },
+  {
+    "id": 82,
+    "tags": [
+      "вишнёвый",
+      "карамельный",
+      "шоколадный"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-rouge-de-lutin/1046359",
+      "https://beerexpert.livejournal.com/269529.html",
+      "http://vpspb.ru/novosti/novosti_pivovarni/2015/noviy_sort_Rouge_de_Lutin"
+    ]
+  },
+  {
+    "id": 83,
+    "tags": [
+      "карамельный",
+      "фруктовый",
+      "солодовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://en.wikipedia.org/wiki/Old_Speckled_Hen",
+      "https://www.beermonthclub.com/morland-brewing-greene-king-old-speckled-hen",
+      "https://www.beeradvocate.com/beer/profile/203/637/",
+      "https://untappd.com/b/greene-king-morland-old-speckled-hen/3121"
+    ]
+  },
+  {
+    "id": 84,
+    "tags": [
+      "солодовый",
+      "травянистый",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/dreamteam-brew-port-pilsner/3379859",
+      "https://your.beer/beer/dreamteam-brewing-co-port-pilsner",
+      "https://beers.su/beer/dreamteam-brewing-co-port-pilsner"
+    ]
+  },
+  {
+    "id": 85,
+    "tags": [
+      "кориандровый",
+      "апельсиновый",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-blanche-ma-cherie/1434224",
+      "https://konixbrewery.ru/catalog/blanche_ma_cherie_",
+      "https://craftbeer78.ru/beer/blanche-ma-cherie-konix-brewery",
+      "https://winestyle.ru/products/Konix-Brewery-Blanche-Ma-Cherie.html"
+    ]
+  },
+  {
+    "id": 87,
+    "tags": [
+      "хмелевой",
+      "травянистый",
+      "солодовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "http://moravabeer.ru/moravabeer/?p=734",
+      "https://untappd.com/b/velka-morava-moravsky-klas-svetle-moravskij-klass-svetloe/302027",
+      "https://extrabeers.com/beer/russian-beer/velka-morava-moravsky-klas-svetle-czech-pilsner-50cl.html",
+      "https://moravabeer.ru/"
+    ]
+  },
+  {
+    "id": 88,
+    "tags": [
+      "айва",
+      "солёный",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-wave-s-tales-anne-bonny/6331983",
+      "https://craftbeer78.ru/brewery/plan-b"
+    ]
+  },
+  {
+    "id": 89,
+    "tags": [
+      "кислый",
+      "апельсиновый",
+      "гуавовый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/RedRocketBrewery",
+      "https://mobile.tbsmarket.ru/catalog/red-roket-saurli-praudli-v3-red-rocket-salty-space-05l-alk6-zhb-005.html",
+      "https://mobile.tbsmarket.ru/catalog/red-rocket-one-way-saur-el-laym-greypfrut-apelsin-limon-05l-alk45-zhb-005.html",
+      "https://craftdepot.ru/red-rocket-brewery/"
+    ]
+  },
+  {
+    "id": 90,
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "карамельный"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-parhelion/4299316",
+      "https://craftbeer78.ru/beer/parhelion-500ml-plan-b",
+      "https://beeribo.ru/catalog/pivo/parhelion_1/",
+      "https://winestyle.ru/products/Plan-B-Parhelion.html"
+    ]
+  },
+  {
+    "id": 91,
+    "tags": [
+      "томатный",
+      "солёный",
+      "пряный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/selfmade-brewery-tomato-method/3703753",
+      "https://craftbeer78.ru/beer/tomato-method-selfmade-brewery",
+      "https://winestyle.ru/products/Selfmade-Brewery-Tomato-Method-in-can.html",
+      "https://rus-beer.ru/beer/44381_selfmade_tomato_method_smoky_hot/"
+    ]
+  },
+  {
+    "id": 92,
+    "tags": [
+      "сливовый",
+      "яблочный",
+      "джемовый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/yablochny-spas-yablochnyj-spas-st-anton-plum-cider-sliva/1326277",
+      "https://untappd.com/StAntonBrewery"
+    ]
+  },
+  {
+    "id": 93,
+    "tags": [
+      "обжаренный",
+      "шоколадный",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/obedinyonnye-pivovarni-holding-black-sheep-irish-stout/4932231",
+      "https://www.beeradvocate.com/beer/styles/162/"
+    ]
+  },
+  {
+    "id": 95,
+    "tags": [
+      "солодовый",
+      "медовый",
+      "цветочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://konixbrewery.ru/catalog/Dortmunder",
+      "https://rusbeershop.ru/catalog/beer-76825/",
+      "https://rusbeershop.ru/brewery/Konix/"
+    ]
+  },
+  {
+    "id": 96,
+    "tags": [
+      "яблочный",
+      "персиковый",
+      "медовый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/dada-cider-sidr-2-polusuhoj/3253011",
+      "https://untappd.com/w/dada-cider/418710",
+      "https://rus-beer.ru/catalog/sidr_i_medovukha_1/beer-35213/",
+      "https://winestyle.ru/products/DaDa-2-Apple-Semi-Dry.html"
+    ]
+  },
+  {
+    "id": 97,
+    "tags": [
+      "вишнёвый",
+      "кислый",
+      "фруктовый"
+    ],
+    "gor": 1,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "low",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-rouge-de-lutin/1046359",
+      "https://leolsbeer.ru/catalog/pivo/kastil-ruzh-0-75-l-steklo-belgijskoe/",
+      "https://leolsbeer.ru/catalog/pivo/verhaeghe-barbe-ruby/",
+      "https://untappd.com/b/10-barrel-brewing-co-femme-de-la-rouge-wild-sour-ale/2298905"
+    ]
+  },
+  {
+    "id": 98,
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "low",
+    "sources": [
+      "https://eatbeer.ru/styles/wheat-beer/weissbier/",
+      "https://alcofan.com/stil-piva-vajsbir.html",
+      "https://ru.wikipedia.org/wiki/Пшеничное_пиво"
+    ]
+  },
+  {
+    "id": 99,
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "обжаренный"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/guinness-guinness-draught/4473",
+      "https://www.beeradvocate.com/beer/profile/209/754/",
+      "https://www.bjcp.org/style/2015/15/15B/irish-stout/",
+      "https://byo.com/recipe/guinness-draught-clone/"
+    ]
+  },
+  {
+    "id": 100,
+    "tags": [
+      "солодовый",
+      "медовый",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/pivovar-zubr-zubr-gold/64178",
+      "https://zubr.cz/en/products/gold",
+      "https://pintplease.com/en/beer/87363/zubr_gold",
+      "https://www.ratebeer.com/Ratings/Beer/Beer-Ratings.asp?BeerID=40499"
+    ]
+  }
+]

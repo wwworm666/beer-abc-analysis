@@ -147,6 +147,10 @@
     @page{ size: A4; margin: 0; }
     html, body{ background: white; }
     .page{ background: white; box-shadow: none; page-break-after: always; break-after: page; }
+    /* Заполненные деления шкал (.d.on) — это background-color. Браузеры по умолчанию
+       НЕ печатают фоны ("Графика фона" выключена) -> шкалы выходили пустыми. Принудительно
+       печатаем цвета/фоны элементов карточки. */
+    .page, .page *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
 </head>
@@ -221,6 +225,24 @@
   {% endif %}
 </article>
 <script>
+  /* Auto-shrink the heading by RENDERED HEIGHT, not char count. The len-*
+     classes set a baseline by length, but a short two-word name (e.g.
+     "БРЮЛОК ИПА") still wraps to two lines at 72pt and overflows the hero,
+     while long names are already shrunk to ~46pt and fit on two lines. So we
+     cap the heading height: one 72pt line (~101px) passes; two 72pt lines
+     (~201px) get reduced until they fit (one line, or two lines at a smaller
+     size like the long names). max≈two len-lg lines. */
+  (function fitName(){
+    var MAX = 140, MIN = 36;
+    document.querySelectorAll('.name').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      while (el.scrollHeight > MAX && size > MIN){
+        size -= 1;
+        el.style.fontSize = size + 'px';
+      }
+    });
+  })();
   /* Single-line auto-shrink for .tags — starts at the CSS size (26pt) and
      steps down 1px until it fits the inner width. Runs before Playwright
      captures (set_content waits for load). */
