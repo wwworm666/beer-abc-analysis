@@ -28,7 +28,17 @@
     document.querySelectorAll('.tags').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
-      var min = 14;
+      var min = 12;
+      while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  })();
+  /* Стиль в одну строку: длинное название («Бельгийский трипель») ужимаем по ширине,
+     чтобы не наезжало на ABV. */
+  (function fitStyle(){
+    document.querySelectorAll('.facts .style').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      var min = 20;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
   })();

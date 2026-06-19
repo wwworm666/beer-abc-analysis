@@ -38,7 +38,7 @@
   line-height:1; padding-bottom: 6mm;
   border-bottom: var(--rule) solid var(--ink);
 }
-.eyebrow .num{ font-weight: 700; font-size: 36pt; letter-spacing: -0.01em; line-height: 1; }
+.eyebrow .num{ font-weight: 700; font-size: 54pt; letter-spacing: -0.01em; line-height: 1; }
 
 .hero{ padding-top: 12mm; padding-bottom: 12mm; border-bottom: var(--rule) solid var(--ink); }
 .trans{
@@ -65,8 +65,13 @@
   display: flex; align-items: center; justify-content: space-between;
   gap: 8mm; line-height: 1;
 }
-.facts .style{ font-weight: 700; font-size: 43pt; letter-spacing: -0.005em; white-space: nowrap; }
-.facts .abv  { font-weight: 700; font-size: 51pt; letter-spacing: -0.005em; white-space: nowrap; }
+/* Стиль может быть длинным (напр. «Бельгийский трипель») — даём ему ужиматься в
+   доступную ширину (flex-shrink) и скрываем переполнение; точная подгонка размера
+   шрифта — fitStyle() в шаблонах. ABV фиксированной ширины справа. */
+.facts .style{ font-weight: 700; font-size: 43pt; letter-spacing: -0.005em;
+  white-space: nowrap; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.facts .abv  { font-weight: 700; font-size: 51pt; letter-spacing: -0.005em;
+  white-space: nowrap; flex: 0 0 auto; }
 .facts .abv .pct{ font-weight: 400; font-size: 39pt; margin-left: 1mm; }
 
 .tags{
