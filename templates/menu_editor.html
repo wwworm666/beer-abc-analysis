@@ -4,7 +4,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Редактор меню — KULT Analytics</title>
+    <title>Карточка — Редактор меню</title>
     <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
     <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
     <link rel="stylesheet" href="/static/dashboard/styles/base.css">
@@ -14,280 +14,272 @@
     <link rel="stylesheet" href="/static/menu/ptserif.css">
     <link rel="stylesheet" href="/static/menu/menu_card.css">
     <style>
-      .menu-wrap{ max-width: 1180px; margin: 0 auto; padding: 0 8px 80px; }
-      .menu-toolbar{
-        position: sticky; top: 0; z-index: 20; background: var(--bg-color, #fff);
-        border-bottom: 1px solid var(--border-color, #e2e2e2);
-        display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-        padding: 12px 4px;
-      }
-      .menu-toolbar .grow{ flex: 1; }
-      .mbtn{
-        border: 1px solid var(--border-color, #ccc); background: var(--card-bg, #fff);
-        color: var(--text-color, #1a1a1a); border-radius: 8px; padding: 8px 14px;
-        font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
-      }
-      .mbtn:hover{ border-color: var(--accent-color, #0e7c5a); }
-      .mbtn.primary{ background: #0e7c5a; color: #fff; border-color: #0e7c5a; }
-      .mbtn.primary:disabled{ opacity: .6; cursor: progress; }
-      .seg{ display: inline-flex; border: 1px solid var(--border-color, #ccc); border-radius: 8px; overflow: hidden; }
-      .seg button{ border: 0; background: var(--card-bg, #fff); color: var(--text-color,#1a1a1a);
-        padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
-      .seg button.on{ background: #0e7c5a; color: #fff; }
-      .menu-search{ border: 1px solid var(--border-color, #ccc); border-radius: 8px; padding: 8px 12px;
-        font-size: 13px; min-width: 160px; background: var(--card-bg,#fff); color: var(--text-color,#1a1a1a); }
-      .savestate{ font-size: 12px; color: var(--text-muted, #8a8a8a); min-width: 90px; }
-      .menu-count{ font-size: 12px; color: var(--text-muted, #8a8a8a); }
+      .me-grid{ display: grid; grid-template-columns: 440px 1fr; gap: 20px; align-items: start;
+        max-width: 1320px; margin: 0 auto; padding: 4px 4px 80px; }
+      @media (max-width: 1080px){ .me-grid{ grid-template-columns: 1fr; } }
 
-      .crow{ display: flex; gap: 20px; align-items: flex-start; padding: 16px 4px;
-        border-bottom: 1px solid var(--border-color, #ececec); }
-      .cprev{ width: 256px; height: 360px; flex: 0 0 256px; overflow: hidden;
-        background: #e5cba3; border-radius: 4px; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
-      .cprev .scaler{ width: 794px; transform: scale(.3225); transform-origin: top left; }
-      .cprev .page{ box-shadow: none; }
-      .cform{ flex: 1; min-width: 0; }
-      .cform .head{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-      .cform .head .ttl{ font-size: 14px; font-weight: 700; }
-      .cform .head .tap-badge{ font-size: 11px; font-weight: 700; color: #0e7c5a; }
-      .fgrid{ display: grid; gap: 8px 12px; margin-bottom: 8px; }
-      .fgrid.c4{ grid-template-columns: 70px 1.4fr 1.4fr 1fr; }
-      .fgrid.c2{ grid-template-columns: 1fr 1fr; }
-      .fgrid.c3{ grid-template-columns: 1fr 1fr 1fr; }
-      .fgrid.prices{ grid-template-columns: 1fr 1fr 1fr; max-width: 360px; }
-      label.f{ display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--text-muted,#8a8a8a); }
-      label.f input{ background: var(--card-bg,#fff); border: 1px solid var(--border-color,#d4d4d4);
-        border-radius: 6px; color: var(--text-color,#1a1a1a); padding: 7px 9px; font-size: 13px; font-family: inherit; }
-      label.f input:focus{ outline: none; border-color: #0e7c5a; }
-      .meterrow{ display: grid; grid-template-columns: 80px 1fr; gap: 6px 12px; align-items: center; margin-top: 6px; max-width: 360px; }
-      .meterrow > span{ font-size: 12px; color: var(--text-color,#444); }
-      .dots{ display: flex; gap: 5px; }
-      .dotbtn{ width: 26px; height: 15px; border: 1px solid #9a9488; background: transparent; border-radius: 3px; cursor: pointer; padding: 0; }
-      .dotbtn.on{ background: #6a6052; border-color: #6a6052; }
-      .crow .del{ margin-top: 10px; background: none; border: 0; color: #b54a3a; font-size: 12px; cursor: pointer; padding: 0; }
-      .toast{ position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-        background: #1c1a17; color: #ece7dc; padding: 12px 18px; border-radius: 10px; font-size: 13px;
-        box-shadow: 0 6px 24px rgba(0,0,0,.3); z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 80vw; }
+      .me-form{ background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-sm); overflow: hidden; }
+      .me-top{ display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+        border-bottom: 1px solid var(--border-color); flex-wrap: wrap; }
+      .me-back{ color: var(--text-secondary); text-decoration: none; font-size: 12px; font-weight: 600;
+        display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-pill); }
+      .me-back:hover{ color: var(--accent); border-color: var(--accent); }
+      .me-meta{ font-size: 12px; color: var(--text-tertiary); }
+      .me-meta b{ color: var(--text-secondary); }
+
+      .me-sec{ padding: 16px 18px; border-bottom: 1px solid var(--border-light); }
+      .me-sec:last-child{ border-bottom: none; }
+      .me-sec h3{ font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.1em;
+        color: var(--text-tertiary); margin: 0 0 12px; font-weight: 600; }
+      .me-field{ margin-bottom: 11px; }
+      .me-field:last-child{ margin-bottom: 0; }
+      .me-field label{ display: block; font-size: 10.5px; color: var(--text-secondary);
+        text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; font-weight: 600; }
+      .me-in{ width: 100%; padding: 9px 12px; background: var(--bg-primary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: 10px; font-size: 14px; font-family: var(--font-family);
+        transition: all var(--transition-fast); }
+      .me-in:focus{ outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+      .me-row{ display: flex; gap: 10px; }
+      .me-row > .me-field{ flex: 1; }
+
+      .me-meter{ display: flex; align-items: center; gap: 14px; margin-bottom: 9px; }
+      .me-meter .lbl{ width: 86px; font-size: 12px; color: var(--text-secondary); }
+      .me-dots{ display: flex; gap: 7px; }
+      .me-dot{ width: 19px; height: 19px; border-radius: 50%; border: 1px solid var(--text-tertiary);
+        background: transparent; cursor: pointer; transition: all var(--transition-fast); padding: 0; }
+      .me-dot.on{ background: var(--accent); border-color: var(--accent); }
+      .me-dot:hover{ border-color: var(--accent); }
+
+      .me-actions{ display: flex; gap: 8px; flex-wrap: wrap; }
+      .m-btn{ border: 1px solid var(--accent); background: var(--accent); color: #fff;
+        border-radius: var(--border-radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 600;
+        cursor: pointer; font-family: var(--font-family); white-space: nowrap; transition: all var(--transition-fast);
+        text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+      .m-btn:hover{ background: var(--accent-hover); border-color: var(--accent-hover); transform: translateY(-1px); }
+      .m-btn.sec{ background: var(--bg-secondary); color: var(--text-secondary); border-color: var(--border-color); }
+      .m-btn.sec:hover{ background: var(--bg-tertiary); color: var(--text-primary); }
+      .m-btn.danger{ background: transparent; color: var(--danger); border-color: var(--border-color); }
+      .m-btn.danger:hover{ background: var(--danger-bg); border-color: var(--danger); transform: none; }
+      .me-savestate{ font-size: 11px; color: var(--text-tertiary); align-self: center; }
+
+      .me-preview{ position: sticky; top: 12px; background: var(--bg-tertiary);
+        border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);
+        display: flex; align-items: flex-start; justify-content: center; overflow: hidden;
+        min-height: 540px; padding: 24px; }
+      .me-scaler{ transform-origin: top center; }
+      .me-scaler .page{ box-shadow: var(--shadow-lg); }
+      .toast{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        background: var(--text-primary); color: var(--bg-secondary); padding: 12px 20px;
+        border-radius: var(--border-radius-sm); font-size: 13px; box-shadow: var(--shadow-lg);
+        z-index: 60; opacity: 0; transition: opacity var(--transition-base); pointer-events: none; }
       .toast.show{ opacity: 1; }
     </style>
 </head>
 <body>
 <div class="container">
     {% set page_title = "Редактор меню" %}
-    {% set page_subtitle = "вкусы, теги, цены, печать" %}
+    {% set page_subtitle = "карточка сорта" %}
     {% include 'shared/nav.html' %}
 
-    <div class="menu-wrap">
-      <div class="menu-toolbar">
-        <div class="seg" id="filterSeg">
-          <button data-f="tap" class="on">На кране</button>
-          <button data-f="all">Все сорта</button>
+    <div class="me-grid">
+      <!-- LEFT: form -->
+      <div class="me-form">
+        <div class="me-top">
+          <a class="me-back" href="/menu">← К библиотеке</a>
+          <span class="me-meta" id="meta"></span>
         </div>
-        <input class="menu-search" id="search" placeholder="Поиск по названию...">
-        <span class="menu-count" id="count"></span>
-        <span class="grow"></span>
-        <span class="savestate" id="savestate"></span>
-        <button class="mbtn primary" id="btnPrices" onclick="refreshPrices()">Обновить цены из iiko</button>
-        <button class="mbtn" onclick="openPrint()">Печать</button>
-        <button class="mbtn" onclick="exportPdf()">Скачать PDF</button>
-        <button class="mbtn" onclick="addCard()">+ Сорт</button>
+
+        <div class="me-sec">
+          <h3>Основное</h3>
+          <div class="me-row">
+            <div class="me-field" style="flex:0 0 84px;"><label>№</label><input class="me-in" id="f-n" type="number" min="1" oninput="paint()"></div>
+            <div class="me-field" style="flex:0 0 110px;"><label>№ крана</label><input class="me-in" id="f-tap" type="number" min="1" placeholder="—" oninput="paint()"></div>
+            <div class="me-field"><label>Название (RU, КАПС в шапке)</label><input class="me-in" id="f-name" oninput="paint()"></div>
+          </div>
+          <div class="me-field"><label>Латиница / оригинал</label><input class="me-in" id="f-latin" placeholder="Riegele Commerzienrat" oninput="paint()"></div>
+          <div class="me-row">
+            <div class="me-field"><label>Страна</label><input class="me-in" id="f-country" placeholder="Германия" oninput="paint()"></div>
+            <div class="me-field"><label>Пивоварня</label><input class="me-in" id="f-brewery" placeholder="Riegele" oninput="paint()"></div>
+          </div>
+          <div class="me-row">
+            <div class="me-field"><label>Стиль</label><input class="me-in" id="f-style" placeholder="Немецкий лагер" oninput="paint()"></div>
+            <div class="me-field" style="flex:0 0 120px;"><label>ABV, %</label><input class="me-in" id="f-abv" placeholder="5,2" oninput="paint()"></div>
+          </div>
+        </div>
+
+        <div class="me-sec">
+          <h3>Дескрипторы вкуса (3)</h3>
+          <div class="me-row">
+            <div class="me-field"><input class="me-in" id="f-tag1" placeholder="солодовый" oninput="paint()"></div>
+            <div class="me-field"><input class="me-in" id="f-tag2" placeholder="медовый" oninput="paint()"></div>
+            <div class="me-field"><input class="me-in" id="f-tag3" placeholder="благородный" oninput="paint()"></div>
+          </div>
+        </div>
+
+        <div class="me-sec">
+          <h3>Шкалы (1–5)</h3>
+          <div class="me-meter"><span class="lbl">горечь</span><div class="me-dots" data-key="gor"></div></div>
+          <div class="me-meter"><span class="lbl">плотность</span><div class="me-dots" data-key="plot"></div></div>
+          <div class="me-meter"><span class="lbl">цвет</span><div class="me-dots" data-key="cvet"></div></div>
+        </div>
+
+        <div class="me-sec">
+          <h3>Цены (0,25 / 0,4 / 0,5)</h3>
+          <div class="me-row">
+            <div class="me-field"><label>0,25 л</label><input class="me-in" id="f-p025" type="number" min="0" oninput="paint()"></div>
+            <div class="me-field"><label>0,4 л</label><input class="me-in" id="f-p04" type="number" min="0" oninput="paint()"></div>
+            <div class="me-field"><label>0,5 л</label><input class="me-in" id="f-p05" type="number" min="0" oninput="paint()"></div>
+          </div>
+        </div>
+
+        <div class="me-sec">
+          <div class="me-actions">
+            <button class="m-btn" onclick="save()" style="flex:1;">Сохранить</button>
+            <button class="m-btn sec" onclick="exportPdf()" title="A4 PDF для печати">PDF</button>
+            <button class="m-btn danger" id="btn-del" onclick="del()" style="display:none;">Удалить</button>
+            <span class="me-savestate" id="savestate"></span>
+          </div>
+        </div>
       </div>
-      <div id="rows"></div>
+
+      <!-- RIGHT: live preview -->
+      <div class="me-preview" id="preview">
+        <div class="me-scaler mc-root" id="scaler"><article class="page" id="menu-card"></article></div>
+      </div>
     </div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
+const $ = id => document.getElementById(id);
 const esc = s => (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const fmt = v => (v===null||v===undefined||v==="")?"—":String(v).replace(".",",");
 const pad2 = n => String(n||0).padStart(2,"0");
-let CARDS = [], FILTER = "tap", QUERY = "";
-const saveTimers = {};
+const nameClass = n => { const l=(n||"").length; if(l>22)return"len-xl"; if(l>16)return"len-lg"; if(l>11)return"len-md"; return ""; };
 
-function nameClass(n){const l=(n||"").length;if(l>22)return"len-xl";if(l>16)return"len-lg";if(l>11)return"len-md";return"";}
-function dotsHTML(n){let h="";for(let i=1;i<=5;i++)h+=`<span class="d${i<=(n||0)?" on":""}"></span>`;return h;}
+let items = [], editingId = null, ratings = { gor:0, plot:0, cvet:0 };
+
+function urlId(){ const n = parseInt(new URLSearchParams(location.search).get("id"),10); return Number.isFinite(n)?n:null; }
+function setUrlId(id){ const u=new URL(location.href); if(id)u.searchParams.set("id",id); else u.searchParams.delete("id"); history.replaceState({},"",u.toString()); }
+
+function getForm(){
+  const num = id => { const v=$(id).value.trim(); return v===""?null:Number(v); };
+  const tags = ["f-tag1","f-tag2","f-tag3"].map(id=>$(id).value.trim()).filter(Boolean);
+  return {
+    n: parseInt($("f-n").value,10)||0,
+    tap: $("f-tap").value.trim()===""?null:(parseInt($("f-tap").value,10)||null),
+    name: $("f-name").value.trim(), latin: $("f-latin").value.trim(),
+    country: $("f-country").value.trim(), brewery: $("f-brewery").value.trim(),
+    style: $("f-style").value.trim(), abv: $("f-abv").value.trim(),
+    tags, ratings: {...ratings},
+    p025: num("f-p025"), p04: num("f-p04"), p05: num("f-p05"),
+  };
+}
+
+function renderDots(){
+  document.querySelectorAll(".me-dots").forEach(box=>{
+    const key = box.dataset.key, val = ratings[key]||0; box.innerHTML="";
+    for(let i=1;i<=5;i++){ const d=document.createElement("button"); d.type="button";
+      d.className="me-dot"+(i<=val?" on":""); d.onclick=()=>{ ratings[key]=(ratings[key]===i)?i-1:i; renderDots(); paint(); }; box.appendChild(d); }
+  });
+}
 
 function cardInner(it){
-  const trans = it.latin ? `<div class="trans">[ ${esc(it.latin)} ]</div>` : "";
-  const op = [];
-  if(it.country) op.push(`<span class="accent">${esc(it.country)}</span>`);
-  if(it.brewery) op.push(esc(it.brewery));
-  const tags = (it.tags||[]).filter(t=>t&&t.trim()).map((t,i)=>`${i?'<span class="dot">·</span>':""}<span>${esc(t)}</span>`).join("");
-  const r = it.ratings||{};
-  const num = it.tap || it.n || 0;
+  const trans = it.latin?`<div class="trans">[ ${esc(it.latin)} ]</div>`:"";
+  const op=[]; if(it.country)op.push(`<span class="accent">${esc(it.country)}</span>`); if(it.brewery)op.push(esc(it.brewery));
+  const tags=(it.tags||[]).filter(Boolean).map((t,i)=>`${i?'<span class="dot">·</span>':""}<span>${esc(t)}</span>`).join("");
+  const r=it.ratings||{}; const num=it.tap||it.n||0;
+  const dots=n=>{let h="";for(let i=1;i<=5;i++)h+=`<span class="d${i<=(n||0)?" on":""}"></span>`;return h;};
   return `<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
     <header class="eyebrow"><span class="num">№ ${pad2(num)}</span></header>
-    <section class="hero">${trans}<h1 class="name ${nameClass(it.name)}">${esc(it.name)}</h1>
-      <div class="origin">${op.join(" · ")}</div></section>
-    <section class="facts"><span class="style">${esc(it.style)}</span>
-      <span class="abv">${esc(it.abv)}<span class="pct">%</span></span></section>
+    <section class="hero">${trans}<h1 class="name ${nameClass(it.name)}">${esc(it.name)}</h1><div class="origin">${op.join(" · ")}</div></section>
+    <section class="facts"><span class="style">${esc(it.style)}</span><span class="abv">${esc(it.abv)}<span class="pct">%</span></span></section>
     <section class="tags">${tags}</section>
     <section class="meters">
-      <div class="meter"><span class="k">горечь</span><div class="scale">${dotsHTML(r.gor)}</div></div>
-      <div class="meter"><span class="k">плотность</span><div class="scale">${dotsHTML(r.plot)}</div></div>
-      <div class="meter"><span class="k">цвет</span><div class="scale">${dotsHTML(r.cvet)}</div></div></section>
+      <div class="meter"><span class="k">горечь</span><div class="scale">${dots(r.gor)}</div></div>
+      <div class="meter"><span class="k">плотность</span><div class="scale">${dots(r.plot)}</div></div>
+      <div class="meter"><span class="k">цвет</span><div class="scale">${dots(r.cvet)}</div></div></section>
     <section class="prices">
       <div class="price"><span class="vol">0,25</span><span class="num">${fmt(it.p025)}</span></div>
       <div class="price"><span class="vol">0,4</span><span class="num">${fmt(it.p04)}</span></div>
       <div class="price"><span class="vol">0,5</span><span class="num">${fmt(it.p05)}</span></div></section>`;
 }
-function fitName(el){if(!el)return;el.style.fontSize="";let s=parseFloat(getComputedStyle(el).fontSize);while(el.scrollHeight>140&&s>36){s-=1;el.style.fontSize=s+"px";}}
-function fitTags(el){if(!el)return;el.style.fontSize="";let s=parseFloat(getComputedStyle(el).fontSize);while(el.scrollWidth>el.clientWidth+1&&s>14){s-=1;el.style.fontSize=s+"px";}}
+function fitName(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollHeight>140&&s>36){s-=1;el.style.fontSize=s+"px";} }
+function fitTags(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollWidth>el.clientWidth+1&&s>14){s-=1;el.style.fontSize=s+"px";} }
 
-function paint(id){
-  const it = CARDS.find(c=>c.id===id); if(!it) return;
-  const art = document.getElementById("prev-"+id); if(!art) return;
-  art.innerHTML = cardInner(it);
-  fitName(art.querySelector(".name")); fitTags(art.querySelector(".tags"));
+function fitPreview(){
+  const sc=$("scaler"), area=$("preview"), card=$("menu-card");
+  sc.style.transform=""; sc.style.width=""; sc.style.height="";
+  const w=card.offsetWidth||794, h=card.offsetHeight||1123;
+  const s=Math.min((area.clientWidth-48)/w, (area.clientHeight-48)/h, 0.62);
+  sc.style.transform=`scale(${s})`; sc.style.width=w+"px"; sc.style.height=(h*s)+"px";
+}
+function paint(){
+  const it=getForm(); const card=$("menu-card");
+  card.innerHTML=cardInner(it); fitName(card.querySelector(".name")); fitTags(card.querySelector(".tags")); fitPreview();
+}
+window.addEventListener("resize", fitPreview);
+
+function fill(it){
+  $("f-n").value=it.n||""; $("f-tap").value=it.tap??""; $("f-name").value=it.name||"";
+  $("f-latin").value=it.latin||""; $("f-country").value=it.country||""; $("f-brewery").value=it.brewery||"";
+  $("f-style").value=it.style||""; $("f-abv").value=it.abv||"";
+  const t=it.tags||[]; $("f-tag1").value=t[0]||""; $("f-tag2").value=t[1]||""; $("f-tag3").value=t[2]||"";
+  $("f-p025").value=it.p025??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??"";
+  const r=it.ratings||{}; ratings={ gor:+r.gor||0, plot:+r.plot||0, cvet:+r.cvet||0 };
+  renderDots(); paint();
+}
+function meta(){ const el=$("meta");
+  if(editingId){ const it=items.find(i=>i.id===editingId); el.innerHTML=`Редактирование: <b>${esc(it?(it.name||("№ "+pad2(it.n))):("#"+editingId))}</b>`; }
+  else el.innerHTML="Новая позиция (не сохранена)"; }
+
+function newItem(){
+  editingId=null; const used=new Set(items.map(i=>i.n||0)); let n=1; while(used.has(n))n++;
+  fill({ n, tap:null, name:"", latin:"", country:"", brewery:"", style:"", abv:"", tags:[], ratings:{gor:0,plot:0,cvet:0}, p025:null, p04:null, p05:null });
+  $("btn-del").style.display="none"; setUrlId(null); meta();
 }
 
-function setField(id, key, val){ const it=CARDS.find(c=>c.id===id); if(!it)return; it[key]=val; paint(id); scheduleSave(id); }
-function setPrice(id, key, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
-  const n = val.trim()===""?null:parseInt(val.replace(/\D/g,""),10); it[key]=isNaN(n)?null:n; paint(id); scheduleSave(id); }
-function setTag(id, j, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
-  const t=(it.tags||["","",""]).slice(); while(t.length<3)t.push(""); t[j]=val; it.tags=t.slice(0,3); paint(id); scheduleSave(id); }
-function setRating(id, key, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
-  it.ratings=it.ratings||{}; it.ratings[key]=val; paint(id); renderDots(id,key); scheduleSave(id); }
-function setTap(id, val){ const it=CARDS.find(c=>c.id===id); if(!it)return;
-  const n=val.trim()===""?null:parseInt(val.replace(/\D/g,""),10); it.tap=isNaN(n)?null:n; paint(id); scheduleSave(id); }
-
-function renderDots(id, only){
-  ["gor","plot","cvet"].forEach(k=>{
-    if(only&&only!==k)return;
-    const box=document.getElementById(`dots-${id}-${k}`); if(!box)return;
-    const it=CARDS.find(c=>c.id===id); const val=(it.ratings||{})[k]||0; box.innerHTML="";
-    for(let n=1;n<=5;n++){const b=document.createElement("button");b.type="button";
-      b.className="dotbtn"+(n<=val?" on":""); b.onclick=()=>setRating(id,k,(val===n?n-1:n)); box.appendChild(b);}
-  });
-}
-
-function scheduleSave(id){
+async function save(){
+  const item=getForm();
   setState("saving");
-  clearTimeout(saveTimers[id]);
-  saveTimers[id]=setTimeout(()=>save(id), 600);
-}
-async function save(id){
-  const it=CARDS.find(c=>c.id===id); if(!it)return;
   try{
-    const r=await fetch(`/menu/api/items/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(it)});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    setState("saved");
+    if(editingId){
+      await fetch(`/menu/api/items/${editingId}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(item)});
+    }else{
+      const r=await fetch("/menu/api/items",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(item)});
+      const c=await r.json(); editingId=c.id; setUrlId(editingId); $("btn-del").style.display="inline-flex";
+    }
+    const r=await fetch("/menu/api/items"); items=await r.json(); meta(); setState("saved");
   }catch(e){ setState("error"); toast("Ошибка сохранения: "+e.message); }
 }
-function setState(s){
-  const el=document.getElementById("savestate");
-  el.textContent = s==="saving"?"сохранение...":s==="saved"?"сохранено":s==="error"?"ошибка":"";
-}
+function setState(s){ $("savestate").textContent = s==="saving"?"сохранение…":s==="saved"?"сохранено":s==="error"?"ошибка":""; }
 
-function rowHTML(it){
-  const tag=it.tags||[];
-  const tapBadge = it.tap ? `<span class="tap-badge">кран №${it.tap}</span>` : "";
-  return `<div class="crow" id="row-${it.id}">
-    <div class="cprev"><div class="scaler"><article class="page" id="prev-${it.id}"></article></div></div>
-    <div class="cform">
-      <div class="head"><span class="ttl">${esc(it.name)||"(без названия)"}</span>${tapBadge}</div>
-      <div class="fgrid c4">
-        <label class="f">Кран №<input value="${it.tap==null?"":it.tap}" inputmode="numeric" oninput="setTap(${it.id},this.value)"></label>
-        <label class="f">Название<input value="${esc(it.name)}" oninput="setField(${it.id},'name',this.value)"></label>
-        <label class="f">Транскрипция (латиница)<input value="${esc(it.latin)}" oninput="setField(${it.id},'latin',this.value)"></label>
-        <label class="f">Крепость, %<input value="${esc(it.abv)}" oninput="setField(${it.id},'abv',this.value)"></label>
-      </div>
-      <div class="fgrid c3">
-        <label class="f">Пивоварня<input value="${esc(it.brewery)}" oninput="setField(${it.id},'brewery',this.value)"></label>
-        <label class="f">Страна<input value="${esc(it.country)}" oninput="setField(${it.id},'country',this.value)"></label>
-        <label class="f">Стиль<input value="${esc(it.style)}" oninput="setField(${it.id},'style',this.value)"></label>
-      </div>
-      <div class="fgrid c3">
-        <label class="f">Тег 1 (вкус)<input value="${esc(tag[0]||"")}" oninput="setTag(${it.id},0,this.value)"></label>
-        <label class="f">Тег 2<input value="${esc(tag[1]||"")}" oninput="setTag(${it.id},1,this.value)"></label>
-        <label class="f">Тег 3<input value="${esc(tag[2]||"")}" oninput="setTag(${it.id},2,this.value)"></label>
-      </div>
-      <div class="fgrid prices">
-        <label class="f">Цена 0,25<input value="${it.p025==null?"":it.p025}" inputmode="numeric" oninput="setPrice(${it.id},'p025',this.value)"></label>
-        <label class="f">Цена 0,4<input value="${it.p04==null?"":it.p04}" inputmode="numeric" oninput="setPrice(${it.id},'p04',this.value)"></label>
-        <label class="f">Цена 0,5<input value="${it.p05==null?"":it.p05}" inputmode="numeric" oninput="setPrice(${it.id},'p05',this.value)"></label>
-      </div>
-      <div class="meterrow">
-        <span>Горечь</span><div class="dots" id="dots-${it.id}-gor"></div>
-        <span>Плотность</span><div class="dots" id="dots-${it.id}-plot"></div>
-        <span>Цвет</span><div class="dots" id="dots-${it.id}-cvet"></div>
-      </div>
-      <button class="del" onclick="deleteCard(${it.id})">Удалить сорт</button>
-    </div>
-  </div>`;
-}
-
-function visibleCards(){
-  let list = CARDS.slice();
-  if(FILTER==="tap") list = list.filter(c=>c.tap);
-  if(QUERY){ const q=QUERY.toLowerCase();
-    list = list.filter(c=>((c.name||"")+" "+(c.latin||"")+" "+(c.brewery||"")).toLowerCase().includes(q)); }
-  list.sort((a,b)=>{
-    const at=a.tap?0:1, bt=b.tap?0:1;
-    if(at!==bt) return at-bt;
-    return (a.tap||a.n||0)-(b.tap||b.n||0);
-  });
-  return list;
-}
-function render(){
-  const list = visibleCards();
-  document.getElementById("rows").innerHTML = list.map(rowHTML).join("");
-  document.getElementById("count").textContent = `${list.length} из ${CARDS.length}`;
-  list.forEach(it=>{ paint(it.id); renderDots(it.id); });
-}
-
-async function load(){
-  const r = await fetch("/menu/api/items");
-  CARDS = await r.json();
-  render();
-}
-
-async function refreshPrices(){
-  const btn=document.getElementById("btnPrices");
-  btn.disabled=true; const old=btn.textContent; btn.textContent="Обновляю из iiko...";
-  try{
-    const r = await fetch("/menu/api/refresh-prices",{method:"POST"});
-    const data = await r.json();
-    if(!r.ok) throw new Error(data.error||("HTTP "+r.status));
-    await load();
-    const ch = (data.updated||[]).length;
-    toast(`Цены обновлены: совпало ${data.matched}/${data.total}, изменено ${ch}. Период ${data.date_from}…${data.date_to}.`);
-  }catch(e){ toast("Не удалось обновить цены: "+e.message); }
-  finally{ btn.disabled=false; btn.textContent=old; }
-}
-async function addCard(){
-  const r = await fetch("/menu/api/items",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-  const it = await r.json();
-  await load();
-  const row=document.getElementById("row-"+it.id); if(row) row.scrollIntoView({behavior:"smooth",block:"center"});
-}
-async function deleteCard(id){
-  const it=CARDS.find(c=>c.id===id);
+async function del(){
+  if(!editingId) return; const it=items.find(i=>i.id===editingId);
   if(!confirm(`Удалить «${it?it.name:""}»?`)) return;
-  await fetch(`/menu/api/items/${id}`,{method:"DELETE"});
-  await load();
+  await fetch(`/menu/api/items/${editingId}`,{method:"DELETE"}); location.href="/menu";
 }
-function openPrint(){ window.open("/menu/print?filter="+FILTER, "_blank"); }
-function exportPdf(){ window.location = "/menu/api/export-pdf?filter="+FILTER; }
-
-let toastTimer;
-function toast(msg){
-  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
-  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), 4200);
+async function exportPdf(){
+  const item=getForm();
+  const res=await fetch("/menu/api/render-pdf",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(item)});
+  if(!res.ok){ const e=await res.json().catch(()=>({})); toast("Ошибка PDF: "+(e.error||res.statusText)); return; }
+  const blob=await res.blob(); const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=`menu-${pad2(item.tap||item.n||0)}-${item.name||"card"}.pdf`; a.click(); URL.revokeObjectURL(a.href);
 }
 
-document.getElementById("filterSeg").addEventListener("click", e=>{
-  const b=e.target.closest("button"); if(!b)return;
-  FILTER=b.dataset.f;
-  document.querySelectorAll("#filterSeg button").forEach(x=>x.classList.toggle("on", x===b));
-  render();
-});
-let searchTimer;
-document.getElementById("search").addEventListener("input", e=>{
-  clearTimeout(searchTimer); searchTimer=setTimeout(()=>{ QUERY=e.target.value.trim(); render(); }, 200);
-});
+let toastTimer; function toast(m){ const t=$("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),4200); }
 
-if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(()=>{ visibleCards().forEach(it=>paint(it.id)); }); }
-load();
+async function init(){
+  renderDots();
+  const r=await fetch("/menu/api/items"); items=await r.json();
+  const want=urlId(); const tgt=want?items.find(i=>i.id===want):null;
+  if(tgt){ editingId=tgt.id; fill(tgt); $("btn-del").style.display="inline-flex"; meta(); }
+  else newItem();
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(paint);
+}
+init();
 </script>
 </body>
 </html>

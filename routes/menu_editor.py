@@ -169,8 +169,14 @@ def _sanitize(data, base=None):
 @menu_editor_bp.route("", strict_slashes=False)
 @menu_editor_bp.route("/")
 def menu_page():
-    # /menu и /menu/ оба отдают редактор напрямую (без 308-редиректа), чтобы
-    # подсветка активного пункта меню (по pathname) совпадала с href="/menu".
+    # /menu и /menu/ -> библиотека-таблица (без 308-редиректа, чтобы подсветка
+    # активного пункта меню по pathname совпадала с href="/menu").
+    return render_template("menu_library.html")
+
+
+@menu_editor_bp.route("/edit")
+def edit_page():
+    # Редактор одной карточки (?id=N — открыть существующую, без id — новая).
     return render_template("menu_editor.html")
 
 

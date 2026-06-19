@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактор меню — KULT Analytics</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+      .ml-wrap{ max-width: 1280px; margin: 0 auto; padding: 8px 4px 80px; }
+      .ml-toolbar{
+        display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+        margin: 8px 0 20px;
+      }
+      .ml-search{
+        flex: 1; min-width: 240px;
+        padding: 11px 16px; background: var(--bg-secondary); color: var(--text-primary);
+        border: 1px solid var(--border-color); border-radius: var(--border-radius-pill);
+        font-size: 14px; font-family: var(--font-family);
+      }
+      .ml-search:focus{ outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+      .ml-count{ font-size: 12px; color: var(--text-tertiary); letter-spacing: 0.04em; white-space: nowrap; }
+      .ml-grow{ flex: 1; }
+      .m-btn{
+        border: 1px solid var(--accent); background: var(--accent); color: #fff;
+        border-radius: var(--border-radius-pill); padding: 10px 18px; font-size: 13px;
+        font-weight: 600; cursor: pointer; font-family: var(--font-family); white-space: nowrap;
+        transition: all var(--transition-fast); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+      }
+      .m-btn:hover{ background: var(--accent-hover); border-color: var(--accent-hover); transform: translateY(-1px); }
+      .m-btn:disabled{ opacity: .6; cursor: progress; transform: none; }
+      .m-btn.sec{ background: var(--bg-secondary); color: var(--text-secondary); border-color: var(--border-color); }
+      .m-btn.sec:hover{ background: var(--bg-tertiary); color: var(--text-primary); border-color: var(--text-tertiary); }
+
+      .ml-table-wrap{ background: var(--bg-secondary); border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-sm); overflow: hidden; }
+      table.ml{ width: 100%; border-collapse: collapse; font-size: 13.5px; }
+      table.ml thead th{
+        text-align: left; padding: 13px 16px; font-weight: 600; font-size: 11px;
+        color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em;
+        background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color); position: sticky; top: 0;
+      }
+      table.ml tbody td{ padding: 12px 16px; border-bottom: 1px solid var(--border-light); vertical-align: middle; }
+      table.ml tbody tr:last-child td{ border-bottom: none; }
+      table.ml tbody tr.row{ cursor: pointer; transition: background var(--transition-fast); }
+      table.ml tbody tr.row:hover{ background: var(--bg-tertiary); }
+      .c-n{ width: 64px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+      .c-n .tap{ display:block; font-size: 9px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+      .c-name{ font-weight: 600; color: var(--text-primary); }
+      .c-name .latin{ display: block; font-weight: 400; color: var(--text-tertiary); font-size: 11px; margin-top: 2px; }
+      .c-mut{ color: var(--text-secondary); }
+      .c-abv{ color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .c-tags{ color: var(--text-secondary); font-size: 12.5px; }
+      .c-act{ width: 1%; white-space: nowrap; text-align: right; }
+      .c-act a, .c-act button{ font-size: 12px; padding: 6px 12px; }
+      .ml-del{ border: 1px solid var(--border-color); background: transparent; color: var(--danger);
+        border-radius: var(--border-radius-pill); cursor: pointer; font-family: var(--font-family); font-weight: 600; margin-left: 6px; }
+      .ml-del:hover{ background: var(--danger-bg); border-color: var(--danger); }
+      .ml-empty{ padding: 56px 20px; text-align: center; color: var(--text-tertiary); }
+      .ml-empty h2{ color: var(--text-secondary); font-size: 18px; margin-bottom: 10px; font-weight: 600; }
+      .toast{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        background: var(--text-primary); color: var(--bg-secondary); padding: 12px 20px;
+        border-radius: var(--border-radius-sm); font-size: 13px; box-shadow: var(--shadow-lg);
+        z-index: 60; opacity: 0; transition: opacity var(--transition-base); pointer-events: none; max-width: 80vw; }
+      .toast.show{ opacity: 1; }
+    </style>
+</head>
+<body>
+<div class="container">
+    {% set page_title = "Редактор меню" %}
+    {% set page_subtitle = "библиотека сортов" %}
+    {% include 'shared/nav.html' %}
+
+    <div class="ml-wrap">
+      <div class="ml-toolbar">
+        <input class="ml-search" id="search" placeholder="Поиск: название, латиница, пивоварня, страна, стиль…" oninput="render()">
+        <span class="ml-count" id="count"></span>
+        <span class="ml-grow"></span>
+        <button class="m-btn" id="btnPrices" onclick="refreshPrices()">Обновить цены из iiko</button>
+        <a class="m-btn sec" href="/menu/print?filter=all" target="_blank">Печать</a>
+        <a class="m-btn sec" href="/menu/api/export-pdf?filter=all">Скачать PDF</a>
+        <a class="m-btn" href="/menu/edit">+ Новая</a>
+      </div>
+      <div class="ml-table-wrap" id="content"></div>
+    </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let items = [];
+const esc = s => (s==null?"":String(s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const pad2 = n => String(n||0).padStart(2,"0");
+
+async function load(){
+  const r = await fetch("/menu/api/items");
+  items = await r.json();
+  render();
+}
+
+function match(it, q){
+  if(!q) return true;
+  const h = [it.name,it.latin,it.brewery,it.country,it.style,...(it.tags||[])].filter(Boolean).join(" ").toLowerCase();
+  return h.includes(q);
+}
+
+function render(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const list = items.filter(i=>match(i,q))
+    .sort((a,b)=>{ const at=a.tap?0:1, bt=b.tap?0:1; if(at!==bt) return at-bt; return (a.tap||a.n||0)-(b.tap||b.n||0); });
+  document.getElementById("count").textContent = q ? `${list.length} из ${items.length}` : `всего: ${items.length}`;
+  const content = document.getElementById("content");
+  if(!list.length){ content.innerHTML = `<div class="ml-empty"><h2>${items.length?"Ничего не найдено":"Каталог пуст"}</h2></div>`; return; }
+  const rows = list.map(i=>{
+    const origin = [i.country,i.brewery].filter(Boolean).join(" · ");
+    const tags = (i.tags||[]).filter(Boolean).slice(0,3).join(" · ");
+    const num = i.tap || i.n || 0;
+    return `<tr class="row" data-id="${i.id}">
+      <td class="c-n">${pad2(num)}${i.tap?'<span class="tap">кран</span>':''}</td>
+      <td class="c-name">${esc(i.name||"Без названия")}${i.latin?`<span class="latin">${esc(i.latin)}</span>`:""}</td>
+      <td class="c-mut">${esc(origin)}</td>
+      <td class="c-mut">${esc(i.style||"")}</td>
+      <td class="c-abv">${i.abv?esc(i.abv)+" %":""}</td>
+      <td class="c-tags">${esc(tags)}</td>
+      <td class="c-act"><a class="m-btn sec" href="/menu/edit?id=${i.id}">Открыть</a><button class="ml-del" data-del="${i.id}">Удалить</button></td>
+    </tr>`;
+  }).join("");
+  content.innerHTML = `<table class="ml"><thead><tr>
+      <th>№</th><th>Название</th><th>Страна · пивоварня</th><th>Стиль</th><th>ABV</th><th>Дескрипторы</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  content.querySelectorAll("tr.row").forEach(tr=>{
+    tr.addEventListener("click", e=>{ if(e.target.closest(".c-act")) return; location.href = `/menu/edit?id=${tr.dataset.id}`; });
+  });
+  content.querySelectorAll("[data-del]").forEach(btn=>{
+    btn.addEventListener("click", async e=>{
+      e.stopPropagation();
+      const id = btn.dataset.del, it = items.find(x=>String(x.id)===String(id));
+      if(!confirm(`Удалить «${it?it.name:""}»?`)) return;
+      await fetch(`/menu/api/items/${id}`, {method:"DELETE"});
+      items = items.filter(x=>String(x.id)!==String(id)); render();
+    });
+  });
+}
+
+async function refreshPrices(){
+  const btn = document.getElementById("btnPrices"); btn.disabled = true; const old = btn.textContent; btn.textContent = "Обновляю из iiko...";
+  try{
+    const r = await fetch("/menu/api/refresh-prices", {method:"POST"});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.error||("HTTP "+r.status));
+    await load();
+    toast(`Цены обновлены: совпало ${d.matched}/${d.total}, изменено ${(d.updated||[]).length}. Период ${d.date_from}…${d.date_to}.`);
+  }catch(e){ toast("Не удалось обновить цены: "+e.message); }
+  finally{ btn.disabled = false; btn.textContent = old; }
+}
+
+let toastTimer;
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),4500); }
+
+load();
+</script>
+</body>
+</html>
