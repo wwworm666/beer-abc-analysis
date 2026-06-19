@@ -1,5 +1,31 @@
 ﻿# Changelog
 
+### 2026-06-19 — Редактор меню: переделка UI на двухстраничный сервис + полный ассортимент (261 сорт)
+
+**UI переделан.** Прежняя страница-простыня (108 форм подряд) заменена на сервис, как
+был в `menu_tool`, но в стиле нашей дизайн-системы (IBM Plex Mono, терракотовый акцент,
+темы): `templates/menu_library.html` (библиотека-таблица с поиском, `/menu`) +
+`templates/menu_editor.html` (редактор одной карточки `/menu/edit`: форма + живое
+авто-масштабируемое превью). Фильтр «На кране/Все сорта» убран — всегда все сорта.
+
+**Добавлен весь разливной ассортимент за 2 года.** `data/_draft_sorts_2y.csv` (244 сорта)
+-> `scripts/add_csv_sorts.py` (дедуп против каталога, 190 новых) -> воркфлоу
+`menu-newsorts-research` (190 агентов: имя/латиница/пивоварня/страна/стиль/ABV/3 тега/
+шкалы; 154 high / 33 medium / 3 low) -> `scripts/merge_newsorts.py`: цены из iiko (по
+точному имени сорта) + дедуп. Дедуп: авто (транслит со схлопыванием удвоенных согласных
++ слияние подмножеств ТОЛЬКО по пивоварне-префиксу/сервинг-словам, чтобы не убить
+варианты «Кутс Халапеньо»≠«Кутс») + ручной список 11 пар по ревью. Каталог **108 -> 261**.
+
+**Прочее.** Транскрипция авто-ужимается под длинную латиницу (`fitTrans` в
+`menu_card.html`/`menu_print.html`/редакторе; `.trans` -> `nowrap`). Латиница чистится
+от скобочных пояснений, чинится мусорное имя id44.
+
+Файлы: `templates/menu_library.html` (нов.), `templates/menu_editor.html` (переписан),
+`templates/menu_card.html`, `templates/menu_print.html`, `static/menu/menu_card.css`,
+`routes/menu_editor.py`, `data/menu_cards.json` (261), `data/menu_newsorts_output.json`,
+`data/menu_new_sorts.json`, `data/_draft_sorts_2y.csv`, `scripts/add_csv_sorts.py`,
+`scripts/gen_newsorts_workflow.py`, `scripts/merge_newsorts.py`, `docs/menu-editor.md`.
+
 ### 2026-06-19 — Редактор меню перенесён на сервер (`/menu`): единый каталог, цены из iiko, ресёрч
 
 **Сервис вынесен из `menu_tool/` в основное приложение.** Новый blueprint

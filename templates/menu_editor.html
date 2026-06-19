@@ -208,6 +208,7 @@ function cardInner(it){
 }
 function fitName(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollHeight>140&&s>36){s-=1;el.style.fontSize=s+"px";} }
 function fitTags(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollWidth>el.clientWidth+1&&s>14){s-=1;el.style.fontSize=s+"px";} }
+function fitTrans(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollWidth>el.clientWidth+1&&s>9){s-=1;el.style.fontSize=s+"px";} }
 
 function fitPreview(){
   const sc=$("scaler"), area=$("preview"), card=$("menu-card");
@@ -218,7 +219,7 @@ function fitPreview(){
 }
 function paint(){
   const it=getForm(); const card=$("menu-card");
-  card.innerHTML=cardInner(it); fitName(card.querySelector(".name")); fitTags(card.querySelector(".tags")); fitPreview();
+  card.innerHTML=cardInner(it); fitName(card.querySelector(".name")); fitTags(card.querySelector(".tags")); fitTrans(card.querySelector(".trans")); fitPreview();
 }
 window.addEventListener("resize", fitPreview);
 

@@ -44,6 +44,7 @@
 .trans{
   margin-bottom: 7mm; font-weight: 400; font-size: 20pt;
   letter-spacing: 0.10em; text-transform: uppercase; line-height: 1;
+  white-space: nowrap; overflow: hidden;
 }
 .name{
   font-weight: 700; font-size: 72pt; line-height: 1.05;

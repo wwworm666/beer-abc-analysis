@@ -1,0 +1,4363 @@
+[
+  {
+    "id": 119,
+    "name_ru": "ЛОКАЛ ЛАГЕР",
+    "latin": "Local Lager",
+    "brewery": "Dreamteam Brew",
+    "country": "Россия",
+    "style": "Хеллес",
+    "abv": "4,4",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/dreamteam-brew-lokal/4817193",
+      "https://winestyle.ru/products/Dreamteam-Brew-Local-Lager.html",
+      "https://dreamteambrew.ru/eng"
+    ]
+  },
+  {
+    "id": 120,
+    "name_ru": "МОНКС КАФЕ",
+    "latin": "Monk's Café Flemish Sour Ale",
+    "brewery": "Van Steenberge",
+    "country": "Бельгия",
+    "style": "Фландрский кислый эль (Oud Bruin)",
+    "abv": "5,5",
+    "tags": [
+      "вишнёвый",
+      "карамельный",
+      "кисловатый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-van-steenberge-monk-s-cafe-flemish-sour-ale/21927",
+      "https://beerconnoisseur.com/beer/brouwerij-van-steenberge/monks-cafe-flemish-sour-ale",
+      "https://www.beeradvocate.com/beer/profile/48/10482/"
+    ]
+  },
+  {
+    "id": 121,
+    "name_ru": "БЛАНШ МА ШЕРИ",
+    "latin": "Blanche Ma Cherie",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Бельгийский витбир",
+    "abv": "4,5",
+    "tags": [
+      "кориандр",
+      "апельсиновый",
+      "пряный"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-blanche-ma-cherie/1434224",
+      "https://www.pintplease.com/en/beer/167286/blanche_ma_cherie",
+      "https://winestyle.ru/products/Konix-Brewery-Blanche-Ma-Cherie.html"
+    ]
+  },
+  {
+    "id": 122,
+    "name_ru": "КОММЕРЦИЕНРАТ ПРИВАТ",
+    "latin": "Commerzienrat Riegele Privat",
+    "brewery": "Riegele",
+    "country": "Германия",
+    "style": "Хеллес-лагер",
+    "abv": "5,2",
+    "tags": [
+      "солодовый",
+      "цветочный",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brauhaus-riegele-commerzienrat-riegele-privat/40567",
+      "https://www.beeradvocate.com/beer/profile/5850/61875/",
+      "https://www.beermonthclub.com/brauhaus-riegele-commerzienrat-riegele-privat"
+    ]
+  },
+  {
+    "id": 123,
+    "name_ru": "ФАЙНЕС УРХЕЛЛЬ",
+    "latin": "Riegele Feines Urhell",
+    "brewery": "Riegele",
+    "country": "Германия",
+    "style": "Хеллес",
+    "abv": "4,7",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "цветочный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.riegele.de/en/beers/beer-classics/feines-urhell/",
+      "https://untappd.com/b/brauhaus-riegele-feines-urhell/8656",
+      "https://www.bierentdecker.com/bierfinder/details/riegele-feines-urhell"
+    ]
+  },
+  {
+    "id": 124,
+    "name_ru": "ХЁФЕВАЙЦЕН",
+    "latin": "Just: Hefeweizen",
+    "brewery": "Just",
+    "country": "Россия",
+    "style": "Хефевайцен",
+    "abv": "5,2%",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://www.nice-beer.ru/product/pivo-dzhast-hefevaczen-just-hefeweizen-hefevajczen-keg-20l/",
+      "https://craftbeer78.ru/style-beer/hefeweizen",
+      "https://www.rus-beer.ru/styles/wheat_beer_hefeweizen/"
+    ]
+  },
+  {
+    "id": 125,
+    "name_ru": "ПИЛС",
+    "latin": "Brewlok Pils",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Немецкий пилснер",
+    "abv": "5,2",
+    "tags": [
+      "солодовый",
+      "хмелевой",
+      "освежающий"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-brewlok-pils/6214846",
+      "https://www.brewlok.ru/pils",
+      "https://winestyle.ru/products/Brewlok-Pils.html"
+    ]
+  },
+  {
+    "id": 126,
+    "name_ru": "ПЯТИПИТИЕ",
+    "latin": "Velka Morava Пятипитие",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Чешский пилснер",
+    "abv": "5,0",
+    "tags": [
+      "травянистый",
+      "цветочный",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/velka-morava-pyatipitie/5157675",
+      "https://moravabeer.ru/"
+    ]
+  },
+  {
+    "id": 127,
+    "name_ru": "АСТРОЛАГЕР",
+    "latin": "Astrolager",
+    "brewery": "Brew Division",
+    "country": "Россия",
+    "style": "Чешский пилснер",
+    "abv": "4,7",
+    "tags": [
+      "солодовый",
+      "медовый",
+      "фруктовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.viderzhka.ru/collection/vyderzhka/product/butylka-05-astrolager-astrolager-brewdivision-spb",
+      "https://untappd.com/b/brew-division-astrologer/1823327",
+      "https://optomvino.ru/pivo-sidr/pivo-brew-division-astrolager-bryu-divign-astrolager-500-ml"
+    ]
+  },
+  {
+    "id": 128,
+    "name_ru": "РУСТИК ПОЛУСУХОЙ",
+    "latin": "Bullevie Rustiq Semi Dry",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Сидр полусухой",
+    "abv": "5,5",
+    "tags": [
+      "яблочный",
+      "цветочный",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://rusbeershop.ru/catalog/beer-60966/",
+      "https://vkusvill.ru/goods/sidr-byulvi-rustik-polusukhoy-nefilt-86193/",
+      "https://greatbeer.ru/catalog/sidr/4133"
+    ]
+  },
+  {
+    "id": 129,
+    "name_ru": "ПШЕНИЧНОЕ",
+    "latin": "Vasileostrovskoe Weissbier",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Пшеничное (хефевайцен)",
+    "abv": "4,5",
+    "tags": [
+      "банановый",
+      "хлебный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-vasileostrovskoe-pshenichnoe-vasileostrovskoe-weissbier/3425133",
+      "https://your.beer/beer/vasileostrovskaya-weissbier",
+      "http://www.vpspb.ru/varim_krugliy_god"
+    ]
+  },
+  {
+    "id": 130,
+    "name_ru": "КУМБУРАК",
+    "latin": "Novopacké pivo Kumburák",
+    "brewery": "Nová Paka",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "5,0",
+    "tags": [
+      "солодовый",
+      "карамельный",
+      "хмелевой"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/pivovar-nova-paka-novopacke-pivo-12-deg-kumburak/76021",
+      "https://winestyle.ru/beer/kumburak/",
+      "https://www.beeradvocate.com/beer/profile/21333/58009/"
+    ]
+  },
+  {
+    "id": 131,
+    "name_ru": "БЛАНШ",
+    "latin": "Steenbrugge Wit-Blanche",
+    "brewery": "Palm (Steenbrugge)",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5,0",
+    "tags": [
+      "кориандр",
+      "цитрусовый",
+      "пряный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-palm-steenbrugge-blanche/40022",
+      "https://beerconnoisseur.com/beer/steenbrugge-wit-blanche",
+      "https://www.bierenco.nl/product/steenbrugge-wit-blanch/"
+    ]
+  },
+  {
+    "id": 132,
+    "name_ru": "БАРБЕ РУБИ",
+    "latin": "Barbe Ruby",
+    "brewery": "Verhaeghe",
+    "country": "Бельгия",
+    "style": "Фруктовый эль (вишнёвый)",
+    "abv": "7,7",
+    "tags": [
+      "вишнёвый",
+      "миндальный",
+      "шоколадный"
+    ],
+    "gor": 1,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-verhaeghe-barbe-ruby/208848",
+      "https://store.belgianshop.com/geuze-lambic-fruits/2618-verhaeghe-barbe-ruby-77-13l.html",
+      "https://craftbeer78.ru/beer/barbe-ruby-verhaeghe"
+    ]
+  },
+  {
+    "id": 133,
+    "name_ru": "ЛОКАЛ ЛАГЕР",
+    "latin": "Local Lager",
+    "brewery": "Dreamteam Brew",
+    "country": "Россия",
+    "style": "Хеллес",
+    "abv": "4,4",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "сладковатый"
+    ],
+    "gor": 2,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://winestyle.ru/products/Dreamteam-Brew-Local-Lager.html",
+      "https://untappd.com/DreamteamBrewingCo/beer",
+      "https://menu.pushkarev.cafe/ru/category/pivo-razlivnoe/drimtim-lokal-lager",
+      "https://dreamteambrew.ru/"
+    ]
+  },
+  {
+    "id": 134,
+    "name_ru": "МОН ШЕР КАССИС",
+    "latin": "Mon Cher Cassis",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Фруктовый эль",
+    "abv": "4,9",
+    "tags": [
+      "смородиновый",
+      "ягодный",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-mon-cher-cassis/2048717",
+      "https://your.beer/beer/konix-mon-cher-cassis",
+      "https://beers.su/beer/konix-mon-cher-cassis"
+    ]
+  },
+  {
+    "id": 135,
+    "name_ru": "БЛАНШ ДЕ НЕЖ",
+    "latin": "Blanche des Neiges",
+    "brewery": "Huyghe (Delirium)",
+    "country": "Бельгия",
+    "style": "Бельгийский витбир",
+    "abv": "4,9%",
+    "tags": [
+      "цитрусовый",
+      "кориандровый",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/delirium-huyghe-brewery-blanche-des-neiges/17826",
+      "https://www.beeradvocate.com/beer/profile/180/5407/",
+      "https://justbeerapp.com/beer/blanches-des-neiges-1"
+    ]
+  },
+  {
+    "id": 136,
+    "name_ru": "ХЕФЕВАЙСБИР",
+    "latin": "Riegele Hefe Weisse",
+    "brewery": "Riegele",
+    "country": "Германия",
+    "style": "Хефевайцен",
+    "abv": "5,0",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brauhaus-riegele-hefe-weisse/81931",
+      "https://www.beeradvocate.com/beer/profile/5850/387871/"
+    ]
+  },
+  {
+    "id": 137,
+    "name_ru": "МОРАВАН",
+    "latin": "Litovel Moravan",
+    "brewery": "Litovel",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "4,6",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://winestyle.ru/products/Litovel-Moravan.html",
+      "https://untappd.com/w/litovel/8498/beer",
+      "https://www.litovel.cz/ru/svetlyj-i-temnyj-lager-pivovarni-litovel-yavlyayutsya-odnim-iz-luchshih-sortov-piva-evropy"
+    ]
+  },
+  {
+    "id": 138,
+    "name_ru": "СИДР №1 СУХОЙ",
+    "latin": "DaDa Сидр #1 Сухой",
+    "brewery": "DaDa Cider",
+    "country": "Россия",
+    "style": "Сидр сухой",
+    "abv": "6,0",
+    "tags": [
+      "яблочный",
+      "цветочный",
+      "терпкий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/dada-cider-sidr-1-suhoj/3063743",
+      "https://pivoluchshe.ru/catalog/beer_cider_mead/cider/dada_sidr_1_sukhoy_but_stekl_500_ml/",
+      "https://shop.valhallabeer.ru/da-da-cider-1-sukoi"
+    ]
+  },
+  {
+    "id": 139,
+    "name_ru": "ХЕЛЛЕС",
+    "latin": "Kurpfalz Bräu Helles",
+    "brewery": "Welde",
+    "country": "Германия",
+    "style": "Хеллес",
+    "abv": "5,2",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "медовый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/welde-braumanufaktur-kurpfalzbrau-helles/1765378",
+      "https://www.beeradvocate.com/beer/profile/6844/336557/",
+      "https://darwin-wine.ru/product/4396/pivo-velde-kurpfalc-broy-helles--welde-kurpfalz-brau-helles-svetloe-05l-krepost-52/"
+    ]
+  },
+  {
+    "id": 140,
+    "name_ru": "ВАЙСМЮЛЛЕР ХЕФЕВАЙСБИР",
+    "latin": "Weissmuller Hefeweissbier",
+    "brewery": "M.C. Wieninger",
+    "country": "Германия",
+    "style": "Хефевайцен",
+    "abv": "5,3",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/privatbrauerei-m-c-wieninger-weissmuller-hefeweissbier/5338809",
+      "https://www.beeradvocate.com/beer/profile/4680/704078/",
+      "https://www.craftbeer.com/styles/german-style-hefeweizen"
+    ]
+  },
+  {
+    "id": 141,
+    "name_ru": "МЁД И СМОРОДИНА",
+    "latin": "Black Currant Mead",
+    "brewery": "Степь и Ветер",
+    "country": "Россия",
+    "style": "Медовуха (меломель)",
+    "abv": "6,0",
+    "tags": [
+      "медовый",
+      "смородиновый",
+      "ягодный"
+    ],
+    "gor": 1,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-black-currant-mead/2552489",
+      "https://craftbeer78.ru/beer/black-currant-mead-steppe-and-wind-meadery",
+      "https://fish-business.ru/catalog/packedmead/black_currant_mead_zh_b_0_45l/"
+    ]
+  },
+  {
+    "id": 142,
+    "name_ru": "БАПТИСТ ВИТ",
+    "latin": "Baptist Wit",
+    "brewery": "Van Steenberge",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5,0",
+    "tags": [
+      "кориандр",
+      "апельсиновый",
+      "пряный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-van-steenberge-baptist-wit-blanche/2138256",
+      "https://www.vansteenberge.com/en/product/baptist-white-33cl/",
+      "https://craftbeer78.ru/beer/baptist-wit-van-steenberge"
+    ]
+  },
+  {
+    "id": 143,
+    "name_ru": "МИЛК СТАР",
+    "latin": "Milk Star",
+    "brewery": "Selfmade",
+    "country": "Россия",
+    "style": "Молочный стаут",
+    "abv": "5,6",
+    "tags": [
+      "шоколадный",
+      "кофейный",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/selfmade-brewery-milk-star/2345713",
+      "https://craftbeer78.ru/beer/milk-star-selfmade-brewery",
+      "https://craftovik.ru/beer/selfmade-brewery-milk-star"
+    ]
+  },
+  {
+    "id": 144,
+    "name_ru": "БЛЮ БЕРРИ ДЖЕМ",
+    "latin": "Gravity Project Blue Berry Jam",
+    "brewery": "Gravity Project",
+    "country": "Россия",
+    "style": "Сидр с голубикой",
+    "abv": "5,0",
+    "tags": [
+      "голубичный",
+      "сладкий",
+      "ягодный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/cider/blue-berry-jam-gravity-project",
+      "https://winestyle.ru/products/Gravity-Project-Blue-Berry-Jam.html",
+      "https://craftopt.ru/product/sidr-gravity-project-blue-berry-jam-golubika-butylka"
+    ]
+  },
+  {
+    "id": 145,
+    "name_ru": "ДИКИЙ КРЕСТ СУХОЙ",
+    "latin": "Rebel Apple Dickiy Crest Dry",
+    "brewery": "Rebel Apple",
+    "country": "Россия",
+    "style": "Сухой сидр",
+    "abv": "6,0",
+    "tags": [
+      "яблочный",
+      "кислый",
+      "сухой"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rebel-apple-dickiy-crest-dry/4276330",
+      "https://birdekel.shop/product/%D1%80%D1%8D%D0%B1%D0%B5%D0%BB-%D1%8D%D0%BF%D0%BB-%D0%B4%D0%B8%D0%BA%D0%B8%D0%B9-%D0%BA%D1%80%D0%B5%D1%81%D1%82-%D1%81%D1%83%D1%85-rebel-apple-dickiy-crest-dry-045%D0%BB%D0%B1%D1%83%D1%82-6/",
+      "https://rus-beer-opt.ru/catalog/sidr_i_medovukha_1/beer-36215/"
+    ]
+  },
+  {
+    "id": 146,
+    "name_ru": "РАСТИК СЕМИ ДРАЙ",
+    "latin": "Bullevie Rustiq Semi Dry",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Традиционный сидр (полусухой)",
+    "abv": "5,5",
+    "tags": [
+      "яблочный",
+      "цветочный",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bullevie-rustiq-semi-dry/4061644",
+      "https://rus-beer.ru/beer/46013_bullevie_rustiq_semi_dry/",
+      "https://beers.su/brewery/bullevie"
+    ]
+  },
+  {
+    "id": 147,
+    "name_ru": "МУНЛАЙТ",
+    "latin": "Starlingtons Moonlight",
+    "brewery": "Hobsons",
+    "country": "Англия",
+    "style": "Английский золотистый эль",
+    "abv": "4,5",
+    "tags": [
+      "цитрусовый",
+      "медовый",
+      "фруктовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://leolsbeer.ru/catalog/pivo/starlingtons-moonlight/",
+      "https://winestyle.ru/products/Starlingtons-Moonlight.html",
+      "https://untappd.com/HobsonsBrewery/beer"
+    ]
+  },
+  {
+    "id": 148,
+    "name_ru": "РЫЖАЯ СОНЯ",
+    "latin": "Red Sonya",
+    "brewery": "Одна Тонна",
+    "country": "Россия",
+    "style": "Ред ИПА с имбирём",
+    "abv": "6,2",
+    "tags": [
+      "имбирный",
+      "карамельный",
+      "пряный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/pivovarnya-odna-tonna-odna-tonna-brewery-ryzhaya-sonya-red-sonya/1318227",
+      "https://craftbeer78.ru/beer/ryzhaya-sonya-500ml-odna-tonna",
+      "https://your.beer/beer/1tonna-rizhaya-sonya"
+    ]
+  },
+  {
+    "id": 149,
+    "name_ru": "КАПИТТЕЛЬ БЛОНД",
+    "latin": "Het Kapittel Blond",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Бельгийский блонд",
+    "abv": "6,5",
+    "tags": [
+      "фруктовый",
+      "апельсиновый",
+      "медовый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/leroy-breweries-kapittel-blond/12733",
+      "https://www.leroybreweries.be/en/products/kapittel-blond",
+      "https://store.belgianshop.com/abbey-beers/1248-het-kapittel-blond-65-13l.html"
+    ]
+  },
+  {
+    "id": 150,
+    "name_ru": "ХАРТЛЕСС БИТЧ 2.0",
+    "latin": "Heartless Bitch 2.0",
+    "brewery": "Gravity Project",
+    "country": "Россия",
+    "style": "Фруктовый сидр",
+    "abv": "4,5",
+    "tags": [
+      "малиновый",
+      "яблочный",
+      "мятный"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/gravity-project-heartless-bitch-2-0/3300416",
+      "https://craftbeer78.ru/cider/heartless-bitch-2-0-gravity-project",
+      "https://beeribo.ru/catalog/sidr/heartless_bitch_2_0/"
+    ]
+  },
+  {
+    "id": 151,
+    "name_ru": "АЙРИШ ГОЛД",
+    "latin": "Sullivan's Irish Gold Ale",
+    "brewery": "Sullivan's",
+    "country": "Ирландия",
+    "style": "Голден эль",
+    "abv": "5,2",
+    "tags": [
+      "абрикосовый",
+      "медовый",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://shop.sullivansbrewingcompany.com/products/sullivan-s-irish-gold-ale",
+      "https://www.beeradvocate.com/beer/profile/45989/475831/",
+      "https://winestyle.ru/products/Sullivan-s-Irish-Gold-Ale.html"
+    ]
+  },
+  {
+    "id": 152,
+    "name_ru": "ЛАГЕР",
+    "latin": "Varka Lager",
+    "brewery": "New Riga's",
+    "country": "Россия",
+    "style": "Светлый лагер",
+    "abv": "4,5%",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "освежающий"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/new-riga-s-brewery-varka-premium/1187303",
+      "https://winestyle.ru/products/New-Riga-s-Brewery-Varka-Premium-Lager-in-can.html",
+      "https://beers.su/beer/novorizhskaya-pivovarnya-novorizhskaya-brewery-varka-fresh"
+    ]
+  },
+  {
+    "id": 153,
+    "name_ru": "ОВЕРФОЛ ИПА",
+    "latin": "Konix Overfall IPA",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "6,5",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "манговый"
+    ],
+    "gor": 5,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-overfall/1451436",
+      "https://winestyle.ru/products/Konix-Brewery-Overfall-IPA.html",
+      "https://pintplease.com/en/beer/55653/overfall_ipa",
+      "https://rusbeershop.ru/catalog/beer-71019/"
+    ]
+  },
+  {
+    "id": 154,
+    "name_ru": "СТАУТ",
+    "latin": "Rye River Irish Stout",
+    "brewery": "Rye River",
+    "country": "Ирландия",
+    "style": "Ирландский сухой стаут",
+    "abv": "4,5%",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "тоффи"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 5,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/rye-river-brewing-company-eventide-irish-stout/4435453",
+      "https://ryeriverbrewingco.com/rye-river-eventide-irish-stout/",
+      "https://thekegcru.ie/products/rye-river-eventide-stout-4-5-abv-30l-keg-52-pints-stainless-steel-keg"
+    ]
+  },
+  {
+    "id": 155,
+    "name_ru": "СИДР №2 ПОЛУСУХОЙ",
+    "latin": "DaDa Сидр #2 Полусухой",
+    "brewery": "DaDa (Дальняя Дача)",
+    "country": "Россия",
+    "style": "Сидр полусухой",
+    "abv": "5,0",
+    "tags": [
+      "яблочный",
+      "персиковый",
+      "терпкий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/dada-cider-sidr-2-polusuhoj/3253011",
+      "https://your.beer/beer/dada-cider-2-semidry",
+      "https://winestyle.ru/products/DaDa-2-Apple-Semi-Dry.html",
+      "https://beers.su/beer/dada-cider-2-semidry"
+    ]
+  },
+  {
+    "id": 156,
+    "name_ru": "БЛЭК СПОТ",
+    "latin": "Starlingtons Black Spot",
+    "brewery": "Hobsons",
+    "country": "Англия",
+    "style": "Английский стаут",
+    "abv": "4,0",
+    "tags": [
+      "кофейный",
+      "поджаристый",
+      "лакричный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/hobsons-brewery-starlingtons-black-spot/5983764",
+      "https://your.beer/beer/hobsons-brewery-starlingtons-black-spot",
+      "https://www.hobsons-brewery.co.uk/"
+    ]
+  },
+  {
+    "id": 157,
+    "name_ru": "ДАБЛ ИПА",
+    "latin": "Salden's Double IPA",
+    "brewery": "Salden's",
+    "country": "Россия",
+    "style": "Имперский ИПА",
+    "abv": "8,5",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "смолистый"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/salden-s-brewery-double-ipa/2976679",
+      "https://pintplease.com/en/beer/132956/old_school_double_ipa"
+    ]
+  },
+  {
+    "id": 158,
+    "name_ru": "ДОППЕЛЬБОК",
+    "latin": "Festhaus Doppelbock",
+    "brewery": "Festhaus",
+    "country": "Россия",
+    "style": "Доппельбок",
+    "abv": "7,5%",
+    "tags": [
+      "карамельный",
+      "солодовый",
+      "шоколадный"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/style-beer/bock-doppelbock",
+      "https://eatbeer.ru/styles/bocks/doppelbock/",
+      "https://alcofan.com/stil-piva-doppelbok.html"
+    ]
+  },
+  {
+    "id": 159,
+    "name_ru": "ГИННЕСС ДРАФТ",
+    "latin": "Guinness Draught",
+    "brewery": "Guinness",
+    "country": "Ирландия",
+    "style": "Ирландский сухой стаут",
+    "abv": "4,2",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "жжёный"
+    ],
+    "gor": 4,
+    "plot": 2,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/guinness-guinness-draught/4473",
+      "https://www.beeradvocate.com/beer/profile/209/754/",
+      "https://rus-beer.ru/catalog/importnoe_pivo/beer-10088/"
+    ]
+  },
+  {
+    "id": 160,
+    "name_ru": "ЛОНДОН ПРАЙД",
+    "latin": "London Pride",
+    "brewery": "Fuller's",
+    "country": "Англия",
+    "style": "Английский биттер",
+    "abv": "4,7",
+    "tags": [
+      "карамельный",
+      "фруктовый",
+      "травяной"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/fuller-s-griffin-brewery-london-pride/2762",
+      "https://en.wikipedia.org/wiki/London_Pride_(beer)",
+      "https://www.fullersbrewery.co.uk/products/fullers-london-pride-500ml-bottle-8-pack"
+    ]
+  },
+  {
+    "id": 161,
+    "name_ru": "КЛАШТЕР ЛЕЖАК",
+    "latin": "Klášter Ležák",
+    "brewery": "Klášter",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "4,6",
+    "tags": [
+      "хмелевой",
+      "солодовый",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/pivovar-klaster-klaster-lezak-11-deg/212772",
+      "http://www.atlaspiv.cz/?page=detail&beer_id=16",
+      "https://www.pivnici.cz/pivo/klaster-svetly-lezak/"
+    ]
+  },
+  {
+    "id": 162,
+    "name_ru": "КВИНСИ",
+    "latin": "Quincy",
+    "brewery": "Бульви",
+    "country": "Россия",
+    "style": "Сидр полусухой",
+    "abv": "5,5",
+    "tags": [
+      "яблочный",
+      "кислинка",
+      "танинный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "low",
+    "sources": [
+      "https://untappd.com/QuincyBrewingCompany/beer",
+      "https://craftbeer78.ru/breweries/list",
+      "https://www.beeradvocate.com/beer/profile/57988/"
+    ]
+  },
+  {
+    "id": 163,
+    "name_ru": "МЁД И АБРИКОС",
+    "latin": "Mead Apricot",
+    "brewery": "Степь и Ветер",
+    "country": "Россия",
+    "style": "Медовуха (меломель)",
+    "abv": "6.0%",
+    "tags": [
+      "медовый",
+      "абрикосовый",
+      "сладкий"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://stepiveter.ru/",
+      "https://craftbeer78.ru/brewery/steppe-and-wind",
+      "https://untappd.com/SteppeNwind"
+    ]
+  },
+  {
+    "id": 164,
+    "name_ru": "БЛАНШ ДЕ ЛЮТИН",
+    "latin": "Blanche de Lutin",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Витбир",
+    "abv": "4,5",
+    "tags": [
+      "цитрусовый",
+      "пряный",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-blanche-de-lutin/1014215",
+      "https://your.beer/beer/vasileostrovskaya-brewery-blanche-de-lutin",
+      "https://craftovik.ru/beer/vasileostrovskaya-blanche-de-lutin"
+    ]
+  },
+  {
+    "id": 165,
+    "name_ru": "МЮНХЕН ХЕЛЬ",
+    "latin": "Münchner Hell",
+    "brewery": "Paulaner",
+    "country": "Германия",
+    "style": "Мюнхенский хеллес",
+    "abv": "4,9",
+    "tags": [
+      "солодовый",
+      "медовый",
+      "бисквитный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.paulaner.com/our-products/muenchner-hell",
+      "https://www.beeradvocate.com/beer/profile/124/388/",
+      "https://untappd.com/b/paulaner-brauerei-munchner-hell/3235"
+    ]
+  },
+  {
+    "id": 166,
+    "name_ru": "MILK OF AMNESIA",
+    "latin": "Milk of Amnesia",
+    "brewery": "Gletcher",
+    "country": "Россия",
+    "style": "Милкшейк ИПА",
+    "abv": "5,5",
+    "tags": [
+      "сливочный",
+      "фруктовый",
+      "сладкий"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.gletcherbrewery.com/en/beer/milk-of-amnesia",
+      "https://untappd.com/b/gletcher-brewery-gletcher-milk-of-amnesia-v-tropic-milkshake-ipa/2576678",
+      "https://www.beeradvocate.com/beer/profile/43443/475888/"
+    ]
+  },
+  {
+    "id": 167,
+    "name_ru": "ПШЕНО",
+    "latin": "Varka Psheno",
+    "brewery": "New Riga's",
+    "country": "Россия",
+    "style": "Хефевайцен",
+    "abv": "4,0",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "цитрусовый"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/new-riga-s-brewery-varka-psheno/704822",
+      "https://craftbeer78.ru/beer/varka-psheno-new-rigas-brewery",
+      "https://beer-trip.ru/drinks/beer/varka-psheno/"
+    ]
+  },
+  {
+    "id": 168,
+    "name_ru": "МILK ОF AMNESIA",
+    "latin": "Milk of Amnesia",
+    "brewery": "Gletcher",
+    "country": "Россия",
+    "style": "Милкшейк ИПА",
+    "abv": "5,5",
+    "tags": [
+      "фруктовый",
+      "сливочный",
+      "сладкий"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/gletcher-brewery-gletcher-milk-of-amnesia-v-tropic-milkshake-ipa/2576678",
+      "https://www.gletcherbrewery.com/en/beer/milk-of-amnesia",
+      "https://eatbeer.ru/breweries/gletcher-brewery-gletcher/milk-of-amnesia-v-tropic-milkshake-ipa/"
+    ]
+  },
+  {
+    "id": 169,
+    "name_ru": "ШРАДЕР",
+    "latin": "Velka Morava Schrader",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Американская ИПА",
+    "abv": "6,1",
+    "tags": [
+      "хмелевой",
+      "цитрусовый",
+      "сухой"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/schrader-velka-morava",
+      "https://untappd.com/VelkaMorava"
+    ]
+  },
+  {
+    "id": 170,
+    "name_ru": "ФАМ ФАТАЛЬ РУЖ",
+    "latin": "Femme Fatale Rouge",
+    "brewery": "De Leite",
+    "country": "Бельгия",
+    "style": "Бельгийский амбер",
+    "abv": "6,5%",
+    "tags": [
+      "солодовый",
+      "фруктовый",
+      "карамельный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/brouwerij-de-leite-femme-fatale/38827",
+      "https://www.beeradvocate.com/beer/profile/25941/70837/",
+      "https://fr.wikipedia.org/wiki/Brasserie_De_Leite",
+      "https://www.thebelgianbeercompany.com/p/belgian-beers/femme-fatale-de-leite/"
+    ]
+  },
+  {
+    "id": 171,
+    "name_ru": "СОЛТМЕЛЬЕ: НАРЬЯН-МАР",
+    "latin": "Saltmelier: Naryan-Mar",
+    "brewery": "GAS Brew",
+    "country": "Россия",
+    "style": "Гозе",
+    "abv": "5,5%",
+    "tags": [
+      "солёный",
+      "кориандровый",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 1,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/gas-brew-saltmelier-rostov/5961778",
+      "https://untappd.com/b/seagull-oleg-saltmelier-chillilime/5876895",
+      "https://brajnikbar.ru/tproduct/1-962347300261-saltmelier-rostov"
+    ]
+  },
+  {
+    "id": 172,
+    "name_ru": "ДЕЙ ИН ПАРАДАЙЗ",
+    "latin": "Starlingtons Day in Paradise",
+    "brewery": "Hobsons",
+    "country": "Великобритания",
+    "style": "Английский голден эль",
+    "abv": "4,2",
+    "tags": [
+      "медовый",
+      "цветочный",
+      "лёгкий"
+    ],
+    "gor": 2,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/hobsons-brewery-starlingtons-day-in-paradise/5978413"
+    ]
+  },
+  {
+    "id": 173,
+    "name_ru": "ДЕЛИРИУМ ТРЕМЕНС",
+    "latin": "Delirium Tremens",
+    "brewery": "Huyghe",
+    "country": "Бельгия",
+    "style": "Бельгийский крепкий светлый эль",
+    "abv": "8,5",
+    "tags": [
+      "фруктовый",
+      "пряный",
+      "солодовый"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/delirium-huyghe-brewery-delirium-tremens/4485",
+      "https://www.beeradvocate.com/beer/profile/180/1385/",
+      "https://ryansbooze.com/2020/03/brouwerij-huyghe-delirium-tremens-belgian-strong-ale-at-8-7-abv-24-5-ibu/"
+    ]
+  },
+  {
+    "id": 174,
+    "name_ru": "БОРНЕМ БЛОНД",
+    "latin": "Bornem Blond",
+    "brewery": "Van Steenberge",
+    "country": "Бельгия",
+    "style": "Бельгийский блонд",
+    "abv": "6,0",
+    "tags": [
+      "пряный",
+      "банановый",
+      "перечный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-van-steenberge-bornem-blond/998480",
+      "https://www.vansteenberge.com/en/our-beers/bornem/",
+      "https://www.beeradvocate.com/beer/profile/48/185027/"
+    ]
+  },
+  {
+    "id": 175,
+    "name_ru": "БЛАНШ",
+    "latin": "Jaws Blanche",
+    "brewery": "Jaws",
+    "country": "Россия",
+    "style": "Витбир",
+    "abv": "4,5",
+    "tags": [
+      "цитрусовый",
+      "пряный",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://jawsbeer.ru/blanche",
+      "https://untappd.com/b/jaws-brewery-blanche/4904047",
+      "https://winestyle.ru/products/Jaws-Brewery-Jaws-Blanche.html"
+    ]
+  },
+  {
+    "id": 176,
+    "name_ru": "КИСЛЫЙ ДВИЖ",
+    "latin": "Kislyj Dvizh",
+    "brewery": "Atmosphere",
+    "country": "Россия",
+    "style": "Фруктовый кислый эль",
+    "abv": "6,5",
+    "tags": [
+      "дынный",
+      "ананасовый",
+      "персиковый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/atmosphere-brewery-kislyj-dvizh/4588361",
+      "https://eatbeer.ru/breweries/atmosphere-brewery/kislyy-dvizh/",
+      "https://www.hmelnovv.ru/atmosphere-pivo-kislyy-dvij-20l"
+    ]
+  },
+  {
+    "id": 177,
+    "name_ru": "ДИКИЙ КРЕСТ ОРИДЖИНАЛ",
+    "latin": "Rebel Apple \"Dickiy Crest\" Original",
+    "brewery": "Rebel Apple",
+    "country": "Россия",
+    "style": "Сухой сидр",
+    "abv": "6,0",
+    "tags": [
+      "яблочный",
+      "сухой",
+      "терпкий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rebel-apple-dickiy-crest-original/4620454",
+      "https://winestyle.ru/products/Rebel-Apple-Dickiy-Crest-Original.html",
+      "https://birdekel.shop/product/%D1%80%D1%8D%D0%B1%D0%B5%D0%BB-%D1%8D%D0%BF%D0%BB-%D0%B4%D0%B8%D0%BA%D0%B8%D0%B9-%D0%BA%D1%80%D0%B5%D1%81%D1%82-%D0%BE%D1%80%D0%B8%D0%B4%D0%B6%D0%B8%D0%BD%D0%B0%D0%BB-%D1%81%D1%83%D1%85-rebel-apple/"
+    ]
+  },
+  {
+    "id": 178,
+    "name_ru": "ФУЛ МУН 12",
+    "latin": "Triporteur Full Moon 12",
+    "brewery": "BOMBrewery",
+    "country": "Бельгия",
+    "style": "Бельгийский квадрюпель",
+    "abv": "10,2",
+    "tags": [
+      "карамельный",
+      "сухофруктовый",
+      "ванильный"
+    ],
+    "gor": 2,
+    "plot": 5,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bombrewery-triporteur-full-moon-12/904938",
+      "https://www.beeradvocate.com/beer/profile/31311/162299/",
+      "https://shop.beerimport.ru/index.php?route=product/product&product_id=2685"
+    ]
+  },
+  {
+    "id": 179,
+    "name_ru": "САНЛАЙТ ГЕЛИОДОР",
+    "latin": "Sunlight Geliodor",
+    "brewery": "Polnochnyj Project",
+    "country": "Россия",
+    "style": "Хейзи Пэйл Эль",
+    "abv": "5,1",
+    "tags": [
+      "тропический",
+      "сочный",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/sunlight-geliodor-polnochnyj-project",
+      "https://untappd.com/b/midnight-project-sunlight-geliodor/6289383"
+    ]
+  },
+  {
+    "id": 180,
+    "name_ru": "АЙРИШ ПЭЙЛ ЭЛЬ",
+    "latin": "O'Hara's Irish Pale Ale",
+    "brewery": "Carlow (O'Hara's)",
+    "country": "Ирландия",
+    "style": "Ирландский пэйл-эль",
+    "abv": "5,2",
+    "tags": [
+      "цитрусовый",
+      "цветочный",
+      "хвойный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/o-hara-s-brewery-o-hara-s-irish-pale-ale/143851",
+      "https://www.carlowbrewing.com/our-beers/oharas-irish-pale-ale/",
+      "https://www.beermonthclub.com/carlow-brewing-company-oharas-irish-pale-ale"
+    ]
+  },
+  {
+    "id": 181,
+    "name_ru": "БАБА ЯГА",
+    "latin": "Brewlok Baba Yaga",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Молочный стаут",
+    "abv": "6,0",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "сладкий"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-baba-yaga-baba-yaga/1673847",
+      "https://your.beer/beer/brewlok-baba-yaga",
+      "https://craftbeer78.ru/beer/baba-yaga-brewlok"
+    ]
+  },
+  {
+    "id": 182,
+    "name_ru": "СИДР V.4.0 С ГРЕЙПФРУТОМ",
+    "latin": "Los i Kedr v.4.0",
+    "brewery": "Лось и Кедр",
+    "country": "Россия",
+    "style": "Хмелевой сидр",
+    "abv": "5,3",
+    "tags": [
+      "грейпфрутовый",
+      "цитрусовый",
+      "яблочный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftminibar.ru/products/cider-los-kedr-version-4-0",
+      "https://untappd.com/b/los-i-kedr-los-i-kedr-v-4-0-versiya-4-0/2426014",
+      "https://craftbeer78.ru/cider/los-i-kedr-ver4-los-i-kedr"
+    ]
+  },
+  {
+    "id": 183,
+    "name_ru": "ХОММЕЛЬБИР",
+    "latin": "Poperings Hommelbier",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Бельгийский крепкий эль",
+    "abv": "7,5",
+    "tags": [
+      "цветочный",
+      "пряный",
+      "цитрусовый"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.beeradvocate.com/beer/profile/634/1692/",
+      "https://untappd.com/b/leroy-breweries-poperings-hommelbier/836",
+      "https://www.belgiansmaak.com/belgian-hops-poperings-hommelbier-westhoek/",
+      "https://rusbeershop.ru/catalog/beer-73831/"
+    ]
+  },
+  {
+    "id": 184,
+    "name_ru": "ФРОТИ ФРО",
+    "latin": "Frothy Froh",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Ирландский сухой стаут",
+    "abv": "4,9",
+    "tags": [
+      "кофейный",
+      "жжёный",
+      "шоколадный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://rusbeershop.ru/catalog/beer-70744/",
+      "https://untappd.com/VelkaMorava",
+      "https://craftbeer78.ru/brewery/velka-morava"
+    ]
+  },
+  {
+    "id": 185,
+    "name_ru": "ПИЛЬГЕРШТОФ МЭРЦЕН",
+    "latin": "Pilgerstoff Märzen",
+    "brewery": "Will-Bräu",
+    "country": "Германия",
+    "style": "Мэрцен",
+    "abv": "5,6",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "карамельный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/will-brau-hochstiftliches-brauhaus-in-bayern-pilgerstoff-marzen/4984024",
+      "https://untappd.com/w/will-bra-u-hochstiftliches-brauhaus-in-bayern/661/beer",
+      "https://www.beeradvocate.com/beer/styles/29/"
+    ]
+  },
+  {
+    "id": 186,
+    "name_ru": "ВИВИДЗЕРО",
+    "latin": "Bullevie Vivizero",
+    "brewery": "Бюльви",
+    "country": "Россия",
+    "style": "Сухой сидр",
+    "abv": "5,5",
+    "tags": [
+      "яблочный",
+      "цветочный",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/cider/vivizero-bullevie",
+      "https://winestyle.ru/products/Bullevie-Vivizero.html",
+      "https://beeribo.ru/brewery/bullevie.html"
+    ]
+  },
+  {
+    "id": 187,
+    "name_ru": "ТРЁХЛИНЕЙКА",
+    "latin": "Brewlok Трёхлинейка",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Портер",
+    "abv": "6,8",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "ржаной"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-tryohlinejka/1448833",
+      "https://winestyle.ru/products/Brewlok-Trekhlinejka.html",
+      "https://craftbeer78.ru/beer/trehlinejka-500ml-brewlok"
+    ]
+  },
+  {
+    "id": 188,
+    "name_ru": "ГОУСТ ВЕЙЛС",
+    "latin": "Ghost Whales",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Балтийский портер",
+    "abv": "10,0",
+    "tags": [
+      "солодовый",
+      "сухофрукты",
+      "шоколадный"
+    ],
+    "gor": 2,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/paradox-ghost-whales/5570025",
+      "https://beers.su/beer/paradox-ghost-whales",
+      "https://craftbeer78.ru/beer/ghost-whales-paradox"
+    ]
+  },
+  {
+    "id": 189,
+    "name_ru": "ЛЕСНЫЕ ЯГОДЫ",
+    "latin": "Alska Nordic Berries",
+    "brewery": "Alska",
+    "country": "Швеция",
+    "style": "Фруктовый сидр",
+    "abv": "4,0",
+    "tags": [
+      "ягодный",
+      "сладкий",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/swedish-cider-company-alska-nordic-berries/580626",
+      "https://online.metro-cc.ru/products/puare-alska-nordic-berries-cider-lesnye-yagody-05-l",
+      "https://beerkontora.ru/product/sidr-alska-lesnye-yagody-alska-nordic-berries-30l"
+    ]
+  },
+  {
+    "id": 190,
+    "name_ru": "СОЛНЕЧНЫЙ ВЕТЕР",
+    "latin": "Plan B Sunny Wind",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Американский пэйл-эль",
+    "abv": "4,8",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "тропический"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-solnechnyj-veter/1034461",
+      "https://craftbeer78.ru/brewery/plan-b",
+      "https://winestyle.ru/products/Plan-B-Sunny-Wind.html"
+    ]
+  },
+  {
+    "id": 191,
+    "name_ru": "ТРАДИЦИОННАЯ МЕДОВУХА",
+    "latin": "Traditional Mead",
+    "brewery": "Степь и Ветер",
+    "country": "Россия",
+    "style": "Традиционная медовуха",
+    "abv": "4,5",
+    "tags": [
+      "медовый",
+      "цветочный",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-traditional-mead/4711460",
+      "https://craftbeer78.ru/beer/traditional-mead-steppe-and-wind",
+      "https://untappd.com/SteppeNwind"
+    ]
+  },
+  {
+    "id": 192,
+    "name_ru": "ФЕСТВАЙСЕ ТАП 4",
+    "latin": "Schneider Weisse Tap 4 Meine Festweisse",
+    "brewery": "Schneider Weisse",
+    "country": "Германия",
+    "style": "Праздничное пшеничное (Festweisse)",
+    "abv": "6,2",
+    "tags": [
+      "цитрусовый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://schneider-weisse.de/en/node/51",
+      "https://untappd.com/b/schneider-weisse-g-schneider-and-sohn-festweisse-tap04/11827",
+      "https://www.beeradvocate.com/beer/profile/72/759/"
+    ]
+  },
+  {
+    "id": 193,
+    "name_ru": "БИГ БОЙ АМАРИЛЛО",
+    "latin": "Big Boy Amarillo",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Дабл ИПА",
+    "abv": "8,4%",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "косточковый"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/beer/big-boy-velka-morava",
+      "https://craftbeer78.ru/brewery/velka-morava",
+      "https://moravabeer.ru/?page_id=726"
+    ]
+  },
+  {
+    "id": 194,
+    "name_ru": "АПА",
+    "latin": "Brewlok APA",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Американский пэйл-эль",
+    "abv": "5,0",
+    "tags": [
+      "цитрусовый",
+      "тропический",
+      "хвойный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-apa-ver-2/1603417",
+      "https://untappd.com/Brewlokbrewery"
+    ]
+  },
+  {
+    "id": 195,
+    "name_ru": "НОГГЕНФОГГЕР ЭЛИКСИР",
+    "latin": "Noggenfogger Elixir",
+    "brewery": "Polnochnyj Project",
+    "country": "Россия",
+    "style": "Хейзи Пейл Эль",
+    "abv": "5,5",
+    "tags": [
+      "тропический",
+      "цитрусовый",
+      "сочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/noggenfogger-elixir-polnochnyj-project",
+      "https://your.beer/beer/midnight-project-noggenfogger-elixir",
+      "https://untappd.com/b/midnight-project-noggenfogger-elixir/6194501"
+    ]
+  },
+  {
+    "id": 196,
+    "name_ru": "КРЫЛЬЯ ДОБЛЕСТИ",
+    "latin": "Rewort Крылья Доблести",
+    "brewery": "Rewort",
+    "country": "Россия",
+    "style": "Фруктовый сауэр",
+    "abv": "6,9",
+    "tags": [
+      "клубничный",
+      "бергамотовый",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rewort-brewery-krylya-doblesti/3168515",
+      "https://craftbeer78.ru/beer/krylya-doblesti-rewort",
+      "https://beeribo.ru/catalog/kraft_fasovka/krylya_doblesti/"
+    ]
+  },
+  {
+    "id": 197,
+    "name_ru": "БИГ БОЙ ФРОМ АЙДАХО",
+    "latin": "Big Boy From Idaho",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Двойной ИПА",
+    "abv": "8,4%",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "фруктовый"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/beer/big-boy-velka-morava",
+      "https://untappd.com/VelkaMorava/beer",
+      "https://www.beeradvocate.com/beer/profile/43566/"
+    ]
+  },
+  {
+    "id": 198,
+    "name_ru": "ХЕФЕВАЙССБИР",
+    "latin": "Eibauer Hefeweizen Hell",
+    "brewery": "Eibau",
+    "country": "Германия",
+    "style": "Хефевайцен",
+    "abv": "5,2",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/privatbrauerei-eibau-eibauer-hefeweizen/763095",
+      "https://www.beeradvocate.com/beer/profile/7597/148942/",
+      "https://your.beer/beer/eibauer-hefeweizen"
+    ]
+  },
+  {
+    "id": 199,
+    "name_ru": "ТОМАТНАЯ ДИЧЬ",
+    "latin": "Atmosphere Brewery Томатная Дичь",
+    "brewery": "Atmosphere",
+    "country": "Россия",
+    "style": "Томатный гозе",
+    "abv": "6,5",
+    "tags": [
+      "томатный",
+      "солёный",
+      "пряный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/atmosphere-brewery-tomatnaya-dich/3701697",
+      "https://craftbeer78.ru/beer/tomatnaya-dich-atmosphere-brewery",
+      "https://craftovik.ru/beer/atmosphere-brewery-tomatnaya-dich"
+    ]
+  },
+  {
+    "id": 200,
+    "name_ru": "МОСКОУ КОЛЛИНГ",
+    "latin": "Moscow Calling",
+    "brewery": "Black Cat",
+    "country": "Россия",
+    "style": "Английский биттер",
+    "abv": "4,7",
+    "tags": [
+      "карамельный",
+      "медовый",
+      "пряный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/moscow-calling-black-cat",
+      "https://untappd.com/b/black-cat-brewery-moscow-calling/5230956",
+      "https://beeribo.ru/catalog/pivo/moscow_calling/"
+    ]
+  },
+  {
+    "id": 201,
+    "name_ru": "ИПА",
+    "latin": "Ostrovica IPA",
+    "brewery": "Островица",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "6,2",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "карамельный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/ipa-ostrovica-brewery",
+      "https://untappd.com/b/ostrovica-ipa/1304151",
+      "https://www.brewmapp.com/brewery/ostrovica/"
+    ]
+  },
+  {
+    "id": 202,
+    "name_ru": " АУТ ОФ ПЭШН",
+    "latin": "Out of Passion",
+    "brewery": "Black Cat",
+    "country": "Россия",
+    "style": "Фруктовый сауэр",
+    "abv": "4,5%",
+    "tags": [
+      "маракуйя",
+      "кислый",
+      "тропический"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://rusbeershop.ru/brewery/Black_Cat/",
+      "https://untappd.com/BlackCatBrewery/beer",
+      "https://blackcatbeer.ru/"
+    ]
+  },
+  {
+    "id": 203,
+    "name_ru": "БЛЭК СКОТТИШ СТАУТ",
+    "latin": "Belhaven Black Scottish Stout",
+    "brewery": "Belhaven",
+    "country": "Шотландия",
+    "style": "Сухой стаут",
+    "abv": "4,2",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "обжаренный"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/belhaven-brewery-belhaven-black/136568",
+      "https://www.belhaven.co.uk/our-beers",
+      "https://www.beeradvocate.com/beer/profile/148/81614/"
+    ]
+  },
+  {
+    "id": 204,
+    "name_ru": "РЕЙС ЭНД ГРЕЙС",
+    "latin": "Race & Grace",
+    "brewery": "Two Peaks Brew Lab",
+    "country": "Россия",
+    "style": "Фруктовый сауэр (безалкогольный)",
+    "abv": "0,5",
+    "tags": [
+      "ананасовый",
+      "апельсиновый",
+      "кислый"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/two-peaks-brew-lab-race-and-grace/5066265",
+      "https://craftbeer78.ru/beer/race-and-grace-two-peaks-brew-lab",
+      "https://twopeaks-brewlab.ru/"
+    ]
+  },
+  {
+    "id": 205,
+    "name_ru": "НИТРО СТАУТ",
+    "latin": "Jaws Nitro Stout",
+    "brewery": "Jaws",
+    "country": "Россия",
+    "style": "Ирландский сухой стаут",
+    "abv": "6,0",
+    "tags": [
+      "шоколадный",
+      "кофейный",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/jaws-brewery-nitro-stout/2657767",
+      "https://eatbeer.ru/breweries/jaws-brewery/nitro-stout/",
+      "https://craftbeer78.ru/beer/nitro-stout-jaws"
+    ]
+  },
+  {
+    "id": 206,
+    "name_ru": "РУСТИК ПОЛУСЛАДКИЙ",
+    "latin": "Bullevie Rustiq Semi Sweet",
+    "brewery": "Бюльви",
+    "country": "Россия",
+    "style": "Сидр полусладкий",
+    "abv": "5,5",
+    "tags": [
+      "яблочный",
+      "медовый",
+      "цветочный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://winestyle.ru/products/Bullevie-Rustiq-Semi-Sweet.html",
+      "https://darwin-wine.ru/product/9294/sidr-byulvi-rustik-bullevie-rustiq-polusladkiy-gazirovannyy-045l-krepost-55/",
+      "https://beers.su/beer/bullevie-rustiq-semi-dry"
+    ]
+  },
+  {
+    "id": 207,
+    "name_ru": "КОРСЕНДОНК БЛАНШ",
+    "latin": "Corsendonk Blanche",
+    "brewery": "Corsendonk",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "4,8",
+    "tags": [
+      "цитрусовый",
+      "кориандр",
+      "апельсиновый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://www.corsendonk.com/en/beers/wheat-beer/corsendonk-blanche",
+      "https://untappd.com/b/brouwerij-corsendonk-corsendonk-blanche/791814",
+      "https://www.beautifulbeers.co.uk/p/corsendonk-blanche-48-330ml"
+    ]
+  },
+  {
+    "id": 208,
+    "name_ru": "КОТ І САБАКА",
+    "latin": "Кот i Сабака",
+    "brewery": "Polnochnyj Project",
+    "country": "Россия",
+    "style": "Фруктовый гозе",
+    "abv": "5,0",
+    "tags": [
+      "малиновый",
+      "кислый",
+      "цитрусовый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/kot-i-sabaka-polnochnyj-project",
+      "https://your.beer/beer/midnight-project-kot-i-sabaka"
+    ]
+  },
+  {
+    "id": 209,
+    "name_ru": "СТОЛЕТНЕЕ",
+    "latin": "Ayinger Jahrhundert Bier",
+    "brewery": "Ayinger",
+    "country": "Германия",
+    "style": "Дортмундер Экспорт",
+    "abv": "5,5",
+    "tags": [
+      "медовый",
+      "цветочный",
+      "пряный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.ayinger.de/cms/index.php/jahrhundert-bier-264.html",
+      "https://untappd.com/b/ayinger-privatbrauerei-ayinger-jahrhundert-bier/17755",
+      "https://merchantduvin.com/the-beers/ayinger-jahrhundert-bier/"
+    ]
+  },
+  {
+    "id": 210,
+    "name_ru": "ЛОСЬ И КЕДР ВЕРСИЯ 7.0",
+    "latin": "Los' i Kedr V.7.0",
+    "brewery": "Лось и Кедр",
+    "country": "Россия",
+    "style": "Фруктово-пряный сидр",
+    "abv": "4,7",
+    "tags": [
+      "манговый",
+      "яблочный",
+      "острый"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/los-i-kedr-los-i-kedr-v-7-0-versiya-7-0/2691976",
+      "https://craftbeer78.ru/cider/los-i-kedr-ver7-los-i-kedr"
+    ]
+  },
+  {
+    "id": 211,
+    "name_ru": "ХЕФЕВАЙЦЕН",
+    "latin": "Konix Hefeweizen",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Хефевайцен",
+    "abv": "4,8",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/konix-brewery-hefeweizen/2523298",
+      "https://www.pintplease.com/en/beer/95618/konix_hefeweizen",
+      "https://your.beer/beer/konix-hefeweizen"
+    ]
+  },
+  {
+    "id": 212,
+    "name_ru": "ПАРХЕЛИОН",
+    "latin": "Plan B Parhelion",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Двойная ИПА",
+    "abv": "8,0",
+    "tags": [
+      "цитрусовый",
+      "карамельный",
+      "хвойный"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-parhelion/4299316",
+      "https://craftbeer78.ru/beer/parhelion-500ml-plan-b",
+      "https://winestyle.ru/products/Plan-B-Parhelion.html"
+    ]
+  },
+  {
+    "id": 213,
+    "name_ru": "СИДР СЛИВА",
+    "latin": "St. Anton Plum Cider",
+    "brewery": "Яблочный Спас",
+    "country": "Россия",
+    "style": "Фруктовый сидр",
+    "abv": "5,5%",
+    "tags": [
+      "сливовый",
+      "сладкий",
+      "терпкий"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/yablochny-spas-yablochnyj-spas-st-anton-plum-cider-sliva/1326277",
+      "https://craftbeer78.ru/cider/stanton-grushevyj-yablochnyj-spas",
+      "https://yablochny-spas.ru/"
+    ]
+  },
+  {
+    "id": 214,
+    "name_ru": "ДЕЛИРИУМ НОКТЮРНУМ",
+    "latin": "Delirium Nocturnum",
+    "brewery": "Huyghe",
+    "country": "Бельгия",
+    "style": "Бельгийский тёмный крепкий эль",
+    "abv": "8,5",
+    "tags": [
+      "шоколадный",
+      "карамельный",
+      "фруктовый"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/delirium-huyghe-brewery-delirium-nocturnum/4486",
+      "https://www.beeradvocate.com/beer/profile/180/1421/"
+    ]
+  },
+  {
+    "id": 215,
+    "name_ru": "ШТРАФФЕ ХЕНДРИК КВАДРЮПЕЛЬ",
+    "latin": "Straffe Hendrik Quadrupel",
+    "brewery": "De Halve Maan",
+    "country": "Бельгия",
+    "style": "Бельгийский квадрюпель",
+    "abv": "11,0",
+    "tags": [
+      "тёмные фрукты",
+      "пряный",
+      "карамельный"
+    ],
+    "gor": 3,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-de-halve-maan-straffe-hendrik-brugs-quadrupel-bier-11-deg/41289",
+      "https://www.beertourism.com/blogs/belgian-beer/straffe-hendrik-quadrupel",
+      "https://absolutebeer.com/reviews/straffe-hendrik-quadrupel/"
+    ]
+  },
+  {
+    "id": 216,
+    "name_ru": "БАНАНЕД",
+    "latin": "Bananed",
+    "brewery": "Gravity Project",
+    "country": "Россия",
+    "style": "Сидр банановый",
+    "abv": "5,0",
+    "tags": [
+      "банановый",
+      "яблочный",
+      "медовый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/gravity-project-bananed/2923860",
+      "https://craftbeer78.ru/cider/bananed-gravity-project",
+      "https://winestyle.ru/products/Gravity-Project-Bananed.html"
+    ]
+  },
+  {
+    "id": 217,
+    "name_ru": "РОДНОЕ ЯБЛОЧКО П/СУХ",
+    "latin": "Rodnoe Yablochko Veter Semi-Dry",
+    "brewery": "Родное яблочко",
+    "country": "Россия",
+    "style": "Сидр полусухой",
+    "abv": "5,0%",
+    "tags": [
+      "яблочный",
+      "освежающий",
+      "кислинка"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://winestyle.ru/products/Rodnoe-Yablochko-Veter-Semi-Dry.html",
+      "https://untappd.com/b/rodnoe-yablochko-veter/6112093",
+      "https://rusbeershop.ru/catalog/beer-74545/",
+      "https://ya-rodnoe.ru/"
+    ]
+  },
+  {
+    "id": 218,
+    "name_ru": "ДОРТМУНДЕР",
+    "latin": "Konix Dortmunder",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Дортмундер",
+    "abv": "5,7",
+    "tags": [
+      "хлебный",
+      "солодовый",
+      "сухой"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://rusbeershop.ru/catalog/beer-76825/",
+      "https://beers.su/brewery/konix-brewery"
+    ]
+  },
+  {
+    "id": 219,
+    "name_ru": "ESB",
+    "latin": "Red Rocket ESB",
+    "brewery": "Red Rocket",
+    "country": "Россия",
+    "style": "Английский ESB",
+    "abv": "6,0",
+    "tags": [
+      "карамельный",
+      "цветочный",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-rocket-brewery-esb/5218599",
+      "https://untappd.com/RedRocketBC"
+    ]
+  },
+  {
+    "id": 220,
+    "name_ru": "ЭКВАТОР",
+    "latin": "Equator",
+    "brewery": "Red Rocket",
+    "country": "Россия",
+    "style": "Фруктовый сауэр",
+    "abv": "5,0%",
+    "tags": [
+      "кислый",
+      "фруктовый",
+      "ягодный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/RedRocketBC/beer",
+      "https://untappd.com/search?q=Equator+Red+Rocket+Brewery",
+      "https://your.beer/brewery/red-rocket-brewery"
+    ]
+  },
+  {
+    "id": 221,
+    "name_ru": "ШРЕЙДЕР",
+    "latin": "Velka Morava Schrader",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "6,1",
+    "tags": [
+      "тропический",
+      "цитрусовый",
+      "персиковый"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/schrader-velka-morava",
+      "https://untappd.com/VelkaMorava/beer",
+      "https://beerkontora.ru/product/pivo-velka-morava-shreder-velka-morava-schrader-05l-12sht"
+    ]
+  },
+  {
+    "id": 222,
+    "name_ru": "ВАТУ ВИТБИР",
+    "latin": "Blanche Watou Witbier",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Бельгийский витбир",
+    "abv": "5,0",
+    "tags": [
+      "цитрусовый",
+      "кориандровый",
+      "пшеничный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://www.beer52.com/shop/product/leroy-breweries/blanche-watou-witbier/7705",
+      "https://untappd.com/b/leroy-breweries-watou-s-witbier-biere-blanche-watou/2170676",
+      "https://extrabeers.com/beer/belgian-beer/leroy-blanche-watou-witbier-25cl.html"
+    ]
+  },
+  {
+    "id": 223,
+    "name_ru": "ПАРАДОКС ИПА",
+    "latin": "Paradox IPA",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "5,9",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "сухой"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/paradox-ipa-paradox",
+      "https://your.beer/brewery/paradox"
+    ]
+  },
+  {
+    "id": 224,
+    "name_ru": "ПИЛГЕРСТОФФ ВАЙЦЕН",
+    "latin": "Pilgerstoff Weizen",
+    "brewery": "Will-Bräu (Maria Ehrenberger)",
+    "country": "Германия",
+    "style": "Хефевайцен",
+    "abv": "5,7",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "дрожжевой"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/will-brau-hochstiftliches-brauhaus-in-bayern-pilgerstoff-weizen-maria-ehrenberger/4565436",
+      "https://beers.su/reviews/pilgerstoff-weizen-maria-ehrenberger-wheat-beer-hefeweizen",
+      "https://birdekel.shop/product/%D0%BC%D0%B0%D1%80%D0%B8%D1%8F-%D0%B3%D1%80%D0%B5%D0%BD%D0%B1%D0%B5%D1%80%D0%B3%D0%B5%D1%80-%D0%BF%D0%B8%D0%BB%D0%B3%D0%B5%D1%80%D1%81%D1%82%D0%BE%D1%84-%D0%B2%D0%B0%D0%B9%D0%B7%D0%B5%D0%BD-pilgerst/"
+    ]
+  },
+  {
+    "id": 225,
+    "name_ru": "RED ROCKET DIPA",
+    "latin": "Red Rocket DIPA",
+    "brewery": "Red Rocket",
+    "country": "Россия",
+    "style": "Двойной ИПА",
+    "abv": "8,0%",
+    "tags": [
+      "тропический",
+      "цитрусовый",
+      "хмельной"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/RedRocketBC/beer",
+      "https://untappd.com/RedRocketBC",
+      "https://craftovik.ru/brewery/red-rocket-brewery"
+    ]
+  },
+  {
+    "id": 226,
+    "name_ru": "ЯБЛОЧНЫЕ ИСТОРИИ ТОМ 2",
+    "latin": "VitaSid Яблочные Истории том 2",
+    "brewery": "Men's Company",
+    "country": "Россия",
+    "style": "Сидр",
+    "abv": "5,7",
+    "tags": [
+      "яблочный",
+      "сладковатый",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/men-s-company-vitasid-yablochnye-istorii-tom-1/5804869",
+      "https://craftbeer78.ru/brewery/mens-company",
+      "https://untappd.com/MensCompany/beer"
+    ]
+  },
+  {
+    "id": 227,
+    "name_ru": "ОДИННАДЦАТКА",
+    "latin": "Starodubice Jedenáctka",
+    "brewery": "Rohozec",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "4,8",
+    "tags": [
+      "травяной",
+      "хмелевой",
+      "цветочный"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://darwin-wine.ru/product/8880/pivo-razlivnoe-starodubice-yedenaktka-starodubice-jedenactka-svetloe-48-ob-litr/",
+      "https://shop.beerimport.ru/index.php?product_id=5298&route=product%2Fproduct",
+      "https://beerkontora.ru/product/pivo-starodubitse-yedenaktka-starodubice-jedenactka-30l-keg",
+      "https://beers.su/beer/rohozec-starodubice-dvanactka"
+    ]
+  },
+  {
+    "id": 228,
+    "name_ru": "РАСТИ БЛОБ СЛИВА",
+    "latin": "Rusty Blob Plum",
+    "brewery": "Plague Brew",
+    "country": "Россия",
+    "style": "Адамбир",
+    "abv": "9,6",
+    "tags": [
+      "сливовый",
+      "карамельный",
+      "дымный"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/beer/rusty-blob-plum-plague-brew",
+      "https://untappd.com/b/plague-brew-rusty-blob-orange/4648543",
+      "https://untappd.com/PlagueBrew"
+    ]
+  },
+  {
+    "id": 229,
+    "name_ru": "ИНГЛИШ ЛАГЕР",
+    "latin": "St. Peter's English Lager",
+    "brewery": "St. Peter's",
+    "country": "Англия",
+    "style": "Английский лагер",
+    "abv": "4,7",
+    "tags": [
+      "солодовый",
+      "медовый",
+      "зерновой"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/st-peter-s-brewery-co-english-lager/301812",
+      "https://www.beeradvocate.com/beer/profile/296/182760/",
+      "https://en.wikipedia.org/wiki/St._Peter's_Brewery"
+    ]
+  },
+  {
+    "id": 230,
+    "name_ru": "РАЙЗ ОФ ЗЕ ЗОМБИС",
+    "latin": "Plan B Rise of the Zombies",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Американский пэйл-эль",
+    "abv": "6,5",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "фруктовый"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-rise-of-the-zombies/1443184",
+      "https://craftbeer78.ru/beer/rise-of-the-zombies-plan-b",
+      "https://tbsmarket.ru/catalog/plan-b-rays-of-ze-zombis-plan-b-rise-of-the-zombies-05l-alk63-005.html"
+    ]
+  },
+  {
+    "id": 231,
+    "name_ru": "БЛОНД",
+    "latin": "Baltika Brew Blond",
+    "brewery": "Балтика",
+    "country": "Россия",
+    "style": "Бельгийский блонд",
+    "abv": "6,7",
+    "tags": [
+      "фруктовый",
+      "пряный",
+      "цитрусовый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/baltika-breweries-baltika-baltika-brew-blond/5985263",
+      "https://xn--b1altb.xn--80aab3ake3c.xn--p1ai/product/baltika-blond/",
+      "https://winestyle.ru/products/Baltika-Brew-Blond.html"
+    ]
+  },
+  {
+    "id": 232,
+    "name_ru": "ЛОКДАУН ИПА",
+    "latin": "Lockdown IPA",
+    "brewery": "DreamTeam",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "6,3",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "травяной"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/dreamteam-brew-lockdown/3779347",
+      "https://your.beer/beer/dreamteam-brewing-co-lockdown",
+      "https://dreamteambrew.ru/eng"
+    ]
+  },
+  {
+    "id": 233,
+    "name_ru": "МАТИЛЬДА",
+    "latin": "Matilde",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Имперский стаут",
+    "abv": "16,0",
+    "tags": [
+      "черничный",
+      "шоколадный",
+      "джемовый"
+    ],
+    "gor": 3,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-button-brewery-matilde-batch-2/5599714",
+      "https://untappd.com/b/red-button-brewery-matilde-frozen/6448651",
+      "https://untappd.com/RedButtonBrewery/beer"
+    ]
+  },
+  {
+    "id": 234,
+    "name_ru": "КАРЛОВА КОРЧМА",
+    "latin": "Karlova Krčma",
+    "brewery": "Karlův Pivovar",
+    "country": "Чехия",
+    "style": "Чешский премиальный светлый лагер",
+    "abv": "5,0%",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/karluv-pivovar-karlova-krcma-premium-12/4189794",
+      "https://winestyle.ru/products/Karlova-Krcma-Premium-12-in-can.html",
+      "https://lavkabahusa.ru/catalog/pivo/pivo_karlova_korchma_premium_svetloe_vyderzhannoe_filjtrovannoe_1/",
+      "https://untappd.com/w/karluv-pivovar/550916/beer"
+    ]
+  },
+  {
+    "id": 235,
+    "name_ru": "ОСТРАЯ ТОМАТНАЯ ДИЧЬ",
+    "latin": "Atmosphere Brewery Острая Томатная Дичь",
+    "brewery": "Atmosphere",
+    "country": "Россия",
+    "style": "Гозе",
+    "abv": "6,5",
+    "tags": [
+      "томатный",
+      "острый",
+      "солёный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/atmosphere-brewery-ostraya-tomatnaya-dich/3715132",
+      "https://eatbeer.ru/breweries/atmosphere-brewery/ostraya-tomatnaya-dich/",
+      "https://craftovik.ru/beer/atmosphere-brewery-ostraya-tomatnaya-dich"
+    ]
+  },
+  {
+    "id": 236,
+    "name_ru": "МАСТЕРС ТЕЙБЛ",
+    "latin": "Masters' Table",
+    "brewery": "Paradox",
+    "country": "США",
+    "style": "Фруктовый сауэр",
+    "abv": "6,0%",
+    "tags": [
+      "малиновый",
+      "черничный",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/paradox-msaters-table/6057149",
+      "https://paradoxbrewery.com/"
+    ]
+  },
+  {
+    "id": 237,
+    "name_ru": "БРЮН",
+    "latin": "Baltika Brew Bruin",
+    "brewery": "Балтика",
+    "country": "Россия",
+    "style": "Бельгийский тёмный эль",
+    "abv": "6,5",
+    "tags": [
+      "карамельный",
+      "сливовый",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/baltika-brew-bryun-bruin/5994888",
+      "https://winestyle.ru/products/Baltika-Brew-Bruin.html",
+      "https://corporate.baltika.ru/news/novinki-proekta-baltika-brew/"
+    ]
+  },
+  {
+    "id": 238,
+    "name_ru": "АНУБИС",
+    "latin": "Anubis",
+    "brewery": "Polnochnyj Project",
+    "country": "Россия",
+    "style": "Имперский балтийский портер (копчёный)",
+    "abv": "10,0",
+    "tags": [
+      "копчёный",
+      "шоколадный",
+      "карамельный"
+    ],
+    "gor": 4,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/anubis-midnight-project-brewery",
+      "https://untappd.com/b/midnight-project-anubis/5720424",
+      "https://craftbeer78.ru/brewery/polnochnyj-project"
+    ]
+  },
+  {
+    "id": 239,
+    "name_ru": "МОРАВСКИЙ КЛАС СВЕТЛОЕ",
+    "latin": "Moravský Klas Světlé",
+    "brewery": "Velka Morava",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "4,5",
+    "tags": [
+      "хлебный",
+      "травяной",
+      "солодовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/velka-morava-moravsky-klas-svetle-moravskij-klass-svetloe/302027",
+      "https://www.beeradvocate.com/beer/profile/43566/206776/",
+      "https://your.beer/beer/velka-morava-moravsky-klas-svetle"
+    ]
+  },
+  {
+    "id": 240,
+    "name_ru": "ГИПЕРПИНК",
+    "latin": "Hyperpink",
+    "brewery": "Одна Тонна",
+    "country": "Россия",
+    "style": "Хейзи ИПА",
+    "abv": "6,0",
+    "tags": [
+      "тропический",
+      "сочный",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/OdnaTonnaBrewery/beer",
+      "https://your.beer/brewery/1tonna",
+      "https://craftbeer78.ru/style-beer/new-england-ipa"
+    ]
+  },
+  {
+    "id": 241,
+    "name_ru": "МАЭСТРО",
+    "latin": "Litovel Maestro",
+    "brewery": "Litovel",
+    "country": "Чехия",
+    "style": "Чешский янтарный лагер",
+    "abv": "4,1",
+    "tags": [
+      "карамельный",
+      "солодовый",
+      "бархатистый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/litovel-litovel-maestro/81544",
+      "https://www.litovel.cz/en/our-beer",
+      "https://420on.cz/dictionaries/czech_beer/3346",
+      "https://leolsbeer.ru/catalog/razlivnoe-pivo/litovel-maestro-keg-30l/"
+    ]
+  },
+  {
+    "id": 242,
+    "name_ru": "КЛЮКВЕННАЯ ПАСТИЛА",
+    "latin": "Culture Code: Pastila Cranberry",
+    "brewery": "Black Cat",
+    "country": "Россия",
+    "style": "Смузи-сауэр",
+    "abv": "5,0",
+    "tags": [
+      "клюквенный",
+      "ванильный",
+      "сливочный"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/black-cat-brewery-culture-code-pastila-cranberry/3849751",
+      "https://craftbeer78.ru/beer/kulturnyj-kod-klyukvennaya-pastila-black-cat",
+      "https://www.beeradvocate.com/beer/profile/47166/523974/"
+    ]
+  },
+  {
+    "id": 243,
+    "name_ru": "ТЫКВЕННЫЙ ХЕЛЛЕС",
+    "latin": "Pumpkin Hell",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Тыквенный эль (спайсд)",
+    "abv": "6.8",
+    "tags": [
+      "тыквенный",
+      "пряный",
+      "карамельный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/paradox-beer",
+      "https://untappd.com/paradox-beer/beer",
+      "https://craftbeer78.ru/brewery/paradox",
+      "https://beers.su/brewery/paradox"
+    ]
+  },
+  {
+    "id": 244,
+    "name_ru": "ДОМ 40 СКЕЛЕТОВ",
+    "latin": "Brewlok Дом 40 скелетов",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Овсяный стаут",
+    "abv": "5,5",
+    "tags": [
+      "шоколадный",
+      "ягодный",
+      "жжёный"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-dom-40-skeletov/1297780",
+      "https://beerdealer.ru/shop/kraftovoe-pivo/brewlok-voronezh/brewlok-steklo/brewlok-dom-40-skeletov-oatmeal-stout-alk-5-5-40-skeletov-but0-5l/",
+      "https://craftbeer78.ru/beer/dom-40-skeletov-brewlok"
+    ]
+  },
+  {
+    "id": 245,
+    "name_ru": "ТОТ САМЫЙ КРУГЛЫЙ",
+    "latin": "Brewlok Тот Самый Круглый",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Хейзи ИПА",
+    "abv": "6,9",
+    "tags": [
+      "тропический",
+      "смолистый",
+      "травяной"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/brewery/brewlok",
+      "https://your.beer/brewery/brewlok",
+      "https://brewlok.ru/beer/"
+    ]
+  },
+  {
+    "id": 246,
+    "name_ru": "СТАТИК КЛАУД",
+    "latin": "Static Cloud",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Хейзи ИПА (NEIPA)",
+    "abv": "6,7%",
+    "tags": [
+      "манговый",
+      "цитрусовый",
+      "сочный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/brewery/plan-b",
+      "https://untappd.com/Plan_B_Brewery",
+      "https://planbrew.ru/"
+    ]
+  },
+  {
+    "id": 247,
+    "name_ru": "ДЖУСИ ИПА",
+    "latin": "Ostrovica Juicy IPA",
+    "brewery": "Ostrovica",
+    "country": "Россия",
+    "style": "Хейзи ИПА",
+    "abv": "6,2",
+    "tags": [
+      "тропический",
+      "цитрусовый",
+      "сочный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/ostrovica-juicy-ipa/4837657",
+      "https://pintplease.com/en/beer/347501/juicy_ipa",
+      "https://your.beer/brewery/ostrovica"
+    ]
+  },
+  {
+    "id": 248,
+    "name_ru": "ОЛД МЭДЖИК",
+    "latin": "Old Magic",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Хейзи ИПА",
+    "abv": "6,5",
+    "tags": [
+      "манговый",
+      "тропический",
+      "сочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/plan-b-brewery-old-magic/6487588",
+      "https://your.beer/brewery/plan-b-brewery"
+    ]
+  },
+  {
+    "id": 249,
+    "name_ru": "ЛОНДОН ПРАЙД",
+    "latin": "London Pride",
+    "brewery": "Fuller's",
+    "country": "Великобритания",
+    "style": "Премиальный биттер (ESB)",
+    "abv": "4,7",
+    "tags": [
+      "карамельный",
+      "бисквитный",
+      "фруктовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://www.beeradvocate.com/beer/profile/71/222/",
+      "https://byo.com/articles/fullers-pride-london/",
+      "https://www.brewersfriend.com/homebrew/recipe/view/124539/fuller-s-london-pride"
+    ]
+  },
+  {
+    "id": 250,
+    "name_ru": "КЛУБНИЧНАЯ МЕДОВУХА",
+    "latin": "Strawberry Mead",
+    "brewery": "Степь и Ветер",
+    "country": "Россия",
+    "style": "Медовуха (меломель)",
+    "abv": "4,5",
+    "tags": [
+      "клубничный",
+      "медовый",
+      "ягодный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/steppe-and-wind-meadery-step-i-veter-strawberry-mead/6455733",
+      "https://craftbeer78.ru/beer/strawberry-mead-steppe-and-wind",
+      "https://winestyle.ru/beer/steppe-wind-meadery/"
+    ]
+  },
+  {
+    "id": 251,
+    "name_ru": "КУТС",
+    "latin": "Kuts",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Гозе",
+    "abv": "5,0",
+    "tags": [
+      "кислый",
+      "солёный",
+      "кориандр"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-button-brewery-kuts/4725176",
+      "https://craftbeer78.ru/beer/kuts-red-button-brewery",
+      "https://untappd.com/RedButtonBrewery/beer"
+    ]
+  },
+  {
+    "id": 252,
+    "name_ru": "ЧЕХОВ",
+    "latin": "Chekhov",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Вишнёвый эль",
+    "abv": "6,3",
+    "tags": [
+      "вишнёвый",
+      "кисло-сладкий",
+      "косточковый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-chehov-chekhov/663829",
+      "https://craftovik.ru/beer/vasileostrovskaya-chekhov",
+      "https://winestyle.ru/products/Chekhov-Cherry-Ale.html"
+    ]
+  },
+  {
+    "id": 253,
+    "name_ru": "СИГНАЛ ФАЙР",
+    "latin": "Signal Fire",
+    "brewery": "Polnochnyj Project",
+    "country": "Россия",
+    "style": "Копчёный стаут",
+    "abv": "8,1",
+    "tags": [
+      "копчёный",
+      "кофейный",
+      "шоколадный"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/signal-fire-polnochnyj-project"
+    ]
+  },
+  {
+    "id": 254,
+    "name_ru": "ИПА",
+    "latin": "O'Hara's IPA",
+    "brewery": "O'Hara's (Carlow)",
+    "country": "Ирландия",
+    "style": "ИПА",
+    "abv": "5,2%",
+    "tags": [
+      "цитрусовый",
+      "грейпфрутовый",
+      "цветочный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://www.beeradvocate.com/beer/profile/646/56941/",
+      "https://www.carlowbrewing.com/our-beers/",
+      "https://untappd.com/b/o-hara-s-brewery-o-hara-s-irish-pale-ale/143851"
+    ]
+  },
+  {
+    "id": 255,
+    "name_ru": "ЛИХО ОДНОГЛАЗОЕ",
+    "latin": "Brewlok Likho the One-Eyed",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Имперский ИПА",
+    "abv": "8,6",
+    "tags": [
+      "тропический",
+      "карамельный",
+      "травяной"
+    ],
+    "gor": 5,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://winestyle.ru/products/Brewlok-Likho.html",
+      "https://crafterbeer.ru/shop/bottleshop/brewlok/brewlok-likho-the-one-eyed-%D0%BB%D0%B8%D1%85%D0%BE-%D0%BE%D0%B4%D0%BD%D0%BE%D0%B3%D0%BB%D0%B0%D0%B7%D0%BE%D0%B5-dipa/",
+      "https://beercop.wordpress.com/2019/11/26/brewlok-likho/"
+    ]
+  },
+  {
+    "id": 256,
+    "name_ru": "ВЕСЕННЕЕ",
+    "latin": "Ayinger Frühlingsbier",
+    "brewery": "Ayinger",
+    "country": "Германия",
+    "style": "Келлербир",
+    "abv": "5,5",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/ayinger-privatbrauerei-ayinger-fruhlingsbier/37596",
+      "https://houseofales.co.uk/product/ayinger-fruhlingsbier/",
+      "https://www.beeradvocate.com/beer/profile/39/46728/"
+    ]
+  },
+  {
+    "id": 257,
+    "name_ru": "ОВСЯНЫЙ СТАУТ",
+    "latin": "Jaws Oatmeal Stout",
+    "brewery": "Jaws",
+    "country": "Россия",
+    "style": "Овсяный стаут",
+    "abv": "5,2",
+    "tags": [
+      "шоколадный",
+      "кофейный",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://winestyle.ru/products/Jaws-Brewery-Oatmeal-Stout.html",
+      "https://craftbeer78.ru/beer/oatmeal-stout-jaws",
+      "https://rus-beer.ru/beer/43661_jaws_oatmeal_stout/"
+    ]
+  },
+  {
+    "id": 258,
+    "name_ru": "КЛИР СКАЙ",
+    "latin": "Clear Sky",
+    "brewery": "Gusi",
+    "country": "Россия",
+    "style": "Вайсбир",
+    "abv": "4,7",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "солодовый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/gusi-clear-sky/1196967",
+      "https://eatbeer.ru/breweries/gusi/clear-sky/",
+      "https://craftbeer78.ru/beer/clear-sky-gusi-brewery"
+    ]
+  },
+  {
+    "id": 259,
+    "name_ru": "ЧЕРНИЧНЫЙ ЗМЕЙ ГОРЫНЫЧ",
+    "latin": "Brewlok Zmey Gorynych Blueberry",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Фруктовый сауэр",
+    "abv": "5,5",
+    "tags": [
+      "черничный",
+      "кислый",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/brewlok-craft-and-classic-brewery-zmey-gorynych/2053548",
+      "https://your.beer/brewery/brewlok",
+      "https://craftbeer78.ru/brewery/brewlok"
+    ]
+  },
+  {
+    "id": 260,
+    "name_ru": "РАСПБЕРРИ ПОРТЕР",
+    "latin": "Raspberry Porter",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Фруктовый портер",
+    "abv": "6,5",
+    "tags": [
+      "малиновый",
+      "шоколадный",
+      "ягодный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/paradox-raspberry-porter/1195972",
+      "https://www.beeradvocate.com/beer/profile/36957/205522/"
+    ]
+  },
+  {
+    "id": 261,
+    "name_ru": "CHERRY HEAD",
+    "latin": "HopHead Cherry Head",
+    "brewery": "HopHead",
+    "country": "Россия",
+    "style": "Фруктовый сауэр с вишней",
+    "abv": "7,0",
+    "tags": [
+      "вишнёвый",
+      "кислый",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 4,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/hophead-brewery-cherry-head/6089585",
+      "https://craftbeer78.ru/beer/cherry-head-hophead",
+      "https://winestyle.ru/products/HopHead-Cherry-Head-in-can.html"
+    ]
+  },
+  {
+    "id": 262,
+    "name_ru": "СИДР ПОЛУСУХОЙ",
+    "latin": "St. Anton",
+    "brewery": "St. Anton",
+    "country": "Россия",
+    "style": "Яблочный сидр (полусухой)",
+    "abv": "5,0",
+    "tags": [
+      "яблочный",
+      "терпкий",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.bar-beer.ru/collection/sidr/product/st-anton-polusuhoy",
+      "https://www.hmelnovv.ru/sidr-st-anton/",
+      "https://beerkontora.ru/product/sidr-svyatoy-anton-yablochnyy-polusuhoy-st-anton-semi-dry-apple-cider-30l-keg",
+      "https://asador.ru/st-anton/"
+    ]
+  },
+  {
+    "id": 263,
+    "name_ru": "ВАТУ ВИТБИР",
+    "latin": "Watou's Witbier / Bière Blanche Watou",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Витбир",
+    "abv": "5,0",
+    "tags": [
+      "кориандр",
+      "апельсиновый",
+      "пшеничный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/leroy-breweries-watou-s-witbier-biere-blanche-watou/2170676",
+      "https://www.beer52.com/shop/product/leroy-breweries/blanche-watou-witbier/7705",
+      "https://extrabeers.com/beer/belgian-beer/leroy-blanche-watou-witbier-25cl.html"
+    ]
+  },
+  {
+    "id": 264,
+    "name_ru": "ЛАГЕР",
+    "latin": "Vasileostrovskoe Lager",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Светлый нефильтрованный лагер (Келлербир)",
+    "abv": "4,5",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "дрожжевой"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/b/vasileostrovskaya-brewery-vasileostrovskaya-pivovarnya-vasileostrovskoe-svetlyj-nefiltrovannyj-lager-domashnee-vasileostrovskoe-ligth-unfiltered-lager-aka-domashnee/55784",
+      "https://rus-beer.ru/beer/45265_vasileostrovskaya_vasileostrovskoe_light_unfiltered_lager/",
+      "https://ru.inshaker.com/trends/znaniya/pivo-vasileostrovskoe-istoriya-gayd-po-assortimentu"
+    ]
+  },
+  {
+    "id": 265,
+    "name_ru": "СКЕЙТЕР",
+    "latin": "sCATer",
+    "brewery": "Black Cat",
+    "country": "Россия",
+    "style": "Фруктовый гозе",
+    "abv": "5,0",
+    "tags": [
+      "кислый",
+      "фруктовый",
+      "солёный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/brewery/black-cat",
+      "https://your.beer/brewery/black-cat-brewery",
+      "https://untappd.com/BlackCatBrewery"
+    ]
+  },
+  {
+    "id": 266,
+    "name_ru": "ТРУ ХОПС ИПА",
+    "latin": "True Hops IPA",
+    "brewery": "New Riga's",
+    "country": "Россия",
+    "style": "ИПА",
+    "abv": "6,0",
+    "tags": [
+      "цитрусовый",
+      "травянистый",
+      "хвойный"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/new-riga-s-brewery-true-hops-ipa/5930694",
+      "https://untappd.com/NewRigasBrewery",
+      "https://craftovik.ru/beer/new-riga-s-brewery-true-hops-ipa"
+    ]
+  },
+  {
+    "id": 267,
+    "name_ru": "АЙРИШ РЕД НИТРО",
+    "latin": "O'Hara's Irish Red Nitro",
+    "brewery": "O'Hara's (Carlow)",
+    "country": "Ирландия",
+    "style": "Ирландский красный эль",
+    "abv": "4,3",
+    "tags": [
+      "карамельный",
+      "ореховый",
+      "бисквитный"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://www.carlowbrewing.com/our-beers/oharas-irish-red-nitro/",
+      "https://www.beeradvocate.com/beer/profile/646/628081/",
+      "https://www.beersofeurope.co.uk/beer/country/ireland/carlow-oharas-nitro-irish-red-can/"
+    ]
+  },
+  {
+    "id": 268,
+    "name_ru": "ИРЛАНДСКИЙ СТАУТ",
+    "latin": "O'Hara's Irish Stout",
+    "brewery": "Carlow",
+    "country": "Ирландия",
+    "style": "Ирландский сухой стаут",
+    "abv": "4,3",
+    "tags": [
+      "кофейный",
+      "жжёный",
+      "лакричный"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://www.carlowbrewing.com/our-beers/oharas-irish-stout/",
+      "https://untappd.com/b/o-hara-s-brewery-o-hara-s-irish-stout/6210",
+      "https://www.beeradvocate.com/beer/profile/646/1751/"
+    ]
+  },
+  {
+    "id": 269,
+    "name_ru": "ГИЛЬОТИНА",
+    "latin": "La Guillotine",
+    "brewery": "Huyghe",
+    "country": "Бельгия",
+    "style": "Бельгийский трипель",
+    "abv": "8,5",
+    "tags": [
+      "фруктовый",
+      "пряный",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/delirium-huyghe-brewery-la-guillotine/26907",
+      "https://www.beeradvocate.com/beer/profile/180/3976/",
+      "https://winestyle.ru/products/La-Guillotine.html"
+    ]
+  },
+  {
+    "id": 270,
+    "name_ru": "БРЮН",
+    "latin": "Baltika Brew Bruin",
+    "brewery": "Балтика",
+    "country": "Россия",
+    "style": "Бельгийский дюбель",
+    "abv": "6,5",
+    "tags": [
+      "карамельный",
+      "черносливовый",
+      "шоколадный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/baltika-brew-bryun-bruin/5994888",
+      "https://winestyle.ru/products/Baltika-Brew-Bruin.html",
+      "https://corporate.baltika.ru/news/novinki-proekta-baltika-brew/"
+    ]
+  },
+  {
+    "id": 271,
+    "name_ru": "ПШЕНИЧНОЕ",
+    "latin": "Strakovice Pšenice",
+    "brewery": "Strakovice",
+    "country": "Россия",
+    "style": "Хефевайзен",
+    "abv": "4,7",
+    "tags": [
+      "банановый",
+      "гвоздичный",
+      "хлебный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/varnitsa-varnica-strakovice-psenice/4108889",
+      "https://winestyle.ru/products/Strakovice-P-enice.html",
+      "https://www.nice-beer.ru/product/pivo-strakovicze-pshenichnoe-pshenichnoe-hefevajzen-keg-20l/"
+    ]
+  },
+  {
+    "id": 272,
+    "name_ru": "СТОНЕР",
+    "latin": "Stoner",
+    "brewery": "Zagovor",
+    "country": "Россия",
+    "style": "Молочный стаут",
+    "abv": "5.5%",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "сливочный"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 5,
+    "confidence": "medium",
+    "sources": [
+      "https://craftbeer78.ru/beer/stoner-zagovor-brewery",
+      "https://untappd.com/b/zagovor-brewery-stoner/873889",
+      "http://www.beerblogger.ru/2015/04/stoner-zagovor.html"
+    ]
+  },
+  {
+    "id": 273,
+    "name_ru": "ОГНИ НАД ВОРОНЕЖЕМ",
+    "latin": "Brewlok Огни над Воронежем (Lights Over Voronezh)",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Имперский молочный стаут",
+    "abv": "8,6",
+    "tags": [
+      "шоколадный",
+      "кокосовый",
+      "ванильный"
+    ],
+    "gor": 2,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-ogni-nad-voronezhem-lights-over-voronezh/4534090",
+      "https://craftbeer78.ru/beer/ogni-nad-voronezhem-brewlok",
+      "https://your.beer/beer/brewlok-brewery-ogni-nad-voronezhem-lights-over-voronezh"
+    ]
+  },
+  {
+    "id": 274,
+    "name_ru": "ОРИДЖИНАЛ ХЕЛЛЕС",
+    "latin": "Weissmuller Original Helles",
+    "brewery": "Wieninger",
+    "country": "Германия",
+    "style": "Хеллес (мюнхенский лагер)",
+    "abv": "5,3",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/privatbrauerei-m-c-wieninger-weissmuller-original-helles/5344123",
+      "https://beers.su/beer/privatbrauerei-m-c-wieninger-weissmuller-original-helles",
+      "https://winestyle.ru/products/WeissMuller-Original-Helles.html"
+    ]
+  },
+  {
+    "id": 275,
+    "name_ru": "ХОММЕЛЬБИР ДРАЙ ХОПТ",
+    "latin": "Poperings Hommelbier Dry Hopped",
+    "brewery": "Leroy",
+    "country": "Бельгия",
+    "style": "Бельгийский крепкий блонд",
+    "abv": "7,5",
+    "tags": [
+      "травянистый",
+      "цитрусовый",
+      "медовый"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.leroybreweries.be/en/producten/hommel-dry-hopped",
+      "https://untappd.com/b/leroy-breweries-poperings-hommelbier-dry-hopping/713509",
+      "https://www.belgiansmaak.com/belgian-hops-poperings-hommelbier-westhoek/"
+    ]
+  },
+  {
+    "id": 276,
+    "name_ru": "ДВАНАКТКА",
+    "latin": "Starodubice Dvanáctka",
+    "brewery": "Rohozec",
+    "country": "Чехия",
+    "style": "Чешский лагер",
+    "abv": "5,3",
+    "tags": [
+      "солодовый",
+      "травяной",
+      "хлебный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rohozec-starodubice-dvanactka/5459832",
+      "https://beers.su/beer/rohozec-starodubice-dvanactka",
+      "https://winestyle.ru/products/Starodubice-Dvanactka.html"
+    ]
+  },
+  {
+    "id": 277,
+    "name_ru": "ГИПЕРПИНК",
+    "latin": "Odna Tonna Hyperpink",
+    "brewery": "Одна тонна",
+    "country": "Россия",
+    "style": "Хейзи ИПА",
+    "abv": "6.0%",
+    "tags": [
+      "манговый",
+      "цитрусовый",
+      "тропический"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://untappd.com/OdnaTonnaBrewery",
+      "https://your.beer/brewery/1tonna",
+      "https://craftbeer78.ru/style-beer/new-england-ipa"
+    ]
+  },
+  {
+    "id": 278,
+    "name_ru": "КУТС МОРСКАЯ СОЛЬ",
+    "latin": "Kuts (Sea Salt Batch)",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Гозе",
+    "abv": "5,0",
+    "tags": [
+      "солёный",
+      "кориандровый",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-button-brewery-kuts-sea-salt-batch/5495720",
+      "https://craftbeer78.ru/beer/kuts-sea-salt-batch-red-button-brewery",
+      "https://mobile.tbsmarket.ru/catalog/red-button-kuts-sea-salt-batch-goze-morskaya-sol-koriandr-05l-alk5-zhb-005.html"
+    ]
+  },
+  {
+    "id": 279,
+    "name_ru": "КАТС",
+    "latin": "Red Button Kuts",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Гозе",
+    "abv": "5,0",
+    "tags": [
+      "кислый",
+      "солёный",
+      "кориандр"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 1,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-button-brewery-kuts/4725176",
+      "https://craftbeer78.ru/beer/kuts-red-button-brewery",
+      "https://your.beer/beer/red-button-brewery-kuts"
+    ]
+  },
+  {
+    "id": 280,
+    "name_ru": "ЛЕШИЙ",
+    "latin": "Brewlok Leshy",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "6,2",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "тропический"
+    ],
+    "gor": 5,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-leshij/2260907",
+      "https://craftbeer78.ru/beer/leshy-brewlok",
+      "https://leolsbeer.ru/craft/pivovarni/brewlok-brewery/"
+    ]
+  },
+  {
+    "id": 281,
+    "name_ru": "МОРГАНА",
+    "latin": "Morgana",
+    "brewery": "Velka Morava",
+    "country": "Россия",
+    "style": "Английский стаут",
+    "abv": "5,8",
+    "tags": [
+      "шоколадный",
+      "карамельный",
+      "обжаренный"
+    ],
+    "gor": 3,
+    "plot": 4,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/velka-morava-morgana/5161189",
+      "https://craftbeer78.ru/beer/morgana-velka-morava",
+      "https://winestyle.ru/products/Velka-Morava-Morgana-in-can.html"
+    ]
+  },
+  {
+    "id": 282,
+    "name_ru": "САДКО",
+    "latin": "Brewlok Sadko",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Хеллес",
+    "abv": "5,2",
+    "tags": [
+      "хлебный",
+      "солодовый",
+      "травяной"
+    ],
+    "gor": 2,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-sadko/4953181",
+      "https://www.nice-beer.ru/product/pivo-sadko-sadko-helles-zh-b-05l/",
+      "https://winestyle.ru/products/Brewlok-Sadko-in-can.html"
+    ]
+  },
+  {
+    "id": 283,
+    "name_ru": "АПА",
+    "latin": "White Night APA",
+    "brewery": "White Night",
+    "country": "Россия",
+    "style": "Американский пэйл-эль",
+    "abv": "5,2",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "карамельный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "low",
+    "sources": [
+      "https://untappd.com/search",
+      "https://craftbeer78.ru/style-beer/american-pale-ale",
+      "https://www.craftbeer.com/styles/american-pale-ale"
+    ]
+  },
+  {
+    "id": 284,
+    "name_ru": "БРЮТ",
+    "latin": "Val de Rance Brut",
+    "brewery": "Val de Rance",
+    "country": "Франция",
+    "style": "Сидр (бретонский, брют)",
+    "abv": "5,0",
+    "tags": [
+      "яблочный",
+      "танинный",
+      "пряный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.valderance.com/en/product/brut-cider",
+      "https://untappd.com/b/val-de-rance-cidre-de-bretagne-brut/591208",
+      "https://www.auchan.fr/val-de-rance-cidre-de-bretagne-brut-igp-5/pr-C1517855"
+    ]
+  },
+  {
+    "id": 285,
+    "name_ru": "ХЕЛЬ",
+    "latin": "Bayreuther Hell",
+    "brewery": "Bayreuther",
+    "country": "Германия",
+    "style": "Хеллес",
+    "abv": "4,9",
+    "tags": [
+      "солодовый",
+      "хлебный",
+      "травянистый"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://www.beeradvocate.com/beer/profile/16829/85589/",
+      "https://altavina.ru/product/bayroyter-khel/",
+      "https://www.beerwanderers.com/2022/02/bayreuther-hell/"
+    ]
+  },
+  {
+    "id": 286,
+    "name_ru": "СТРАНА КУРЛЯНДИЯ",
+    "latin": "Strana Kurlyandiya",
+    "brewery": "Полночный Проект",
+    "country": "Россия",
+    "style": "Хейзи Пэйл Эль",
+    "abv": "4,0",
+    "tags": [
+      "тропический",
+      "сочный",
+      "кремовый"
+    ],
+    "gor": 2,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/strana-kurlyandiya-midnight-project",
+      "https://rusbeershop.ru/catalog/beer-72432/"
+    ]
+  },
+  {
+    "id": 287,
+    "name_ru": "ДОС",
+    "latin": "Brewlok DOS",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Имперский овсяный стаут",
+    "abv": "8,6",
+    "tags": [
+      "шоколадный",
+      "обжаренный",
+      "сливочный"
+    ],
+    "gor": 3,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-dos/2468448",
+      "https://craftbeer78.ru/brewery/brewlok",
+      "https://brewlok.ru/"
+    ]
+  },
+  {
+    "id": 288,
+    "name_ru": "НЕ ХЛЕБОМ ЕДИНЫМ",
+    "latin": "Konix Ne Hlebom Edinym",
+    "brewery": "Konix",
+    "country": "Россия",
+    "style": "Доппельбок",
+    "abv": "6,8",
+    "tags": [
+      "солодовый",
+      "карамельный",
+      "хлебный"
+    ],
+    "gor": 2,
+    "plot": 4,
+    "cvet": 4,
+    "confidence": "high",
+    "sources": [
+      "https://your.beer/beer/konix-brewery-ne-hlebom-edinym",
+      "https://konixbrewery.ru/catalog/Не хлебом единым",
+      "https://rusbeershop.ru/catalog/beer-73761/"
+    ]
+  },
+  {
+    "id": 289,
+    "name_ru": "СИДР БРЮТ",
+    "latin": "Cidre Brut",
+    "brewery": "Василеостровская",
+    "country": "Россия",
+    "style": "Сидр сухой (брют)",
+    "abv": "5,0",
+    "tags": [
+      "яблочный",
+      "сухой",
+      "игристый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://beerkontora.ru/product/sidr-vasileostrovskiy-suhoy-cidre-brut-075l-6sht",
+      "https://catalog-ceny.ru/sidr-vasileostrovskoe-bryut-suhoj-filtrovannij-5-750ml-4235980-per",
+      "https://your.beer/beer/vasileostrovskaya-brewery-cidre-brut"
+    ]
+  },
+  {
+    "id": 290,
+    "name_ru": "БЛОНД",
+    "latin": "Steenbrugge Blond",
+    "brewery": "Steenbrugge",
+    "country": "Бельгия",
+    "style": "Бельгийский блонд эль",
+    "abv": "6,5",
+    "tags": [
+      "фруктовый",
+      "карамельный",
+      "пряный"
+    ],
+    "gor": 3,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brouwerij-palm-steenbrugge-blond/7930",
+      "https://www.beeradvocate.com/beer/profile/889/43829/",
+      "https://belgianmart.com/products/steenbrugge-blond-6-5-330ml"
+    ]
+  },
+  {
+    "id": 291,
+    "name_ru": "ИНСАЙДЕР СУХОЙ",
+    "latin": "Paradox InCider Dry",
+    "brewery": "Paradox",
+    "country": "Россия",
+    "style": "Сухой сидр",
+    "abv": "6,0%",
+    "tags": [
+      "яблочный",
+      "терпкий",
+      "сухой"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://beerkontora.ru/product/sidr-paradoks-insayder-paradox-incider-dry-05l-10sht",
+      "https://rusbeershop.ru/catalog/beer-71824/",
+      "https://craftdepot.ru/prezentaciya-proekta-incider-pivovarni-paradox-sostoitsya-v-moskve/",
+      "https://untappd.com/b/incider-incider-dry/4006688"
+    ]
+  },
+  {
+    "id": 292,
+    "name_ru": "АТОМНАЯ ПРАЧЕЧНАЯ",
+    "latin": "Nuclear Laundry (Атомная Прачечная)",
+    "brewery": "Jaws",
+    "country": "Россия",
+    "style": "Американский ИПА",
+    "abv": "6,8",
+    "tags": [
+      "цитрусовый",
+      "тропический",
+      "хвойный"
+    ],
+    "gor": 5,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://jawsbeer.ru/atomnaya-prachechnaya",
+      "https://untappd.com/b/jaws-brewery-nuclear-laundry-atomnaya-prachechnaya/631746",
+      "https://winestyle.ru/products/Jaws-Brewery-Atomnaya-Prachechnaya-IPA.html"
+    ]
+  },
+  {
+    "id": 293,
+    "name_ru": "ХЕН КОК ЭНД ПИДЖЕН РОК",
+    "latin": "Hen, Cock & Pigeon Rock",
+    "brewery": "Whitewater",
+    "country": "Северная Ирландия",
+    "style": "Ирландский ред эль",
+    "abv": "4,8",
+    "tags": [
+      "карамельный",
+      "солодовый",
+      "ягодный"
+    ],
+    "gor": 2,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/whitewater-hen-cock-and-pigeon-rock/1159646",
+      "https://www.tipples2you.co.uk/product/hen-cock-pigeon-rock-red-ale-4-8-abv-500ml/",
+      "https://www.vineyardbelfast.co.uk/products/5060133560326"
+    ]
+  },
+  {
+    "id": 294,
+    "name_ru": "Р2-Д2",
+    "latin": "R2-D2",
+    "brewery": "Des Martinets",
+    "country": "Швейцария",
+    "style": "НЕ ИПА (New England IPA)",
+    "abv": "7%",
+    "tags": [
+      "хмелевой",
+      "цитрусовый",
+      "тропический"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "low",
+    "sources": [
+      "https://untappd.com/b/brasserie-des-martinets-r2-d2/4017790"
+    ]
+  },
+  {
+    "id": 295,
+    "name_ru": "КАТАНА СТРАЙК",
+    "latin": "Katana Strike",
+    "brewery": "Midnight Project",
+    "country": "Россия",
+    "style": "Рисовый ИПА",
+    "abv": "6,2",
+    "tags": [
+      "цитрусовый",
+      "тропический",
+      "сухой"
+    ],
+    "gor": 4,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/beer/katana-strike-midnight-project",
+      "https://rusbeershop.ru/catalog/beer-72111/"
+    ]
+  },
+  {
+    "id": 296,
+    "name_ru": "ГРЁЗЫ",
+    "latin": "Jaws Gryozy",
+    "brewery": "Jaws",
+    "country": "Россия",
+    "style": "Фруктовый эль",
+    "abv": "4,5%",
+    "tags": [
+      "ягодный",
+      "малиновый",
+      "терпкий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://rusbeershop.ru/catalog/beer-72350/",
+      "https://beerkontora.ru/product/pivo-dzhous-gryozy-jaws-gryozy-045-banka",
+      "https://untappd.com/JawsBrew/beer"
+    ]
+  },
+  {
+    "id": 297,
+    "name_ru": "ГИННЕС",
+    "latin": "Guinness Draught",
+    "brewery": "Guinness",
+    "country": "Ирландия",
+    "style": "Ирландский сухой стаут",
+    "abv": "4,2",
+    "tags": [
+      "кофейный",
+      "шоколадный",
+      "жжёный"
+    ],
+    "gor": 4,
+    "plot": 1,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/guinness-guinness-draught/4473",
+      "https://www.guinness.com/en-us/beers/guinness-draught",
+      "https://www.beeradvocate.com/beer/profile/209/754/"
+    ]
+  },
+  {
+    "id": 298,
+    "name_ru": "ДЕССЕРТ МЕССИЯ",
+    "latin": "Dessert Messiah",
+    "brewery": "Mantra",
+    "country": "Россия",
+    "style": "Имперский пастри-стаут",
+    "abv": "10,0",
+    "tags": [
+      "шоколадный",
+      "сливочный",
+      "ванильный"
+    ],
+    "gor": 5,
+    "plot": 5,
+    "cvet": 5,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/mantra-dessert-messiah-condensed-milk-and-milk-chocolate/4158838",
+      "https://untappd.com/mantrabrewery/beer",
+      "https://eatbeer.ru/breweries/mantra/"
+    ]
+  },
+  {
+    "id": 299,
+    "name_ru": "ФИТНЕС",
+    "latin": "Red Button Fitness",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Безалкогольный фруктово-травяной сауэр",
+    "abv": "0,5%",
+    "tags": [
+      "травяной",
+      "ягодный",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "medium",
+    "sources": [
+      "https://rusbeershop.ru/catalog/beer-75701/",
+      "https://untappd.com/RedButtonBrewery/beer",
+      "https://www.redbutton.beer/",
+      "https://birdekel.shop/brewery/red-button-brewery/"
+    ]
+  },
+  {
+    "id": 300,
+    "name_ru": "РУСАЛКА",
+    "latin": "Brewlok Rusalka",
+    "brewery": "Brewlok",
+    "country": "Россия",
+    "style": "Фруктовый сауэр",
+    "abv": "5,0",
+    "tags": [
+      "малиновый",
+      "клубничный",
+      "кислый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/brewlok-brewery-rusalka-rusalka/2027746",
+      "https://craftbeer78.ru/beer/rusalka-brewlok",
+      "https://eatbeer.ru/breweries/brewlok-craft-classic-brewery/rusalka-rusalka/"
+    ]
+  },
+  {
+    "id": 301,
+    "name_ru": "R2-D2H",
+    "latin": "Plan B R2-D2H Sabro / Citra / Mosaic",
+    "brewery": "Plan B",
+    "country": "Россия",
+    "style": "Нью-Ингленд ИПА",
+    "abv": "6,8",
+    "tags": [
+      "тропический",
+      "кокосовый",
+      "цитрусовый"
+    ],
+    "gor": 4,
+    "plot": 4,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://your.beer/beer/plan-b-brewery-r2-d2h-sabro-citra-mosaic",
+      "https://untappd.com/b/plan-b-brewery-r1-d2h-simcoe-azacca/5615226",
+      "https://planbrew.ru/"
+    ]
+  },
+  {
+    "id": 302,
+    "name_ru": "ВИВИЗЕРО",
+    "latin": "Bullevie Vivizero",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Сухой сидр",
+    "abv": "5,5",
+    "tags": [
+      "яблочный",
+      "терпкий",
+      "сухой"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/bullevie-vivizero/2626346",
+      "https://craftbeer78.ru/cider/vivizero-bullevie",
+      "https://winestyle.ru/products/Bullevie-Vivizero.html",
+      "https://beer-trip.ru/drinks/sidry/vivizero/"
+    ]
+  },
+  {
+    "id": 303,
+    "name_ru": "НОЙЗЛЕСС",
+    "latin": "Noiseless",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Смузи-сауэр",
+    "abv": "6,0",
+    "tags": [
+      "манговый",
+      "персиковый",
+      "кисло-сладкий"
+    ],
+    "gor": 1,
+    "plot": 3,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-button-brewery-noiseless-50-50/4071312",
+      "https://www.beeradvocate.com/beer/profile/51729/530675/"
+    ]
+  },
+  {
+    "id": 304,
+    "name_ru": "КАЦ ХАЛАПЕНЬО",
+    "latin": "Kuts (Jalapeno Batch)",
+    "brewery": "Red Button",
+    "country": "Россия",
+    "style": "Гозе",
+    "abv": "5,0",
+    "tags": [
+      "острый",
+      "солёный",
+      "цитрусовый"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/red-button-brewery-kuts/4725176",
+      "https://your.beer/beer/red-button-brewery-kuts-jalapeno-batch",
+      "https://craftbeer78.ru/beer/kuts-jalapeno-batch-red-button-brewery"
+    ]
+  },
+  {
+    "id": 305,
+    "name_ru": "РЕЙДЖ ЭГЕЙНСТ ЗЕ ПЕПИН",
+    "latin": "Rage Against the Pepin",
+    "brewery": "Rebel Apple",
+    "country": "Россия",
+    "style": "Сидр",
+    "abv": "6,0",
+    "tags": [
+      "яблочный",
+      "карамельный",
+      "освежающий"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/rebel-apple-rage-against-the-pepin/4376171",
+      "https://your.beer/beer/rebel-apple-rage-against-the-pepin",
+      "https://craftbeer78.ru/cider/rage-against-the-pepin-rebel-apple",
+      "https://winestyle.ru/products/Rebel-Apple-Rage-Against-the-Pepin-in-can.html"
+    ]
+  },
+  {
+    "id": 306,
+    "name_ru": "БЮЛЬВИ РОЗЕ",
+    "latin": "Bullevie Rosé",
+    "brewery": "Bullevie",
+    "country": "Россия",
+    "style": "Сидр розе (полусухой)",
+    "abv": "6,0",
+    "tags": [
+      "яблочный",
+      "ягодный",
+      "цветочный"
+    ],
+    "gor": 1,
+    "plot": 2,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://craftbeer78.ru/cider/rose-750ml-bullevie",
+      "https://untappd.com/b/bullevie-rose/3758951",
+      "https://rusbeershop.ru/catalog/beer-60883/"
+    ]
+  },
+  {
+    "id": 307,
+    "name_ru": "ПЭЙЛ ЭЛЬ",
+    "latin": "St. Peter's Pale Ale",
+    "brewery": "St. Peter's",
+    "country": "Англия",
+    "style": "Английский пэйл эль",
+    "abv": "4,2",
+    "tags": [
+      "цитрусовый",
+      "хвойный",
+      "травяной"
+    ],
+    "gor": 3,
+    "plot": 1,
+    "cvet": 2,
+    "confidence": "high",
+    "sources": [
+      "https://untappd.com/b/st-peter-s-brewery-co-pale-ale/5215315",
+      "https://www.stpetersbrewery.co.uk/about-us",
+      "https://en.wikipedia.org/wiki/St._Peter's_Brewery"
+    ]
+  },
+  {
+    "id": 308,
+    "name_ru": "БИТТЕР",
+    "latin": "Saltaire Best",
+    "brewery": "Saltaire",
+    "country": "Англия",
+    "style": "Английский биттер",
+    "abv": "4,4%",
+    "tags": [
+      "ореховый",
+      "карамельный",
+      "цитрусовый"
+    ],
+    "gor": 3,
+    "plot": 2,
+    "cvet": 3,
+    "confidence": "medium",
+    "sources": [
+      "https://saltairebrewery.com/products/saltaire-best",
+      "https://untappd.com/b/saltaire-brewery-best/3126441",
+      "https://saltairebrewery.com/collections/our-beer"
+    ]
+  }
+]

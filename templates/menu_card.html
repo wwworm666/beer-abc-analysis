@@ -32,6 +32,15 @@
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
   })();
+  /* Транскрипция в одну строку: длинная латиница (полное имя+пивоварня) ужимается по ширине. */
+  (function fitTrans(){
+    document.querySelectorAll('.trans').forEach(function(el){
+      el.style.fontSize = '';
+      var size = parseFloat(getComputedStyle(el).fontSize);
+      var min = 9;
+      while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
+    });
+  })();
 </script>
 </body>
 </html>
