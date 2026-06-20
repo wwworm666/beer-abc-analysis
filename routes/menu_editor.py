@@ -30,6 +30,10 @@ from core.storage_paths import get_data_path
 
 ASSET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                          "static", "menu")
+# Справочник стилей (BJCP 2021 + наши специалитеты) — источник для дропдауна и
+# чипсов-рекомендаций. Reference-данные (меняются с кодом), читаем из data/ напрямую.
+STYLES_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "data", "beer_styles.json")
 
 menu_editor_bp = Blueprint("menu_editor", __name__, url_prefix="/menu")
 
@@ -212,6 +216,16 @@ def print_page():
 # ---------------------------------------------------------------------------
 # API — CRUD
 # ---------------------------------------------------------------------------
+
+@menu_editor_bp.route("/api/styles", methods=["GET"])
+def list_styles():
+    """Справочник стилей для дропдауна: {styles:[{name,code,en,group,rec[3]}]}."""
+    try:
+        with open(STYLES_FILE, "r", encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    except OSError:
+        return jsonify({"styles": []})
+
 
 @menu_editor_bp.route("/api/items", methods=["GET"])
 def list_items():

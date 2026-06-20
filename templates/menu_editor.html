@@ -70,6 +70,15 @@
         min-height: 540px; padding: 24px; }
       .me-scaler{ transform-origin: top center; }
       .me-scaler .page{ box-shadow: var(--shadow-lg); }
+      select.me-in{ appearance: auto; cursor: pointer; }
+      .me-rec{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+      .me-rec .me-rec-hint{ width: 100%; font-size: 10.5px; color: var(--text-tertiary);
+        text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+      .me-chip{ border: 1px dashed var(--border-color); background: var(--bg-primary);
+        color: var(--text-secondary); border-radius: var(--border-radius-pill); padding: 5px 12px;
+        font-size: 12px; cursor: pointer; font-family: var(--font-family); transition: all var(--transition-fast); }
+      .me-chip:hover{ border-color: var(--accent); color: var(--accent); border-style: solid; }
+      .me-chip.used{ opacity: 0.35; cursor: default; }
       .toast{ position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
         background: var(--text-primary); color: var(--bg-secondary); padding: 12px 20px;
         border-radius: var(--border-radius-sm); font-size: 13px; box-shadow: var(--shadow-lg);
@@ -104,7 +113,7 @@
             <div class="me-field"><label>Пивоварня</label><input class="me-in" id="f-brewery" placeholder="Riegele" oninput="paint()"></div>
           </div>
           <div class="me-row">
-            <div class="me-field"><label>Стиль</label><input class="me-in" id="f-style" placeholder="Немецкий лагер" oninput="paint()"></div>
+            <div class="me-field"><label>Стиль (BJCP)</label><select class="me-in" id="f-style" onchange="onStyleChange()"></select></div>
             <div class="me-field" style="flex:0 0 120px;"><label>ABV, %</label><input class="me-in" id="f-abv" placeholder="5,2" oninput="paint()"></div>
           </div>
         </div>
@@ -112,10 +121,11 @@
         <div class="me-sec">
           <h3>Дескрипторы вкуса (3)</h3>
           <div class="me-row">
-            <div class="me-field"><input class="me-in" id="f-tag1" placeholder="солодовый" oninput="paint()"></div>
-            <div class="me-field"><input class="me-in" id="f-tag2" placeholder="медовый" oninput="paint()"></div>
-            <div class="me-field"><input class="me-in" id="f-tag3" placeholder="благородный" oninput="paint()"></div>
+            <div class="me-field"><input class="me-in" id="f-tag1" placeholder="пусто" oninput="paint()"></div>
+            <div class="me-field"><input class="me-in" id="f-tag2" placeholder="пусто" oninput="paint()"></div>
+            <div class="me-field"><input class="me-in" id="f-tag3" placeholder="пусто" oninput="paint()"></div>
           </div>
+          <div class="me-rec" id="rec-chips"></div>
         </div>
 
         <div class="me-sec">
@@ -186,6 +196,51 @@ function renderDots(){
   });
 }
 
+let STYLES = [], styleRec = {};
+async function loadStyles(){
+  try{ const r = await fetch("/menu/api/styles"); const d = await r.json(); STYLES = d.styles || []; }
+  catch(e){ STYLES = []; }
+  styleRec = {}; STYLES.forEach(s => { styleRec[s.name] = s.rec || []; });
+  buildStyleSelect();
+}
+function buildStyleSelect(){
+  const sel = $("f-style"); const cur = sel.value;
+  sel.innerHTML = '<option value="">— выбери стиль —</option>';
+  const groups = [], byG = {};
+  STYLES.forEach(s => { if(!byG[s.group]){ byG[s.group]=[]; groups.push(s.group); } byG[s.group].push(s); });
+  groups.forEach(g => {
+    const og = document.createElement("optgroup"); og.label = g || "Прочее";
+    byG[g].forEach(s => {
+      const o = document.createElement("option"); o.value = s.name;
+      o.textContent = s.code ? (s.name + " · " + s.code) : s.name;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+  if(cur){ ensureStyleOption(cur); sel.value = cur; }
+}
+function ensureStyleOption(name){
+  if(!name) return; const sel = $("f-style");
+  if([...sel.options].some(o => o.value === name)) return;
+  const o = document.createElement("option"); o.value = name; o.textContent = name + " · свой"; sel.appendChild(o);
+}
+function onStyleChange(){ renderChips(); paint(); }
+function renderChips(){
+  const box = $("rec-chips"); const rec = styleRec[$("f-style").value] || [];
+  if(!rec.length){ box.innerHTML = ""; return; }
+  const cur = ["f-tag1","f-tag2","f-tag3"].map(id => $(id).value.trim());
+  let h = '<span class="me-rec-hint">рекомендации стиля — клик вставит в пустое поле</span>';
+  rec.forEach(w => { h += `<button type="button" class="me-chip${cur.includes(w)?" used":""}" onclick="addChip('${w}')">${esc(w)}</button>`; });
+  box.innerHTML = h;
+}
+function addChip(word){
+  const ids = ["f-tag1","f-tag2","f-tag3"];
+  if(ids.some(id => $(id).value.trim() === word)) return;
+  const empty = ids.find(id => $(id).value.trim() === "");
+  if(!empty) return;
+  $(empty).value = word; renderChips(); paint();
+}
+
 function cardInner(it){
   const trans = it.latin?`<div class="trans">[ ${esc(it.latin)} ]</div>`:"";
   const op=[]; if(it.country)op.push(`<span class="accent">${esc(it.country)}</span>`); if(it.brewery)op.push(esc(it.brewery));
@@ -227,11 +282,11 @@ window.addEventListener("resize", fitPreview);
 function fill(it){
   $("f-n").value=it.n||""; $("f-tap").value=it.tap??""; $("f-name").value=it.name||"";
   $("f-latin").value=it.latin||""; $("f-country").value=it.country||""; $("f-brewery").value=it.brewery||"";
-  $("f-style").value=it.style||""; $("f-abv").value=it.abv||"";
+  ensureStyleOption(it.style||""); $("f-style").value=it.style||""; $("f-abv").value=it.abv||"";
   const t=it.tags||[]; $("f-tag1").value=t[0]||""; $("f-tag2").value=t[1]||""; $("f-tag3").value=t[2]||"";
   $("f-p025").value=it.p025??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??"";
   const r=it.ratings||{}; ratings={ gor:+r.gor||0, plot:+r.plot||0, cvet:+r.cvet||0 };
-  renderDots(); paint();
+  renderDots(); renderChips(); paint();
 }
 function meta(){ const el=$("meta");
   if(editingId){ const it=items.find(i=>i.id===editingId); el.innerHTML=`Редактирование: <b>${esc(it?(it.name||("№ "+pad2(it.n))):("#"+editingId))}</b>`; }
@@ -275,6 +330,7 @@ let toastTimer; function toast(m){ const t=$("toast"); t.textContent=m; t.classL
 
 async function init(){
   renderDots();
+  await loadStyles();
   const r=await fetch("/menu/api/items"); items=await r.json();
   const want=urlId(); const tgt=want?items.find(i=>i.id===want):null;
   if(tgt){ editingId=tgt.id; fill(tgt); $("btn-del").style.display="inline-flex"; meta(); }
