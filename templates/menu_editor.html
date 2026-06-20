@@ -113,7 +113,10 @@
             <div class="me-field"><label>Пивоварня</label><input class="me-in" id="f-brewery" placeholder="Riegele" oninput="paint()"></div>
           </div>
           <div class="me-row">
-            <div class="me-field"><label>Стиль (BJCP)</label><select class="me-in" id="f-style" onchange="onStyleChange()"></select></div>
+            <div class="me-field"><label>Стиль (BJCP)</label>
+              <select class="me-in" id="f-style" onchange="onStyleChange()"></select>
+              <input class="me-in" id="f-style-custom" placeholder="свой стиль (не из BJCP)" style="display:none; margin-top:6px;" oninput="paint()">
+            </div>
             <div class="me-field" style="flex:0 0 120px;"><label>ABV, %</label><input class="me-in" id="f-abv" placeholder="5,2" oninput="paint()"></div>
           </div>
         </div>
@@ -182,7 +185,7 @@ function getForm(){
     tap: $("f-tap").value.trim()===""?null:(parseInt($("f-tap").value,10)||null),
     name: $("f-name").value.trim(), latin: $("f-latin").value.trim(),
     country: $("f-country").value.trim(), brewery: $("f-brewery").value.trim(),
-    style: $("f-style").value.trim(), abv: $("f-abv").value.trim(),
+    style: styleValue(), abv: $("f-abv").value.trim(),
     tags, ratings: {...ratings},
     p025: num("f-p025"), p04: num("f-p04"), p05: num("f-p05"),
   };
@@ -206,6 +209,9 @@ async function loadStyles(){
 function buildStyleSelect(){
   const sel = $("f-style"); const cur = sel.value;
   sel.innerHTML = '<option value="">— выбери стиль —</option>';
+  const ogc = document.createElement("optgroup"); ogc.label = "— свой —";
+  const oc = document.createElement("option"); oc.value = "__custom__"; oc.textContent = "+ вписать свой стиль…";
+  ogc.appendChild(oc); sel.appendChild(ogc);
   const groups = [], byG = {};
   STYLES.forEach(s => { if(!byG[s.group]){ byG[s.group]=[]; groups.push(s.group); } byG[s.group].push(s); });
   groups.forEach(g => {
@@ -224,9 +230,18 @@ function ensureStyleOption(name){
   if([...sel.options].some(o => o.value === name)) return;
   const o = document.createElement("option"); o.value = name; o.textContent = name + " · свой"; sel.appendChild(o);
 }
-function onStyleChange(){ renderChips(); paint(); }
+function styleValue(){
+  const sel = $("f-style");
+  return sel.value === "__custom__" ? $("f-style-custom").value.trim() : sel.value.trim();
+}
+function onStyleChange(){
+  const custom = $("f-style-custom");
+  if($("f-style").value === "__custom__"){ custom.style.display = ""; custom.focus(); }
+  else { custom.style.display = "none"; custom.value = ""; }
+  renderChips(); paint();
+}
 function renderChips(){
-  const box = $("rec-chips"); const rec = styleRec[$("f-style").value] || [];
+  const box = $("rec-chips"); const rec = styleRec[styleValue()] || [];
   if(!rec.length){ box.innerHTML = ""; return; }
   const cur = ["f-tag1","f-tag2","f-tag3"].map(id => $(id).value.trim());
   let h = '<span class="me-rec-hint">рекомендации стиля — клик вставит в пустое поле</span>';
@@ -282,6 +297,7 @@ window.addEventListener("resize", fitPreview);
 function fill(it){
   $("f-n").value=it.n||""; $("f-tap").value=it.tap??""; $("f-name").value=it.name||"";
   $("f-latin").value=it.latin||""; $("f-country").value=it.country||""; $("f-brewery").value=it.brewery||"";
+  $("f-style-custom").style.display="none"; $("f-style-custom").value="";
   ensureStyleOption(it.style||""); $("f-style").value=it.style||""; $("f-abv").value=it.abv||"";
   const t=it.tags||[]; $("f-tag1").value=t[0]||""; $("f-tag2").value=t[1]||""; $("f-tag3").value=t[2]||"";
   $("f-p025").value=it.p025??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??"";
