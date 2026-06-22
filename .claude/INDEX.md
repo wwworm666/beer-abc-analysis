@@ -24,6 +24,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ├── Open-check Telegram bot      → open-check-bot.md
 ├── Планы выручки (4 точки)      → venues-plans.md
 ├── График смен                  → schedule.md
+├── Авторизация (вход/аккаунты)  → auth.md
 ├── PWA Виджет Выручки           → pwa-widget.md
 ├── Frontend архитектура         → frontend.md
 ├── Design System                → design-system.md
@@ -55,6 +56,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
 | [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting, override весов дней, «Планы по дням» | ✅ |
 | [docs/schedule.md](../docs/schedule.md) | График смен: /schedule (просмотр, факт часов) + /schedule/edit (кисть, планы, нагрузка), meeting notes | ✅ |
+| [docs/auth.md](../docs/auth.md) | Авторизация: вход один раз (долгая сессия), глобальный гейт, личные аккаунты, /admin/users, стабильный SECRET_KEY | ✅ |
 | [docs/ai-agent-concept.md](../docs/ai-agent-concept.md) | Концепт ИИ-агента NL-вопрос -> детерминированный ответ из iiko: gap-матрица 15 вопросов, лимиты API, архитектура | Концепт |
 | [docs/frontend.md](../docs/frontend.md) | JS архитектура дашборда (15+ модулей) | ✅ |
 | [docs/design-system.md](../docs/design-system.md) | Палитра, типографика, компоненты | ✅ |
@@ -100,6 +102,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-06-23:** Авторизация — полноценный вход (раньше всё было открыто): личные аккаунты (логин+пароль, хэш), глобальный `before_request`-гейт, «вход один раз» через стабильный `SECRET_KEY` + сессия 180 дней, `/admin/users` для владельца. Док: [auth.md](../docs/auth.md).
 - **2026-06-19:** Редактор меню перенесён из `menu_tool/` в основное приложение (`/menu`): единый дедуплицированный каталог 108 карточек (библиотека + 21 кран), один вариант разлива 0,25/0,4/0,5, кнопка обновления цен из iiko, вкусы/теги/шкалы из веб-исследования, серверный рендер PDF. Док: [menu-editor.md](../docs/menu-editor.md).
 - **2026-06-06:** Единый механизм дневного плана (`core/day_weights.py`) + override весов дней (праздник/закрытый день) + редактируемая под-вкладка «Планы по дням». Док: [venues-plans.md](../docs/venues-plans.md).
 - **2026-06-04:** Новая вкладка дашборда «Месячный отчёт» — помесячная динамика метрик за год, 16 графиков, YoY-наложение, помесячный дисковый кэш. Док: [monthly-report.md](../docs/monthly-report.md).

@@ -94,5 +94,9 @@ data/*.csv
 data/*.db
 data/*.db.backup_v*
 
+# Секрет подписи сессий — генерируется локально/на проде, в репо не должен попадать
+data/secret_key
+secret_key
+
 # Архив скриптов
 archive/

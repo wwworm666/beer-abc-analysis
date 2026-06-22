@@ -1,5 +1,6 @@
 from flask import Flask, send_from_directory
 from routes import register_blueprints
+from core.auth_guard import init_auth
 import subprocess
 from datetime import datetime
 import extensions
@@ -26,6 +27,11 @@ app.jinja_env.globals['app_version'] = APP_VERSION
 
 # Регистрируем все blueprints
 register_blueprints(app)
+
+# Авторизация: стабильный SECRET_KEY, долгая сессия (вход один раз), ProxyFix
+# под Caddy и глобальный гейт (всё закрыто, кроме /login, /static, манифеста и
+# Telegram-вебхука). Подключать ПОСЛЕ register_blueprints.
+init_auth(app)
 
 
 # Ранняя проверка конфигурации: без iiko-кредов все iiko-фичи молча отвечают

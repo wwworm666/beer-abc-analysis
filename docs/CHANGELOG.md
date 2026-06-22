@@ -1,5 +1,59 @@
 ﻿# Changelog
 
+### 2026-06-23 — Авторизация: вход, гейт, аккаунты
+
+Раньше auth-слоя не было вообще — все страницы и API открыты любому. Добавлен
+полноценный вход. Решения владельца: личный аккаунт на каждого, у всех пароль,
+аккаунты заводит владелец сам; после входа равные права на все бизнес-страницы,
+отдельным флагом `is_admin` ограничена только страница управления аккаунтами.
+
+**Что:**
+- **`config.py`** — `get_secret_key()`: стабильный ключ подписи сессий
+  (env `SECRET_KEY` -> persistent-файл `{/kultura|data}/secret_key` -> генерация
+  через `O_EXCL`, race-safe для 2 воркеров). Стабильность ключа = «вход один раз».
+- **`core/auth_manager.py`** (новый) — SQLite `auth.db` на `/kultura` (отдельно от
+  `shifts.db`), пароли хэшем (`werkzeug`), additive-схема, защита последнего админа,
+  bootstrap из env, синглтон.
+- **`core/auth_guard.py`** (новый) — `init_auth(app)`: cookie (`HttpOnly`,
+  `SameSite=Lax`, `Secure` на проде), сессия 180 дней + скользящее продление,
+  `ProxyFix` под Caddy, глобальный `before_request`-гейт (всё закрыто, кроме
+  `/login`, `/static`, PWA-манифеста, Telegram-вебхука), `current_user` в шаблоны.
+- **`routes/auth.py`** (новый) — `/login`, first-run `/setup` (создать владельца,
+  пока 0 аккаунтов), `/logout`, `/admin/users` + API `/api/auth/*` (только admin),
+  open-redirect guard `_safe_next`.
+- **`templates/login.html`**, **`templates/admin_users.html`** (новые); футер
+  `shared/nav.html` — имя пользователя + «Выйти», ссылка «Аккаунты» для админа.
+- **`app.py`**, **`routes/__init__.py`** — подключение `init_auth` и `auth_bp`.
+
+**Почему:** страница графика и весь остальной инструмент были доступны без входа;
+владелец решил сделать вход один раз (долгая сессия). Личные аккаунты дают основу
+для журнала «кто менял смену» (`display_name` = имя в реестре графика).
+
+**Hardening (adversarial security-review, 24 агента — все находки low, обхода
+аутентификации нет):**
+- Инварианты «последний админ» (`set_active`/`set_admin`/`delete_user`) и «первый
+  владелец» (`create_first_owner`) переведены на `BEGIN IMMEDIATE` (`_write_txn`):
+  check+write атомарны меж-процессно. `threading.Lock` под gunicorn 2 воркера не
+  сериализует — иначе гонка двух воркеров могла обнулить админов / создать двух
+  владельцев на first-run.
+- `MIN_PASSWORD_LEN` 4 -> 8 (вход длину не проверяет, старые пароли не ломаются).
+- `SECRET_KEY` при сбое записи файла теперь fail-loud (`RuntimeError` на старте)
+  вместо тихого эфемерного ключа, который разлогинивал бы всех при каждом рестарте.
+
+**Проверка:** `tests/test_auth.py` — 12 тестов (хэш/проверка пароля, валидации,
+min-длина пароля, защита последнего админа, гонка first-run, гейт аноним ->
+401/redirect, first-run setup, цикл входа/выхода, admin-only, open-redirect,
+стабильность ключа) — зелёные. Смоук по реальным блюпринтам: `/` и
+`/api/schedule/*` под гейтом, `/login`/манифест/вебхук открыты, после входа доступ
+есть.
+
+**Файлы:** `config.py`, `core/auth_manager.py` (нов.), `core/auth_guard.py` (нов.),
+`routes/auth.py` (нов.), `routes/__init__.py`, `app.py`, `templates/login.html`
+(нов.), `templates/admin_users.html` (нов.), `templates/shared/nav.html`,
+`tests/test_auth.py` (нов.), `docs/auth.md` (нов.), `.env.example`.
+
+---
+
 ### 2026-06-20 — Дескрипторы на уровне стиля + дропдаун стилей BJCP 2021
 
 Модель дескрипторов переведена с пер-сорта на пер-стиль. Решения владельца: дескрипторы

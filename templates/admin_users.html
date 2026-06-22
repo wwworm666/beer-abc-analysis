@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аккаунты — Пивная культура</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+        .users-wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+        .panel {
+            background: var(--surface, #fff); border: 1px solid var(--border-color, #e3e6ea);
+            border-radius: 12px; padding: 18px 20px; margin-bottom: 20px;
+        }
+        .panel h2 { margin: 0 0 14px; font-size: 16px; }
+        .grid-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+        .grid-form .full { grid-column: 1 / -1; }
+        .grid-form label { display: block; font-size: 12px; color: var(--text-muted, #6b7280); margin-bottom: 5px; }
+        .grid-form input[type=text], .grid-form input[type=password] {
+            width: 100%; padding: 9px 11px; border: 1px solid var(--border-color, #e3e6ea);
+            border-radius: 8px; background: var(--bg, #f7f8fa); color: inherit; font-size: 14px;
+        }
+        .row-check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .btn {
+            padding: 9px 14px; border-radius: 8px; border: 1px solid transparent;
+            cursor: pointer; font-size: 14px; font-weight: 600;
+        }
+        .btn-primary { background: var(--accent, #d97706); color: #fff; }
+        .btn-ghost { background: transparent; border-color: var(--border-color, #e3e6ea); color: inherit; }
+        .btn-danger { background: transparent; border-color: var(--danger, #dc2626); color: var(--danger, #dc2626); }
+        .btn-sm { padding: 5px 9px; font-size: 12px; font-weight: 500; }
+        table.users { width: 100%; border-collapse: collapse; font-size: 14px; }
+        table.users th, table.users td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border-color, #eceef1); }
+        table.users th { font-size: 12px; color: var(--text-muted, #6b7280); font-weight: 600; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+        .tag-admin { background: color-mix(in srgb, var(--accent, #d97706) 16%, transparent); color: var(--accent, #d97706); }
+        .tag-off { background: color-mix(in srgb, var(--danger, #dc2626) 14%, transparent); color: var(--danger, #dc2626); }
+        .cell-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        .muted { color: var(--text-muted, #6b7280); font-size: 12px; }
+        .form-err { color: var(--danger, #dc2626); font-size: 13px; margin-top: 10px; min-height: 16px; }
+    </style>
+</head>
+<body class="dashboard-page">
+    <div class="container">
+        {% set page_title = "Аккаунты" %}
+        {% set page_subtitle = "Управление доступом" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <main class="main-content">
+        <div class="users-wrap">
+
+            <div class="panel">
+                <h2>Новый аккаунт</h2>
+                <div class="grid-form">
+                    <div>
+                        <label for="nuLogin">Логин</label>
+                        <input id="nuLogin" type="text" placeholder="ivan" autocomplete="off">
+                    </div>
+                    <div>
+                        <label for="nuName">Имя (как в графике)</label>
+                        <input id="nuName" type="text" list="registryNames" placeholder="Иван Петров" autocomplete="off">
+                        <datalist id="registryNames">
+                            {% for n in registry_names %}<option value="{{ n }}">{% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label for="nuPass">Пароль</label>
+                        <input id="nuPass" type="password" placeholder="не короче 8 символов" autocomplete="new-password">
+                    </div>
+                    <div class="row-check" style="align-self: end;">
+                        <input id="nuAdmin" type="checkbox">
+                        <label for="nuAdmin" style="margin: 0;">Администратор (может управлять аккаунтами)</label>
+                    </div>
+                    <div class="full">
+                        <button class="btn btn-primary" onclick="createUser()">Создать аккаунт</button>
+                        <span class="form-err" id="createErr"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Аккаунты ({{ users | length }})</h2>
+                <table class="users">
+                    <thead>
+                        <tr>
+                            <th>Логин</th><th>Имя</th><th>Роль</th><th>Статус</th>
+                            <th>Последний вход</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for u in users %}
+                        <tr data-id="{{ u.id }}">
+                            <td><strong>{{ u.login }}</strong></td>
+                            <td>{{ u.display_name }}</td>
+                            <td>
+                                {% if u.is_admin %}<span class="tag tag-admin">админ</span>
+                                {% else %}<span class="muted">пользователь</span>{% endif %}
+                            </td>
+                            <td>
+                                {% if u.active %}<span class="muted">активен</span>
+                                {% else %}<span class="tag tag-off">выключен</span>{% endif %}
+                            </td>
+                            <td class="muted">{{ u.last_login_at or '—' }}</td>
+                            <td class="cell-actions">
+                                <button class="btn btn-ghost btn-sm" onclick="resetPass({{ u.id }})">Пароль</button>
+                                {% if u.active %}
+                                    <button class="btn btn-ghost btn-sm" onclick="setActive({{ u.id }}, false)">Выключить</button>
+                                {% else %}
+                                    <button class="btn btn-ghost btn-sm" onclick="setActive({{ u.id }}, true)">Включить</button>
+                                {% endif %}
+                                {% if u.is_admin %}
+                                    <button class="btn btn-ghost btn-sm" onclick="setAdmin({{ u.id }}, false)">Снять админа</button>
+                                {% else %}
+                                    <button class="btn btn-ghost btn-sm" onclick="setAdmin({{ u.id }}, true)">Сделать админом</button>
+                                {% endif %}
+                                <button class="btn btn-danger btn-sm" onclick="delUser({{ u.id }}, '{{ u.login }}')">Удалить</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        async function api(url, method, body) {
+            const opt = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' };
+            if (body) opt.body = JSON.stringify(body);
+            const r = await fetch(url, opt);
+            let data = {};
+            try { data = await r.json(); } catch (e) {}
+            if (!r.ok) throw new Error(data.error || ('Ошибка ' + r.status));
+            return data;
+        }
+
+        async function createUser() {
+            const err = document.getElementById('createErr');
+            err.textContent = '';
+            const login = document.getElementById('nuLogin').value.trim();
+            const display_name = document.getElementById('nuName').value.trim();
+            const password = document.getElementById('nuPass').value;
+            const is_admin = document.getElementById('nuAdmin').checked;
+            try {
+                await api('/api/auth/users', 'POST', { login, display_name, password, is_admin });
+                location.reload();
+            } catch (e) { err.textContent = e.message; }
+        }
+
+        async function resetPass(id) {
+            const password = prompt('Новый пароль (не короче 8 символов):');
+            if (password === null) return;
+            try { await api('/api/auth/users/' + id + '/password', 'POST', { password }); alert('Пароль обновлён'); }
+            catch (e) { alert(e.message); }
+        }
+
+        async function setActive(id, active) {
+            try { await api('/api/auth/users/' + id + '/active', 'POST', { active }); location.reload(); }
+            catch (e) { alert(e.message); }
+        }
+
+        async function setAdmin(id, is_admin) {
+            try { await api('/api/auth/users/' + id + '/admin', 'POST', { is_admin }); location.reload(); }
+            catch (e) { alert(e.message); }
+        }
+
+        async function delUser(id, login) {
+            if (!confirm('Удалить аккаунт «' + login + '»? Действие необратимо.')) return;
+            try { await api('/api/auth/users/' + id, 'DELETE'); location.reload(); }
+            catch (e) { alert(e.message); }
+        }
+    </script>
+</body>
+</html>
