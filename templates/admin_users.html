@@ -64,8 +64,8 @@
                         <input id="nuLogin" type="text" placeholder="ivan" autocomplete="off">
                     </div>
                     <div>
-                        <label for="nuName">Имя (имя и фамилия)</label>
-                        <input id="nuName" type="text" list="registryNames" placeholder="Иван Петров" autocomplete="off">
+                        <label for="nuName">Имя (фамилия и имя)</label>
+                        <input id="nuName" type="text" list="registryNames" placeholder="Петров Иван" autocomplete="off">
                         <datalist id="registryNames">
                             {% for n in registry_names %}<option value="{{ n }}">{% endfor %}
                         </datalist>
