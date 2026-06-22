@@ -117,13 +117,49 @@ def test_create_first_owner_guard():
 
 def test_min_password_len_enforced():
     mgr = _fresh_manager()
-    for bad in (lambda: mgr.create_user('shorty', 'S', '1234567'),       # 7 < 8
-                lambda: mgr.create_first_owner('own', 'O', 'short12')):    # 7 < 8
+    for bad in (lambda: mgr.create_user('shorty', 'S', '123'),       # 3 < 4
+                lambda: mgr.create_first_owner('own', 'O', 'ab')):    # 2 < 4
         try:
             bad()
-            assert False, 'пароль короче 8 должен отклоняться'
+            assert False, 'пароль короче 4 должен отклоняться'
         except ValueError:
             pass
+    # 4 символов достаточно
+    uid = mgr.create_user('okuser', 'OK', '1234')
+    assert mgr.get_by_id(uid) is not None
+
+
+def test_short_label_stored_and_editable():
+    mgr = _fresh_manager()
+    uid = mgr.create_user('an', 'Антон Николаев', 'passpass', short_label='АН')
+    assert mgr.get_by_id(uid)['short_label'] == 'АН'
+    # сокращение НЕ авто-генерируется: без передачи остаётся пустым
+    uid2 = mgr.create_user('iv', 'Иван Петров', 'passpass')
+    assert mgr.get_by_id(uid2)['short_label'] == ''
+    # правится отдельно (имя и/или сокращение)
+    mgr.update_profile(uid, display_name='Антон Н.', short_label='Ан')
+    u = mgr.get_by_id(uid)
+    assert u['display_name'] == 'Антон Н.' and u['short_label'] == 'Ан'
+
+
+def test_migration_adds_short_label_to_v1_db():
+    import sqlite3 as _sq
+    fd, path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)
+    os.unlink(path)
+    # старая схема v1 — без short_label
+    conn = _sq.connect(path)
+    conn.execute("""CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT,
+        login TEXT NOT NULL UNIQUE COLLATE NOCASE, display_name TEXT NOT NULL,
+        password_hash TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, last_login_at TEXT)""")
+    conn.execute("""INSERT INTO users (login, display_name, password_hash, is_admin, active, created_at)
+                    VALUES ('old', 'Старый', 'x', 1, 1, '2026-01-01')""")
+    conn.commit()
+    conn.close()
+    mgr = am.AuthManager(db_path=path)  # должен добавить колонку, не потеряв данные
+    u = mgr.get_by_login('old')
+    assert u is not None and u['short_label'] == ''
 
 
 def test_last_admin_protected():

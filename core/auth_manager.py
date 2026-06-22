@@ -21,9 +21,12 @@ from contextlib import contextmanager
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-# Минимальная длина пароля (baseline). Единственное место правила — менять здесь.
-# Логин длину не проверяет, поэтому поднятие порога не ломает старые пароли.
-MIN_PASSWORD_LEN = 8
+# Минимальная длина пароля. Команда маленькая и доверенная (решение владельца — 4).
+# Единственное место правила. Вход длину не проверяет — менять порог безопасно.
+MIN_PASSWORD_LEN = 4
+
+# Макс. длина сокращения (типа «АН»). Вводится ВРУЧНУЮ, без авто-генерации.
+SHORT_LABEL_MAXLEN = 12
 
 # Логин: латиница/цифры/._- , 2..32 символа. Регистр не важен (COLLATE NOCASE).
 LOGIN_RE = re.compile(r'^[A-Za-z0-9_.\-]{2,32}$')
@@ -36,7 +39,7 @@ class AuthManager:
     DROP запрещён — в проде живые аккаунты.
     """
 
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -107,6 +110,12 @@ class AuthManager:
                     )
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_users_login ON users(login)")
+                # Additive-миграция: сокращение (АН). На уже существующих БД (прод)
+                # таблица создана без колонки — добавляем через ALTER, данные не трогаем.
+                cur.execute("PRAGMA table_info(users)")
+                cols = {r[1] for r in cur.fetchall()}
+                if 'short_label' not in cols:
+                    cur.execute("ALTER TABLE users ADD COLUMN short_label TEXT NOT NULL DEFAULT ''")
                 cur.execute(f"PRAGMA user_version={self.SCHEMA_VERSION}")
                 conn.commit()
         # Опциональный bootstrap из окружения (для автоматизированного деплоя).
@@ -136,10 +145,12 @@ class AuthManager:
     @staticmethod
     def _row_to_public(row) -> Dict:
         """Строка БД -> публичный словарь (без password_hash)."""
+        keys = row.keys()
         return {
             'id': row['id'],
             'login': row['login'],
             'display_name': row['display_name'],
+            'short_label': row['short_label'] if 'short_label' in keys else '',
             'is_admin': bool(row['is_admin']),
             'active': bool(row['active']),
             'created_at': row['created_at'],
@@ -185,41 +196,47 @@ class AuthManager:
     # --- mutations ---
 
     @staticmethod
-    def _normalize_new(login: str, display_name: str, password: str):
+    def _normalize_new(login: str, display_name: str, password: str, short_label: str = ''):
         """Проверить и нормализовать данные нового аккаунта.
-        Возвращает (login, display_name, password_hash) или бросает ValueError."""
+        Возвращает (login, display_name, password_hash, short_label) или бросает ValueError.
+        short_label («АН») — ВРУЧНУЮ, без авто-генерации из имени."""
         login = (login or '').strip()
         display_name = (display_name or '').strip() or login
+        short_label = (short_label or '').strip()[:SHORT_LABEL_MAXLEN]
         if not LOGIN_RE.match(login):
             raise ValueError('Логин: 2-32 символа, латиница/цифры/._-')
         if not password or len(password) < MIN_PASSWORD_LEN:
             raise ValueError(f'Пароль не короче {MIN_PASSWORD_LEN} символов')
-        return login, display_name, generate_password_hash(password)
+        return login, display_name, generate_password_hash(password), short_label
 
     def create_user(self, login: str, display_name: str, password: str,
-                    is_admin: bool = False) -> int:
-        login, display_name, pwd_hash = self._normalize_new(login, display_name, password)
+                    is_admin: bool = False, short_label: str = '') -> int:
+        login, display_name, pwd_hash, short_label = self._normalize_new(
+            login, display_name, password, short_label)
         with self._lock:
             with self._get_connection() as conn:
                 try:
                     cur = conn.execute(
-                        """INSERT INTO users (login, display_name, password_hash,
-                                              is_admin, active, created_at)
-                           VALUES (?, ?, ?, ?, 1, ?)""",
-                        (login, display_name, pwd_hash, 1 if is_admin else 0, self._now()),
+                        """INSERT INTO users (login, display_name, short_label,
+                                              password_hash, is_admin, active, created_at)
+                           VALUES (?, ?, ?, ?, ?, 1, ?)""",
+                        (login, display_name, short_label, pwd_hash,
+                         1 if is_admin else 0, self._now()),
                     )
                     conn.commit()
                     return cur.lastrowid
                 except sqlite3.IntegrityError:
                     raise ValueError('Логин уже занят')
 
-    def create_first_owner(self, login: str, display_name: str, password: str) -> int:
+    def create_first_owner(self, login: str, display_name: str, password: str,
+                           short_label: str = '') -> int:
         """Создать первого владельца (admin) — только пока в системе НЕТ аккаунтов.
 
         Проверка «нет аккаунтов» и INSERT — в одной транзакции под write-локом
         (BEGIN IMMEDIATE), иначе два одновременных POST /setup с разными логинами
         создали бы двух владельцев (cross-process гонка first-run)."""
-        login, display_name, pwd_hash = self._normalize_new(login, display_name, password)
+        login, display_name, pwd_hash, short_label = self._normalize_new(
+            login, display_name, password, short_label)
         with self._lock:
             with self._write_txn() as conn:
                 n = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()['n']
@@ -227,14 +244,36 @@ class AuthManager:
                     raise ValueError('Аккаунты уже существуют')
                 try:
                     cur = conn.execute(
-                        """INSERT INTO users (login, display_name, password_hash,
-                                              is_admin, active, created_at)
-                           VALUES (?, ?, ?, 1, 1, ?)""",
-                        (login, display_name, pwd_hash, self._now()),
+                        """INSERT INTO users (login, display_name, short_label,
+                                              password_hash, is_admin, active, created_at)
+                           VALUES (?, ?, ?, ?, 1, 1, ?)""",
+                        (login, display_name, short_label, pwd_hash, self._now()),
                     )
                     return cur.lastrowid
                 except sqlite3.IntegrityError:
                     raise ValueError('Логин уже занят')
+
+    def update_profile(self, user_id: int, display_name: str = None,
+                       short_label: str = None):
+        """Изменить имя и/или сокращение аккаунта. Сокращение — вручную.
+        Передавай только те поля, что меняешь (None = не трогать)."""
+        sets, params = [], []
+        if display_name is not None:
+            dn = display_name.strip()
+            if not dn:
+                raise ValueError('Имя не может быть пустым')
+            sets.append('display_name=?')
+            params.append(dn)
+        if short_label is not None:
+            sets.append('short_label=?')
+            params.append(short_label.strip()[:SHORT_LABEL_MAXLEN])
+        if not sets:
+            return
+        params.append(user_id)
+        with self._lock:
+            with self._get_connection() as conn:
+                conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=?", params)
+                conn.commit()
 
     def verify_credentials(self, login: str, password: str) -> Optional[Dict]:
         """Проверить логин+пароль. Возвращает публичный словарь юзера или None.

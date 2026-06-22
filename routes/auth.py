@@ -125,10 +125,27 @@ def api_create_user():
             display_name=data.get('display_name', ''),
             password=data.get('password', ''),
             is_admin=bool(data.get('is_admin')),
+            short_label=data.get('short_label', ''),
         )
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'id': uid})
+
+
+@auth_bp.route('/api/auth/users/<int:user_id>/profile', methods=['POST'])
+@admin_required
+def api_update_profile(user_id):
+    """Изменить имя и/или сокращение аккаунта (сокращение вводится вручную)."""
+    data = request.get_json() or {}
+    try:
+        get_auth_manager().update_profile(
+            user_id,
+            display_name=data.get('display_name'),
+            short_label=data.get('short_label'),
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'ok': True})
 
 
 @auth_bp.route('/api/auth/users/<int:user_id>/password', methods=['POST'])

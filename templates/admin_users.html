@@ -36,6 +36,7 @@
         .btn-sm { padding: 5px 9px; font-size: 12px; font-weight: 500; }
         table.users { width: 100%; border-collapse: collapse; font-size: 14px; }
         table.users th, table.users td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border-color, #eceef1); }
+        table.users input { padding: 6px 8px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 6px; background: var(--bg, #f7f8fa); color: inherit; font-size: 13px; }
         table.users th { font-size: 12px; color: var(--text-muted, #6b7280); font-weight: 600; }
         .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
         .tag-admin { background: color-mix(in srgb, var(--accent, #d97706) 16%, transparent); color: var(--accent, #d97706); }
@@ -63,15 +64,19 @@
                         <input id="nuLogin" type="text" placeholder="ivan" autocomplete="off">
                     </div>
                     <div>
-                        <label for="nuName">Имя (как в графике)</label>
+                        <label for="nuName">Имя (имя и фамилия)</label>
                         <input id="nuName" type="text" list="registryNames" placeholder="Иван Петров" autocomplete="off">
                         <datalist id="registryNames">
                             {% for n in registry_names %}<option value="{{ n }}">{% endfor %}
                         </datalist>
                     </div>
                     <div>
+                        <label for="nuShort">Сокращение</label>
+                        <input id="nuShort" type="text" maxlength="12" placeholder="АН" autocomplete="off">
+                    </div>
+                    <div>
                         <label for="nuPass">Пароль</label>
-                        <input id="nuPass" type="password" placeholder="не короче 8 символов" autocomplete="new-password">
+                        <input id="nuPass" type="password" placeholder="не короче 4 символов" autocomplete="new-password">
                     </div>
                     <div class="row-check" style="align-self: end;">
                         <input id="nuAdmin" type="checkbox">
@@ -89,15 +94,15 @@
                 <table class="users">
                     <thead>
                         <tr>
-                            <th>Логин</th><th>Имя</th><th>Роль</th><th>Статус</th>
-                            <th>Последний вход</th><th></th>
+                            <th>Логин</th><th>Имя</th><th>Сокр.</th><th>Роль</th><th>Статус</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
                     {% for u in users %}
                         <tr data-id="{{ u.id }}">
                             <td><strong>{{ u.login }}</strong></td>
-                            <td>{{ u.display_name }}</td>
+                            <td><input class="edit-name" type="text" value="{{ u.display_name }}" style="width:160px"></td>
+                            <td><input class="edit-short" type="text" maxlength="12" value="{{ u.short_label }}" style="width:64px"></td>
                             <td>
                                 {% if u.is_admin %}<span class="tag tag-admin">админ</span>
                                 {% else %}<span class="muted">пользователь</span>{% endif %}
@@ -106,8 +111,8 @@
                                 {% if u.active %}<span class="muted">активен</span>
                                 {% else %}<span class="tag tag-off">выключен</span>{% endif %}
                             </td>
-                            <td class="muted">{{ u.last_login_at or '—' }}</td>
                             <td class="cell-actions">
+                                <button class="btn btn-ghost btn-sm" onclick="saveProfile({{ u.id }})">Сохранить</button>
                                 <button class="btn btn-ghost btn-sm" onclick="resetPass({{ u.id }})">Пароль</button>
                                 {% if u.active %}
                                     <button class="btn btn-ghost btn-sm" onclick="setActive({{ u.id }}, false)">Выключить</button>
@@ -146,16 +151,27 @@
             err.textContent = '';
             const login = document.getElementById('nuLogin').value.trim();
             const display_name = document.getElementById('nuName').value.trim();
+            const short_label = document.getElementById('nuShort').value.trim();
             const password = document.getElementById('nuPass').value;
             const is_admin = document.getElementById('nuAdmin').checked;
             try {
-                await api('/api/auth/users', 'POST', { login, display_name, password, is_admin });
+                await api('/api/auth/users', 'POST', { login, display_name, short_label, password, is_admin });
                 location.reload();
             } catch (e) { err.textContent = e.message; }
         }
 
+        async function saveProfile(id) {
+            const row = document.querySelector('tr[data-id="' + id + '"]');
+            const display_name = row.querySelector('.edit-name').value.trim();
+            const short_label = row.querySelector('.edit-short').value.trim();
+            try {
+                await api('/api/auth/users/' + id + '/profile', 'POST', { display_name, short_label });
+                location.reload();
+            } catch (e) { alert(e.message); }
+        }
+
         async function resetPass(id) {
-            const password = prompt('Новый пароль (не короче 8 символов):');
+            const password = prompt('Новый пароль (не короче 4 символов):');
             if (password === null) return;
             try { await api('/api/auth/users/' + id + '/password', 'POST', { password }); alert('Пароль обновлён'); }
             catch (e) { alert(e.message); }

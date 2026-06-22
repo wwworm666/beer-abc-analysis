@@ -73,9 +73,9 @@
                 <label for="display_name">Имя (как в графике смен)</label>
                 <input id="display_name" name="display_name" type="text" required>
                 <label for="password">Пароль</label>
-                <input id="password" name="password" type="password" required minlength="8">
+                <input id="password" name="password" type="password" required minlength="4">
                 <label for="password2">Повторите пароль</label>
-                <input id="password2" name="password2" type="password" required minlength="8">
+                <input id="password2" name="password2" type="password" required minlength="4">
                 {% if error %}<div class="error">{{ error }}</div>{% endif %}
                 <button type="submit">Создать и войти</button>
             </form>
