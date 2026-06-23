@@ -1,14 +1,20 @@
 /**
  * Service Worker для PWA виджета Beer ABC Dashboard
  * Стратегия кэширования:
- * - Статика (CSS, JS, fonts): Cache-first
- * - API запросы: Network-first с fallback на кэш
- * - HTML страницы: Network-first
+ * - Код приложения (JS, CSS): Network-first — всегда свежий онлайн, кэш только офлайн-фолбэк.
+ *   (Раньше было Cache-first и старый билд датапикера/дашборда залипал в кэше навсегда.)
+ * - Неизменяемая статика (шрифты, иконки, картинки): Cache-first.
+ * - API запросы: Network-first с fallback на кэш.
+ * - HTML страницы: Network-first.
+ *
+ * Версии кэшей завязаны на CACHE_VERSION: подняли версию -> activate чистит все старые
+ * кэши (включая залипший JS) на следующей активации воркера.
  */
 
-const CACHE_NAME = 'beer-abc-v1';
-const STATIC_CACHE = 'beer-abc-static-v1';
-const API_CACHE = 'beer-abc-api-v1';
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `beer-abc-${CACHE_VERSION}`;
+const STATIC_CACHE = `beer-abc-static-${CACHE_VERSION}`;
+const API_CACHE = `beer-abc-api-${CACHE_VERSION}`;
 
 // Ресурсы для предварительного кэширования
 const STATIC_ASSETS = [
@@ -72,6 +78,12 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    // Чужие origin (CDN flatpickr/chart и т.п.) не трогаем — пусть браузер сам кэширует.
+    // Иначе их легко залочить в свой кэш устаревшими/opaque-ответами.
+    if (url.origin !== self.location.origin) {
+        return;
+    }
+
     // API запросы - Network-first с fallback на кэш
     if (url.pathname.startsWith('/api/')) {
         console.log('[SW] API request:', url.pathname);
@@ -79,28 +91,29 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Статические ресурсы - Cache-first
-    if (isStaticAsset(url.pathname)) {
-        console.log('[SW] Static asset:', url.pathname);
+    // Неизменяемая статика (шрифты, иконки, картинки) - Cache-first (быстро, безопасно).
+    if (isImmutableAsset(url.pathname)) {
+        console.log('[SW] Immutable asset:', url.pathname);
         event.respondWith(cacheFirstStrategy(request, STATIC_CACHE));
         return;
     }
 
-    // HTML страницы - Network-first
-    console.log('[SW] Page request:', url.pathname);
+    // Код приложения (JS/CSS) и HTML-страницы - Network-first.
+    // Свежий билд приезжает сразу же; кэш используется только как офлайн-фолбэк.
+    console.log('[SW] App resource (network-first):', url.pathname);
     event.respondWith(networkFirstStrategy(request, STATIC_CACHE));
 });
 
 /**
- * Проверка, является ли ресурс статическим
+ * Неизменяемые ресурсы, которые безопасно отдавать из кэша (имя файла = содержимое).
+ * JS/CSS сюда НЕ входят — они должны обновляться сразу после деплоя.
  */
-function isStaticAsset(pathname) {
-    const staticExtensions = [
-        '.js', '.css', '.woff2', '.woff', '.ttf', '.eot',
-        '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico',
-        '.json'
+function isImmutableAsset(pathname) {
+    const immutableExtensions = [
+        '.woff2', '.woff', '.ttf', '.eot',
+        '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico'
     ];
-    return staticExtensions.some(ext => pathname.endsWith(ext));
+    return immutableExtensions.some(ext => pathname.endsWith(ext));
 }
 
 /**
