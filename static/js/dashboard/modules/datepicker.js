@@ -29,7 +29,10 @@ function initFlatpickr() {
         mode: 'range',
         dateFormat: 'd.m.Y',
         locale: 'ru',  // Русская локаль (подключена через l10n/ru.js)
-        maxDate: '2026-12-31',  // Разрешаем выбор будущих дат для просмотра планов
+        // Date-объект, НЕ строка: строку Flatpickr парсит конфигом dateFormat 'd.m.Y'
+        // и из '2026-12-31' читал день '20' + текущий месяц/год -> макс. упирался в 20-е
+        // число текущего месяца. Date-объект берётся как есть, будущие даты доступны.
+        maxDate: new Date(2027, 11, 31),  // 31.12.2027 — запас под просмотр планов вперёд
         defaultDate: defaultRange,  // Устанавливаем прошлую неделю по умолчанию
         onChange: function(selectedDates, dateStr, instance) {
             console.log('Flatpickr onChange:', selectedDates, dateStr);
