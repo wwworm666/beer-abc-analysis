@@ -791,7 +791,7 @@
                 mode: 'range',
                 dateFormat: 'd.m.Y',
                 locale: 'ru',
-                maxDate: '2026-12-31',
+                maxDate: new Date(2026, 11, 31),  // Date-объект: строку Flatpickr парсил форматом d.m.Y -> упор в 20-е число
                 defaultDate: [startOfYear, today]
             });
         }
@@ -809,7 +809,7 @@
                 mode: 'range',
                 dateFormat: 'd.m.Y',
                 locale: 'ru',
-                maxDate: '2026-12-31',
+                maxDate: new Date(2026, 11, 31),  // Date-объект: строку Flatpickr парсил форматом d.m.Y -> упор в 20-е число
                 defaultDate: [startOfYear, today],
                 onChange: function(selectedDates, dateStr, instance) {
                     console.log('[RFM DatePicker] Selected:', dateStr);

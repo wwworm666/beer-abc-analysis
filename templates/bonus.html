@@ -580,7 +580,7 @@
                 mode: 'range',
                 dateFormat: 'd.m.Y',
                 locale: 'ru',
-                maxDate: '2027-12-31',
+                maxDate: new Date(2027, 11, 31),  // Date-объект: строку Flatpickr парсил форматом d.m.Y -> упор в 20-е число
                 defaultDate: [firstDay, lastDay]
             });
 
