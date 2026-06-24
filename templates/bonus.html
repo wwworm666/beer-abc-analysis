@@ -518,6 +518,28 @@
             </div>
         </div>
 
+        <!-- Ставки за час по ролям (хранятся в roles, shifts.db). Часы оплаты
+             берутся из графика (fact_minutes); оплата = часы x ставка роли. -->
+        <div class="targets-section">
+            <button class="targets-toggle-btn" onclick="toggleRates()">Ставки за час по ролям</button>
+            <div class="targets-content" id="rates-content">
+                <div class="card">
+                    <div class="editor-section">
+                        <h4 class="section-title">Ставка за час по ролям</h4>
+                        <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">
+                            Часы берутся из графика смен (введённый факт). Оплата сотрудника = сумма по сменам: часы смены x ставка её роли.
+                        </p>
+                        <div id="rates-grid" style="display:flex;flex-direction:column;gap:12px;"></div>
+                        <div class="success-msg" id="rates-success">Ставки сохранены</div>
+                        <div class="error" id="rates-error"></div>
+                        <div class="targets-actions">
+                            <button class="btn" onclick="saveRates()">Сохранить ставки</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="error" id="error-message"></div>
 
         <div class="card loading" id="loading">
@@ -534,7 +556,7 @@
                 <strong>За передачу смены:</strong> <code>500 x смены</code><br>
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
                 <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
-                <strong>Ставка:</strong> <code>часы x 300</code>
+                <strong>Оплата часов:</strong> сумма по сменам — <code>часы из графика x ставка роли</code> (часы = факт из графика смен; ставки ролей настраиваются выше)
             </div>
 
             <!-- Summary -->
@@ -551,9 +573,9 @@
         let mergedEmployees = [];
         let bonusData = null;
         let kpiData = null;
+        let hoursData = null;   // часы по ролям из графика — источник часов оплаты
+        let rolesRates = [];    // ставки за час по ролям (для редактора и подписей)
         let targetsData = null;
-
-        const HOURLY_RATE = 300;
         const LOCATIONS = ['Кременчугская', 'Варшавская', 'Лиговский', 'Большой пр В.О.'];
         const LOC_SHORT = {'Кременчугская': 'Крем', 'Варшавская': 'Варш', 'Лиговский': 'Лиг', 'Большой пр В.О.': 'ВО'};
         const DEFAULT_KPI_KEYS = ['kpi1', 'kpi2', 'kpi3'];
@@ -585,6 +607,7 @@
             });
 
             loadTargets();
+            loadRoles();
         });
 
         // ===================== HELPERS =====================
@@ -658,20 +681,25 @@
             try {
                 const body = JSON.stringify({ date_from: dates.from, date_to: dates.to });
                 const headers = { 'Content-Type': 'application/json' };
+                const hoursUrl = `/api/schedule/hours-by-role?date_from=${dates.from}&date_to=${dates.to}`;
 
-                const [bonusRes, kpiRes] = await Promise.all([
+                const [bonusRes, kpiRes, hoursRes] = await Promise.all([
                     fetch('/api/bonus-calculate', { method: 'POST', headers, body }),
-                    fetch('/api/kpi-calculate', { method: 'POST', headers, body })
+                    fetch('/api/kpi-calculate', { method: 'POST', headers, body }),
+                    fetch(hoursUrl)
                 ]);
 
                 const bData = await bonusRes.json();
                 const kData = await kpiRes.json();
+                const hData = await hoursRes.json();
 
                 if (!bonusRes.ok) throw new Error(bData.error || 'Ошибка bonus API');
                 if (!kpiRes.ok) throw new Error(kData.error || 'Ошибка KPI API');
+                if (!hoursRes.ok) throw new Error(hData.error || 'Ошибка часов из графика');
 
                 bonusData = bData;
                 kpiData = kData;
+                hoursData = hData;
 
                 mergeAndRender();
             } catch (error) {
@@ -721,21 +749,41 @@
                 }
             });
 
+            // Привязать часы из графика (источник часов оплаты) по имени
+            const hoursEmps = (hoursData && hoursData.employees) || [];
+            const hoursUsed = new Set();
+            mergedEmployees.forEach(emp => {
+                for (let i = 0; i < hoursEmps.length; i++) {
+                    if (!hoursUsed.has(i) && namesMatch(emp.name, hoursEmps[i].employee_name)) {
+                        emp.hoursByRole = hoursEmps[i];
+                        hoursUsed.add(i);
+                        break;
+                    }
+                }
+            });
+            // Сотрудники из графика без данных iiko (bonus/kpi) — тоже в список
+            hoursEmps.forEach((he, i) => {
+                if (!hoursUsed.has(i)) {
+                    mergedEmployees.push({ name: he.employee_name, bonus: null, kpi: null, hoursByRole: he });
+                }
+            });
+
             // Calculate totals and sort
             mergedEmployees.forEach(emp => {
                 const b = emp.bonus;
                 const k = emp.kpi;
-                // Авто-часы из API (приоритет bonus, потом kpi)
-                emp.autoHours = b?.total_hours ?? k?.total_hours ?? 0;
-                emp.hours = emp.autoHours;
+                const h = emp.hoursByRole;
+                // Часы и оплата часов — ТОЛЬКО из графика (fact_minutes × ставка роли)
+                emp.hours = h ? h.total_hours : 0;
+                emp.hoursPay = h ? h.total_pay : 0;
+                emp.shiftsWithoutFact = h ? h.shifts_without_fact : 0;
                 // База без часов
                 const bonusPlan = b?.bonus || 0;
                 const handover = b?.shift_handover_bonus || 0;
                 const penalty = b?.penalty || 0;
                 const kpiPrem = k?.total_premium || 0;
                 emp.baseSalary = bonusPlan + handover - penalty + kpiPrem;
-                // Итого с часами
-                emp.totalSalary = emp.baseSalary + (emp.hours * HOURLY_RATE);
+                emp.totalSalary = emp.baseSalary + emp.hoursPay;
             });
 
             mergedEmployees.sort((a, b) => b.totalSalary - a.totalSalary);
@@ -750,7 +798,7 @@
             const totalHandover = mergedEmployees.reduce((s, e) => s + (e.bonus?.shift_handover_bonus || 0), 0);
             const totalPenalty = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.penalty : 0), 0);
             const totalKpi = mergedEmployees.reduce((s, e) => s + (e.kpi ? e.kpi.total_premium : 0), 0);
-            const totalHoursPay = mergedEmployees.reduce((s, e) => s + ((e.hours || 0) * HOURLY_RATE), 0);
+            const totalHoursPay = mergedEmployees.reduce((s, e) => s + (e.hoursPay || 0), 0);
             const totalSalary = mergedEmployees.reduce((s, e) => s + e.totalSalary, 0);
 
             document.getElementById('summary').innerHTML = `
@@ -825,11 +873,9 @@
                 html += `<div class="sal-label">KPI-премия</div>`;
                 html += `<div class="sal-value ${kpiPremium > 0 ? 'positive' : 'neutral'}">${kpiPremium > 0 ? formatMoney(kpiPremium) : '—'}</div>`;
 
-                // Hours row
-                const autoHours = emp.autoHours || 0;
-                const hoursLabel = autoHours > 0 ? `<span style="font-size:0.75rem;color:var(--text-tertiary);margin-right:6px;">${autoHours} ч (авт)</span>` : '';
-                html += `<div class="sal-label">Часы ${hoursLabel}</div>`;
-                html += `<div class="sal-value"><div class="hours-row"><input type="number" class="hours-input" id="hours-${i}" value="${autoHours > 0 ? autoHours : ''}" placeholder="0" min="0" max="999" step="1" oninput="onHoursChange(${i})"><span class="hours-mul">x ${HOURLY_RATE} ₽ = </span><span id="hourly-${i}">${autoHours > 0 ? formatMoney(autoHours * HOURLY_RATE) : '0 ₽'}</span></div></div>`;
+                // Hours rows — из графика, по ролям (часы × ставка роли). Read-only:
+                // часы правятся в графике смен, не здесь (график — источник истины).
+                html += renderHoursRows(emp);
 
                 // Divider + Total
                 html += `<div class="sal-divider"></div>`;
@@ -861,43 +907,33 @@
             document.getElementById('results').classList.add('active');
         }
 
-        // ===================== HOURS =====================
-        function onHoursChange(changedIndex = null) {
-            let totalSalary = 0;
-            let totalHoursPay = 0;
+        // ===================== HOURS (из графика, по ролям) =====================
+        // Часы — единственный источник: график смен (fact_minutes). По одной
+        // строке на роль: часы × ставка роли. Правка часов — в графике, не здесь.
+        function formatHours(minutes) {
+            const h = (minutes || 0) / 60;
+            return (Number.isInteger(h) ? String(h) : formatNum(h, 1)) + ' ч';
+        }
 
-            mergedEmployees.forEach((emp, i) => {
-                const input = document.getElementById(`hours-${i}`);
-                const hours = parseFloat(input ? input.value : 0) || 0;
-
-                // Обновляем часы сотрудника только если это поле было изменено
-                if (changedIndex === i || changedIndex === null) {
-                    emp.hours = hours;
-                }
-
-                // Пересчитываем общую ЗП сотрудника
-                const bonus = emp.bonus?.bonus || 0;
-                const penalty = emp.bonus?.penalty || 0;
-                const handoverBonus = emp.bonus?.shift_handover_bonus || 0;
-                const kpiPremium = emp.kpi ? emp.kpi.total_premium : 0;
-                const hourlyPay = emp.hours * HOURLY_RATE;
-                emp.totalSalary = bonus + handoverBonus + kpiPremium - penalty + hourlyPay;
-
-                document.getElementById(`hourly-${i}`).textContent = hourlyPay > 0 ? formatMoney(hourlyPay) : '0 ₽';
-                document.getElementById(`emp-total-${i}`).textContent = formatMoney(emp.totalSalary);
-                document.getElementById(`card-total-${i}`).textContent = formatMoney(emp.totalSalary);
-
-                totalSalary += emp.totalSalary;
-                totalHoursPay += hourlyPay;
-            });
-
-            // Обновляем итоговую сумму в summary
-            const summaryTotal = document.getElementById('summary-total');
-            if (summaryTotal) summaryTotal.textContent = formatMoney(totalSalary);
-
-            // Обновляем оплату часов в summary
-            const summaryHoursPay = document.getElementById('summary-hours-pay');
-            if (summaryHoursPay) summaryHoursPay.textContent = formatMoney(totalHoursPay);
+        function renderHoursRows(emp) {
+            const h = emp.hoursByRole;
+            const roles = (h && h.roles) ? h.roles.filter(r => r.minutes > 0) : [];
+            let out = '';
+            if (roles.length === 0) {
+                out += `<div class="sal-label">Оплата часов</div>`;
+                out += `<div class="sal-value neutral">${(h && h.shifts_without_fact > 0) ? 'смены без часов' : 'нет смен'}</div>`;
+            } else {
+                roles.forEach(r => {
+                    out += `<div class="sal-label">Часы — ${r.role_name} <span style="color:var(--text-tertiary);">${formatHours(r.minutes)} x ${formatNum(r.rate_per_hour, 0)}</span></div>`;
+                    out += `<div class="sal-value ${r.pay > 0 ? 'positive' : 'neutral'}">${r.pay > 0 ? formatMoney(r.pay) : '—'}</div>`;
+                });
+            }
+            // Предупреждение: смены без введённого факта (часы неполные)
+            if (h && h.shifts_without_fact > 0) {
+                out += `<div class="sal-label" style="color:var(--warning);" title="Введите факт часов в графике смен">Без часов в графике</div>`;
+                out += `<div class="sal-value" style="color:var(--warning);">${h.shifts_without_fact} смен</div>`;
+            }
+            return out;
         }
 
         // ===================== DETAIL TOGGLES =====================
@@ -1069,6 +1105,62 @@
 
             html += '</div>';
             document.getElementById(`detail-kpi-${index}`).innerHTML = html;
+        }
+
+        // ===================== RATES EDITOR (ставки за час по ролям) =====================
+        function toggleRates() {
+            document.getElementById('rates-content').classList.toggle('active');
+        }
+
+        async function loadRoles() {
+            try {
+                const resp = await fetch('/api/schedule/roles');
+                rolesRates = await resp.json();
+                renderRatesEditor();
+            } catch (e) {
+                console.error('Failed to load roles:', e);
+            }
+        }
+
+        function renderRatesEditor() {
+            const grid = document.getElementById('rates-grid');
+            if (!grid) return;
+            grid.innerHTML = rolesRates.map(r => `
+                <div class="form-group" style="display:grid;grid-template-columns:1fr 140px;gap:12px;align-items:center;">
+                    <label style="margin:0;">${r.name}</label>
+                    <input type="number" min="0" step="10" id="rate-${r.id}" value="${r.rate_per_hour != null ? r.rate_per_hour : 300}">
+                </div>`).join('');
+        }
+
+        async function saveRates() {
+            try {
+                for (const r of rolesRates) {
+                    const el = document.getElementById('rate-' + r.id);
+                    if (!el) continue;
+                    const rate = parseFloat(el.value);
+                    if (isNaN(rate) || rate < 0) continue;
+                    if (rate === r.rate_per_hour) continue;  // не изменилось — пропускаем
+                    const resp = await fetch(`/api/schedule/role/${r.id}/rate`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rate_per_hour: rate })
+                    });
+                    if (!resp.ok) {
+                        const d = await resp.json().catch(() => ({}));
+                        throw new Error(d.error || 'Ошибка сохранения ставки');
+                    }
+                    r.rate_per_hour = rate;
+                }
+                document.getElementById('rates-error').classList.remove('active');
+                const msg = document.getElementById('rates-success');
+                msg.classList.add('active');
+                setTimeout(() => msg.classList.remove('active'), 2000);
+            } catch (e) {
+                document.getElementById('rates-success').classList.remove('active');
+                const el = document.getElementById('rates-error');
+                el.textContent = 'Ошибка: ' + e.message;
+                el.classList.add('active');
+            }
         }
 
         // ===================== KPI TARGETS EDITOR =====================

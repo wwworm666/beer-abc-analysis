@@ -34,7 +34,7 @@
 
 ## Как работает
 
-### Схема БД (v4)
+### Схема БД (v5)
 
 SQLite `shifts.db`, WAL + busy_timeout (gunicorn 2 workers). Миграции **только
 additive** (`PRAGMA table_info` -> `ALTER TABLE ADD COLUMN`, `CREATE TABLE IF NOT
@@ -44,7 +44,8 @@ backup API в `shifts.db.backup_v{старая_версия}`. DROP таблиц
 
 - `locations` — 4 бара; `venue_key` — мост к планам
   (`varshavskaya`, `bolshoy`, `kremenchugskaya`, `ligovskiy`).
-- `roles` — бармен / второй бармен / стажёр; `color` используется в UI чипов.
+- `roles` — бармен / второй бармен / стажёр; `color` используется в UI чипов;
+  `rate_per_hour` (v5) — ставка за час для расчёта ЗП (DEFAULT 300).
 - `shifts` — смена: `date`, `employee_name` (имя как в iiko), `location_id`,
   `role_id`, `start_time`, `fact_minutes`.
 - `day_off_requests`, `wishes`, `daily_revenue` — как раньше.
@@ -159,6 +160,36 @@ weight-aware — повышенные планы пт/сб и праздничн
 `ts` пишется в локальном серверном времени (как `created_at`/`updated_at`),
 фронт показывает его как есть, без пересчёта таймзоны.
 
+### Оплата часов по ролям (источник часов для ЗП)
+
+С 2026-06-24 **график — единственный источник часов оплаты** (раньше страница ЗП
+брала часы из кассовых смен iiko). Причина: на смену могут выходить двое — один
+на полную (день, с 14:00), другой с вечера (18:00), и ставка за час у них разная;
+а смена может длиться дольше кассовой, поэтому iiko-часы для оплаты не подходят.
+
+Модель: **ставка — у роли** (`roles.rate_per_hour`), **часы — факт по каждой
+смене** (`shifts.fact_minutes`). Оплата сотрудника за период =
+`Σ по сменам: часы смены × ставку её роли`. Полная смена = роль «бармен»,
+вечерняя = «второй бармен» (другая ставка), стажёр — своя. До правки владельцем
+ставка у всех ролей = 300 (старая единая), поэтому миграция оплату не меняет.
+
+- **Расчёт** — `ShiftsManager.get_hours_by_role_for_period(date_from, date_to)`:
+  группирует смены периода по сотруднику и роли, суммирует `fact_minutes`
+  (NULL не суммируется), считает `pay = часы × rate_per_hour`. Возвращает разбивку
+  по ролям + `total_pay`, `total_hours`, `shifts_without_fact` (смены без факта —
+  чтобы на ЗП было видно пробелы). Детерминированно, тестируется
+  (`tests/test_salary_hours.py`).
+- **API** — `GET /api/schedule/hours-by-role?date_from=&date_to=` (даты
+  включительно) -> `{rates: роли со ставками, employees: [...]}`. Страница ЗП
+  (`templates/bonus.html`) вызывает его рядом с `bonus`/`kpi` и подмешивает часы
+  по имени сотрудника. Часы на ЗП **read-only** (правка — в графике, изменения
+  пишутся в журнал); ставки правятся там же блоком «Ставки за час по ролям»
+  (`PUT /api/schedule/role/<id>/rate`).
+- **Ставка не снапшотится в смену**: меняешь ставку роли — пересчитываются все
+  смены периода по новой ставке (ЗП считается помесячно, ставки меняются редко).
+- iiko-часы (`total_hours`) остаются метрикой Employee Dashboard (выручка/час),
+  но в оплату ЗП больше не входят. См. `docs/employee.md`, «Расчёт часов работы».
+
 ### API
 
 | Метод | Путь | Что делает |
@@ -166,7 +197,9 @@ weight-aware — повышенные планы пт/сб и праздничн
 | GET | `/api/schedule/employees[?all=1]` | реестр (+имена из истории смен) |
 | POST | `/api/schedule/employees/sync` | пополнить реестр из iiko |
 | PUT | `/api/schedule/employee/<name>` | short_label / active / sort_order |
-| GET | `/api/schedule/roles`, `/api/schedule/locations` | справочники |
+| GET | `/api/schedule/roles`, `/api/schedule/locations` | справочники (roles c rate_per_hour) |
+| PUT | `/api/schedule/role/<id>/rate` | ставка за час роли (для ЗП) |
+| GET | `/api/schedule/hours-by-role?date_from=&date_to=` | часы по ролям + оплата за период (страница ЗП) |
 | GET | `/api/schedule/<year>/<month>` | смены месяца |
 | POST/PUT/DELETE | `/api/schedule/shift[/<id>]` | CRUD смены (+`start_time` HH:MM) |
 | PUT | `/api/schedule/shift/<id>/fact` | факт минут (0..1440 или null) |
@@ -181,6 +214,19 @@ weight-aware — повышенные планы пт/сб и праздничн
 | GET/POST | `/api/meeting-notes[...]` | заметки совещаний (без изменений) |
 
 ## Changelog
+
+### 2026-06-24 — оплата часов по ролям из графика (схема v5)
+- `roles.rate_per_hour` (ставка за час, DEFAULT 300) + `set_role_rate` +
+  `get_hours_by_role_for_period` в `ShiftsManager`. Миграция v4 -> v5 additive.
+- **График — единственный источник часов оплаты** (iiko-часы для ЗП убраны):
+  оплата = Σ по сменам (`fact_minutes` × ставка роли). На смену могут выходить
+  двое (полная + вечер с 18:00) с разной ставкой — это и решает модель «ставка
+  у роли».
+- `GET /api/schedule/hours-by-role`, `PUT /api/schedule/role/<id>/rate`. Страница
+  ЗП (`bonus.html`): часы read-only по ролям из графика, убран хардкод
+  `HOURLY_RATE=300` и ручной ввод часов, добавлен блок «Ставки за час по ролям».
+- Тесты `tests/test_salary_hours.py` (5) + e2e-смоук — зелёные. Док: раздел
+  «Оплата часов по ролям», `docs/employee.md` (про источник часов).
 
 ### 2026-06-24 — журнал изменений графика (схема v4)
 - Таблица `schedule_audit` (append-only) + методы `log_audit` / `get_audit` /

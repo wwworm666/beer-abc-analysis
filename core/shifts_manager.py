@@ -29,7 +29,9 @@ class ShiftsManager:
     # CREATE TABLE IF NOT EXISTS) — DROP запрещён: в проде живые данные.
     # Перед миграцией файл БД копируется в shifts.db.backup_v{N}.
     # v4: таблица schedule_audit (журнал «кто что менял в графике»).
-    SCHEMA_VERSION = 4
+    # v5: roles.rate_per_hour — ставка за час по ролям (расчёт ЗП считает часы
+    #     из графика × ставку роли; iiko как источник часов оплаты больше не нужен).
+    SCHEMA_VERSION = 5
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -129,14 +131,16 @@ class ShiftsManager:
                     )
                 ''')
 
-                # Роли
+                # Роли. rate_per_hour — ставка за час (v5): расчёт ЗП берёт часы из
+                # графика (fact_minutes) и умножает на ставку роли смены.
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS roles (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL UNIQUE,
                         short_name TEXT,
                         color TEXT,
-                        sort_order INTEGER DEFAULT 0
+                        sort_order INTEGER DEFAULT 0,
+                        rate_per_hour REAL NOT NULL DEFAULT 300
                     )
                 ''')
 
@@ -237,6 +241,11 @@ class ShiftsManager:
                 self._ensure_columns(cursor, 'locations', {
                     'venue_key': 'TEXT',
                 })
+                # v5: ставка за час по ролям. DEFAULT 300 = текущая единая ставка,
+                # поэтому до правок владельцем оплата не меняется.
+                self._ensure_columns(cursor, 'roles', {
+                    'rate_per_hour': 'REAL NOT NULL DEFAULT 300',
+                })
 
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
@@ -318,12 +327,23 @@ class ShiftsManager:
     # ==================== ROLES ====================
 
     def get_roles(self) -> List[Dict]:
-        """Получить список ролей."""
+        """Получить список ролей (включая rate_per_hour — ставку за час)."""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('SELECT * FROM roles ORDER BY sort_order')
                 return [dict(row) for row in cursor.fetchall()]
+
+    def set_role_rate(self, role_id: int, rate_per_hour: float) -> bool:
+        """Установить ставку за час для роли (используется в расчёте ЗП)."""
+        rate = max(0.0, float(rate_per_hour))
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('UPDATE roles SET rate_per_hour = ? WHERE id = ?',
+                               (rate, role_id))
+                conn.commit()
+                return cursor.rowcount > 0
 
     # ==================== SHIFTS ====================
 
@@ -371,6 +391,63 @@ class ShiftsManager:
                 ''', (shift_id,))
                 row = cursor.fetchone()
                 return dict(row) if row else None
+
+    def get_hours_by_role_for_period(self, date_from: str, date_to: str) -> List[Dict]:
+        """Часы по ролям и оплата для каждого сотрудника за период (для расчёта ЗП).
+
+        Источник часов — fact_minutes из графика: это единственный верный источник
+        часов оплаты (iiko-часы для оплаты больше не используются). Смены без факта
+        (fact_minutes NULL) часов не дают, но попадают в shifts_without_fact, чтобы
+        на странице ЗП было видно пробелы. Оплата роли = часы × roles.rate_per_hour.
+        Даты включительно (date >= from AND date <= to).
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT s.employee_name,
+                           r.id AS role_id, r.name AS role_name, r.short_name AS role_short,
+                           COALESCE(r.rate_per_hour, 0) AS rate_per_hour,
+                           r.sort_order AS sort_order,
+                           COALESCE(SUM(s.fact_minutes), 0) AS minutes,
+                           SUM(CASE WHEN s.fact_minutes IS NOT NULL THEN 1 ELSE 0 END) AS shifts_with_fact,
+                           SUM(CASE WHEN s.fact_minutes IS NULL THEN 1 ELSE 0 END) AS shifts_without_fact
+                    FROM shifts s
+                    JOIN roles r ON s.role_id = r.id
+                    WHERE s.date >= ? AND s.date <= ?
+                    GROUP BY s.employee_name, r.id
+                    ORDER BY s.employee_name, r.sort_order
+                ''', (date_from, date_to))
+                rows = [dict(row) for row in cursor.fetchall()]
+
+        by_emp = {}
+        for row in rows:
+            emp = by_emp.setdefault(row['employee_name'], {
+                'employee_name': row['employee_name'],
+                'roles': [], 'total_minutes': 0, 'total_pay': 0.0,
+                'shifts_with_fact': 0, 'shifts_without_fact': 0,
+            })
+            minutes = row['minutes'] or 0
+            rate = row['rate_per_hour'] or 0
+            pay = minutes / 60.0 * rate
+            emp['roles'].append({
+                'role_id': row['role_id'], 'role_name': row['role_name'],
+                'role_short': row['role_short'], 'rate_per_hour': rate,
+                'minutes': minutes, 'hours': round(minutes / 60.0, 2),
+                'pay': round(pay, 2),
+            })
+            emp['total_minutes'] += minutes
+            emp['total_pay'] += pay
+            emp['shifts_with_fact'] += row['shifts_with_fact']
+            emp['shifts_without_fact'] += row['shifts_without_fact']
+
+        result = []
+        for emp in by_emp.values():
+            emp['total_hours'] = round(emp['total_minutes'] / 60.0, 2)
+            emp['total_pay'] = round(emp['total_pay'], 2)
+            result.append(emp)
+        result.sort(key=lambda e: -e['total_pay'])
+        return result
 
     def create_shift(self, date_str: str, employee_name: str, location_id: int,
                      role_id: int, notes: str = None, start_time: str = None) -> int:

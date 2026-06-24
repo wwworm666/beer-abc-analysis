@@ -103,8 +103,40 @@ def schedule_update_employee(name):
 
 @schedule_bp.route('/api/schedule/roles', methods=['GET'])
 def schedule_get_roles():
-    """Список ролей."""
+    """Список ролей (включая rate_per_hour — ставку за час для расчёта ЗП)."""
     return jsonify(shifts_mgr.get_roles())
+
+
+@schedule_bp.route('/api/schedule/role/<int:role_id>/rate', methods=['PUT'])
+def schedule_set_role_rate(role_id):
+    """Ставка за час для роли (расчёт ЗП). Body: {"rate_per_hour": число >= 0}."""
+    data = request.get_json() or {}
+    try:
+        rate = float(data.get('rate_per_hour'))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'rate_per_hour должен быть числом'}), 400
+    if rate < 0:
+        return jsonify({'error': 'rate_per_hour не может быть отрицательным'}), 400
+    if not shifts_mgr.set_role_rate(role_id, rate):
+        return jsonify({'error': 'Роль не найдена'}), 404
+    return jsonify({'ok': True})
+
+
+@schedule_bp.route('/api/schedule/hours-by-role', methods=['GET'])
+def schedule_hours_by_role():
+    """Часы по ролям и оплата за период (для страницы ЗП).
+
+    Часы — из графика (fact_minutes), единственный источник часов оплаты;
+    оплата = часы × ставка роли. Query: date_from, date_to (включительно).
+    """
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    if not date_from or not date_to:
+        return jsonify({'error': 'date_from и date_to обязательны'}), 400
+    return jsonify({
+        'rates': shifts_mgr.get_roles(),
+        'employees': shifts_mgr.get_hours_by_role_for_period(date_from, date_to),
+    })
 
 
 @schedule_bp.route('/api/schedule/locations', methods=['GET'])

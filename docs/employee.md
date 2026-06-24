@@ -321,30 +321,21 @@ if shift_hours < 0 or shift_hours > 24:
     shift_hours = 0.0  # защита от отрицательных или слишком больших значений
 ```
 
-#### Передача в frontend
+#### Использование часов
 
-Часы передаются в API ответов и показываются в UI по умолчанию:
+iiko-часы (`close - open`) остаются метрикой **Employee Dashboard** (выручка/час,
+`work_hours`, `revenue_per_hour`) и по-прежнему возвращаются в ответах
+`bonus`/`kpi`.
 
-```python
-# routes/employee.py:528-540 (bonus API)
-results.append({
-    ...
-    'total_hours': round(total_hours, 1),  # из кассовых смен
-})
-
-# routes/employee.py:701-703 (kpi API)
-kpi_result['total_hours'] = round(total_hours, 1)
-```
-
-```javascript
-// templates/bonus.html:633-642
-mergedEmployees.forEach(emp => {
-    emp.autoHours = emp.bonus?.total_hours ?? emp.kpi?.total_hours ?? 0;
-    emp.hours = emp.autoHours;  // по умолчанию авто, но можно изменить
-});
-```
-
-**Важно:** Пользователь может вручную изменить значение часов — оно пересчитает итоговую ЗП.
+**Важно (с 2026-06-24): для расчёта ЗП iiko-часы больше НЕ используются.**
+Единственный источник часов оплаты — **график смен** (`shifts.fact_minutes`),
+а ставка берётся у роли смены (`roles.rate_per_hour`). Причина: смена может
+длиться дольше кассовой, и владелец считает верными именно введённые в графике
+часы. Страница ЗП тянет разбивку через `GET /api/schedule/hours-by-role` и
+считает оплату = сумма по сменам (`часы × ставка роли`). Правка часов — в
+графике (страница ЗП показывает часы read-only). Ставки ролей правятся на
+странице ЗП («Ставки за час по ролям»). Подробно — `docs/schedule.md`, раздел
+«Оплата часов по ролям».
 
 ---
 
