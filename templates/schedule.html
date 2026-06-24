@@ -13,6 +13,32 @@
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
     <link rel="stylesheet" href="/static/schedule/schedule.css?v={{ app_version }}">
+    <style>
+        /* Компактная лента «Последние изменения» — кто что менял в графике */
+        .feed { max-width: 760px; margin: 20px auto 8px; }
+        .feed-card { background: var(--surface, #fff);
+            border: 1px solid var(--border-color, #e7e9ee); border-radius: 14px;
+            padding: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); overflow: hidden; }
+        .feed-head { padding: 10px 14px 8px; }
+        .feed-head h3 { margin: 0; font-size: 12px; font-weight: 600;
+            letter-spacing: .04em; text-transform: uppercase;
+            color: var(--text-tertiary, #9aa0a6); }
+        .feed-list { display: flex; flex-direction: column; }
+        .feed-row { display: flex; align-items: baseline; gap: 10px;
+            padding: 9px 14px; border-radius: 10px; }
+        .feed-row + .feed-row { border-top: 1px solid var(--border-color, #f0f1f4); }
+        .feed-row:hover { background: var(--bg, #f7f8fa); }
+        .feed-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%;
+            align-self: center; }
+        .feed-main { flex: 1 1 auto; min-width: 0; font-size: 13px; line-height: 1.4; }
+        .feed-who { font-weight: 600; }
+        .feed-sep { color: var(--text-tertiary, #c4c8cf); margin: 0 5px; }
+        .feed-what { color: var(--text-secondary, #5f6368); }
+        .feed-when { flex: 0 0 auto; font-size: 12px; white-space: nowrap;
+            color: var(--text-tertiary, #9aa0a6); font-variant-numeric: tabular-nums; }
+        .feed-empty { padding: 16px 14px; font-size: 13px;
+            color: var(--text-tertiary, #9aa0a6); }
+    </style>
 </head>
 <body class="schedule-page">
     <div class="container">
@@ -32,6 +58,15 @@
     <main class="main-content">
         <div class="schedule-container">
             <div class="schedule-grid" id="scheduleGrid"></div>
+        </div>
+
+        <!-- Лента последних изменений графика (кто что менял). За выбранный
+             месяц, новые сверху, компактно. -->
+        <div class="feed">
+            <div class="feed-card">
+                <div class="feed-head"><h3>Последние изменения</h3></div>
+                <div class="feed-list" id="feedList"></div>
+            </div>
         </div>
 
         <div class="loading" id="loading" style="display: none;">

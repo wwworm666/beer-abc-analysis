@@ -13,6 +13,20 @@
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
     <link rel="stylesheet" href="/static/schedule/schedule.css?v={{ app_version }}">
+    <style>
+        /* Журнал изменений графика — локальные стили панели «История изменений» */
+        .audit-list { display: flex; flex-direction: column;
+            max-height: 360px; overflow-y: auto; }
+        .audit-row { display: flex; gap: 10px; align-items: baseline;
+            padding: 6px 4px; border-bottom: 1px solid var(--border-color, #eceef1);
+            font-size: 13px; }
+        .audit-row:last-child { border-bottom: none; }
+        .audit-when { color: var(--text-tertiary, #9aa0a6); white-space: nowrap;
+            font-variant-numeric: tabular-nums; min-width: 84px; }
+        .audit-who { font-weight: 600; white-space: nowrap; }
+        .audit-what { color: var(--text-secondary, #5f6368); }
+        .audit-empty { color: var(--text-tertiary, #9aa0a6); padding: 10px 4px; }
+    </style>
 </head>
 <body class="schedule-page">
     <div class="container">
@@ -109,6 +123,18 @@
                     </thead>
                     <tbody></tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Журнал: кто что менял в графике (смены, факт часов, выходные).
+             Автор берётся из сессии в момент изменения. За выбранный месяц,
+             новые сверху. -->
+        <div class="section-card">
+            <h2 style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="cursor: pointer;" id="auditToggle">История изменений (показать/скрыть)</span>
+            </h2>
+            <div id="auditBody" style="display: none;">
+                <div class="audit-list" id="auditList"></div>
             </div>
         </div>
 

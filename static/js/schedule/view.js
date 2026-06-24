@@ -37,6 +37,7 @@
         S.updateMonthDisplay(document.getElementById('currentMonth'));
         return S.loadMonthData()
             .then(render)
+            .then(loadFeed)
             .catch(function (err) {
                 console.error(err);
                 S.showToast('Ошибка загрузки месяца', true);
@@ -108,5 +109,44 @@
         }).catch(function (err) {
             S.showToast('Ошибка: ' + err.message, true);
         });
+    }
+
+    // ==================== Лента последних изменений ====================
+    // Кто что менял в графике за выбранный месяц (смены, факт часов, выходные).
+    // Компактно, новые сверху, цветная точка по типу действия.
+
+    var FEED_DOT = {
+        shift_create: '#2e9e5b', shift_update: '#d97706', shift_delete: '#dc2626',
+        fact_set: '#2563eb', fact_clear: '#9aa0a6',
+        dayoff_create: '#7c3aed', dayoff_delete: '#7c3aed'
+    };
+
+    function loadFeed() {
+        return S.api('/api/schedule/audit/' + S.state.year + '/' + S.state.month + '?limit=8')
+            .then(renderFeed)
+            .catch(function () {
+                var el = document.getElementById('feedList');
+                if (el) el.innerHTML = '<div class="feed-empty">Не удалось загрузить</div>';
+            });
+    }
+
+    function renderFeed(rows) {
+        var list = document.getElementById('feedList');
+        if (!list) return;
+        if (!rows || !rows.length) {
+            list.innerHTML = '<div class="feed-empty">Изменений за этот месяц пока нет</div>';
+            return;
+        }
+        list.innerHTML = rows.map(function (r) {
+            var color = FEED_DOT[r.action] || 'var(--accent, #d97706)';
+            return '<div class="feed-row">'
+                + '<span class="feed-dot" style="background:' + color + '"></span>'
+                + '<span class="feed-main"><span class="feed-who">'
+                + S.escapeHtml(r.actor_name || '—') + '</span>'
+                + '<span class="feed-sep">·</span>'
+                + '<span class="feed-what">' + S.escapeHtml(r.summary) + '</span></span>'
+                + '<span class="feed-when">' + S.escapeHtml(S.formatAuditTs(r.ts)) + '</span>'
+                + '</div>';
+        }).join('');
     }
 })();

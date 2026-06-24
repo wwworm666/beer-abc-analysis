@@ -2,6 +2,7 @@ import re
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 from extensions import shifts_mgr, notes_manager
+from core.auth_guard import current_user
 from core.iiko_api import IikoAPI
 from core.daily_plans_generator import DailyPlansGenerator
 from core.schedule_plans import (
@@ -25,6 +26,44 @@ def _validate_start_time(value):
     if isinstance(value, str) and START_TIME_RE.match(value):
         return True, value
     return False, None
+
+
+# ==================== Журнал изменений графика ====================
+# Кто что менял в графике. Автор — текущий пользователь сессии (current_user,
+# появился вместе с авторизацией). Журналирование — «лучшая попытка»: его сбой
+# не должен валить саму операцию со сменой, поэтому _audit() глотает исключения.
+
+def _fmt_dm(date_str):
+    """ISO 'YYYY-MM-DD' -> 'DD.MM' для строки журнала."""
+    try:
+        return datetime.strptime(str(date_str)[:10], '%Y-%m-%d').strftime('%d.%m')
+    except (ValueError, TypeError):
+        return date_str or ''
+
+
+def _fmt_hhmm(minutes):
+    """Минуты -> 'Ч:ММ' для строки журнала."""
+    try:
+        m = int(minutes)
+    except (TypeError, ValueError):
+        return '?'
+    return f"{m // 60}:{m % 60:02d}"
+
+
+def _audit(action, summary, entity_date=None, employee_name=None):
+    """Записать действие текущего пользователя в журнал графика (best-effort)."""
+    try:
+        u = current_user() or {}
+        shifts_mgr.log_audit(
+            action=action,
+            summary=summary,
+            actor_login=u.get('login'),
+            actor_name=u.get('display_name') or u.get('login') or 'неизвестно',
+            entity_date=entity_date,
+            employee_name=employee_name,
+        )
+    except Exception as e:
+        print(f"[SCHEDULE AUDIT WARNING] журнал не записан ({action}): {e}")
 
 
 @schedule_bp.route('/api/schedule/employees', methods=['GET'])
@@ -95,6 +134,13 @@ def schedule_create_shift():
         notes=data.get('notes'),
         start_time=start_time,
     )
+    sh = shifts_mgr.get_shift(shift_id)
+    if sh:
+        time_part = f", с {sh['start_time']}" if sh.get('start_time') else ""
+        _audit('shift_create',
+               f"Добавлена смена: {sh['employee_name']} — {sh['role_name']}{time_part}"
+               f" в {sh['location_short']}, {_fmt_dm(sh['date'])}",
+               entity_date=sh['date'], employee_name=sh['employee_name'])
     return jsonify({'id': shift_id})
 
 
@@ -107,7 +153,21 @@ def schedule_update_shift(shift_id):
         if not ok:
             return jsonify({'error': 'start_time должен быть в формате HH:MM'}), 400
         data['start_time'] = start_time
+    before = shifts_mgr.get_shift(shift_id)
     shifts_mgr.update_shift(shift_id, **data)
+    after = shifts_mgr.get_shift(shift_id)
+    if after:
+        parts = []
+        if before:
+            if before.get('role_name') != after.get('role_name'):
+                parts.append(f"роль {before['role_name']} -> {after['role_name']}")
+            if (before.get('start_time') or None) != (after.get('start_time') or None):
+                parts.append(f"время {before.get('start_time') or 'день'}"
+                             f" -> {after.get('start_time') or 'день'}")
+        detail = '; '.join(parts) if parts else 'без изменений'
+        _audit('shift_update',
+               f"Изменена смена: {after['employee_name']}, {_fmt_dm(after['date'])} ({detail})",
+               entity_date=after['date'], employee_name=after['employee_name'])
     return jsonify({'ok': True})
 
 
@@ -129,13 +189,30 @@ def schedule_set_shift_fact(shift_id):
     updated = shifts_mgr.set_shift_fact(shift_id, fact)
     if not updated:
         return jsonify({'error': 'Смена не найдена'}), 404
+    sh = shifts_mgr.get_shift(shift_id)
+    if sh:
+        if fact is None:
+            _audit('fact_clear',
+                   f"Очищен факт часов: {sh['employee_name']}, {_fmt_dm(sh['date'])}",
+                   entity_date=sh['date'], employee_name=sh['employee_name'])
+        else:
+            _audit('fact_set',
+                   f"Проставлен факт часов: {sh['employee_name']} — {_fmt_hhmm(fact)}"
+                   f" за {_fmt_dm(sh['date'])}",
+                   entity_date=sh['date'], employee_name=sh['employee_name'])
     return jsonify({'ok': True})
 
 
 @schedule_bp.route('/api/schedule/shift/<int:shift_id>', methods=['DELETE'])
 def schedule_delete_shift(shift_id):
     """Удалить смену."""
+    sh = shifts_mgr.get_shift(shift_id)  # снимок до удаления — для журнала
     shifts_mgr.delete_shift(shift_id)
+    if sh:
+        _audit('shift_delete',
+               f"Удалена смена: {sh['employee_name']} — {sh['role_name']}"
+               f" в {sh['location_short']}, {_fmt_dm(sh['date'])}",
+               entity_date=sh['date'], employee_name=sh['employee_name'])
     return jsonify({'ok': True})
 
 
@@ -162,14 +239,32 @@ def schedule_create_dayoff():
         date_to=data['date_to'],
         reason=data.get('reason')
     )
+    _audit('dayoff_create',
+           f"Добавлено пожелание выходного: {data['employee_name']},"
+           f" {_fmt_dm(data['date_from'])}-{_fmt_dm(data['date_to'])}",
+           entity_date=data['date_from'], employee_name=data['employee_name'])
     return jsonify({'id': req_id})
 
 
 @schedule_bp.route('/api/schedule/dayoff/<int:request_id>', methods=['DELETE'])
 def schedule_delete_dayoff(request_id):
     """Удалить пожелание выходного."""
+    req = shifts_mgr.get_day_off_request(request_id)  # снимок до удаления
     shifts_mgr.delete_day_off_request(request_id)
+    if req:
+        _audit('dayoff_delete',
+               f"Удалено пожелание выходного: {req['employee_name']},"
+               f" {_fmt_dm(req['date_from'])}-{_fmt_dm(req['date_to'])}",
+               entity_date=req['date_from'], employee_name=req['employee_name'])
     return jsonify({'ok': True})
+
+
+@schedule_bp.route('/api/schedule/audit/<int:year>/<int:month>', methods=['GET'])
+def schedule_get_audit(year, month):
+    """Журнал изменений графика за месяц (новые сверху). Кто что менял —
+    автор берётся из сессии в момент изменения."""
+    limit = request.args.get('limit', 200, type=int)
+    return jsonify(shifts_mgr.get_audit(year, month, limit=limit))
 
 
 def _fetch_month_fact_olap(year, month):

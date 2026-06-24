@@ -41,6 +41,12 @@
             var body = document.getElementById('empAdminBody');
             body.style.display = body.style.display === 'none' ? '' : 'none';
         });
+        document.getElementById('auditToggle').addEventListener('click', function () {
+            var body = document.getElementById('auditBody');
+            var opening = body.style.display === 'none';
+            body.style.display = opening ? '' : 'none';
+            if (opening) loadAudit();
+        });
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
@@ -83,6 +89,8 @@
         ]).then(function () {
             renderAll();
             return loadSummary();
+        }).then(function () {
+            return loadAudit();
         }).catch(function (err) {
             console.error(err);
             S.showToast('Ошибка загрузки месяца', true);
@@ -539,6 +547,37 @@
                 if (selectedEmployee === empName) updateHint();
             }).catch(function () { S.showToast('Пожелание не сохранилось', true); });
         }, 500);
+    }
+
+    // ==================== Журнал изменений ====================
+    // Кто что менял в графике (смены, факт часов, выходные) за выбранный месяц.
+    // Грузим только когда панель раскрыта, и обновляем на каждом reload (после
+    // любого изменения и при смене месяца).
+
+    function loadAudit() {
+        var body = document.getElementById('auditBody');
+        if (!body || body.style.display === 'none') return; // панель скрыта — не дёргаем API
+        return S.api('/api/schedule/audit/' + S.state.year + '/' + S.state.month + '?limit=200')
+            .then(renderAudit)
+            .catch(function () {
+                document.getElementById('auditList').innerHTML =
+                    '<div class="audit-empty">Не удалось загрузить историю</div>';
+            });
+    }
+
+    function renderAudit(rows) {
+        var list = document.getElementById('auditList');
+        if (!rows || !rows.length) {
+            list.innerHTML = '<div class="audit-empty">Изменений за этот месяц пока нет</div>';
+            return;
+        }
+        list.innerHTML = rows.map(function (r) {
+            return '<div class="audit-row">'
+                + '<span class="audit-when">' + S.escapeHtml(S.formatAuditTs(r.ts)) + '</span>'
+                + '<span class="audit-who">' + S.escapeHtml(r.actor_name || '—') + '</span>'
+                + '<span class="audit-what">' + S.escapeHtml(r.summary) + '</span>'
+                + '</div>';
+        }).join('');
     }
 
     // ==================== Реестр сотрудников ====================

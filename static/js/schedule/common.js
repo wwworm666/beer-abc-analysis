@@ -105,6 +105,14 @@
         return name.split(/\s+/).slice(0, 2).join(' ');
     }
 
+    /* Журнал: 'YYYY-MM-DDTHH:MM:SS' -> 'DD.MM HH:MM'. Серверное время как есть,
+       без пересчёта таймзоны (ts уже записан в серверном времени). */
+    function formatAuditTs(ts) {
+        if (!ts) return '';
+        var m = String(ts).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+        return m ? (m[3] + '.' + m[2] + ' ' + m[4] + ':' + m[5]) : ts;
+    }
+
     // ==================== Загрузка данных месяца ====================
 
     function loadDictionaries() {
@@ -316,6 +324,7 @@
         parseHoursInput: parseHoursInput,
         employeeLabel: employeeLabel,
         employeeShortName: employeeShortName,
+        formatAuditTs: formatAuditTs,
         escapeHtml: escapeHtml,
         loadDictionaries: loadDictionaries,
         loadMonthData: loadMonthData,

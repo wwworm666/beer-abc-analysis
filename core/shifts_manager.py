@@ -28,7 +28,8 @@ class ShiftsManager:
     # Версия схемы. Миграции ТОЛЬКО additive (ALTER TABLE ADD COLUMN /
     # CREATE TABLE IF NOT EXISTS) — DROP запрещён: в проде живые данные.
     # Перед миграцией файл БД копируется в shifts.db.backup_v{N}.
-    SCHEMA_VERSION = 3
+    # v4: таблица schedule_audit (журнал «кто что менял в графике»).
+    SCHEMA_VERSION = 4
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -209,6 +210,25 @@ class ShiftsManager:
                     )
                 ''')
 
+                # Журнал изменений графика (v4): append-only «кто что менял».
+                # actor_name — снимок display_name автора (журнал читается, даже
+                # если аккаунт потом переименуют/удалят). entity_date — дата, к
+                # которой относится изменение (для фильтра истории по месяцу).
+                # summary — готовая русская строка для показа. Журнал ничего не
+                # удаляет и не редактирует — только добавляет записи.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS schedule_audit (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ts TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        actor_login TEXT,
+                        actor_name TEXT,
+                        action TEXT NOT NULL,
+                        entity_date TEXT,
+                        employee_name TEXT,
+                        summary TEXT NOT NULL
+                    )
+                ''')
+
                 # Additive-миграции для БД, созданных прошлыми версиями схемы
                 self._ensure_columns(cursor, 'shifts', {
                     'start_time': 'TEXT',
@@ -225,6 +245,8 @@ class ShiftsManager:
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_dayoff_employee ON day_off_requests(employee_name)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_dayoff_dates ON day_off_requests(date_from, date_to)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_revenue_date ON daily_revenue(date)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_entity_date ON schedule_audit(entity_date)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_id ON schedule_audit(id)')
 
                 cursor.execute(f"PRAGMA user_version = {self.SCHEMA_VERSION}")
                 conn.commit()
@@ -330,6 +352,26 @@ class ShiftsManager:
                 ''', (first_day.isoformat(), last_day.isoformat()))
                 return [dict(row) for row in cursor.fetchall()]
 
+    def get_shift(self, shift_id: int) -> Optional[Dict]:
+        """Одна смена с именами точки и роли (для журнала: читаемое описание
+        изменения и снимок состояния перед удалением)."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT
+                        s.id, s.date, s.employee_name, s.notes,
+                        s.start_time, s.fact_minutes,
+                        l.id as location_id, l.name as location_name, l.short_name as location_short,
+                        r.id as role_id, r.name as role_name, r.short_name as role_short
+                    FROM shifts s
+                    JOIN locations l ON s.location_id = l.id
+                    JOIN roles r ON s.role_id = r.id
+                    WHERE s.id = ?
+                ''', (shift_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+
     def create_shift(self, date_str: str, employee_name: str, location_id: int,
                      role_id: int, notes: str = None, start_time: str = None) -> int:
         """Создать смену. start_time 'HH:MM' — плановое начало (NULL = стандарт)."""
@@ -413,6 +455,15 @@ class ShiftsManager:
                 query += ' ORDER BY date_from'
                 cursor.execute(query, params)
                 return [dict(row) for row in cursor.fetchall()]
+
+    def get_day_off_request(self, request_id: int) -> Optional[Dict]:
+        """Одна заявка на выходной по id (для журнала перед удалением)."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM day_off_requests WHERE id = ?', (request_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
 
     def create_day_off_request(self, employee_name: str, date_from: str,
                                 date_to: str, reason: str = None) -> int:
@@ -626,6 +677,64 @@ class ShiftsManager:
                     )
                 conn.commit()
                 return True
+
+    # ==================== AUDIT (журнал изменений графика) ====================
+
+    def log_audit(self, action: str, summary: str, actor_login: str = None,
+                  actor_name: str = None, entity_date: str = None,
+                  employee_name: str = None) -> int:
+        """Записать действие в журнал изменений графика (append-only).
+
+        action — машинный код (shift_create / shift_update / shift_delete /
+        fact_set / fact_clear / dayoff_create / dayoff_delete). summary — готовая
+        русская строка для показа. actor_name — снимок display_name автора
+        (журнал читается, даже если аккаунт потом переименуют/удалят).
+        entity_date — дата, к которой относится изменение (фильтр истории по
+        месяцу). ts — локальное серверное время, как created_at/updated_at в
+        остальных таблицах (не UTC-дефолт SQLite).
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO schedule_audit
+                        (ts, actor_login, actor_name, action, entity_date, employee_name, summary)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (datetime.now().isoformat(), actor_login, actor_name, action,
+                      entity_date, employee_name, summary))
+                conn.commit()
+                return cursor.lastrowid
+
+    def get_audit(self, year: int = None, month: int = None,
+                  limit: int = 200) -> List[Dict]:
+        """Журнал изменений, новые сверху. Если задан год+месяц — только записи
+        того месяца (по entity_date); иначе последние `limit` записей.
+
+        Порядок по id DESC (монотонен вставке) — стабилен при равных ts.
+        """
+        limit = max(1, min(int(limit), 1000))
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                if year and month:
+                    prefix = f"{year}-{int(month):02d}-%"
+                    cursor.execute('''
+                        SELECT id, ts, actor_login, actor_name, action,
+                               entity_date, employee_name, summary
+                        FROM schedule_audit
+                        WHERE entity_date LIKE ?
+                        ORDER BY id DESC
+                        LIMIT ?
+                    ''', (prefix, limit))
+                else:
+                    cursor.execute('''
+                        SELECT id, ts, actor_login, actor_name, action,
+                               entity_date, employee_name, summary
+                        FROM schedule_audit
+                        ORDER BY id DESC
+                        LIMIT ?
+                    ''', (limit,))
+                return [dict(row) for row in cursor.fetchall()]
 
 
 # Singleton instance
