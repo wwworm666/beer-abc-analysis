@@ -1,10 +1,12 @@
 /* Стили страниц графика смен: /schedule (просмотр) и /schedule/edit (редактор).
    Цветовая дисциплина: цвет ячейки кодирует СТАТУС (дыра/конфликт/сегодня),
-   роль кодируется цветом бейджа из roles.color (БД), не хардкодом. */
+   роль — цветом левой полоски чипа (roles.color из БД), не заливкой и не хардкодом.
+   Радиусы и тени берём из дизайн-системы (variables.css), чтобы страница не
+   выбивалась из остального приложения. */
 
 .schedule-page {
-    --sch-radius: 12px;
-    --sch-radius-sm: 8px;
+    --sch-radius: var(--border-radius-sm);   /* 16px — контейнеры, карточки, модалка */
+    --sch-radius-sm: 10px;                    /* мелкие элементы: чипы, инпуты */
 }
 
 /* ==================== Month nav ==================== */
@@ -13,7 +15,7 @@
     align-items: center;
     gap: 16px;
     background: var(--bg-secondary);
-    padding: 12px 24px;
+    padding: 10px 24px;
     border-bottom: 1px solid var(--border-color);
     flex-wrap: wrap;
 }
@@ -59,6 +61,39 @@
     border-color: var(--accent);
 }
 
+/* ==================== Sticky-панель управления ==================== */
+/* Месяц-нав + кисть + предупреждения едут вместе и остаются под рукой при
+   прокрутке длинной сетки. Фон у вложенных полос непрозрачный, поэтому контент
+   корректно уезжает под панель. Ниже модалки (z 1000) и тоста (z 2000). */
+.sched-controls {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+/* ==================== Двухколоночная раскладка ==================== */
+/* Широкий экран: сетка слева, справочный рейл (нагрузка + сводка) справа —
+   чтобы read-only блоки не растягивали вертикальный скролл. Узкий экран: одна
+   колонка, рейл уезжает под сетку (та же стопка, что и раньше). */
+.sched-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 24px;
+    align-items: start;
+}
+
+.sched-main { min-width: 0; }
+
+.sched-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+@media (max-width: 1180px) {
+    .sched-layout { grid-template-columns: 1fr; }
+}
+
 /* ==================== Grid ==================== */
 .schedule-container {
     background: var(--bg-secondary);
@@ -93,6 +128,16 @@
 }
 
 .schedule-cell:last-child { border-right: none; }
+
+/* Ячейка точки: смены как компактные карточки, прижаты к верху, с зазором между
+   собой. Пустое место под одиночной сменой — нейтральный фон ячейки (статус),
+   а не растянутый цветной блок. */
+.schedule-cell.shift-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+}
 
 .schedule-cell.date-cell {
     background: var(--bg-tertiary);
@@ -141,36 +186,39 @@
 }
 
 /* ==================== Shift chips ==================== */
+/* Чип смены — спокойная карточка на нейтральном фоне; роль читается тонкой
+   цветной полоской слева (--role-color из JS), а не заливкой всей ячейки. */
 .shift-chip {
     display: flex;
-    align-items: center;
-    justify-content: center;
     flex-direction: column;
-    gap: 1px;
-    padding: 5px 6px;
-    min-height: 44px;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 10px;
+    min-height: 38px;
+    border-radius: var(--sch-radius-sm);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-light);
+    border-left: 3px solid var(--role-color, var(--accent));
+    color: var(--text-primary);
     font-size: 0.8rem;
-    color: white;
     cursor: pointer;
-    text-align: center;
-    transition: opacity 150ms;
+    text-align: left;
+    transition: background 150ms ease, box-shadow 150ms ease;
 }
 
-.shift-chip:hover { opacity: 0.85; }
+.shift-chip:hover { background: var(--bg-tertiary); box-shadow: var(--shadow-sm); }
 
-.shift-chip + .shift-chip { border-top: 1px solid rgba(255, 255, 255, 0.35); }
-
-.shift-chip .chip-name { font-weight: 500; line-height: 1.2; }
+.shift-chip .chip-name { font-weight: 600; line-height: 1.2; }
 
 .shift-chip .chip-badges {
     display: flex;
-    gap: 6px;
-    font-size: 0.66rem;
-    opacity: 0.92;
+    gap: 8px;
+    font-size: 0.68rem;
+    color: var(--text-secondary);
 }
 
 .shift-chip .chip-time { white-space: nowrap; }
-.shift-chip .chip-fact { white-space: nowrap; font-weight: 600; }
+.shift-chip .chip-fact { white-space: nowrap; font-weight: 600; color: var(--text-primary); }
 
 /* Конфликт: смена в день, на который сотрудник просил выходной */
 .shift-chip.conflict {
@@ -204,11 +252,11 @@
 /* ==================== Paint mode (только /schedule/edit) ==================== */
 .paint-toolbar {
     background: var(--bg-secondary);
-    padding: 12px 24px;
+    padding: 10px 24px;
     border-bottom: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
 }
 
 .paint-toolbar .toolbar-row {
@@ -228,7 +276,7 @@
 
 .emp-btn, .preset-btn {
     padding: 7px 14px;
-    border-radius: 20px;
+    border-radius: var(--border-radius-pill);
     border: 2px solid var(--border-color);
     background: var(--bg-tertiary);
     color: var(--text-primary);
@@ -340,6 +388,7 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
     background: var(--bg-secondary);
     border-radius: var(--sch-radius);
     border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
     padding: 18px 24px;
 }
 
@@ -537,7 +586,7 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
 /* ==================== Buttons / misc ==================== */
 .btn {
     padding: 10px 18px;
-    border-radius: var(--sch-radius-sm);
+    border-radius: var(--border-radius-pill);
     border: none;
     font-family: inherit;
     font-size: 0.88rem;

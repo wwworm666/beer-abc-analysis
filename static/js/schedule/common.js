@@ -256,7 +256,9 @@
         var chip = document.createElement('div');
         var isConflict = dayOffEmps.indexOf(shift.employee_name) !== -1;
         chip.className = 'shift-chip' + (isConflict ? ' conflict' : '');
-        chip.style.background = shift.role_color || 'var(--accent)';
+        /* Роль кодируется цветом левой полоски (см. .shift-chip в schedule.css),
+           а не заливкой всего чипа — сетка остаётся спокойной. */
+        chip.style.setProperty('--role-color', shift.role_color || 'var(--accent)');
         chip.dataset.shiftId = shift.id;
 
         var badges = [];
