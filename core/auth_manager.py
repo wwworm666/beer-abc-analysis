@@ -272,6 +272,8 @@ class AuthManager:
         params.append(user_id)
         with self._lock:
             with self._get_connection() as conn:
+                if conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone() is None:
+                    raise ValueError('Пользователь не найден')
                 conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=?", params)
                 conn.commit()
 
@@ -302,6 +304,8 @@ class AuthManager:
             raise ValueError(f'Пароль не короче {MIN_PASSWORD_LEN} символов')
         with self._lock:
             with self._get_connection() as conn:
+                if conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone() is None:
+                    raise ValueError('Пользователь не найден')
                 conn.execute("UPDATE users SET password_hash=? WHERE id=?",
                              (generate_password_hash(new_password), user_id))
                 conn.commit()

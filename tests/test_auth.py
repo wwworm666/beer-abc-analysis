@@ -142,6 +142,18 @@ def test_short_label_stored_and_editable():
     assert u['display_name'] == 'Антон Н.' and u['short_label'] == 'Ан'
 
 
+def test_update_profile_and_set_password_reject_missing():
+    mgr = _fresh_manager()
+    mgr.create_user('owner', 'Владелец', 'passpass', is_admin=True)
+    for bad in (lambda: mgr.update_profile(9999, display_name='X'),
+                lambda: mgr.set_password(9999, 'newpass')):
+        try:
+            bad()
+            assert False, 'операция с несуществующим id должна падать'
+        except ValueError:
+            pass
+
+
 def test_migration_adds_short_label_to_v1_db():
     import sqlite3 as _sq
     fd, path = tempfile.mkstemp(suffix='.db')
