@@ -86,8 +86,8 @@ def test_hours_by_role_pay_and_breakdown(tmpdir):
     s2 = mgr.create_shift('2026-07-06', 'Романов Юрий', loc, vtoroy, start_time='18:00')
     mgr.set_shift_fact(s2, 480)  # 8:00
     mgr.create_shift('2026-07-07', 'Романов Юрий', loc, barmen)  # факт не введён
-    # Иванова: стажёр 10ч (ставка осталась 300)
-    s4 = mgr.create_shift('2026-07-05', 'Иванова Елена', loc, _role_id(mgr, 'стажёр'))
+    # Иванова: бармен 10ч (ставка 300)
+    s4 = mgr.create_shift('2026-07-05', 'Иванова Елена', loc, barmen)
     mgr.set_shift_fact(s4, 600)  # 10:00
     # Смена в августе — не должна попасть в июльский период
     s5 = mgr.create_shift('2026-08-01', 'Романов Юрий', loc, barmen)
@@ -109,7 +109,7 @@ def test_hours_by_role_pay_and_breakdown(tmpdir):
     assert rom['shifts_without_fact'] == 1             # бармен-смена 07 без факта
 
     iva = by_name['Иванова Елена']
-    assert iva['total_pay'] == 3000.0                  # 10 × 300 (стажёр)
+    assert iva['total_pay'] == 3000.0                  # 10 × 300 (бармен)
     assert iva['shifts_without_fact'] == 0
 
     # Сортировка по убыванию оплаты
@@ -119,6 +119,32 @@ def test_hours_by_role_pay_and_breakdown(tmpdir):
 def test_hours_by_role_empty_period(tmpdir):
     mgr = _fresh_mgr(tmpdir)
     assert mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31') == []
+
+
+def test_only_two_roles_no_intern(tmpdir):
+    """Роль «стажёр» убрана: остаются только бармен и второй бармен."""
+    mgr = _fresh_mgr(tmpdir)
+    names = [r['name'] for r in mgr.get_roles()]
+    assert names == ['бармен', 'второй бармен']
+    assert 'стажёр' not in names
+
+
+def test_intern_removed_only_when_unused(tmpdir):
+    """Идемпотентное удаление стажёра не трогает роль, если на неё есть смена
+    (защита от осиротевших смен). Симулируем старую БД со стажёром + сменой."""
+    mgr = _fresh_mgr(tmpdir)
+    conn = sqlite3.connect(mgr.db_path)
+    conn.execute("INSERT INTO roles (name, short_name, color, sort_order) "
+                 "VALUES ('стажёр', 'Ст', '#FF9800', 3)")
+    sid = conn.execute("SELECT id FROM roles WHERE name='стажёр'").fetchone()[0]
+    loc = conn.execute("SELECT id FROM locations LIMIT 1").fetchone()[0]
+    conn.execute("INSERT INTO shifts (date, employee_name, location_id, role_id) "
+                 "VALUES ('2026-07-05', 'Кто-то', ?, ?)", (loc, sid))
+    conn.commit(); conn.close()
+
+    # Переоткрытие менеджера запускает seed-фиксы: стажёр НЕ удалён (есть смена)
+    mgr2 = ShiftsManager(db_path=mgr.db_path)
+    assert 'стажёр' in [r['name'] for r in mgr2.get_roles()]
 
 
 if __name__ == '__main__':

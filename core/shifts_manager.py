@@ -304,13 +304,21 @@ class ShiftsManager:
             roles = [
                 ('бармен', 'Б', '#4CAF50', 1),
                 ('второй бармен', '2Б', '#2196F3', 2),
-                ('стажёр', 'Ст', '#FF9800', 3),
             ]
             cursor.executemany(
                 'INSERT INTO roles (name, short_name, color, sort_order) VALUES (?, ?, ?, ?)',
                 roles
             )
             print(f"[ShiftsManager] Добавлено {len(roles)} ролей")
+
+        # Роль «стажёр» убрана (владелец: только бармен и второй бармен).
+        # Удаляем ТОЛЬКО если на неё не ссылается ни одна смена — иначе смены
+        # осиротели бы (role_id FK). Идемпотентно, как прочие seed-фиксы выше.
+        cursor.execute('''
+            DELETE FROM roles
+            WHERE name = 'стажёр'
+              AND id NOT IN (SELECT DISTINCT role_id FROM shifts)
+        ''')
 
         conn.commit()
 
