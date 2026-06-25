@@ -6,8 +6,11 @@
 auth.db на persistent-томе (/kultura на проде), чтобы аккаунты переживали
 редеплой (код запекается в образ, БД — на томе).
 
-Связь с графиком смен: display_name совпадает с именем в реестре
-schedule_employees -> «кто менял смену» подставляется из залогиненного юзера.
+Связь с графиком смен: у аккаунта есть `employee_iiko_id` — явная привязка к
+сотруднику реестра `schedule_employees` по стабильному id из iiko (v3). Имя
+сотрудника тут не дублируется — резолвится из реестра по id. Раньше связь была
+неявной (по совпадению display_name с именем сотрудника) — хрупко при
+переименовании, поэтому заменено на явный id.
 """
 
 import os
@@ -39,7 +42,9 @@ class AuthManager:
     DROP запрещён — в проде живые аккаунты.
     """
 
-    SCHEMA_VERSION = 2
+    # v2: users.short_label. v3: users.employee_iiko_id — явная привязка аккаунта
+    #     к сотруднику графика по стабильному id из iiko.
+    SCHEMA_VERSION = 3
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -116,6 +121,9 @@ class AuthManager:
                 cols = {r[1] for r in cur.fetchall()}
                 if 'short_label' not in cols:
                     cur.execute("ALTER TABLE users ADD COLUMN short_label TEXT NOT NULL DEFAULT ''")
+                # v3: явная привязка к сотруднику графика по стабильному id из iiko
+                if 'employee_iiko_id' not in cols:
+                    cur.execute("ALTER TABLE users ADD COLUMN employee_iiko_id TEXT")
                 cur.execute(f"PRAGMA user_version={self.SCHEMA_VERSION}")
                 conn.commit()
         # Опциональный bootstrap из окружения (для автоматизированного деплоя).
@@ -151,6 +159,7 @@ class AuthManager:
             'login': row['login'],
             'display_name': row['display_name'],
             'short_label': row['short_label'] if 'short_label' in keys else '',
+            'employee_iiko_id': row['employee_iiko_id'] if 'employee_iiko_id' in keys else None,
             'is_admin': bool(row['is_admin']),
             'active': bool(row['active']),
             'created_at': row['created_at'],
@@ -275,6 +284,18 @@ class AuthManager:
                 if conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone() is None:
                     raise ValueError('Пользователь не найден')
                 conn.execute(f"UPDATE users SET {', '.join(sets)} WHERE id=?", params)
+                conn.commit()
+
+    def set_employee_link(self, user_id: int, employee_iiko_id: str):
+        """Привязать аккаунт к сотруднику графика по стабильному iiko_id, или
+        отвязать (пустое значение -> NULL). Имя сотрудника не дублируется —
+        резолвится из реестра графика по id."""
+        val = (employee_iiko_id or '').strip() or None
+        with self._lock:
+            with self._get_connection() as conn:
+                if conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone() is None:
+                    raise ValueError('Пользователь не найден')
+                conn.execute("UPDATE users SET employee_iiko_id=? WHERE id=?", (val, user_id))
                 conn.commit()
 
     def verify_credentials(self, login: str, password: str) -> Optional[Dict]:

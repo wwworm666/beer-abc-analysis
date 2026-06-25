@@ -98,15 +98,19 @@ def logout():
 @admin_required
 def admin_users():
     mgr = get_auth_manager()
-    # Имена из реестра графика — для подсказки display_name (связь «кто менял»).
+    # Реестр сотрудников графика: имена — для подсказки display_name, пары
+    # {id, name} (только с устойчивым iiko_id) — для привязки аккаунта к сотруднику.
     try:
         from core.shifts_manager import get_shifts_manager
-        registry = [e['name'] for e in get_shifts_manager().get_schedule_employees(include_inactive=True)]
+        emps = get_shifts_manager().get_schedule_employees(include_inactive=True)
     except Exception:
-        registry = []
+        emps = []
+    registry = [e['name'] for e in emps]
+    employees = [{'id': e['id'], 'name': e['name']} for e in emps if e.get('id')]
     return render_template('admin_users.html',
                            users=mgr.list_users(),
-                           registry_names=registry)
+                           registry_names=registry,
+                           employees=employees)
 
 
 @auth_bp.route('/api/auth/users', methods=['GET'])
@@ -143,6 +147,18 @@ def api_update_profile(user_id):
             display_name=data.get('display_name'),
             short_label=data.get('short_label'),
         )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    return jsonify({'ok': True})
+
+
+@auth_bp.route('/api/auth/users/<int:user_id>/employee', methods=['POST'])
+@admin_required
+def api_set_employee(user_id):
+    """Привязать аккаунт к сотруднику графика по iiko_id (пусто = отвязать)."""
+    data = request.get_json() or {}
+    try:
+        get_auth_manager().set_employee_link(user_id, data.get('employee_iiko_id'))
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'ok': True})

@@ -10,9 +10,12 @@
   Плашка входа появляется только когда cookie нет или она протухла.
 - После входа — **равные права** на все бизнес-страницы. Флагом `is_admin`
   ограничена только страница управления аккаунтами (`/admin/users`).
-- `display_name` совпадает с именем в реестре графика смен (`schedule_employees`)
-  — это готовая основа для журнала «кто менял смену» (текущий пользователь
-  подставляется автоматически).
+- **Явная привязка к сотруднику** (`employee_iiko_id`, v3): админ в `/admin/users`
+  связывает аккаунт с сотрудником графика по стабильному id из iiko (выпадающий
+  список). Раньше связь была неявной — по совпадению `display_name` с именем
+  сотрудника, что хрупко при переименовании; теперь ключ — стабильный id. Пока
+  это только хранимая связь (без доп. поведения — «мои смены»/права добавим
+  отдельно при необходимости).
 
 Решения владельца (зафиксированы): личные аккаунты, у всех пароль, аккаунты
 заводит владелец сам; единственное ограничение прав — управление аккаунтами
@@ -57,9 +60,11 @@
 `shifts.db`. Пароли хранятся только как хэш (`werkzeug.security`,
 `generate_password_hash`/`check_password_hash`). Схема additive (как в
 `ShiftsManager`): миграции только `ALTER TABLE ADD COLUMN`, DROP запрещён.
-Таблица (v2) `users(id, login UNIQUE COLLATE NOCASE, display_name, short_label,
-password_hash, is_admin, active, created_at, last_login_at)`. WAL + `busy_timeout`
-под 2 воркера. Синглтон `get_auth_manager()`.
+Таблица (v3) `users(id, login UNIQUE COLLATE NOCASE, display_name, short_label,
+employee_iiko_id, password_hash, is_admin, active, created_at, last_login_at)`.
+`employee_iiko_id` (v3) — стабильный id сотрудника графика из iiko (привязка
+аккаунт↔сотрудник; имя резолвится из реестра по id). WAL + `busy_timeout` под
+2 воркера. Синглтон `get_auth_manager()`.
 
 Поля аккаунта: **логин** (2-32 символа `[A-Za-z0-9_.-]`, регистронезависим),
 **имя** (фамилия и имя, `display_name`), **сокращение** (`short_label`, типа «АН»,
@@ -110,6 +115,7 @@ password_hash, is_admin, active, created_at, last_login_at)`. WAL + `busy_timeou
 | GET | `/api/auth/users` | список аккаунтов (без хэшей) |
 | POST | `/api/auth/users` | создать (login, display_name, short_label, password, is_admin) |
 | POST | `/api/auth/users/<id>/profile` | изменить имя и/или сокращение |
+| POST | `/api/auth/users/<id>/employee` | привязать к сотруднику графика (employee_iiko_id; пусто = отвязать) |
 | POST | `/api/auth/users/<id>/password` | сбросить пароль |
 | POST | `/api/auth/users/<id>/active` | вкл/выкл аккаунт |
 | POST | `/api/auth/users/<id>/admin` | выдать/снять админа |
@@ -149,6 +155,16 @@ password_hash, is_admin, active, created_at, last_login_at)`. WAL + `busy_timeou
   `/kultura/secret_key` один раз. **Не ротировать** без причины — разлогинит всех.
 
 ## Changelog
+
+### 2026-06-24 — привязка аккаунта к сотруднику графика (схема v3)
+- `users.employee_iiko_id` (additive ALTER, `SCHEMA_VERSION` 3) — явная связь
+  аккаунт↔сотрудник по стабильному id из iiko. Раньше связь была неявной (по
+  совпадению `display_name`), что ломалось при переименовании.
+- `AuthManager.set_employee_link(user_id, iiko_id)` (пусто = отвязать), эндпоинт
+  `POST /api/auth/users/<id>/employee`, выпадающий список сотрудников в
+  `/admin/users` (источник — реестр графика, только с устойчивым `iiko_id`).
+- Пока только хранимая связь, без доп. поведения (решение владельца). Зависит от
+  графика v6 (стабильные id сотрудников). Тесты: `tests/test_auth.py` (+3).
 
 ### 2026-06-23 — правки по фидбеку владельца (схема v2)
 - `MIN_PASSWORD_LEN` 8 -> **4** (решение владельца, команда доверенная).

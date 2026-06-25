@@ -192,6 +192,63 @@ def test_last_admin_protected():
     assert mgr.get_by_id(a)['is_admin'] is False
 
 
+def test_employee_link_set_and_clear():
+    mgr = _fresh_manager()
+    uid = mgr.create_user('ivan', 'Иван Петров', 'passpass')
+    assert mgr.get_by_id(uid)['employee_iiko_id'] is None
+    mgr.set_employee_link(uid, 'iiko-guid-123')
+    assert mgr.get_by_id(uid)['employee_iiko_id'] == 'iiko-guid-123'
+    # пустое значение -> отвязка (NULL)
+    mgr.set_employee_link(uid, '   ')
+    assert mgr.get_by_id(uid)['employee_iiko_id'] is None
+    # несуществующий пользователь
+    try:
+        mgr.set_employee_link(99999, 'x')
+        assert False, 'привязка несуществующего id должна падать'
+    except ValueError:
+        pass
+
+
+def test_migration_adds_employee_link_to_v2_db():
+    import sqlite3 as _sq
+    fd, path = tempfile.mkstemp(suffix='.db')
+    os.close(fd)
+    os.unlink(path)
+    # схема v2 — со short_label, но без employee_iiko_id
+    conn = _sq.connect(path)
+    conn.execute("""CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT,
+        login TEXT NOT NULL UNIQUE COLLATE NOCASE, display_name TEXT NOT NULL,
+        short_label TEXT NOT NULL DEFAULT '', password_hash TEXT NOT NULL,
+        is_admin INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL, last_login_at TEXT)""")
+    conn.execute("PRAGMA user_version=2")
+    conn.execute("""INSERT INTO users (login, display_name, password_hash, is_admin, active, created_at)
+                    VALUES ('old', 'Старый', 'x', 1, 1, '2026-01-01')""")
+    conn.commit()
+    conn.close()
+    mgr = am.AuthManager(db_path=path)  # должен добавить колонку, не потеряв данные
+    u = mgr.get_by_login('old')
+    assert u is not None and u['employee_iiko_id'] is None
+
+
+def test_admin_set_employee_endpoint():
+    mgr = _fresh_manager()
+    mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
+    bob = mgr.create_user('bob', 'Боб', 'bobpass12')
+    app = _make_app()
+    # админ привязывает сотрудника к аккаунту
+    c = app.test_client()
+    c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+    r = c.post('/api/auth/users/%d/employee' % bob, json={'employee_iiko_id': 'guid-9'})
+    assert r.status_code == 200, r.status_code
+    assert mgr.get_by_id(bob)['employee_iiko_id'] == 'guid-9'
+    # обычному пользователю эндпоинт запрещён
+    c2 = app.test_client()
+    c2.post('/login', data={'login': 'bob', 'password': 'bobpass12'})
+    assert c2.post('/api/auth/users/%d/employee' % bob,
+                   json={'employee_iiko_id': 'x'}).status_code == 403
+
+
 # --- гейт и потоки входа ---
 
 def test_gate_blocks_anonymous():

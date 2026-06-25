@@ -36,7 +36,7 @@
         .btn-sm { padding: 5px 9px; font-size: 12px; font-weight: 500; }
         table.users { width: 100%; border-collapse: collapse; font-size: 14px; }
         table.users th, table.users td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border-color, #eceef1); }
-        table.users input { padding: 6px 8px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 6px; background: var(--bg, #f7f8fa); color: inherit; font-size: 13px; }
+        table.users input, table.users select { padding: 6px 8px; border: 1px solid var(--border-color, #e3e6ea); border-radius: 6px; background: var(--bg, #f7f8fa); color: inherit; font-size: 13px; }
         table.users th { font-size: 12px; color: var(--text-muted, #6b7280); font-weight: 600; }
         .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
         .tag-admin { background: color-mix(in srgb, var(--accent, #d97706) 16%, transparent); color: var(--accent, #d97706); }
@@ -94,7 +94,7 @@
                 <table class="users">
                     <thead>
                         <tr>
-                            <th>Логин</th><th>Имя</th><th>Сокр.</th><th>Роль</th><th>Статус</th><th></th>
+                            <th>Логин</th><th>Имя</th><th>Сокр.</th><th>Сотрудник</th><th>Роль</th><th>Статус</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -103,6 +103,14 @@
                             <td><strong>{{ u.login }}</strong></td>
                             <td><input class="edit-name" type="text" value="{{ u.display_name }}" style="width:160px"></td>
                             <td><input class="edit-short" type="text" maxlength="12" value="{{ u.short_label }}" style="width:64px"></td>
+                            <td>
+                                <select class="edit-emp" onchange="linkEmployee({{ u.id }}, this.value)" style="max-width:180px">
+                                    <option value="">— не привязан —</option>
+                                    {% for e in employees %}
+                                        <option value="{{ e.id }}" {% if e.id == u.employee_iiko_id %}selected{% endif %}>{{ e.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
                             <td>
                                 {% if u.is_admin %}<span class="tag tag-admin">админ</span>
                                 {% else %}<span class="muted">пользователь</span>{% endif %}
@@ -168,6 +176,15 @@
                 await api('/api/auth/users/' + id + '/profile', 'POST', { display_name, short_label });
                 location.reload();
             } catch (e) { alert(e.message); }
+        }
+
+        async function linkEmployee(id, employee_iiko_id) {
+            try {
+                await api('/api/auth/users/' + id + '/employee', 'POST', { employee_iiko_id });
+            } catch (e) {
+                alert(e.message);
+                location.reload();
+            }
         }
 
         async function resetPass(id) {
