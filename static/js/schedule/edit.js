@@ -439,74 +439,54 @@
         }).join('');
     }
 
-    // ==================== Нагрузка и сводка ====================
+    // ==================== Нагрузка по сотрудникам ====================
+    // Смены к норме (по умолчанию 15), факт часов, макс. серия смен подряд
+    // (флаг переработки при 5+), пробелы факта. Финансовой сводки тут нет —
+    // выручка живёт на дашборде, графику она не нужна.
 
     function loadSummary() {
         return S.api('/api/schedule/summary/' + S.state.year + '/' + S.state.month)
             .then(function (summary) {
-                renderLoad(summary.employees_load || []);
-                renderSummary(summary);
+                renderLoad(summary.employees_load || [], summary.shift_norm || 15);
             });
     }
 
-    function renderLoad(rows) {
+    function renderLoad(rows, norm) {
+        norm = norm || 15;
         var tbody = document.getElementById('loadTableBody');
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="4" class="missing-fact">Смен в этом месяце нет</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="missing-fact">Смен в этом месяце нет</td></tr>';
             return;
         }
-        var counts = rows.map(function (r) { return r.shifts_count; });
-        var max = Math.max.apply(null, counts);
-        var min = Math.min.apply(null, counts);
-
         tbody.innerHTML = rows.map(function (r) {
-            var cls = '';
-            if (rows.length > 1 && r.shifts_count === max && max !== min) cls = 'load-max';
-            else if (rows.length > 1 && r.shifts_count === min && max !== min) cls = 'load-min';
+            var n = r.shifts_count;
+            // Смены к норме: достиг/перевыполнил — зелёный, заметно ниже — янтарный
+            var shiftColor = n >= norm ? 'var(--success)'
+                : (n < norm * 0.6 ? 'var(--warning)' : 'var(--text-primary)');
+            var shiftsCell = '<strong style="color:' + shiftColor + '">' + n + '</strong>'
+                + '<span style="color:var(--text-tertiary)"> / ' + norm + '</span>';
+
             var hours = r.fact_minutes > 0 ? S.minutesToHhMm(r.fact_minutes) : '0:00';
+
+            var streak = r.max_streak || 0;
+            var streakCell = streak >= 5
+                ? '<span style="color:var(--danger);font-weight:600" title="'
+                  + streak + ' смен подряд — переработка, стоит дать отдых">' + streak + '</span>'
+                : '<span style="color:var(--text-tertiary)">' + (streak || '') + '</span>';
+
             var missing = r.missing_fact > 0
                 ? '<span class="missing-fact">' + r.missing_fact + '</span>' : '';
+
             return '<tr>'
                 + '<td title="' + S.escapeHtml(r.employee_name) + '">'
                 + S.escapeHtml(S.employeeLabel(r.employee_name))
                 + ' <span style="color:var(--text-tertiary)">'
                 + S.escapeHtml(S.employeeShortName(r.employee_name)) + '</span></td>'
-                + '<td class="' + cls + '">' + r.shifts_count + '</td>'
-                + '<td title="Сумма часов, введённых барменом в конце смены">' + hours + '</td>'
+                + '<td>' + shiftsCell + '</td>'
+                + '<td>' + hours + '</td>'
+                + '<td>' + streakCell + '</td>'
                 + '<td>' + missing + '</td>'
                 + '</tr>';
-        }).join('');
-    }
-
-    function renderSummary(summary) {
-        var m = summary.month;
-        var f = summary.formulas || {};
-        var grid = document.getElementById('summaryGrid');
-
-        function item(label, value, formula, money) {
-            var v = value == null
-                ? '<span class="v empty">нет данных</span>'
-                : '<span class="v">' + (money ? S.formatMoney(value) : value) + '</span>';
-            var help = formula
-                ? '<span class="formula-help" title="' + formula + '">?</span>' : '';
-            return '<div class="summary-item"><div class="k">' + label + help + '</div>' + v + '</div>';
-        }
-
-        grid.innerHTML =
-            item('План месяца', m.plan_total, f.plan, true)
-            + item('Факт', m.fact_total, 'Выручка из iiko по всем точкам месяца — тот же источник, что на дашборде. Обновляется автоматически (кэш 10 минут).', true)
-            + item('Средняя в день', m.avg_fact, f.avg_fact, true)
-            + item('Ожидаемая', m.expected, f.expected, true)
-            + item('Выполнение', m.completion_pct != null ? m.completion_pct + '%' : null, f.completion_pct, false);
-
-        var locDiv = document.getElementById('summaryLocations');
-        locDiv.innerHTML = (summary.locations || []).map(function (loc) {
-            var parts = [];
-            if (loc.plan_total != null) parts.push('план ' + S.formatMoney(loc.plan_total));
-            if (loc.fact_total != null) parts.push('факт ' + S.formatMoney(loc.fact_total));
-            if (loc.completion_pct != null) parts.push(loc.completion_pct + '%');
-            return '<div class="metric"><span class="k">' + (loc.short_name || loc.location_name)
-                + '</span><span class="v">' + (parts.join(' / ') || 'нет данных') + '</span></div>';
         }).join('');
     }
 

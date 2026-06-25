@@ -10,6 +10,7 @@ from core.schedule_plans import (
     compute_month_summary,
     compute_employees_load,
     match_iiko_hours,
+    SHIFT_NORM,
     PLAN_FORMULA_TEXT,
 )
 
@@ -429,14 +430,8 @@ def schedule_get_summary(year, month):
     shifts = shifts_mgr.get_shifts_for_month(year, month)
     load = compute_employees_load(shifts, datetime.now().strftime('%Y-%m-%d'))
 
-    # Расчётные часы из iiko (как на странице ЗП) — рядом с ручным фактом
-    iiko_hours = match_iiko_hours(
-        [r['employee_name'] for r in load],
-        _fetch_month_iiko_hours(year, month))
-    for row in load:
-        row['iiko_hours'] = iiko_hours.get(row['employee_name'])
-
     summary['employees_load'] = load
+    summary['shift_norm'] = SHIFT_NORM  # норма смен в месяц — ориентир в «Нагрузке»
     return jsonify(summary)
 
 

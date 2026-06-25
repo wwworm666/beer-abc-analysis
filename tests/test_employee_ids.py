@@ -18,6 +18,7 @@ import shutil
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.shifts_manager import ShiftsManager
+from core.schedule_plans import compute_employees_load, _max_consecutive_days, SHIFT_NORM
 
 # Стабильные id (как GUID из iiko, но короткие для теста)
 ID_NOVAEV = 'id-novaev'
@@ -203,6 +204,32 @@ def test_create_shift_stores_employee_id(tmpdir):
     sh = mgr.get_shift(sid)
     assert sh['employee_id'] == ID_NOVAEV
     assert sh['employee_name'] == 'Артем Новаев'
+
+
+def test_load_streak_and_grouping(tmpdir):
+    """Нагрузка: норма 15, макс. серия смен подряд (по дням), группировка по id."""
+    assert SHIFT_NORM == 15
+    assert _max_consecutive_days([]) == 0
+    assert _max_consecutive_days(['2026-06-10']) == 1
+    assert _max_consecutive_days(['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-05']) == 3
+    # день+вечер одной даты не удлиняет серию (серия — по календарным дням)
+    assert _max_consecutive_days(['2026-06-01', '2026-06-01', '2026-06-02']) == 2
+
+    shifts = [
+        {'employee_id': 'id1', 'employee_name': 'Артем Новаев', 'date': '2026-06-01', 'fact_minutes': 600},
+        {'employee_id': 'id1', 'employee_name': 'Артем Новаев', 'date': '2026-06-02', 'fact_minutes': None},
+        {'employee_id': 'id1', 'employee_name': 'Артем Новаев', 'date': '2026-06-03', 'fact_minutes': None},
+        {'employee_id': 'id1', 'employee_name': 'Артем Новаев', 'date': '2026-06-03', 'fact_minutes': None},  # вечер
+        {'employee_id': 'id2', 'employee_name': 'Иванова Елена', 'date': '2026-06-01', 'fact_minutes': None},
+    ]
+    load = compute_employees_load(shifts, today_str='2026-06-10')
+    by = {r['employee_name']: r for r in load}
+    a = by['Артем Новаев']
+    assert a['shifts_count'] == 4          # 4 смены (включая вечер 03-го)
+    assert a['max_streak'] == 3            # 01,02,03 подряд
+    assert a['fact_minutes'] == 600
+    assert a['missing_fact'] == 3          # 02 и оба 03 прошли без факта (< 06-10)
+    assert by['Иванова Елена']['max_streak'] == 1
 
 
 if __name__ == '__main__':

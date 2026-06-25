@@ -258,27 +258,55 @@ def match_iiko_hours(names: List[str], hours_by_iiko_name: Optional[Dict[str, fl
     return result
 
 
+# Норма смен в месяц — ориентир для «Нагрузки» и для KPI-коэффициента
+# (koef = смены / норма; см. core/kpi_calculator). Единое место значения.
+SHIFT_NORM = 15
+
+
+def _max_consecutive_days(date_strs) -> int:
+    """Самая длинная серия смен ПОДРЯД (по календарным дням, дубли-дни не в счёт).
+    Сигнал переработки: человек, работающий много дней без выходного."""
+    days = sorted({date.fromisoformat(d[:10]) for d in date_strs})
+    if not days:
+        return 0
+    best = run = 1
+    for prev, cur in zip(days, days[1:]):
+        run = run + 1 if (cur - prev).days == 1 else 1
+        best = max(best, run)
+    return best
+
+
 def compute_employees_load(shifts: List[Dict], today_str: str) -> List[Dict]:
     """Нагрузка по сотрудникам за месяц.
 
-    - shifts_count: число смен;
+    Идентичность — стабильный employee_id (v6), имя только для показа (фоллбэк на
+    имя, пока у смены нет id). Поля:
+    - shifts_count: число смен (норма — SHIFT_NORM);
     - fact_minutes: сумма введённого барменом факта (минуты; None не суммируется);
-    - missing_fact: прошедшие смены (date < today) без введённого факта —
-      подсветка «кто забыл проставить часы».
+    - missing_fact: прошедшие смены (date < today) без факта — «кто забыл часы»;
+    - max_streak: макс. серия смен подряд (переработка).
     """
     by_employee: Dict[str, Dict] = {}
     for s in shifts:
-        agg = by_employee.setdefault(s['employee_name'], {
+        key = s.get('employee_id') or s['employee_name']
+        agg = by_employee.setdefault(key, {
             'employee_name': s['employee_name'],
+            'employee_id': s.get('employee_id'),
             'shifts_count': 0,
             'fact_minutes': 0,
             'missing_fact': 0,
+            '_dates': set(),
         })
+        agg['employee_name'] = s['employee_name']  # каноническое (актуальное) имя
         agg['shifts_count'] += 1
+        agg['_dates'].add(s['date'])
         if s.get('fact_minutes') is not None:
             agg['fact_minutes'] += int(s['fact_minutes'])
         elif s['date'] < today_str:
             agg['missing_fact'] += 1
+
+    for agg in by_employee.values():
+        agg['max_streak'] = _max_consecutive_days(agg.pop('_dates'))
 
     return sorted(by_employee.values(),
                   key=lambda r: (-r['shifts_count'], r['employee_name']))
