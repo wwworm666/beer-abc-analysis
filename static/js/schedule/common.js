@@ -105,6 +105,26 @@
         return name.split(/\s+/).slice(0, 2).join(' ');
     }
 
+    /* Сотрудник реестра по стабильному id из iiko (v6). null, если не найден. */
+    function getEmployeeById(id) {
+        if (!id) return null;
+        return state.employees.find(function (e) { return e.id === id; }) || null;
+    }
+
+    /* Каноническое имя смены: из реестра по employee_id (актуальное после
+       переименования в iiko), иначе снимок employee_name. */
+    function shiftDisplayName(shift) {
+        var emp = getEmployeeById(shift.employee_id);
+        return (emp && emp.name) || shift.employee_name;
+    }
+
+    /* Короткая метка смены: short_label из реестра по id, иначе инициалы имени. */
+    function shiftLabel(shift) {
+        var emp = getEmployeeById(shift.employee_id);
+        if (emp && emp.short_label) return emp.short_label;
+        return employeeLabel(shiftDisplayName(shift));
+    }
+
     /* Журнал: 'YYYY-MM-DDTHH:MM:SS' -> 'DD.MM HH:MM'. Серверное время как есть,
        без пересчёта таймзоны (ts уже записан в серверном времени). */
     function formatAuditTs(ts) {
@@ -269,12 +289,12 @@
             badges.push('<span class="chip-fact">' + minutesToHhMm(shift.fact_minutes) + '</span>');
         }
 
-        chip.title = shift.employee_name + ' — ' + shift.role_name
+        chip.title = shiftDisplayName(shift) + ' — ' + shift.role_name
             + (shift.start_time ? ', с ' + shift.start_time : '')
             + (shift.fact_minutes != null
                 ? ', факт ' + minutesToHhMm(shift.fact_minutes) : '');
         chip.innerHTML =
-            '<span class="chip-name">' + escapeHtml(employeeLabel(shift.employee_name)) + '</span>'
+            '<span class="chip-name">' + escapeHtml(shiftLabel(shift)) + '</span>'
             + (badges.length ? '<span class="chip-badges">' + badges.join('') + '</span>' : '');
 
         if (onChipClick) {
@@ -326,6 +346,9 @@
         parseHoursInput: parseHoursInput,
         employeeLabel: employeeLabel,
         employeeShortName: employeeShortName,
+        getEmployeeById: getEmployeeById,
+        shiftDisplayName: shiftDisplayName,
+        shiftLabel: shiftLabel,
         formatAuditTs: formatAuditTs,
         escapeHtml: escapeHtml,
         loadDictionaries: loadDictionaries,

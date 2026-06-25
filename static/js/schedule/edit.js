@@ -15,7 +15,8 @@
         { key: 'evening', label: 'Вечер (с 18:00)', startTime: '18:00', roleIndex: 1 }
     ];
 
-    var selectedEmployee = null;
+    var selectedEmployee = null;     // имя выбранного сотрудника (показ/подсказка)
+    var selectedEmployeeId = null;   // стабильный id из iiko (v6) — ключ для смен
     var selectedPreset = TIME_PRESETS[0];
     var eraserMode = false;
     var selectedDate = null;
@@ -127,7 +128,7 @@
             btn.textContent = S.employeeLabel(emp.name);
             btn.title = emp.name;
             btn.dataset.empName = emp.name;
-            btn.addEventListener('click', function () { selectEmployee(emp.name); });
+            btn.addEventListener('click', function () { selectEmployee(emp); });
             cont.appendChild(btn);
         });
         if (!S.state.employees.length) {
@@ -146,12 +147,13 @@
         });
     }
 
-    function selectEmployee(name) {
-        if (selectedEmployee === name) { deselectAll(); return; }
-        selectedEmployee = name;
+    function selectEmployee(emp) {
+        if (selectedEmployee === emp.name) { deselectAll(); return; }
+        selectedEmployee = emp.name;
+        selectedEmployeeId = emp.id || null;
         eraserMode = false;
         document.querySelectorAll('.emp-btn').forEach(function (btn) {
-            btn.classList.toggle('selected', btn.dataset.empName === name);
+            btn.classList.toggle('selected', btn.dataset.empName === emp.name);
         });
         document.getElementById('eraserBtn').classList.remove('selected');
         document.body.classList.add('paint-mode');
@@ -180,6 +182,7 @@
 
     function deselectAll() {
         selectedEmployee = null;
+        selectedEmployeeId = null;
         eraserMode = false;
         document.querySelectorAll('.emp-btn').forEach(function (b) { b.classList.remove('selected'); });
         document.getElementById('eraserBtn').classList.remove('selected');
@@ -216,7 +219,9 @@
         if (!selectedEmployee || saving) return;
 
         var existing = cellShifts.find(function (s) {
-            return s.employee_name === selectedEmployee;
+            return selectedEmployeeId
+                ? s.employee_id === selectedEmployeeId
+                : s.employee_name === selectedEmployee;
         });
 
         var action;
@@ -236,6 +241,7 @@
                 body: {
                     date: ds,
                     employee_name: selectedEmployee,
+                    employee_id: selectedEmployeeId,
                     location_id: locationId,
                     role_id: role.id,
                     start_time: selectedPreset.startTime
@@ -596,7 +602,7 @@
                 labelInput.value = emp.short_label || '';
                 labelInput.placeholder = S.employeeLabel(emp.name);
                 labelInput.addEventListener('change', function () {
-                    updateEmployee(emp.name, { short_label: labelInput.value });
+                    updateEmployee(emp.id, { short_label: labelInput.value });
                 });
                 tdLabel.appendChild(labelInput);
 
@@ -605,7 +611,7 @@
                 orderInput.type = 'number';
                 orderInput.value = emp.sort_order != null ? emp.sort_order : 0;
                 orderInput.addEventListener('change', function () {
-                    updateEmployee(emp.name, { sort_order: parseInt(orderInput.value, 10) || 0 });
+                    updateEmployee(emp.id, { sort_order: parseInt(orderInput.value, 10) || 0 });
                 });
                 tdOrder.appendChild(orderInput);
 
@@ -614,7 +620,7 @@
                 activeInput.type = 'checkbox';
                 activeInput.checked = !!emp.active;
                 activeInput.addEventListener('change', function () {
-                    updateEmployee(emp.name, { active: activeInput.checked ? 1 : 0 });
+                    updateEmployee(emp.id, { active: activeInput.checked ? 1 : 0 });
                 });
                 tdActive.appendChild(activeInput);
 
@@ -627,8 +633,12 @@
         });
     }
 
-    function updateEmployee(name, fields) {
-        S.api('/api/schedule/employee/' + encodeURIComponent(name), {
+    function updateEmployee(empId, fields) {
+        if (!empId) {
+            S.showToast('Сотрудник ещё не привязан к iiko — нажми «Обновить из iiko»', true);
+            return;
+        }
+        S.api('/api/schedule/employee/' + encodeURIComponent(empId), {
             method: 'PUT',
             body: fields
         }).then(function () {
@@ -646,7 +656,14 @@
         btn.disabled = true;
         S.api('/api/schedule/employees/sync', { method: 'POST' })
             .then(function (res) {
-                S.showToast('Из iiko добавлено: ' + res.added);
+                var msg = 'iiko: добавлено ' + res.added + ', привязано смен '
+                    + res.shifts_backfilled + ', убрано дублей ' + res.legacy_removed;
+                var unmatched = res.unmatched || [];
+                if (unmatched.length) {
+                    msg += '. Не привязаны: '
+                        + unmatched.map(function (u) { return u.name; }).join(', ');
+                }
+                S.showToast(msg, unmatched.length > 0);
                 return S.api('/api/schedule/employees');
             })
             .then(function (emps) {

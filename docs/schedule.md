@@ -47,14 +47,47 @@ backup API в `shifts.db.backup_v{старая_версия}`. DROP таблиц
 - `roles` — бармен / второй бармен (роль «стажёр» убрана 2026-06-24, владелец:
   только две роли); `color` — цвет **левой полоски чипа** смены (не заливка, см.
   «Внешний вид сетки»); `rate_per_hour` (v5) — ставка за час для ЗП (DEFAULT 300).
-- `shifts` — смена: `date`, `employee_name` (имя как в iiko), `location_id`,
-  `role_id`, `start_time`, `fact_minutes`.
-- `day_off_requests`, `wishes`, `daily_revenue` — как раньше.
-- `schedule_employees` — реестр: `name` (PK), `short_label` («РЮ»), `active`,
-  `sort_order`. iiko — только поставщик кандидатов (upsert, никогда не удаляет).
+- `shifts` — смена: `date`, `employee_id` (стабильный id из iiko, v6 — ключ
+  сотрудника), `employee_name` (снимок имени для показа/фоллбэка, канонизируется
+  при синке), `location_id`, `role_id`, `start_time`, `fact_minutes`.
+- `day_off_requests`, `wishes`, `daily_revenue` — как раньше (+ `employee_id`
+  впрок, v6).
+- `schedule_employees` — реестр: `name` (PK, текущее имя из iiko), `iiko_id`
+  (v6, стабильный ключ — UNIQUE), `short_label` («РЮ»), `active`, `sort_order`.
+  Идентичность — по `iiko_id`; см. «Идентичность сотрудника».
 - `schedule_audit` (v4) — журнал изменений графика (append-only): `ts`,
   `actor_login`, `actor_name`, `action`, `entity_date`, `employee_name`,
   `summary`. См. раздел «Журнал изменений».
+
+### Идентичность сотрудника — стабильный id из iiko (v6)
+
+**Зачем.** Раньше сотрудник в смене и реестре хранился строкой-именем. iiko-синк
+делал `INSERT OR IGNORE` по имени и ничего не удалял, поэтому переименование
+сотрудника в iiko плодило дубли: новое имя приходило новой записью, а прошлые
+смены оставались под старым. Ручная чистка не масштабируется.
+
+**Как стало.** Сотрудник идентифицируется стабильным `id` из справочника iiko
+(`/employees`, GUID; те же id, что в `responsibleUserId` кассовых смен). Смена
+хранит `employee_id`; `employee_name` — только снимок для показа/фоллбэка.
+Реестр (`schedule_employees`) ключуется `iiko_id`. Имя везде резолвится из
+реестра по id (фронт: `Schedule.shiftDisplayName` / `shiftLabel`).
+
+**Синк** (`ShiftsManager.sync_employees(pairs, overrides)`, эндпоинт
+`POST /api/schedule/employees/sync`) за одну транзакцию, идемпотентно:
+1. распространяет переименования: `shifts.employee_name` по `employee_id`;
+2. бэкофиллит `employee_id` у смен без него: override → точное имя → однозначная
+   перестановка слов (`«Васильев Никита» == «Никита Васильев»`);
+3. upsert реестра по `iiko_id` (имя обновляется; legacy-строка с тем же именем
+   «усыновляется» — получает id, сохраняя метку/порядок/активность); новые люди
+   из справочника **без смен** добавляются неактивными (скрыты из кисти, видны в
+   админке — владелец включает барменов), со сменами — активными;
+4. удаляет осиротевшие legacy-строки реестра.
+
+`overrides` (`{старое_имя_смены: iiko_id_или_текущее_имя}`) — разовая ручная
+привязка наследия, где имя изменилось так, что авто-сопоставление по строке
+невозможно (напр. «Артемий»→«Артем»). После бэкофилла переименования
+подхватываются автоматически — **дубли больше не возникают**. Тесты:
+`tests/test_employee_ids.py`.
 
 ### Два слоя времени смены
 
@@ -222,8 +255,8 @@ weight-aware — повышенные планы пт/сб и праздничн
 | Метод | Путь | Что делает |
 |-------|------|-----------|
 | GET | `/api/schedule/employees[?all=1]` | реестр (+имена из истории смен) |
-| POST | `/api/schedule/employees/sync` | пополнить реестр из iiko |
-| PUT | `/api/schedule/employee/<name>` | short_label / active / sort_order |
+| POST | `/api/schedule/employees/sync` | синк реестра с iiko по id (бэкофилл/дедуп/переименования); body опц. `{overrides}` |
+| PUT | `/api/schedule/employee/<iiko_id>` | short_label / active / sort_order (по id) |
 | GET | `/api/schedule/roles`, `/api/schedule/locations` | справочники (roles c rate_per_hour) |
 | PUT | `/api/schedule/role/<id>/rate` | ставка за час роли (для ЗП) |
 | GET | `/api/schedule/hours-by-role?date_from=&date_to=` | часы по ролям + оплата за период (страница ЗП) |
@@ -241,6 +274,18 @@ weight-aware — повышенные планы пт/сб и праздничн
 | GET/POST | `/api/meeting-notes[...]` | заметки совещаний (без изменений) |
 
 ## Changelog
+
+### 2026-06-24 — сотрудники по стабильному id из iiko (схема v6)
+- Корень проблемы дублей: сотрудник хранился строкой-именем, синк по имени не
+  удалял старое → переименование в iiko плодило дубли. Решение: `shifts.employee_id`
+  + `schedule_employees.iiko_id` (GUID из iiko), имя — только показ/фоллбэк.
+- `sync_employees(pairs, overrides)` (эндпоинт через `iiko.get_employees()`):
+  бэкофилл id у смен (override → точное → перестановка слов), канонизация имён,
+  распространение переименований по id, дедуп legacy-строк, новые без смен —
+  неактивны. Идемпотентно. Переименование в iiko больше не плодит дублей.
+- Фронт: идентичность по id (`shiftDisplayName`/`shiftLabel`, кисть и реестр по
+  id, `PUT /employee/<id>`). Часы-по-ролям группируются по id (rename-proof).
+- Тесты: `tests/test_employee_ids.py` (7). Раздел «Идентичность сотрудника».
 
 ### 2026-06-24 — визуальная причёска сетки (см. «Внешний вид сетки» / «Раскладка»)
 - Чип смены: из насыщенной заливки роли в спокойную карточку с цветной полоской

@@ -79,25 +79,46 @@ def schedule_get_employees():
 
 @schedule_bp.route('/api/schedule/employees/sync', methods=['POST'])
 def schedule_sync_employees():
-    """Пополнить реестр именами из iiko (OLAP за 30 дней). Ничего не удаляет."""
-    from routes.employee import get_employees_list
-    result = get_employees_list()
-    data = result.get_json()
-    names = data.get('employees', []) if isinstance(data, dict) else []
-    added = shifts_mgr.upsert_schedule_employees(names)
-    return jsonify({'added': added, 'total_from_iiko': len(names)})
+    """Синхронизация реестра с iiko по стабильному id (справочник /employees).
+
+    Переименование сотрудника в iiko подхватывается автоматически (имя смен и
+    реестра обновляется по id), дубли не плодятся. Body (опц.):
+    {"overrides": {"старое_имя_смены": "iiko_id_или_текущее_имя"}} — разовая
+    ручная привязка наследия, где имя изменилось так, что авто-сопоставление
+    по строке невозможно.
+    """
+    data = request.get_json(silent=True) or {}
+    overrides = data.get('overrides') or {}
+    iiko = IikoAPI()
+    if not iiko.authenticate():
+        return jsonify({'error': 'iiko недоступен'}), 503
+    try:
+        emps = iiko.get_employees() or []
+    finally:
+        iiko.logout()
+    pairs = [(e.get('id'), e.get('name')) for e in emps if e.get('id') and e.get('name')]
+    report = shifts_mgr.sync_employees(pairs, overrides=overrides)
+    report['total_from_iiko'] = len(pairs)
+    _audit('employees_sync',
+           f"Синхронизация сотрудников из iiko: добавлено {report['added']}, "
+           f"обновлено {report['updated']}, привязано смен {report['shifts_backfilled']}, "
+           f"убрано дублей {report['legacy_removed']}")
+    return jsonify(report)
 
 
-@schedule_bp.route('/api/schedule/employee/<name>', methods=['PUT'])
-def schedule_update_employee(name):
-    """Обновить сотрудника в реестре: short_label, active, sort_order."""
+@schedule_bp.route('/api/schedule/employee/<emp_id>', methods=['PUT'])
+def schedule_update_employee(emp_id):
+    """Обновить сотрудника в реестре по стабильному iiko_id: short_label, active,
+    sort_order. Имя приходит из iiko (синк), здесь не редактируется."""
     data = request.get_json() or {}
-    shifts_mgr.update_schedule_employee(
-        name=name,
+    ok = shifts_mgr.update_schedule_employee(
+        iiko_id=emp_id,
         short_label=data.get('short_label'),
         active=data.get('active'),
         sort_order=data.get('sort_order'),
     )
+    if not ok:
+        return jsonify({'error': 'Сотрудник не найден'}), 404
     return jsonify({'ok': True})
 
 
@@ -165,6 +186,7 @@ def schedule_create_shift():
         role_id=data['role_id'],
         notes=data.get('notes'),
         start_time=start_time,
+        employee_id=data.get('employee_id'),
     )
     sh = shifts_mgr.get_shift(shift_id)
     if sh:

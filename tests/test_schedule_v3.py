@@ -154,17 +154,20 @@ def test_shift_fact_and_start_time(tmp_path):
 def test_schedule_employees_registry(tmp_path):
     mgr = ShiftsManager(db_path=str(tmp_path / 'shifts.db'))
 
-    added = mgr.upsert_schedule_employees(['Романов Юрий', 'Иванова Елена', ''])
-    assert added == 2
-    # Повторный upsert ничего не дублирует
-    assert mgr.upsert_schedule_employees(['Романов Юрий']) == 0
+    # Синк реестра с iiko по стабильному id (v6). Люди без смен добавляются
+    # неактивными (видны в админке, скрыты из кисти).
+    pairs = [('id-rom', 'Романов Юрий'), ('id-iva', 'Иванова Елена')]
+    assert mgr.sync_employees(pairs)['added'] == 2
+    # Повторный синк ничего не дублирует
+    assert mgr.sync_employees(pairs)['added'] == 0
 
-    mgr.update_schedule_employee('Романов Юрий', short_label='РЮ', sort_order=1)
-    mgr.update_schedule_employee('Иванова Елена', active=0)
+    # Правки по стабильному id (имя приходит из iiko, тут не меняется)
+    assert mgr.update_schedule_employee('id-rom', short_label='РЮ', sort_order=1, active=1)
 
     active = mgr.get_schedule_employees()
     assert [e['name'] for e in active] == ['Романов Юрий']
     assert active[0]['short_label'] == 'РЮ'
+    assert active[0]['id'] == 'id-rom'
 
     everyone = mgr.get_schedule_employees(include_inactive=True)
     assert len(everyone) == 2

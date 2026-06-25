@@ -31,7 +31,12 @@ class ShiftsManager:
     # v4: таблица schedule_audit (журнал «кто что менял в графике»).
     # v5: roles.rate_per_hour — ставка за час по ролям (расчёт ЗП считает часы
     #     из графика × ставку роли; iiko как источник часов оплаты больше не нужен).
-    SCHEMA_VERSION = 5
+    # v6: shifts.employee_id + schedule_employees.iiko_id — стабильный ключ
+    #     сотрудника из iiko (GUID). employee_name остаётся только для показа/
+    #     фоллбэка и обновляется на актуальное при синке. Переименование сотрудника
+    #     в iiko больше не плодит дублей: смены и реестр привязаны к id, а не к
+    #     строке-имени. См. sync_employees() и docs/schedule.md.
+    SCHEMA_VERSION = 6
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -246,10 +251,20 @@ class ShiftsManager:
                 self._ensure_columns(cursor, 'roles', {
                     'rate_per_hour': 'REAL NOT NULL DEFAULT 300',
                 })
+                # v6: стабильный ключ сотрудника из iiko (GUID). employee_name —
+                # только показ/фоллбэк, обновляется на актуальное при синке.
+                # day_off/wishes получают employee_id впрок (на будущее).
+                self._ensure_columns(cursor, 'shifts', {'employee_id': 'TEXT'})
+                self._ensure_columns(cursor, 'schedule_employees', {'iiko_id': 'TEXT'})
+                self._ensure_columns(cursor, 'day_off_requests', {'employee_id': 'TEXT'})
+                self._ensure_columns(cursor, 'wishes', {'employee_id': 'TEXT'})
 
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_employee ON shifts(employee_name)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_emp_id ON shifts(employee_id)')
+                cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_emp_iiko_id '
+                               'ON schedule_employees(iiko_id) WHERE iiko_id IS NOT NULL')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_location ON shifts(location_id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_dayoff_employee ON day_off_requests(employee_name)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_dayoff_dates ON day_off_requests(date_from, date_to)')
@@ -368,7 +383,7 @@ class ShiftsManager:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT
-                        s.id, s.date, s.employee_name, s.notes,
+                        s.id, s.date, s.employee_name, s.employee_id, s.notes,
                         s.start_time, s.fact_minutes,
                         l.id as location_id, l.name as location_name, l.short_name as location_short,
                         r.id as role_id, r.name as role_name, r.short_name as role_short, r.color as role_color
@@ -388,7 +403,7 @@ class ShiftsManager:
                 cursor = conn.cursor()
                 cursor.execute('''
                     SELECT
-                        s.id, s.date, s.employee_name, s.notes,
+                        s.id, s.date, s.employee_name, s.employee_id, s.notes,
                         s.start_time, s.fact_minutes,
                         l.id as location_id, l.name as location_name, l.short_name as location_short,
                         r.id as role_id, r.name as role_name, r.short_name as role_short
@@ -412,8 +427,11 @@ class ShiftsManager:
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
+                # Идентичность сотрудника — стабильный employee_id (v6), имя только
+                # для показа. Фоллбэк на имя, пока у смены нет id (до бэкофилла).
                 cursor.execute('''
-                    SELECT s.employee_name,
+                    SELECT COALESCE(s.employee_id, s.employee_name) AS emp_key,
+                           MIN(s.employee_name) AS employee_name,
                            r.id AS role_id, r.name AS role_name, r.short_name AS role_short,
                            COALESCE(r.rate_per_hour, 0) AS rate_per_hour,
                            r.sort_order AS sort_order,
@@ -423,14 +441,14 @@ class ShiftsManager:
                     FROM shifts s
                     JOIN roles r ON s.role_id = r.id
                     WHERE s.date >= ? AND s.date <= ?
-                    GROUP BY s.employee_name, r.id
-                    ORDER BY s.employee_name, r.sort_order
+                    GROUP BY emp_key, r.id
+                    ORDER BY employee_name, r.sort_order
                 ''', (date_from, date_to))
                 rows = [dict(row) for row in cursor.fetchall()]
 
         by_emp = {}
         for row in rows:
-            emp = by_emp.setdefault(row['employee_name'], {
+            emp = by_emp.setdefault(row['emp_key'], {
                 'employee_name': row['employee_name'],
                 'roles': [], 'total_minutes': 0, 'total_pay': 0.0,
                 'shifts_with_fact': 0, 'shifts_without_fact': 0,
@@ -458,15 +476,18 @@ class ShiftsManager:
         return result
 
     def create_shift(self, date_str: str, employee_name: str, location_id: int,
-                     role_id: int, notes: str = None, start_time: str = None) -> int:
-        """Создать смену. start_time 'HH:MM' — плановое начало (NULL = стандарт)."""
+                     role_id: int, notes: str = None, start_time: str = None,
+                     employee_id: str = None) -> int:
+        """Создать смену. start_time 'HH:MM' — плановое начало (NULL = стандарт).
+        employee_id — стабильный id сотрудника из iiko (v6); employee_name пишется
+        как снимок для показа/фоллбэка."""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    INSERT INTO shifts (date, employee_name, location_id, role_id, notes, start_time)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (date_str, employee_name, location_id, role_id, notes, start_time))
+                    INSERT INTO shifts (date, employee_name, location_id, role_id, notes, start_time, employee_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (date_str, employee_name, location_id, role_id, notes, start_time, employee_id))
                 conn.commit()
                 return cursor.lastrowid
 
@@ -689,22 +710,34 @@ class ShiftsManager:
 
     # ==================== SCHEDULE EMPLOYEES ====================
 
-    def get_schedule_employees(self, include_inactive: bool = False) -> List[Dict]:
-        """Реестр сотрудников графика + имена из смен, которых нет в реестре.
+    @staticmethod
+    def _norm_name(n: str) -> str:
+        """Нормализация имени для сопоставления независимо от порядка слов
+        («Васильев Никита» == «Никита Васильев»)."""
+        return ' '.join(sorted((n or '').strip().lower().split()))
 
-        Имена из shifts добавляются виртуально (active=1, без short_label),
-        чтобы история смен никогда не оставалась без сотрудника в списке.
+    def get_schedule_employees(self, include_inactive: bool = False) -> List[Dict]:
+        """Реестр сотрудников графика + люди из смен, которых нет в реестре.
+
+        Идентичность — стабильный iiko_id (поле `id`). Имя — для показа.
+        Записи из shifts (по id или, если id ещё нет, по имени) добавляются
+        виртуально, чтобы история смен никогда не осталась без сотрудника в списке.
         """
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT name, short_label, active, sort_order, 1 as in_registry
+                    SELECT iiko_id AS id, name, short_label, active, sort_order, 1 AS in_registry
                     FROM schedule_employees
                     UNION
-                    SELECT DISTINCT s.employee_name, NULL, 1, 999, 0
+                    SELECT DISTINCT s.employee_id AS id, s.employee_name AS name,
+                           NULL, 1, 999, 0
                     FROM shifts s
-                    WHERE s.employee_name NOT IN (SELECT name FROM schedule_employees)
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM schedule_employees e
+                        WHERE (e.iiko_id IS NOT NULL AND e.iiko_id = s.employee_id)
+                           OR e.name = s.employee_name
+                    )
                     ORDER BY sort_order, name
                 ''')
                 rows = [dict(row) for row in cursor.fetchall()]
@@ -712,38 +745,116 @@ class ShiftsManager:
             rows = [r for r in rows if r['active']]
         return rows
 
-    def upsert_schedule_employees(self, names: List[str]) -> int:
-        """Добавить новые имена в реестр (существующие не трогаются).
+    def sync_employees(self, pairs, overrides=None) -> Dict:
+        """Синхронизация реестра графика с iiko по СТАБИЛЬНОМУ id (v6).
 
-        Возвращает число добавленных. Никогда ничего не удаляет — iiko лишь
-        поставщик кандидатов, источник правды о составе — владелец.
+        pairs: список (iiko_id, name) — текущий справочник iiko.
+        overrides: {старое_имя_в_сменах: iiko_id_или_текущее_имя} — ручная привязка
+            для редких случаев, где имя изменилось так, что авто-сопоставление по
+            строке невозможно (напр. «Артемий»→«Артем»). Разовая чистка наследия.
+
+        В одной транзакции (идемпотентно):
+          1) upsert реестра по iiko_id (имя обновляется на текущее; legacy-строка с
+             тем же именем «усыновляется» — получает id, сохраняя метку/порядок);
+          2) распространение переименований: shifts.employee_name по employee_id;
+          3) бэкофилл shifts.employee_id у смен без него (override → точное имя →
+             однозначная перестановка слов); имя смены при этом канонизируется;
+          4) удаление осиротевших legacy-строк реестра (без id и без смен по имени).
+        Возвращает отчёт с числами и списком несопоставленных имён.
         """
-        added = 0
-        with self._lock:
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                for name in names:
-                    name = (name or '').strip()
-                    if not name:
-                        continue
-                    cursor.execute(
-                        'INSERT OR IGNORE INTO schedule_employees (name) VALUES (?)',
-                        (name,)
-                    )
-                    added += cursor.rowcount
-                conn.commit()
-        return added
+        overrides = overrides or {}
+        pairs = [(str(i).strip(), (n or '').strip())
+                 for i, n in pairs if i and (n or '').strip()]
+        id_to_name, name_to_id, norm_to_ids = {}, {}, {}
+        for i, n in pairs:
+            id_to_name[i] = n
+            name_to_id.setdefault(n, i)
+            norm_to_ids.setdefault(self._norm_name(n), set()).add(i)
 
-    def update_schedule_employee(self, name: str, short_label: str = None,
+        def resolve(name):
+            ov = overrides.get(name)
+            if ov:
+                if ov in id_to_name:
+                    return ov
+                if ov in name_to_id:
+                    return name_to_id[ov]
+            if name in name_to_id:
+                return name_to_id[name]
+            ids = norm_to_ids.get(self._norm_name(name))
+            if ids and len(ids) == 1:
+                return next(iter(ids))
+            return None
+
+        added = updated = refreshed = backfilled = removed = 0
+        unmatched = []
+        with self._lock:
+            with self._get_connection() as conn:
+                cur = conn.cursor()
+                # 1) распространить переименования на смены, уже привязанные по id
+                for i, n in pairs:
+                    cur.execute(
+                        'UPDATE shifts SET employee_name = ? '
+                        'WHERE employee_id = ? AND employee_name <> ?', (n, i, n))
+                    refreshed += cur.rowcount
+                # 2) бэкофилл employee_id у смен без него (+ канонизация имени)
+                rows = cur.execute(
+                    'SELECT employee_name, COUNT(*) c FROM shifts '
+                    'WHERE employee_id IS NULL GROUP BY employee_name').fetchall()
+                for r in rows:
+                    nm, c = r['employee_name'], r['c']
+                    eid = resolve(nm)
+                    if eid and eid in id_to_name:
+                        cur.execute(
+                            'UPDATE shifts SET employee_id = ?, employee_name = ? '
+                            'WHERE employee_name = ? AND employee_id IS NULL',
+                            (eid, id_to_name[eid], nm))
+                        backfilled += cur.rowcount
+                    else:
+                        unmatched.append({'name': nm, 'shifts': c})
+                # 3) upsert реестра по id. Новых людей без смен добавляем неактивными
+                #    (видны в админке, скрыты из кисти — владелец включает барменов);
+                #    у кого есть смены — активными. Legacy-строку с тем же именем
+                #    усыновляем (даём id), сохраняя метку/порядок/активность владельца.
+                for i, n in pairs:
+                    row = cur.execute(
+                        'SELECT name FROM schedule_employees WHERE iiko_id = ?', (i,)).fetchone()
+                    if row:
+                        if row['name'] != n:
+                            cur.execute(
+                                'UPDATE schedule_employees SET name = ? WHERE iiko_id = ?', (n, i))
+                            updated += 1
+                        continue
+                    legacy = cur.execute(
+                        'SELECT 1 FROM schedule_employees WHERE name = ? AND iiko_id IS NULL',
+                        (n,)).fetchone()
+                    if legacy:
+                        cur.execute(
+                            'UPDATE schedule_employees SET iiko_id = ? WHERE name = ?', (i, n))
+                        updated += 1
+                    else:
+                        has_shifts = cur.execute(
+                            'SELECT 1 FROM shifts WHERE employee_id = ? LIMIT 1', (i,)).fetchone()
+                        cur.execute(
+                            'INSERT OR IGNORE INTO schedule_employees (name, iiko_id, active) '
+                            'VALUES (?, ?, ?)', (n, i, 1 if has_shifts else 0))
+                        added += cur.rowcount
+                # 4) убрать осиротевшие legacy-строки реестра (без id и без смен по имени)
+                cur.execute(
+                    'DELETE FROM schedule_employees WHERE iiko_id IS NULL '
+                    'AND name NOT IN (SELECT DISTINCT employee_name FROM shifts '
+                    '                 WHERE employee_id IS NULL)')
+                removed = cur.rowcount
+                conn.commit()
+        return {'added': added, 'updated': updated, 'names_refreshed': refreshed,
+                'shifts_backfilled': backfilled, 'legacy_removed': removed,
+                'unmatched': unmatched}
+
+    def update_schedule_employee(self, iiko_id: str, short_label: str = None,
                                  active: int = None, sort_order: int = None) -> bool:
-        """Обновить параметры сотрудника в реестре (создаст запись, если нет)."""
+        """Обновить параметры сотрудника в реестре по стабильному iiko_id (v6)."""
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(
-                    'INSERT OR IGNORE INTO schedule_employees (name) VALUES (?)',
-                    (name,)
-                )
                 updates, params = [], []
                 if short_label is not None:
                     updates.append('short_label = ?')
@@ -754,14 +865,14 @@ class ShiftsManager:
                 if sort_order is not None:
                     updates.append('sort_order = ?')
                     params.append(int(sort_order))
-                if updates:
-                    params.append(name)
-                    cursor.execute(
-                        f'UPDATE schedule_employees SET {", ".join(updates)} WHERE name = ?',
-                        params
-                    )
+                if not updates:
+                    return False
+                params.append(iiko_id)
+                cursor.execute(
+                    f'UPDATE schedule_employees SET {", ".join(updates)} WHERE iiko_id = ?',
+                    params)
                 conn.commit()
-                return True
+                return cursor.rowcount > 0
 
     # ==================== AUDIT (журнал изменений графика) ====================
 
