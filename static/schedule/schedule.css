@@ -186,66 +186,72 @@
 }
 
 /* ==================== Shift chips ==================== */
-/* Чип смены — спокойная карточка на нейтральном фоне; роль читается тонкой
-   цветной полоской слева (--role-color из JS), а не заливкой всей ячейки. */
+/* Одна спокойная карточка на ячейку. Внутри — бармены через «/», роль каждого
+   читается цветной точкой (день/вечер). Двойная смена не растягивается в два
+   «этажа»: имена идут в строку, при нехватке места — переносятся. */
 .shift-chip {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 3px;
-    padding: 7px 11px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 7px;
+    padding: 8px 11px;
     min-height: 44px;
     border-radius: var(--sch-radius-sm);
     background: var(--bg-secondary);
     border: 1px solid var(--border-light);
-    border-left: 3px solid var(--role-color, var(--accent));
     color: var(--text-primary);
     font-size: 0.82rem;
-    cursor: pointer;
-    text-align: left;
-    overflow: hidden;
-    transition: background 150ms ease, box-shadow 150ms ease;
 }
 
-.shift-chip:hover { background: var(--bg-tertiary); box-shadow: var(--shadow-sm); }
+/* Бармен — кликабельная единица (своя смена); подсветка только активного */
+.chip-person {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    padding: 1px 4px;
+    margin: -1px -1px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+.chip-person:hover { background: var(--bg-tertiary); }
 
-/* Имя целиком; длинное — обрезаем многоточием, чтобы не ломать сетку */
-.shift-chip .chip-name {
+/* Цветная точка роли (день/вечер) — «цветное разделение» барменов */
+.chip-dot {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    align-self: center;
+    background: var(--role-color, var(--accent));
+}
+
+.chip-name {
     font-weight: 600;
     line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 14ch;
 }
-
-.shift-chip .chip-meta {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+.chip-meta {
     font-size: 0.7rem;
     color: var(--text-secondary);
     white-space: nowrap;
 }
 
-/* Тип смены: «День» / «с 18:00» — лёгкая капсула, чтобы строка читалась как метка */
-.shift-chip .chip-when {
-    white-space: nowrap;
-    padding: 1px 7px;
-    border-radius: var(--border-radius-pill);
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
+/* Разделитель «/» между барменами */
+.chip-sep {
+    color: var(--text-tertiary);
+    align-self: center;
+    user-select: none;
 }
-.shift-chip .chip-fact {
-    white-space: nowrap;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-/* На hover капсула «День/с HH:MM» не должна сливаться с фоном чипа */
-.shift-chip:hover .chip-when { background: var(--bg-hover, var(--border-light)); }
 
 /* Конфликт: смена в день, на который сотрудник просил выходной */
-.shift-chip.conflict {
-    box-shadow: inset 0 0 0 2px var(--danger);
+.chip-person.conflict .chip-name {
+    color: var(--danger);
+    text-decoration: underline wavy var(--danger);
+    text-underline-offset: 2px;
 }
 
 .conflict-note {
@@ -340,7 +346,7 @@
 
 body.paint-mode .schedule-cell.shift-cell { cursor: crosshair; }
 body.paint-mode .schedule-cell.shift-cell:hover { background: var(--bg-hover); }
-body.eraser-mode .shift-chip { cursor: not-allowed; }
+body.eraser-mode .chip-person { cursor: not-allowed; }
 
 /* ==================== Warnings row ==================== */
 .warnings-row {

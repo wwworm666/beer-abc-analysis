@@ -244,9 +244,10 @@
                 cell.dataset.locationId = loc.id;
 
                 var conflictNames = [];
+                if (cellShifts.length) {
+                    cell.appendChild(buildCellChip(cellShifts, dayOffEmps, opts.onChipClick));
+                }
                 cellShifts.forEach(function (shift) {
-                    var chip = buildChip(shift, dayOffEmps, opts.onChipClick);
-                    cell.appendChild(chip);
                     if (dayOffEmps.indexOf(shift.employee_name) !== -1) {
                         conflictNames.push(employeeLabel(shift.employee_name));
                     }
@@ -262,7 +263,9 @@
 
                 if (opts.onCellClick) {
                     cell.addEventListener('click', function (e) {
-                        if (e.target.closest('.shift-chip')) return;
+                        // Клик по конкретному бармену обрабатывает он сам (своя смена);
+                        // клик по свободному месту карточки/ячейки — рисуем смену.
+                        if (e.target.closest('.chip-person')) return;
                         opts.onCellClick(ds, loc.id, cellShifts);
                     });
                 }
@@ -272,40 +275,55 @@
         }
     }
 
-    function buildChip(shift, dayOffEmps, onChipClick) {
+    /* Одна карточка-чип на ячейку: все смены в строку через «/». Роль каждого
+       бармена — цветная точка (день/вечер), имя кликабельно (своя смена). Двойная
+       смена больше не растягивается в два «этажа» — компактно и спокойно. */
+    function buildCellChip(shifts, dayOffEmps, onChipClick) {
         var chip = document.createElement('div');
-        var isConflict = dayOffEmps.indexOf(shift.employee_name) !== -1;
-        chip.className = 'shift-chip' + (isConflict ? ' conflict' : '');
-        /* Роль кодируется цветом левой полоски (см. .shift-chip в schedule.css),
-           а не заливкой всего чипа — сетка остаётся спокойной. */
-        chip.style.setProperty('--role-color', shift.role_color || 'var(--accent)');
-        chip.dataset.shiftId = shift.id;
+        chip.className = 'shift-chip';
+        // Одна смена — имя целиком + мета (заполняет ячейку). Двойная — имена
+        // покороче (имя) без меты, чтобы влезть в одну строку через «/». Полное
+        // имя/время/факт всегда есть в подсказке.
+        var multi = shifts.length > 1;
 
-        /* Заполняем ячейку: имя целиком (а не двухбуквенная метка) + строка-мета.
-           Мета всегда непустая: «День» / «с HH:MM» (тип смены) + факт часов, если
-           проставлен. Раньше дневная смена показывала только инициалы — ячейка
-           выглядела пустой. */
-        var nameFull = shiftDisplayName(shift);
-        var meta = '<span class="chip-when">'
-            + (shift.start_time ? 'с ' + escapeHtml(shift.start_time) : 'День') + '</span>';
-        if (shift.fact_minutes !== null && shift.fact_minutes !== undefined) {
-            meta += '<span class="chip-fact">' + minutesToHhMm(shift.fact_minutes) + '</span>';
-        }
+        shifts.forEach(function (shift, i) {
+            if (i > 0) {
+                var sep = document.createElement('span');
+                sep.className = 'chip-sep';
+                sep.textContent = '/';
+                chip.appendChild(sep);
+            }
 
-        chip.title = nameFull + ' — ' + shift.role_name
-            + (shift.start_time ? ', с ' + shift.start_time : '')
-            + (shift.fact_minutes != null
-                ? ', факт ' + minutesToHhMm(shift.fact_minutes) : '');
-        chip.innerHTML =
-            '<span class="chip-name">' + escapeHtml(employeeShortName(nameFull)) + '</span>'
-            + '<span class="chip-meta">' + meta + '</span>';
+            var person = document.createElement('span');
+            var isConflict = dayOffEmps.indexOf(shift.employee_name) !== -1;
+            person.className = 'chip-person' + (isConflict ? ' conflict' : '');
+            person.style.setProperty('--role-color', shift.role_color || 'var(--accent)');
+            person.dataset.shiftId = shift.id;
 
-        if (onChipClick) {
-            chip.addEventListener('click', function (e) {
-                e.stopPropagation();
-                onChipClick(shift);
-            });
-        }
+            var nameFull = shiftDisplayName(shift);
+            var short = employeeShortName(nameFull);               // «Фамилия Имя»
+            var label = multi ? (short.split(/\s+/)[1] || short.split(/\s+/)[0]) : short;
+            // Мета только у одиночной смены: факт (если введён) или плановое начало.
+            var metaTxt = multi ? ''
+                : ((shift.fact_minutes != null && shift.fact_minutes !== undefined)
+                    ? minutesToHhMm(shift.fact_minutes)
+                    : (shift.start_time ? 'с ' + shift.start_time : ''));
+            person.title = nameFull + ' — ' + shift.role_name
+                + (shift.start_time ? ', с ' + shift.start_time : ', день')
+                + (shift.fact_minutes != null
+                    ? ', факт ' + minutesToHhMm(shift.fact_minutes) : '');
+            person.innerHTML = '<span class="chip-dot"></span>'
+                + '<span class="chip-name">' + escapeHtml(label) + '</span>'
+                + (metaTxt ? '<span class="chip-meta">' + escapeHtml(metaTxt) + '</span>' : '');
+
+            if (onChipClick) {
+                person.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    onChipClick(shift);
+                });
+            }
+            chip.appendChild(person);
+        });
         return chip;
     }
 
