@@ -204,11 +204,23 @@
             const isWeekend = dow === 5 || dow === 6; // пт/сб — дни повышенного веса
             const isToday = ds === today;
             const dayOffEmps = getDayOffEmployees(ds);
+            const isMonday = dow === 1;
+            const isSunday = dow === 0;
+            const frameCls = (isMonday ? ' wk-top' : '') + (isSunday ? ' wk-bottom' : '');
+
+            // Рамка недели Пн→Вс: перед каждым понедельником (кроме первого дня
+            // месяца) — пустая строка-«канавка» во всю ширину, разделяющая недели.
+            if (isMonday && day > 1) {
+                var weekGap = document.createElement('div');
+                weekGap.className = 'weekgap';
+                grid.appendChild(weekGap);
+            }
 
             var dateCell = document.createElement('div');
             dateCell.className = 'schedule-cell date-cell'
                 + (isWeekend ? ' weekend-col' : '')
-                + (isToday ? ' today' : '');
+                + (isToday ? ' today' : '')
+                + frameCls;
             dateCell.dataset.date = ds;
             var planLine = '';
             if (opts.showPlans && state.plans && state.plans.days[ds]
@@ -239,13 +251,15 @@
                 if (opts.markHoles && cellShifts.length === 0 && ds >= today) {
                     classes += ' hole';
                 }
+                classes += frameCls;
                 cell.className = classes;
                 cell.dataset.date = ds;
                 cell.dataset.locationId = loc.id;
 
                 var conflictNames = [];
                 if (cellShifts.length) {
-                    cell.appendChild(buildCellChip(cellShifts, dayOffEmps, opts.onChipClick));
+                    cell.appendChild(buildCellChip(cellShifts, dayOffEmps, opts.onChipClick,
+                        { isPast: ds < today, isToday: isToday }));
                 }
                 cellShifts.forEach(function (shift) {
                     if (dayOffEmps.indexOf(shift.employee_name) !== -1) {
@@ -278,13 +292,28 @@
     /* Одна карточка-чип на ячейку: все смены в строку через «/». Роль каждого
        бармена — цветная точка (день/вечер), имя кликабельно (своя смена). Двойная
        смена больше не растягивается в два «этажа» — компактно и спокойно. */
-    function buildCellChip(shifts, dayOffEmps, onChipClick) {
+    function buildCellChip(shifts, dayOffEmps, onChipClick, dayCtx) {
         var chip = document.createElement('div');
-        chip.className = 'shift-chip';
         // Одна смена — имя целиком + мета (заполняет ячейку). Двойная — имена
         // покороче (имя) без меты, чтобы влезть в одну строку через «/». Полное
         // имя/время/факт всегда есть в подсказке.
         var multi = shifts.length > 1;
+        var isToday = !!(dayCtx && dayCtx.isToday);
+        var isPast = !!(dayCtx && dayCtx.isPast);
+
+        // Состояние ячейки → класс на чип: отработанное прошлое приглушаем
+        // (st-done), прошлую смену без факта помечаем (st-nofact), сегодня —
+        // st-today. Предстоящее — без класса (полный цвет).
+        var stClass = '';
+        if (isToday) {
+            stClass = ' st-today';
+        } else if (isPast) {
+            var allFact = shifts.every(function (s) {
+                return s.fact_minutes != null && s.fact_minutes !== undefined;
+            });
+            stClass = allFact ? ' st-done' : ' st-nofact';
+        }
+        chip.className = 'shift-chip' + stClass;
 
         shifts.forEach(function (shift, i) {
             if (i > 0) {
@@ -303,11 +332,22 @@
             var nameFull = shiftDisplayName(shift);
             var short = employeeShortName(nameFull);               // «Фамилия Имя»
             var label = multi ? (short.split(/\s+/)[1] || short.split(/\s+/)[0]) : short;
-            // Мета только у одиночной смены: факт (если введён) или плановое начало.
-            var metaTxt = multi ? ''
-                : ((shift.fact_minutes != null && shift.fact_minutes !== undefined)
-                    ? minutesToHhMm(shift.fact_minutes)
-                    : (shift.start_time ? 'с ' + shift.start_time : ''));
+            // Мета только у одиночной смены и зависит от состояния: факт есть →
+            // отработанные часы; сегодня без факта → «идёт»; прошлое без факта →
+            // «факт?» (флаг, надо дозакрыть); будущее → плановое начало «с HH:MM».
+            var hasFact = shift.fact_minutes != null && shift.fact_minutes !== undefined;
+            var metaTxt = '';
+            if (!multi) {
+                if (hasFact) {
+                    metaTxt = minutesToHhMm(shift.fact_minutes);
+                } else if (isToday) {
+                    metaTxt = 'идёт';
+                } else if (isPast) {
+                    metaTxt = 'факт?';
+                } else {
+                    metaTxt = shift.start_time ? 'с ' + shift.start_time : '';
+                }
+            }
             person.title = nameFull + ' — ' + shift.role_name
                 + (shift.start_time ? ', с ' + shift.start_time : ', день')
                 + (shift.fact_minutes != null

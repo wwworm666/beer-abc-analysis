@@ -120,7 +120,7 @@
 }
 
 .schedule-cell {
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-light);
     border-right: 1px solid var(--border-color);
     min-height: 44px;
     position: relative;
@@ -136,7 +136,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 4px;
+    padding: 2px;
 }
 
 .schedule-cell.date-cell {
@@ -162,7 +162,19 @@
     color: var(--text-tertiary);
 }
 
-.schedule-cell.weekend-col { background: var(--accent-light); }
+/* Выходные (пятница, суббота) — повышенный вес: тёплый фон, дата ярче с
+   акцентным числом. Воскресенье выходным не считаем. */
+.schedule-cell.weekend-col { background: rgba(217, 119, 87, 0.06); }
+.schedule-cell.date-cell.weekend-col { background: rgba(217, 119, 87, 0.14); }
+.date-cell.weekend-col .day-number { color: var(--accent); font-weight: 700; }
+
+/* Рамка недели Пн→Вс: «канавка» между неделями (.weekgap во всю ширину) плюс
+   чёткая верх/низ-линия band-а (понедельник/воскресенье). Боковые стороны
+   рамки — внешняя граница контейнера. Внутренние линии дней — мягче (border-light),
+   чтобы рамка недели выделялась. */
+.weekgap { grid-column: 1 / -1; height: 10px; background: var(--bg); }
+.schedule-cell.wk-top { border-top: 2px solid var(--text-tertiary); }
+.schedule-cell.wk-bottom { border-bottom: 2px solid var(--text-tertiary); }
 
 /* Сегодня — рамка строки */
 .schedule-cell.today {
@@ -191,30 +203,47 @@
    «этажа»: имена идут в строку, при нехватке места — переносятся. */
 .shift-chip {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 3px 7px;
-    padding: 8px 11px;
-    min-height: 44px;
-    border-radius: var(--sch-radius-sm);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-light);
+    gap: 0 8px;
+    padding: 7px 12px;
+    min-height: 40px;
     color: var(--text-primary);
     font-size: 0.82rem;
 }
 
+/* Состояние смены. Отработанное прошлое приглушаем (готово, архив); прошлую
+   смену без факта помечаем янтарным «факт?» (надо дозакрыть); сегодня — «идёт». */
+.shift-chip.st-done { opacity: 0.6; }
+.shift-chip.st-done .chip-name { font-weight: 500; }
+.shift-chip.st-done .chip-meta { color: var(--text-tertiary); }
+.shift-chip.st-nofact .chip-meta {
+    color: var(--warning);
+    font-weight: 600;
+    background: var(--warning-bg);
+    padding: 1px 7px;
+    border-radius: 6px;
+}
+.shift-chip.st-today .chip-meta { color: var(--accent); font-weight: 600; }
+
 /* Бармен — кликабельная единица (своя смена); подсветка только активного */
 .chip-person {
     display: inline-flex;
-    align-items: baseline;
+    align-items: center;
     gap: 5px;
     padding: 1px 4px;
     margin: -1px -1px;
+    min-width: 0;
     border-radius: 7px;
     cursor: pointer;
     transition: background 120ms ease;
 }
 .chip-person:hover { background: var(--bg-tertiary); }
+
+/* Одиночная смена (есть мета-время): имя тянется на всю ширину ячейки, время
+   прижато вправо ровным столбцом. Двойная (без меты) — имена натуральной ширины. */
+.shift-chip:has(.chip-meta) .chip-person { flex: 1 1 auto; }
+.shift-chip:has(.chip-meta) .chip-name { flex: 1 1 auto; }
 
 /* Цветная точка роли (день/вечер) — «цветное разделение» барменов */
 .chip-dot {
@@ -232,12 +261,16 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 14ch;
+    min-width: 0;
 }
 .chip-meta {
-    font-size: 0.7rem;
+    margin-left: auto;
+    flex: 0 0 auto;
+    padding-left: 8px;
+    font-size: 0.72rem;
     color: var(--text-secondary);
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 /* Разделитель «/» между барменами */
