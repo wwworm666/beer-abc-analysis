@@ -408,11 +408,42 @@
         return '<table class="pf-sub"><tbody>' + rows + '</tbody></table>';
     }
 
-    /* Таблица «План / Факт по дням». host — контейнер; данные из state.plans/shifts. */
+    // Выбранная точка в «План/Факт»: 'all' (агрегат) либо location_id. Сохраняется
+    // между ре-рендерами (общая для редактора и просмотра — у каждого свой host,
+    // но виджет на странице один).
+    var pfScope = 'all';
+
+    /* Таблица «План / Факт по дням». host — контейнер; данные из state.plans/shifts.
+       Селектор сверху: «Все» (сумма точек) либо отдельная точка (план/факт и кто
+       стоял именно на ней). */
     function renderPlanFact(host) {
         if (!host) return;
         var days = state.plans && state.plans.days;
         if (!days) { host.innerHTML = '<div class="pf-empty">Нет данных по плану</div>'; return; }
+
+        if (pfScope !== 'all' && !state.locations.some(function (l) { return l.id === pfScope; })) {
+            pfScope = 'all';
+        }
+        var loc = (pfScope === 'all') ? null
+            : state.locations.find(function (l) { return l.id === pfScope; });
+        var tabs = '<div class="pf-scope">'
+            + '<button class="pf-tab' + (pfScope === 'all' ? ' active' : '') + '" data-scope="all">Все</button>'
+            + state.locations.map(function (l) {
+                return '<button class="pf-tab' + (pfScope === l.id ? ' active' : '')
+                    + '" data-scope="' + l.id + '" title="' + escapeHtml(l.name) + '">'
+                    + escapeHtml(l.short_name || l.name) + '</button>';
+              }).join('')
+            + '</div>';
+
+        function wireTabs() {
+            host.querySelectorAll('.pf-tab').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var s = btn.dataset.scope;
+                    pfScope = (s === 'all') ? 'all' : parseInt(s, 10);
+                    renderPlanFact(host);
+                });
+            });
+        }
 
         var daysInMonth = new Date(state.year, state.month, 0).getDate();
         var shiftsByDay = {};
@@ -427,12 +458,24 @@
         for (var day = 1; day <= daysInMonth; day++) {
             var ds = dateStr(state.year, state.month, day);
             var d = days[ds] || {};
-            var dayShifts = shiftsByDay[ds] || [];
-            var plan = (d.plan_total != null) ? d.plan_total : null;
-            var fact = (d.fact_total != null) ? d.fact_total : null;
-            // Пропускаем только полностью пустой день. День с фактом без плана и
+            var allShifts = shiftsByDay[ds] || [];
+
+            // Данные строки зависят от выбранной точки: «Все» — агрегат дня,
+            // иначе — план/факт и смены конкретной точки.
+            var plan, fact, rowShifts;
+            if (pfScope === 'all') {
+                plan = (d.plan_total != null) ? d.plan_total : null;
+                fact = (d.fact_total != null) ? d.fact_total : null;
+                rowShifts = allShifts;
+            } else {
+                var c = (d.locations && d.locations[pfScope]) || {};
+                plan = (c.plan != null) ? c.plan : null;
+                fact = (c.fact != null) ? c.fact : null;
+                rowShifts = allShifts.filter(function (s) { return s.location_id === pfScope; });
+            }
+            // Пропускаем полностью пустую строку. День/точка с фактом без плана и
             // смен показываем — это сигнал (выручка была, а смен/плана нет).
-            if (plan == null && fact == null && !dayShifts.length) continue;
+            if (plan == null && fact == null && !rowShifts.length) continue;
 
             if (plan != null) { sumPlan += plan; anyPlan = true; }
             if (fact != null) { sumFact += fact; anyFact = true; }
@@ -443,17 +486,18 @@
             var pct = (plan != null && plan > 0 && fact != null)
                 ? Math.round(fact / plan * 100) : null;
 
-            // Уникальные бармены дня, в порядке смен (точка -> роль -> sort_order)
             var seen = {}, chips = [];
-            dayShifts.forEach(function (s) {
+            rowShifts.forEach(function (s) {
                 var key = s.employee_id || s.employee_name;
                 if (seen[key]) return;
                 seen[key] = true;
                 chips.push(pfWhoChip(s));
             });
 
+            // Разворот по барам — только в режиме «Все» (в режиме точки разбивать нечего)
+            var expandable = (pfScope === 'all');
             body.push(
-                '<tr class="pf-day" data-date="' + ds + '">'
+                '<tr class="pf-day' + (expandable ? '' : ' pf-flat') + '" data-date="' + ds + '">'
                 + '<td class="pf-date"><span class="pf-dow' + (weekend ? ' pf-we' : '') + '">'
                     + DAY_NAMES[dow] + '</span> ' + pad2(day) + '.' + pad2(state.month) + '</td>'
                 + '<td class="pf-num">' + (plan != null ? formatMoney(plan) : '&mdash;') + '</td>'
@@ -461,13 +505,17 @@
                 + '<td class="pf-pct">' + pfPctBadge(pct) + '</td>'
                 + '<td class="pf-chips">' + (chips.join('') || '<span class="pf-dim">нет смен</span>') + '</td>'
                 + '</tr>'
-                + '<tr class="pf-detail" data-detail="' + ds + '" hidden>'
-                + '<td colspan="5">' + pfDetail(d, dayShifts) + '</td></tr>'
+                + (expandable
+                    ? '<tr class="pf-detail" data-detail="' + ds + '" hidden><td colspan="5">'
+                      + pfDetail(d, allShifts) + '</td></tr>'
+                    : '')
             );
         }
 
         if (!body.length) {
-            host.innerHTML = '<div class="pf-empty">В этом месяце нет ни планов, ни смен</div>';
+            host.innerHTML = tabs + '<div class="pf-empty">Нет планов и смен'
+                + (loc ? ' по точке «' + escapeHtml(loc.short_name || loc.name) + '»' : '') + '</div>';
+            wireTabs();
             return;
         }
 
@@ -476,19 +524,20 @@
         var totalPct = (planOfFactDays > 0 && anyFact)
             ? Math.round(sumFact / planOfFactDays * 100) : null;
         var total = '<tr class="pf-total">'
-            + '<td>Итого</td>'
+            + '<td>Итого' + (loc ? ' · ' + escapeHtml(loc.short_name || loc.name) : '') + '</td>'
             + '<td class="pf-num">' + (anyPlan ? formatMoney(sumPlan) : '&mdash;') + '</td>'
             + '<td class="pf-num">' + (anyFact ? formatMoney(sumFact) : '&mdash;') + '</td>'
             + '<td class="pf-pct">' + pfPctBadge(totalPct) + '</td>'
             + '<td></td></tr>';
 
-        host.innerHTML =
-            '<table class="pf-table"><thead><tr>'
+        host.innerHTML = tabs
+            + '<table class="pf-table"><thead><tr>'
             + '<th>Дата</th><th class="pf-num">План</th><th class="pf-num">Факт</th>'
             + '<th class="pf-pct">%</th><th>Смена</th>'
             + '</tr></thead><tbody>' + body.join('') + total + '</tbody></table>';
 
-        host.querySelectorAll('tr.pf-day').forEach(function (tr) {
+        wireTabs();
+        host.querySelectorAll('tr.pf-day:not(.pf-flat)').forEach(function (tr) {
             tr.addEventListener('click', function () {
                 var detail = host.querySelector('tr.pf-detail[data-detail="' + tr.dataset.date + '"]');
                 if (!detail) return;
@@ -496,6 +545,47 @@
                 tr.classList.toggle('open', !detail.hidden);
             });
         });
+    }
+
+    /* Мини-виджет «Выполнение плана»: позавчера / вчера / сегодня (агрегат по всем
+       точкам). Берёт state.plans отображаемого месяца; дата вне него — «—». Сегодня
+       помечаем «идёт» (факт неполный — день не закрыт). */
+    function renderRecentCompletion(host) {
+        if (!host) return;
+        var days = state.plans && state.plans.days;
+        if (!days) { host.innerHTML = '<div class="cov-empty">Нет данных</div>'; return; }
+        var now = new Date();
+        var defs = [
+            { off: 2, label: 'Позавчера' },
+            { off: 1, label: 'Вчера' },
+            { off: 0, label: 'Сегодня' }
+        ];
+        host.innerHTML = defs.map(function (def) {
+            var dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - def.off);
+            var ds = dateStr(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
+            var d = days[ds];
+            var plan = (d && d.plan_total != null) ? d.plan_total : null;
+            var fact = (d && d.fact_total != null) ? d.fact_total : null;
+            var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
+            var dd = ds.slice(8) + '.' + ds.slice(5, 7);
+            var badge = d ? pfPctBadge(pct) : '<span class="pf-dim">&mdash;</span>';
+            var money;
+            if (!d) {
+                money = '<span class="rc-money pf-dim">не в этом месяце</span>';
+            } else if (plan == null && fact == null) {
+                money = '<span class="rc-money pf-dim">нет данных</span>';
+            } else {
+                money = '<span class="rc-money">' + (fact != null ? formatMoney(fact) : '—')
+                    + ' / ' + (plan != null ? formatMoney(plan) : '—') + '</span>';
+            }
+            return '<div class="rc-item">'
+                + '<div class="rc-head"><span class="rc-label">' + def.label
+                + ' <span class="rc-date">' + dd + '</span></span>'
+                + '<span class="rc-val">' + badge
+                + (def.off === 0 ? '<span class="rc-live">идёт</span>' : '') + '</span></div>'
+                + money
+                + '</div>';
+        }).join('');
     }
 
     // ==================== UI-мелочи ====================
@@ -543,6 +633,7 @@
         shiftLabel: shiftLabel,
         renderLoad: renderLoad,
         renderPlanFact: renderPlanFact,
+        renderRecentCompletion: renderRecentCompletion,
         renderWishesReadonly: renderWishesReadonly,
         formatAuditTs: formatAuditTs,
         escapeHtml: escapeHtml,

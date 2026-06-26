@@ -140,6 +140,7 @@
             .then(function (p) {
                 S.state.plans = p;
                 S.renderPlanFact(document.getElementById('planFactBody'));
+                S.renderRecentCompletion(document.getElementById('recentBody'));
             })
             .catch(function (err) {
                 console.error(err);

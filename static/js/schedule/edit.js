@@ -102,6 +102,7 @@
         renderGrid();
         renderWarnings();
         S.renderPlanFact(document.getElementById('planFactBody'));
+        S.renderRecentCompletion(document.getElementById('recentBody'));
         renderWishesBoard();
         renderEmployeesAdmin();
         if (selectedDate) renderDayPanel(selectedDate);

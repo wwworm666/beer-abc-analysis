@@ -583,6 +583,50 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
 .pf-empty { color: var(--text-tertiary); font-size: 0.86rem; padding: 10px 0; }
 .pf-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 10px; }
 
+/* Селектор точки: «Все» + по каждой точке отдельно */
+.pf-scope { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.pf-tab {
+    padding: 4px 12px;
+    border-radius: var(--border-radius-pill);
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.pf-tab:hover { background: var(--bg-tertiary); }
+.pf-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ==================== Мини-виджет «Выполнение плана» (3 дня) ==================== */
+/* Позавчера / Вчера / Сегодня — % выполнения + факт/план. Сегодня — «идёт». */
+.rc-item { padding: 9px 0; border-bottom: 1px solid var(--border-color); }
+.rc-item:first-child { padding-top: 2px; }
+.rc-item:last-child { border-bottom: none; padding-bottom: 2px; }
+.rc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rc-label { font-size: 0.86rem; font-weight: 600; }
+.rc-date {
+    color: var(--text-tertiary);
+    font-weight: 400;
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+}
+.rc-val { display: flex; align-items: center; gap: 7px; }
+.rc-live {
+    font-size: 0.62rem;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.rc-money {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
 /* ==================== Employees admin ==================== */
 .emp-admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 
