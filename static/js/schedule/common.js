@@ -281,21 +281,24 @@
         chip.style.setProperty('--role-color', shift.role_color || 'var(--accent)');
         chip.dataset.shiftId = shift.id;
 
-        var badges = [];
-        if (shift.start_time) {
-            badges.push('<span class="chip-time">с ' + shift.start_time + '</span>');
-        }
+        /* Заполняем ячейку: имя целиком (а не двухбуквенная метка) + строка-мета.
+           Мета всегда непустая: «День» / «с HH:MM» (тип смены) + факт часов, если
+           проставлен. Раньше дневная смена показывала только инициалы — ячейка
+           выглядела пустой. */
+        var nameFull = shiftDisplayName(shift);
+        var meta = '<span class="chip-when">'
+            + (shift.start_time ? 'с ' + escapeHtml(shift.start_time) : 'День') + '</span>';
         if (shift.fact_minutes !== null && shift.fact_minutes !== undefined) {
-            badges.push('<span class="chip-fact">' + minutesToHhMm(shift.fact_minutes) + '</span>');
+            meta += '<span class="chip-fact">' + minutesToHhMm(shift.fact_minutes) + '</span>';
         }
 
-        chip.title = shiftDisplayName(shift) + ' — ' + shift.role_name
+        chip.title = nameFull + ' — ' + shift.role_name
             + (shift.start_time ? ', с ' + shift.start_time : '')
             + (shift.fact_minutes != null
                 ? ', факт ' + minutesToHhMm(shift.fact_minutes) : '');
         chip.innerHTML =
-            '<span class="chip-name">' + escapeHtml(shiftLabel(shift)) + '</span>'
-            + (badges.length ? '<span class="chip-badges">' + badges.join('') + '</span>' : '');
+            '<span class="chip-name">' + escapeHtml(employeeShortName(nameFull)) + '</span>'
+            + '<span class="chip-meta">' + meta + '</span>';
 
         if (onChipClick) {
             chip.addEventListener('click', function (e) {
@@ -307,9 +310,10 @@
     }
 
     // ==================== Виджеты (общие для редактора и просмотра) ====================
-    // Нагрузка, Покрытие по дням недели, Пожелания (read-only). Данные —
-    // GET /api/schedule/widgets (money-free, без iiko). Рендер общий, чтобы
-    // редактор и просмотр показывали одно и то же.
+    // Нагрузка и Пожелания (read-only) — money-free, общий рендер, чтобы редактор
+    // и просмотр показывали одно и то же. Нагрузка — GET /api/schedule/widgets
+    // (без iiko, без рублей). Денежная «План/Факт по дням» — только в редакторе
+    // (см. edit.js), на странице барменов финансов нет.
 
     /* Нагрузка по сотрудникам: смены/норма (цвет по выполнению), часы факта,
        макс. серия подряд (флаг 5+), смены без факта. tbody — элемент <tbody>. */
@@ -347,46 +351,6 @@
         }).join('');
     }
 
-    /* Покрытие по дням недели: полоса = относительный спрос (план дня, money-free),
-       число = среднее смен/день. Подсвечиваем самый недозакрытый под спрос день. */
-    function renderCoverage(el, rows) {
-        if (!el) return;
-        if (!rows || !rows.length) {
-            el.innerHTML = '<div class="cov-empty">Нет данных</div>';
-            return;
-        }
-        var minDow = null, minVal = Infinity;
-        rows.forEach(function (r) {
-            if (r.coverage != null && r.coverage < minVal) { minVal = r.coverage; minDow = r.dow; }
-        });
-        var underReal = (minDow != null && minVal < 1); // штат ниже спроса
-        var list = rows.map(function (r) {
-            var under = underReal && r.dow === minDow;
-            var fill = under ? 'var(--warning)' : 'var(--accent)';
-            var w = Math.round((r.demand || 0) * 100);
-            return '<div class="cov-row">'
-                + '<span class="cov-dow">' + escapeHtml(r.label) + '</span>'
-                + '<span class="cov-bar"><span class="cov-fill" style="width:' + w
-                + '%;background:' + fill + '"></span></span>'
-                + '<span class="cov-shifts"' + (under ? ' style="color:var(--warning);font-weight:600"' : '')
-                + '>' + (r.avg_shifts || 0) + '</span>'
-                + '</div>';
-        }).join('');
-        // Подсказка. Флаг = день с минимальным отношением «доля штата / доля
-        // спроса» (<1), это не обязательно день высокого спроса — формулируем по
-        // отношению, без ложного «спрос высокий». Нет планов вовсе — отдельный текст.
-        var hasDemand = rows.some(function (r) { return (r.demand || 0) > 0; });
-        var note = '';
-        if (!hasDemand) {
-            note = '<div class="cov-note">Нет плановых данных — спрос не рассчитан</div>';
-        } else if (underReal) {
-            var lbl = (rows.find(function (r) { return r.dow === minDow; }) || {}).label;
-            note = '<div class="cov-note">Под спрос недозакрыт: <strong>'
-                + escapeHtml(lbl) + '</strong> — штата меньше, чем доля спроса</div>';
-        }
-        el.innerHTML = list + note;
-    }
-
     /* Пожелания (read-only, для страницы просмотра). wishes — [{employee_name, text}]. */
     function renderWishesReadonly(el, wishes) {
         if (!el) return;
@@ -402,6 +366,136 @@
                 + '<div class="wish-text">' + escapeHtml(w.text).replace(/\n/g, '<br>') + '</div>'
                 + '</div>';
         }).join('');
+    }
+
+    // ==================== Виджет «План / Факт по дням» (деньги) ====================
+    // План выручки дня (веса дней), факт (живой iiko OLAP), % выполнения и кто стоял
+    // на смене; клик по дню — разбивка по барам. Читает state.plans (GET /plans) +
+    // state.shifts. Общий для редактора и просмотра (host передаётся снаружи).
+
+    /* Бейдж % выполнения: >=100 зелёный, 85..99 янтарный, <85 красный, нет — тире. */
+    function pfPctBadge(pct) {
+        if (pct == null) return '<span class="pf-dim">&mdash;</span>';
+        var cls = pct >= 100 ? 'good' : (pct >= 85 ? 'mid' : 'low');
+        return '<span class="pf-badge pf-' + cls + '">' + pct + '%</span>';
+    }
+
+    /* Чип бармена: короткая метка (как в сетке), полное имя — в title. */
+    function pfWhoChip(shift) {
+        var title = shiftDisplayName(shift) + (shift.start_time ? ' — с ' + shift.start_time : '');
+        return '<span class="pf-who" title="' + escapeHtml(title) + '">'
+            + escapeHtml(shiftLabel(shift)) + '</span>';
+    }
+
+    /* Разбивка дня по барам: план/факт/% и кто на каждом баре. */
+    function pfDetail(dayData, dayShifts) {
+        var locs = (dayData && dayData.locations) || {};
+        var rows = state.locations.map(function (loc) {
+            var c = locs[loc.id] || {};
+            var locShifts = dayShifts.filter(function (s) { return s.location_id === loc.id; });
+            if (c.plan == null && c.fact == null && !locShifts.length) return '';
+            var pct = (c.plan != null && c.plan > 0 && c.fact != null)
+                ? Math.round(c.fact / c.plan * 100) : null;
+            var who = locShifts.map(pfWhoChip).join('') || '<span class="pf-dim">нет смен</span>';
+            return '<tr>'
+                + '<td>' + escapeHtml(loc.short_name || loc.name) + '</td>'
+                + '<td class="pf-num">' + (c.plan != null ? formatMoney(c.plan) : '&mdash;') + '</td>'
+                + '<td class="pf-num">' + (c.fact != null ? formatMoney(c.fact) : '<span class="pf-dim">&mdash;</span>') + '</td>'
+                + '<td class="pf-pct">' + pfPctBadge(pct) + '</td>'
+                + '<td class="pf-chips">' + who + '</td>'
+                + '</tr>';
+        }).filter(Boolean).join('');
+        return '<table class="pf-sub"><tbody>' + rows + '</tbody></table>';
+    }
+
+    /* Таблица «План / Факт по дням». host — контейнер; данные из state.plans/shifts. */
+    function renderPlanFact(host) {
+        if (!host) return;
+        var days = state.plans && state.plans.days;
+        if (!days) { host.innerHTML = '<div class="pf-empty">Нет данных по плану</div>'; return; }
+
+        var daysInMonth = new Date(state.year, state.month, 0).getDate();
+        var shiftsByDay = {};
+        state.shifts.forEach(function (s) {
+            (shiftsByDay[s.date] = shiftsByDay[s.date] || []).push(s);
+        });
+
+        var body = [];
+        var sumPlan = 0, sumFact = 0, planOfFactDays = 0;
+        var anyPlan = false, anyFact = false;
+
+        for (var day = 1; day <= daysInMonth; day++) {
+            var ds = dateStr(state.year, state.month, day);
+            var d = days[ds] || {};
+            var dayShifts = shiftsByDay[ds] || [];
+            var plan = (d.plan_total != null) ? d.plan_total : null;
+            var fact = (d.fact_total != null) ? d.fact_total : null;
+            // Пропускаем только полностью пустой день. День с фактом без плана и
+            // смен показываем — это сигнал (выручка была, а смен/плана нет).
+            if (plan == null && fact == null && !dayShifts.length) continue;
+
+            if (plan != null) { sumPlan += plan; anyPlan = true; }
+            if (fact != null) { sumFact += fact; anyFact = true; }
+            if (plan != null && fact != null) planOfFactDays += plan;
+
+            var dow = new Date(state.year, state.month - 1, day).getDay();
+            var weekend = (dow === 5 || dow === 6);
+            var pct = (plan != null && plan > 0 && fact != null)
+                ? Math.round(fact / plan * 100) : null;
+
+            // Уникальные бармены дня, в порядке смен (точка -> роль -> sort_order)
+            var seen = {}, chips = [];
+            dayShifts.forEach(function (s) {
+                var key = s.employee_id || s.employee_name;
+                if (seen[key]) return;
+                seen[key] = true;
+                chips.push(pfWhoChip(s));
+            });
+
+            body.push(
+                '<tr class="pf-day" data-date="' + ds + '">'
+                + '<td class="pf-date"><span class="pf-dow' + (weekend ? ' pf-we' : '') + '">'
+                    + DAY_NAMES[dow] + '</span> ' + pad2(day) + '.' + pad2(state.month) + '</td>'
+                + '<td class="pf-num">' + (plan != null ? formatMoney(plan) : '&mdash;') + '</td>'
+                + '<td class="pf-num">' + (fact != null ? formatMoney(fact) : '<span class="pf-dim">&mdash;</span>') + '</td>'
+                + '<td class="pf-pct">' + pfPctBadge(pct) + '</td>'
+                + '<td class="pf-chips">' + (chips.join('') || '<span class="pf-dim">нет смен</span>') + '</td>'
+                + '</tr>'
+                + '<tr class="pf-detail" data-detail="' + ds + '" hidden>'
+                + '<td colspan="5">' + pfDetail(d, dayShifts) + '</td></tr>'
+            );
+        }
+
+        if (!body.length) {
+            host.innerHTML = '<div class="pf-empty">В этом месяце нет ни планов, ни смен</div>';
+            return;
+        }
+
+        // Итоговый % — факт к плану только тех дней, где факт уже есть (как на
+        // дашборде): иначе будущие дни с планом без факта занижали бы выполнение.
+        var totalPct = (planOfFactDays > 0 && anyFact)
+            ? Math.round(sumFact / planOfFactDays * 100) : null;
+        var total = '<tr class="pf-total">'
+            + '<td>Итого</td>'
+            + '<td class="pf-num">' + (anyPlan ? formatMoney(sumPlan) : '&mdash;') + '</td>'
+            + '<td class="pf-num">' + (anyFact ? formatMoney(sumFact) : '&mdash;') + '</td>'
+            + '<td class="pf-pct">' + pfPctBadge(totalPct) + '</td>'
+            + '<td></td></tr>';
+
+        host.innerHTML =
+            '<table class="pf-table"><thead><tr>'
+            + '<th>Дата</th><th class="pf-num">План</th><th class="pf-num">Факт</th>'
+            + '<th class="pf-pct">%</th><th>Смена</th>'
+            + '</tr></thead><tbody>' + body.join('') + total + '</tbody></table>';
+
+        host.querySelectorAll('tr.pf-day').forEach(function (tr) {
+            tr.addEventListener('click', function () {
+                var detail = host.querySelector('tr.pf-detail[data-detail="' + tr.dataset.date + '"]');
+                if (!detail) return;
+                detail.hidden = !detail.hidden;
+                tr.classList.toggle('open', !detail.hidden);
+            });
+        });
     }
 
     // ==================== UI-мелочи ====================
@@ -448,7 +542,7 @@
         shiftDisplayName: shiftDisplayName,
         shiftLabel: shiftLabel,
         renderLoad: renderLoad,
-        renderCoverage: renderCoverage,
+        renderPlanFact: renderPlanFact,
         renderWishesReadonly: renderWishesReadonly,
         formatAuditTs: formatAuditTs,
         escapeHtml: escapeHtml,

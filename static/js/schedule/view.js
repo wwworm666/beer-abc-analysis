@@ -1,5 +1,6 @@
-/* Страница /schedule — просмотр графика (для барменов).
-   Без финансовых данных. Клик по смене — ввод факта отработанных часов. */
+/* Страница /schedule — просмотр графика. Клик по смене — ввод факта часов.
+   Показывает «План / Факт по дням» (деньги) — владелец решил видеть выручку и
+   здесь; доступ к странице тот же, что к редактору (равные права). */
 
 (function () {
     'use strict';
@@ -39,6 +40,7 @@
             .then(render)
             .then(loadFeed)
             .then(loadWidgets)
+            .then(loadPlanFact)
             .then(loadWishes)
             .catch(function (err) {
                 console.error(err);
@@ -113,22 +115,36 @@
         });
     }
 
-    // ==================== Виджеты: Нагрузка + Покрытие + Пожелания ====================
-    // Те же, что в редакторе, но read-only. Данные — общий money-free /widgets
-    // (без iiko, без рублей) и /wishes. Рендер — Schedule.render*.
+    // ==================== Виджеты: Нагрузка + Пожелания ====================
+    // Те же, что в редакторе, но read-only и money-free. Данные — общий /widgets
+    // (без iiko, без рублей) и /wishes. Рендер — Schedule.render*. Денежного
+    // «План/Факт по дням» тут нет: на странице барменов финансов не показываем.
 
     function loadWidgets() {
         return S.api('/api/schedule/widgets/' + S.state.year + '/' + S.state.month)
             .then(function (w) {
                 S.renderLoad(document.getElementById('loadTableBody'),
                              w.employees_load || [], w.shift_norm || 15);
-                S.renderCoverage(document.getElementById('coverageBody'),
-                                 w.coverage_by_dow || []);
             })
             .catch(function (err) {
                 console.error(err);
-                var c = document.getElementById('coverageBody');
-                if (c) c.innerHTML = '<div class="cov-empty">Не удалось загрузить</div>';
+                var c = document.getElementById('loadTableBody');
+                if (c) c.innerHTML = '<tr><td colspan="5" class="missing-fact">Не удалось загрузить</td></tr>';
+            });
+    }
+
+    // План / Факт по дням — деньги. Тот же виджет, что в редакторе (S.renderPlanFact).
+    // Тянем /plans (план из весов дней + факт = живой iiko OLAP) в S.state.plans.
+    function loadPlanFact() {
+        return S.api('/api/schedule/plans/' + S.state.year + '/' + S.state.month)
+            .then(function (p) {
+                S.state.plans = p;
+                S.renderPlanFact(document.getElementById('planFactBody'));
+            })
+            .catch(function (err) {
+                console.error(err);
+                var h = document.getElementById('planFactBody');
+                if (h) h.innerHTML = '<div class="pf-empty">Не удалось загрузить</div>';
             });
     }
 

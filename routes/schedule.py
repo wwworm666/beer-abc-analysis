@@ -9,7 +9,6 @@ from core.schedule_plans import (
     build_month_plans,
     compute_month_summary,
     compute_employees_load,
-    compute_coverage_by_dow,
     match_iiko_hours,
     SHIFT_NORM,
     PLAN_FORMULA_TEXT,
@@ -438,23 +437,15 @@ def schedule_get_summary(year, month):
 
 @schedule_bp.route('/api/schedule/widgets/<int:year>/<int:month>', methods=['GET'])
 def schedule_get_widgets(year, month):
-    """Данные виджетов графика для редактора И просмотра — money-free и без iiko:
-    «Нагрузка» (смены/норма/подряд/без факта) + «Покрытие по дням недели» (спрос
-    из плана как относительные доли, не рубли). На странице просмотра у барменов
-    финансов нет, поэтому рубли наружу не отдаём (см. compute_coverage_by_dow)."""
-    locations = shifts_mgr.get_locations()
-    daily_plans = DailyPlansGenerator().load_daily_plans()
-    manual_rows = shifts_mgr.get_revenue_for_month(year, month)
-    # olap_fact=None: покрытию нужен только план (веса дней), факт из iiko не тянем
-    month_plans = build_month_plans(year, month, locations, daily_plans,
-                                    manual_rows, olap_fact=None)
+    """Данные виджета «Нагрузка» для редактора И просмотра — money-free и без iiko
+    (смены/норма/подряд/без факта). На странице просмотра у барменов финансов нет,
+    поэтому здесь рублей нет вовсе. Денежный виджет «План/Факт по дням» живёт
+    только в редакторе и строится на фронте из уже загруженного /plans."""
     shifts = shifts_mgr.get_shifts_for_month(year, month)
     load = compute_employees_load(shifts, datetime.now().strftime('%Y-%m-%d'))
-    coverage = compute_coverage_by_dow(shifts, month_plans)
     return jsonify({
         'employees_load': load,
         'shift_norm': SHIFT_NORM,
-        'coverage_by_dow': coverage,
     })
 
 

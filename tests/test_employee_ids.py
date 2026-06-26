@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.shifts_manager import ShiftsManager
 from core.schedule_plans import (compute_employees_load, _max_consecutive_days,
-                                 compute_coverage_by_dow, SHIFT_NORM)
+                                 SHIFT_NORM)
 
 # Стабильные id (как GUID из iiko, но короткие для теста)
 ID_NOVAEV = 'id-novaev'
@@ -231,36 +231,6 @@ def test_load_streak_and_grouping(tmpdir):
     assert a['fact_minutes'] == 600
     assert a['missing_fact'] == 3          # 02 и оба 03 прошли без факта (< 06-10)
     assert by['Иванова Елена']['max_streak'] == 1
-
-
-def test_coverage_by_dow(tmpdir):
-    """Покрытие по дням недели: относительный спрос (money-free) + смены/день."""
-    from datetime import date as _date
-    month_plans = {
-        '2026-06-01': {'plan_total': 100.0},
-        '2026-06-05': {'plan_total': 200.0},
-        '2026-06-06': {'plan_total': 200.0},
-    }
-    shifts = [
-        {'date': '2026-06-01'}, {'date': '2026-06-01'},   # 2 смены
-        {'date': '2026-06-05'},                            # 1
-        {'date': '2026-06-06'},                            # 1
-    ]
-    rows = compute_coverage_by_dow(shifts, month_plans)
-    assert len(rows) == 7
-    assert [r['label'] for r in rows] == ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
-    # наружу не уходят рубли — только относительные доли
-    assert all('plan' not in r and '_avg_plan' not in r for r in rows)
-
-    by_dow = {r['dow']: r for r in rows}
-    mon = by_dow[_date.fromisoformat('2026-06-01').weekday()]
-    fri = by_dow[_date.fromisoformat('2026-06-05').weekday()]
-    assert mon['avg_shifts'] == 2.0 and mon['demand'] == 0.5 and mon['coverage'] == 2.0
-    assert fri['avg_shifts'] == 1.0 and fri['demand'] == 1.0 and fri['coverage'] == 0.5
-
-    # день без данных: спрос 0, coverage None
-    empty = [r for r in rows if r['days'] == 0][0]
-    assert empty['demand'] == 0.0 and empty['coverage'] is None
 
 
 if __name__ == '__main__':

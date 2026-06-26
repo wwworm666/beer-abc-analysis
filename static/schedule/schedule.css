@@ -192,33 +192,56 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 2px;
-    padding: 6px 10px;
-    min-height: 38px;
+    gap: 3px;
+    padding: 7px 11px;
+    min-height: 44px;
     border-radius: var(--sch-radius-sm);
     background: var(--bg-secondary);
     border: 1px solid var(--border-light);
     border-left: 3px solid var(--role-color, var(--accent));
     color: var(--text-primary);
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     cursor: pointer;
     text-align: left;
+    overflow: hidden;
     transition: background 150ms ease, box-shadow 150ms ease;
 }
 
 .shift-chip:hover { background: var(--bg-tertiary); box-shadow: var(--shadow-sm); }
 
-.shift-chip .chip-name { font-weight: 600; line-height: 1.2; }
-
-.shift-chip .chip-badges {
-    display: flex;
-    gap: 8px;
-    font-size: 0.68rem;
-    color: var(--text-secondary);
+/* Имя целиком; длинное — обрезаем многоточием, чтобы не ломать сетку */
+.shift-chip .chip-name {
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.shift-chip .chip-time { white-space: nowrap; }
-.shift-chip .chip-fact { white-space: nowrap; font-weight: 600; color: var(--text-primary); }
+.shift-chip .chip-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* Тип смены: «День» / «с 18:00» — лёгкая капсула, чтобы строка читалась как метка */
+.shift-chip .chip-when {
+    white-space: nowrap;
+    padding: 1px 7px;
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+.shift-chip .chip-fact {
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+/* На hover капсула «День/с HH:MM» не должна сливаться с фоном чипа */
+.shift-chip:hover .chip-when { background: var(--bg-hover, var(--border-light)); }
 
 /* Конфликт: смена в день, на который сотрудник просил выходной */
 .shift-chip.conflict {
@@ -498,24 +521,67 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
     word-break: break-word;
 }
 
-/* ==================== Покрытие по дням недели ==================== */
-/* Полоса — относительный спрос (план дня, money-free), число — смен/день.
-   Самый недозакрытый под спрос день недели подсвечивается янтарным. */
-.cov-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 8px; }
-.coverage-list { display: flex; flex-direction: column; gap: 6px; }
-.cov-row { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; }
-.cov-dow { flex: 0 0 26px; color: var(--text-secondary); }
-.cov-bar {
-    flex: 1 1 auto;
-    height: 8px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-pill);
-    overflow: hidden;
-}
-.cov-fill { display: block; height: 100%; border-radius: var(--border-radius-pill); }
-.cov-shifts { flex: 0 0 30px; text-align: right; font-variant-numeric: tabular-nums; }
-.cov-note { margin-top: 10px; font-size: 0.76rem; color: var(--text-secondary); }
+/* Заглушка пустого состояния (нагрузка/пожелания) */
 .cov-empty { color: var(--text-tertiary); font-size: 0.84rem; padding: 6px 0; }
+
+/* ==================== План / Факт по дням (деньги, только редактор) ==================== */
+/* План выручки дня vs факт (живой iiko OLAP), % выполнения и кто на смене.
+   Строка дня кликабельна — раскрывает разбивку по барам. */
+.pf-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.pf-table thead th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-tertiary);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+.pf-table tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border-color); }
+.pf-day { cursor: pointer; }
+.pf-day:hover, .pf-day.open { background: var(--bg-tertiary); }
+.pf-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pf-dow { color: var(--text-tertiary); margin-right: 2px; }
+.pf-dow.pf-we { color: var(--accent); }
+.pf-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-pct { text-align: right; white-space: nowrap; }
+.pf-dim { color: var(--text-tertiary); }
+.pf-badge {
+    display: inline-block;
+    min-width: 46px;
+    text-align: center;
+    padding: 2px 8px;
+    border-radius: var(--border-radius-pill);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.pf-good { background: var(--success-bg); color: var(--success); }
+.pf-mid { background: var(--warning-bg); color: var(--warning); }
+.pf-low { background: var(--danger-bg); color: var(--danger); }
+.pf-who {
+    display: inline-block;
+    margin: 1px 3px 1px 0;
+    padding: 1px 8px;
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-tertiary);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+.pf-total td {
+    font-weight: 700;
+    border-top: 2px solid var(--border-color);
+    border-bottom: none;
+    padding-top: 9px;
+}
+/* Разбивка по барам внутри раскрытого дня */
+.pf-detail > td { padding: 0 10px 10px 24px; background: var(--bg-tertiary); }
+.pf-sub { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.pf-sub td { padding: 5px 8px; border-bottom: 1px dashed var(--border-color); }
+.pf-sub tr:last-child td { border-bottom: none; }
+.pf-empty { color: var(--text-tertiary); font-size: 0.86rem; padding: 10px 0; }
+.pf-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 10px; }
 
 /* ==================== Employees admin ==================== */
 .emp-admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }

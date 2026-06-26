@@ -101,6 +101,7 @@
     function renderAll() {
         renderGrid();
         renderWarnings();
+        S.renderPlanFact(document.getElementById('planFactBody'));
         renderWishesBoard();
         renderEmployeesAdmin();
         if (selectedDate) renderDayPanel(selectedDate);
@@ -431,7 +432,7 @@
                 : '<span class="v empty">нет данных</span>';
 
             return '<div class="day-panel-card">'
-                + '<div class="location">' + loc.name + '</div>'
+                + '<div class="location">' + S.escapeHtml(loc.name) + '</div>'
                 + '<div class="metric"><span class="k">План</span>' + planHtml + '</div>'
                 + '<div class="metric"><span class="k">Факт</span>' + factHtml + '</div>'
                 + sourceHtml
@@ -439,20 +440,22 @@
         }).join('');
     }
 
-    // ==================== Виджеты: Нагрузка + Покрытие ====================
-    // Данные — общий money-free эндпоинт /widgets (без iiko); рендер общий с
-    // просмотром (Schedule.renderLoad / renderCoverage). Финансовой сводки тут
-    // нет — выручка живёт на дашборде, графику она не нужна.
+    // ==================== Виджет «Нагрузка» ====================
+    // Money-free, общий с просмотром (Schedule.renderLoad). Данные — /widgets
+    // (без iiko). Денежная «План/Факт по дням» рендерится отдельно (renderPlanFact)
+    // из уже загруженного S.state.plans — без отдельного запроса.
 
     function loadSummary() {
         return S.api('/api/schedule/widgets/' + S.state.year + '/' + S.state.month)
             .then(function (w) {
                 S.renderLoad(document.getElementById('loadTableBody'),
                              w.employees_load || [], w.shift_norm || 15);
-                S.renderCoverage(document.getElementById('coverageBody'),
-                                 w.coverage_by_dow || []);
             });
     }
+
+    // Виджет «План / Факт по дням» (деньги): рендер — общий S.renderPlanFact
+    // (в common.js), читает S.state.plans (/plans) + S.state.shifts. Тот же
+    // виджет дублируется на страницу просмотра.
 
     // ==================== Пожелания ====================
 
