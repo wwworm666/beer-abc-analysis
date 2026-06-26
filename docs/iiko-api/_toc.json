@@ -1,0 +1,1375 @@
+{
+ "integraciya-storonnikh-prilojenij": {
+  "title": "Интеграция сторонних приложений",
+  "path": [],
+  "order": 1
+ },
+ "api-novosti": {
+  "title": "Новости по API",
+  "path": [
+   "Новости и обновления"
+  ],
+  "order": 2
+ },
+ "izmeneniya-v-api-soglasno-fz-54": {
+  "title": "Изменения в API согласно ФЗ-54 с 01.03.2025",
+  "path": [
+   "Новости и обновления"
+  ],
+  "order": 3
+ },
+ "changelog-iikofront-api": {
+  "title": "Changelog iikoFront API",
+  "path": [
+   "Новости и обновления"
+  ],
+  "order": 4
+ },
+ "changelog-iikocloud-api": {
+  "title": "Changelog iikoCloud API",
+  "path": [
+   "Новости и обновления"
+  ],
+  "order": 5
+ },
+ "rukovodstvo-po-nachalu-raboty": {
+  "title": "Руководство по началу работы",
+  "path": [],
+  "order": 6
+ },
+ "polucheniyu-dostupa-k-api": {
+  "title": "Получение доступа к API",
+  "path": [
+   "Руководство по началу работы"
+  ],
+  "order": 7
+ },
+ "obzor-platformy-iikoapi": {
+  "title": "Обзор платформы iiko API",
+  "path": [
+   "Руководство по началу работы"
+  ],
+  "order": 8
+ },
+ "nastroyka-rabochego-okruzheniya": {
+  "title": "Настройка рабочего окружения",
+  "path": [
+   "Руководство по началу работы"
+  ],
+  "order": 9
+ },
+ "ustanovka-i-nastroyka-postman": {
+  "title": "Установка и настройка Postman",
+  "path": [
+   "Руководство по началу работы",
+   "Настройка рабочего окружения"
+  ],
+  "order": 10
+ },
+ "licenzii-api": {
+  "title": "Какими бывают лицензии API",
+  "path": [
+   "Руководство по началу работы"
+  ],
+  "order": 11
+ },
+ "kak-poluchit-demo-stend": {
+  "title": "Как получить демо-стенд",
+  "path": [
+   "Руководство по началу работы",
+   "Использование демо-стенда"
+  ],
+  "order": 12
+ },
+ "kak-ustanovit-demo-stend": {
+  "title": "Как установить демо-стенд",
+  "path": [
+   "Руководство по началу работы",
+   "Использование демо-стенда"
+  ],
+  "order": 13
+ },
+ "ustanovka-windows-na-mac-cherez-virtualnuyu-mashinu": {
+  "title": "Создание виртуальной машины для работы iiko на macOS",
+  "path": [
+   "Руководство по началу работы",
+   "Использование демо-стенда"
+  ],
+  "order": 14
+ },
+ "stsenarii-integratsii": {
+  "title": "Сценарии интеграции",
+  "path": [
+   "Руководство по началу работы"
+  ],
+  "order": 15
+ },
+ "upravlenie-zakazami-i-dostavkoy": {
+  "title": "Управление заказами и доставкой",
+  "path": [
+   "Руководство по началу работы",
+   "Сценарии интеграции"
+  ],
+  "order": 16
+ },
+ "loyalnost": {
+  "title": "Лояльность",
+  "path": [
+   "Руководство по началу работы",
+   "Сценарии интеграции"
+  ],
+  "order": 17
+ },
+ "platezhnye-resheniya": {
+  "title": "Платежные решения",
+  "path": [
+   "Руководство по началу работы",
+   "Сценарии интеграции"
+  ],
+  "order": 18
+ },
+ "integratsiya-s-platezhnymi-servisami-i-ekvayringom": {
+  "title": "Интеграция с платежными сервисами и эквайрингом",
+  "path": [
+   "Руководство по началу работы",
+   "Сценарии интеграции",
+   "Платежные решения"
+  ],
+  "order": 19
+ },
+ "predoplata-i-kholdirovanie-sredstv": {
+  "title": "Предоплата и холдирование средств",
+  "path": [
+   "Руководство по началу работы",
+   "Сценарии интеграции",
+   "Платежные решения"
+  ],
+  "order": 20
+ },
+ "voprosy-i-otvety": {
+  "title": "Вопросы и ответы",
+  "path": [
+   "Руководство по началу работы"
+  ],
+  "order": 21
+ },
+ "pervye-shagi-s-api": {
+  "title": "Первые шаги с API",
+  "path": [],
+  "order": 22
+ },
+ "api-po-produktam": {
+  "title": "API по продуктам",
+  "path": [
+   "Первые шаги с API"
+  ],
+  "order": 23
+ },
+ "iikoserver-api": {
+  "title": "iikoServer API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам"
+  ],
+  "order": 24
+ },
+ "ogranicheniya-i-rekomendatsii": {
+  "title": "Ограничения и рекомендации",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 25
+ },
+ "printsipy-raboty": {
+  "title": "Принципы работы",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 26
+ },
+ "avtorizatsiya": {
+  "title": "Авторизация",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 27
+ },
+ "opisanie-oshibok": {
+  "title": "Описание ошибок",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 28
+ },
+ "elementy-nomenklatury": {
+  "title": "Элементы номенклатуры",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с номенклатурой"
+  ],
+  "order": 29
+ },
+ "nomenklaturnye-gruppy": {
+  "title": "Номенклатурные группы",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с номенклатурой"
+  ],
+  "order": 30
+ },
+ "polzovatelskie-kategorii": {
+  "title": "Пользовательские категории",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с номенклатурой"
+  ],
+  "order": 31
+ },
+ "tekhnologicheskie-karty": {
+  "title": "Технологические карты",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с номенклатурой"
+  ],
+  "order": 32
+ },
+ "rabota-s-izobrazheniyami": {
+  "title": "Работа с изображениями",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с номенклатурой"
+  ],
+  "order": 33
+ },
+ "rabota-so-shkaloy-i-razmerami": {
+  "title": "Работа со шкалой и размерами",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с номенклатурой"
+  ],
+  "order": 34
+ },
+ "zagruzka-i-redaktirovanie-prikhodnoy-nakladnoy": {
+  "title": "Загрузка и редактирование приходной накладной",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 35
+ },
+ "zagruzka-i-redaktirovanie-raskhodnoy-nakladnoy": {
+  "title": "Загрузка и редактирование расходной накладной",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 36
+ },
+ "rasprovedenie-prikhodnoy-i-raskhodnoy-nakladnoy": {
+  "title": "Распроведение приходной и расходной накладной",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 37
+ },
+ "vygruzka-prikhodnykh-nakladnykh": {
+  "title": "Выгрузка приходных накладных",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 38
+ },
+ "vygruzka-raskhodnykh-nakladnykh": {
+  "title": "Выгрузка расходных накладных",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 39
+ },
+ "vygruzka-prikhodnoy-nakladnoy-po-ee-nomeru": {
+  "title": "Выгрузка приходной накладной по ее номеру",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 40
+ },
+ "vygruzka-raskhodnoy-nakladnoy-po-ee-nomeru": {
+  "title": "Выгрузка расходной накладной по ее номеру",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами",
+   "Загрузка и выгрузка накладных"
+  ],
+  "order": 41
+ },
+ "zagruzka-akta-prigotovleniya": {
+  "title": "Загрузка акта приготовления",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 42
+ },
+ "zagruzka-vozvratnoy-nakladnoy": {
+  "title": "Загрузка возвратной накладной",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 43
+ },
+ "zagruzka-akta-realizatsii": {
+  "title": "Загрузка акта реализации",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 44
+ },
+ "zagruzka-inventarizatsii": {
+  "title": "Загрузка инвентаризации",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 45
+ },
+ "poluchenie-rezultatov-inventarizatsii-do-ee-provedeniya": {
+  "title": "Получение результатов инвентаризации до её проведения",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 46
+ },
+ "akty-spisaniya": {
+  "title": "Акты списания",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 47
+ },
+ "vnutrennie-peremescheniya": {
+  "title": "Внутренние перемещения",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с документами"
+  ],
+  "order": 48
+ },
+ "kassovye-smeny-v2": {
+  "title": "Работа со сменами",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Кассовые смены"
+  ],
+  "order": 49
+ },
+ "rabota-s-izyatiyami": {
+  "title": "Работа с изъятиями",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Кассовые смены"
+  ],
+  "order": 50
+ },
+ "korporatsii": {
+  "title": "Корпорации",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 51
+ },
+ "formirovanie-olap-otcheta-v-api": {
+  "title": "Формирование OLAP отчета в API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами"
+  ],
+  "order": 52
+ },
+ "olap-otchety-v1": {
+  "title": "OLAP-отчет v1",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v1"
+  ],
+  "order": 53
+ },
+ "otchety-dostavka-v1": {
+  "title": "Отчеты по доставке",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v1"
+  ],
+  "order": 54
+ },
+ "otchety-v1": {
+  "title": "Отчеты по складским операциям",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v1"
+  ],
+  "order": 55
+ },
+ "olap-otchety-v2": {
+  "title": "OLAP-отчет v2",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v2"
+  ],
+  "order": 56
+ },
+ "otchety-vv2": {
+  "title": "Примеры отчетов",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v2"
+  ],
+  "order": 57
+ },
+ "primery-vyzova-olap-otchet-v2": {
+  "title": "Примеры вызова OLAP-отчетa по продажам",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v2"
+  ],
+  "order": 58
+ },
+ "prednastroennye-olap-otchety-vv2": {
+  "title": "Преднастроенные OLAP-отчеты",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с OLAP отчетами",
+   "Отчеты v2"
+  ],
+  "order": 59
+ },
+ "sobytiya": {
+  "title": "События",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 60
+ },
+ "rabota-s-postavschikami": {
+  "title": "Работа с поставщиками",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 61
+ },
+ "rabota-s-dannymi-sotrudnikovv": {
+  "title": "Работа с данными сотрудников",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с данными сотрудников"
+  ],
+  "order": 62
+ },
+ "rabota-s-dannymi-dolzhnostey": {
+  "title": "Работа с данными должностей",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с данными сотрудников"
+  ],
+  "order": 63
+ },
+ "rabota-s-dannymi-oklada": {
+  "title": "Работа с данными оклада",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с данными сотрудников"
+  ],
+  "order": 64
+ },
+ "rabota-s-dannymi-smeny-i-raspisaniy": {
+  "title": "Работа с данными смены и расписаний",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с данными сотрудников"
+  ],
+  "order": 65
+ },
+ "rabota-s-dannymi-yavok": {
+  "title": "Работа с данными явок",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с данными сотрудников"
+  ],
+  "order": 66
+ },
+ "rabota-s-dannymi-brigad": {
+  "title": "Работа с данными бригад",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с данными сотрудников"
+  ],
+  "order": 67
+ },
+ "api-edi-5-0": {
+  "title": "API EDI (5.0)",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 68
+ },
+ "api-edi-5-1-6-4": {
+  "title": "API EDI (5.1, 6.4)",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 69
+ },
+ "kody-bazovykh-tipov": {
+  "title": "Коды базовых типов",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 70
+ },
+ "spravochniki": {
+  "title": "Справочники",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 71
+ },
+ "prikazy": {
+  "title": "Работа с приказами",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 72
+ },
+ "tseny-zadannye-prikazami": {
+  "title": "Цены, заданные приказами",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API",
+   "Работа с приказами"
+  ],
+  "order": 73
+ },
+ "tsenovye-kategorii": {
+  "title": "Ценовые категории",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 74
+ },
+ "periody-deystviya": {
+  "title": "Периоды действия",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 75
+ },
+ "statusy-replikatsii": {
+  "title": "Статусы репликации",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 76
+ },
+ "scheta": {
+  "title": "Счета",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 77
+ },
+ "rabota-s-bystrym-menyu": {
+  "title": "Работа с быстрым меню",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoServer API"
+  ],
+  "order": 78
+ },
+ "iikofront-api": {
+  "title": "iikoFront API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам"
+  ],
+  "order": 79
+ },
+ "frontwebapi": {
+  "title": "Front Web API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoFront API"
+  ],
+  "order": 80
+ },
+ "kiosk-samoobsluzhivaniya": {
+  "title": "Киоск самообслуживания",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoFront API"
+  ],
+  "order": 81
+ },
+ "iikocloud-api": {
+  "title": "iikoCloud API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам"
+  ],
+  "order": 82
+ },
+ "obschee-opisanie-i-vozmozhnosti": {
+  "title": "Общее описание и возможности Cloud API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API"
+  ],
+  "order": 83
+ },
+ "obschie-printsipy-raboty": {
+  "title": "Общие принципы работы",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Общее описание и возможности Cloud API"
+  ],
+  "order": 84
+ },
+ "podklyuchenie-poluchenie-api-klyucha": {
+  "title": "Подключение, получение API ключа",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Авторизация"
+  ],
+  "order": 85
+ },
+ "sroki-deystviya-api-klucha": {
+  "title": "Сроки действия API ключа",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Авторизация"
+  ],
+  "order": 86
+ },
+ "diagnostika": {
+  "title": "Диагностика и обработка ошибок",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API"
+  ],
+  "order": 87
+ },
+ "monitoring-dostupnosti-serverov-cloud-api": {
+  "title": "Общий мониторинг доступности серверов",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Диагностика и обработка ошибок"
+  ],
+  "order": 88
+ },
+ "diagnostika-sostoyaniya-podklyucheniya-k-cloud-api": {
+  "title": "Диагностика состояния подключения",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Диагностика и обработка ошибок"
+  ],
+  "order": 89
+ },
+ "tipy-oshibok-api": {
+  "title": "Типы ошибок",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Диагностика и обработка ошибок"
+  ],
+  "order": 90
+ },
+ "poryadok-razbora-problem-s-dostavochnymi-zakazami": {
+  "title": "Порядок разбора проблем с доставочными заказами",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Диагностика и обработка ошибок"
+  ],
+  "order": 91
+ },
+ "obschie-printsipy-sozdaniya-zakaza-na-stol-i-na-dostavku": {
+  "title": "Общие принципы создания заказа",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 92
+ },
+ "nastroyka-vneshnego-tipa-oplaty": {
+  "title": "Настройкa внешнего типа оплаты",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 93
+ },
+ "metody-polucheniya-vneshnego-menyu-iikoweb": {
+  "title": "Получение внешнего меню",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 94
+ },
+ "nastroyka-opovescheniy-v-iikoweb": {
+  "title": "Настройка оповещений в iikoWeb",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 95
+ },
+ "vygruzka-gorodov-i-ulits": {
+  "title": "Работа с адресами",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 96
+ },
+ "vygruzka-skidok-iz-rms": {
+  "title": "Скидки из RMS",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 97
+ },
+ "rabota-s-kombo-blyudami": {
+  "title": "Комбо блюда",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 98
+ },
+ "rabota-s-kholdirovaniem": {
+  "title": "Холдирование",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 99
+ },
+ "osobennosti-raboty-metodov-calculate-i-combo": {
+  "title": "Особенности работы методов calculate и combo",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 100
+ },
+ "rabota-s-modifikatorami-v-cloud-api": {
+  "title": "Модификаторы",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 101
+ },
+ "rabota-so-stop-listami": {
+  "title": "Стоп-листы",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Методы и эндпоинты"
+  ],
+  "order": 102
+ },
+ "ogranichenie-i-limity": {
+  "title": "Ограничение и лимиты",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Ограничения API iikoCloud"
+  ],
+  "order": 103
+ },
+ "ogranicheniya-veb-hukov": {
+  "title": "Ограничения веб-хуков",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Ограничения API iikoCloud"
+  ],
+  "order": 104
+ },
+ "stsenarii": {
+  "title": "Сценарии и примеры",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API"
+  ],
+  "order": 105
+ },
+ "rabota-s-zakazom-na-stol": {
+  "title": "Заказ на стол",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Сценарии и примеры"
+  ],
+  "order": 106
+ },
+ "sozdanie-dostavochnogo-zakaza": {
+  "title": "Доставочный заказ",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Сценарии и примеры"
+  ],
+  "order": 107
+ },
+ "podklyuchenie-veb-khukov": {
+  "title": "Подключение веб-хуков",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Сценарии и примеры"
+  ],
+  "order": 108
+ },
+ "podkluchenie-telegram-bota": {
+  "title": "Telegram-бот",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Сценарии и примеры"
+  ],
+  "order": 109
+ },
+ "sozdanie-integracii-s-agregatorom": {
+  "title": "Создание интеграции c агрегатором",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Сценарии и примеры"
+  ],
+  "order": 110
+ },
+ "perevod-klienta-s-bizapi-na-cloud-api": {
+  "title": "Перевод клиента с Biz.API на Cloud.API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API",
+   "Сценарии и примеры"
+  ],
+  "order": 111
+ },
+ "dopolnitelnye-resursy-pereimenovat-uzhe-est-takoe-nazvanie": {
+  "title": "Дополнительные ресурсы",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoCloud API"
+  ],
+  "order": 112
+ },
+ "publicapi-documentation": {
+  "title": "iikoPublic API",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам"
+  ],
+  "order": 113
+ },
+ "instruktsiya-po-rabote-s-portalom-razrabotchika-iiko": {
+  "title": "Инструкция по работе с порталом разработчика iiko",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoPublic API"
+  ],
+  "order": 114
+ },
+ "how-to-get-api-key": {
+  "title": "Авторизация в Public Api",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoPublic API"
+  ],
+  "order": 115
+ },
+ "rabota-s-zakupkami": {
+  "title": "Работа с закупками",
+  "path": [
+   "Первые шаги с API",
+   "API по продуктам",
+   "iikoPublic API"
+  ],
+  "order": 116
+ },
+ "podderzhka-i-konsultatsiya": {
+  "title": "Поддержка и консультация",
+  "path": [],
+  "order": 117
+ },
+ "konsultirovanie-po-api": {
+  "title": "Консультирование пользователей по API и поддержка разработки",
+  "path": [
+   "Поддержка и консультация"
+  ],
+  "order": 118
+ },
+ "kak-oformlyat-zayavku": {
+  "title": "Как оформлять заявку в консультационный отдел API",
+  "path": [
+   "Поддержка и консультация"
+  ],
+  "order": 119
+ },
+ "sroki-predostavleniya-uslug-sla": {
+  "title": "Сроки предоставления услуг (SLA)",
+  "path": [
+   "Поддержка и консультация"
+  ],
+  "order": 120
+ },
+ "soobschestvo-i-resursy": {
+  "title": "Сообщество и ресурсы",
+  "path": [
+   "Поддержка и консультация"
+  ],
+  "order": 121
+ },
+ "partnerskie-programmy-i-rasprostranenie-integratsiy": {
+  "title": "Партнерские программы и распространение интеграций",
+  "path": [],
+  "order": 122
+ },
+ "realizatsiya-integratsionnykh-proektov": {
+  "title": "Реализация интеграционных проектов",
+  "path": [
+   "Партнерские программы и распространение интеграций"
+  ],
+  "order": 123
+ },
+ "rasprostranenie-integratsiy": {
+  "title": "Распространение интеграций",
+  "path": [
+   "Партнерские программы и распространение интеграций"
+  ],
+  "order": 124
+ },
+ "integratsii-realizovannye-dlya-iikofront": {
+  "title": "Интеграции, реализованные для iikoFront",
+  "path": [
+   "Партнерские программы и распространение интеграций",
+   "Распространение интеграций"
+  ],
+  "order": 125
+ },
+ "sistema-ystanovki-i-avtoobnovlenie-plagina": {
+  "title": "Система установки и автообновление плагина",
+  "path": [
+   "Партнерские программы и распространение интеграций",
+   "Распространение интеграций"
+  ],
+  "order": 126
+ },
+ "avtoobnovlenie-plaginov": {
+  "title": "Автообновление плагинов",
+  "path": [
+   "Партнерские программы и распространение интеграций",
+   "Распространение интеграций",
+   "Система установки и автообновление плагина"
+  ],
+  "order": 127
+ },
+ "avtoobnovlenie-interfeys-polzovatelya": {
+  "title": "Автообновление плагинов. Интерфейс пользователя",
+  "path": [
+   "Партнерские программы и распространение интеграций",
+   "Распространение интеграций",
+   "Система установки и автообновление плагина"
+  ],
+  "order": 128
+ },
+ "litsenzirovanie-i-yuridicheskie-aspekty": {
+  "title": "Лицензирование и юридические аспекты",
+  "path": [
+   "Партнерские программы и распространение интеграций"
+  ],
+  "order": 129
+ },
+ "marketingovaya-podderzhka": {
+  "title": "Маркетинговая поддержка",
+  "path": [
+   "Партнерские программы и распространение интеграций"
+  ],
+  "order": 130
+ },
+ "arkhiv": {
+  "title": "Архив",
+  "path": [],
+  "order": 131
+ },
+ "api-iikoserver": {
+  "title": "API iikoServer",
+  "path": [
+   "Архив"
+  ],
+  "order": 132
+ },
+ "rabota-s-produktami": {
+  "title": "Работа с продуктами",
+  "path": [
+   "Архив",
+   "API iikoServer"
+  ],
+  "order": 133
+ },
+ "api-iikocloud": {
+  "title": "API iikoCloud",
+  "path": [
+   "Архив"
+  ],
+  "order": 134
+ },
+ "rabota-s-nomenklaturoy": {
+  "title": "Работа с номенклатурой",
+  "path": [
+   "Архив",
+   "API iikoCloud"
+  ],
+  "order": 135
+ },
+ "iiko-biz-api": {
+  "title": "iiko.biz API",
+  "path": [
+   "Архив"
+  ],
+  "order": 136
+ },
+ "kak-podklyuchit-vneshniy-api": {
+  "title": "Как подключить внешний API",
+  "path": [
+   "Архив",
+   "iiko.biz API"
+  ],
+  "order": 137
+ },
+ "primery-integratsiy-i-faq": {
+  "title": "Примеры интеграций и FAQ",
+  "path": [
+   "Архив",
+   "iiko.biz API"
+  ],
+  "order": 138
+ },
+ "avtorizatsiya-i-token-dostupa": {
+  "title": "Авторизация и токен доступа",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 139
+ },
+ "podklyuchenie-organizatsii": {
+  "title": "Подключение организации",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 140
+ },
+ "nomerklatura": {
+  "title": "Номерклатура",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 141
+ },
+ "sozdanie-zakaza": {
+  "title": "Создание заказа",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 142
+ },
+ "zakaz-s-prostymi-modifikatorami": {
+  "title": "Заказ с простыми модификаторами",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ",
+   "Создание заказа"
+  ],
+  "order": 143
+ },
+ "zakaz-s-sostavnymi-modifikatorami": {
+  "title": "Заказ с составными модификаторами",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ",
+   "Создание заказа"
+  ],
+  "order": 144
+ },
+ "zakaz-so-skhemoy-modifikatorov-i-razmerami": {
+  "title": "Заказ со схемой модификаторов и размерами",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ",
+   "Создание заказа"
+  ],
+  "order": 145
+ },
+ "zakaz-s-kombo-blyudami": {
+  "title": "Заказ с комбо-блюдами",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ",
+   "Создание заказа"
+  ],
+  "order": 146
+ },
+ "zakaz-so-skidkoy-ili-nadbavkoy": {
+  "title": "Заказ со скидкой или надбавкой",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ",
+   "Создание заказа"
+  ],
+  "order": 147
+ },
+ "zakaz-s-vneshney-oplatoy-i-predoplatoy": {
+  "title": "Заказ с внешней оплатой и предоплатой",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ",
+   "Создание заказа"
+  ],
+  "order": 148
+ },
+ "oplata-bonusami-iikocard-i-plazius": {
+  "title": "Оплата бонусами iikoCard и Plazius",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 149
+ },
+ "vygruzka-gorodov-i-ulits-kartografiya": {
+  "title": "Выгрузка городов и улиц , картография",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 150
+ },
+ "dobavlenie-otzyva-o-dostavke": {
+  "title": "Добавление отзыва о доставке",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 151
+ },
+ "olap-otchety-po-dostavke": {
+  "title": "OLAP-отчеты по доставке",
+  "path": [
+   "Архив",
+   "iiko.biz API",
+   "Примеры интеграций и FAQ"
+  ],
+  "order": 152
+ },
+ "iikocard-api": {
+  "title": "iikoCard API",
+  "path": [
+   "Архив"
+  ],
+  "order": 153
+ }
+}

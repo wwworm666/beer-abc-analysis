@@ -1,0 +1,200 @@
+# Документация iiko API (локальная копия)
+
+Источник: раздел `api-documentations` портала ru.iiko.help.
+Файлы — точные копии markdown статей портала, без правок.
+
+Пересинхронизация: `py -3 scripts/fetch_iiko_api_docs.py` из корня репозитория
+(названия/дерево разделов: `py -3 scripts/fetch_iiko_api_toc.py`, нужен Chrome).
+
+Всего статей: 153
+
+- [Интеграция сторонних приложений](integraciya-storonnikh-prilojenij.md) — обновлено 2026-06-01
+- **Новости и обновления**
+  - [Новости по API](api-novosti.md) — обновлено 2026-06-02
+  - [Изменения в API согласно ФЗ-54 с 01.03.2025](izmeneniya-v-api-soglasno-fz-54.md) — обновлено 2026-06-01
+  - [Changelog iikoFront API](changelog-iikofront-api.md) — обновлено 2026-06-01
+  - [Changelog iikoCloud API](changelog-iikocloud-api.md) — обновлено 2026-06-01
+- [Руководство по началу работы](rukovodstvo-po-nachalu-raboty.md) — обновлено 2026-06-01
+- **Руководство по началу работы**
+  - [Получение доступа к API](polucheniyu-dostupa-k-api.md) — обновлено 2026-06-02
+  - [Обзор платформы iiko API](obzor-platformy-iikoapi.md) — обновлено 2026-06-01
+  - [Настройка рабочего окружения](nastroyka-rabochego-okruzheniya.md) — обновлено 2026-06-01
+  - **Настройка рабочего окружения**
+    - [Установка и настройка Postman](ustanovka-i-nastroyka-postman.md) — обновлено 2026-06-01
+  - [Какими бывают лицензии API](licenzii-api.md) — обновлено 2026-06-01
+  - **Использование демо-стенда**
+    - [Как получить демо-стенд](kak-poluchit-demo-stend.md) — обновлено 2026-06-01
+    - [Как установить демо-стенд](kak-ustanovit-demo-stend.md) — обновлено 2026-06-01
+    - [Создание виртуальной машины для работы iiko на macOS](ustanovka-windows-na-mac-cherez-virtualnuyu-mashinu.md) — обновлено 2026-06-01
+  - [Сценарии интеграции](stsenarii-integratsii.md) — обновлено 2026-06-01
+  - **Сценарии интеграции**
+    - [Управление заказами и доставкой](upravlenie-zakazami-i-dostavkoy.md) — обновлено 2026-06-01
+    - [Лояльность](loyalnost.md) — обновлено 2026-06-01
+    - [Платежные решения](platezhnye-resheniya.md) — обновлено 2026-06-01
+    - **Платежные решения**
+      - [Интеграция с платежными сервисами и эквайрингом](integratsiya-s-platezhnymi-servisami-i-ekvayringom.md) — обновлено 2026-06-01
+      - [Предоплата и холдирование средств](predoplata-i-kholdirovanie-sredstv.md) — обновлено 2026-06-01
+  - [Вопросы и ответы](voprosy-i-otvety.md) — обновлено 2026-06-01
+- [Первые шаги с API](pervye-shagi-s-api.md) — обновлено 2026-06-01
+- **Первые шаги с API**
+  - [API по продуктам](api-po-produktam.md) — обновлено 2026-06-01
+  - **API по продуктам**
+    - [iikoServer API](iikoserver-api.md) — обновлено 2026-06-01
+    - **iikoServer API**
+      - [Ограничения и рекомендации](ogranicheniya-i-rekomendatsii.md) — обновлено 2026-06-01
+      - [Принципы работы](printsipy-raboty.md) — обновлено 2026-06-01
+      - [Авторизация](avtorizatsiya.md) — обновлено 2026-06-01
+      - [Описание ошибок](opisanie-oshibok.md) — обновлено 2026-06-01
+      - **Работа с номенклатурой**
+        - [Элементы номенклатуры](elementy-nomenklatury.md) — обновлено 2026-06-01
+        - [Номенклатурные группы](nomenklaturnye-gruppy.md) — обновлено 2026-06-01
+        - [Пользовательские категории](polzovatelskie-kategorii.md) — обновлено 2026-06-01
+        - [Технологические карты](tekhnologicheskie-karty.md) — обновлено 2026-06-01
+        - [Работа с изображениями](rabota-s-izobrazheniyami.md) — обновлено 2026-06-01
+        - [Работа со шкалой и размерами](rabota-so-shkaloy-i-razmerami.md) — обновлено 2026-06-01
+      - **Работа с документами**
+        - **Загрузка и выгрузка накладных**
+          - [Загрузка и редактирование приходной накладной](zagruzka-i-redaktirovanie-prikhodnoy-nakladnoy.md) — обновлено 2026-06-01
+          - [Загрузка и редактирование расходной накладной](zagruzka-i-redaktirovanie-raskhodnoy-nakladnoy.md) — обновлено 2026-06-01
+          - [Распроведение приходной и расходной накладной](rasprovedenie-prikhodnoy-i-raskhodnoy-nakladnoy.md) — обновлено 2026-06-01
+          - [Выгрузка приходных накладных](vygruzka-prikhodnykh-nakladnykh.md) — обновлено 2026-06-01
+          - [Выгрузка расходных накладных](vygruzka-raskhodnykh-nakladnykh.md) — обновлено 2026-06-01
+          - [Выгрузка приходной накладной по ее номеру](vygruzka-prikhodnoy-nakladnoy-po-ee-nomeru.md) — обновлено 2026-06-01
+          - [Выгрузка расходной накладной по ее номеру](vygruzka-raskhodnoy-nakladnoy-po-ee-nomeru.md) — обновлено 2026-06-01
+        - [Загрузка акта приготовления](zagruzka-akta-prigotovleniya.md) — обновлено 2026-06-01
+        - [Загрузка возвратной накладной](zagruzka-vozvratnoy-nakladnoy.md) — обновлено 2026-06-01
+        - [Загрузка акта реализации](zagruzka-akta-realizatsii.md) — обновлено 2026-06-01
+        - [Загрузка инвентаризации](zagruzka-inventarizatsii.md) — обновлено 2026-06-01
+        - [Получение результатов инвентаризации до её проведения](poluchenie-rezultatov-inventarizatsii-do-ee-provedeniya.md) — обновлено 2026-06-01
+        - [Акты списания](akty-spisaniya.md) — обновлено 2026-06-01
+        - [Внутренние перемещения](vnutrennie-peremescheniya.md) — обновлено 2026-06-01
+      - **Кассовые смены**
+        - [Работа со сменами](kassovye-smeny-v2.md) — обновлено 2026-06-01
+        - [Работа с изъятиями](rabota-s-izyatiyami.md) — обновлено 2026-06-01
+      - [Корпорации](korporatsii.md) — обновлено 2026-06-01
+      - **Работа с OLAP отчетами**
+        - [Формирование OLAP отчета в API](formirovanie-olap-otcheta-v-api.md) — обновлено 2026-06-01
+        - **Отчеты v1**
+          - [OLAP-отчет v1](olap-otchety-v1.md) — обновлено 2026-06-01
+          - [Отчеты по доставке](otchety-dostavka-v1.md) — обновлено 2026-06-01
+          - [Отчеты по складским операциям](otchety-v1.md) — обновлено 2026-06-01
+        - **Отчеты v2**
+          - [OLAP-отчет v2](olap-otchety-v2.md) — обновлено 2026-06-01
+          - [Примеры отчетов](otchety-vv2.md) — обновлено 2026-06-01
+          - [Примеры вызова OLAP-отчетa по продажам](primery-vyzova-olap-otchet-v2.md) — обновлено 2026-06-01
+          - [Преднастроенные OLAP-отчеты](prednastroennye-olap-otchety-vv2.md) — обновлено 2026-06-01
+      - [События](sobytiya.md) — обновлено 2026-06-01
+      - [Работа с поставщиками](rabota-s-postavschikami.md) — обновлено 2026-06-01
+      - **Работа с данными сотрудников**
+        - [Работа с данными сотрудников](rabota-s-dannymi-sotrudnikovv.md) — обновлено 2026-06-01
+        - [Работа с данными должностей](rabota-s-dannymi-dolzhnostey.md) — обновлено 2026-06-01
+        - [Работа с данными оклада](rabota-s-dannymi-oklada.md) — обновлено 2026-06-01
+        - [Работа с данными смены и расписаний](rabota-s-dannymi-smeny-i-raspisaniy.md) — обновлено 2026-06-01
+        - [Работа с данными явок](rabota-s-dannymi-yavok.md) — обновлено 2026-06-01
+        - [Работа с данными бригад](rabota-s-dannymi-brigad.md) — обновлено 2026-06-01
+      - [API EDI (5.0)](api-edi-5-0.md) — обновлено 2026-06-01
+      - [API EDI (5.1, 6.4)](api-edi-5-1-6-4.md) — обновлено 2026-06-01
+      - [Коды базовых типов](kody-bazovykh-tipov.md) — обновлено 2026-06-01
+      - [Справочники](spravochniki.md) — обновлено 2026-06-01
+      - [Работа с приказами](prikazy.md) — обновлено 2026-06-01
+      - **Работа с приказами**
+        - [Цены, заданные приказами](tseny-zadannye-prikazami.md) — обновлено 2026-06-01
+      - [Ценовые категории](tsenovye-kategorii.md) — обновлено 2026-06-01
+      - [Периоды действия](periody-deystviya.md) — обновлено 2026-06-01
+      - [Статусы репликации](statusy-replikatsii.md) — обновлено 2026-06-01
+      - [Счета](scheta.md) — обновлено 2026-06-01
+      - [Работа с быстрым меню](rabota-s-bystrym-menyu.md) — обновлено 2026-06-01
+    - [iikoFront API](iikofront-api.md) — обновлено 2026-06-01
+    - **iikoFront API**
+      - [Front Web API](frontwebapi.md) — обновлено 2026-06-01
+      - [Киоск самообслуживания](kiosk-samoobsluzhivaniya.md) — обновлено 2026-06-01
+    - [iikoCloud API](iikocloud-api.md) — обновлено 2026-06-01
+    - **iikoCloud API**
+      - [Общее описание и возможности Cloud API](obschee-opisanie-i-vozmozhnosti.md) — обновлено 2026-06-01
+      - **Общее описание и возможности Cloud API**
+        - [Общие принципы работы](obschie-printsipy-raboty.md) — обновлено 2026-06-01
+      - **Авторизация**
+        - [Подключение, получение API ключа](podklyuchenie-poluchenie-api-klyucha.md) — обновлено 2026-06-01
+        - [Сроки действия API ключа](sroki-deystviya-api-klucha.md) — обновлено 2026-06-01
+      - [Диагностика и обработка ошибок](diagnostika.md) — обновлено 2026-06-01
+      - **Диагностика и обработка ошибок**
+        - [Общий мониторинг доступности серверов](monitoring-dostupnosti-serverov-cloud-api.md) — обновлено 2026-06-01
+        - [Диагностика состояния подключения](diagnostika-sostoyaniya-podklyucheniya-k-cloud-api.md) — обновлено 2026-06-01
+        - [Типы ошибок](tipy-oshibok-api.md) — обновлено 2026-06-01
+        - [Порядок разбора проблем с доставочными заказами](poryadok-razbora-problem-s-dostavochnymi-zakazami.md) — обновлено 2026-06-01
+      - **Методы и эндпоинты**
+        - [Общие принципы создания заказа](obschie-printsipy-sozdaniya-zakaza-na-stol-i-na-dostavku.md) — обновлено 2026-06-01
+        - [Настройкa внешнего типа оплаты](nastroyka-vneshnego-tipa-oplaty.md) — обновлено 2026-06-01
+        - [Получение внешнего меню](metody-polucheniya-vneshnego-menyu-iikoweb.md) — обновлено 2026-06-01
+        - [Настройка оповещений в iikoWeb](nastroyka-opovescheniy-v-iikoweb.md) — обновлено 2026-06-01
+        - [Работа с адресами](vygruzka-gorodov-i-ulits.md) — обновлено 2026-06-01
+        - [Скидки из RMS](vygruzka-skidok-iz-rms.md) — обновлено 2026-06-01
+        - [Комбо блюда](rabota-s-kombo-blyudami.md) — обновлено 2026-06-01
+        - [Холдирование](rabota-s-kholdirovaniem.md) — обновлено 2026-06-01
+        - [Особенности работы методов calculate и combo](osobennosti-raboty-metodov-calculate-i-combo.md) — обновлено 2026-06-01
+        - [Модификаторы](rabota-s-modifikatorami-v-cloud-api.md) — обновлено 2026-06-01
+        - [Стоп-листы](rabota-so-stop-listami.md) — обновлено 2026-06-01
+      - **Ограничения API iikoCloud**
+        - [Ограничение и лимиты](ogranichenie-i-limity.md) — обновлено 2026-06-01
+        - [Ограничения веб-хуков](ogranicheniya-veb-hukov.md) — обновлено 2026-06-01
+      - [Сценарии и примеры](stsenarii.md) — обновлено 2026-06-01
+      - **Сценарии и примеры**
+        - [Заказ на стол](rabota-s-zakazom-na-stol.md) — обновлено 2026-06-01
+        - [Доставочный заказ](sozdanie-dostavochnogo-zakaza.md) — обновлено 2026-06-01
+        - [Подключение веб-хуков](podklyuchenie-veb-khukov.md) — обновлено 2026-06-01
+        - [Telegram-бот](podkluchenie-telegram-bota.md) — обновлено 2026-06-01
+        - [Создание интеграции c агрегатором](sozdanie-integracii-s-agregatorom.md) — обновлено 2026-06-01
+        - [Перевод клиента с Biz.API на Cloud.API](perevod-klienta-s-bizapi-na-cloud-api.md) — обновлено 2026-06-01
+      - [Дополнительные ресурсы](dopolnitelnye-resursy-pereimenovat-uzhe-est-takoe-nazvanie.md) — обновлено 2026-06-01
+    - [iikoPublic API](publicapi-documentation.md) — обновлено 2026-06-01
+    - **iikoPublic API**
+      - [Инструкция по работе с порталом разработчика iiko](instruktsiya-po-rabote-s-portalom-razrabotchika-iiko.md) — обновлено 2026-06-02
+      - [Авторизация в Public Api](how-to-get-api-key.md) — обновлено 2026-06-01
+      - [Работа с закупками](rabota-s-zakupkami.md) — обновлено 2026-06-01
+- [Поддержка и консультация](podderzhka-i-konsultatsiya.md) — обновлено 2026-06-01
+- **Поддержка и консультация**
+  - [Консультирование пользователей по API и поддержка разработки](konsultirovanie-po-api.md) — обновлено 2026-06-01
+  - [Как оформлять заявку в консультационный отдел API](kak-oformlyat-zayavku.md) — обновлено 2026-06-01
+  - [Сроки предоставления услуг (SLA)](sroki-predostavleniya-uslug-sla.md) — обновлено 2026-06-01
+  - [Сообщество и ресурсы](soobschestvo-i-resursy.md) — обновлено 2026-06-01
+- [Партнерские программы и распространение интеграций](partnerskie-programmy-i-rasprostranenie-integratsiy.md) — обновлено 2026-06-01
+- **Партнерские программы и распространение интеграций**
+  - [Реализация интеграционных проектов](realizatsiya-integratsionnykh-proektov.md) — обновлено 2026-06-01
+  - [Распространение интеграций](rasprostranenie-integratsiy.md) — обновлено 2026-06-01
+  - **Распространение интеграций**
+    - [Интеграции, реализованные для iikoFront](integratsii-realizovannye-dlya-iikofront.md) — обновлено 2026-06-01
+    - [Система установки и автообновление плагина](sistema-ystanovki-i-avtoobnovlenie-plagina.md) — обновлено 2026-06-01
+    - **Система установки и автообновление плагина**
+      - [Автообновление плагинов](avtoobnovlenie-plaginov.md) — обновлено 2026-06-01
+      - [Автообновление плагинов. Интерфейс пользователя](avtoobnovlenie-interfeys-polzovatelya.md) — обновлено 2026-06-01
+  - [Лицензирование и юридические аспекты](litsenzirovanie-i-yuridicheskie-aspekty.md) — обновлено 2026-06-01
+  - [Маркетинговая поддержка](marketingovaya-podderzhka.md) — обновлено 2026-06-01
+- [Архив](arkhiv.md) — обновлено 2026-06-01
+- **Архив**
+  - [API iikoServer](api-iikoserver.md) — обновлено 2026-06-01
+  - **API iikoServer**
+    - [Работа с продуктами](rabota-s-produktami.md) — обновлено 2026-06-01
+  - [API iikoCloud](api-iikocloud.md) — обновлено 2026-06-01
+  - **API iikoCloud**
+    - [Работа с номенклатурой](rabota-s-nomenklaturoy.md) — обновлено 2026-06-01
+  - [iiko.biz API](iiko-biz-api.md) — обновлено 2026-06-01
+  - **iiko.biz API**
+    - [Как подключить внешний API](kak-podklyuchit-vneshniy-api.md) — обновлено 2026-06-01
+    - [Примеры интеграций и FAQ](primery-integratsiy-i-faq.md) — обновлено 2026-06-01
+    - **Примеры интеграций и FAQ**
+      - [Авторизация и токен доступа](avtorizatsiya-i-token-dostupa.md) — обновлено 2026-06-01
+      - [Подключение организации](podklyuchenie-organizatsii.md) — обновлено 2026-06-01
+      - [Номерклатура](nomerklatura.md) — обновлено 2026-06-01
+      - [Создание заказа](sozdanie-zakaza.md) — обновлено 2026-06-01
+      - **Создание заказа**
+        - [Заказ с простыми модификаторами](zakaz-s-prostymi-modifikatorami.md) — обновлено 2026-06-01
+        - [Заказ с составными модификаторами](zakaz-s-sostavnymi-modifikatorami.md) — обновлено 2026-06-01
+        - [Заказ со схемой модификаторов и размерами](zakaz-so-skhemoy-modifikatorov-i-razmerami.md) — обновлено 2026-06-01
+        - [Заказ с комбо-блюдами](zakaz-s-kombo-blyudami.md) — обновлено 2026-06-01
+        - [Заказ со скидкой или надбавкой](zakaz-so-skidkoy-ili-nadbavkoy.md) — обновлено 2026-06-01
+        - [Заказ с внешней оплатой и предоплатой](zakaz-s-vneshney-oplatoy-i-predoplatoy.md) — обновлено 2026-06-01
+      - [Оплата бонусами iikoCard и Plazius](oplata-bonusami-iikocard-i-plazius.md) — обновлено 2026-06-01
+      - [Выгрузка городов и улиц , картография](vygruzka-gorodov-i-ulits-kartografiya.md) — обновлено 2026-06-01
+      - [Добавление отзыва о доставке](dobavlenie-otzyva-o-dostavke.md) — обновлено 2026-06-01
+      - [OLAP-отчеты по доставке](olap-otchety-po-dostavke.md) — обновлено 2026-06-01
+  - [iikoCard API](iikocard-api.md) — обновлено 2026-06-01
