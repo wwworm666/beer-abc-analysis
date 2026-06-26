@@ -1022,7 +1022,70 @@ def resolve_mod_kpp(token, cis):
     return kpp, fias
 
 
-def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS):
+# Точечный режим: сколько страниц (×100 кодов) тянуть на один GTIN. Большинство
+# GTIN держат <100 кодов → хватает 1 страницы; высокообъёмным берём пару про запас.
+SEARCH_GTIN_MAX_PAGES = 3
+
+
+def _accumulate_code(by_gtin, mod_to_place, token, it, default_group):
+    """Учесть один код ЧЗ в структуре by_gtin (как parse_chz_csv).
+
+    Возвращает batch_key (gtin, kpp_key, prod, exp) если код штучный (UNIT) и учтён,
+    иначе None. modId резолвится в КПП лениво (кешируется в mod_to_place).
+    """
+    gtin = it.get("gtin") or ""
+    if not gtin:
+        return None
+    pkg = it.get("generalPackageType") or it.get("packageType")
+    if pkg and pkg != "UNIT":
+        return None
+    exp = (it.get("expirationDate") or "").split("T")[0]
+    prod = (it.get("productionDate") or "").split("T")[0]
+    mid = str(it.get("modId")) if it.get("modId") is not None else ""
+    if mid and mid not in mod_to_place:
+        mod_to_place[mid] = resolve_mod_kpp(token, it.get("cis"))
+        print(f"  [MOD] {mid} -> kpp={mod_to_place[mid][0] or '?'}")
+    kpp, fias = mod_to_place.get(mid, ("", ""))
+
+    e = by_gtin.get(gtin)
+    if e is None:
+        e = by_gtin[gtin] = {
+            "gtin": gtin, "name": "", "brand": "", "count": 0,
+            "expiration_dates": set(), "production_dates": set(),
+            "batches": {}, "by_kpp": {}, "product_group": it.get("productGroup") or default_group,
+        }
+    e["count"] += 1
+    if exp:
+        e["expiration_dates"].add(exp)
+    if prod:
+        e["production_dates"].add(prod)
+    key = (prod, exp)
+    e["batches"][key] = e["batches"].get(key, 0) + 1
+
+    kpp_key = kpp or "_unknown"
+    slot = e["by_kpp"].get(kpp_key)
+    if slot is None:
+        slot = e["by_kpp"][kpp_key] = {"kpp": kpp, "fiasId": fias, "count": 0, "batches": {}}
+    slot["count"] += 1
+    slot["batches"][key] = slot["batches"].get(key, 0) + 1
+    if not slot["fiasId"] and fias:
+        slot["fiasId"] = fias
+    return (gtin, kpp_key, prod, exp)
+
+
+def _search_by_gtins(token, groups, gtins_chunk, page, limit=100):
+    """POST /cises/search с фильтром по списку GTIN (единственный фильтр, который
+    API реально уважает — kpp/modId игнорируются). Без окна по дате: тянем весь
+    набор кодов конкретного GTIN, чтобы поймать и старые партии."""
+    filt = {"productGroups": groups, "ownerInn": INN_ORG, "gtins": gtins_chunk}
+    url = f"{CHZ_BASE_URL_V4}/cises/search"
+    st, resp = make_request(url, method="POST",
+                            data={"page": page, "limit": limit, "filter": filt},
+                            headers={"Authorization": f"Bearer {token}"})
+    return resp if isinstance(resp, dict) else {}
+
+
+def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS, gtins=None):
     """Остатки ЧЗ через синхронный /cises/search (замена dispenser csv-auto).
 
     Возвращает структуру идентичную parse_chz_csv: список
@@ -1041,90 +1104,64 @@ def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS)
         print("[ERR] Нет токена")
         return []
 
-    date_to = datetime.now()
-    date_from = date_to - timedelta(days=days)
-
     by_gtin = {}
     mod_to_place = {}      # modId -> (kpp, fiasId), резолвим лениво по мере встречи
-    seen_batches = set()   # (gtin, kpp_key, prod, exp) — для early-stop по сходимости
-    total = 0
-    kept = 0
 
-    for g in groups:
-        no_new_pages = 0
-        for page in range(MAX_SEARCH_PAGES_PER_GROUP):
-            st, resp, _ = search_cises(
-                token=token, page=page, limit=100,
-                product_group=g, date_from=date_from, date_to=date_to,
-            )
-            items = resp.get("result", []) if isinstance(resp, dict) else []
-            if not items:
-                break
-            new_here = 0
-            for it in items:
-                total += 1
-                gtin = it.get("gtin") or ""
-                if not gtin:
-                    continue
-                # только штучные бутылки (UNIT); агрегаты (LEVEL1) отбрасываем,
-                # неизвестное оставляем
-                pkg = it.get("generalPackageType") or it.get("packageType")
-                if pkg and pkg != "UNIT":
-                    continue
-                kept += 1
-                exp = (it.get("expirationDate") or "").split("T")[0]
-                prod = (it.get("productionDate") or "").split("T")[0]
-                mid = str(it.get("modId")) if it.get("modId") is not None else ""
-                if mid and mid not in mod_to_place:
-                    mod_to_place[mid] = resolve_mod_kpp(token, it.get("cis"))
-                    print(f"  [MOD] {mid} -> kpp={mod_to_place[mid][0] or '?'}")
-                kpp, fias = mod_to_place.get(mid, ("", ""))
-
-                e = by_gtin.get(gtin)
-                if e is None:
-                    e = by_gtin[gtin] = {
-                        "gtin": gtin,
-                        "name": "",
-                        "brand": "",
-                        "count": 0,
-                        "expiration_dates": set(),
-                        "production_dates": set(),
-                        "batches": {},
-                        "by_kpp": {},
-                        "product_group": it.get("productGroup") or g,
-                    }
-                e["count"] += 1
-                if exp:
-                    e["expiration_dates"].add(exp)
-                if prod:
-                    e["production_dates"].add(prod)
-                key = (prod, exp)
-                e["batches"][key] = e["batches"].get(key, 0) + 1
-
-                kpp_key = kpp or "_unknown"
-                slot = e["by_kpp"].get(kpp_key)
-                if slot is None:
-                    slot = e["by_kpp"][kpp_key] = {"kpp": kpp, "fiasId": fias, "count": 0, "batches": {}}
-                slot["count"] += 1
-                slot["batches"][key] = slot["batches"].get(key, 0) + 1
-                if not slot["fiasId"] and fias:
-                    slot["fiasId"] = fias
-
-                batch_key = (gtin, kpp_key, prod, exp)
-                if batch_key not in seen_batches:
-                    seen_batches.add(batch_key)
-                    new_here += 1
-
-            # Early-stop: страница без новых партий — дальше только дубли
-            if new_here == 0:
-                no_new_pages += 1
-                if no_new_pages >= SEARCH_CONVERGE_PAGES:
-                    print(f"  [{g}] сходимость на стр.{page + 1} (просмотрено {total} кодов)")
+    if gtins:
+        # ТОЧЕЧНО: тянем именно те GTIN, что бар держит на остатке (список из iiko).
+        # «по ownerInn без gtins» /cises/search отдаёт лишь ~20 высокообъёмных GTIN
+        # (newest-first, длинный хвост недостижим), поэтому фильтруем по gtins —
+        # единственный фильтр, который API реально уважает.
+        uniq = list(dict.fromkeys(str(x).zfill(14) for x in gtins if x))
+        print(f"  Точечный режим: {len(uniq)} GTIN из iiko")
+        for idx, g in enumerate(uniq):
+            for page in range(SEARCH_GTIN_MAX_PAGES):
+                resp = _search_by_gtins(token, groups, [g], page)
+                items = resp.get("result", [])
+                if not items:
                     break
-            else:
-                no_new_pages = 0
-            if resp.get("isLastPage") or len(items) < 100:
-                break
+                for it in items:
+                    _accumulate_code(by_gtin, mod_to_place, token, it, groups[0])
+                if resp.get("isLastPage") or len(items) < 100:
+                    break
+            if (idx + 1) % 100 == 0:
+                print(f"  ... {idx + 1}/{len(uniq)} GTIN, найдено {len(by_gtin)}")
+        print(f"  [SEARCH] точечно: запрошено {len(uniq)}, найдено {len(by_gtin)} GTIN, "
+              f"{len(mod_to_place)} МОД")
+    else:
+        # БРОД (fallback без списка GTIN): потоковая выгрузка с early-stop по
+        # сходимости партий. Покрывает лишь высокообъёмные GTIN — для боевого сбора
+        # нужен список gtins (его готовит /api/chz/refresh из остатков iiko).
+        date_to = datetime.now()
+        date_from = date_to - timedelta(days=days)
+        seen_batches = set()
+        total = 0
+        for g in groups:
+            no_new_pages = 0
+            for page in range(MAX_SEARCH_PAGES_PER_GROUP):
+                st, resp, _ = search_cises(
+                    token=token, page=page, limit=100,
+                    product_group=g, date_from=date_from, date_to=date_to,
+                )
+                items = resp.get("result", []) if isinstance(resp, dict) else []
+                if not items:
+                    break
+                new_here = 0
+                for it in items:
+                    total += 1
+                    bk = _accumulate_code(by_gtin, mod_to_place, token, it, g)
+                    if bk and bk not in seen_batches:
+                        seen_batches.add(bk)
+                        new_here += 1
+                if new_here == 0:
+                    no_new_pages += 1
+                    if no_new_pages >= SEARCH_CONVERGE_PAGES:
+                        print(f"  [{g}] сходимость на стр.{page + 1} (просмотрено {total})")
+                        break
+                else:
+                    no_new_pages = 0
+                if resp.get("isLastPage") or len(items) < 100:
+                    break
 
     if not by_gtin:
         print("  /cises/search не вернул кодов")
@@ -1164,8 +1201,7 @@ def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS)
             "by_kpp": by_kpp_out,
         })
     stock.sort(key=lambda x: x["count"], reverse=True)
-    print(f"  [SEARCH] просмотрено {total} кодов ({kept} UNIT), "
-          f"{len(stock)} GTIN, {len(seen_batches)} партий, {len(mod_to_place)} МОД")
+    print(f"  [SEARCH] итог: {len(stock)} GTIN, {len(mod_to_place)} МОД")
     return stock
 
 
@@ -1344,8 +1380,21 @@ def main():
                 groups_arg = rest[1:] or None
             else:
                 groups_arg = rest
-        print(f"Остатки ЧЗ через /cises/search (окно {days} дней)...")
-        stock = get_chz_stock_via_search(product_groups=groups_arg, days=days)
+        # Список нужных GTIN (что бар реально держит на остатке) готовит прод из iiko
+        # и кладёт рядом (needed_gtins.json). Есть список → точечный режим (полное
+        # покрытие); нет → брод (только высокообъёмные GTIN, для дев/отладки).
+        needed = None
+        needed_path = os.path.join(DEBUG_DIR, "needed_gtins.json")
+        if os.path.exists(needed_path):
+            try:
+                with open(needed_path, encoding="utf-8") as f:
+                    needed = json.load(f)
+            except Exception as e:
+                print(f"[WARN] не прочитал {needed_path}: {e}")
+        mode = (f"точечно по iiko ({len(needed)} GTIN)" if needed
+                else f"брод, окно {days}д")
+        print(f"Остатки ЧЗ через /cises/search ({mode})...")
+        stock = get_chz_stock_via_search(product_groups=groups_arg, days=days, gtins=needed)
         # Защита: не затирать рабочий chz_stock.json пустым результатом
         # (например при сбое токена/сети). Пустой ответ — оставляем старый файл.
         if not stock:

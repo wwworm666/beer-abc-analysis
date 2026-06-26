@@ -13,6 +13,7 @@
 
 import os
 import sys
+import json
 import socket
 import paramiko
 
@@ -196,6 +197,19 @@ def main():
             # Special (с 2026-06): обновить токен, собрать остатки через
             # синхронный /cises/search (коды теперь сразу RETIRED/OWN_USE,
             # dispenser-выгрузка по RETIRED виснет), скачать chz_stock.json.
+            # 0) Список нужных GTIN из iiko (фасовка на остатке) → точечная выгрузка.
+            #    Запускается в контейнере прода, где есть iiko и баркоды. Если не
+            #    собралось (дев/нет iiko) — chz.py уйдёт в брод-режим.
+            try:
+                from core.chz_needed_gtins import compute_needed_gtins
+                needed = compute_needed_gtins()
+                needed_local = REPO_DIR / "chz_test" / "debug" / "needed_gtins.json"
+                needed_local.parent.mkdir(parents=True, exist_ok=True)
+                needed_local.write_text(json.dumps(needed), encoding="utf-8")
+                print(f"Нужных GTIN из iiko (фасовка на остатке): {len(needed)}")
+                push(str(needed_local), REMOTE_CHZ_DIR + r"\debug")
+            except Exception as e:
+                print(f"[WARN] список GTIN не собран ({e}) — брод-режим на бар-ПК")
             print("Обновление токена...")
             token_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
             run_cmd(token_cmd, timeout=120)
