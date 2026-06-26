@@ -395,6 +395,30 @@ class ShiftsManager:
                 ''', (first_day.isoformat(), last_day.isoformat()))
                 return [dict(row) for row in cursor.fetchall()]
 
+    def get_shifts_for_employee(self, employee_id: str,
+                                date_from: str, date_to: str) -> List[Dict]:
+        """Смены одного сотрудника (по стабильному employee_id) за диапазон дат
+        включительно — для экспорта личного графика в календарь (.ics,
+        core/calendar_ics.py). Пустой employee_id -> []."""
+        if not employee_id:
+            return []
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT
+                        s.id, s.date, s.employee_name, s.employee_id,
+                        s.start_time, s.fact_minutes,
+                        l.id as location_id, l.name as location_name, l.short_name as location_short,
+                        r.id as role_id, r.name as role_name
+                    FROM shifts s
+                    JOIN locations l ON s.location_id = l.id
+                    JOIN roles r ON s.role_id = r.id
+                    WHERE s.employee_id = ? AND s.date >= ? AND s.date <= ?
+                    ORDER BY s.date, s.start_time
+                ''', (employee_id, date_from, date_to))
+                return [dict(row) for row in cursor.fetchall()]
+
     def get_shift(self, shift_id: int) -> Optional[Dict]:
         """Одна смена с именами точки и роли (для журнала: читаемое описание
         изменения и снимок состояния перед удалением)."""

@@ -54,6 +54,10 @@
         <div class="current-month" id="currentMonth"></div>
         <button class="nav-btn" id="nextMonth">След &rarr;</button>
         <span class="nav-spacer"></span>
+        {% if current_user and current_user.employee_iiko_id %}
+        <a class="page-switch" href="/schedule/cal.ics" download="grafik-smen.ics"
+           title="Скачать свой график файлом .ics — открыть в Календаре на iPhone/Android">В календарь</a>
+        {% endif %}
         <a class="page-switch" href="/schedule/edit">Редактор</a>
     </div>
 

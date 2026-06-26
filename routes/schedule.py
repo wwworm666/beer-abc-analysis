@@ -1,10 +1,11 @@
 import re
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from datetime import datetime, timedelta
 from extensions import shifts_mgr, notes_manager
 from core.auth_guard import current_user
 from core.iiko_api import IikoAPI
 from core.daily_plans_generator import DailyPlansGenerator
+from core.calendar_ics import build_calendar
 from core.schedule_plans import (
     build_month_plans,
     compute_month_summary,
@@ -320,6 +321,34 @@ def schedule_get_audit(year, month):
     автор берётся из сессии в момент изменения."""
     limit = request.args.get('limit', 200, type=int)
     return jsonify(shifts_mgr.get_audit(year, month, limit=limit))
+
+
+@schedule_bp.route('/schedule/cal.ics', methods=['GET'])
+def schedule_calendar_ics():
+    """Личный график сотрудника в формате iCalendar (.ics) — разовая выгрузка.
+
+    Отдаёт смены ТЕКУЩЕГО пользователя (привязка аккаунта к сотруднику —
+    users.employee_iiko_id; смены ищутся по shifts.employee_id). За логином
+    (не публичный эндпоинт). Окно: месяц назад .. полгода вперёд — недавняя
+    история + всё запланированное. Аккаунт без привязки -> пустой календарь.
+    Подписки нет (статичный файл): поменялся график -> скачать заново.
+    """
+    user = current_user() or {}
+    iiko_id = user.get('employee_iiko_id')
+    name = user.get('display_name') or 'сотрудник'
+    today = datetime.now().date()
+    date_from = (today - timedelta(days=31)).isoformat()
+    date_to = (today + timedelta(days=183)).isoformat()
+    shifts = shifts_mgr.get_shifts_for_employee(iiko_id, date_from, date_to)
+    ics = build_calendar(name, shifts, dtstamp=datetime.now())
+    return Response(
+        ics,
+        content_type='text/calendar; charset=utf-8',
+        headers={
+            'Content-Disposition': 'attachment; filename="grafik-smen.ics"',
+            'Cache-Control': 'no-store',
+        },
+    )
 
 
 def _fetch_month_fact_olap(year, month):
