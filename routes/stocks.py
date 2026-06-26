@@ -795,11 +795,15 @@ def get_chz_stock_api():
 
 @stocks_bp.route('/api/chz/refresh', methods=['POST'])
 def refresh_chz_stock():
-    """Запускает обновление кеша ЧЗ в фоне через dispenser API ЧЗ.
+    """Запускает обновление кеша ЧЗ в фоне через /cises/search.
 
-    Делает на бар-ПК: token refresh → chz.py csv-auto (beer+water+nabeer) →
-    pull chz_stock.json. Возвращает сразу status=started; прогресс в
-    chz_test/debug/refresh.log.
+    Делает на бар-ПК: token refresh → chz.py search-stock (beer+nabeer+softdrinks
+    через синхронный /cises/search, привязка к бару по modId) → pull chz_stock.json.
+    Возвращает сразу status=started; прогресс в chz_test/debug/refresh.log.
+
+    Контекст: с 2026-06 коды выводятся из оборота сразу при приёмке
+    (RETIRED/OWN_USE), фильтр INTRODUCED пуст, а dispenser-выгрузка по RETIRED
+    виснет — поэтому остатки тянем синхронным /cises/search. См. docs/expiration.md.
     """
     global _refresh_proc, _refresh_log_file
     if not os.environ.get('REMOTE_PASS'):
@@ -841,7 +845,7 @@ def refresh_chz_stock():
             log_file.write(f'=== refresh started {datetime.now().isoformat()} ===\n')
             log_file.flush()
             _refresh_proc = subprocess.Popen(
-                [sys.executable, remote_exec, 'run', 'csv-auto'],
+                [sys.executable, remote_exec, 'run', 'search-stock'],
                 stdout=log_file,
                 stderr=log_file
             )

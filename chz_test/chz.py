@@ -940,6 +940,235 @@ def get_chz_stock(product_groups=None, date_from=None, date_to=None):
     return stock
 
 
+# ==================== ОСТАТКИ ЧЗ ЧЕРЕЗ /cises/search (с 2026-06) ====================
+# Контекст: общепит по послаблению ГИС МТ выводит коды из оборота СРАЗУ при приёмке
+# (status=RETIRED, причина OWN_USE/PRODUCTION_USE). Поэтому:
+#   - старый фильтр INTRODUCED больше не отдаёт остаток (коды мгновенно RETIRED);
+#   - dispenser-выгрузка (csv-auto) по RETIRED виснет в PREPARATION часами.
+# Рабочий путь — синхронный /cises/search (любой статус) + привязка к бару по
+# modId -> ownerMod.kpp (через /cises/info). Структура результата идентична
+# parse_chz_csv (с полем by_kpp), чтобы /expiration и /stocks работали без правок.
+
+# Окно по дате введения в оборот (дней). Код вводится+выводится при приёмке,
+# поэтому свежий introducedDate ~ то, что ещё может стоять на складе. Очень старые,
+# но ещё не проданные партии в окно не попадут (для них на странице просто не будет
+# срока ЧЗ) — приемлемая деградация, пиво в баре оборачивается быстрее.
+SEARCH_STOCK_WINDOW_DAYS = 60
+
+# Early-stop по сходимости: выведенные коды копятся тысячами на каждый GTIN
+# (одна выгрузка beer/60д = 100k+ кодов), но уникальных партий (gtin,kpp,срок)
+# всего ~40. Каждая партия встречается на почти каждой странице, поэтому после
+# того как N страниц подряд не принесли НОВОЙ партии — дальше только дубли,
+# можно останавливаться. Так пул кодов падает со 100k до ~2-4k (секунды вместо минут).
+SEARCH_CONVERGE_PAGES = 25
+MAX_SEARCH_PAGES_PER_GROUP = 250
+
+
+def resolve_mod_to_kpp(token, sample_cis_by_mod):
+    """modId -> (kpp, fiasId) бара через /cises/info (поле ownerMod).
+
+    Один вызов на каждый уникальный modId (~4 бара). ВАЖНО: брать именно
+    ownerMod.* — это наш бар; applicationMod и верхнеуровневый kpp относятся
+    к поставщику (склад-отправитель), не к бару.
+    """
+    out = {}
+    url = f"{CHZ_BASE_URL}/cises/info"
+    hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    for mod_id, cis in sample_cis_by_mod.items():
+        kpp, fias = "", ""
+        try:
+            body = json.dumps([cis], ensure_ascii=False).encode("utf-8")
+            st, r = make_request(url, method="POST", data=body, headers=hdr)
+            if st == 200 and isinstance(r, list) and r:
+                owner = (r[0].get("cisInfo") or {}).get("ownerMod") or {}
+                k = str(owner.get("kpp") or "").strip()
+                if k.isdigit() and len(k) == 9:
+                    kpp = k
+                f = str(owner.get("fiasId") or "").strip()
+                if len(f) == 36 and f.count("-") == 4:
+                    fias = f
+        except Exception as e:
+            print(f"  [MOD] {mod_id}: ошибка /cises/info — {e}")
+        print(f"  [MOD] {mod_id} -> kpp={kpp or '?'}")
+        out[str(mod_id)] = (kpp, fias)
+    return out
+
+
+def resolve_mod_kpp(token, cis):
+    """(kpp, fiasId) бара по одному коду через /cises/info (ownerMod).
+
+    Для ленивого резолва modId в потоковой выгрузке: МОД мало (~4), вызываем
+    один раз на каждый новый modId. Берём ownerMod.* (наш бар), НЕ applicationMod
+    и НЕ верхнеуровневый kpp (это поставщик).
+    """
+    kpp, fias = "", ""
+    if not cis:
+        return kpp, fias
+    try:
+        url = f"{CHZ_BASE_URL}/cises/info"
+        hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        body = json.dumps([cis], ensure_ascii=False).encode("utf-8")
+        st, r = make_request(url, method="POST", data=body, headers=hdr)
+        if st == 200 and isinstance(r, list) and r:
+            owner = (r[0].get("cisInfo") or {}).get("ownerMod") or {}
+            k = str(owner.get("kpp") or "").strip()
+            if k.isdigit() and len(k) == 9:
+                kpp = k
+            f = str(owner.get("fiasId") or "").strip()
+            if len(f) == 36 and f.count("-") == 4:
+                fias = f
+    except Exception as e:
+        print(f"  [MOD] ошибка /cises/info — {e}")
+    return kpp, fias
+
+
+def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS):
+    """Остатки ЧЗ через синхронный /cises/search (замена dispenser csv-auto).
+
+    Возвращает структуру идентичную parse_chz_csv: список
+    {gtin, name, brand, count, expiration_dates, production_dates,
+     product_group, batches, by_kpp}. Привязка к бару (by_kpp) — по modId.
+    """
+    if product_groups is None:
+        groups = PRODUCT_GROUPS
+    elif isinstance(product_groups, str):
+        groups = [product_groups]
+    else:
+        groups = product_groups
+
+    token = load_token()
+    if not token:
+        print("[ERR] Нет токена")
+        return []
+
+    date_to = datetime.now()
+    date_from = date_to - timedelta(days=days)
+
+    by_gtin = {}
+    mod_to_place = {}      # modId -> (kpp, fiasId), резолвим лениво по мере встречи
+    seen_batches = set()   # (gtin, kpp_key, prod, exp) — для early-stop по сходимости
+    total = 0
+    kept = 0
+
+    for g in groups:
+        no_new_pages = 0
+        for page in range(MAX_SEARCH_PAGES_PER_GROUP):
+            st, resp, _ = search_cises(
+                token=token, page=page, limit=100,
+                product_group=g, date_from=date_from, date_to=date_to,
+            )
+            items = resp.get("result", []) if isinstance(resp, dict) else []
+            if not items:
+                break
+            new_here = 0
+            for it in items:
+                total += 1
+                gtin = it.get("gtin") or ""
+                if not gtin:
+                    continue
+                # только штучные бутылки (UNIT); агрегаты (LEVEL1) отбрасываем,
+                # неизвестное оставляем
+                pkg = it.get("generalPackageType") or it.get("packageType")
+                if pkg and pkg != "UNIT":
+                    continue
+                kept += 1
+                exp = (it.get("expirationDate") or "").split("T")[0]
+                prod = (it.get("productionDate") or "").split("T")[0]
+                mid = str(it.get("modId")) if it.get("modId") is not None else ""
+                if mid and mid not in mod_to_place:
+                    mod_to_place[mid] = resolve_mod_kpp(token, it.get("cis"))
+                    print(f"  [MOD] {mid} -> kpp={mod_to_place[mid][0] or '?'}")
+                kpp, fias = mod_to_place.get(mid, ("", ""))
+
+                e = by_gtin.get(gtin)
+                if e is None:
+                    e = by_gtin[gtin] = {
+                        "gtin": gtin,
+                        "name": "",
+                        "brand": "",
+                        "count": 0,
+                        "expiration_dates": set(),
+                        "production_dates": set(),
+                        "batches": {},
+                        "by_kpp": {},
+                        "product_group": it.get("productGroup") or g,
+                    }
+                e["count"] += 1
+                if exp:
+                    e["expiration_dates"].add(exp)
+                if prod:
+                    e["production_dates"].add(prod)
+                key = (prod, exp)
+                e["batches"][key] = e["batches"].get(key, 0) + 1
+
+                kpp_key = kpp or "_unknown"
+                slot = e["by_kpp"].get(kpp_key)
+                if slot is None:
+                    slot = e["by_kpp"][kpp_key] = {"kpp": kpp, "fiasId": fias, "count": 0, "batches": {}}
+                slot["count"] += 1
+                slot["batches"][key] = slot["batches"].get(key, 0) + 1
+                if not slot["fiasId"] and fias:
+                    slot["fiasId"] = fias
+
+                batch_key = (gtin, kpp_key, prod, exp)
+                if batch_key not in seen_batches:
+                    seen_batches.add(batch_key)
+                    new_here += 1
+
+            # Early-stop: страница без новых партий — дальше только дубли
+            if new_here == 0:
+                no_new_pages += 1
+                if no_new_pages >= SEARCH_CONVERGE_PAGES:
+                    print(f"  [{g}] сходимость на стр.{page + 1} (просмотрено {total} кодов)")
+                    break
+            else:
+                no_new_pages = 0
+            if resp.get("isLastPage") or len(items) < 100:
+                break
+
+    if not by_gtin:
+        print("  /cises/search не вернул кодов")
+        return []
+
+    # Названия по GTIN
+    names = get_product_names(list(by_gtin.keys()))
+    for gtin, e in by_gtin.items():
+        info = names.get(gtin, {})
+        e["name"] = info.get("name") or info.get("fullName") or ""
+        e["brand"] = info.get("brand") or ""
+
+    def _batches_to_list(bd):
+        out = [
+            {"production_date": p, "expiration_date": x, "count": c}
+            for (p, x), c in bd.items()
+        ]
+        out.sort(key=lambda b: b["production_date"], reverse=True)
+        return out
+
+    stock = []
+    for entry in by_gtin.values():
+        by_kpp_out = []
+        for slot in entry["by_kpp"].values():
+            by_kpp_out.append({
+                "kpp": slot["kpp"],
+                "fiasId": slot["fiasId"],
+                "count": slot["count"],
+                "batches": _batches_to_list(slot["batches"]),
+            })
+        by_kpp_out.sort(key=lambda s: -s["count"])
+        stock.append({
+            **{k: v for k, v in entry.items() if k not in ("batches", "by_kpp")},
+            "expiration_dates": sorted(entry["expiration_dates"]),
+            "production_dates": sorted(entry["production_dates"]),
+            "batches": _batches_to_list(entry["batches"]),
+            "by_kpp": by_kpp_out,
+        })
+    stock.sort(key=lambda x: x["count"], reverse=True)
+    print(f"  [SEARCH] просмотрено {total} кодов ({kept} UNIT), "
+          f"{len(stock)} GTIN, {len(seen_batches)} партий, {len(mod_to_place)} МОД")
+    return stock
+
+
 def print_stock_report(stock):
     """Напечатать отчёт по остаткам ЧЗ: название — количество — срок"""
     if not stock:
@@ -1101,6 +1330,27 @@ def main():
         if ok_count > 0:
             print("Перестраиваем chz_stock.json...")
             stock = parse_chz_csv()
+            print_stock_report(stock)
+
+    elif cmd == "search-stock":
+        # python chz.py search-stock [days] [groups...]
+        # Остатки ЧЗ через /cises/search (с 2026-06: коды сразу RETIRED/OWN_USE,
+        # dispenser-выгрузка по RETIRED виснет — тянем синхронным API).
+        days = SEARCH_STOCK_WINDOW_DAYS
+        groups_arg = None
+        if rest:
+            if rest[0].isdigit():
+                days = int(rest[0])
+                groups_arg = rest[1:] or None
+            else:
+                groups_arg = rest
+        print(f"Остатки ЧЗ через /cises/search (окно {days} дней)...")
+        stock = get_chz_stock_via_search(product_groups=groups_arg, days=days)
+        # Защита: не затирать рабочий chz_stock.json пустым результатом
+        # (например при сбое токена/сети). Пустой ответ — оставляем старый файл.
+        if not stock:
+            print("[WARN] пустой результат — chz_stock.json НЕ перезаписан")
+        else:
             print_stock_report(stock)
 
     elif cmd == "mods":

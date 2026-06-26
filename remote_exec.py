@@ -192,9 +192,22 @@ def main():
             print("\nСкачивание chz_stock.json...")
             remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
             pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
+        elif subcmd == "search-stock":
+            # Special (с 2026-06): обновить токен, собрать остатки через
+            # синхронный /cises/search (коды теперь сразу RETIRED/OWN_USE,
+            # dispenser-выгрузка по RETIRED виснет), скачать chz_stock.json.
+            print("Обновление токена...")
+            token_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py token'
+            run_cmd(token_cmd, timeout=120)
+            print("\nОстатки через /cises/search (таймаут 1800с)...")
+            search_cmd = f'cd /d {REMOTE_CHZ_DIR} && "{REMOTE_PYTHON}" chz.py search-stock'
+            run_cmd(search_cmd, timeout=1800)
+            print("\nСкачивание chz_stock.json...")
+            remote_json = REMOTE_CHZ_DIR + r"\debug\chz_stock.json"
+            pull(remote_json, str(REPO_DIR / "chz_test" / "debug"))
         else:
             # Запустить chz.py на бар-ПК из C:\chz_test
-            ALLOWED_SUBCMDS = {"token", "stock", "report", "status", "mods", "csv-auto"}
+            ALLOWED_SUBCMDS = {"token", "stock", "report", "status", "mods", "csv-auto", "search-stock"}
             if subcmd not in ALLOWED_SUBCMDS:
                 print(f"Неизвестная подкоманда: {subcmd}")
                 print(f"Допустимые: {', '.join(sorted(ALLOWED_SUBCMDS))}")
