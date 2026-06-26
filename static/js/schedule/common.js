@@ -547,45 +547,57 @@
         });
     }
 
-    /* Мини-виджет «Выполнение плана»: позавчера / вчера / сегодня (агрегат по всем
-       точкам). Берёт state.plans отображаемого месяца; дата вне него — «—». Сегодня
-       помечаем «идёт» (факт неполный — день не закрыт). */
+    /* Мини-виджет «Выполнение плана»: матрица точки × 3 дня (позавчера/вчера/сегодня).
+       Ячейка — % выполнения за день по точке (факт/план), цвет по уровню; строка «Все»
+       снизу — агрегат. Берёт state.plans отображаемого месяца (даты вне него — «—»).
+       Сегодня — последняя колонка (факт неполный, день не закрыт; см. подпись). */
     function renderRecentCompletion(host) {
         if (!host) return;
         var days = state.plans && state.plans.days;
         if (!days) { host.innerHTML = '<div class="cov-empty">Нет данных</div>'; return; }
         var now = new Date();
-        var defs = [
-            { off: 2, label: 'Позавчера' },
-            { off: 1, label: 'Вчера' },
-            { off: 0, label: 'Сегодня' }
-        ];
-        host.innerHTML = defs.map(function (def) {
-            var dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - def.off);
-            var ds = dateStr(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
-            var d = days[ds];
-            var plan = (d && d.plan_total != null) ? d.plan_total : null;
-            var fact = (d && d.fact_total != null) ? d.fact_total : null;
+        var cols = [2, 1, 0].map(function (off) {
+            var dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() - off);
+            return {
+                off: off,
+                d: days[dateStr(dt.getFullYear(), dt.getMonth() + 1, dt.getDate())],
+                label: pad2(dt.getDate()) + '.' + pad2(dt.getMonth() + 1)
+            };
+        });
+
+        // Ячейка %: цвет по уровню, «—» если плана/факта нет
+        function cell(plan, fact, today) {
             var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
-            var dd = ds.slice(8) + '.' + ds.slice(5, 7);
-            var badge = d ? pfPctBadge(pct) : '<span class="pf-dim">&mdash;</span>';
-            var money;
-            if (!d) {
-                money = '<span class="rc-money pf-dim">не в этом месяце</span>';
-            } else if (plan == null && fact == null) {
-                money = '<span class="rc-money pf-dim">нет данных</span>';
-            } else {
-                money = '<span class="rc-money">' + (fact != null ? formatMoney(fact) : '—')
-                    + ' / ' + (plan != null ? formatMoney(plan) : '—') + '</span>';
-            }
-            return '<div class="rc-item">'
-                + '<div class="rc-head"><span class="rc-label">' + def.label
-                + ' <span class="rc-date">' + dd + '</span></span>'
-                + '<span class="rc-val">' + badge
-                + (def.off === 0 ? '<span class="rc-live">идёт</span>' : '') + '</span></div>'
-                + money
-                + '</div>';
+            if (pct == null) return '<td class="rc-c pf-dim">&mdash;</td>';
+            var lvl = pct >= 100 ? 'good' : (pct >= 85 ? 'mid' : 'low');
+            return '<td class="rc-c rc-' + lvl + (today ? ' rc-today' : '') + '">' + pct + '%</td>';
+        }
+
+        var head = '<tr><th></th>' + cols.map(function (c) {
+            return '<th class="rc-h' + (c.off === 0 ? ' rc-today' : '') + '">' + c.label + '</th>';
+        }).join('') + '</tr>';
+
+        var rows = state.locations.map(function (L) {
+            var tds = cols.map(function (c) {
+                var loc = (c.d && c.d.locations && c.d.locations[L.id]) || {};
+                return cell(loc.plan != null ? loc.plan : null,
+                            loc.fact != null ? loc.fact : null, c.off === 0);
+            }).join('');
+            return '<tr><td class="rc-name" title="' + escapeHtml(L.name) + '">'
+                + escapeHtml(L.short_name || L.name) + '</td>' + tds + '</tr>';
         }).join('');
+
+        var totalTds = cols.map(function (c) {
+            return cell((c.d && c.d.plan_total != null) ? c.d.plan_total : null,
+                        (c.d && c.d.fact_total != null) ? c.d.fact_total : null, c.off === 0);
+        }).join('');
+
+        host.innerHTML =
+            '<table class="rc-table"><thead>' + head + '</thead><tbody>'
+            + rows
+            + '<tr class="rc-all"><td class="rc-name">Все</td>' + totalTds + '</tr>'
+            + '</tbody></table>'
+            + '<div class="rc-cap">позавчера &middot; вчера &middot; сегодня (сегодня &mdash; идёт)</div>';
     }
 
     // ==================== UI-мелочи ====================

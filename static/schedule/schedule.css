@@ -599,33 +599,41 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
 .pf-tab:hover { background: var(--bg-tertiary); }
 .pf-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-/* ==================== Мини-виджет «Выполнение плана» (3 дня) ==================== */
-/* Позавчера / Вчера / Сегодня — % выполнения + факт/план. Сегодня — «идёт». */
-.rc-item { padding: 9px 0; border-bottom: 1px solid var(--border-color); }
-.rc-item:first-child { padding-top: 2px; }
-.rc-item:last-child { border-bottom: none; padding-bottom: 2px; }
-.rc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.rc-label { font-size: 0.86rem; font-weight: 600; }
-.rc-date {
+/* ==================== Мини-виджет «Выполнение плана» (точки × 3 дня) ==================== */
+/* Матрица: строки — точки (+ «Все»), колонки — позавчера/вчера/сегодня. Ячейка —
+   % выполнения за день по точке, цвет по уровню. Сегодня — последняя колонка. */
+.rc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.rc-table th, .rc-table td { padding: 5px 4px; }
+.rc-h {
+    text-align: right;
+    font-weight: 600;
+    font-size: 0.72rem;
     color: var(--text-tertiary);
-    font-weight: 400;
-    font-size: 0.76rem;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
-.rc-val { display: flex; align-items: center; gap: 7px; }
-.rc-live {
-    font-size: 0.62rem;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.rc-money {
-    display: block;
-    margin-top: 3px;
-    font-size: 0.76rem;
+.rc-h.rc-today { color: var(--accent); }
+.rc-name {
+    text-align: left;
     color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
+.rc-c {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.rc-good { color: var(--success); }
+.rc-mid { color: var(--warning); }
+.rc-low { color: var(--danger); }
+.rc-c.rc-today { background: var(--bg-tertiary); border-radius: 6px; }
+.rc-all td { border-top: 1px solid var(--border-color); padding-top: 7px; font-weight: 700; }
+.rc-all .rc-name { color: var(--text-primary); }
+.rc-cap { margin-top: 8px; font-size: 0.68rem; color: var(--text-tertiary); }
 
 /* ==================== Employees admin ==================== */
 .emp-admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
