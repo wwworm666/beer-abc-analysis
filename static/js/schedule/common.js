@@ -306,6 +306,104 @@
         return chip;
     }
 
+    // ==================== Виджеты (общие для редактора и просмотра) ====================
+    // Нагрузка, Покрытие по дням недели, Пожелания (read-only). Данные —
+    // GET /api/schedule/widgets (money-free, без iiko). Рендер общий, чтобы
+    // редактор и просмотр показывали одно и то же.
+
+    /* Нагрузка по сотрудникам: смены/норма (цвет по выполнению), часы факта,
+       макс. серия подряд (флаг 5+), смены без факта. tbody — элемент <tbody>. */
+    function renderLoad(tbody, rows, norm) {
+        norm = norm || 15;
+        if (!tbody) return;
+        if (!rows || !rows.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="missing-fact">Смен в этом месяце нет</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map(function (r) {
+            var n = r.shifts_count;
+            var shiftColor = n >= norm ? 'var(--success)'
+                : (n < norm * 0.6 ? 'var(--warning)' : 'var(--text-primary)');
+            var shiftsCell = '<strong style="color:' + shiftColor + '">' + n + '</strong>'
+                + '<span style="color:var(--text-tertiary)"> / ' + norm + '</span>';
+            var hours = r.fact_minutes > 0 ? minutesToHhMm(r.fact_minutes) : '0:00';
+            var streak = r.max_streak || 0;
+            var streakCell = streak >= 5
+                ? '<span style="color:var(--danger);font-weight:600" title="'
+                  + streak + ' смен подряд — переработка, стоит дать отдых">' + streak + '</span>'
+                : '<span style="color:var(--text-tertiary)">' + (streak || '') + '</span>';
+            var missing = r.missing_fact > 0
+                ? '<span class="missing-fact">' + r.missing_fact + '</span>' : '';
+            return '<tr>'
+                + '<td title="' + escapeHtml(r.employee_name) + '">'
+                + escapeHtml(employeeLabel(r.employee_name))
+                + ' <span style="color:var(--text-tertiary)">'
+                + escapeHtml(employeeShortName(r.employee_name)) + '</span></td>'
+                + '<td>' + shiftsCell + '</td>'
+                + '<td>' + hours + '</td>'
+                + '<td>' + streakCell + '</td>'
+                + '<td>' + missing + '</td>'
+                + '</tr>';
+        }).join('');
+    }
+
+    /* Покрытие по дням недели: полоса = относительный спрос (план дня, money-free),
+       число = среднее смен/день. Подсвечиваем самый недозакрытый под спрос день. */
+    function renderCoverage(el, rows) {
+        if (!el) return;
+        if (!rows || !rows.length) {
+            el.innerHTML = '<div class="cov-empty">Нет данных</div>';
+            return;
+        }
+        var minDow = null, minVal = Infinity;
+        rows.forEach(function (r) {
+            if (r.coverage != null && r.coverage < minVal) { minVal = r.coverage; minDow = r.dow; }
+        });
+        var underReal = (minDow != null && minVal < 1); // штат ниже спроса
+        var list = rows.map(function (r) {
+            var under = underReal && r.dow === minDow;
+            var fill = under ? 'var(--warning)' : 'var(--accent)';
+            var w = Math.round((r.demand || 0) * 100);
+            return '<div class="cov-row">'
+                + '<span class="cov-dow">' + escapeHtml(r.label) + '</span>'
+                + '<span class="cov-bar"><span class="cov-fill" style="width:' + w
+                + '%;background:' + fill + '"></span></span>'
+                + '<span class="cov-shifts"' + (under ? ' style="color:var(--warning);font-weight:600"' : '')
+                + '>' + (r.avg_shifts || 0) + '</span>'
+                + '</div>';
+        }).join('');
+        // Подсказка. Флаг = день с минимальным отношением «доля штата / доля
+        // спроса» (<1), это не обязательно день высокого спроса — формулируем по
+        // отношению, без ложного «спрос высокий». Нет планов вовсе — отдельный текст.
+        var hasDemand = rows.some(function (r) { return (r.demand || 0) > 0; });
+        var note = '';
+        if (!hasDemand) {
+            note = '<div class="cov-note">Нет плановых данных — спрос не рассчитан</div>';
+        } else if (underReal) {
+            var lbl = (rows.find(function (r) { return r.dow === minDow; }) || {}).label;
+            note = '<div class="cov-note">Под спрос недозакрыт: <strong>'
+                + escapeHtml(lbl) + '</strong> — штата меньше, чем доля спроса</div>';
+        }
+        el.innerHTML = list + note;
+    }
+
+    /* Пожелания (read-only, для страницы просмотра). wishes — [{employee_name, text}]. */
+    function renderWishesReadonly(el, wishes) {
+        if (!el) return;
+        var nonEmpty = (wishes || []).filter(function (w) { return (w.text || '').trim(); });
+        if (!nonEmpty.length) {
+            el.innerHTML = '<div class="cov-empty">Пожеланий нет</div>';
+            return;
+        }
+        el.innerHTML = nonEmpty.map(function (w) {
+            return '<div class="wish-card wish-ro">'
+                + '<div class="emp-name">' + escapeHtml(employeeLabel(w.employee_name))
+                + ' ' + escapeHtml(employeeShortName(w.employee_name)) + '</div>'
+                + '<div class="wish-text">' + escapeHtml(w.text).replace(/\n/g, '<br>') + '</div>'
+                + '</div>';
+        }).join('');
+    }
+
     // ==================== UI-мелочи ====================
 
     function updateMonthDisplay(el) {
@@ -349,6 +447,9 @@
         getEmployeeById: getEmployeeById,
         shiftDisplayName: shiftDisplayName,
         shiftLabel: shiftLabel,
+        renderLoad: renderLoad,
+        renderCoverage: renderCoverage,
+        renderWishesReadonly: renderWishesReadonly,
         formatAuditTs: formatAuditTs,
         escapeHtml: escapeHtml,
         loadDictionaries: loadDictionaries,

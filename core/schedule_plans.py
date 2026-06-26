@@ -310,3 +310,59 @@ def compute_employees_load(shifts: List[Dict], today_str: str) -> List[Dict]:
 
     return sorted(by_employee.values(),
                   key=lambda r: (-r['shifts_count'], r['employee_name']))
+
+
+# Дни недели для виджета покрытия (Пн..Вс = Python date.weekday() 0..6)
+_DOW_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+
+
+def compute_coverage_by_dow(shifts: List[Dict], month_plans: Dict) -> List[Dict]:
+    """Покрытие по дням недели: спрос (план дня) против числа смен.
+
+    Помогает увидеть, совпадает ли штат с нагрузкой по дням недели (пт/сб тяжелее).
+    НАРУЖУ — money-free: вместо рублей отдаём относительный индекс спроса `demand`
+    (доля среднедневного плана этого дня недели от самого нагруженного дня недели,
+    0..1) и `avg_shifts` (среднее число смен в день этого DOW). `coverage` —
+    отношение «доли штата» к «доле спроса» (нормированы каждая на свой максимум):
+    <1 = относительно недозакрыто под спрос, >1 = с запасом. Детерминированно;
+    рубли считаются внутри и наружу не выходят.
+
+    Args:
+        shifts: смены месяца (нужны date).
+        month_plans: вывод build_month_plans — {date: {'plan_total': float|None, ...}}.
+    Returns:
+        7 строк (Пн..Вс): {dow, label, days, avg_shifts, demand, coverage}.
+    """
+    agg = {i: {'days': 0, 'shifts': 0, 'plan_sum': 0.0, 'plan_days': 0}
+           for i in range(7)}
+
+    for date_str, day in month_plans.items():
+        dow = date.fromisoformat(date_str[:10]).weekday()
+        a = agg[dow]
+        a['days'] += 1
+        pt = day.get('plan_total')
+        if pt is not None:
+            a['plan_sum'] += pt
+            a['plan_days'] += 1
+
+    for s in shifts:
+        dow = date.fromisoformat(s['date'][:10]).weekday()
+        agg[dow]['shifts'] += 1
+
+    rows = []
+    for i in range(7):
+        a = agg[i]
+        avg_shifts = a['shifts'] / a['days'] if a['days'] else 0.0
+        avg_plan = a['plan_sum'] / a['plan_days'] if a['plan_days'] else 0.0
+        rows.append({'dow': i, 'label': _DOW_LABELS[i], 'days': a['days'],
+                     'avg_shifts': round(avg_shifts, 2), '_avg_plan': avg_plan})
+
+    max_plan = max((r['_avg_plan'] for r in rows), default=0.0) or 0.0
+    max_shifts = max((r['avg_shifts'] for r in rows), default=0.0) or 0.0
+    for r in rows:
+        r['demand'] = round(r['_avg_plan'] / max_plan, 3) if max_plan else 0.0
+        staff_idx = (r['avg_shifts'] / max_shifts) if max_shifts else 0.0
+        # coverage определён только там, где есть спрос (demand > 0)
+        r['coverage'] = round(staff_idx / r['demand'], 2) if r['demand'] else None
+        del r['_avg_plan']
+    return rows

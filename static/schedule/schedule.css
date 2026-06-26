@@ -488,6 +488,35 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
 .wish-card textarea:focus { outline: none; border-color: var(--accent); }
 .wish-card textarea::placeholder { color: var(--text-tertiary); }
 
+/* Read-only пожелания (страница просмотра): текст вместо textarea */
+.wish-card.wish-ro { background: var(--bg-tertiary); }
+.wish-ro .emp-name { margin-bottom: 6px; }
+.wish-ro .wish-text {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ==================== Покрытие по дням недели ==================== */
+/* Полоса — относительный спрос (план дня, money-free), число — смен/день.
+   Самый недозакрытый под спрос день недели подсвечивается янтарным. */
+.cov-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-bottom: 8px; }
+.coverage-list { display: flex; flex-direction: column; gap: 6px; }
+.cov-row { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; }
+.cov-dow { flex: 0 0 26px; color: var(--text-secondary); }
+.cov-bar {
+    flex: 1 1 auto;
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-pill);
+    overflow: hidden;
+}
+.cov-fill { display: block; height: 100%; border-radius: var(--border-radius-pill); }
+.cov-shifts { flex: 0 0 30px; text-align: right; font-variant-numeric: tabular-nums; }
+.cov-note { margin-top: 10px; font-size: 0.76rem; color: var(--text-secondary); }
+.cov-empty { color: var(--text-tertiary); font-size: 0.84rem; padding: 6px 0; }
+
 /* ==================== Employees admin ==================== */
 .emp-admin-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 

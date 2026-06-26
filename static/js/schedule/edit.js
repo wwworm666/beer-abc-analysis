@@ -439,55 +439,19 @@
         }).join('');
     }
 
-    // ==================== Нагрузка по сотрудникам ====================
-    // Смены к норме (по умолчанию 15), факт часов, макс. серия смен подряд
-    // (флаг переработки при 5+), пробелы факта. Финансовой сводки тут нет —
-    // выручка живёт на дашборде, графику она не нужна.
+    // ==================== Виджеты: Нагрузка + Покрытие ====================
+    // Данные — общий money-free эндпоинт /widgets (без iiko); рендер общий с
+    // просмотром (Schedule.renderLoad / renderCoverage). Финансовой сводки тут
+    // нет — выручка живёт на дашборде, графику она не нужна.
 
     function loadSummary() {
-        return S.api('/api/schedule/summary/' + S.state.year + '/' + S.state.month)
-            .then(function (summary) {
-                renderLoad(summary.employees_load || [], summary.shift_norm || 15);
+        return S.api('/api/schedule/widgets/' + S.state.year + '/' + S.state.month)
+            .then(function (w) {
+                S.renderLoad(document.getElementById('loadTableBody'),
+                             w.employees_load || [], w.shift_norm || 15);
+                S.renderCoverage(document.getElementById('coverageBody'),
+                                 w.coverage_by_dow || []);
             });
-    }
-
-    function renderLoad(rows, norm) {
-        norm = norm || 15;
-        var tbody = document.getElementById('loadTableBody');
-        if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="missing-fact">Смен в этом месяце нет</td></tr>';
-            return;
-        }
-        tbody.innerHTML = rows.map(function (r) {
-            var n = r.shifts_count;
-            // Смены к норме: достиг/перевыполнил — зелёный, заметно ниже — янтарный
-            var shiftColor = n >= norm ? 'var(--success)'
-                : (n < norm * 0.6 ? 'var(--warning)' : 'var(--text-primary)');
-            var shiftsCell = '<strong style="color:' + shiftColor + '">' + n + '</strong>'
-                + '<span style="color:var(--text-tertiary)"> / ' + norm + '</span>';
-
-            var hours = r.fact_minutes > 0 ? S.minutesToHhMm(r.fact_minutes) : '0:00';
-
-            var streak = r.max_streak || 0;
-            var streakCell = streak >= 5
-                ? '<span style="color:var(--danger);font-weight:600" title="'
-                  + streak + ' смен подряд — переработка, стоит дать отдых">' + streak + '</span>'
-                : '<span style="color:var(--text-tertiary)">' + (streak || '') + '</span>';
-
-            var missing = r.missing_fact > 0
-                ? '<span class="missing-fact">' + r.missing_fact + '</span>' : '';
-
-            return '<tr>'
-                + '<td title="' + S.escapeHtml(r.employee_name) + '">'
-                + S.escapeHtml(S.employeeLabel(r.employee_name))
-                + ' <span style="color:var(--text-tertiary)">'
-                + S.escapeHtml(S.employeeShortName(r.employee_name)) + '</span></td>'
-                + '<td>' + shiftsCell + '</td>'
-                + '<td>' + hours + '</td>'
-                + '<td>' + streakCell + '</td>'
-                + '<td>' + missing + '</td>'
-                + '</tr>';
-        }).join('');
     }
 
     // ==================== Пожелания ====================

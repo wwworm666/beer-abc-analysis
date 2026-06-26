@@ -38,6 +38,8 @@
         return S.loadMonthData()
             .then(render)
             .then(loadFeed)
+            .then(loadWidgets)
+            .then(loadWishes)
             .catch(function (err) {
                 console.error(err);
                 S.showToast('Ошибка загрузки месяца', true);
@@ -109,6 +111,37 @@
         }).catch(function (err) {
             S.showToast('Ошибка: ' + err.message, true);
         });
+    }
+
+    // ==================== Виджеты: Нагрузка + Покрытие + Пожелания ====================
+    // Те же, что в редакторе, но read-only. Данные — общий money-free /widgets
+    // (без iiko, без рублей) и /wishes. Рендер — Schedule.render*.
+
+    function loadWidgets() {
+        return S.api('/api/schedule/widgets/' + S.state.year + '/' + S.state.month)
+            .then(function (w) {
+                S.renderLoad(document.getElementById('loadTableBody'),
+                             w.employees_load || [], w.shift_norm || 15);
+                S.renderCoverage(document.getElementById('coverageBody'),
+                                 w.coverage_by_dow || []);
+            })
+            .catch(function (err) {
+                console.error(err);
+                var c = document.getElementById('coverageBody');
+                if (c) c.innerHTML = '<div class="cov-empty">Не удалось загрузить</div>';
+            });
+    }
+
+    function loadWishes() {
+        return S.api('/api/schedule/wishes')
+            .then(function (ws) {
+                S.renderWishesReadonly(document.getElementById('wishesView'), ws);
+            })
+            .catch(function (err) {
+                console.error(err);
+                var w = document.getElementById('wishesView');
+                if (w) w.innerHTML = '<div class="cov-empty">Не удалось загрузить</div>';
+            });
     }
 
     // ==================== Лента последних изменений ====================

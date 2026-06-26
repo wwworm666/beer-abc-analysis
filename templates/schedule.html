@@ -58,8 +58,44 @@
     </div>
 
     <main class="main-content">
+      <div class="sched-layout">
+        <div class="sched-main">
         <div class="schedule-container">
             <div class="schedule-grid" id="scheduleGrid"></div>
+        </div>
+        </div><!-- /.sched-main -->
+
+        <!-- Те же виджеты, что в редакторе (read-only): нагрузка людей и покрытие
+             по дням недели. Money-free (без рублей) — на странице барменов финансов нет. -->
+        <aside class="sched-rail">
+        <div class="section-card">
+            <h2>Нагрузка по сотрудникам</h2>
+            <table class="load-table">
+                <thead>
+                    <tr>
+                        <th>Сотрудник</th>
+                        <th title="Смен за месяц при норме 15">Смен / 15</th>
+                        <th title="Сумма факта часов, введённого барменом в конце смены">Часов</th>
+                        <th title="Макс. серия смен подряд (по дням). 5+ подряд — переработка">Подряд</th>
+                        <th title="Прошедшие смены без введённого факта часов">Без</th>
+                    </tr>
+                </thead>
+                <tbody id="loadTableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="section-card">
+            <h2>Покрытие по дням недели</h2>
+            <div class="cov-cap">Полоса — относительный спрос (план дня), число — смен/день</div>
+            <div class="coverage-list" id="coverageBody"></div>
+        </div>
+        </aside><!-- /.sched-rail -->
+      </div><!-- /.sched-layout -->
+
+        <!-- Пожелания сотрудников (read-only): что бармены просят учесть. -->
+        <div class="section-card">
+            <h2>Пожелания</h2>
+            <div class="wishes-grid" id="wishesView"></div>
         </div>
 
         <!-- Лента последних изменений графика (кто что менял). За выбранный
