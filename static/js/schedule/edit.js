@@ -48,6 +48,10 @@
             body.style.display = opening ? '' : 'none';
             if (opening) loadAudit();
         });
+        document.getElementById('planFactToggle').addEventListener('click', function () {
+            var body = document.getElementById('planFactCollapse');
+            body.style.display = body.style.display === 'none' ? '' : 'none';
+        });
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {

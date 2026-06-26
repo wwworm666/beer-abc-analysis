@@ -16,6 +16,11 @@
             S.shiftMonth(1); reload();
         });
 
+        document.getElementById('planFactToggle').addEventListener('click', function () {
+            var body = document.getElementById('planFactCollapse');
+            body.style.display = body.style.display === 'none' ? '' : 'none';
+        });
+
         document.getElementById('factForm').addEventListener('submit', onFactSubmit);
         document.getElementById('factClear').addEventListener('click', onFactClear);
         document.getElementById('factCancel').addEventListener('click', closeFactModal);

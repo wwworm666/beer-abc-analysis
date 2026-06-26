@@ -524,80 +524,94 @@ body.eraser-mode .shift-chip { cursor: not-allowed; }
 /* Заглушка пустого состояния (нагрузка/пожелания) */
 .cov-empty { color: var(--text-tertiary); font-size: 0.84rem; padding: 6px 0; }
 
-/* ==================== План / Факт по дням (деньги, только редактор) ==================== */
-/* План выручки дня vs факт (живой iiko OLAP), % выполнения и кто на смене.
-   Строка дня кликабельна — раскрывает разбивку по барам. */
-.pf-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+/* ==================== План / Факт по дням (деньги) ==================== */
+/* Одна таблица: колонки — все точки (факт над планом), + «Итого» (день) и %.
+   Свёрнута по умолчанию (заголовок-тоггл). Строка дня кликабельна — кто работал. */
+.pf-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+}
+.pf-summary {
+    font-size: 0.82rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.pf-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
 .pf-table thead th {
     text-align: left;
     font-weight: 600;
     font-size: 0.72rem;
-    text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--text-tertiary);
-    padding: 6px 10px;
+    padding: 6px 8px;
     border-bottom: 1px solid var(--border-color);
 }
-.pf-table tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border-color); }
+.pf-table thead th.pf-tt, .pf-table thead th.pf-pct { text-align: right; }
+.pf-table tbody td { padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
 .pf-day { cursor: pointer; }
 .pf-day:hover, .pf-day.open { background: var(--bg-tertiary); }
 .pf-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pf-dow { color: var(--text-tertiary); margin-right: 2px; }
 .pf-dow.pf-we { color: var(--accent); }
-.pf-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pf-pct { text-align: right; white-space: nowrap; }
 .pf-dim { color: var(--text-tertiary); }
+
+/* Ячейка точки: факт (сверху, цвет по уровню) над планом (снизу, приглушённо) */
+.pf-tt {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.pf-tt-f { display: block; font-weight: 600; }
+.pf-tt-p { display: block; font-size: 0.74em; color: var(--text-tertiary); margin-top: 1px; }
+.pf-tt-total { background: var(--bg-tertiary); }
+
 .pf-badge {
     display: inline-block;
-    min-width: 46px;
+    min-width: 44px;
     text-align: center;
-    padding: 2px 8px;
+    padding: 2px 7px;
     border-radius: var(--border-radius-pill);
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
 .pf-good { background: var(--success-bg); color: var(--success); }
 .pf-mid { background: var(--warning-bg); color: var(--warning); }
 .pf-low { background: var(--danger-bg); color: var(--danger); }
-.pf-who {
-    display: inline-block;
-    margin: 1px 3px 1px 0;
-    padding: 1px 8px;
-    border-radius: var(--border-radius-pill);
-    background: var(--bg-tertiary);
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-}
 .pf-total td {
     font-weight: 700;
     border-top: 2px solid var(--border-color);
     border-bottom: none;
     padding-top: 9px;
 }
-/* Разбивка по барам внутри раскрытого дня */
-.pf-detail > td { padding: 0 10px 10px 24px; background: var(--bg-tertiary); }
-.pf-sub { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-.pf-sub td { padding: 5px 8px; border-bottom: 1px dashed var(--border-color); }
-.pf-sub tr:last-child td { border-bottom: none; }
+
+/* Разворот дня: кто работал на каждой точке */
+.pf-detail > td { padding: 4px 8px 10px 22px; background: var(--bg-tertiary); }
+.pf-pp { border-collapse: collapse; font-size: 0.82rem; }
+.pf-pp td { padding: 3px 0; vertical-align: top; }
+.pf-pp-name {
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+    padding-right: 12px !important;
+}
+.pf-who {
+    display: inline-block;
+    margin: 1px 4px 1px 0;
+    padding: 1px 8px;
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-secondary);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
 .pf-empty { color: var(--text-tertiary); font-size: 0.86rem; padding: 10px 0; }
 .pf-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 10px; }
-
-/* Селектор точки: «Все» + по каждой точке отдельно */
-.pf-scope { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.pf-tab {
-    padding: 4px 12px;
-    border-radius: var(--border-radius-pill);
-    border: 1px solid var(--border-color);
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    font-family: inherit;
-    font-size: 0.78rem;
-    cursor: pointer;
-    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
-}
-.pf-tab:hover { background: var(--bg-tertiary); }
-.pf-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ==================== Мини-виджет «Выполнение плана» (точки × 3 дня) ==================== */
 /* Матрица: строки — точки (+ «Все»), колонки — позавчера/вчера/сегодня. Ячейка —
