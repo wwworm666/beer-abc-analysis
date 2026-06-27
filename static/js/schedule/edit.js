@@ -15,9 +15,10 @@
         { key: 'evening', label: 'Вечер (с 18:00)', startTime: '18:00', roleIndex: 1 }
     ];
 
-    var selectedEmployee = null;     // имя выбранного сотрудника (показ/подсказка)
-    var selectedEmployeeId = null;   // стабильный id из iiko (v6) — ключ для смен
-    var selectedPreset = TIME_PRESETS[0];
+    // Кисть «полос по людям»: выбираем ТОЧКУ (бар) + день/вечер, затем кликаем по
+    // клетке «сотрудник × день». Сотрудник берётся из строки клетки (не из кисти).
+    var brushPoint = null;           // location_id активной точки
+    var brushRole = 'day';           // 'day' | 'evening'
     var eraserMode = false;
     var selectedDate = null;
     var editingShiftId = null;
@@ -34,6 +35,10 @@
         });
 
         document.getElementById('eraserBtn').addEventListener('click', toggleEraser);
+        document.getElementById('timeSeg').addEventListener('click', function (e) {
+            var b = e.target.closest('[data-role]');
+            if (b) setRole(b.dataset.role);
+        });
         document.getElementById('shiftForm').addEventListener('submit', onShiftFormSubmit);
         document.getElementById('shiftDelete').addEventListener('click', onShiftDelete);
         document.getElementById('shiftCancel').addEventListener('click', closeShiftModal);
@@ -54,10 +59,7 @@
         });
 
         document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') {
-                deselectAll();
-                closeShiftModal();
-            }
+            if (e.key === 'Escape') closeShiftModal();
         });
 
         S.showLoading(true);
@@ -73,6 +75,7 @@
             })
             .then(function () {
                 renderToolbar();
+                updateHint();
                 renderRoleOptions();
                 return loadWishes();
             })
@@ -113,104 +116,90 @@
     }
 
     function renderGrid() {
-        S.renderGrid({
-            gridEl: document.getElementById('scheduleGrid'),
-            markHoles: true,
-            showPlans: true,
-            onChipClick: onChipClick,
-            onCellClick: onCellClick,
-            onDateClick: toggleDayPanel
+        S.renderEditLanes(document.getElementById('scheduleGrid'), {
+            onCell: onCell,
+            onDayHeaderClick: toggleDayPanel,
+            brushColor: eraserMode ? null : S.colorById(brushPoint)
         });
     }
 
     // ==================== Тулбар кисти ====================
 
+    // Тулбар: чипы точек (бар) + сегмент день/вечер + ластик. Перерисовывает
+    // активные состояния по brushPoint/brushRole/eraserMode на каждом вызове.
     function renderToolbar() {
-        var cont = document.getElementById('employeeButtons');
-        cont.innerHTML = '';
-        S.state.employees.forEach(function (emp) {
-            var btn = document.createElement('button');
-            btn.className = 'emp-btn';
-            btn.textContent = S.employeeLabel(emp.name);
-            btn.title = emp.name;
-            btn.dataset.empName = emp.name;
-            btn.addEventListener('click', function () { selectEmployee(emp); });
-            cont.appendChild(btn);
+        var pc = document.getElementById('pointChips');
+        pc.innerHTML = '';
+        if (!brushPoint && S.state.locations.length) brushPoint = S.state.locations[0].id;
+        S.state.locations.forEach(function (loc, i) {
+            var active = !eraserMode && brushPoint === loc.id;
+            var color = S.venueColor(loc, i);
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'el-chip' + (active ? ' selected' : '');
+            chip.dataset.locId = loc.id;
+            chip.innerHTML = '<span class="el-chipdot"></span>'
+                + S.escapeHtml(loc.short_name || loc.name);
+            var dot = chip.querySelector('.el-chipdot');
+            if (active) {
+                chip.style.background = color;
+                chip.style.borderColor = color;
+                chip.style.color = '#fff';
+                dot.style.background = 'rgba(255,255,255,.85)';
+            } else {
+                dot.style.background = color;
+            }
+            chip.addEventListener('click', function () { selectPoint(loc.id); });
+            pc.appendChild(chip);
         });
-        if (!S.state.employees.length) {
-            cont.innerHTML = '<span class="paint-hint">Реестр пуст — нажми «Обновить из iiko» в блоке «Сотрудники»</span>';
+        if (!S.state.locations.length) {
+            pc.innerHTML = '<span class="paint-hint">Нет точек</span>';
         }
 
-        var presetCont = document.getElementById('presetButtons');
-        presetCont.innerHTML = '';
-        TIME_PRESETS.forEach(function (preset) {
-            var btn = document.createElement('button');
-            btn.className = 'preset-btn' + (preset === selectedPreset ? ' selected' : '');
-            btn.textContent = preset.label;
-            btn.dataset.presetKey = preset.key;
-            btn.addEventListener('click', function () { selectPreset(preset); });
-            presetCont.appendChild(btn);
+        document.querySelectorAll('#timeSeg .el-seg').forEach(function (b) {
+            b.classList.toggle('selected', !eraserMode && b.dataset.role === brushRole);
         });
+        document.getElementById('eraserBtn').classList.toggle('selected', eraserMode);
+        document.body.classList.toggle('eraser-mode', eraserMode);
+        document.body.classList.toggle('paint-mode', !eraserMode);
     }
 
-    function selectEmployee(emp) {
-        if (selectedEmployee === emp.name) { deselectAll(); return; }
-        selectedEmployee = emp.name;
-        selectedEmployeeId = emp.id || null;
+    function selectPoint(locId) {
+        brushPoint = locId;
         eraserMode = false;
-        document.querySelectorAll('.emp-btn').forEach(function (btn) {
-            btn.classList.toggle('selected', btn.dataset.empName === emp.name);
-        });
-        document.getElementById('eraserBtn').classList.remove('selected');
-        document.body.classList.add('paint-mode');
-        document.body.classList.remove('eraser-mode');
+        renderToolbar();
+        renderGrid();      // обновить подсветку наведения цветом точки
         updateHint();
     }
 
-    function selectPreset(preset) {
-        selectedPreset = preset;
-        document.querySelectorAll('.preset-btn').forEach(function (btn) {
-            btn.classList.toggle('selected', btn.dataset.presetKey === preset.key);
-        });
+    function setRole(role) {
+        brushRole = role === 'evening' ? 'evening' : 'day';
+        eraserMode = false;
+        renderToolbar();
         updateHint();
     }
 
     function toggleEraser() {
-        if (eraserMode) { deselectAll(); return; }
-        eraserMode = true;
-        selectedEmployee = null;
-        document.querySelectorAll('.emp-btn').forEach(function (b) { b.classList.remove('selected'); });
-        document.getElementById('eraserBtn').classList.add('selected');
-        document.body.classList.remove('paint-mode');
-        document.body.classList.add('eraser-mode');
-        document.getElementById('paintHint').textContent = 'Ластик: кликай по сменам';
+        eraserMode = !eraserMode;
+        renderToolbar();
+        renderGrid();
+        updateHint();
     }
 
-    function deselectAll() {
-        selectedEmployee = null;
-        selectedEmployeeId = null;
-        eraserMode = false;
-        document.querySelectorAll('.emp-btn').forEach(function (b) { b.classList.remove('selected'); });
-        document.getElementById('eraserBtn').classList.remove('selected');
-        document.body.classList.remove('paint-mode', 'eraser-mode');
-        document.getElementById('paintHint').textContent =
-            'Выбери сотрудника и время, потом кликай по ячейкам';
+    function presetForBrush() {
+        return brushRole === 'evening' ? TIME_PRESETS[1] : TIME_PRESETS[0];
     }
 
     function updateHint() {
-        if (!selectedEmployee) return;
-        var hint = S.employeeLabel(selectedEmployee) + ' / ' + selectedPreset.label
-            + ' — кликай по ячейкам.';
-        var wish = wishes[selectedEmployee];
         var el = document.getElementById('paintHint');
-        el.innerHTML = '';
-        el.appendChild(document.createTextNode(hint + ' '));
-        if (wish) {
-            var span = document.createElement('span');
-            span.className = 'hint-wish';
-            span.textContent = 'Пожелание: ' + wish;
-            el.appendChild(span);
+        if (eraserMode) {
+            el.textContent = 'Ластик: кликай по сменам, чтобы убрать';
+            return;
         }
+        var loc = S.state.locations.filter(function (l) { return l.id === brushPoint; })[0];
+        var name = loc ? (loc.short_name || loc.name) : '—';
+        el.textContent = 'Кисть: ' + name + ' · ' + (brushRole === 'evening' ? 'вечер' : 'день')
+            + ' — кликай по клеткам «сотрудник × день»';
     }
 
     // ==================== Кисть: клики по сетке ====================
@@ -221,58 +210,65 @@
         return roles[idx];
     }
 
-    function onCellClick(ds, locationId, cellShifts) {
-        if (!selectedEmployee || saving) return;
-
-        var existing = cellShifts.find(function (s) {
-            return selectedEmployeeId
-                ? s.employee_id === selectedEmployeeId
-                : s.employee_name === selectedEmployee;
-        });
-
-        var action;
-        if (existing) {
-            action = S.api('/api/schedule/shift/' + existing.id, { method: 'DELETE' })
-                .then(function () { S.showToast('Удалено'); });
-        } else {
-            var dayOffEmps = S.getDayOffEmployees(ds);
-            if (dayOffEmps.indexOf(selectedEmployee) !== -1) {
-                var okGo = confirm(selectedEmployee + ' просил выходной на '
-                    + S.formatDateHuman(ds) + '. Всё равно назначить?');
-                if (!okGo) return;
-            }
-            var role = roleForPreset(selectedPreset);
-            action = S.api('/api/schedule/shift', {
-                method: 'POST',
-                body: {
-                    date: ds,
-                    employee_name: selectedEmployee,
-                    employee_id: selectedEmployeeId,
-                    location_id: locationId,
-                    role_id: role.id,
-                    start_time: selectedPreset.startTime
-                }
-            }).then(function () { S.showToast('Назначено'); });
+    // Клик по клетке «сотрудник × день». existing — отображаемая смена клетки
+    // (или null). Ластик снимает; кисть на пустой — назначает; на занятой:
+    // та же точка+роль — модалка тонкой правки, иначе — перекраска (снять+создать).
+    function onCell(emp, day, ds, existing) {
+        if (saving) return;
+        if (eraserMode) {
+            if (existing) deleteShift(existing.id);
+            return;
         }
+        if (existing) {
+            var sameRole = (S.isEvening(existing) ? 'evening' : 'day') === brushRole;
+            var samePoint = existing.location_id === brushPoint;
+            if (samePoint && sameRole) { openShiftModal(existing); return; }
+            replaceShift(existing, emp, ds);
+            return;
+        }
+        createShift(emp, ds);
+    }
 
+    function confirmDayOff(emp, ds) {
+        if (S.getDayOffEmployees(ds).indexOf(emp.name) === -1) return true;
+        return confirm(emp.name + ' просил выходной на ' + S.formatDateHuman(ds)
+            + '. Всё равно назначить?');
+    }
+
+    function postBody(emp, ds) {
+        var preset = presetForBrush();
+        var role = roleForPreset(preset);
+        return {
+            date: ds, employee_name: emp.name, employee_id: emp.id || null,
+            location_id: brushPoint, role_id: role.id, start_time: preset.startTime
+        };
+    }
+
+    function createShift(emp, ds) {
+        if (!confirmDayOff(emp, ds)) return;
         saving = true;
-        action
+        S.api('/api/schedule/shift', { method: 'POST', body: postBody(emp, ds) })
+            .then(function () { S.showToast('Назначено'); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
             .then(function () { saving = false; return reload(); });
     }
 
-    function onChipClick(shift) {
-        if (eraserMode) {
-            if (saving) return;
-            saving = true;
-            S.api('/api/schedule/shift/' + shift.id, { method: 'DELETE' })
-                .then(function () { S.showToast('Удалено'); })
-                .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-                .then(function () { saving = false; return reload(); });
-            return;
-        }
-        if (selectedEmployee) return; // в режиме кисти клики по чипам игнорируются
-        openShiftModal(shift);
+    function replaceShift(existing, emp, ds) {
+        if (!confirmDayOff(emp, ds)) return;
+        saving = true;
+        S.api('/api/schedule/shift/' + existing.id, { method: 'DELETE' })
+            .then(function () { return S.api('/api/schedule/shift', { method: 'POST', body: postBody(emp, ds) }); })
+            .then(function () { S.showToast('Перекрашено'); })
+            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
+            .then(function () { saving = false; return reload(); });
+    }
+
+    function deleteShift(id) {
+        saving = true;
+        S.api('/api/schedule/shift/' + id, { method: 'DELETE' })
+            .then(function () { S.showToast('Удалено'); })
+            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
+            .then(function () { saving = false; return reload(); });
     }
 
     // ==================== Модалка смены ====================
@@ -396,7 +392,6 @@
     // ==================== Панель дня (план/факт) ====================
 
     function toggleDayPanel(ds) {
-        if (selectedEmployee || eraserMode) return;
         var panel = document.getElementById('dayPanel');
         if (selectedDate === ds && panel.classList.contains('active')) {
             closeDayPanel();
@@ -498,7 +493,6 @@
                 body: { employee_name: empName, text: text }
             }).then(function () {
                 wishes[empName] = text;
-                if (selectedEmployee === empName) updateHint();
             }).catch(function () { S.showToast('Пожелание не сохранилось', true); });
         }, 500);
     }

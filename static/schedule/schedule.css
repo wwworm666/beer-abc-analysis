@@ -1047,3 +1047,80 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 @media (max-width: 700px) {
     .ms-wrap { max-width: 100%; }
 }
+
+/* ==================== Редактор: полосы по людям (el-*) ==================== */
+/* Тулбар-кисть: точка + день/вечер + ластик (одна строка). */
+.paint-toolbar .el-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.el-tools .label { font-size: 0.7rem; font-weight: 600; color: var(--text-tertiary); }
+.el-points { display: flex; gap: 7px; flex-wrap: wrap; }
+.el-chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px;
+    border-radius: 9px; cursor: pointer; font-size: 0.8rem; font-weight: 600;
+    background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); }
+.el-chipdot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.el-div { width: 1px; height: 24px; background: var(--border-color); }
+.el-timeseg { display: flex; border: 1px solid var(--border-color); border-radius: 9px; overflow: hidden; }
+.el-seg { padding: 8px 15px; cursor: pointer; font-size: 0.72rem; font-weight: 600;
+    background: var(--bg-secondary); color: var(--text-secondary); border: none; }
+.el-seg + .el-seg { border-left: 1px solid var(--border-color); }
+.el-seg.selected { background: var(--accent); color: #fff; }
+.el-eraser { padding: 8px 15px; border-radius: 9px; cursor: pointer; font-size: 0.72rem;
+    font-weight: 600; background: var(--bg-secondary); color: var(--text-tertiary); border: 1px dashed #cbbfae; }
+.el-eraser.selected { background: #3a322c; color: #fff; border-style: solid; border-color: #3a322c; }
+
+/* Сетка «сотрудник × день» */
+.el-wrap { overflow-x: auto; }
+.el-tbl { font-variant-numeric: tabular-nums; }
+.el-tbl, .el-tbl * { box-sizing: border-box; }
+.el-row { display: flex; border-top: 1px solid var(--border-light); }
+.el-head { border-top: none; border-bottom: 1px solid var(--border-color); }
+.el-name { width: 178px; flex: none; padding: 7px 12px; display: flex; align-items: center; gap: 8px; }
+.el-head .el-name { align-items: flex-end; font-size: 0.62rem; font-weight: 700;
+    letter-spacing: .05em; color: var(--text-tertiary); }
+.el-ini { width: 24px; height: 24px; border-radius: 6px; background: var(--bg-tertiary);
+    color: #9a8568; font-size: 0.6rem; font-weight: 600; display: flex; align-items: center;
+    justify-content: center; flex: none; }
+.el-nm { font-size: 0.78rem; color: var(--text-primary); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.el-flag { color: var(--accent); font-weight: 600; flex: none; }
+.el-cells { display: flex; flex: none; }
+.el-dh { width: 38px; flex: none; padding: 6px 0 5px; text-align: center; cursor: pointer; }
+.el-dh.is-wknd { background: rgba(0, 0, 0, .02); }
+.el-dh.is-today { background: rgba(192, 103, 58, .08); }
+.el-dow { display: block; font-size: 0.5rem; color: var(--text-tertiary); line-height: 1.1; }
+.el-dt { display: block; font-size: 0.72rem; font-weight: 700; color: var(--text-primary); line-height: 1.15; }
+.el-dh.is-today .el-dow, .el-dh.is-today .el-dt { color: var(--accent); }
+.el-cell { width: 38px; flex: none; height: 44px; border-left: 1px solid var(--border-light);
+    display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+.el-cell.is-wknd { background: rgba(0, 0, 0, .012); }
+.el-cell.is-today { background: rgba(192, 103, 58, .055); }
+.el-cell:hover { background: var(--el-hover, rgba(0, 0, 0, .045)); }
+.el-blk { width: 26px; border-radius: 5px; }
+.el-off { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px;
+    border-radius: 2px; border: 1.5px dashed #c6a070; }
+.el-gauge-h { width: 104px; flex: none; padding: 11px 10px; text-align: right;
+    font-size: 0.62rem; font-weight: 700; letter-spacing: .03em; color: var(--text-tertiary);
+    display: flex; align-items: flex-end; justify-content: flex-end; }
+.el-gauge { width: 104px; flex: none; padding: 7px 10px; display: flex; flex-direction: column;
+    align-items: flex-end; justify-content: center; line-height: 1.25; }
+.el-g1, .el-g2 { font-size: 0.62rem; color: var(--text-tertiary); white-space: nowrap; }
+.el-foot { border-top: 2px solid var(--border-color); background: var(--bg-tertiary); }
+.el-foot .el-name { font-size: 0.62rem; font-weight: 600; color: var(--text-tertiary); }
+.el-hole { font-size: 0.55rem; font-weight: 700; color: #fff; background: var(--danger, #c0492f);
+    border-radius: 7px; padding: 1px 6px; margin-left: 6px; }
+.el-cov { width: 38px; flex: none; height: 34px; border-left: 1px solid var(--border-light);
+    display: flex; align-items: center; justify-content: center; }
+.el-cov.is-today { background: rgba(192, 103, 58, .05); }
+.el-cgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.el-cdot { width: 6px; height: 6px; border-radius: 2px; box-sizing: border-box; }
+
+/* Легенда редактора */
+.el-legend { display: flex; flex-wrap: wrap; gap: 9px 20px; align-items: center;
+    margin: 13px 2px 4px; font-size: 0.7rem; color: var(--text-tertiary); }
+.el-li { display: inline-flex; align-items: center; gap: 7px; }
+.el-lblk { width: 24px; border-radius: 4px; background: #9a8f7f; display: inline-block; }
+.el-ldash { width: 8px; height: 8px; border-radius: 2px; border: 1.5px dashed #c6a070; display: inline-block; }
+.el-lhole { width: 8px; height: 8px; border-radius: 2px; border: 1.5px solid var(--danger, #c0492f); display: inline-block; }
+
+/* Нагрузка + Выполнение плана под сеткой (во всю ширину) */
+.sched-rail-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; }
+@media (max-width: 900px) { .sched-rail-row { grid-template-columns: 1fr; } }

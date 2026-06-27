@@ -44,16 +44,21 @@
         <a class="page-switch" href="/schedule">Просмотр</a>
     </div>
 
+    <!-- Кисть: точка (бар) + день/вечер + ластик. Клик по клетке «сотрудник ×
+         день» назначает/перекрашивает смену; повтор той же кистью — модалка
+         тонкой правки; ластик — снять. -->
     <div class="paint-toolbar" id="paintToolbar">
-        <div class="toolbar-row">
-            <span class="label">Кисть:</span>
-            <div class="toolbar-row" id="employeeButtons" style="gap: 6px; flex: 1;"></div>
-            <button class="emp-btn eraser" id="eraserBtn">Ластик</button>
-        </div>
-        <div class="toolbar-row">
-            <span class="label">Время:</span>
-            <div class="toolbar-row" id="presetButtons" style="gap: 6px;"></div>
-            <span class="paint-hint" id="paintHint">Выбери сотрудника и время, потом кликай по ячейкам</span>
+        <div class="el-tools">
+            <span class="label">Точка</span>
+            <div class="el-points" id="pointChips"></div>
+            <span class="el-div"></span>
+            <span class="label">Время</span>
+            <div class="el-timeseg" id="timeSeg">
+                <button type="button" class="el-seg selected" data-role="day">День</button>
+                <button type="button" class="el-seg" data-role="evening">Вечер</button>
+            </div>
+            <button type="button" class="el-eraser" id="eraserBtn">Ластик</button>
+            <span class="paint-hint" id="paintHint"></span>
         </div>
     </div>
 
@@ -61,10 +66,9 @@
     </div><!-- /.sched-controls -->
 
     <main class="main-content">
-      <div class="sched-layout">
-        <div class="sched-main">
-        <div class="schedule-container">
-            <div class="schedule-grid" id="scheduleGrid"></div>
+      <!-- Полосы по людям (сотрудник × день): кистью из тулбара назначаем смены. -->
+      <div class="schedule-container">
+            <div id="scheduleGrid"></div>
 
             <!-- Панель плана/факта дня: открывается кликом по дате.
                  План read-only — из весов дней; факт — живой iiko OLAP
@@ -75,10 +79,20 @@
                 </h3>
                 <div class="day-panel-grid" id="dayPanelGrid"></div>
             </div>
-        </div>
-        </div><!-- /.sched-main -->
+      </div><!-- /.schedule-container -->
 
-        <aside class="sched-rail">
+      <!-- Как читать / редактировать сетку -->
+      <div class="el-legend">
+        <span class="el-li"><span class="el-lblk" style="height:16px"></span>день</span>
+        <span class="el-li"><span class="el-lblk" style="height:9px"></span>вечер · 2-й бармен</span>
+        <span class="el-li" style="color:var(--accent)">обводка — сегодня</span>
+        <span class="el-li" style="color:var(--danger,#c0492f)">красная обводка — конфликт с заявкой на выходной</span>
+        <span class="el-li"><span class="el-ldash"></span>заявка на выходной</span>
+        <span class="el-li"><span class="el-lhole"></span>дыра в покрытии</span>
+        <span class="el-li" style="color:var(--text-tertiary)">пусто = выходной · цвет блока = точка</span>
+      </div>
+
+      <div class="sched-rail-row">
         <!-- Нагрузка: смены и факт часов по сотрудникам.
              Часы — только введённый барменами факт (план часов не существует). -->
         <div class="section-card">
@@ -103,8 +117,7 @@
             <h2>Выполнение плана</h2>
             <div id="recentBody"></div>
         </div>
-        </aside><!-- /.sched-rail -->
-      </div><!-- /.sched-layout -->
+      </div><!-- /.sched-rail-row -->
 
         <!-- План / Факт по дням: план выручки дня (веса дней), факт (живой iiko
              OLAP, как на дашборде), % выполнения и кто стоял на смене. Клик по
@@ -199,6 +212,7 @@
     <div class="toast" id="toast"></div>
 
     <script src="/static/js/schedule/common.js?v={{ app_version }}"></script>
+    <script src="/static/js/schedule/screens.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/edit.js?v={{ app_version }}"></script>
     <script src="/static/logo.js"></script>
 </body>

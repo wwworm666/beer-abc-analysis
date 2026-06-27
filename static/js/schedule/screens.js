@@ -488,11 +488,143 @@
             + '</div>';
     }
 
+    // ============================================================
+    // РЕДАКТОР — Полосы по людям (сотрудник × день), кисть/ластик
+    // ============================================================
+    // Та же ДНК, что в просмотре (цвет = точка, высота = день/вечер), но клетка
+    // редактируема: страница (edit.js) держит «кисть» (точка + день/вечер) и
+    // ластик и решает в onCell, что делать с кликом. Строка справа — гейдж
+    // 15/{смен} · 113/{факт ч}; снизу — «Покрытие точек» (по точке-цвету: дыра =
+    // красная обводка). Источник идеи — Claude Design «Редактор графика».
+    function renderEditLanes(host, opts) {
+        if (!host) return;
+        opts = opts || {};
+        var today = S.todayStr();
+        var year = S.state.year, month = S.state.month, dim = daysInMonth();
+        var locs = S.state.locations;
+
+        var days = [];
+        for (var d = 1; d <= dim; d++) {
+            var dow = new Date(year, month - 1, d).getDay();
+            days.push({ d: d, dow: dow, ds: S.dateStr(year, month, d) });
+        }
+        function dayCls(x) { return x.ds === today ? ' is-today' : (isWeekend(x.dow) ? ' is-wknd' : ''); }
+
+        // шапка дней
+        var head = '<div class="el-row el-head"><div class="el-name">СОТРУДНИК</div><div class="el-cells">'
+            + days.map(function (x) {
+                return '<div class="el-dh' + dayCls(x) + '" data-ds="' + x.ds + '" title="План / факт дня">'
+                    + '<span class="el-dow">' + dows(x.dow) + '</span><span class="el-dt">' + pad2(x.d) + '</span></div>';
+            }).join('')
+            + '</div><div class="el-gauge-h">ПЛАН/ФАКТ</div></div>';
+
+        // строки сотрудников
+        var rows = S.state.employees.map(function (emp) {
+            var byDate = {};
+            shiftsOf(emp).forEach(function (s) {
+                // для клетки показываем дневную смену в приоритете над вечерней
+                if (!byDate[s.date] || (isEvening(byDate[s.date]) && !isEvening(s))) byDate[s.date] = s;
+            });
+            var maxRun = 0, run = 0, factMin = 0, shifts = 0;
+            var cells = days.map(function (x) {
+                var s = byDate[x.ds];
+                var off = S.getDayOffEmployees(x.ds).indexOf(emp.name) !== -1;
+                if (s) { run++; if (run > maxRun) maxRun = run; shifts++; if (s.fact_minutes != null) factMin += s.fact_minutes; }
+                else { run = 0; }
+                var dataEmp = esc(emp.id || emp.name);
+                if (!s) {
+                    return '<div class="el-cell' + dayCls(x) + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
+                        + '" data-day="' + x.d + '">' + (off ? '<span class="el-off"></span>' : '') + '</div>';
+                }
+                var col = colorById(s.location_id), eve = isEvening(s), future = x.ds > today;
+                var bd = '1px solid rgba(0,0,0,.06)';
+                if (x.ds === today) bd = '2px solid ' + ACCENT;
+                if (off) bd = '2px solid ' + RED;
+                var loc = locById(s.location_id);
+                var tip = (loc ? (loc.short_name || loc.name) : '') + ' · ' + (eve ? 'вечер' : 'день')
+                    + (s.start_time ? ' · ' + s.start_time : '') + (off ? ' · конфликт с выходным' : '');
+                var blk = '<span class="el-blk" style="height:' + (eve ? '9px' : '16px')
+                    + ';background:' + rgba(col, future ? 0.5 : 0.9) + ';border:' + bd + '"></span>';
+                return '<div class="el-cell' + dayCls(x) + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
+                    + '" data-day="' + x.d + '" data-shift-id="' + esc(s.id) + '" title="' + esc(tip) + '">' + blk + '</div>';
+            }).join('');
+
+            var hours = Math.round(factMin / 60);
+            var sColor = shifts > NORM_SHIFTS ? AMBER : (shifts < 10 ? '#a89e90' : '#5e8c4a');
+            var flag = maxRun >= 6 ? '<span class="el-flag" title="' + maxRun + ' смен подряд">⚑</span>' : '';
+            return '<div class="el-row"><div class="el-name"><span class="el-ini">' + esc(S.employeeLabel(emp.name))
+                + '</span><span class="el-nm">' + esc(S.employeeShortName(emp.name)) + '</span>' + flag + '</div>'
+                + '<div class="el-cells">' + cells + '</div>'
+                + '<div class="el-gauge"><span class="el-g1">' + NORM_SHIFTS + '/<b style="color:' + sColor + '">' + shifts + '</b> см</span>'
+                + '<span class="el-g2">' + NORM_HOURS + '/<b>' + hours + '</b> ч</span></div></div>';
+        }).join('');
+
+        // подвал «Покрытие точек»: дыра = точка без дневной смены (сегодня и вперёд)
+        function covered(ds, locId) {
+            return S.state.shifts.some(function (s) {
+                return s.date === ds && s.location_id === locId && !isEvening(s);
+            });
+        }
+        var holeCount = 0;
+        var cov = days.map(function (x) {
+            var future = x.ds >= today;
+            var miss = [];
+            var dots = locs.map(function (loc, i) {
+                var ok = covered(x.ds, loc.id);
+                if (!ok) { miss.push(loc.short_name || loc.name); if (future) holeCount++; }
+                var st = ok ? 'background:' + locColor(loc, i) + ';border:none'
+                    : (future ? 'background:#fff;border:1.5px solid ' + RED : 'background:#ece4d6;border:none');
+                return '<span class="el-cdot" style="' + st + '"></span>';
+            }).join('');
+            var tip = (miss.length ? 'дыра: ' + miss.join(', ') : 'покрыто') + ' · ' + pad2(x.d) + '.' + pad2(month);
+            return '<div class="el-cov' + dayCls(x) + '" title="' + esc(tip) + '"><span class="el-cgrid">' + dots + '</span></div>';
+        }).join('');
+        var footer = '<div class="el-row el-foot"><div class="el-name">Покрытие точек'
+            + (holeCount ? '<span class="el-hole">' + holeCount + '</span>' : '') + '</div>'
+            + '<div class="el-cells">' + cov + '</div><div class="el-gauge-h"></div></div>';
+
+        var minW = 178 + dim * 38 + 104;
+        host.innerHTML = '<div class="el-wrap"><div class="el-tbl" style="min-width:' + minW + 'px">'
+            + head + rows + footer + '</div></div>';
+
+        // подсветка наведения цветом кисти
+        if (opts.brushColor) host.style.setProperty('--el-hover', rgba(opts.brushColor, 0.13));
+        else host.style.removeProperty('--el-hover');
+
+        // клик по номеру дня — денежная панель план/факт
+        if (opts.onDayHeaderClick) {
+            host.querySelectorAll('.el-dh[data-ds]').forEach(function (el) {
+                el.addEventListener('click', function () { opts.onDayHeaderClick(el.dataset.ds); });
+            });
+        }
+        // клик по клетке — кисть/ластик (логика на странице)
+        if (opts.onCell) {
+            host.querySelectorAll('.el-cell[data-emp]').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    var k = el.dataset.emp, ds = el.dataset.ds, day = +el.dataset.day;
+                    var emp = S.state.employees.filter(function (e) { return String(e.id || e.name) === k; })[0];
+                    if (!emp) return;
+                    var existing = S.state.shifts.filter(function (s) {
+                        var m = emp.id ? s.employee_id === emp.id : s.employee_name === emp.name;
+                        return m && s.date === ds;
+                    });
+                    var target = existing.filter(function (s) { return !isEvening(s); })[0] || existing[0] || null;
+                    opts.onCell(emp, day, ds, target);
+                });
+            });
+        }
+    }
+
     // экспорт
     S.renderLanes = renderLanes;
     S.renderTodayBoard = renderTodayBoard;
     S.renderMyShifts = renderMyShifts;
     S.renderLegend = renderLegend;
+    S.renderEditLanes = renderEditLanes;
+    // помощники для редактора (та же ДНК)
+    S.isEvening = isEvening;
+    S.venueColor = locColor;
+    S.colorById = colorById;
     // страница задаёт обработчик клика по смене (ввод факта)
     S.setScreenShiftClick = function (fn) { S._onScreenShiftClick = fn; };
 })();
