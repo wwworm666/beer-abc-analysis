@@ -885,7 +885,7 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     padding: 12px 12px 14px;
     min-width: 760px;
 }
-.ln-row { display: flex; align-items: center; height: 38px; border-top: 1px solid var(--border-light); }
+.ln-row { display: flex; align-items: center; height: 42px; border-top: 1px solid var(--border-light); }
 .ln-row.ln-head { height: 30px; align-items: flex-end; border-top: none; }
 .ln-name { width: 168px; flex: none; display: flex; align-items: center; gap: 7px; padding-right: 8px; min-width: 0; }
 .ln-head .ln-name { font-size: 0.62rem; font-weight: 600; letter-spacing: .06em; color: var(--text-tertiary); padding-bottom: 5px; }
@@ -905,8 +905,11 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .ln-dt { display: block; font-size: 0.66rem; font-weight: 600; color: var(--text-secondary); }
 .ln-c { flex: 1; min-width: 30px; display: flex; align-items: center; justify-content: center; padding: 2px; }
 .ln-empty { width: 10px; height: 2px; border-radius: 2px; background: var(--border-color); }
-.ln-blk { width: 30px; max-width: 100%; height: 24px; border-radius: 6px; cursor: pointer; display: block; transition: transform 120ms; }
-.ln-blk:hover { transform: scale(1.08); }
+/* слот фиксированной высоты с выравниванием по низу: день = полный блок,
+   вечер = низкий (видна разница). Без слота процентная высота схлопывается. */
+.ln-slot { width: 30px; max-width: 100%; height: 28px; display: flex; align-items: flex-end; }
+.ln-blk { width: 100%; min-height: 5px; border-radius: 6px; cursor: pointer; display: block; transition: transform 120ms; }
+.ln-blk:hover { transform: scaleY(1.08); }
 .ln-gauge-h, .ln-gauge { width: 96px; flex: none; }
 .ln-head .ln-gauge-h { text-align: right; font-size: 0.62rem; font-weight: 600; letter-spacing: .04em; color: var(--text-tertiary); padding: 0 4px 5px 0; }
 .ln-gauge { padding-left: 10px; display: flex; align-items: center; gap: 7px; }
@@ -989,6 +992,24 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .sc-block { margin-bottom: 18px; }
 .sc-h { margin: 0 0 10px; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
 .sc-h span { color: var(--text-tertiary); font-weight: 400; }
+
+/* Легенда — как читать график (ТОЧКА-ЦВЕТ / СМЕНА-ВЫСОТА / СТАТУС / НАГРУЗКА) */
+.lg-card { display: flex; flex-wrap: wrap; background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-radius: var(--sch-radius-sm); padding: 14px 0; }
+.lg-col { flex: 1; min-width: 190px; padding: 6px 18px; border-left: 1px solid var(--border-light); }
+.lg-col:first-child { border-left: none; }
+.lg-h { font-size: 0.6rem; font-weight: 600; letter-spacing: .08em; color: var(--text-tertiary); margin-bottom: 11px; }
+.lg-item { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.lg-item:last-child { margin-bottom: 0; }
+.lg-t { font-size: 0.74rem; color: var(--text-primary); }
+.lg-x { color: var(--text-tertiary); font-size: 0.68rem; }
+.lg-sq { width: 15px; height: 15px; border-radius: 4px; flex: none; box-sizing: border-box; }
+.lg-slot { width: 26px; height: 22px; display: flex; align-items: flex-end; flex: none; }
+.lg-blk { width: 100%; border-radius: 5px; }
+.lg-gauge { width: 40px; height: 6px; border-radius: 3px; background: var(--bg-tertiary); overflow: hidden; flex: none; }
+.lg-gauge > span { display: block; height: 100%; }
+.lg-flag { width: 15px; text-align: center; color: var(--accent); font-weight: 600; flex: none; }
+.lg-dash { width: 15px; height: 2px; border-radius: 2px; background: var(--border-color); flex: none; }
 
 /* Мобильные оверрайды экранов — ПОСЛЕ базовых правил (.ms-wrap{max-width:460px}
    выше), иначе при равной специфичности побеждает базовое. На узком экране

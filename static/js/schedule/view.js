@@ -70,6 +70,7 @@
             { employeeIikoId: emp || null, icsHref: emp ? '/schedule/cal.ics' : null });
         S.renderTodayBoard(document.getElementById('todayBoard'));
         S.renderLanes(document.getElementById('lanes'));
+        S.renderLegend(document.getElementById('legend'));
         S.renderPlanFact(document.getElementById('planFactBody'));
     }
 

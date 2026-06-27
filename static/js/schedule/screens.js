@@ -123,8 +123,8 @@
                     + ' · ' + (eve ? 'вечер' : 'день')
                     + (s.start_time ? ' · с ' + s.start_time : '')
                     + (s.fact_minutes != null ? ' · факт ' + S.minutesToHhMm(s.fact_minutes) : '');
-                return '<div class="ln-c"><span class="ln-blk" data-shift-id="' + esc(s.id)
-                    + '" title="' + esc(title) + '" style="' + style + '"></span></div>';
+                return '<div class="ln-c"><span class="ln-slot"><span class="ln-blk" data-shift-id="' + esc(s.id)
+                    + '" title="' + esc(title) + '" style="' + style + '"></span></span></div>';
             }).join('');
 
             var month = mine.length;
@@ -350,10 +350,63 @@
         }
     }
 
+    // ============================================================
+    // ЛЕГЕНДА — как читать график
+    // ============================================================
+    function renderLegend(host) {
+        if (!host) return;
+        var NEU = '#9a8f7f', SAMPLE = '#6f93a6';
+
+        // ТОЧКА — ЦВЕТ (из реальных локаций)
+        var dots = S.state.locations.map(function (loc, i) {
+            return '<div class="lg-item"><span class="lg-sq" style="background:' + locColor(loc, i)
+                + '"></span><span class="lg-t">' + esc(loc.short_name || loc.name) + '</span></div>';
+        }).join('');
+
+        // СМЕНА — ВЫСОТА БЛОКА
+        function slot(h) {
+            return '<span class="lg-slot"><span class="lg-blk" style="height:' + h
+                + ';background:' + NEU + '"></span></span>';
+        }
+        var height = '<div class="lg-item">' + slot('100%')
+            + '<span class="lg-t">день <span class="lg-x">· бармен, открытие</span></span></div>'
+            + '<div class="lg-item">' + slot('56%')
+            + '<span class="lg-t">вечер <span class="lg-x">· 2-й бармен, с 17:00</span></span></div>';
+
+        // СТАТУС СМЕНЫ
+        var sts = [
+            { l: 'отработана', s: 'факт есть', b: '1px solid rgba(0,0,0,.06)', o: 0.92 },
+            { l: 'предстоит', s: '', b: '1px solid rgba(0,0,0,.06)', o: 0.5 },
+            { l: 'сегодня', s: 'идёт', b: '2px solid ' + ACCENT, o: 0.92 },
+            { l: 'ждёт факт', s: 'прошла без часов', b: '2px solid ' + AMBER, o: 0.92 },
+            { l: 'конфликт', s: 'просил выходной', b: '2px solid ' + RED, o: 0.92 }
+        ].map(function (x) {
+            return '<div class="lg-item"><span class="lg-sq" style="background:' + rgba(SAMPLE, x.o)
+                + ';border:' + x.b + '"></span><span class="lg-t">' + x.l
+                + (x.s ? ' <span class="lg-x">· ' + x.s + '</span>' : '') + '</span></div>';
+        }).join('');
+
+        // НАГРУЗКА
+        var load = '<div class="lg-item"><span class="lg-gauge"><span style="width:100%;background:#5e8c4a"></span></span>'
+            + '<span class="lg-t">норма <b>15</b>/мес</span></div>'
+            + '<div class="lg-item"><span class="lg-flag">⚑</span>'
+            + '<span class="lg-t">переработка <span class="lg-x">· 6 смен подряд</span></span></div>'
+            + '<div class="lg-item"><span class="lg-dash"></span>'
+            + '<span class="lg-t">выходной <span class="lg-x">· пусто</span></span></div>';
+
+        host.innerHTML = '<div class="lg-card">'
+            + '<div class="lg-col"><div class="lg-h">ТОЧКА — ЦВЕТ</div>' + dots + '</div>'
+            + '<div class="lg-col"><div class="lg-h">СМЕНА — ВЫСОТА</div>' + height + '</div>'
+            + '<div class="lg-col"><div class="lg-h">СТАТУС СМЕНЫ</div>' + sts + '</div>'
+            + '<div class="lg-col"><div class="lg-h">НАГРУЗКА</div>' + load + '</div>'
+            + '</div>';
+    }
+
     // экспорт
     S.renderLanes = renderLanes;
     S.renderTodayBoard = renderTodayBoard;
     S.renderMyShifts = renderMyShifts;
+    S.renderLegend = renderLegend;
     // страница задаёт обработчик клика по смене (ввод факта)
     S.setScreenShiftClick = function (fn) { S._onScreenShiftClick = fn; };
 })();
