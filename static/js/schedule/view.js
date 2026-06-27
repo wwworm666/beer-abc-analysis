@@ -130,7 +130,7 @@
             onCell: onCell,
             onDayHeaderClick: toggleDayPanel,
             brushColor: brushMode === 'point' ? S.colorById(brushPoint)
-                : (brushMode === 'dayoff' ? '#c6a070' : null)
+                : (brushMode === 'dayoff' ? '#b0a99d' : null)
         });
     }
 

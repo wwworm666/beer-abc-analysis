@@ -993,13 +993,15 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .ms-cnum.is-wknd { color: #bfa67e; }
 .ms-cwrap { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; padding: 0 5px; }
 .ms-cbar { border-radius: 4px; box-sizing: border-box; }
-.ms-coff { width: 14px; height: 6px; border-radius: 3px; border: 1.5px dashed #c6a070; }
+.ms-coff { width: 18px; height: 10px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, .06);
+    background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
 
 /* мини-легенда */
 .ms-leg { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-bottom: 13px; font-size: 0.6rem; color: var(--text-tertiary); }
 .ms-lgi { display: inline-flex; align-items: center; gap: 4px; }
 .ms-lgsq { width: 9px; height: 9px; border-radius: 2px; }
-.ms-lgoff { width: 12px; height: 6px; border-radius: 3px; border: 1.5px dashed #c6a070; }
+.ms-lgoff { width: 12px; height: 8px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, .06);
+    background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
 
 /* карточка выбранного дня */
 .ms-lbl { font-size: 0.62rem; font-weight: 600; letter-spacing: .06em; color: var(--text-tertiary); margin: 13px 0 7px; }
@@ -1048,6 +1050,9 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .lg-gauge > span { display: block; height: 100%; }
 .lg-flag { width: 15px; text-align: center; color: var(--accent); font-weight: 600; flex: none; }
 .lg-dash { width: 15px; height: 2px; border-radius: 2px; background: var(--border-color); flex: none; }
+.lg-off { width: 15px; height: 15px; border-radius: 4px; flex: none; box-sizing: border-box;
+    border: 1px solid rgba(0, 0, 0, .07);
+    background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
 
 /* Мобильные оверрайды экранов — ПОСЛЕ базовых правил (.ms-wrap{max-width:460px}
    выше), иначе при равной специфичности побеждает базовое. На узком экране
@@ -1075,8 +1080,11 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     font-weight: 600; background: var(--bg-secondary); color: var(--text-tertiary); border: 1px dashed #cbbfae; }
 .el-eraser.selected { background: #3a322c; color: #fff; border-style: solid; border-color: #3a322c; }
 .el-dayoff { padding: 8px 15px; border-radius: 9px; cursor: pointer; font-size: 0.72rem;
-    font-weight: 600; background: var(--bg-secondary); color: #a9772a; border: 1px dashed #c6a070; }
-.el-dayoff.selected { background: #c6a070; color: #fff; border-style: solid; border-color: #c6a070; }
+    font-weight: 600; background: var(--bg-secondary); color: #6f675c; border: 1px dashed #b0a99d; }
+.el-dayoff.selected { background: #8a8276; color: #fff; border-style: solid; border-color: #8a8276; }
+/* обязательный выходной в сетке — серый штрихованный блок */
+.el-dayoff-blk { width: 26px; height: 16px; border-radius: 5px; border: 1px solid rgba(0, 0, 0, .07);
+    background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
 
 /* Сетка «сотрудник × день» */
 .el-wrap { overflow-x: auto; }

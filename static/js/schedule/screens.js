@@ -529,8 +529,10 @@
             + '<span class="lg-t">план <b>' + NORM_SHIFTS + '</b> смен · ' + NORM_HOURS + ' ч</span></div>'
             + '<div class="lg-item"><span class="lg-flag">⚑</span>'
             + '<span class="lg-t">переработка <span class="lg-x">· 6 смен подряд</span></span></div>'
+            + '<div class="lg-item"><span class="lg-off"></span>'
+            + '<span class="lg-t">обязательный выходной <span class="lg-x">· серый, кистью «Выходной»</span></span></div>'
             + '<div class="lg-item"><span class="lg-dash"></span>'
-            + '<span class="lg-t">выходной <span class="lg-x">· пусто</span></span></div>';
+            + '<span class="lg-t">пусто <span class="lg-x">· не назначен</span></span></div>';
 
         host.innerHTML = '<div class="lg-card">'
             + '<div class="lg-col"><div class="lg-h">ТОЧКА — ЦВЕТ</div>' + dots + '</div>'
@@ -585,8 +587,10 @@
                 else { run = 0; }
                 var dataEmp = esc(emp.id || emp.name);
                 if (!s) {
+                    // обязательный выходной — серый блок (явная пометка, не пусто)
                     return '<div class="el-cell' + dayCls(x) + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
-                        + '" data-day="' + x.d + '">' + (off ? '<span class="el-off"></span>' : '') + '</div>';
+                        + '" data-day="' + x.d + '">'
+                        + (off ? '<span class="el-dayoff-blk" title="обязательный выходной"></span>' : '') + '</div>';
                 }
                 var col = colorById(s.location_id), eve = isEvening(s), future = x.ds > today;
                 var bd = '1px solid rgba(0,0,0,.06)';
