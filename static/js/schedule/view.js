@@ -42,10 +42,9 @@
         S.showLoading(true);
         S.updateMonthDisplay(document.getElementById('currentMonth'));
         return S.loadMonthData()
-            .then(render)
+            .then(loadPlans)        // план/факт нужны борду «Сегодня» до рендера
+            .then(renderScreens)
             .then(loadFeed)
-            .then(loadWidgets)
-            .then(loadPlanFact)
             .then(loadWishes)
             .catch(function (err) {
                 console.error(err);
@@ -54,13 +53,24 @@
             .then(function () { S.showLoading(false); });
     }
 
-    function render() {
-        S.renderGrid({
-            gridEl: document.getElementById('scheduleGrid'),
-            markHoles: true,
-            showPlans: false,
-            onChipClick: openFactModal
-        });
+    // План/факт месяца (план из весов дней + факт = живой iiko OLAP) — в state,
+    // используется бордом «Сегодня вживую» и таблицей «План / Факт по дням».
+    function loadPlans() {
+        return S.api('/api/schedule/plans/' + S.state.year + '/' + S.state.month)
+            .then(function (p) { S.state.plans = p; })
+            .catch(function (err) { console.error(err); S.state.plans = null; });
+    }
+
+    // Три экрана «kultura.os» + денежная таблица — всё из уже загруженного state,
+    // без новых запросов. Клик по смене — ввод факта часов (openFactModal).
+    function renderScreens() {
+        S.setScreenShiftClick(openFactModal);
+        var emp = (document.body.dataset.empIiko || '').trim();
+        S.renderMyShifts(document.getElementById('myShifts'),
+            { employeeIikoId: emp || null, icsHref: emp ? '/schedule/cal.ics' : null });
+        S.renderTodayBoard(document.getElementById('todayBoard'));
+        S.renderLanes(document.getElementById('lanes'));
+        S.renderPlanFact(document.getElementById('planFactBody'));
     }
 
     // ==================== Факт часов ====================
@@ -120,39 +130,11 @@
         });
     }
 
-    // ==================== Виджеты: Нагрузка + Пожелания ====================
-    // Те же, что в редакторе, но read-only и money-free. Данные — общий /widgets
-    // (без iiko, без рублей) и /wishes. Рендер — Schedule.render*. Денежного
-    // «План/Факт по дням» тут нет: на странице барменов финансов не показываем.
-
-    function loadWidgets() {
-        return S.api('/api/schedule/widgets/' + S.state.year + '/' + S.state.month)
-            .then(function (w) {
-                S.renderLoad(document.getElementById('loadTableBody'),
-                             w.employees_load || [], w.shift_norm || 15);
-            })
-            .catch(function (err) {
-                console.error(err);
-                var c = document.getElementById('loadTableBody');
-                if (c) c.innerHTML = '<tr><td colspan="5" class="missing-fact">Не удалось загрузить</td></tr>';
-            });
-    }
-
-    // План / Факт по дням — деньги. Тот же виджет, что в редакторе (S.renderPlanFact).
-    // Тянем /plans (план из весов дней + факт = живой iiko OLAP) в S.state.plans.
-    function loadPlanFact() {
-        return S.api('/api/schedule/plans/' + S.state.year + '/' + S.state.month)
-            .then(function (p) {
-                S.state.plans = p;
-                S.renderPlanFact(document.getElementById('planFactBody'));
-                S.renderRecentCompletion(document.getElementById('recentBody'));
-            })
-            .catch(function (err) {
-                console.error(err);
-                var h = document.getElementById('planFactBody');
-                if (h) h.innerHTML = '<div class="pf-empty">Не удалось загрузить</div>';
-            });
-    }
+    // ==================== Пожелания ====================
+    // read-only: что бармены просят учесть. Прежние рейл-виджеты «Нагрузка» и
+    // «Выполнение плана» заменены экранами «Полосы по людям» и «Сегодня вживую»
+    // (считаются из state, см. screens.js); денежная «План / Факт по дням»
+    // рендерится в renderScreens из уже загруженного state.plans.
 
     function loadWishes() {
         return S.api('/api/schedule/wishes')

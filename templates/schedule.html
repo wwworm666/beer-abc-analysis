@@ -42,7 +42,7 @@
             color: var(--text-tertiary, #9aa0a6); }
     </style>
 </head>
-<body class="schedule-page">
+<body class="schedule-page" data-emp-iiko="{% if current_user and current_user.employee_iiko_id %}{{ current_user.employee_iiko_id }}{% endif %}">
     <div class="container">
         {% set page_title = "График" %}
         {% set page_subtitle = "Кто где работает" %}
@@ -62,41 +62,25 @@
     </div>
 
     <main class="main-content">
-      <div class="sched-layout">
-        <div class="sched-main">
-        <div class="schedule-container">
-            <div class="schedule-grid" id="scheduleGrid"></div>
-        </div>
-        </div><!-- /.sched-main -->
+      <!-- Мобильный (≤700px): личный экран бармена «мои смены» (renderMyShifts). -->
+      <div class="sc-mobile"><div id="myShifts" class="ms-wrap"></div></div>
 
-        <!-- Виджет «Нагрузка» (read-only, money-free) — как в редакторе. Денежного
-             «План/Факт по дням» тут нет: на странице барменов финансов не показываем. -->
-        <aside class="sched-rail">
-        <div class="section-card">
-            <h2>Нагрузка по сотрудникам</h2>
-            <table class="load-table">
-                <thead>
-                    <tr>
-                        <th>Сотрудник</th>
-                        <th title="Смен за месяц при норме 15">Смен / 15</th>
-                        <th title="Сумма факта часов, введённого барменом в конце смены">Часов</th>
-                        <th title="Макс. серия смен подряд (по дням). 5+ подряд — переработка">Подряд</th>
-                        <th title="Прошедшие смены без введённого факта часов">Без</th>
-                    </tr>
-                </thead>
-                <tbody id="loadTableBody"></tbody>
-            </table>
+      <!-- Десктоп: «Сегодня вживую» (renderTodayBoard) + «Полосы по людям»
+           (renderLanes). ДНК: цвет = точка, высота блока = смена (день/вечер),
+           рамка = статус. Заменяют старую сетку дата×точка и рейл. -->
+      <div class="sc-desktop">
+        <div class="sc-block">
+          <h2 class="sc-h">Сегодня вживую <span>— что идёт сейчас и что поправить</span></h2>
+          <div id="todayBoard"></div>
         </div>
-
-        <!-- Выполнение плана за последние 3 дня (позавчера/вчера/сегодня), агрегат
-             по всем точкам. Сегодня — «идёт» (факт неполный). -->
-        <div class="section-card">
-            <h2>Выполнение плана</h2>
-            <div id="recentBody"></div>
+        <div class="sc-block">
+          <h2 class="sc-h">Полосы по людям <span>— нагрузка, серии и выходные с первого взгляда</span></h2>
+          <div id="lanes" class="ln-wrap"></div>
         </div>
-        </aside><!-- /.sched-rail -->
-      </div><!-- /.sched-layout -->
+      </div>
 
+        <!-- Десктоп-виджеты владельца: на мобильном скрыты (там только «мои смены»). -->
+        <div class="sc-desktop">
         <!-- План / Факт по дням (деньги): одна таблица по всем точкам (факт/план),
              свёрнута по умолчанию. Клик по заголовку — раскрыть, по дню — кто работал.
              Тот же виджет, что в редакторе (общий S.renderPlanFact). -->
@@ -125,6 +109,7 @@
                 <div class="feed-list" id="feedList"></div>
             </div>
         </div>
+        </div><!-- /.sc-desktop (виджеты владельца) -->
 
         <div class="loading" id="loading" style="display: none;">
             <div class="spinner"></div>
@@ -156,6 +141,7 @@
     <div class="toast" id="toast"></div>
 
     <script src="/static/js/schedule/common.js?v={{ app_version }}"></script>
+    <script src="/static/js/schedule/screens.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/view.js?v={{ app_version }}"></script>
     <script src="/static/logo.js"></script>
 </body>
