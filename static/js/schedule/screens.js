@@ -182,6 +182,10 @@
         var c = dd.locations[locId]; if (!c || c.plan == null || !c.plan || c.fact == null) return null;
         return Math.round(c.fact / c.plan * 100);
     }
+    function dayCell(ds, locId) {
+        var dd = dayData(ds); if (!dd || !dd.locations) return null;
+        return dd.locations[locId] || null;
+    }
 
     // Выбранный день борда (по умолчанию сегодня). Стрелки ‹ › листают день в
     // пределах загруженного месяца — данные уже в state, без новых запросов.
@@ -236,6 +240,14 @@
             var yp = planPct(prev, loc.id);
             var w = pct == null ? 3 : Math.max(3, Math.min(100, pct));
             var prevLbl = isToday ? 'вчера' : (prev.slice(8, 10) + '.' + prev.slice(5, 7));
+            // суммы в рублях план/факт за день (под процентом)
+            var cell = dayCell(ds, loc.id);
+            var moneyHtml = '';
+            if (cell && (cell.fact != null || cell.plan != null)) {
+                moneyHtml = '<div class="tb-money">факт <b>'
+                    + (cell.fact != null ? S.formatMoney(cell.fact) : '—') + '</b> / план '
+                    + (cell.plan != null ? S.formatMoney(cell.plan) : '—') + ' ₽</div>';
+            }
             return '<div class="tb-card">'
                 + '<div class="tb-bar"><span class="tb-sq" style="background:' + col + '"></span>'
                 + '<span class="tb-bn">' + esc(loc.short_name || loc.name) + '</span></div>'
@@ -244,6 +256,7 @@
                 + '<div class="tb-foot"><span>факт <b>' + (pct == null ? '—' : pct + '%') + '</b>'
                 + (isToday ? ' идёт' : '') + '</span>'
                 + '<span class="tb-y">' + prevLbl + ' ' + (yp == null ? '—' : yp + '%') + '</span></div>'
+                + moneyHtml
                 + '</div>';
         }).join('');
 

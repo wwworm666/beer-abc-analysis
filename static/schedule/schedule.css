@@ -953,6 +953,9 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .tb-foot { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-secondary); }
 .tb-foot b { color: var(--accent); }
 .tb-y { color: var(--text-tertiary); }
+.tb-money { margin-top: 4px; font-size: 0.58rem; color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums; }
+.tb-money b { font-weight: 600; color: var(--text-secondary); }
 .tb-queue { margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--border-light); }
 .tb-qh { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 0.74rem; font-weight: 600; color: var(--text-primary); }
 .tb-qn { font-size: 0.6rem; font-weight: 700; color: #fff; background: var(--danger); border-radius: 8px; padding: 1px 6px; }
