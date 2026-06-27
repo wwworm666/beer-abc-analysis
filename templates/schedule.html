@@ -42,7 +42,7 @@
             color: var(--text-tertiary, #9aa0a6); }
     </style>
 </head>
-<body class="schedule-page" data-emp-iiko="{% if current_user and current_user.employee_iiko_id %}{{ current_user.employee_iiko_id }}{% endif %}">
+<body class="schedule-page paint-mode" data-emp-iiko="{% if current_user and current_user.employee_iiko_id %}{{ current_user.employee_iiko_id }}{% endif %}">
     <div class="container">
         {% set page_title = "График" %}
         {% set page_subtitle = "Кто где работает" %}
@@ -58,88 +58,162 @@
         <a class="page-switch" href="/schedule/cal.ics" download="grafik-smen.ics"
            title="Скачать свой график файлом .ics — открыть в Календаре на iPhone/Android">В календарь</a>
         {% endif %}
-        <a class="page-switch" href="/schedule/edit">Редактор</a>
     </div>
 
     <main class="main-content">
-      <!-- Мобильный (≤700px): личный экран бармена «мои смены» (renderMyShifts). -->
+      <!-- Мобильный (≤700px): личный экран бармена «мои смены» (renderMyShifts).
+           Кнопка «Запросить выходной» ставит/снимает выходной на выбранный день. -->
       <div class="sc-mobile"><div id="myShifts" class="ms-wrap"></div></div>
 
-      <!-- Десктоп: «Сегодня вживую» (renderTodayBoard) + «Полосы по людям»
-           (renderLanes). ДНК: цвет = точка, высота блока = смена (день/вечер),
-           рамка = статус. Заменяют старую сетку дата×точка и рейл. -->
+      <!-- Десктоп: единая страница просмотра + редактирования. -->
       <div class="sc-desktop">
         <div class="sc-block">
           <h2 class="sc-h">Сегодня вживую <span>— что идёт сейчас и что поправить</span></h2>
           <div id="todayBoard"></div>
         </div>
+
+        <!-- Полосы по людям — РЕДАКТИРУЕМАЯ сетка. Кисть: точка + день/вечер;
+             «Выходной» — пожелание сразу в графике; ластик — снять смену.
+             Клик по своей смене активной кистью — модалка (роль/время/факт). -->
         <div class="sc-block">
-          <h2 class="sc-h">Полосы по людям <span>— нагрузка, серии и выходные с первого взгляда</span></h2>
+          <h2 class="sc-h">Полосы по людям <span>— кистью назначаем смены и выходные</span></h2>
+          <div class="paint-toolbar" id="paintToolbar">
+            <div class="el-tools">
+              <span class="label">Точка</span>
+              <div class="el-points" id="pointChips"></div>
+              <span class="el-div"></span>
+              <span class="label">Время</span>
+              <div class="el-timeseg" id="timeSeg">
+                <button type="button" class="el-seg selected" data-role="day">День</button>
+                <button type="button" class="el-seg" data-role="evening">Вечер</button>
+              </div>
+              <button type="button" class="el-dayoff" id="dayoffBtn">Выходной</button>
+              <button type="button" class="el-eraser" id="eraserBtn">Ластик</button>
+              <span class="paint-hint" id="paintHint"></span>
+            </div>
+          </div>
           <div id="lanes" class="ln-wrap"></div>
+
+          <!-- Панель плана/факта дня: открывается кликом по номеру дня в шапке. -->
+          <div class="day-panel" id="dayPanel">
+            <h3><span>День: <span id="dayPanelDate"></span></span></h3>
+            <div class="day-panel-grid" id="dayPanelGrid"></div>
+          </div>
         </div>
+
         <div class="sc-block">
           <h2 class="sc-h">Как читать график</h2>
           <div id="legend"></div>
         </div>
-      </div>
 
-        <!-- Десктоп-виджеты владельца: на мобильном скрыты (там только «мои смены»). -->
-        <div class="sc-desktop">
-        <!-- План / Факт по дням (деньги): одна таблица по всем точкам (факт/план),
-             свёрнута по умолчанию. Клик по заголовку — раскрыть, по дню — кто работал.
-             Тот же виджет, что в редакторе (общий S.renderPlanFact). -->
+        <!-- План / Факт по дням (деньги): свёрнут по умолчанию. -->
         <div class="section-card">
-            <h2 class="pf-toggle" id="planFactToggle">
-                <span>План / Факт по дням</span>
-                <span class="pf-summary" id="planFactSummary"></span>
-            </h2>
-            <div id="planFactCollapse" style="display: none;">
-                <div id="planFactBody"></div>
-                <div class="pf-cap">В ячейках точек: факт (сверху) / план (снизу), наведите для точных сумм. Итоговый % — за дни, где факт уже проставлен. Клик по дню — кто работал.</div>
-            </div>
+          <h2 class="pf-toggle" id="planFactToggle">
+            <span>План / Факт по дням</span>
+            <span class="pf-summary" id="planFactSummary"></span>
+          </h2>
+          <div id="planFactCollapse" style="display: none;">
+            <div id="planFactBody"></div>
+            <div class="pf-cap">В ячейках точек: факт (сверху) / план (снизу), наведите для точных сумм. Итоговый % — за дни, где факт уже проставлен. Клик по дню — кто работал.</div>
+          </div>
         </div>
 
-        <!-- Пожелания сотрудников (read-only): что бармены просят учесть. -->
+        <!-- Пожелания сотрудников (редактируемые): что просят учесть. -->
         <div class="section-card">
-            <h2>Пожелания</h2>
-            <div class="wishes-grid" id="wishesView"></div>
+          <h2>Пожелания</h2>
+          <div class="wishes-grid" id="wishesGrid"></div>
         </div>
 
-        <!-- Лента последних изменений графика (кто что менял). За выбранный
-             месяц, новые сверху, компактно. -->
+        <!-- Реестр сотрудников (управление): синк из iiko, метки, порядок, активность. -->
+        <div class="section-card">
+          <h2 style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="cursor: pointer;" id="empAdminToggle">Сотрудники (показать/скрыть)</span>
+            <button class="btn btn-secondary" id="empSyncBtn"
+                    title="Добавить в реестр новые имена из iiko. Никого не удаляет.">
+              Обновить из iiko
+            </button>
+          </h2>
+          <div id="empAdminBody" style="display: none;">
+            <table class="emp-admin-table">
+              <thead>
+                <tr>
+                  <th>Имя (как в iiko)</th>
+                  <th title="Короткая подпись для сетки, например РЮ">Метка</th>
+                  <th title="Порядок строк в сетке">Порядок</th>
+                  <th title="Неактивные скрыты из сетки, история остаётся">Активен</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Лента последних изменений графика (кто что менял). -->
         <div class="feed">
-            <div class="feed-card">
-                <div class="feed-head"><h3>Последние изменения</h3></div>
-                <div class="feed-list" id="feedList"></div>
-            </div>
+          <div class="feed-card">
+            <div class="feed-head"><h3>Последние изменения</h3></div>
+            <div class="feed-list" id="feedList"></div>
+          </div>
         </div>
-        </div><!-- /.sc-desktop (виджеты владельца) -->
+      </div><!-- /.sc-desktop -->
 
-        <div class="loading" id="loading" style="display: none;">
-            <div class="spinner"></div>
-            Загрузка...
-        </div>
+      <div class="loading" id="loading" style="display: none;">
+        <div class="spinner"></div>
+        Загрузка...
+      </div>
     </main>
 
-    <!-- Модалка ввода факта часов: бармен в конце смены вписывает,
-         сколько отработал. Это единственный источник факта часов. -->
+    <!-- Модалка ввода факта часов (мобильный «мои смены»). -->
     <div class="modal-overlay" id="factModal">
-        <div class="modal">
-            <h2 id="factModalTitle">Отработанные часы</h2>
-            <form id="factForm">
-                <div class="form-group">
-                    <label for="factInput">Сколько отработано</label>
-                    <input type="text" id="factInput" inputmode="numeric"
-                           placeholder="10:30" autocomplete="off">
-                    <div class="form-hint">Формат: 10:30 (часы:минуты) или 10.5</div>
-                </div>
-                <div class="actions">
-                    <button type="button" class="btn btn-danger" id="factClear">Очистить</button>
-                    <button type="button" class="btn btn-secondary" id="factCancel">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
-                </div>
-            </form>
+      <div class="modal">
+        <h2 id="factModalTitle">Отработанные часы</h2>
+        <form id="factForm">
+          <div class="form-group">
+            <label for="factInput">Сколько отработано</label>
+            <input type="text" id="factInput" inputmode="numeric"
+                   placeholder="10:30" autocomplete="off">
+            <div class="form-hint">Формат: 10:30 (часы:минуты) или 10.5</div>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn-danger" id="factClear">Очистить</button>
+            <button type="button" class="btn btn-secondary" id="factCancel">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Модалка смены (десктоп): роль + плановое время + факт часов. -->
+    <div class="modal-overlay" id="shiftModal">
+      <div class="modal">
+        <h2 id="shiftModalTitle">Смена</h2>
+        <div class="warning-box" id="dayoffWarning" style="display: none;">
+          Сотрудник просил выходной на эту дату
         </div>
+        <form id="shiftForm">
+          <div class="form-group">
+            <label for="shiftRole">Роль</label>
+            <select id="shiftRole" required></select>
+          </div>
+          <div class="form-group">
+            <label for="shiftStartTime">Плановое начало (пусто = день, с 14:00)</label>
+            <input type="text" id="shiftStartTime" placeholder="18:00"
+                   pattern="^([01]\d|2[0-3]):[0-5]\d$" autocomplete="off">
+            <div class="form-hint">18:00 = вечер; другое время — для нестандартных случаев</div>
+          </div>
+          <div class="form-group">
+            <label for="shiftFact">Факт часов (вводит бармен в конце смены)</label>
+            <input type="text" id="shiftFact" inputmode="numeric"
+                   placeholder="10:30" autocomplete="off">
+            <div class="form-hint">Формат: 10:30 или 10.5. Пусто — факт не введён.</div>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn-danger" id="shiftDelete">Удалить</button>
+            <button type="button" class="btn btn-secondary" id="shiftCancel">Отмена</button>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <div class="toast" id="toast"></div>

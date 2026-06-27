@@ -364,9 +364,17 @@
             + '<span class="ms-lgi"><span class="ms-lgoff"></span>выходной по заявке</span>'
             + '</div>';
 
-        var actsHtml = '<div class="ms-acts"><div class="ms-act ms-act-out">Запросить выходной</div>'
-            + (opts.icsHref ? '<a class="ms-act ms-act-ics" href="' + esc(opts.icsHref) + '">.ics</a>' : '')
-            + '</div>';
+        // Действия: «Запросить/Отменить выходной» на выбранный день + .ics.
+        // Текст и data-off зависят от выбранного дня (строится в paint).
+        function actsHtml(sel) {
+            var ds = S.dateStr(year, month, sel);
+            var off = offReqOn(ds);
+            return '<div class="ms-acts"><div class="ms-act ms-act-out" data-ds="' + ds
+                + '" data-off="' + (off ? '1' : '') + '">'
+                + (off ? 'Отменить выходной' : 'Запросить выходной') + '</div>'
+                + (opts.icsHref ? '<a class="ms-act ms-act-ics" href="' + esc(opts.icsHref) + '">.ics</a>' : '')
+                + '</div>';
+        }
 
         // ---- календарь (зависит от выбранного дня) ----
         function calendarHtml(sel) {
@@ -450,7 +458,7 @@
         // ---- сборка + перерисовка по выбранному дню ----
         function paint() {
             host.innerHTML = headHtml + chipsHtml + calendarHtml(selN) + legendHtml
-                + detailHtml(selN) + actsHtml;
+                + detailHtml(selN) + actsHtml(selN);
             // выбор дня
             host.querySelectorAll('.ms-cell[data-n]').forEach(function (el) {
                 el.addEventListener('click', function () {
@@ -458,6 +466,14 @@
                     paint();
                 });
             });
+            // запрос/снятие выходного на выбранный день
+            if (opts.onDayOffToggle) {
+                host.querySelectorAll('.ms-act-out[data-ds]').forEach(function (el) {
+                    el.addEventListener('click', function () {
+                        opts.onDayOffToggle(emp.name, el.dataset.ds, el.dataset.off === '1');
+                    });
+                });
+            }
             // кнопка действия в карточке дня — ввод/правка факта
             if (S._onScreenShiftClick) {
                 host.querySelectorAll('.ms-dbtn[data-act="fact"]').forEach(function (el) {

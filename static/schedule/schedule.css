@@ -1074,6 +1074,9 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .el-eraser { padding: 8px 15px; border-radius: 9px; cursor: pointer; font-size: 0.72rem;
     font-weight: 600; background: var(--bg-secondary); color: var(--text-tertiary); border: 1px dashed #cbbfae; }
 .el-eraser.selected { background: #3a322c; color: #fff; border-style: solid; border-color: #3a322c; }
+.el-dayoff { padding: 8px 15px; border-radius: 9px; cursor: pointer; font-size: 0.72rem;
+    font-weight: 600; background: var(--bg-secondary); color: #a9772a; border: 1px dashed #c6a070; }
+.el-dayoff.selected { background: #c6a070; color: #fff; border-style: solid; border-color: #c6a070; }
 
 /* Сетка «сотрудник × день» */
 .el-wrap { overflow-x: auto; }

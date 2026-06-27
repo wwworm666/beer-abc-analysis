@@ -102,15 +102,15 @@ def taps_bar(bar_id):
 
 @pages_bp.route('/schedule')
 def schedule():
-    """График смен — просмотр (для барменов: кто где работает, ввод факта часов).
-    Финансовых данных на странице нет."""
+    """График смен — единая страница: просмотр + редактирование (кисть смен и
+    выходных), планы/факты, пожелания, реестр. Прежняя /schedule/edit слита сюда."""
     return render_template('schedule.html', app_version=APP_VERSION)
 
 
 @pages_bp.route('/schedule/edit')
 def schedule_edit():
-    """График смен — рабочий стол владельца: кисть, планы/факты, нагрузка, пожелания."""
-    return render_template('schedule_edit.html', app_version=APP_VERSION)
+    """Редактор слит в /schedule — оставляем редирект для старых ссылок/закладок."""
+    return redirect('/schedule', code=301)
 
 
 @pages_bp.route('/dashboard/widget')

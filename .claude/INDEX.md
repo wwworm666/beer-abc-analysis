@@ -55,7 +55,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
 | [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting, override весов дней, «Планы по дням» | ✅ |
-| [docs/schedule.md](../docs/schedule.md) | График смен: /schedule (просмотр, факт часов) + /schedule/edit (кисть, планы, нагрузка, журнал «кто что менял»), meeting notes | ✅ |
+| [docs/schedule.md](../docs/schedule.md) | График смен: единая страница /schedule (просмотр + редактирование: кисть смен и выходных, планы/факт, пожелания, реестр, лента «кто что менял»); /schedule/edit → редирект. meeting notes | ✅ |
 | [docs/auth.md](../docs/auth.md) | Авторизация: вход один раз (долгая сессия), глобальный гейт, личные аккаунты, /admin/users, стабильный SECRET_KEY | ✅ |
 | [docs/ai-agent-concept.md](../docs/ai-agent-concept.md) | Концепт ИИ-агента NL-вопрос -> детерминированный ответ из iiko: gap-матрица 15 вопросов, лимиты API, архитектура | Концепт |
 | [docs/frontend.md](../docs/frontend.md) | JS архитектура дашборда (15+ модулей) | ✅ |
