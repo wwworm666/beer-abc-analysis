@@ -910,12 +910,15 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .ln-slot { width: 30px; max-width: 100%; height: 28px; display: flex; align-items: flex-end; }
 .ln-blk { width: 100%; min-height: 5px; border-radius: 6px; cursor: pointer; display: block; transition: transform 120ms; }
 .ln-blk:hover { transform: scaleY(1.08); }
-.ln-gauge-h, .ln-gauge { width: 96px; flex: none; }
-.ln-head .ln-gauge-h { text-align: right; font-size: 0.62rem; font-weight: 600; letter-spacing: .04em; color: var(--text-tertiary); padding: 0 4px 5px 0; }
+.ln-gauge-h, .ln-gauge { width: 112px; flex: none; }
+.ln-head .ln-gauge-h { text-align: right; font-size: 0.6rem; font-weight: 600; letter-spacing: .04em; color: var(--text-tertiary); padding: 0 4px 5px 0; }
 .ln-gauge { padding-left: 10px; display: flex; align-items: center; gap: 7px; }
 .ln-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--bg-tertiary); overflow: hidden; }
 .ln-bar > span { display: block; height: 100%; }
-.ln-num { font-size: 0.66rem; font-weight: 600; white-space: nowrap; }
+/* план/факт: две строки справа — «15/факт см» и «113/факт ч» */
+.ln-pf { text-align: right; line-height: 1.25; white-space: nowrap; }
+.ln-pf-l { display: block; font-size: 0.58rem; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.ln-pf-l b { font-weight: 600; }
 
 /* ---------- Экран 2: сегодня вживую ---------- */
 .tb-card-wrap {

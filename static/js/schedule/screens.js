@@ -18,6 +18,7 @@
     };
     var FALLBACK = ['#6f93a6', '#c08f9b', '#c3a55f', '#7d9b6b'];
     var ACCENT = '#c0673a', AMBER = '#c98a32', RED = '#c0492f';
+    var NORM_SHIFTS = 15, NORM_HOURS = 113; // месячная норма: смен / часов
 
     function locColor(loc, idx) {
         return (loc && BAR_COLORS[loc.venue_key]) || FALLBACK[(idx || 0) % FALLBACK.length];
@@ -108,7 +109,7 @@
                 return '<div class="' + cls + '"><span class="ln-dow">' + dows(x.dow)
                     + '</span><span class="ln-dt">' + pad2(x.d) + '</span></div>';
             }).join('')
-            + '</div><div class="ln-gauge-h">НОРМА 15</div></div>';
+            + '</div><div class="ln-gauge-h">ПЛАН / ФАКТ</div></div>';
 
         var rows = S.state.employees.map(function (emp) {
             var mine = shiftsOf(emp);
@@ -135,9 +136,12 @@
             }).join('');
 
             var month = mine.length;
-            var over = month > 15, streak = maxRun >= 6;
+            var factMin = 0;
+            mine.forEach(function (s) { if (s.fact_minutes != null) factMin += s.fact_minutes; });
+            var factH = Math.round(factMin / 60);
+            var over = month > NORM_SHIFTS, streak = maxRun >= 6;
             var gColor = over ? AMBER : (streak ? ACCENT : '#5e8c4a');
-            var gPct = Math.min(100, Math.round(month / 15 * 100));
+            var gPct = Math.min(100, Math.round(month / NORM_SHIFTS * 100));
             var flag = streak
                 ? '<span class="ln-flag" title="' + maxRun + ' смен подряд — переработка">⚑</span>' : '';
 
@@ -147,7 +151,10 @@
                 + '<div class="ln-cells">' + cells + '</div>'
                 + '<div class="ln-gauge"><span class="ln-bar"><span style="width:' + gPct
                 + '%;background:' + gColor + '"></span></span>'
-                + '<span class="ln-num" style="color:' + gColor + '">' + month + '/15</span></div>'
+                + '<span class="ln-pf">'
+                + '<span class="ln-pf-l">' + NORM_SHIFTS + '/<b style="color:' + gColor + '">' + month + '</b> см</span>'
+                + '<span class="ln-pf-l">' + NORM_HOURS + '/<b>' + factH + '</b> ч</span>'
+                + '</span></div>'
                 + '</div>';
         }).join('');
 
@@ -364,7 +371,7 @@
 
         // НАГРУЗКА
         var load = '<div class="lg-item"><span class="lg-gauge"><span style="width:100%;background:#5e8c4a"></span></span>'
-            + '<span class="lg-t">норма <b>15</b>/мес</span></div>'
+            + '<span class="lg-t">план <b>' + NORM_SHIFTS + '</b> смен · ' + NORM_HOURS + ' ч</span></div>'
             + '<div class="lg-item"><span class="lg-flag">⚑</span>'
             + '<span class="lg-t">переработка <span class="lg-x">· 6 смен подряд</span></span></div>'
             + '<div class="lg-item"><span class="lg-dash"></span>'
