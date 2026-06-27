@@ -57,11 +57,19 @@
         if (ds < today) return shift.fact_minutes != null ? 'done' : 'nofact';
         return 'soon';
     }
-    function statusBorder(st) {
-        if (st === 'today') return '2px solid ' + ACCENT;
-        if (st === 'nofact') return '2px solid ' + AMBER;
-        if (st === 'conflict') return '2px solid ' + RED;
-        return '1px solid rgba(0,0,0,.06)';
+    // Статус смены — кольцо вокруг блока (box-shadow): видно поверх любого цвета
+    // точки, в отличие от тонкой рамки. Сегодня — терракот, ждёт факт — янтарь,
+    // конфликт — красный. Отработана/предстоит — без кольца (различаются яркостью).
+    function statusRing(st) {
+        if (st === 'today') return '0 0 0 2px ' + ACCENT;
+        if (st === 'nofact') return '0 0 0 2px ' + AMBER;
+        if (st === 'conflict') return '0 0 0 2px ' + RED;
+        return '';
+    }
+    function blockStyle(col, op, eve, st) {
+        var ring = statusRing(st);
+        return 'height:' + (eve ? '56%' : '100%') + ';background:' + rgba(col, op)
+            + ';border:1px solid rgba(0,0,0,.08)' + (ring ? ';box-shadow:' + ring : '');
     }
 
     function empKey(shiftOrEmp) {
@@ -116,8 +124,7 @@
                 var col = colorById(s.location_id);
                 var eve = isEvening(s);
                 var op = st === 'soon' ? 0.5 : 0.92;
-                var style = 'height:' + (eve ? '56%' : '100%')
-                    + ';background:' + rgba(col, op) + ';border:' + statusBorder(st);
+                var style = blockStyle(col, op, eve, st);
                 var loc = locById(s.location_id);
                 var title = emp.name + ' · ' + (loc ? loc.short_name || loc.name : '')
                     + ' · ' + (eve ? 'вечер' : 'день')
@@ -208,39 +215,8 @@
                 + '</div>';
         }).join('');
 
-        // очередь действий: дыры (будущее, точка пуста), конфликты, нет факта
-        var dim = daysInMonth(), queue = [];
-        var holes = 0, holeEx = '';
-        for (var d = 1; d <= dim; d++) {
-            var ds = S.dateStr(S.state.year, S.state.month, d);
-            if (ds < today) continue;
-            S.state.locations.forEach(function (loc) {
-                var has = S.state.shifts.some(function (s) { return s.date === ds && s.location_id === loc.id; });
-                if (!has) { holes++; if (!holeEx) holeEx = d + '.' + S.state.month + ' · ' + (loc.short_name || loc.name); }
-            });
-        }
-        if (holes) queue.push({ g: '▢', cls: 'q-red', t: 'Дыра', x: holeEx + (holes > 1 ? ' +' + (holes - 1) : ''), b: 'Закрыть' });
-        var confs = S.state.shifts.filter(function (s) {
-            return S.getDayOffEmployees(s.date).indexOf(s.employee_name) !== -1;
-        });
-        if (confs.length) {
-            var c0 = confs[0];
-            queue.push({ g: '▲', cls: 'q-red', t: 'Конфликт', x: parseInt(c0.date.slice(8), 10) + '.' + S.state.month
-                + ' · ' + S.employeeLabel(c0.employee_name) + (confs.length > 1 ? ' +' + (confs.length - 1) : ''), b: 'Решить' });
-        }
-        var nofact = S.state.shifts.filter(function (s) { return s.date < today && s.fact_minutes == null; });
-        if (nofact.length) queue.push({ g: '?', cls: 'q-amber', t: 'Нет факта', x: nofact.length + ' смен', b: 'Напомнить' });
-
-        var queueHtml = queue.length ? '<div class="tb-queue">'
-            + '<div class="tb-qh"><span>Требует действий</span><span class="tb-qn">' + queue.length + '</span></div>'
-            + queue.map(function (q) {
-                return '<div class="tb-qrow"><span class="tb-qg ' + q.cls + '">' + q.g + '</span>'
-                    + '<span class="tb-qt">' + esc(q.t) + ' <span class="tb-qx">· ' + esc(q.x) + '</span></span>'
-                    + '<span class="tb-qb">' + esc(q.b) + '</span></div>';
-            }).join('') + '</div>' : '';
-
         host.innerHTML = '<div class="tb-card-wrap">' + head
-            + '<div class="tb-grid">' + cards + '</div>' + queueHtml + '</div>';
+            + '<div class="tb-grid">' + cards + '</div></div>';
     }
 
     // ============================================================
@@ -309,8 +285,7 @@
             if (!s) { strip += '<div class="ms-sc"><span class="ms-sempty"></span></div>'; continue; }
             var st = shiftStatus(s, today), col = colorById(s.location_id), eve2 = isEvening(s);
             var op = st === 'soon' ? 0.5 : 0.92;
-            strip += '<div class="ms-sc"><span class="ms-sblk" style="height:' + (eve2 ? '56%' : '100%')
-                + ';background:' + rgba(col, op) + ';border:' + statusBorder(st) + '"></span></div>';
+            strip += '<div class="ms-sc"><span class="ms-sblk" style="' + blockStyle(col, op, eve2, st) + '"></span></div>';
         }
         html += '<div class="ms-lbl">МОЯ ПОЛОСА · ' + dows(new Date(S.state.year, S.state.month - 1, 1).getDay())
             + ' ' + pad2(1) + '–' + pad2(dim) + '.' + pad2(S.state.month) + '</div>';
@@ -375,14 +350,15 @@
 
         // СТАТУС СМЕНЫ
         var sts = [
-            { l: 'отработана', s: 'факт есть', b: '1px solid rgba(0,0,0,.06)', o: 0.92 },
-            { l: 'предстоит', s: '', b: '1px solid rgba(0,0,0,.06)', o: 0.5 },
-            { l: 'сегодня', s: 'идёт', b: '2px solid ' + ACCENT, o: 0.92 },
-            { l: 'ждёт факт', s: 'прошла без часов', b: '2px solid ' + AMBER, o: 0.92 },
-            { l: 'конфликт', s: 'просил выходной', b: '2px solid ' + RED, o: 0.92 }
+            { l: 'отработана', s: 'факт есть', r: '', o: 0.92 },
+            { l: 'предстоит', s: '', r: '', o: 0.5 },
+            { l: 'сегодня', s: 'идёт', r: '0 0 0 2px ' + ACCENT, o: 0.92 },
+            { l: 'ждёт факт', s: 'прошла без часов', r: '0 0 0 2px ' + AMBER, o: 0.92 },
+            { l: 'конфликт', s: 'просил выходной', r: '0 0 0 2px ' + RED, o: 0.92 }
         ].map(function (x) {
             return '<div class="lg-item"><span class="lg-sq" style="background:' + rgba(SAMPLE, x.o)
-                + ';border:' + x.b + '"></span><span class="lg-t">' + x.l
+                + ';border:1px solid rgba(0,0,0,.08)' + (x.r ? ';box-shadow:' + x.r : '')
+                + '"></span><span class="lg-t">' + x.l
                 + (x.s ? ' <span class="lg-x">· ' + x.s + '</span>' : '') + '</span></div>';
         }).join('');
 
