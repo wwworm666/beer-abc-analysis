@@ -1030,8 +1030,31 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 
 /* заголовки/блоки экранов на странице */
 .sc-block { margin-bottom: 18px; }
-.sc-h { margin: 0 0 10px; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.sc-h { display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+    font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
 .sc-h span { color: var(--text-tertiary); font-weight: 400; }
+
+/* Кнопка «План / Факт по дням» в шапке «Сегодня вживую» + раскрываемая панель */
+.sc-pf-btn { margin-left: auto; flex: none; font-size: 0.72rem; font-weight: 600;
+    color: var(--accent); background: var(--bg-secondary);
+    border: 1px solid rgba(217, 119, 87, 0.4); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.sc-pf-btn:hover { background: rgba(217, 119, 87, 0.08); }
+.sc-pf-btn.is-open { background: var(--accent); color: #fff; border-color: var(--accent); }
+.sc-pf-panel { margin-top: 12px; }
+
+/* Единый свёрнутый блок: заголовок + тизер + шеврон, тело скрыто по умолчанию */
+.sc-fold { background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: var(--sch-radius-sm, 14px); margin-bottom: 14px; overflow: hidden; }
+.sc-fold-head { width: 100%; display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; background: none; border: none; cursor: pointer; text-align: left; }
+.sc-fold-head:hover { background: var(--bg-tertiary); }
+.sc-fold-title { flex: none; font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.sc-fold-sub { flex: 1; min-width: 0; font-size: 0.72rem; color: var(--text-tertiary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-fold-chev { flex: none; color: var(--text-tertiary); font-size: 0.8rem; transition: transform .15s; }
+.sc-fold.is-open .sc-fold-chev { transform: rotate(180deg); }
+.sc-fold-body { padding: 0 16px 16px; }
+.sc-fold-actions { display: flex; justify-content: flex-end; margin-bottom: 10px; }
 
 /* Легенда — как читать график (ТОЧКА-ЦВЕТ / СМЕНА-ВЫСОТА / СТАТУС / НАГРУЗКА) */
 .lg-card { display: flex; flex-wrap: wrap; background: var(--bg-secondary);

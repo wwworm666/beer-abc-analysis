@@ -43,13 +43,22 @@
         document.getElementById('dayoffBtn').addEventListener('click', toggleDayoffBrush);
         document.getElementById('eraserBtn').addEventListener('click', toggleEraser);
 
+        // План/Факт — кнопка в виджете «Сегодня вживую» (панель под бордом)
         document.getElementById('planFactToggle').addEventListener('click', function () {
-            var body = document.getElementById('planFactCollapse');
-            body.style.display = body.style.display === 'none' ? '' : 'none';
+            var panel = document.getElementById('planFactPanel');
+            var open = panel.style.display === 'none';
+            panel.style.display = open ? '' : 'none';
+            this.classList.toggle('is-open', open);
         });
-        document.getElementById('empAdminToggle').addEventListener('click', function () {
-            var body = document.getElementById('empAdminBody');
-            body.style.display = body.style.display === 'none' ? '' : 'none';
+        // Единые сворачиваемые блоки (Пожелания / Сотрудники / Последние изменения)
+        document.querySelectorAll('[data-fold-toggle]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var fold = btn.closest('.sc-fold');
+                var body = fold.querySelector('.sc-fold-body');
+                var open = body.hasAttribute('hidden');
+                if (open) body.removeAttribute('hidden'); else body.setAttribute('hidden', '');
+                fold.classList.toggle('is-open', open);
+            });
         });
         document.getElementById('empSyncBtn').addEventListener('click', syncEmployees);
 
@@ -441,9 +450,16 @@
             data.forEach(function (w) { wishes[w.employee_name] = w.text; });
         }).catch(function () { wishes = {}; });
     }
+    // Тизер свёрнутого блока — короткая подпись «что внутри».
+    function setTeaser(id, text) {
+        var el = document.getElementById(id); if (el) el.textContent = text;
+    }
+
     function renderWishesBoard() {
         var grid = document.getElementById('wishesGrid');
         grid.innerHTML = '';
+        var filled = S.state.employees.filter(function (e) { return (wishes[e.name] || '').trim(); }).length;
+        setTeaser('wishesTeaser', filled ? filled + ' заполнено' : 'пока пусто — что учесть при графике');
         S.state.employees.forEach(function (emp) {
             var card = document.createElement('div');
             card.className = 'wish-card';
@@ -474,6 +490,8 @@
         S.api('/api/schedule/employees?all=1').then(function (allEmps) {
             var tbody = document.getElementById('empAdminBody').querySelector('tbody');
             tbody.innerHTML = '';
+            var active = allEmps.filter(function (e) { return e.active; }).length;
+            setTeaser('empsTeaser', allEmps.length + ' в реестре · ' + active + ' активных');
             allEmps.forEach(function (emp) {
                 var tr = document.createElement('tr');
                 if (!emp.active) tr.className = 'inactive-row';
@@ -571,8 +589,11 @@
         if (!list) return;
         if (!rows || !rows.length) {
             list.innerHTML = '<div class="feed-empty">Изменений за этот месяц пока нет</div>';
+            setTeaser('feedTeaser', 'изменений за месяц нет');
             return;
         }
+        var f0 = rows[0];
+        setTeaser('feedTeaser', (f0.actor_name || '—') + ' · ' + f0.summary);
         list.innerHTML = rows.map(function (r) {
             var color = FEED_DOT[r.action] || 'var(--accent, #d97706)';
             return '<div class="feed-row">'

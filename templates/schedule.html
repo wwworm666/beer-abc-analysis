@@ -68,8 +68,15 @@
       <!-- Десктоп: единая страница просмотра + редактирования. -->
       <div class="sc-desktop">
         <div class="sc-block">
-          <h2 class="sc-h">Сегодня вживую <span>— что идёт сейчас и что поправить</span></h2>
+          <h2 class="sc-h">Сегодня вживую <span>— что идёт сейчас и что поправить</span>
+            <button type="button" class="sc-pf-btn" id="planFactToggle">План / Факт по дням</button>
+          </h2>
           <div id="todayBoard"></div>
+          <!-- План / Факт по дням (деньги): по кнопке выше. Наружу барменам не идёт. -->
+          <div id="planFactPanel" class="sc-pf-panel" style="display: none;">
+            <div id="planFactBody"></div>
+            <div class="pf-cap">В ячейках точек: факт (сверху) / план (снизу), наведите для точных сумм. Итоговый % — за дни, где факт уже проставлен. Клик по дню — кто работал.</div>
+          </div>
         </div>
 
         <!-- Полосы по людям — РЕДАКТИРУЕМАЯ сетка. Кисть: точка + день/вечер;
@@ -106,52 +113,58 @@
           <div id="legend"></div>
         </div>
 
-        <!-- План / Факт по дням (деньги): свёрнут по умолчанию. -->
-        <div class="section-card">
-          <h2 class="pf-toggle" id="planFactToggle">
-            <span>План / Факт по дням</span>
-            <span class="pf-summary" id="planFactSummary"></span>
-          </h2>
-          <div id="planFactCollapse" style="display: none;">
-            <div id="planFactBody"></div>
-            <div class="pf-cap">В ячейках точек: факт (сверху) / план (снизу), наведите для точных сумм. Итоговый % — за дни, где факт уже проставлен. Клик по дню — кто работал.</div>
+        <!-- Доп. блоки в едином свёрнутом виде (тизер — что внутри; раскрыть кликом). -->
+
+        <!-- Пожелания сотрудников (редактируемые): что просят учесть. -->
+        <div class="sc-fold" id="foldWishes">
+          <button type="button" class="sc-fold-head" data-fold-toggle>
+            <span class="sc-fold-title">Пожелания</span>
+            <span class="sc-fold-sub" id="wishesTeaser">что учесть при графике</span>
+            <span class="sc-fold-chev">&#9662;</span>
+          </button>
+          <div class="sc-fold-body" hidden>
+            <div class="wishes-grid" id="wishesGrid"></div>
           </div>
         </div>
 
-        <!-- Пожелания сотрудников (редактируемые): что просят учесть. -->
-        <div class="section-card">
-          <h2>Пожелания</h2>
-          <div class="wishes-grid" id="wishesGrid"></div>
-        </div>
-
         <!-- Реестр сотрудников (управление): синк из iiko, метки, порядок, активность. -->
-        <div class="section-card">
-          <h2 style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="cursor: pointer;" id="empAdminToggle">Сотрудники (показать/скрыть)</span>
-            <button class="btn btn-secondary" id="empSyncBtn"
-                    title="Добавить в реестр новые имена из iiko. Никого не удаляет.">
-              Обновить из iiko
-            </button>
-          </h2>
-          <div id="empAdminBody" style="display: none;">
-            <table class="emp-admin-table">
-              <thead>
-                <tr>
-                  <th>Имя (как в iiko)</th>
-                  <th title="Короткая подпись для сетки, например РЮ">Метка</th>
-                  <th title="Порядок строк в сетке">Порядок</th>
-                  <th title="Неактивные скрыты из сетки, история остаётся">Активен</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+        <div class="sc-fold" id="foldEmps">
+          <button type="button" class="sc-fold-head" data-fold-toggle>
+            <span class="sc-fold-title">Сотрудники</span>
+            <span class="sc-fold-sub" id="empsTeaser">реестр, метки, активность</span>
+            <span class="sc-fold-chev">&#9662;</span>
+          </button>
+          <div class="sc-fold-body" hidden>
+            <div class="sc-fold-actions">
+              <button class="btn btn-secondary" id="empSyncBtn"
+                      title="Добавить в реестр новые имена из iiko. Никого не удаляет.">
+                Обновить из iiko
+              </button>
+            </div>
+            <div id="empAdminBody">
+              <table class="emp-admin-table">
+                <thead>
+                  <tr>
+                    <th>Имя (как в iiko)</th>
+                    <th title="Короткая подпись для сетки, например РЮ">Метка</th>
+                    <th title="Порядок строк в сетке">Порядок</th>
+                    <th title="Неактивные скрыты из сетки, история остаётся">Активен</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
         <!-- Лента последних изменений графика (кто что менял). -->
-        <div class="feed">
-          <div class="feed-card">
-            <div class="feed-head"><h3>Последние изменения</h3></div>
+        <div class="sc-fold" id="foldFeed">
+          <button type="button" class="sc-fold-head" data-fold-toggle>
+            <span class="sc-fold-title">Последние изменения</span>
+            <span class="sc-fold-sub" id="feedTeaser">кто что менял</span>
+            <span class="sc-fold-chev">&#9662;</span>
+          </button>
+          <div class="sc-fold-body" hidden>
             <div class="feed-list" id="feedList"></div>
           </div>
         </div>
