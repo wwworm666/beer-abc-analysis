@@ -229,10 +229,30 @@
     // ============================================================
     // ЭКРАН 3 — Мобильный «мои смены»
     // ============================================================
+    // Личный экран бармена: месяц-календарь (Пн→Вс) с блоком-сменой в каждом
+    // дне (цвет = точка, высота = день/вечер, рамка = статус), сводка
+    // смены/часы/без факта, мини-легенда и карточка выбранного дня с действием
+    // (ввести факт / отметить конец смены / править факт). Источник идеи —
+    // Claude Design «График смен — идеи» (мобильный экран).
+    var DOW_HDR = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+    // Блок-смена внутри ячейки календаря (px, не %): высота — день/вечер,
+    // ширина — день/вечер, рамка-кольцо — статус (сегодня/ждёт факт/конфликт).
+    function calBarStyle(col, st, eve) {
+        var bg = rgba(col, st === 'soon' ? 0.45 : 0.9);
+        var bd = '1px solid rgba(0,0,0,.06)';
+        if (st === 'today') { bd = '2px solid ' + ACCENT; bg = rgba(col, 0.85); }
+        else if (st === 'nofact') { bd = '2px solid ' + AMBER; bg = rgba(col, 0.18); }
+        else if (st === 'conflict') { bd = '2px solid ' + RED; bg = rgba(col, 0.5); }
+        return 'width:' + (eve ? '58%' : '100%') + ';height:' + (eve ? '9px' : '17px')
+            + ';background:' + bg + ';border:' + bd;
+    }
+
     function renderMyShifts(host, opts) {
         if (!host) return;
         opts = opts || {};
         var today = S.todayStr();
+        var year = S.state.year, month = S.state.month;
         // найти сотрудника: по iiko_id (привязка аккаунта) или по имени
         var emp = null;
         if (opts.employeeIikoId) {
@@ -245,91 +265,174 @@
             host.innerHTML = '<div class="ms-note">Аккаунт не привязан к сотруднику — личный график недоступен.</div>';
             return;
         }
-        var mine = shiftsOf(emp).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
-        var locName = function (id) { var l = locById(id); return l ? (l.short_name || l.name) : ''; };
-
-        function dlabel(ds) {
-            var q = ds.split('-'); var dd = new Date(+q[0], +q[1] - 1, +q[2]);
-            return dows(dd.getDay()) + ' · ' + q[2] + '.' + q[1];
-        }
-
-        var html = '';
-        // заголовок
-        html += '<div class="ms-top"><div class="ms-av">' + esc(S.employeeLabel(emp.name)) + '</div>'
-            + '<div><div class="ms-t">Мои смены</div><div class="ms-sub">' + esc(emp.name) + '</div></div></div>';
-
-        // сегодня / идёт
-        var todayShift = mine.filter(function (s) { return s.date === today; })[0];
-        if (todayShift) {
-            var eve = isEvening(todayShift);
-            html += '<div class="ms-card ms-today">'
-                + '<div class="ms-live"><span class="tb-live"></span><span>СЕГОДНЯ · ИДЁТ</span></div>'
-                + '<div class="ms-trow"><span class="ms-bar">' + esc(locName(todayShift.location_id)) + '</span>'
-                + '<span class="ms-role">' + (eve ? 'вечер · второй бармен' : 'день · бармен') + '</span></div>'
-                + (todayShift.start_time ? '<div class="ms-start">старт ' + esc(todayShift.start_time) + '</div>' : '')
-                + '</div>';
-        }
-
-        // нужен факт часов (прошлые без факта)
-        var pending = mine.filter(function (s) { return s.date < today && s.fact_minutes == null; });
-        if (pending.length) {
-            html += '<div class="ms-lbl">НУЖЕН ФАКТ ЧАСОВ</div>';
-            html += pending.map(function (s) {
-                return '<div class="ms-pend" data-shift-id="' + esc(s.id) + '">'
-                    + '<div class="ms-pmain"><div class="ms-pd">' + esc(dlabel(s.date)) + '</div>'
-                    + '<div class="ms-pb">' + esc(locName(s.location_id)) + ' · ' + (isEvening(s) ? 'вечер' : 'день') + '</div></div>'
-                    + '<div class="ms-pbtn">ввести факт</div></div>';
-            }).join('');
-        }
-
-        // моя полоса (этот месяц)
-        var dim = daysInMonth(), byDate = {};
+        var mine = shiftsOf(emp);
+        var byDate = {};
         mine.forEach(function (s) { if (!byDate[s.date]) byDate[s.date] = s; });
-        var strip = '';
-        for (var d = 1; d <= dim; d++) {
-            var ds = S.dateStr(S.state.year, S.state.month, d);
-            var s = byDate[ds];
-            if (!s) { strip += '<div class="ms-sc"><span class="ms-sempty"></span></div>'; continue; }
-            var st = shiftStatus(s, today), col = colorById(s.location_id), eve2 = isEvening(s);
-            var op = st === 'soon' ? 0.5 : 0.92;
-            strip += '<div class="ms-sc"><span class="ms-sblk" style="' + blockStyle(col, op, eve2, st) + '"></span></div>';
-        }
-        html += '<div class="ms-lbl">МОЯ ПОЛОСА · ' + dows(new Date(S.state.year, S.state.month - 1, 1).getDay())
-            + ' ' + pad2(1) + '–' + pad2(dim) + '.' + pad2(S.state.month) + '</div>';
-        html += '<div class="ms-strip">' + strip + '</div>';
+        var locName = function (id) { var l = locById(id); return l ? (l.short_name || l.name) : ''; };
+        function offReqOn(ds) { return S.getDayOffEmployees(ds).indexOf(emp.name) !== -1; }
 
-        // ближайшие смены
-        var upcoming = mine.filter(function (s) { return s.date > today; }).slice(0, 5);
-        if (upcoming.length) {
-            html += '<div class="ms-lbl">БЛИЖАЙШИЕ СМЕНЫ</div>';
-            html += upcoming.map(function (s) {
-                return '<div class="ms-up"><span class="ms-udot" style="background:' + colorById(s.location_id) + '"></span>'
-                    + '<span class="ms-ud">' + esc(dlabel(s.date)) + '</span>'
-                    + '<span class="ms-ub">' + esc(locName(s.location_id)) + ' · ' + (isEvening(s) ? 'вечер' : 'день') + '</span>'
-                    + '<span class="ms-ut">' + esc(s.start_time || '') + '</span></div>';
-            }).join('');
-        }
+        var dim = daysInMonth();
+        var monthPrefix = year + '-' + pad2(month);
+        var todayInMonth = today.indexOf(monthPrefix) === 0;
 
-        // действия + сводка
+        // сводка месяца
         var monthCount = mine.length;
+        var factMin = 0;
+        mine.forEach(function (s) { if (s.fact_minutes != null) factMin += s.fact_minutes; });
+        var factH = Math.round(factMin / 60);
         var noFact = mine.filter(function (s) { return s.date < today && s.fact_minutes == null; }).length;
-        html += '<div class="ms-acts"><div class="ms-act ms-act-out">Запросить выходной</div>';
-        if (opts.icsHref) html += '<a class="ms-act ms-act-ics" href="' + esc(opts.icsHref) + '">.ics</a>';
-        html += '</div>';
-        html += '<div class="ms-stat">' + monthCount + '/15 смен · '
-            + (noFact ? noFact + ' без факта' : 'факт везде') + '</div>';
 
-        host.innerHTML = html;
+        // точки сотрудника (для подзаголовка и мини-легенды)
+        var venueIdx = [];
+        mine.forEach(function (s) { var i = locIndex(s.location_id); if (i >= 0 && venueIdx.indexOf(i) === -1) venueIdx.push(i); });
+        venueIdx.sort(function (a, b) { return a - b; });
 
-        // клик по «нужен факт» — ввод
-        if (S._onScreenShiftClick) {
-            host.querySelectorAll('.ms-pend').forEach(function (el) {
+        // выбранный день по умолчанию: сегодня (если месяц текущий), иначе первый
+        // день без факта, иначе первая смена, иначе 1.
+        var selN;
+        if (todayInMonth) selN = +today.slice(8, 10);
+        else {
+            var firstNoFact = mine.filter(function (s) { return s.date < today && s.fact_minutes == null; })
+                .sort(function (a, b) { return a.date < b.date ? -1 : 1; })[0];
+            var firstShift = mine.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; })[0];
+            selN = firstNoFact ? +firstNoFact.date.slice(8, 10)
+                : (firstShift ? +firstShift.date.slice(8, 10) : 1);
+        }
+
+        // ---- статические части (шапка, сводка, легенда, действия) ----
+        var venues = venueIdx.map(function (i) { return S.state.locations[i].short_name || S.state.locations[i].name; });
+        var sub = esc(emp.name) + (venues.length ? ' · ' + esc(venues.join(' · ')) : '');
+        var headHtml = '<div class="ms-top"><div class="ms-av">' + esc(S.employeeLabel(emp.name)) + '</div>'
+            + '<div class="ms-tt"><div class="ms-t">Мои смены</div><div class="ms-sub">' + sub + '</div></div></div>';
+
+        var overShifts = monthCount > NORM_SHIFTS;
+        var chipsHtml = '<div class="ms-chips">'
+            + '<div class="ms-chip"><div class="ms-ck">смены</div><div class="ms-cv"' + (overShifts ? ' style="color:' + AMBER + '"' : '') + '>'
+            + monthCount + '<span class="ms-cn2">/' + NORM_SHIFTS + '</span></div></div>'
+            + '<div class="ms-chip"><div class="ms-ck">часы</div><div class="ms-cv">'
+            + factH + '<span class="ms-cn2">/' + NORM_HOURS + '</span></div></div>'
+            + '<div class="ms-chip' + (noFact ? ' ms-chip-warn' : '') + '"><div class="ms-ck">без факта</div>'
+            + '<div class="ms-cv"' + (noFact ? ' style="color:' + AMBER + '"' : '') + '>' + noFact + '</div></div>'
+            + '</div>';
+
+        // мини-легенда: точки сотрудника + смысл высоты/колец
+        var legVenues = venueIdx.map(function (i) {
+            var loc = S.state.locations[i];
+            return '<span class="ms-lgi"><span class="ms-lgsq" style="background:' + locColor(loc, i)
+                + '"></span>' + esc(loc.short_name || loc.name) + '</span>';
+        }).join('');
+        var legendHtml = '<div class="ms-leg">' + legVenues
+            + '<span class="ms-lgi">высота — день/вечер</span>'
+            + '<span class="ms-lgi" style="color:' + ACCENT + '">кольцо — сегодня</span>'
+            + '<span class="ms-lgi" style="color:' + AMBER + '">кольцо — ждёт факт</span>'
+            + '<span class="ms-lgi"><span class="ms-lgoff"></span>выходной по заявке</span>'
+            + '</div>';
+
+        var actsHtml = '<div class="ms-acts"><div class="ms-act ms-act-out">Запросить выходной</div>'
+            + (opts.icsHref ? '<a class="ms-act ms-act-ics" href="' + esc(opts.icsHref) + '">.ics</a>' : '')
+            + '</div>';
+
+        // ---- календарь (зависит от выбранного дня) ----
+        function calendarHtml(sel) {
+            var firstDow = new Date(year, month - 1, 1).getDay();
+            var lead = (firstDow + 6) % 7; // понедельник = 0
+            var cells = DOW_HDR.map(function (d, i) {
+                return '<div class="ms-wd' + (i >= 5 ? ' is-wknd' : '') + '">' + d + '</div>';
+            }).join('');
+            for (var b = 0; b < lead; b++) cells += '<div class="ms-cell ms-blank"></div>';
+            for (var n = 1; n <= dim; n++) {
+                var ds = S.dateStr(year, month, n);
+                var dow = new Date(year, month - 1, n).getDay();
+                var wknd = isWeekend(dow);
+                var isToday = ds === today;
+                var isSel = n === sel;
+                var s = byDate[ds];
+                var off = !s && offReqOn(ds);
+                var cls = 'ms-cell' + (isToday ? ' is-today' : '') + (isSel ? ' is-sel' : '');
+                var numCls = 'ms-cnum' + (isToday ? ' is-today' : (wknd ? ' is-wknd' : ''));
+                var inner;
+                if (s) {
+                    var st = shiftStatus(s, today), col = colorById(s.location_id), eve = isEvening(s);
+                    inner = '<span class="ms-cbar" style="' + calBarStyle(col, st, eve) + '"></span>';
+                } else if (off) {
+                    inner = '<span class="ms-coff"></span>';
+                } else {
+                    inner = '';
+                }
+                cells += '<div class="' + cls + '" data-n="' + n + '">'
+                    + '<span class="' + numCls + '">' + n + '</span>'
+                    + '<span class="ms-cwrap">' + inner + '</span></div>';
+            }
+            return '<div class="ms-cal">' + cells + '</div>';
+        }
+
+        // ---- карточка выбранного дня ----
+        var PILL = {
+            done: ['отработана', '#4f7a3e', '#e4eedb'],
+            nofact: ['ждёт факт', '#a9772a', '#f7e6c6'],
+            soon: ['предстоит', '#6f7c9a', '#e7eaf1'],
+            today: ['идёт сейчас', ACCENT, '#f7e6d8'],
+            conflict: ['конфликт', RED, '#eec3b3']
+        };
+        function detailHtml(sel) {
+            var ds = S.dateStr(year, month, sel);
+            var dow = new Date(year, month - 1, sel).getDay();
+            var s = byDate[ds];
+            var dateLbl = dows(dow) + ' · ' + pad2(sel) + '.' + pad2(month);
+            var out = '<div class="ms-lbl">ВЫБРАННЫЙ ДЕНЬ</div>';
+            if (s) {
+                var st = shiftStatus(s, today), eve = isEvening(s), col = colorById(s.location_id);
+                var pill = PILL[st] || ['', '#6f675c', '#eeeae2'];
+                var role = eve ? 'вечер · второй бармен' : 'день · бармен';
+                var hours = st === 'done' ? 'факт ' + S.minutesToHhMm(s.fact_minutes)
+                    : (st === 'nofact' ? 'часы не введены' : '');
+                // кнопка действия
+                var btn = '';
+                if (st === 'nofact') btn = '<div class="ms-dbtn ms-dbtn-warn" data-act="fact" data-shift-id="' + esc(s.id) + '">Ввести факт часов</div>';
+                else if (st === 'today') btn = '<div class="ms-dbtn ms-dbtn-dark" data-act="fact" data-shift-id="' + esc(s.id) + '">Отметить конец смены</div>';
+                else if (st === 'done') btn = '<div class="ms-dbtn" data-act="fact" data-shift-id="' + esc(s.id) + '">Факт ' + S.minutesToHhMm(s.fact_minutes) + ' · править</div>';
+                return out + '<div class="ms-card' + (st === 'today' ? ' ms-today' : '') + '">'
+                    + '<div class="ms-drow"><span class="ms-dd">' + esc(dateLbl) + '</span>'
+                    + '<span class="ms-pill" style="color:' + pill[1] + ';background:' + pill[2] + '">' + esc(pill[0]) + '</span></div>'
+                    + '<div class="ms-dwho"><span class="ms-dsq" style="background:' + col + '"></span>'
+                    + '<span class="ms-dpt">' + esc(locName(s.location_id)) + '</span>'
+                    + '<span class="ms-drole">' + role + '</span></div>'
+                    + '<div class="ms-dmeta">' + (s.start_time ? '<span>старт ' + esc(s.start_time) + '</span>' : '')
+                    + (hours ? '<span class="ms-dh">' + esc(hours) + '</span>' : '') + '</div>'
+                    + btn + '</div>';
+            }
+            // выходной / не назначено
+            var off = offReqOn(ds);
+            return out + '<div class="ms-card">'
+                + '<div class="ms-drow"><span class="ms-dd">' + esc(dateLbl) + '</span>'
+                + '<span class="ms-pill" style="color:#8a8073;background:#efe9de">' + (off ? 'выходной по заявке' : 'выходной') + '</span></div>'
+                + '<div class="ms-doff">' + (off
+                    ? 'Вы подали заявку на выходной — смена не назначена.'
+                    : 'Смена не назначена. Можно подать пожелание выйти в этот день.') + '</div></div>';
+        }
+
+        // ---- сборка + перерисовка по выбранному дню ----
+        function paint() {
+            host.innerHTML = headHtml + chipsHtml + calendarHtml(selN) + legendHtml
+                + detailHtml(selN) + actsHtml;
+            // выбор дня
+            host.querySelectorAll('.ms-cell[data-n]').forEach(function (el) {
                 el.addEventListener('click', function () {
-                    var sh = S.state.shifts.filter(function (s) { return String(s.id) === el.dataset.shiftId; })[0];
-                    if (sh) S._onScreenShiftClick(sh);
+                    selN = +el.dataset.n;
+                    paint();
                 });
             });
+            // кнопка действия в карточке дня — ввод/правка факта
+            if (S._onScreenShiftClick) {
+                host.querySelectorAll('.ms-dbtn[data-act="fact"]').forEach(function (el) {
+                    el.addEventListener('click', function () {
+                        var sh = S.state.shifts.filter(function (s) { return String(s.id) === el.dataset.shiftId; })[0];
+                        if (sh) S._onScreenShiftClick(sh);
+                    });
+                });
+            }
         }
+        paint();
     }
 
     // ============================================================
