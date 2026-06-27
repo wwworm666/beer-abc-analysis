@@ -183,25 +183,48 @@
         return Math.round(c.fact / c.plan * 100);
     }
 
+    // Выбранный день борда (по умолчанию сегодня). Стрелки ‹ › листают день в
+    // пределах загруженного месяца — данные уже в state, без новых запросов.
+    var boardDate = null;
+    function clampBoardDate() {
+        var today = S.todayStr();
+        var prefix = S.state.year + '-' + pad2(S.state.month);
+        var dim = daysInMonth();
+        if (!boardDate || boardDate.indexOf(prefix) !== 0) {
+            boardDate = today.indexOf(prefix) === 0 ? today : S.dateStr(S.state.year, S.state.month, 1);
+        }
+        var d = +boardDate.slice(8, 10);
+        if (d < 1) boardDate = S.dateStr(S.state.year, S.state.month, 1);
+        else if (d > dim) boardDate = S.dateStr(S.state.year, S.state.month, dim);
+        return boardDate;
+    }
+
     function renderTodayBoard(host) {
         if (!host) return;
         var today = S.todayStr();
-        var p = today.split('-');
+        var ds = clampBoardDate();
+        var p = ds.split('-');
         var dt = new Date(+p[0], +p[1] - 1, +p[2]);
-        var yest = S.dateStr(dt.getFullYear(), dt.getMonth() + 1, dt.getDate() - 1);
+        var prev = S.dateStr(dt.getFullYear(), dt.getMonth() + 1, dt.getDate() - 1);
+        var dim = daysInMonth(), dnum = +p[2];
+        var isToday = ds === today, isPast = ds < today;
 
-        var head = '<div class="tb-head"><span class="tb-live"></span>'
+        var tag = isToday ? '<span class="tb-tag">смены идут</span>'
+            : '<span class="tb-tag tb-tag-mut">' + (isPast ? 'смены закрыты' : 'план') + '</span>';
+        var head = '<div class="tb-head">'
+            + '<button class="tb-nav' + (dnum <= 1 ? ' is-disabled' : '') + '" data-step="-1" title="День назад">‹</button>'
+            + '<span class="tb-live' + (isToday ? '' : ' tb-live-off') + '"></span>'
             + '<span class="tb-date">' + dows(dt.getDay()) + ' · ' + p[2] + '.' + p[1] + '</span>'
-            + '<span class="tb-tag">смены идут</span>'
-            + '<span class="tb-os">&gt; kultura.os</span></div>';
+            + '<button class="tb-nav' + (dnum >= dim ? ' is-disabled' : '') + '" data-step="1" title="День вперёд">›</button>'
+            + tag + '<span class="tb-os">&gt; kultura.os</span></div>';
 
         var cards = S.state.locations.map(function (loc, i) {
             var col = locColor(loc, i);
-            var todays = S.state.shifts.filter(function (s) {
-                return s.date === today && s.location_id === loc.id;
+            var dayList = S.state.shifts.filter(function (s) {
+                return s.date === ds && s.location_id === loc.id;
             });
-            var dayS = todays.filter(function (s) { return !isEvening(s); })[0];
-            var eveS = todays.filter(function (s) { return isEvening(s); })[0];
+            var dayS = dayList.filter(function (s) { return !isEvening(s); })[0];
+            var eveS = dayList.filter(function (s) { return isEvening(s); })[0];
             function line(s, dot) {
                 if (!s) return '<div class="tb-person tb-empty"><span class="tb-pdot" style="background:'
                     + dot + '"></span><span class="tb-pn">—</span></div>';
@@ -209,21 +232,34 @@
                     + '<span class="tb-pn">' + esc(S.employeeShortName(s.employee_name)) + '</span>'
                     + '<span class="tb-pt">' + esc(s.start_time || '') + '</span></div>';
             }
-            var pct = planPct(today, loc.id);
-            var yp = planPct(yest, loc.id);
+            var pct = planPct(ds, loc.id);
+            var yp = planPct(prev, loc.id);
             var w = pct == null ? 3 : Math.max(3, Math.min(100, pct));
+            var prevLbl = isToday ? 'вчера' : (prev.slice(8, 10) + '.' + prev.slice(5, 7));
             return '<div class="tb-card">'
                 + '<div class="tb-bar"><span class="tb-sq" style="background:' + col + '"></span>'
                 + '<span class="tb-bn">' + esc(loc.short_name || loc.name) + '</span></div>'
                 + line(dayS, '#5e8c4a') + line(eveS, '#c98a32')
                 + '<div class="tb-prog"><span style="width:' + w + '%"></span></div>'
-                + '<div class="tb-foot"><span>факт <b>' + (pct == null ? '—' : pct + '%') + '</b> идёт</span>'
-                + '<span class="tb-y">вчера ' + (yp == null ? '—' : yp + '%') + '</span></div>'
+                + '<div class="tb-foot"><span>факт <b>' + (pct == null ? '—' : pct + '%') + '</b>'
+                + (isToday ? ' идёт' : '') + '</span>'
+                + '<span class="tb-y">' + prevLbl + ' ' + (yp == null ? '—' : yp + '%') + '</span></div>'
                 + '</div>';
         }).join('');
 
         host.innerHTML = '<div class="tb-card-wrap">' + head
             + '<div class="tb-grid">' + cards + '</div></div>';
+
+        // листание дня — перерисовать борд на месте (без запросов)
+        host.querySelectorAll('.tb-nav').forEach(function (el) {
+            el.addEventListener('click', function () {
+                if (el.classList.contains('is-disabled')) return;
+                var nd = +boardDate.slice(8, 10) + (+el.dataset.step);
+                if (nd < 1 || nd > dim) return;
+                boardDate = S.dateStr(S.state.year, S.state.month, nd);
+                renderTodayBoard(host);
+            });
+        });
     }
 
     // ============================================================
