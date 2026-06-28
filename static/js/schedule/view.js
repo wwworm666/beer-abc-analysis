@@ -265,9 +265,15 @@
         })[0] || null;
     }
     function onCell(emp, day, ds, existing) {
-        if (!editMode) return;   // режим просмотра — сетка только для чтения
-        if (saving) return;
         var list = existing || [];
+        if (!editMode) {
+            // Режим просмотра: структуру не меняем, но по клику на смену открываем
+            // ввод/правку факта часов (день в приоритете, как и отрисованный в клетке блок).
+            var s = slotShift(list, 'day') || list[0] || null;
+            if (s) openFactModal(s);
+            return;
+        }
+        if (saving) return;
         if (brushMode === 'eraser') {
             // снять смену слота кисти; если такой нет — любую смену дня
             var toErase = slotShift(list, brushRole) || list[0] || null;
@@ -490,7 +496,8 @@
 
     // ==================== Денежная панель дня ====================
     // Открывается кликом по номеру дня в шапке полос. План — из весов дней,
-    // факт — живой iiko OLAP. Деньги только тут (наружу барменам не идут).
+    // факт — живой iiko OLAP. Свёрнута по умолчанию, но доступна всем залогиненным
+    // (права равные, финансовые данные открыты — ограничения «только владельцу» нет).
 
     function toggleDayPanel(ds) {
         var panel = document.getElementById('dayPanel');

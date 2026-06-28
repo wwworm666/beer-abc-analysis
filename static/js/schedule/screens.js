@@ -619,12 +619,16 @@
                         + (off ? '<span class="el-dayoff-blk" title="обязательный выходной"></span>' : '') + '</div>';
                 }
                 var col = colorById(s.location_id), eve = isEvening(s), future = x.ds > today;
+                // ждёт факт: прошедшая смена без введённого факта часов (как в легенде)
+                var nofact = x.ds < today && s.fact_minutes == null;
                 var bd = '1px solid rgba(0,0,0,.06)';
-                if (x.ds === today) bd = '2px solid ' + ACCENT;
-                if (off) bd = '2px solid ' + RED;
+                if (nofact) bd = '2px solid ' + AMBER;            // ждёт факт
+                if (x.ds === today) bd = '2px solid ' + ACCENT;   // сегодня
+                if (off) bd = '2px solid ' + RED;                 // конфликт с выходным
                 var loc = locById(s.location_id);
                 var tip = (loc ? (loc.short_name || loc.name) : '') + ' · ' + (eve ? 'вечер' : 'день')
-                    + (s.start_time ? ' · ' + s.start_time : '') + (off ? ' · конфликт с выходным' : '');
+                    + (s.start_time ? ' · ' + s.start_time : '')
+                    + (nofact ? ' · ждёт факт' : '') + (off ? ' · конфликт с выходным' : '');
                 var blk = '<span class="el-blk" style="height:' + (eve ? '9px' : '16px')
                     + ';background:' + rgba(col, future ? 0.5 : 0.9) + ';border:' + bd + '"></span>';
                 return '<div class="el-cell' + dayCls(x) + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
