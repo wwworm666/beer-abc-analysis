@@ -63,10 +63,17 @@
     <main class="main-content">
       <!-- Мобильный (≤700px): личный экран бармена «мои смены» (renderMyShifts).
            Кнопка «Запросить выходной» ставит/снимает выходной на выбранный день. -->
-      <div class="sc-mobile"><div id="myShifts" class="ms-wrap"></div></div>
+      <div class="sc-mobile">
+        <div id="myShifts" class="ms-wrap"></div>
+        <!-- Мобильный: переход к полному графику по всем сотрудникам (только просмотр). -->
+        <button type="button" class="ms-fullbtn" id="mobileFullBtn">Весь график по сотрудникам</button>
+      </div>
 
-      <!-- Десктоп: единая страница просмотра + редактирования. -->
+      <!-- Десктоп: единая страница просмотра + редактирования.
+           На мобильном показывается по кнопке «Весь график» (body.ms-fullview). -->
       <div class="sc-desktop">
+        <!-- Мобильный возврат к личному экрану (на десктопе скрыта). -->
+        <button type="button" class="ms-backbtn" id="mobileBackBtn">&larr; Мои смены</button>
         <div class="sc-block">
           <h2 class="sc-h">Что сейчас <span>— смены и выполнение плана</span>
             <button type="button" class="sc-pf-btn" id="planFactToggle">План / Факт по дням</button>

@@ -880,9 +880,31 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 /* show/hide по устройству */
 .sc-desktop { display: block; }
 .sc-mobile { display: none; }
+/* Кнопки перехода мобайл<->полный график видны только на узком экране. */
+.ms-fullbtn, .ms-backbtn { display: none; }
 @media (max-width: 700px) {
     .sc-desktop { display: none; }
     .sc-mobile { display: block; }
+
+    /* По кнопке «Весь график» на мобильном показываем полную сетку (только просмотр),
+       личный экран прячем; возврат — кнопкой «Мои смены». Сетка скроллится по горизонтали. */
+    body.ms-fullview .sc-mobile { display: none; }
+    body.ms-fullview .sc-desktop { display: block; }
+
+    .ms-fullbtn {
+        display: block; width: 100%; margin-top: 12px;
+        padding: 12px 14px; border: 1px solid var(--border-color);
+        border-radius: var(--sch-radius-sm, 12px); background: var(--bg-secondary);
+        color: var(--text-primary); font-family: inherit; font-size: 0.92rem;
+        font-weight: 600; cursor: pointer;
+    }
+    .ms-fullbtn:active { background: var(--bg-hover); }
+    body.ms-fullview .ms-backbtn {
+        display: block; margin: 0 0 12px; padding: 10px 14px;
+        border: 1px solid var(--border-color); border-radius: var(--sch-radius-sm, 12px);
+        background: var(--bg-secondary); color: var(--text-primary);
+        font-family: inherit; font-size: 0.92rem; font-weight: 600; cursor: pointer;
+    }
 }
 
 /* ---------- Экран 1: полосы по людям ---------- */

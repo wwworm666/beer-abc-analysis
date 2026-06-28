@@ -27,8 +27,9 @@
     var EDIT_MODE_KEY = 'schedule.editMode';
     var editMode = readEditMode();
     function readEditMode() {
-        try { return localStorage.getItem(EDIT_MODE_KEY) !== '0'; } // по умолчанию вкл.
-        catch (e) { return true; }
+        // По умолчанию ВЫКЛ: страница открывается в просмотре, правки — по кнопке.
+        try { return localStorage.getItem(EDIT_MODE_KEY) === '1'; }
+        catch (e) { return false; }
     }
     function saveEditMode(on) {
         try { localStorage.setItem(EDIT_MODE_KEY, on ? '1' : '0'); } catch (e) { /* приватный режим */ }
@@ -55,6 +56,16 @@
         document.getElementById('dayoffBtn').addEventListener('click', toggleDayoffBrush);
         document.getElementById('eraserBtn').addEventListener('click', toggleEraser);
         document.getElementById('editModeToggle').addEventListener('click', toggleEditMode);
+
+        // Мобильный: показать/скрыть полный график по сотрудникам (только просмотр).
+        document.getElementById('mobileFullBtn').addEventListener('click', function () {
+            document.body.classList.add('ms-fullview');
+            window.scrollTo(0, 0);
+        });
+        document.getElementById('mobileBackBtn').addEventListener('click', function () {
+            document.body.classList.remove('ms-fullview');
+            window.scrollTo(0, 0);
+        });
 
         // План/Факт — кнопка в виджете «Сегодня вживую» (панель под бордом)
         document.getElementById('planFactToggle').addEventListener('click', function () {
