@@ -18,6 +18,11 @@
     padding: 10px 24px;
     border-bottom: 1px solid var(--border-color);
     flex-wrap: wrap;
+    /* Переключение месяца остаётся под рукой при прокрутке длинной сетки.
+       Ниже модалки (z 1000) и тоста (z 2000). Фон непрозрачный — контент уезжает под панель. */
+    position: sticky;
+    top: 0;
+    z-index: 50;
 }
 
 .month-nav button.nav-btn {
@@ -59,16 +64,6 @@
 .month-nav .page-switch:hover {
     color: var(--accent);
     border-color: var(--accent);
-}
-
-/* ==================== Sticky-панель управления ==================== */
-/* Месяц-нав + кисть + предупреждения едут вместе и остаются под рукой при
-   прокрутке длинной сетки. Фон у вложенных полос непрозрачный, поэтому контент
-   корректно уезжает под панель. Ниже модалки (z 1000) и тоста (z 2000). */
-.sched-controls {
-    position: sticky;
-    top: 0;
-    z-index: 50;
 }
 
 /* ==================== Двухколоночная раскладка ==================== */
@@ -804,7 +799,21 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .btn-secondary:hover { background: var(--bg-hover); }
 .btn-danger { background: var(--danger); color: white; }
 .btn-success { background: var(--success); color: white; }
-.btn[disabled] { opacity: 0.6; cursor: wait; }
+/* disabled != загрузка: песочные часы только у явно грузящихся кнопок (.is-loading). */
+.btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+.btn.is-loading { cursor: wait; }
+
+/* Доступность с клавиатуры: видимый фокус на интерактивных элементах сетки/кнопках. */
+.btn:focus-visible,
+.nav-btn:focus-visible,
+.sc-pf-btn:focus-visible,
+.el-cell:focus-visible,
+.el-dh:focus-visible,
+.tb-nav:focus-visible,
+[data-fold-toggle]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
 
 .main-content {
     padding: 24px;
@@ -948,6 +957,11 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .tb-pdot { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .tb-pn { font-size: 0.72rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tb-pt { margin-left: auto; font-size: 0.6rem; color: var(--text-tertiary); flex: none; }
+/* Имена дневного и вечернего бармена в одну строку, разделитель «/». */
+.tb-people { flex-wrap: nowrap; overflow: hidden; }
+.tb-people .tb-pn { flex: 0 1 auto; }
+.tb-people .tb-pt { margin-left: 3px; }
+.tb-psep { flex: none; color: var(--text-tertiary); margin: 0 2px; }
 .tb-prog { height: 6px; border-radius: 3px; background: var(--bg-tertiary); overflow: hidden; margin: 8px 0 5px; }
 .tb-prog > span { display: block; height: 100%; background: var(--accent); }
 .tb-foot { display: flex; justify-content: space-between; font-size: 0.6rem; color: var(--text-secondary); }

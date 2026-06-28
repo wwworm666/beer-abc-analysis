@@ -65,6 +65,10 @@ class ShiftsManager:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=5000")
             conn.execute("PRAGMA synchronous=NORMAL")
+            # FK в SQLite по умолчанию выключены, хотя в схеме объявлены. Без этого
+            # смена создаётся с несуществующими location_id/role_id (orphan), а INNER JOIN
+            # потом прячет её из сетки и занижает часы. Включаем на каждом подключении.
+            conn.execute("PRAGMA foreign_keys=ON")
             yield conn
         finally:
             conn.close()
@@ -531,9 +535,11 @@ class ShiftsManager:
                 return cursor.rowcount > 0
 
     def update_shift(self, shift_id: int, **kwargs) -> bool:
-        """Обновить смену."""
+        """Обновить смену. Факт часов сюда НЕ входит — он меняется только через
+        set_shift_fact (роут /fact с проверкой 0..1440), чтобы битые минуты не
+        попадали в расчёт ЗП в обход валидации."""
         allowed = {'date', 'employee_name', 'location_id', 'role_id', 'notes',
-                   'start_time', 'fact_minutes'}
+                   'start_time'}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return False
@@ -656,41 +662,28 @@ class ShiftsManager:
 
     def update_revenue(self, date_str: str, location_id: int,
                        plan_revenue: float = None, fact_revenue: float = None) -> bool:
-        """Обновить или создать запись о выручке."""
+        """Обновить или создать запись о выручке (атомарный UPSERT).
+
+        Read-modify-write (SELECT, затем UPDATE/INSERT) под per-process Lock не защищал
+        от гонки между 2 воркерами gunicorn: оба видели «строки нет» и шли в INSERT ->
+        UNIQUE(date, location_id) -> IntegrityError у второго -> 500, а sync-month рвался
+        на середине месяца. Единый INSERT ... ON CONFLICT делает это одной атомарной
+        операцией и идемпотентно. None-аргумент сохраняет прежнее значение (COALESCE);
+        у новой строки plan по умолчанию 0, fact = NULL — как раньше.
+        """
+        now = datetime.now().isoformat()
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-
-                cursor.execute(
-                    'SELECT id FROM daily_revenue WHERE date = ? AND location_id = ?',
-                    (date_str, location_id)
-                )
-                existing = cursor.fetchone()
-
-                if existing:
-                    updates = []
-                    params = []
-                    if plan_revenue is not None:
-                        updates.append('plan_revenue = ?')
-                        params.append(plan_revenue)
-                    if fact_revenue is not None:
-                        updates.append('fact_revenue = ?')
-                        params.append(fact_revenue)
-
-                    if updates:
-                        updates.append('updated_at = ?')
-                        params.append(datetime.now().isoformat())
-                        params.append(existing['id'])
-                        cursor.execute(
-                            f'UPDATE daily_revenue SET {", ".join(updates)} WHERE id = ?',
-                            params
-                        )
-                else:
-                    cursor.execute('''
-                        INSERT INTO daily_revenue (date, location_id, plan_revenue, fact_revenue)
-                        VALUES (?, ?, ?, ?)
-                    ''', (date_str, location_id, plan_revenue or 0, fact_revenue))
-
+                cursor.execute('''
+                    INSERT INTO daily_revenue (date, location_id, plan_revenue, fact_revenue, updated_at)
+                    VALUES (?, ?, COALESCE(?, 0), ?, ?)
+                    ON CONFLICT(date, location_id) DO UPDATE SET
+                        plan_revenue = COALESCE(?, plan_revenue),
+                        fact_revenue = COALESCE(?, fact_revenue),
+                        updated_at = ?
+                ''', (date_str, location_id, plan_revenue, fact_revenue, now,
+                      plan_revenue, fact_revenue, now))
                 conn.commit()
                 return True
 
@@ -906,8 +899,11 @@ class ShiftsManager:
         """Записать действие в журнал изменений графика (append-only).
 
         action — машинный код (shift_create / shift_update / shift_delete /
-        fact_set / fact_clear / dayoff_create / dayoff_delete). summary — готовая
-        русская строка для показа. actor_name — снимок display_name автора
+        fact_set / fact_clear / dayoff_create / dayoff_delete / role_rate /
+        revenue_set / revenue_sync / revenue_sync_month / employee_update /
+        employees_sync). summary — готовая русская строка для показа. Изменения без
+        собственной даты (ставка, реестр) логируются с entity_date = сегодня, чтобы
+        попасть в историю текущего месяца. actor_name — снимок display_name автора
         (журнал читается, даже если аккаунт потом переименуют/удалят).
         entity_date — дата, к которой относится изменение (фильтр истории по
         месяцу). ts — локальное серверное время, как created_at/updated_at в

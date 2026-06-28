@@ -44,10 +44,12 @@
     function pad2(n) { return n < 10 ? '0' + n : '' + n; }
     function esc(s) { return S.escapeHtml(s == null ? '' : String(s)); }
 
-    // Вечер: роль «второй …» или старт >= 16:00. Иначе день.
+    // Вечер: роль «второй …» или старт >= 18:00 (как пресет кисти «Вечер» и .ics).
+    // Единый порог во всём приложении, иначе сегментация день/вечер недетерминирована
+    // (смена 16:00-17:59 не считается вечером).
     function isEvening(shift) {
         if (shift.role_name && /втор/i.test(shift.role_name)) return true;
-        if (shift.start_time && shift.start_time >= '16:00') return true;
+        if (shift.start_time && shift.start_time >= '18:00') return true;
         return false;
     }
     // Статус смены: conflict > today > (прошлое: done|nofact) > soon.
@@ -143,7 +145,7 @@
             var gColor = over ? AMBER : (streak ? ACCENT : '#5e8c4a');
             var gPct = Math.min(100, Math.round(month / NORM_SHIFTS * 100));
             var flag = streak
-                ? '<span class="ln-flag" title="' + maxRun + ' смен подряд — переработка">⚑</span>' : '';
+                ? '<span class="ln-flag" title="' + maxRun + ' смен подряд — переработка">!</span>' : '';
 
             return '<div class="ln-row">'
                 + '<div class="ln-name"><span class="ln-ini">' + esc(S.employeeLabel(emp.name))
@@ -229,12 +231,23 @@
             });
             var dayS = dayList.filter(function (s) { return !isEvening(s); })[0];
             var eveS = dayList.filter(function (s) { return isEvening(s); })[0];
-            function line(s, dot) {
-                if (!s) return '<div class="tb-person tb-empty"><span class="tb-pdot" style="background:'
-                    + dot + '"></span><span class="tb-pn">—</span></div>';
-                return '<div class="tb-person"><span class="tb-pdot" style="background:' + dot + '"></span>'
-                    + '<span class="tb-pn">' + esc(S.employeeShortName(s.employee_name)) + '</span>'
-                    + '<span class="tb-pt">' + esc(s.start_time || '') + '</span></div>';
+            // Имена бармена(ов) точки — в ОДНУ строку: дневной + вечерний через «/».
+            // Цвет точки сохраняет смысл (день — зелёный, вечер — янтарный).
+            function personChip(s, dot) {
+                var t = s.start_time ? '<span class="tb-pt">' + esc(s.start_time) + '</span>' : '';
+                return '<span class="tb-pdot" style="background:' + dot + '"></span>'
+                    + '<span class="tb-pn">' + esc(S.employeeShortName(s.employee_name)) + '</span>' + t;
+            }
+            function peopleLine() {
+                var chips = [];
+                if (dayS) chips.push(personChip(dayS, '#5e8c4a'));
+                if (eveS) chips.push(personChip(eveS, '#c98a32'));
+                if (!chips.length) {
+                    return '<div class="tb-person tb-empty"><span class="tb-pdot"'
+                        + ' style="background:var(--text-tertiary)"></span><span class="tb-pn">—</span></div>';
+                }
+                return '<div class="tb-person tb-people">'
+                    + chips.join('<span class="tb-psep">/</span>') + '</div>';
             }
             var pct = planPct(ds, loc.id);
             var yp = planPct(prev, loc.id);
@@ -251,7 +264,7 @@
             return '<div class="tb-card">'
                 + '<div class="tb-bar"><span class="tb-sq" style="background:' + col + '"></span>'
                 + '<span class="tb-bn">' + esc(loc.short_name || loc.name) + '</span></div>'
-                + line(dayS, '#5e8c4a') + line(eveS, '#c98a32')
+                + peopleLine()
                 + '<div class="tb-prog"><span style="width:' + w + '%"></span></div>'
                 + '<div class="tb-foot"><span>факт <b>' + (pct == null ? '—' : pct + '%') + '</b>'
                 + (isToday ? ' идёт' : '') + '</span>'
@@ -521,7 +534,7 @@
         var height = '<div class="lg-item">' + slot('100%')
             + '<span class="lg-t">день <span class="lg-x">· бармен, открытие</span></span></div>'
             + '<div class="lg-item">' + slot('56%')
-            + '<span class="lg-t">вечер <span class="lg-x">· 2-й бармен, с 17:00</span></span></div>';
+            + '<span class="lg-t">вечер <span class="lg-x">· 2-й бармен, с 18:00</span></span></div>';
 
         // СТАТУС СМЕНЫ
         var sts = [
@@ -540,7 +553,7 @@
         // НАГРУЗКА
         var load = '<div class="lg-item"><span class="lg-gauge"><span style="width:100%;background:#5e8c4a"></span></span>'
             + '<span class="lg-t">план <b>' + NORM_SHIFTS + '</b> смен · ' + NORM_HOURS + ' ч</span></div>'
-            + '<div class="lg-item"><span class="lg-flag">⚑</span>'
+            + '<div class="lg-item"><span class="lg-flag">!</span>'
             + '<span class="lg-t">переработка <span class="lg-x">· 6 смен подряд</span></span></div>'
             + '<div class="lg-item"><span class="lg-off"></span>'
             + '<span class="lg-t">обязательный выходной <span class="lg-x">· серый, кистью «Выходной»</span></span></div>'
@@ -620,7 +633,7 @@
 
             var hours = Math.round(factMin / 60);
             var sColor = shifts > NORM_SHIFTS ? AMBER : (shifts < 10 ? '#a89e90' : '#5e8c4a');
-            var flag = maxRun >= 6 ? '<span class="el-flag" title="' + maxRun + ' смен подряд">⚑</span>' : '';
+            var flag = maxRun >= 6 ? '<span class="el-flag" title="' + maxRun + ' смен подряд">!</span>' : '';
             return '<div class="el-row"><div class="el-name"><span class="el-ini">' + esc(S.employeeLabel(emp.name))
                 + '</span><span class="el-nm">' + esc(S.employeeShortName(emp.name)) + '</span>' + flag + '</div>'
                 + '<div class="el-cells">' + cells + '</div>'
@@ -677,8 +690,9 @@
                         var m = emp.id ? s.employee_id === emp.id : s.employee_name === emp.name;
                         return m && s.date === ds;
                     });
-                    var target = existing.filter(function (s) { return !isEvening(s); })[0] || existing[0] || null;
-                    opts.onCell(emp, day, ds, target);
+                    // Передаём ВСЕ смены клетки: страница сама выберет слот (день/вечер)
+                    // под кисть, иначе перекраска вечером удаляла бы дневную смену.
+                    opts.onCell(emp, day, ds, existing);
                 });
             });
         }

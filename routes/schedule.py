@@ -1,6 +1,7 @@
 import re
+import sqlite3
 from flask import Blueprint, request, jsonify, Response
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from extensions import shifts_mgr, notes_manager
 from core.auth_guard import current_user
 from core.iiko_api import IikoAPI
@@ -28,6 +29,44 @@ def _validate_start_time(value):
     if isinstance(value, str) and START_TIME_RE.match(value):
         return True, value
     return False, None
+
+
+# Валидация входных дат/месяцев. Кривой ввод -> 400 (а не необработанный 500 и не
+# рецидив iiko-бага datepicker, который упирался в неверный формат). ISO 'YYYY-MM-DD'.
+DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
+def _valid_month(year, month):
+    """Осмысленные год (2000..2100) и месяц (1..12)."""
+    return 2000 <= year <= 2100 and 1 <= month <= 12
+
+
+def _valid_date_str(date_str):
+    """True, если строка — корректная ISO-дата 'YYYY-MM-DD' (и существует)."""
+    if not isinstance(date_str, str) or not DATE_RE.match(date_str):
+        return False
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
+
+
+def _today_iso():
+    """Сегодня в ISO — дата для журнала у изменений без собственной даты
+    (ставка, реестр): так запись попадает в историю текущего месяца."""
+    return date.today().isoformat()
+
+
+def _fmt_rate(v):
+    """Ставка для строки журнала: целое без копеек, иначе с двумя знаками."""
+    if v is None:
+        return '—'
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return str(v)
+    return f"{v:.0f}" if v == int(v) else f"{v:.2f}"
 
 
 # ==================== Журнал изменений графика ====================
@@ -112,7 +151,10 @@ def schedule_sync_employees():
 def schedule_update_employee(emp_id):
     """Обновить сотрудника в реестре по стабильному iiko_id: short_label, active,
     sort_order. Имя приходит из iiko (синк), здесь не редактируется."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
+    # снимок до изменения — для журнала (защита от саботажа держится на истории)
+    before = next((e for e in shifts_mgr.get_schedule_employees(include_inactive=True)
+                   if str(e.get('id')) == str(emp_id)), None)
     ok = shifts_mgr.update_schedule_employee(
         iiko_id=emp_id,
         short_label=data.get('short_label'),
@@ -121,6 +163,18 @@ def schedule_update_employee(emp_id):
     )
     if not ok:
         return jsonify({'error': 'Сотрудник не найден'}), 404
+    name = (before or {}).get('name') or emp_id
+    parts = []
+    if data.get('short_label') is not None:
+        parts.append(f"метка «{(before or {}).get('short_label') or '—'}»"
+                     f" -> «{(data.get('short_label') or '').strip() or '—'}»")
+    if data.get('active') is not None:
+        parts.append('показан в сетке' if data.get('active') else 'скрыт из сетки')
+    if data.get('sort_order') is not None:
+        parts.append(f"порядок -> {data.get('sort_order')}")
+    _audit('employee_update',
+           f"Реестр: {name} — " + ('; '.join(parts) if parts else 'изменён'),
+           entity_date=_today_iso(), employee_name=name)
     return jsonify({'ok': True})
 
 
@@ -133,15 +187,22 @@ def schedule_get_roles():
 @schedule_bp.route('/api/schedule/role/<int:role_id>/rate', methods=['PUT'])
 def schedule_set_role_rate(role_id):
     """Ставка за час для роли (расчёт ЗП). Body: {"rate_per_hour": число >= 0}."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     try:
         rate = float(data.get('rate_per_hour'))
     except (TypeError, ValueError):
         return jsonify({'error': 'rate_per_hour должен быть числом'}), 400
     if rate < 0:
         return jsonify({'error': 'rate_per_hour не может быть отрицательным'}), 400
+    # снимок до изменения — ставка напрямую влияет на ЗП, изменение обязано остаться в истории
+    role = next((r for r in shifts_mgr.get_roles() if r['id'] == role_id), None)
     if not shifts_mgr.set_role_rate(role_id, rate):
         return jsonify({'error': 'Роль не найдена'}), 404
+    role_name = (role or {}).get('name') or f"роль #{role_id}"
+    _audit('role_rate',
+           f"Ставка «{role_name}»: {_fmt_rate((role or {}).get('rate_per_hour'))}"
+           f" -> {_fmt_rate(rate)} ₽/ч",
+           entity_date=_today_iso())
     return jsonify({'ok': True})
 
 
@@ -171,25 +232,40 @@ def schedule_get_locations():
 @schedule_bp.route('/api/schedule/<int:year>/<int:month>', methods=['GET'])
 def schedule_get_month(year, month):
     """Получить все смены за месяц."""
+    if not _valid_month(year, month):
+        return jsonify({'error': 'Некорректный год или месяц'}), 400
     return jsonify(shifts_mgr.get_shifts_for_month(year, month))
 
 
 @schedule_bp.route('/api/schedule/shift', methods=['POST'])
 def schedule_create_shift():
     """Создать смену. start_time 'HH:MM' — плановое начало (опционально)."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not _valid_date_str(data.get('date')):
+        return jsonify({'error': 'date обязателен в формате YYYY-MM-DD'}), 400
+    if not (data.get('employee_name') or '').strip():
+        return jsonify({'error': 'employee_name обязателен'}), 400
+    try:
+        location_id = int(data['location_id'])
+        role_id = int(data['role_id'])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({'error': 'location_id и role_id обязательны (целые)'}), 400
     ok, start_time = _validate_start_time(data.get('start_time'))
     if not ok:
         return jsonify({'error': 'start_time должен быть в формате HH:MM'}), 400
-    shift_id = shifts_mgr.create_shift(
-        date_str=data['date'],
-        employee_name=data['employee_name'],
-        location_id=data['location_id'],
-        role_id=data['role_id'],
-        notes=data.get('notes'),
-        start_time=start_time,
-        employee_id=data.get('employee_id'),
-    )
+    try:
+        shift_id = shifts_mgr.create_shift(
+            date_str=data['date'],
+            employee_name=data['employee_name'],
+            location_id=location_id,
+            role_id=role_id,
+            notes=data.get('notes'),
+            start_time=start_time,
+            employee_id=data.get('employee_id'),
+        )
+    except sqlite3.IntegrityError:
+        # FK включён: несуществующая точка/роль -> понятная 400 вместо 500
+        return jsonify({'error': 'Точка или роль не найдена'}), 400
     sh = shifts_mgr.get_shift(shift_id)
     if sh:
         time_part = f", с {sh['start_time']}" if sh.get('start_time') else ""
@@ -203,14 +279,29 @@ def schedule_create_shift():
 @schedule_bp.route('/api/schedule/shift/<int:shift_id>', methods=['PUT'])
 def schedule_update_shift(shift_id):
     """Обновить смену (роль, плановое время и т.д.)."""
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
+    # Факт часов меняется ТОЛЬКО через /fact (там проверка 0..1440). Здесь его не
+    # принимаем, чтобы битые минуты (строка/отрицательное/огромное) не уходили в ЗП
+    # в обход валидации.
+    data.pop('fact_minutes', None)
     if 'start_time' in data:
         ok, start_time = _validate_start_time(data.get('start_time'))
         if not ok:
             return jsonify({'error': 'start_time должен быть в формате HH:MM'}), 400
         data['start_time'] = start_time
+    if 'date' in data and not _valid_date_str(data.get('date')):
+        return jsonify({'error': 'date должен быть в формате YYYY-MM-DD'}), 400
+    for key in ('location_id', 'role_id'):
+        if key in data:
+            try:
+                data[key] = int(data[key])
+            except (TypeError, ValueError):
+                return jsonify({'error': f'{key} должен быть целым'}), 400
     before = shifts_mgr.get_shift(shift_id)
-    shifts_mgr.update_shift(shift_id, **data)
+    try:
+        shifts_mgr.update_shift(shift_id, **data)
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Точка или роль не найдена'}), 400
     after = shifts_mgr.get_shift(shift_id)
     if after:
         parts = []
@@ -288,7 +379,13 @@ def schedule_get_dayoffs():
 @schedule_bp.route('/api/schedule/dayoff', methods=['POST'])
 def schedule_create_dayoff():
     """Создать пожелание выходного."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not (data.get('employee_name') or '').strip():
+        return jsonify({'error': 'employee_name обязателен'}), 400
+    if not _valid_date_str(data.get('date_from')) or not _valid_date_str(data.get('date_to')):
+        return jsonify({'error': 'date_from и date_to обязательны в формате YYYY-MM-DD'}), 400
+    if data['date_from'] > data['date_to']:
+        return jsonify({'error': 'date_from позже date_to'}), 400
     req_id = shifts_mgr.create_day_off_request(
         employee_name=data['employee_name'],
         date_from=data['date_from'],
@@ -409,6 +506,8 @@ def _month_inputs(year, month):
 def schedule_get_plans(year, month):
     """План/факт по дням месяца. План — read-only из daily_plans (веса дней);
     фоллбэк — замороженный ручной plan_revenue (source='manual')."""
+    if not _valid_month(year, month):
+        return jsonify({'error': 'Некорректный год или месяц'}), 400
     _, month_plans = _month_inputs(year, month)
     return jsonify({'days': month_plans, 'plan_formula': PLAN_FORMULA_TEXT})
 
@@ -454,6 +553,8 @@ def _fetch_month_iiko_hours(year, month):
 @schedule_bp.route('/api/schedule/summary/<int:year>/<int:month>', methods=['GET'])
 def schedule_get_summary(year, month):
     """Сводка месяца: план/факт/средняя/ожидаемая/выполнение % + нагрузка людей."""
+    if not _valid_month(year, month):
+        return jsonify({'error': 'Некорректный год или месяц'}), 400
     locations, month_plans = _month_inputs(year, month)
     summary = compute_month_summary(month_plans, locations)
     shifts = shifts_mgr.get_shifts_for_month(year, month)
@@ -470,6 +571,8 @@ def schedule_get_widgets(year, month):
     (смены/норма/подряд/без факта). На странице просмотра у барменов финансов нет,
     поэтому здесь рублей нет вовсе. Денежный виджет «План/Факт по дням» живёт
     только в редакторе и строится на фронте из уже загруженного /plans."""
+    if not _valid_month(year, month):
+        return jsonify({'error': 'Некорректный год или месяц'}), 400
     shifts = shifts_mgr.get_shifts_for_month(year, month)
     load = compute_employees_load(shifts, datetime.now().strftime('%Y-%m-%d'))
     return jsonify({
@@ -481,6 +584,8 @@ def schedule_get_widgets(year, month):
 @schedule_bp.route('/api/schedule/revenue/<date_str>', methods=['GET'])
 def schedule_get_revenue(date_str):
     """Выручка по всем точкам за день."""
+    if not _valid_date_str(date_str):
+        return jsonify({'error': 'Некорректная дата (YYYY-MM-DD)'}), 400
     return jsonify(shifts_mgr.get_revenue_for_day(date_str))
 
 
@@ -491,14 +596,24 @@ def schedule_update_revenue(date_str, location_id):
     Ручной ввод ПЛАНА заморожен (2026-06): план дня считается из весов
     (см. /api/schedule/plans). plan_revenue в body игнорируется.
     """
-    data = request.get_json() or {}
+    if not _valid_date_str(date_str):
+        return jsonify({'error': 'Некорректная дата (YYYY-MM-DD)'}), 400
+    data = request.get_json(silent=True) or {}
     if 'plan_revenue' in data:
         print(f"[SCHEDULE] plan_revenue в PUT revenue игнорируется (план заморожен): {date_str}")
+    fact = data.get('fact_revenue')
     shifts_mgr.update_revenue(
         date_str=date_str,
         location_id=location_id,
-        fact_revenue=data.get('fact_revenue')
+        fact_revenue=fact
     )
+    # деньги — в историю (защита от саботажа держится на журнале)
+    loc = next((l for l in shifts_mgr.get_locations() if l['id'] == location_id), None)
+    loc_name = (loc or {}).get('short_name') or (loc or {}).get('name') or f"точка #{location_id}"
+    _audit('revenue_set',
+           f"Факт выручки {_fmt_dm(date_str)} ({loc_name}): "
+           + (f"{_fmt_rate(fact)} ₽" if fact is not None else 'очищен'),
+           entity_date=date_str)
     return jsonify({'ok': True})
 
 
@@ -529,6 +644,8 @@ def _aggregate_cash_shifts_by_day(cash_shifts, locations):
 @schedule_bp.route('/api/schedule/revenue/sync/<date_str>', methods=['POST'])
 def schedule_sync_revenue(date_str):
     """Синхронизировать фактическую выручку из iiko за дату."""
+    if not _valid_date_str(date_str):
+        return jsonify({'error': 'Некорректная дата (YYYY-MM-DD)'}), 400
     iiko = None
     try:
         iiko = IikoAPI()
@@ -542,13 +659,17 @@ def schedule_sync_revenue(date_str):
         revenue_by_location = by_day.get(date_str, {})
 
         updated = shifts_mgr.sync_revenue_from_iiko(date_str, revenue_by_location)
+        # синк перезаписывает факт — фиксируем, кто его запускал
+        _audit('revenue_sync',
+               f"Синхронизация факта выручки из iiko за {_fmt_dm(date_str)}: обновлено точек {updated}",
+               entity_date=date_str)
         return jsonify({'updated': updated, 'revenue': revenue_by_location})
 
     except Exception as e:
         print(f"[SCHEDULE SYNC ERROR] {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Синхронизация выручки не удалась'}), 500
     finally:
         # Освобождаем слот лицензии iiko в любом случае (иначе утечка слотов).
         if iiko is not None:
@@ -562,6 +683,8 @@ def schedule_sync_revenue_month(year, month):
     Нужно для сводки месяца («Ожидаемая», «Выполнение %») — днями синкать
     месяц было бы 30 запросов к iiko.
     """
+    if not _valid_month(year, month):
+        return jsonify({'error': 'Некорректный год или месяц'}), 400
     iiko = None
     try:
         first_day = f"{year}-{month:02d}-01"
@@ -585,13 +708,17 @@ def schedule_sync_revenue_month(year, month):
             updated_rows += shifts_mgr.sync_revenue_from_iiko(date_str, revenue_map)
             updated_days += 1
 
+        _audit('revenue_sync_month',
+               f"Синхронизация факта выручки из iiko за {int(month):02d}.{year}:"
+               f" дней {updated_days}, строк {updated_rows}",
+               entity_date=f"{year}-{int(month):02d}-01")
         return jsonify({'updated_days': updated_days, 'updated_rows': updated_rows})
 
     except Exception as e:
         print(f"[SCHEDULE SYNC MONTH ERROR] {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Синхронизация выручки не удалась'}), 500
     finally:
         if iiko is not None:
             iiko.logout()
@@ -606,7 +733,9 @@ def schedule_get_wishes():
 @schedule_bp.route('/api/schedule/wishes', methods=['POST'])
 def schedule_save_wish():
     """Сохранить пожелание сотрудника."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not (data.get('employee_name') or '').strip():
+        return jsonify({'error': 'employee_name обязателен'}), 400
     shifts_mgr.save_wish(
         employee_name=data['employee_name'],
         text=data.get('text', '')

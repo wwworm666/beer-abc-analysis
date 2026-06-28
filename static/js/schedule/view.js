@@ -22,6 +22,18 @@
     var brushRole = 'day';        // 'day' | 'evening'
     var brushMode = 'point';      // 'point' | 'eraser' | 'dayoff'
 
+    // Режим редактирования сетки. В просмотре кисть скрыта и клики по клеткам
+    // ничего не меняют (исключает случайные правки). Выбор запоминается в браузере.
+    var EDIT_MODE_KEY = 'schedule.editMode';
+    var editMode = readEditMode();
+    function readEditMode() {
+        try { return localStorage.getItem(EDIT_MODE_KEY) !== '0'; } // по умолчанию вкл.
+        catch (e) { return true; }
+    }
+    function saveEditMode(on) {
+        try { localStorage.setItem(EDIT_MODE_KEY, on ? '1' : '0'); } catch (e) { /* приватный режим */ }
+    }
+
     var selectedDate = null;      // открытая денежная панель дня
     var editingShiftId = null;    // модалка смены (десктоп)
     var currentFactShift = null;  // модалка факта (мобильный)
@@ -42,6 +54,7 @@
         });
         document.getElementById('dayoffBtn').addEventListener('click', toggleDayoffBrush);
         document.getElementById('eraserBtn').addEventListener('click', toggleEraser);
+        document.getElementById('editModeToggle').addEventListener('click', toggleEditMode);
 
         // План/Факт — кнопка в виджете «Сегодня вживую» (панель под бордом)
         document.getElementById('planFactToggle').addEventListener('click', function () {
@@ -88,6 +101,7 @@
             })
             .then(function () {
                 renderToolbar();
+                renderEditMode();
                 updateHint();
                 renderRoleOptions();
                 return loadWishes();
@@ -107,7 +121,11 @@
             S.loadMonthData(),
             S.api('/api/schedule/plans/' + S.state.year + '/' + S.state.month)
                 .then(function (p) { S.state.plans = p; })
-                .catch(function (err) { console.error(err); S.state.plans = null; })
+                .catch(function (err) {
+                    // не глушим молча: иначе сбой выглядит как «плана нет» и вводит в заблуждение
+                    console.error(err); S.state.plans = null;
+                    S.showToast('Не удалось загрузить план/факт', true);
+                })
         ]).then(renderAll)
             .then(loadFeed)
             .catch(function (err) {
@@ -138,8 +156,10 @@
         S.renderEditLanes(document.getElementById('lanes'), {
             onCell: onCell,
             onDayHeaderClick: toggleDayPanel,
-            brushColor: brushMode === 'point' ? S.colorById(brushPoint)
-                : (brushMode === 'dayoff' ? '#b0a99d' : null)
+            // в режиме просмотра не подсвечиваем клетки кистью (правка отключена)
+            brushColor: !editMode ? null
+                : (brushMode === 'point' ? S.colorById(brushPoint)
+                    : (brushMode === 'dayoff' ? '#b0a99d' : null))
         });
     }
 
@@ -175,8 +195,30 @@
         });
         document.getElementById('dayoffBtn').classList.toggle('selected', brushMode === 'dayoff');
         document.getElementById('eraserBtn').classList.toggle('selected', brushMode === 'eraser');
-        document.body.classList.toggle('eraser-mode', brushMode === 'eraser');
-        document.body.classList.toggle('paint-mode', brushMode !== 'eraser');
+        // Курсоры/подсветку клеток включаем только в режиме редактирования.
+        document.body.classList.toggle('eraser-mode', editMode && brushMode === 'eraser');
+        document.body.classList.toggle('paint-mode', editMode && brushMode !== 'eraser');
+    }
+
+    // Режим редактирования: показать/скрыть тулбар кисти, переключить вид сетки,
+    // обновить подпись кнопки. Сам рендер сетки (renderLanes) читает editMode через onCell.
+    function renderEditMode() {
+        var toolbar = document.getElementById('paintToolbar');
+        if (toolbar) toolbar.style.display = editMode ? '' : 'none';
+        var btn = document.getElementById('editModeToggle');
+        if (btn) {
+            btn.textContent = editMode ? 'Готово' : 'Редактировать';
+            btn.classList.toggle('is-open', editMode);
+        }
+        document.body.classList.toggle('view-mode', !editMode);
+        renderToolbar();
+    }
+    function toggleEditMode() {
+        editMode = !editMode;
+        saveEditMode(editMode);
+        renderEditMode();
+        renderLanes();
+        updateHint();
     }
 
     function selectPoint(locId) { brushPoint = locId; brushMode = 'point'; renderToolbar(); renderLanes(); updateHint(); }
@@ -203,19 +245,33 @@
 
     // ==================== Клик по клетке ====================
 
+    // existing — массив всех смен клетки (день и/или вечер). Слот определяется
+    // активной кистью (brushRole): правим/перекрашиваем ровно ту смену, что и кисть,
+    // а вторую (другого слота) не трогаем.
+    function slotShift(list, role) {
+        return (list || []).filter(function (s) {
+            return (S.isEvening(s) ? 'evening' : 'day') === role;
+        })[0] || null;
+    }
     function onCell(emp, day, ds, existing) {
+        if (!editMode) return;   // режим просмотра — сетка только для чтения
         if (saving) return;
-        if (brushMode === 'eraser') { if (existing) deleteShift(existing.id); return; }
-        if (brushMode === 'dayoff') { toggleDayOff(emp, ds, existing); return; }
-        // point
-        if (existing) {
-            var sameRole = (S.isEvening(existing) ? 'evening' : 'day') === brushRole;
-            var samePoint = existing.location_id === brushPoint;
-            if (samePoint && sameRole) { openShiftModal(existing); return; }
-            replaceShift(existing, emp, ds);
+        var list = existing || [];
+        if (brushMode === 'eraser') {
+            // снять смену слота кисти; если такой нет — любую смену дня
+            var toErase = slotShift(list, brushRole) || list[0] || null;
+            if (toErase) deleteShift(toErase.id);
             return;
         }
-        createShift(emp, ds);
+        if (brushMode === 'dayoff') { toggleDayOff(emp, ds, list); return; }
+        // point: работаем со сменой того же слота (день/вечер), что и кисть
+        var slot = slotShift(list, brushRole);
+        if (slot) {
+            if (slot.location_id === brushPoint) { openShiftModal(slot); return; }
+            replaceShift(slot, emp, ds);
+            return;
+        }
+        createShift(emp, ds);   // в этом слоте смены нет — добавляем, вторую не трогаем
     }
 
     function confirmDayOff(emp, ds) {
@@ -236,23 +292,30 @@
         S.api('/api/schedule/shift', { method: 'POST', body: postBody(emp, ds) })
             .then(function () { S.showToast('Назначено'); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-            .then(function () { saving = false; return reload(); });
+            .then(function () { return reload(); })
+            .then(function () { saving = false; });
     }
+    // Перекраска — один атомарный PUT (меняем точку/роль/время существующей смены),
+    // а не DELETE+POST: при сбое второго шага смена не теряется, факт часов сохраняется.
     function replaceShift(existing, emp, ds) {
         if (!confirmDayOff(emp, ds)) return;
+        var preset = presetForBrush(), role = roleForPreset(preset);
         saving = true;
-        S.api('/api/schedule/shift/' + existing.id, { method: 'DELETE' })
-            .then(function () { return S.api('/api/schedule/shift', { method: 'POST', body: postBody(emp, ds) }); })
+        S.api('/api/schedule/shift/' + existing.id, { method: 'PUT', body: {
+                location_id: brushPoint, role_id: role.id, start_time: preset.startTime
+            } })
             .then(function () { S.showToast('Перекрашено'); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-            .then(function () { saving = false; return reload(); });
+            .then(function () { return reload(); })
+            .then(function () { saving = false; });
     }
     function deleteShift(id) {
         saving = true;
         S.api('/api/schedule/shift/' + id, { method: 'DELETE' })
             .then(function () { S.showToast('Удалено'); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-            .then(function () { saving = false; return reload(); });
+            .then(function () { return reload(); })
+            .then(function () { saving = false; });
     }
 
     // ==================== Выходные ====================
@@ -273,21 +336,28 @@
             S.api('/api/schedule/dayoff/' + req.id, { method: 'DELETE' })
                 .then(function () { S.showToast('Выходной снят'); })
                 .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-                .then(function () { saving = false; return reload(); });
+                .then(function () { return reload(); })
+                .then(function () { saving = false; });
             return;
         }
         saving = true;
-        var chain = existing
-            ? S.api('/api/schedule/shift/' + existing.id, { method: 'DELETE' })
-            : Promise.resolve();
+        // existing — массив смен дня (день и/или вечер): снимаем все перед выходным
+        var list = existing || [];
+        var chain = Promise.resolve();
+        list.forEach(function (s) {
+            chain = chain.then(function () {
+                return S.api('/api/schedule/shift/' + s.id, { method: 'DELETE' });
+            });
+        });
         chain
             .then(function () {
                 return S.api('/api/schedule/dayoff', { method: 'POST',
                     body: { employee_name: emp.name, date_from: ds, date_to: ds } });
             })
-            .then(function () { S.showToast(existing ? 'Выходной (смена снята)' : 'Выходной поставлен'); })
+            .then(function () { S.showToast(list.length ? 'Выходной (смена снята)' : 'Выходной поставлен'); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-            .then(function () { saving = false; return reload(); });
+            .then(function () { return reload(); })
+            .then(function () { saving = false; });
     }
 
     // Мобильный: бармен запрашивает/снимает выходной на выбранный день. Это
@@ -301,14 +371,16 @@
             S.api('/api/schedule/dayoff/' + req.id, { method: 'DELETE' })
                 .then(function () { S.showToast('Выходной отменён'); })
                 .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-                .then(function () { saving = false; return reload(); });
+                .then(function () { return reload(); })
+                .then(function () { saving = false; });
         } else {
             saving = true;
             S.api('/api/schedule/dayoff', { method: 'POST',
                 body: { employee_name: empName, date_from: ds, date_to: ds } })
                 .then(function () { S.showToast('Выходной запрошен'); })
                 .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
-                .then(function () { saving = false; return reload(); });
+                .then(function () { return reload(); })
+                .then(function () { saving = false; });
         }
     }
 
@@ -324,7 +396,7 @@
     function openShiftModal(shift) {
         editingShiftId = shift.id;
         document.getElementById('shiftModalTitle').textContent =
-            shift.employee_name + ' — ' + S.formatDateHuman(shift.date);
+            S.shiftDisplayName(shift) + ' — ' + S.formatDateHuman(shift.date);
         document.getElementById('shiftRole').value = shift.role_id;
         document.getElementById('shiftStartTime').value = shift.start_time || '';
         document.getElementById('shiftFact').value =
@@ -340,7 +412,7 @@
     }
     function onShiftFormSubmit(e) {
         e.preventDefault();
-        if (!editingShiftId) return;
+        if (!editingShiftId || saving) return;   // guard от двойного сабмита
         var startTime = document.getElementById('shiftStartTime').value.trim() || null;
         var roleId = parseInt(document.getElementById('shiftRole').value, 10);
         var factRaw = document.getElementById('shiftFact').value.trim();
@@ -352,16 +424,20 @@
             }
         }
         var id = editingShiftId;
+        saving = true;
         S.api('/api/schedule/shift/' + id, { method: 'PUT', body: { role_id: roleId, start_time: startTime } })
             .then(function () { return S.api('/api/schedule/shift/' + id + '/fact', { method: 'PUT', body: { fact_minutes: factMin } }); })
-            .then(function () { closeShiftModal(); S.showToast('Сохранено'); reload(); })
-            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); });
+            .then(function () { closeShiftModal(); S.showToast('Сохранено'); return reload(); })
+            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
+            .then(function () { saving = false; });
     }
     function onShiftDelete() {
-        if (!editingShiftId) return;
+        if (!editingShiftId || saving) return;
+        saving = true;
         S.api('/api/schedule/shift/' + editingShiftId, { method: 'DELETE' })
-            .then(function () { closeShiftModal(); S.showToast('Удалено'); reload(); })
-            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); });
+            .then(function () { closeShiftModal(); S.showToast('Удалено'); return reload(); })
+            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
+            .then(function () { saving = false; });
     }
 
     // ==================== Модалка факта (мобильный) ====================
@@ -369,7 +445,7 @@
     function openFactModal(shift) {
         currentFactShift = shift;
         document.getElementById('factModalTitle').textContent =
-            shift.employee_name + ' — ' + S.formatDateHuman(shift.date) + ' — ' + shift.location_name;
+            S.shiftDisplayName(shift) + ' — ' + S.formatDateHuman(shift.date) + ' — ' + shift.location_name;
         var input = document.getElementById('factInput');
         input.value = shift.fact_minutes != null ? S.minutesToHhMm(shift.fact_minutes) : '';
         document.getElementById('factModal').classList.add('active');
@@ -381,20 +457,24 @@
     }
     function onFactSubmit(e) {
         e.preventDefault();
-        if (!currentFactShift) return;
+        if (!currentFactShift || saving) return;
         var minutes = S.parseHoursInput(document.getElementById('factInput').value);
         if (minutes === null || minutes < 0 || minutes > 1440) {
             S.showToast('Введи часы как 10:30 или 10.5', true); return;
         }
+        saving = true;
         S.api('/api/schedule/shift/' + currentFactShift.id + '/fact', { method: 'PUT', body: { fact_minutes: minutes } })
-            .then(function () { closeFactModal(); S.showToast('Часы сохранены'); reload(); })
-            .catch(function (err) { S.showToast('Не сохранилось: ' + err.message, true); });
+            .then(function () { closeFactModal(); S.showToast('Часы сохранены'); return reload(); })
+            .catch(function (err) { S.showToast('Не сохранилось: ' + err.message, true); })
+            .then(function () { saving = false; });
     }
     function onFactClear() {
-        if (!currentFactShift) return;
+        if (!currentFactShift || saving) return;
+        saving = true;
         S.api('/api/schedule/shift/' + currentFactShift.id + '/fact', { method: 'PUT', body: { fact_minutes: null } })
-            .then(function () { closeFactModal(); S.showToast('Часы очищены'); reload(); })
-            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); });
+            .then(function () { closeFactModal(); S.showToast('Часы очищены'); return reload(); })
+            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
+            .then(function () { saving = false; });
     }
 
     // ==================== Денежная панель дня ====================
@@ -531,6 +611,10 @@
                 tr.appendChild(tdOrder); tr.appendChild(tdActive);
                 tbody.appendChild(tr);
             });
+        }).catch(function (err) {
+            // не оставляем промис без обработки: иначе реестр тихо не обновляется
+            console.error(err);
+            setTeaser('empsTeaser', 'не удалось загрузить реестр');
         });
     }
     function updateEmployee(empId, fields) {
@@ -550,6 +634,7 @@
     function syncEmployees() {
         var btn = document.getElementById('empSyncBtn');
         btn.disabled = true;
+        btn.classList.add('is-loading');
         S.api('/api/schedule/employees/sync', { method: 'POST' })
             .then(function (res) {
                 var msg = 'iiko: добавлено ' + res.added + ', привязано смен '
@@ -566,7 +651,7 @@
                 renderToolbar(); renderAll();
             })
             .catch(function (err) { S.showToast('Ошибка iiko: ' + err.message, true); })
-            .then(function () { btn.disabled = false; });
+            .then(function () { btn.disabled = false; btn.classList.remove('is-loading'); });
     }
 
     // ==================== Лента последних изменений ====================
@@ -574,7 +659,11 @@
     var FEED_DOT = {
         shift_create: '#2e9e5b', shift_update: '#d97706', shift_delete: '#dc2626',
         fact_set: '#2563eb', fact_clear: '#9aa0a6',
-        dayoff_create: '#7c3aed', dayoff_delete: '#7c3aed'
+        dayoff_create: '#7c3aed', dayoff_delete: '#7c3aed',
+        // деньги/ставки/реестр — отдельные цвета (изменения с финансовым весом)
+        role_rate: '#b45309', revenue_set: '#0d9488',
+        revenue_sync: '#0d9488', revenue_sync_month: '#0d9488',
+        employee_update: '#6b7280', employees_sync: '#6b7280'
     };
     function loadFeed() {
         return S.api('/api/schedule/audit/' + S.state.year + '/' + S.state.month + '?limit=8')
