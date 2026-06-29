@@ -83,6 +83,31 @@
 
         .err-banner { padding: 12px 16px; border-radius: 10px; background: rgba(225,29,72,0.1); color: #e11d48; font-size: 0.88rem; margin-bottom: 16px; display: none; }
         .loading { text-align: center; padding: 48px; color: var(--text-muted, #6b7280); }
+
+        /* Пояснение про два времени */
+        .time-note { font-size: 0.82rem; color: var(--text-muted, #6b7280); margin: -8px 2px 18px; line-height: 1.5; }
+
+        /* История температуры (сворачиваемая секция) */
+        .history { margin-top: 24px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; }
+        .history-toggle { width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: none; border: none; cursor: pointer; color: var(--text-primary); font-family: inherit; font-size: 1rem; font-weight: 700; text-align: left; }
+        .history-toggle:hover { background: var(--bg-tertiary); }
+        .history-sub { font-weight: 500; font-size: 0.85rem; color: var(--text-muted, #6b7280); }
+        .history-toggle .chev { margin-left: auto; transition: transform 0.15s ease; color: var(--text-muted, #6b7280); }
+        .history-body { padding: 0 20px 22px; border-top: 1px solid var(--border-color); }
+        .history-controls { display: flex; gap: 8px; padding: 16px 0; flex-wrap: wrap; }
+        .history-controls button { padding: 7px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); font-family: inherit; font-size: 0.85rem; cursor: pointer; }
+        .history-controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+        .history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+        .hist-card { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; }
+        .hist-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .hist-name { font-weight: 700; font-size: 0.95rem; }
+        .hist-stat { font-size: 0.78rem; color: var(--text-muted, #6b7280); font-variant-numeric: tabular-nums; }
+        .hist-empty { font-size: 0.85rem; color: var(--text-muted, #6b7280); padding: 18px 4px; }
+        .hist-svg { width: 100%; height: 120px; display: block; }
+        .hist-svg .hg { stroke: var(--border-color); stroke-width: 1; }
+        .hist-svg .hline { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+        .hist-svg .harea { fill: var(--accent); opacity: 0.08; stroke: none; }
+        .hist-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.74rem; color: var(--text-muted, #6b7280); font-variant-numeric: tabular-nums; }
     </style>
 </head>
 <body>
@@ -99,6 +124,10 @@
             <div class="meta-row" id="meta-row"></div>
         </div>
 
+        <div class="time-note">
+            «Опрошено» сверху &mdash; когда страница в последний раз запросила датчики. Время под каждым баром &mdash; когда сам датчик последний раз прислал показание (датчики шлют данные при изменении температуры, поэтому между показаниями может пройти час-два &mdash; это нормально).
+        </div>
+
         <div class="err-banner" id="err-banner"></div>
 
         <div id="grid" class="temp-grid">
@@ -106,10 +135,28 @@
         </div>
 
         <div class="legend" id="legend"></div>
+
+        <div class="history" id="history">
+            <button class="history-toggle" id="history-toggle" aria-expanded="false">
+                <span>История температуры</span>
+                <span class="history-sub" id="history-sub">за 7 дней</span>
+                <span class="chev" id="history-chev">&#9662;</span>
+            </button>
+            <div class="history-body" id="history-body" hidden>
+                <div class="history-controls" id="history-controls">
+                    <button type="button" data-hours="24">24 часа</button>
+                    <button type="button" data-hours="168" class="active">7 дней</button>
+                    <button type="button" data-hours="336">14 дней</button>
+                </div>
+                <div id="history-charts" class="history-grid">
+                    <div class="loading">Загружаем историю...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
 <script>
-const STATE = { bands: [], history: {}, timer: null };
+const STATE = { bands: [], history: {}, names: {}, timer: null, histLoaded: false, histHours: 168 };
 const POLL_MS = 60000;
 
 function escapeHtml(s) {
@@ -206,7 +253,7 @@ function renderCard(bar) {
         + '<div class="temp-value">' + valueHtml + '</div>'
         + (sec.length ? '<div class="temp-secondary">' + sec.join('') + '</div>' : '')
         + spark
-        + '<div class="temp-foot"><span title="Когда датчик последний раз присылал значение. Эти датчики шлют данные при изменении температуры, поэтому возраст 1-2 ч при стабильной температуре — это нормально.">' + fmtAge(bar.ts) + '</span>' + badge + '</div>'
+        + '<div class="temp-foot"><span title="Когда датчик последний раз присылал значение. Эти датчики шлют данные при изменении температуры, поэтому возраст 1-2 ч при стабильной температуре — это нормально.">Датчик: ' + fmtAge(bar.ts) + '</span>' + badge + '</div>'
         + '</div>';
 }
 
@@ -229,7 +276,7 @@ function renderLegend() {
 function renderMeta(data) {
     const m = document.getElementById('meta-row');
     const srcLabel = { live: 'живой опрос', cache: 'кэш (до 60 с)', store: 'из истории' }[data.source] || data.source;
-    let html = 'Обновлено: ' + fmtAge(data.updated_at) + ' &middot; ' + srcLabel;
+    let html = 'Опрошено: ' + fmtAge(data.updated_at) + ' &middot; ' + srcLabel;
     if (data.meta && !data.meta.configured) {
         html += ' &middot; <span style="color:#b45309">Tuya не настроена (TUYA_ACCESS_ID/SECRET)</span>';
     }
@@ -253,6 +300,7 @@ async function loadCurrent(force) {
         const data = await r.json();
         if (!data.success) throw new Error(data.error || 'Ошибка API');
         STATE.bands = (data.meta && data.meta.bands) || [];
+        (data.bars || []).forEach(b => { STATE.names[b.venue_key] = b.venue_name; });
         document.getElementById('grid').innerHTML =
             (data.bars || []).map(b => renderCard(b)).join('');
         renderLegend();
@@ -266,9 +314,114 @@ async function loadCurrent(force) {
     }
 }
 
+// --- История температуры (сворачиваемая секция, до 30 дней) -------------------
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function fmtHistDate(ts, hours) {
+    const d = new Date(ts * 1000);
+    if (hours <= 36) return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1);
+}
+
+// График истории: SVG-линия на всю ширину карточки. Текста в SVG нет (он бы тянулся
+// при preserveAspectRatio="none") — подписи в HTML: статистика в шапке, даты под графиком.
+function historyChart(points) {
+    const pts = (points || []).filter(p => p.temperature != null);
+    if (pts.length < 2) return null;
+    const W = 600, H = 120, pad = 4;
+    const temps = pts.map(p => p.temperature);
+    let min = Math.min(...temps), max = Math.max(...temps);
+    if (max - min < 1) { const m = (min + max) / 2; min = m - 0.5; max = m + 0.5; }
+    const t0 = pts[0].ts, t1 = pts[pts.length - 1].ts || (t0 + 1);
+    const spanT = (t1 - t0) || 1, spanV = (max - min) || 1;
+    const X = t => pad + ((t - t0) / spanT) * (W - 2 * pad);
+    const Y = v => pad + (1 - (v - min) / spanV) * (H - 2 * pad);
+    const line = pts.map(p => X(p.ts).toFixed(1) + ',' + Y(p.temperature).toFixed(1)).join(' ');
+    const area = pad + ',' + (H - pad) + ' ' + line + ' ' + (W - pad) + ',' + (H - pad);
+    const midY = Y((min + max) / 2).toFixed(1);
+    return '<svg class="hist-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+        + '<line x1="' + pad + '" y1="' + midY + '" x2="' + (W - pad) + '" y2="' + midY + '" class="hg"/>'
+        + '<polygon points="' + area + '" class="harea"/>'
+        + '<polyline points="' + line + '" class="hline"/>'
+        + '</svg>';
+}
+
+function renderHistory(bars, hours) {
+    const order = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
+    const html = order.map(vk => {
+        const pts = (bars[vk] || []).filter(p => p.temperature != null);
+        const name = STATE.names[vk] || vk;
+        let stat = '', body;
+        if (pts.length >= 2) {
+            const temps = pts.map(p => p.temperature);
+            const mn = Math.min(...temps), mx = Math.max(...temps);
+            const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+            stat = 'мин ' + mn.toFixed(1) + ' &middot; сред ' + avg.toFixed(1) + ' &middot; макс ' + mx.toFixed(1) + ' &deg;C';
+            body = (historyChart(bars[vk]) || '')
+                + '<div class="hist-axis"><span>' + fmtHistDate(pts[0].ts, hours) + '</span>'
+                + '<span>' + fmtHistDate(pts[pts.length - 1].ts, hours) + '</span></div>';
+        } else {
+            body = '<div class="hist-empty">Недостаточно данных за период. История собирается с запуска мониторинга и заполнится со временем.</div>';
+        }
+        return '<div class="hist-card">'
+            + '<div class="hist-head"><span class="hist-name">' + escapeHtml(name) + '</span>'
+            + '<span class="hist-stat">' + stat + '</span></div>'
+            + body + '</div>';
+    }).join('');
+    document.getElementById('history-charts').innerHTML = html;
+}
+
+async function loadHistoryView(hours) {
+    STATE.histHours = hours;
+    const cont = document.getElementById('history-charts');
+    cont.innerHTML = '<div class="loading">Загружаем историю...</div>';
+    try {
+        const r = await fetch('/api/temperature/history?hours=' + hours);
+        const j = await r.json();
+        renderHistory(j.bars || {}, hours);
+    } catch (e) {
+        cont.innerHTML = '<div class="hist-empty">Не удалось загрузить историю.</div>';
+    }
+}
+
+function setupHistory() {
+    const toggle = document.getElementById('history-toggle');
+    const body = document.getElementById('history-body');
+    const chev = document.getElementById('history-chev');
+    const sub = document.getElementById('history-sub');
+
+    toggle.addEventListener('click', () => {
+        if (body.hasAttribute('hidden')) {
+            body.removeAttribute('hidden');
+            toggle.setAttribute('aria-expanded', 'true');
+            chev.style.transform = 'rotate(180deg)';
+            if (!STATE.histLoaded) { STATE.histLoaded = true; loadHistoryView(STATE.histHours); }
+        } else {
+            body.setAttribute('hidden', '');
+            toggle.setAttribute('aria-expanded', 'false');
+            chev.style.transform = '';
+        }
+    });
+
+    document.getElementById('history-controls').addEventListener('click', e => {
+        const btn = e.target.closest('button[data-hours]');
+        if (!btn) return;
+        document.querySelectorAll('#history-controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        sub.textContent = 'за ' + btn.textContent.trim();
+        STATE.histLoaded = true;
+        loadHistoryView(parseInt(btn.getAttribute('data-hours'), 10) || 168);
+    });
+}
+
 async function refreshNow() {
     await loadHistory();
     await loadCurrent(true);
+    // Если история открыта — обновим и её (за выбранный период появились свежие точки).
+    if (STATE.histLoaded && !document.getElementById('history-body').hasAttribute('hidden')) {
+        loadHistoryView(STATE.histHours);
+    }
 }
 
 function setupAutoRefresh() {
@@ -290,6 +443,7 @@ function setupAutoRefresh() {
     await loadHistory();
     await loadCurrent(false);
     setupAutoRefresh();
+    setupHistory();
 })();
 </script>
 </body>

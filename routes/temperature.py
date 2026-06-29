@@ -144,18 +144,41 @@ def api_current():
         return jsonify(payload)
 
 
+def _downsample(points, max_points):
+    """Проредить точки до max_points равномерно (лёгкий график на больших периодах).
+
+    Берём равномерно распределённые индексы + всегда последнюю точку, порядок по ts
+    сохраняется. На периодах <= max_points возвращаем как есть.
+    """
+    n = len(points)
+    if n <= max_points or max_points <= 0:
+        return points
+    step = n / float(max_points)
+    idxs = sorted({min(int(k * step), n - 1) for k in range(max_points)})
+    if idxs[-1] != n - 1:
+        idxs.append(n - 1)
+    return [points[i] for i in idxs]
+
+
 @temperature_bp.route("/api/temperature/history")
 def api_history():
-    """История показаний для спарклайна. ?hours=24 (1..168)."""
+    """История показаний. ?hours=24 (1..720 — до 30 дней). ?max_points ограничивает
+    плотность точек (прорежывание для лёгких графиков на длинных периодах)."""
     try:
         hours = int(request.args.get("hours", "24"))
     except (ValueError, TypeError):
         hours = 24
-    hours = max(1, min(168, hours))
+    hours = max(1, min(720, hours))
+
+    try:
+        max_points = int(request.args.get("max_points", "1500"))
+    except (ValueError, TypeError):
+        max_points = 1500
+    max_points = max(50, min(5000, max_points))
 
     hist = get_store().history(hours=hours)
     return jsonify({
         "success": True,
         "hours": hours,
-        "bars": {vk: hist.get(vk, []) for vk in PHYSICAL_VENUES},
+        "bars": {vk: _downsample(hist.get(vk, []), max_points) for vk in PHYSICAL_VENUES},
     })
