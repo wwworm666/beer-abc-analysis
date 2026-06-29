@@ -37,12 +37,19 @@ _lock = threading.Lock()
 
 
 def _poll_once(interval_s):
-    """Один опрос: read_all -> save_readings. Исключения наружу не пускаем."""
+    """Один опрос: read_all -> save_readings -> проверка тревог. Исключения наружу не пускаем."""
     try:
         readings = read_all()
         saved = get_store().save_readings(readings, interval_s)
         ok = sum(1 for r in readings.values() if r.get("temperature") is not None)
         print(f"[TUYA] опрос: {ok}/{len(readings)} датчиков, записано строк: {saved}")
+        # Тревога по высокой температуре (антиспам + дедуп внутри evaluate).
+        # Только из фонового опроса, не из живого опроса страницы.
+        try:
+            from core.temperature_alarm import evaluate as evaluate_alarms
+            evaluate_alarms(readings)
+        except Exception as e:
+            print(f"[TUYA-ALARM] оценка тревог не удалась: {e}")
     except Exception as e:
         print(f"[TUYA] опрос не удался: {e}")
 

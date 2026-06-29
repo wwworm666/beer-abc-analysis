@@ -16,6 +16,7 @@
 """
 
 import os
+import time
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -71,6 +72,17 @@ class TemperatureStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_readings_bar_ts ON readings (bar_key, ts)"
             )
+            # Состояние тревоги по высокой температуре (антиспам + дедуп под 2 воркера).
+            # alarming: 1 — бар сейчас «в тревоге» (выше порога), 0 — норма.
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS alarm_state (
+                    bar_key    TEXT PRIMARY KEY,
+                    alarming   INTEGER NOT NULL DEFAULT 0,
+                    changed_ts INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
             conn.commit()
 
     def save_readings(self, readings, interval_s):
@@ -115,6 +127,28 @@ class TemperatureStore:
             )
             conn.commit()
             return conn.total_changes
+
+    def set_alarm_state(self, bar_key, alarming) -> bool:
+        """Атомарно выставить состояние тревоги по бару.
+
+        Возвращает True, ТОЛЬКО если этот вызов реально изменил состояние (переход
+        0->1 или 1->0). Под gunicorn --workers 2 оба воркера зовут этот метод, но
+        SQLite сериализует запись: `UPDATE ... WHERE alarming != target` поменяет
+        строку лишь у одного (rowcount==1), второй увидит уже выставленное (rowcount==0).
+        Так тревогу/возврат шлёт ровно один воркер — без lock-файлов.
+        """
+        target = 1 if alarming else 0
+        with self._lock, self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO alarm_state (bar_key, alarming, changed_ts) VALUES (?, 0, 0)",
+                (bar_key,),
+            )
+            cur = conn.execute(
+                "UPDATE alarm_state SET alarming=?, changed_ts=? WHERE bar_key=? AND alarming!=?",
+                (target, int(time.time()), bar_key, target),
+            )
+            conn.commit()
+            return cur.rowcount == 1
 
     def latest(self):
         """Последнее показание по каждому бару: {bar_key: {ts, temperature, humidity, battery, online}}."""

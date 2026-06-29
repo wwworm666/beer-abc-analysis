@@ -240,6 +240,9 @@ done
 - `set_my_commands` теперь регистрирует `/temp`; добавлены `_live_temperature_text()`,
   кнопка/коллбэк `oc_temp`, ветка команды в `handle_update`.
 - Файлы: `core/open_check_telegram.py`. Опирается на `core/tuya_temperature.py`.
+- **Тревога по высокой температуре** переиспользует чаты тревог этого бота: если в баре
+  выше 26 C, фоновый опрос температуры шлёт аларм в `_alarm_recipients()` (как о закрытом
+  баре). Логика и антиспам — в `core/temperature_alarm.py`, см. [temperature.md](temperature.md).
 
 ### 2026-06-17 — Ложное «ЗАКРЫТ — Варш»: дробные секунды iiko + Python 3.10
 
