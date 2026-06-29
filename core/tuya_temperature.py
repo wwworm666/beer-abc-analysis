@@ -363,3 +363,78 @@ def read_all():
 def bands_payload():
     """Диапазоны для UI (легенда/окраска). Единый источник — TEMP_BANDS."""
     return TEMP_BANDS
+
+
+# --- Историческая выборка из облака Tuya ----------------------------------------
+# Tuya хранит лог отчётов устройства (~7 дней на базовом тарифе). Это даёт реальную
+# историю СРАЗУ, не дожидаясь накопления нашей temperature.db. Эндпоинт:
+# GET /v2.0/cloud/thing/{device_id}/report-logs?codes=...&start_time=&end_time=&size=&last_row_key=
+# Логи приходят от новых к старым, с пагинацией по last_row_key.
+
+def _qs(params):
+    """Query-string с КЛЮЧАМИ ПО АЛФАВИТУ (требование подписи Tuya для URL в stringToSign)."""
+    return "&".join(f"{k}={params[k]}" for k in sorted(params))
+
+
+def device_history(device_id, start_ms, end_ms, max_pages=30):
+    """История температуры/влажности устройства из Tuya report-logs.
+
+    Возвращает [{ts, temperature, humidity}] по возрастанию ts (ts — unix-секунды).
+    Склеивает va_temperature и va_humidity по event_time, применяет масштаб из спеки.
+    """
+    scales = _get_scales(device_id)
+    temp_set, hum_set = set(TEMP_CODES), set(HUMIDITY_CODES)
+    by_time = {}
+    last_row_key = None
+    for _ in range(max_pages):
+        params = {
+            "codes": ",".join((TEMP_CODES[0], HUMIDITY_CODES[0])),
+            "start_time": int(start_ms),
+            "end_time": int(end_ms),
+            "size": 100,
+        }
+        if last_row_key:
+            params["last_row_key"] = last_row_key
+        path = f"/v2.0/cloud/thing/{device_id}/report-logs?{_qs(params)}"
+        try:
+            res = _signed_get(path) or {}
+        except TuyaError as e:
+            print(f"[TUYA] report-logs {device_id}: {e}")
+            break
+        logs = res.get("logs") or []
+        for item in logs:
+            code = item.get("code")
+            et = item.get("event_time")
+            if et is None or (code not in temp_set and code not in hum_set):
+                continue
+            slot = by_time.setdefault(int(et), {})
+            if code in temp_set:
+                slot["temperature"] = _scaled(item.get("value"), code, scales, FALLBACK_SCALE["temp"])
+            else:
+                slot["humidity"] = _scaled(item.get("value"), code, scales, FALLBACK_SCALE["humidity"])
+        last_row_key = res.get("last_row_key")
+        if not res.get("has_more") or not logs or not last_row_key:
+            break
+
+    out = []
+    for et_ms in sorted(by_time):
+        slot = by_time[et_ms]
+        if slot.get("temperature") is None:
+            continue
+        out.append({"ts": et_ms // 1000, "temperature": slot["temperature"],
+                    "humidity": slot.get("humidity")})
+    return out
+
+
+def history_all(hours):
+    """История по всем барам из Tuya за последние `hours` часов: {venue_key: [points]}."""
+    end_ms = int(time.time() * 1000)
+    start_ms = end_ms - int(hours) * 3600 * 1000
+    out = {}
+    for device_id, venue_key in _device_map().items():
+        try:
+            out[venue_key] = device_history(device_id, start_ms, end_ms)
+        except TuyaError as e:
+            print(f"[TUYA] history {venue_key}: {e}")
+            out[venue_key] = []
+    return out

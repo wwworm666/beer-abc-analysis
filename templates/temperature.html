@@ -97,17 +97,23 @@
         .history-controls { display: flex; gap: 8px; padding: 16px 0; flex-wrap: wrap; }
         .history-controls button { padding: 7px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-secondary); font-family: inherit; font-size: 0.85rem; cursor: pointer; }
         .history-controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
-        .history-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
-        .hist-card { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; }
-        .hist-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        .hist-name { font-weight: 700; font-size: 0.95rem; }
-        .hist-stat { font-size: 0.78rem; color: var(--text-muted, #6b7280); font-variant-numeric: tabular-nums; }
-        .hist-empty { font-size: 0.85rem; color: var(--text-muted, #6b7280); padding: 18px 4px; }
-        .hist-svg { width: 100%; height: 120px; display: block; }
-        .hist-svg .hg { stroke: var(--border-color); stroke-width: 1; }
-        .hist-svg .hline { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-        .hist-svg .harea { fill: var(--accent); opacity: 0.08; stroke: none; }
-        .hist-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.74rem; color: var(--text-muted, #6b7280); font-variant-numeric: tabular-nums; }
+        .hist-legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 2px 0 12px; }
+        .hl-item { display: inline-flex; align-items: center; gap: 7px; font-size: 0.85rem; color: var(--text-secondary); }
+        .hl-dot { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+        .hist-wrap { position: relative; width: 100%; min-height: 60px; }
+        .hist-wrap svg { display: block; max-width: 100%; touch-action: none; }
+        .hist-wrap .hg { stroke: var(--border-color); stroke-width: 1; }
+        .hist-wrap .hgx { stroke: var(--border-color); stroke-width: 1; stroke-dasharray: 2 4; opacity: 0.55; }
+        .hist-wrap .hyl { fill: var(--text-muted, #9ca3af); font-size: 11px; text-anchor: end; }
+        .hist-wrap .hxl { fill: var(--text-muted, #9ca3af); font-size: 11px; text-anchor: middle; }
+        .hist-wrap .hcross { stroke: var(--text-muted, #9ca3af); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+        .hist-tip { position: absolute; pointer-events: none; z-index: 5; background: var(--bg-tertiary, #fff); border: 1px solid var(--border-color); border-radius: 8px; padding: 8px 10px; font-size: 0.8rem; box-shadow: 0 4px 16px rgba(0,0,0,0.16); min-width: 132px; }
+        .hist-tip .tip-time { font-weight: 700; margin-bottom: 5px; color: var(--text-primary); }
+        .hist-tip .tip-row { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); line-height: 1.55; white-space: nowrap; }
+        .hist-tip .tip-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+        .hist-tip b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .hist-note { font-size: 0.78rem; color: var(--text-muted, #6b7280); margin-top: 10px; line-height: 1.5; }
+        .hist-empty { font-size: 0.9rem; color: var(--text-muted, #6b7280); padding: 32px 4px; text-align: center; }
     </style>
 </head>
 <body>
@@ -145,12 +151,14 @@
             <div class="history-body" id="history-body" hidden>
                 <div class="history-controls" id="history-controls">
                     <button type="button" data-hours="24">24 часа</button>
+                    <button type="button" data-hours="72">3 дня</button>
                     <button type="button" data-hours="168" class="active">7 дней</button>
-                    <button type="button" data-hours="336">14 дней</button>
                 </div>
-                <div id="history-charts" class="history-grid">
+                <div id="hist-legend" class="hist-legend"></div>
+                <div id="hist-wrap" class="hist-wrap">
                     <div class="loading">Загружаем историю...</div>
                 </div>
+                <div id="hist-note" class="hist-note"></div>
             </div>
         </div>
     </div>
@@ -314,74 +322,155 @@ async function loadCurrent(force) {
     }
 }
 
-// --- История температуры (сворачиваемая секция, до 30 дней) -------------------
+// --- История температуры: один график со всеми барами, осями и подсказкой ------
 
 function pad2(n) { return (n < 10 ? '0' : '') + n; }
-
-function fmtHistDate(ts, hours) {
+function histTick(ts, hours) {
     const d = new Date(ts * 1000);
-    if (hours <= 36) return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
-    return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1);
+    return hours <= 36 ? (pad2(d.getHours()) + ':' + pad2(d.getMinutes()))
+                       : (pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1));
+}
+function histFull(ts) {
+    const d = new Date(ts * 1000);
+    return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
 }
 
-// График истории: SVG-линия на всю ширину карточки. Текста в SVG нет (он бы тянулся
-// при preserveAspectRatio="none") — подписи в HTML: статистика в шапке, даты под графиком.
-function historyChart(points) {
-    const pts = (points || []).filter(p => p.temperature != null);
-    if (pts.length < 2) return null;
-    const W = 600, H = 120, pad = 4;
-    const temps = pts.map(p => p.temperature);
-    let min = Math.min(...temps), max = Math.max(...temps);
-    if (max - min < 1) { const m = (min + max) / 2; min = m - 0.5; max = m + 0.5; }
-    const t0 = pts[0].ts, t1 = pts[pts.length - 1].ts || (t0 + 1);
-    const spanT = (t1 - t0) || 1, spanV = (max - min) || 1;
-    const X = t => pad + ((t - t0) / spanT) * (W - 2 * pad);
-    const Y = v => pad + (1 - (v - min) / spanV) * (H - 2 * pad);
-    const line = pts.map(p => X(p.ts).toFixed(1) + ',' + Y(p.temperature).toFixed(1)).join(' ');
-    const area = pad + ',' + (H - pad) + ' ' + line + ' ' + (W - pad) + ',' + (H - pad);
-    const midY = Y((min + max) / 2).toFixed(1);
-    return '<svg class="hist-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
-        + '<line x1="' + pad + '" y1="' + midY + '" x2="' + (W - pad) + '" y2="' + midY + '" class="hg"/>'
-        + '<polygon points="' + area + '" class="harea"/>'
-        + '<polyline points="' + line + '" class="hline"/>'
-        + '</svg>';
+const HIST_ORDER = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
+const HIST_COLORS = { bolshoy: '#2563eb', ligovskiy: '#16a34a', kremenchugskaya: '#f59e0b', varshavskaya: '#db2777' };
+const HIST = { series: [], hours: 168, geo: null };
+
+function renderHistory(bars, hours, source) {
+    HIST.hours = hours;
+    HIST.series = HIST_ORDER.map(vk => ({
+        key: vk, name: STATE.names[vk] || vk, color: HIST_COLORS[vk],
+        points: (bars[vk] || []).filter(p => p.temperature != null).sort((a, b) => a.ts - b.ts)
+    }));
+    document.getElementById('hist-legend').innerHTML = HIST.series.map(s =>
+        '<span class="hl-item"><span class="hl-dot" style="background:' + s.color + '"></span>' + escapeHtml(s.name) + '</span>'
+    ).join('');
+    const total = HIST.series.reduce((n, s) => n + s.points.length, 0);
+    document.getElementById('hist-note').innerHTML = total
+        ? ('Наведите на график (или коснитесь) — покажет точное значение и время. Источник: '
+            + (source === 'tuya' ? 'облако Tuya (хранит ~7 дней)' : 'локальная история'))
+        : '';
+    drawHistory();
 }
 
-function renderHistory(bars, hours) {
-    const order = ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya'];
-    const html = order.map(vk => {
-        const pts = (bars[vk] || []).filter(p => p.temperature != null);
-        const name = STATE.names[vk] || vk;
-        let stat = '', body;
-        if (pts.length >= 2) {
-            const temps = pts.map(p => p.temperature);
-            const mn = Math.min(...temps), mx = Math.max(...temps);
-            const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
-            stat = 'мин ' + mn.toFixed(1) + ' &middot; сред ' + avg.toFixed(1) + ' &middot; макс ' + mx.toFixed(1) + ' &deg;C';
-            body = (historyChart(bars[vk]) || '')
-                + '<div class="hist-axis"><span>' + fmtHistDate(pts[0].ts, hours) + '</span>'
-                + '<span>' + fmtHistDate(pts[pts.length - 1].ts, hours) + '</span></div>';
-        } else {
-            body = '<div class="hist-empty">Недостаточно данных за период. История собирается с запуска мониторинга и заполнится со временем.</div>';
-        }
-        return '<div class="hist-card">'
-            + '<div class="hist-head"><span class="hist-name">' + escapeHtml(name) + '</span>'
-            + '<span class="hist-stat">' + stat + '</span></div>'
-            + body + '</div>';
-    }).join('');
-    document.getElementById('history-charts').innerHTML = html;
+function histXTicks(t0, t1, hours) {
+    const hour = 3600, day = 86400;
+    const step = hours <= 24 ? 3 * hour : (hours <= 72 ? 12 * hour : day);
+    const out = [];
+    for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) out.push(t);
+    return out.length > 9 ? out.filter((_, i) => i % Math.ceil(out.length / 8) === 0) : out;
+}
+
+function drawHistory() {
+    const wrap = document.getElementById('hist-wrap');
+    if (!wrap) return;
+    const series = HIST.series, hours = HIST.hours;
+    const all = series.reduce((a, s) => a.concat(s.points), []);
+    if (all.length < 2) {
+        wrap.innerHTML = '<div class="hist-empty">Пока нет данных за этот период.</div>';
+        HIST.geo = null;
+        return;
+    }
+    const W = Math.max(320, Math.round(wrap.clientWidth || 640)), H = 300;
+    const padL = 40, padR = 14, padT = 12, padB = 26;
+    let tmin = Math.floor(Math.min.apply(null, all.map(p => p.temperature)));
+    let tmax = Math.ceil(Math.max.apply(null, all.map(p => p.temperature)));
+    if (tmax - tmin < 3) tmax = tmin + 3;
+    const now = Math.floor(Date.now() / 1000);
+    const t1 = Math.max(now, Math.max.apply(null, all.map(p => p.ts)));
+    let t0 = t1 - hours * 3600;
+    const dataMin = Math.min.apply(null, all.map(p => p.ts));
+    if (dataMin > t0) t0 = dataMin;                       // не растягивать пустое начало
+    const spanT = (t1 - t0) || 1, spanV = (tmax - tmin) || 1;
+    const X = t => padL + ((t - t0) / spanT) * (W - padL - padR);
+    const Y = v => padT + (1 - (v - tmin) / spanV) * (H - padT - padB);
+
+    let svg = '';
+    const yStep = Math.max(1, Math.round((tmax - tmin) / 5));
+    for (let v = tmin; v <= tmax + 0.001; v += yStep) {
+        const y = Y(v).toFixed(1);
+        svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" class="hg"/>'
+            + '<text x="' + (padL - 6) + '" y="' + (Y(v) + 4).toFixed(1) + '" class="hyl">' + v + '°</text>';
+    }
+    histXTicks(t0, t1, hours).forEach(tk => {
+        const x = X(tk).toFixed(1);
+        svg += '<line x1="' + x + '" y1="' + padT + '" x2="' + x + '" y2="' + (H - padB) + '" class="hgx"/>'
+            + '<text x="' + x + '" y="' + (H - 8) + '" class="hxl">' + histTick(tk, hours) + '</text>';
+    });
+    series.forEach(s => {
+        if (s.points.length < 2) return;
+        const d = s.points.map(p => X(p.ts).toFixed(1) + ',' + Y(p.temperature).toFixed(1)).join(' ');
+        svg += '<polyline points="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>';
+    });
+    svg += '<line id="hist-cross" class="hcross" x1="0" y1="' + padT + '" x2="0" y2="' + (H - padB) + '" style="display:none"/>'
+        + '<g id="hist-dots"></g>';
+
+    wrap.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' + svg + '</svg>'
+        + '<div class="hist-tip" id="hist-tip" hidden></div>';
+    HIST.geo = { W, padL, padR, t0, t1, Xfn: X, Yfn: Y };
+    attachHistHover();
+}
+
+function attachHistHover() {
+    const wrap = document.getElementById('hist-wrap');
+    const svg = wrap && wrap.querySelector('svg');
+    const tip = document.getElementById('hist-tip');
+    const cross = document.getElementById('hist-cross');
+    const dots = document.getElementById('hist-dots');
+    const g = HIST.geo;
+    if (!svg || !g) return;
+
+    function move(clientX, clientY) {
+        const rect = svg.getBoundingClientRect();
+        const mx = (clientX - rect.left) * (g.W / rect.width);
+        if (mx < g.padL || mx > g.W - g.padR) { leave(); return; }
+        const t = g.t0 + ((mx - g.padL) / (g.W - g.padL - g.padR)) * (g.t1 - g.t0);
+        let rows = '', dotEls = '', tipTime = null, best = Infinity;
+        HIST.series.forEach(s => {
+            let np = null, nd = Infinity;
+            for (let i = 0; i < s.points.length; i++) {
+                const dd = Math.abs(s.points[i].ts - t);
+                if (dd < nd) { nd = dd; np = s.points[i]; }
+            }
+            if (!np) return;
+            dotEls += '<circle cx="' + g.Xfn(np.ts).toFixed(1) + '" cy="' + g.Yfn(np.temperature).toFixed(1)
+                + '" r="3.4" fill="' + s.color + '" stroke="#fff" stroke-width="1.2"/>';
+            rows += '<div class="tip-row"><span class="tip-dot" style="background:' + s.color + '"></span>'
+                + escapeHtml(s.name) + ': <b>' + np.temperature.toFixed(1) + '°</b></div>';
+            if (nd < best) { best = nd; tipTime = np.ts; }
+        });
+        dots.innerHTML = dotEls;
+        cross.setAttribute('x1', mx.toFixed(1)); cross.setAttribute('x2', mx.toFixed(1));
+        cross.style.display = '';
+        tip.innerHTML = '<div class="tip-time">' + histFull(tipTime || Math.round(t)) + '</div>' + rows;
+        tip.hidden = false;
+        const wr = wrap.getBoundingClientRect();
+        let left = clientX - wr.left + 14;
+        if (left > wr.width - 150) left = clientX - wr.left - 150;
+        tip.style.left = Math.max(4, left) + 'px';
+        tip.style.top = Math.max(4, clientY - wr.top - 10) + 'px';
+    }
+    function leave() { if (cross) cross.style.display = 'none'; if (dots) dots.innerHTML = ''; if (tip) tip.hidden = true; }
+
+    svg.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+    svg.addEventListener('mouseleave', leave);
+    svg.addEventListener('touchstart', e => { if (e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    svg.addEventListener('touchmove', e => { if (e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
 }
 
 async function loadHistoryView(hours) {
     STATE.histHours = hours;
-    const cont = document.getElementById('history-charts');
-    cont.innerHTML = '<div class="loading">Загружаем историю...</div>';
+    const wrap = document.getElementById('hist-wrap');
+    wrap.innerHTML = '<div class="loading">Загружаем историю...</div>';
     try {
         const r = await fetch('/api/temperature/history?hours=' + hours);
         const j = await r.json();
-        renderHistory(j.bars || {}, hours);
+        renderHistory(j.bars || {}, hours, j.source);
     } catch (e) {
-        cont.innerHTML = '<div class="hist-empty">Не удалось загрузить историю.</div>';
+        wrap.innerHTML = '<div class="hist-empty">Не удалось загрузить историю.</div>';
     }
 }
 
@@ -412,6 +501,13 @@ function setupHistory() {
         sub.textContent = 'за ' + btn.textContent.trim();
         STATE.histLoaded = true;
         loadHistoryView(parseInt(btn.getAttribute('data-hours'), 10) || 168);
+    });
+
+    let rt;
+    window.addEventListener('resize', () => {
+        if (!HIST.series.length || body.hasAttribute('hidden')) return;
+        clearTimeout(rt);
+        rt = setTimeout(drawHistory, 200);
     });
 }
 

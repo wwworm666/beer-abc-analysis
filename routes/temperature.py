@@ -160,25 +160,67 @@ def _downsample(points, max_points):
     return [points[i] for i in idxs]
 
 
+# Кэш истории по периоду: прошлые точки не меняются, окно сдвигается медленно —
+# 5 минут достаточно, чтобы не дёргать Tuya на каждое открытие/смену периода.
+_HISTORY_CACHE = {}   # hours -> {"data": payload, "ts": float}
+_HISTORY_TTL_S = 300
+_HISTORY_LOCK = threading.Lock()
+
+
 @temperature_bp.route("/api/temperature/history")
 def api_history():
-    """История показаний. ?hours=24 (1..720 — до 30 дней). ?max_points ограничивает
-    плотность точек (прорежывание для лёгких графиков на длинных периодах)."""
+    """История для графика. ?hours=24 (1..168 — Tuya хранит ~7 дней).
+
+    Источник — облако Tuya (report-logs): реальная история сразу, без ожидания
+    накопления нашей БД. Кэш 5 мин по периоду. Фоллбэк на temperature.db, если Tuya
+    недоступна или по бару пусто. ?max_points прорежает плотные периоды.
+    """
     try:
         hours = int(request.args.get("hours", "24"))
     except (ValueError, TypeError):
         hours = 24
-    hours = max(1, min(720, hours))
+    hours = max(1, min(168, hours))
 
     try:
-        max_points = int(request.args.get("max_points", "1500"))
+        max_points = int(request.args.get("max_points", "2000"))
     except (ValueError, TypeError):
-        max_points = 1500
+        max_points = 2000
     max_points = max(50, min(5000, max_points))
 
-    hist = get_store().history(hours=hours)
-    return jsonify({
-        "success": True,
-        "hours": hours,
-        "bars": {vk: _downsample(hist.get(vk, []), max_points) for vk in PHYSICAL_VENUES},
-    })
+    now = time.time()
+    cached = _HISTORY_CACHE.get(hours)
+    if cached and (now - cached["ts"]) < _HISTORY_TTL_S:
+        return jsonify(cached["data"])
+
+    with _HISTORY_LOCK:
+        now = time.time()
+        cached = _HISTORY_CACHE.get(hours)
+        if cached and (now - cached["ts"]) < _HISTORY_TTL_S:
+            return jsonify(cached["data"])
+
+        bars = {}
+        source = "store"
+        if tuya.is_configured():
+            try:
+                bars = tuya.history_all(hours)
+                source = "tuya"
+            except Exception as e:
+                print(f"[TUYA] history_all failed: {e}")
+                bars = {}
+
+        # Добор из БД там, где Tuya пусто (или вся выборка из БД при сбое Tuya).
+        store_hist = None
+        for vk in PHYSICAL_VENUES:
+            if not bars.get(vk):
+                if store_hist is None:
+                    store_hist = get_store().history(hours=hours)
+                bars[vk] = store_hist.get(vk, [])
+
+        payload = {
+            "success": True,
+            "hours": hours,
+            "source": source,
+            "bars": {vk: _downsample(bars.get(vk, []), max_points) for vk in PHYSICAL_VENUES},
+        }
+        _HISTORY_CACHE[hours] = {"data": payload, "ts": time.time()}
+        return jsonify(payload)
