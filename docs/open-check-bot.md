@@ -15,7 +15,7 @@
 | Файл | Что делает |
 |---|---|
 | [core/open_check_bot.py](../core/open_check_bot.py) | Логика проверки, форматирование, отправка (sync, через `requests`) |
-| [core/open_check_telegram.py](../core/open_check_telegram.py) | Telegram HTTP API + меню подписки (кнопка) + команды `/start` `/status` + webhook-хелперы |
+| [core/open_check_telegram.py](../core/open_check_telegram.py) | Telegram HTTP API + меню подписки (кнопка) + команды `/start` `/status` `/temp` + webhook-хелперы |
 | [core/open_check_subscribers.py](../core/open_check_subscribers.py) | Хранилище самоподписавшихся чатов (`open_check_subscribers.json`, единый список + portalocker) |
 | [core/open_check_polling.py](../core/open_check_polling.py) | Long-polling getUpdates (входящие команды/кнопки; webhook не доставляется из-за блокировок) |
 | [core/open_check_scheduler.py](../core/open_check_scheduler.py) | Daemon-thread, ежедневный запуск в 14:59 МСК, защита от двойного срабатывания |
@@ -29,12 +29,20 @@
 упрощено по запросу владельца до одного переключателя):
 
 1. Человек открывает бота → `/start`. В группе: `/start@kultura_open_bot`.
-2. Бот показывает короткое описание, «Уведомления приходят в этот чат: да/нет», «ID этого чата» и две кнопки:
+2. Бот показывает короткое описание, «Уведомления приходят в этот чат: да/нет», «ID этого чата» и кнопки:
    - **Подписаться на уведомления** / **Отписаться от уведомлений** — переключатель (callback `oc_on` / `oc_off`).
    - **Статус баров сейчас** — живой опрос iiko (callback `oc_status`), то же что команда `/status`.
+   - **Температура в барах** — живой опрос термометров Tuya (callback `oc_temp`), то же что команда `/temp`.
 3. Подписавшийся чат получает **все** типы уведомлений (и «все открыты», и тревоги, и ошибки iiko). Раздельного выбора нет.
 
-Команды (дублируют кнопки для тех, кто любит текст): `/status`, `/subscribe`, `/unsubscribe` (`/stop`).
+Команды (дублируют кнопки для тех, кто любит текст): `/status`, `/temp` (`/temperature`, `/t`), `/subscribe`, `/unsubscribe` (`/stop`).
+
+`/temp` опрашивает термометры по 4 барам через Tuya Cloud и отвечает короткой сводкой
+(те же данные, что страница [/temperature](temperature.md)): `ВО — 24.0 C, влажность 62%`
+и т.д.; бар вне нормы (холодно/тепло/жарко) или без данных помечается жирным. Формат и
+окраска по диапазонам — общие со страницей. Реализация: `_live_temperature_text()` в
+[core/open_check_telegram.py](../core/open_check_telegram.py), показания —
+[core/tuya_temperature.py](../core/tuya_temperature.py).
 
 Подписки хранятся в `open_check_subscribers.json` (единый список `{"chats":[...]}`,
 [core/open_check_subscribers.py](../core/open_check_subscribers.py)). Старый формат
@@ -54,7 +62,7 @@ Singleton под `gunicorn --workers 2`: эксклюзивный flock (portalo
 
 **Webhook (выключен, оставлен как fallback):**
 - `POST /telegram/openbot/webhook` — точка входа Telegram. Проверяет секрет в заголовке `X-Telegram-Bot-Api-Secret-Token` (выводится из токена, отдельная env не нужна).
-- `GET /telegram/openbot/setup-webhook` — зарегистрировать webhook у Telegram. Также ставит командное меню `/start`, `/status`. **Не вызывать при включённом polling** — polling снимет webhook обратно при первом 409.
+- `GET /telegram/openbot/setup-webhook` — зарегистрировать webhook у Telegram. Также ставит командное меню `/start`, `/status`, `/temp`. **Не вызывать при включённом polling** — polling снимет webhook обратно при первом 409.
 - `GET /telegram/openbot/webhook-info` — диагностика (`getWebhookInfo`).
 - `POST /telegram/openbot/delete-webhook` — снять webhook.
 
@@ -222,6 +230,16 @@ done
 Изначально отправка шла через aiogram, но бот простой, поэтому весь open-check переведён на синхронный `requests` напрямую к Telegram Bot API ([core/open_check_telegram.py](../core/open_check_telegram.py)). `send_report` синхронный, `run_check` без `asyncio`. Плюсы: нет async-плумбинга, нет утечки `aiohttp.ClientSession`, работает и тестируется в окружении без aiogram.
 
 ## Changelog
+
+### 2026-06-29 — Команда /temp: температура баров из бота
+
+- Добавлена команда `/temp` (алиасы `/temperature`, `/t`) и кнопка «Температура в барах»
+  в меню — живой опрос термометров Tuya по 4 барам, короткая сводка (температура +
+  влажность; бар вне нормы холодно/тепло/жарко или без данных — жирным). Те же показания,
+  что страница [/temperature](temperature.md).
+- `set_my_commands` теперь регистрирует `/temp`; добавлены `_live_temperature_text()`,
+  кнопка/коллбэк `oc_temp`, ветка команды в `handle_update`.
+- Файлы: `core/open_check_telegram.py`. Опирается на `core/tuya_temperature.py`.
 
 ### 2026-06-17 — Ложное «ЗАКРЫТ — Варш»: дробные секунды iiko + Python 3.10
 

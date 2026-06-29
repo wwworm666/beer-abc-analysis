@@ -1,5 +1,16 @@
 ﻿# Changelog
 
+### 2026-06-29 (2) — Команда /temp в open-check боте
+
+- В Telegram-бот открытия баров (`@kultura_open_bot`) добавлена команда **`/temp`**
+  (алиасы `/temperature`, `/t`) и кнопка «Температура в барах» в меню `/start` — живой
+  опрос термометров Tuya по 4 барам прямо из чата. Сводка: `ВО — 24.0 C, влажность 62%`
+  и т.д.; бар вне нормы (холодно/тепло/жарко) или без данных — жирным (как закрытые в
+  `/status`). Те же показания, что страница `/temperature`.
+- Файлы: `core/open_check_telegram.py` (`_live_temperature_text`, `set_my_commands`,
+  меню/коллбэк `oc_temp`, ветка в `handle_update`), `docs/open-check-bot.md`. Опирается
+  на `core/tuya_temperature.py`.
+
 ### 2026-06-29 — Мониторинг температуры по барам (`/temperature`)
 
 Перенос рабочего Jupyter-прототипа (Tuya Cloud термо-гигрометры) в приложение —

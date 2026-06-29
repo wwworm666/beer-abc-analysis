@@ -211,6 +211,7 @@ def set_my_commands():
     return api_call("setMyCommands", {"commands": [
         {"command": "start", "description": "Подписка и меню"},
         {"command": "status", "description": "Статус баров сейчас"},
+        {"command": "temp", "description": "Температура в барах сейчас"},
     ]})
 
 
@@ -224,6 +225,7 @@ def _menu_keyboard(subscribed: bool) -> dict:
     return {"inline_keyboard": [
         [toggle],
         [{"text": "Статус баров сейчас", "callback_data": "oc_status"}],
+        [{"text": "Температура в барах", "callback_data": "oc_temp"}],
     ]}
 
 
@@ -235,7 +237,8 @@ def _start_text(chat_id, subscribed: bool) -> str:
         f"Уведомления приходят в этот чат: {state}\n"
         f"ID этого чата: {chat_id}\n\n"
         "Кнопкой ниже можно подписаться или отписаться. "
-        "«Статус баров сейчас» — проверить вручную в любой момент."
+        "«Статус баров сейчас» — проверить открытие вручную в любой момент, "
+        "«Температура в барах» — текущая температура датчиков (команда /temp)."
     )
 
 
@@ -244,6 +247,56 @@ def _live_status_text() -> str:
     from core.open_check_bot import check_bars_state, format_status_reply, now_msk
     dt = now_msk()
     return format_status_reply(check_bars_state(dt), dt)
+
+
+def _live_temperature_text() -> str:
+    """Опросить термометры Tuya прямо сейчас и собрать ответ на /temp.
+
+    Формат как у /status: короткие имена баров, html, проблемные строки жирным.
+    «Проблема» здесь — температура вне нормы (холодно/тепло/жарко) или нет данных.
+    Показания берутся живым опросом Tuya (см. core/tuya_temperature.py); та же
+    логика, что на странице /temperature.
+    """
+    import html as _html
+    from core.tuya_temperature import read_all, is_configured
+    from core.venues_config import PHYSICAL_VENUES
+    from core.open_check_bot import now_msk, BAR_SHORT_NAMES
+
+    if not is_configured():
+        return "Мониторинг температуры не настроен (нет TUYA_ACCESS_ID/SECRET)."
+
+    dt = now_msk()
+    try:
+        data = read_all()
+    except Exception as e:
+        return f"Не удалось опросить датчики: {_html.escape(str(e))}"
+
+    # cold/warm/hot — вне комфортной нормы; такие строки выделяем жирным.
+    band_label = {"cold": "холодно", "warm": "тепло", "hot": "жарко"}
+    lines = [f"Температура на {dt.strftime('%H:%M')} МСК"]
+    any_ok = False
+    for k in PHYSICAL_VENUES:
+        short = BAR_SHORT_NAMES.get(k, k)
+        r = data.get(k) or {}
+        t = r.get("temperature")
+        if t is None:
+            lines.append(f"<b>{short} — нет данных</b>")
+            continue
+        any_ok = True
+        parts = [f"{t:.1f} C"]
+        h = r.get("humidity")
+        if h is not None:
+            parts.append(f"влажность {h:.0f}%")
+        band = r.get("band")
+        problem = band in band_label
+        if problem:
+            parts.append(band_label[band])
+        line = f"{short} — {', '.join(parts)}"
+        lines.append(f"<b>{line}</b>" if problem else line)
+    if not any_ok:
+        lines.append("")
+        lines.append("Датчики не ответили. Проверьте TUYA_* и доступ к Tuya Cloud.")
+    return "\n".join(lines)
 
 
 def _send_menu(chat_id, subs) -> None:
@@ -268,6 +321,11 @@ def _handle_callback(cq: dict, subs) -> None:
         send_message(chat_id, _live_status_text(), html=True)
         return
 
+    if data == "oc_temp":
+        answer_callback(cq_id, "Опрашиваю датчики...")
+        send_message(chat_id, _live_temperature_text(), html=True)
+        return
+
     # subscribed = состояние ПОСЛЕ переключения (не перечитываем файл повторно).
     if data == "oc_on":
         subs.subscribe(chat_id)
@@ -286,8 +344,9 @@ def _handle_callback(cq: dict, subs) -> None:
 
 
 def handle_update(update: dict) -> None:
-    """Обработать один апдейт. Команды: /start (меню+подписка), /status, /subscribe,
-    /unsubscribe. Подписка переключается кнопкой (callback_query)."""
+    """Обработать один апдейт. Команды: /start (меню+подписка), /status, /temp
+    (температура баров), /subscribe, /unsubscribe. Подписка и быстрые действия —
+    кнопками (callback_query)."""
     from core import open_check_subscribers as subs
 
     cq = update.get("callback_query")
@@ -308,6 +367,9 @@ def handle_update(update: dict) -> None:
     elif cmd == "/status":
         # html=True: format_status_reply помечает закрытые бары <b>…</b>
         send_message(chat_id, _live_status_text(), html=True)
+    elif cmd in ("/temp", "/temperature", "/t", "/температура"):
+        # html=True: бары вне нормы помечаются <b>…</b>
+        send_message(chat_id, _live_temperature_text(), html=True)
     elif cmd == "/subscribe":
         subs.subscribe(chat_id)
         send_message(chat_id, "Подписка оформлена. Уведомления будут приходить в этот чат.")
