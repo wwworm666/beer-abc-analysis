@@ -1194,6 +1194,29 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .el-cgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
 .el-cdot { width: 6px; height: 6px; border-radius: 2px; box-sizing: border-box; }
 
+/* Полный график на телефоне (body.ms-fullview): месячная сетка не влезает по ширине,
+   поэтому колонку с сотрудником ЗАМОРАЖИВАЕМ слева (видно, кто это, при горизонтальной
+   прокрутке), ячейки делаем компактнее, а хвост «план/факт» прячем — так за один экран
+   видно ~12 дней вместо 6, и имя не уезжает. */
+@media (max-width: 700px) {
+    .el-tbl { min-width: 0 !important; }   /* снять inline min-width под десктопные 38px */
+    .el-wrap { -webkit-overflow-scrolling: touch; }
+    .el-name {
+        position: sticky; left: 0; z-index: 3;
+        width: 48px; padding: 7px 4px; gap: 2px;
+        background: var(--bg-secondary);
+        box-shadow: 1px 0 0 var(--border-color);
+    }
+    .el-foot .el-name { background: var(--bg-tertiary); }
+    .el-nm { display: none; }                       /* только бейдж-инициалы */
+    .el-head .el-name, .el-foot .el-name {          /* «СОТРУДНИК»/«Покрытие точек» — скрыть подпись */
+        font-size: 0; padding-left: 4px; padding-right: 4px;
+    }
+    .el-cell, .el-dh, .el-cov { width: 28px; }
+    .el-blk, .el-dayoff-blk { width: 18px; }
+    .el-gauge, .el-gauge-h { display: none; }       /* план/факт скрыт на телефоне ради ширины */
+}
+
 /* Легенда редактора */
 .el-legend { display: flex; flex-wrap: wrap; gap: 9px 20px; align-items: center;
     margin: 13px 2px 4px; font-size: 0.7rem; color: var(--text-tertiary); }
