@@ -59,7 +59,7 @@ class TemperatureStore:
                 CREATE TABLE IF NOT EXISTS readings (
                     bar_key     TEXT    NOT NULL,
                     bucket_ts   INTEGER NOT NULL,   -- unix-сек, округлённый вниз до интервала
-                    ts          INTEGER NOT NULL,   -- фактическое время показания
+                    ts          INTEGER NOT NULL,   -- время сэмпла (опроса), unix-сек
                     device_id   TEXT,
                     temperature REAL,               -- C
                     humidity    REAL,               -- %
@@ -85,29 +85,31 @@ class TemperatureStore:
             )
             conn.commit()
 
-    def save_readings(self, readings, interval_s):
-        """Сохранить пачку показаний (out из tuya_temperature.read_all()).
+    def save_readings(self, readings, interval_s, sample_ts=None):
+        """Сохранить пачку показаний (out из tuya_temperature.read_all()) как сэмпл истории.
 
-        readings: {bar_key: {temperature, humidity, battery, online, ts, device_id, error}}
-        interval_s: интервал опроса в секундах (для вычисления bucket_ts).
+        Бакетируем по ВРЕМЕНИ ОПРОСА (wall-clock), а НЕ по update_time устройства:
+        датчики Tuya шлют данные по изменению, и при стабильной температуре их update_time
+        стоит часами — бакетирование по нему оставляло бы историю почти пустой (1-2 точки
+        за неделю). Сэмпл на каждый опрос (раз в interval_s) даёт ровный лог последнего
+        известного значения — то, что нужно для графика истории.
 
+        bucket_ts = floor(sample_ts / interval_s) * interval_s; PRIMARY KEY
+        (bar_key, bucket_ts) + INSERT OR IGNORE дедупит два воркера в одном окне.
         Пишем только показания с числовой температурой (ошибочные/пустые — пропускаем).
-        INSERT OR IGNORE: одинаковый бакет от второго воркера тихо игнорируется.
         """
         interval_s = max(1, int(interval_s))
+        now = int(sample_ts if sample_ts is not None else time.time())
+        bucket_ts = (now // interval_s) * interval_s
         rows = []
         for bar_key, r in (readings or {}).items():
             if r.get("temperature") is None:
                 continue
-            ts = int(r.get("ts") or 0)
-            if ts <= 0:
-                continue
-            bucket_ts = (ts // interval_s) * interval_s
             online = r.get("online")
             rows.append((
                 bar_key,
                 bucket_ts,
-                ts,
+                now,
                 r.get("device_id"),
                 r.get("temperature"),
                 r.get("humidity"),
