@@ -1,5 +1,35 @@
 ﻿# Changelog
 
+### 2026-06-29 — Мониторинг температуры по барам (`/temperature`)
+
+Перенос рабочего Jupyter-прототипа (Tuya Cloud термо-гигрометры) в приложение —
+живая страница с показаниями по 4 барам.
+
+- **Новая страница `/temperature`** и пункт меню «Температура» (раздел «Управление»).
+  Карточки 4 баров: температура с окраской по диапазону, влажность, батарея, бейдж
+  связи, спарклайн за 24 ч, автообновление 60 с.
+- **`core/tuya_temperature.py`** — клиент Tuya OpenAPI v2.0: подпись HMAC-SHA256,
+  кэш токена (до `expire_time-60c`, авто-рефреш при code 1010-1012), маппинг
+  устройство->бар (`Andr`=Большой пр. В.О по элиминации).
+- **Корректность (принцип №1):** масштаб показаний берётся из спецификации устройства
+  (`scale`: `va_temperature`=1 => ÷10, `va_humidity`=0 => без деления), а не по
+  эвристике «>100 значит десятые». Это чинит холодный случай (9.5 °C не превращается
+  в 95 °C). Формула `raw/10**scale` и диапазоны окраски задокументированы и показаны
+  в легенде. Проверено на живом API: 23–24 °C, влажность 44–62 %.
+- **`core/temperature_store.py`** — история в SQLite (`temperature.db`, WAL). Дедуп
+  под `--workers 2` через PK `(bar_key, bucket_ts)` + `INSERT OR IGNORE` (без
+  lock-файлов): оба воркера пишут, остаётся одна строка на бакет.
+- **`core/temperature_scheduler.py`** — daemon-опрос каждые `TUYA_POLL_MINUTES` мин,
+  гейт по `TUYA_ACCESS_ID/SECRET` (нет кредов — фича тихо выключена), суточный prune.
+- **API:** `GET /api/temperature/current` (живой опрос, кэш 60 с, фоллбэк на БД) и
+  `GET /api/temperature/history?hours=`.
+- **Секреты в `.env`** (gitignored), плейсхолдеры в `.env.example`. Для прода — те же
+  переменные в окружении контейнера.
+- Файлы: `core/tuya_temperature.py`, `core/temperature_store.py`,
+  `core/temperature_scheduler.py`, `routes/temperature.py`, `templates/temperature.html`,
+  `routes/__init__.py`, `app.py`, `templates/shared/nav.html`, `.env`/`.env.example`,
+  `docs/temperature.md`. Подробности — [temperature.md](temperature.md).
+
 ### 2026-06-28 (3) — «ждёт факт» в сетке, ввод часов в просмотре, формулировки доступа
 
 - **«Ждёт факт» теперь виден в десктоп-сетке** (`renderEditLanes`): прошедшая смена

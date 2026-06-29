@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Температура — Beer Analysis</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+        .container { max-width: 1200px; margin: 0 auto; padding: 32px 20px 64px; }
+
+        .toolbar {
+            display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+            margin-bottom: 24px; padding: 16px 20px;
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 14px;
+        }
+        button.toolbar-btn {
+            padding: 10px 16px; background: var(--accent); color: #fff; border: none;
+            border-radius: 6px; font-size: 0.95rem; font-family: inherit; font-weight: 600;
+            cursor: pointer;
+        }
+        button.toolbar-btn:hover { background: var(--accent-hover); }
+        button.toolbar-btn:disabled { opacity: 0.6; cursor: default; }
+        .auto-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); cursor: pointer; }
+        .meta-row { margin-left: auto; font-size: 0.85rem; color: var(--text-muted, #6b7280); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+
+        /* Сетка карточек баров */
+        .temp-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .temp-card {
+            position: relative; background: var(--bg-secondary);
+            border: 1px solid var(--border-color); border-radius: 16px;
+            padding: 20px 22px; overflow: hidden;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .temp-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm, 0 4px 14px rgba(0,0,0,0.08)); }
+        /* Цветная полоска слева по диапазону температуры */
+        .temp-card::before {
+            content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: var(--band-color, var(--border-color));
+        }
+        .temp-card .bar-name { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .temp-card .bar-sub { font-size: 0.78rem; color: var(--text-muted, #6b7280); margin-bottom: 14px; }
+
+        .temp-value { display: flex; align-items: baseline; gap: 4px; }
+        .temp-value .num { font-size: 2.8rem; font-weight: 800; line-height: 1; color: var(--band-color, var(--text-primary)); font-variant-numeric: tabular-nums; }
+        .temp-value .unit { font-size: 1.2rem; font-weight: 600; color: var(--text-secondary); }
+        .temp-value .band-label { margin-left: auto; align-self: center; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; color: #fff; background: var(--band-color, var(--text-muted)); }
+
+        .temp-secondary { display: flex; gap: 16px; margin-top: 12px; font-size: 0.85rem; color: var(--text-secondary); flex-wrap: wrap; }
+        .temp-secondary .chip { display: inline-flex; align-items: center; gap: 5px; }
+        .temp-secondary .chip.warn { color: #e11d48; font-weight: 600; }
+
+        .spark { margin-top: 14px; height: 42px; }
+        .spark svg { width: 100%; height: 42px; display: block; }
+        .spark .empty { font-size: 0.78rem; color: var(--text-muted, #6b7280); }
+
+        .temp-foot { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem; color: var(--text-muted, #6b7280); }
+        .badge { font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+        .badge.online { background: rgba(16,185,129,0.15); color: #059669; }
+        .badge.offline { background: rgba(225,29,72,0.15); color: #e11d48; }
+        .badge.stale { background: rgba(245,158,11,0.15); color: #b45309; }
+
+        /* Цвета диапазонов */
+        .band-cold { --band-color: #3b82f6; }
+        .band-ok   { --band-color: #10b981; }
+        .band-warm { --band-color: #f59e0b; }
+        .band-hot  { --band-color: #ef4444; }
+        .band-none { --band-color: var(--text-muted, #9ca3af); }
+
+        .legend { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; font-size: 0.82rem; color: var(--text-secondary); padding: 14px 20px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; }
+        .legend .li { display: inline-flex; align-items: center; gap: 7px; }
+        .legend .dot { width: 11px; height: 11px; border-radius: 3px; }
+        .legend .note { margin-left: auto; color: var(--text-muted, #6b7280); }
+
+        .err-banner { padding: 12px 16px; border-radius: 10px; background: rgba(225,29,72,0.1); color: #e11d48; font-size: 0.88rem; margin-bottom: 16px; display: none; }
+        .loading { text-align: center; padding: 48px; color: var(--text-muted, #6b7280); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% set page_title = "Температура" %}
+        {% set page_subtitle = "Датчики по барам" %}
+        {% include 'shared/nav.html' %}
+
+        <div class="toolbar">
+            <button class="toolbar-btn" id="refresh-btn" onclick="refreshNow()">Обновить</button>
+            <label class="auto-toggle">
+                <input type="checkbox" id="auto-toggle" checked> Автообновление (60 с)
+            </label>
+            <div class="meta-row" id="meta-row"></div>
+        </div>
+
+        <div class="err-banner" id="err-banner"></div>
+
+        <div id="grid" class="temp-grid">
+            <div class="loading">Загружаем показания датчиков...</div>
+        </div>
+
+        <div class="legend" id="legend"></div>
+    </div>
+
+<script>
+const STATE = { bands: [], history: {}, timer: null };
+const POLL_MS = 60000;
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fmtAge(ts) {
+    if (!ts) return 'нет данных';
+    const sec = Math.max(0, Math.floor(Date.now() / 1000) - ts);
+    if (sec < 90) return 'только что';
+    const min = Math.round(sec / 60);
+    if (min < 60) return min + ' мин назад';
+    const h = Math.floor(min / 60);
+    if (h < 24) return h + ' ч ' + (min % 60) + ' мин назад';
+    return Math.floor(h / 24) + ' дн назад';
+}
+
+// Считаем показание устаревшим, если ему больше 2.5 интервалов опроса (по умолчанию
+// poll=15 мин -> ~38 мин). Тогда показываем бейдж «давно».
+function isStale(ts, pollMinutes) {
+    if (!ts) return true;
+    const limit = Math.max(5, (pollMinutes || 15) * 2.5) * 60;
+    return (Date.now() / 1000 - ts) > limit;
+}
+
+function bandClass(band) {
+    return 'band-' + (band || 'none');
+}
+
+// Спарклайн: inline SVG polyline по температуре за период.
+function sparkline(points) {
+    const pts = (points || []).filter(p => p.temperature != null);
+    if (pts.length < 2) {
+        return '<div class="spark"><span class="empty">Накопление истории...</span></div>';
+    }
+    const W = 240, H = 42, pad = 4;
+    const temps = pts.map(p => p.temperature);
+    const tsArr = pts.map(p => p.ts);
+    let min = Math.min(...temps), max = Math.max(...temps);
+    if (max - min < 0.5) { min -= 0.5; max += 0.5; } // не схлопывать плоскую линию
+    const t0 = tsArr[0], t1 = tsArr[tsArr.length - 1] || (t0 + 1);
+    const spanT = (t1 - t0) || 1;
+    const coords = pts.map(p => {
+        const x = pad + ((p.ts - t0) / spanT) * (W - 2 * pad);
+        const y = pad + (1 - (p.temperature - min) / (max - min)) * (H - 2 * pad);
+        return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    const last = pts[pts.length - 1];
+    return '<div class="spark" title="Температура за 24 ч: мин ' + min.toFixed(1) + ', макс ' + max.toFixed(1) + '">'
+        + '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+        + '<polyline points="' + coords + '" fill="none" stroke="var(--band-color, #888)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+        + '</svg></div>';
+}
+
+function renderCard(bar, pollMinutes) {
+    const band = bar.temperature != null ? bar.band : null;
+    const cls = bandClass(band);
+    const bandLabel = (STATE.bands.find(b => b.key === band) || {}).label || '';
+
+    let valueHtml;
+    if (bar.temperature != null) {
+        valueHtml = '<span class="num">' + bar.temperature.toFixed(1) + '</span><span class="unit">&deg;C</span>'
+            + (bandLabel ? '<span class="band-label">' + escapeHtml(bandLabel) + '</span>' : '');
+    } else {
+        valueHtml = '<span class="num">&mdash;</span><span class="unit">&deg;C</span>';
+    }
+
+    const sec = [];
+    if (bar.humidity != null) sec.push('<span class="chip">Влажность ' + bar.humidity.toFixed(0) + '%</span>');
+    if (bar.battery != null) {
+        const low = bar.battery <= 20;
+        sec.push('<span class="chip' + (low ? ' warn' : '') + '">Батарея ' + bar.battery + '%</span>');
+    }
+
+    // Бейдж связи: offline (online===false) / stale (давно нет обновлений) / online.
+    let badge = '';
+    if (bar.online === false) badge = '<span class="badge offline">не на связи</span>';
+    else if (isStale(bar.ts, pollMinutes)) badge = '<span class="badge stale">давно</span>';
+    else if (bar.online === true) badge = '<span class="badge online">на связи</span>';
+
+    const spark = sparkline(STATE.history[bar.venue_key]);
+
+    const errLine = bar.error ? '<div class="bar-sub" style="color:#e11d48">' + escapeHtml(bar.error) + '</div>' : '';
+
+    return '<div class="temp-card ' + cls + '">'
+        + '<div class="bar-name">' + escapeHtml(bar.venue_name) + '</div>'
+        + errLine
+        + '<div class="temp-value">' + valueHtml + '</div>'
+        + (sec.length ? '<div class="temp-secondary">' + sec.join('') + '</div>' : '')
+        + spark
+        + '<div class="temp-foot"><span>' + fmtAge(bar.ts) + '</span>' + badge + '</div>'
+        + '</div>';
+}
+
+function renderLegend() {
+    if (!STATE.bands.length) { document.getElementById('legend').innerHTML = ''; return; }
+    const colorByKey = { cold: '#3b82f6', ok: '#10b981', warm: '#f59e0b', hot: '#ef4444' };
+    const fmtRange = b => {
+        if (b.min == null) return '< ' + b.max + '&deg;';
+        if (b.max == null) return '> ' + b.min + '&deg;';
+        return b.min + '&ndash;' + b.max + '&deg;';
+    };
+    const items = STATE.bands.map(b =>
+        '<span class="li"><span class="dot" style="background:' + (colorByKey[b.key] || '#999') + '"></span>'
+        + escapeHtml(b.label) + ' (' + fmtRange(b) + ')</span>'
+    ).join('');
+    document.getElementById('legend').innerHTML = items
+        + '<span class="note">Температура воздуха в зале. Границы &mdash; ориентир комфорта.</span>';
+}
+
+function renderMeta(data) {
+    const m = document.getElementById('meta-row');
+    const srcLabel = { live: 'живой опрос', cache: 'кэш (до 60 с)', store: 'из истории' }[data.source] || data.source;
+    let html = 'Обновлено: ' + fmtAge(data.updated_at) + ' &middot; ' + srcLabel;
+    if (data.meta && !data.meta.configured) {
+        html += ' &middot; <span style="color:#b45309">Tuya не настроена (TUYA_ACCESS_ID/SECRET)</span>';
+    }
+    m.innerHTML = html;
+}
+
+async function loadHistory() {
+    try {
+        const r = await fetch('/api/temperature/history?hours=24');
+        const j = await r.json();
+        if (j.success) STATE.history = j.bars || {};
+    } catch (e) { /* история не критична — спарклайн просто будет пустым */ }
+}
+
+async function loadCurrent(force) {
+    const btn = document.getElementById('refresh-btn');
+    const err = document.getElementById('err-banner');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/api/temperature/current' + (force ? '?force=1' : ''));
+        const data = await r.json();
+        if (!data.success) throw new Error(data.error || 'Ошибка API');
+        STATE.bands = (data.meta && data.meta.bands) || [];
+        const pollMinutes = (data.meta && data.meta.poll_minutes) || 15;
+        document.getElementById('grid').innerHTML =
+            (data.bars || []).map(b => renderCard(b, pollMinutes)).join('');
+        renderLegend();
+        renderMeta(data);
+        err.style.display = 'none';
+    } catch (e) {
+        err.textContent = 'Не удалось загрузить показания: ' + e.message;
+        err.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function refreshNow() {
+    await loadHistory();
+    await loadCurrent(true);
+}
+
+function setupAutoRefresh() {
+    const toggle = document.getElementById('auto-toggle');
+    function arm() {
+        if (STATE.timer) clearInterval(STATE.timer);
+        if (toggle.checked) {
+            STATE.timer = setInterval(async () => {
+                await loadHistory();
+                await loadCurrent(false);
+            }, POLL_MS);
+        }
+    }
+    toggle.addEventListener('change', arm);
+    arm();
+}
+
+(async function init() {
+    await loadHistory();
+    await loadCurrent(false);
+    setupAutoRefresh();
+})();
+</script>
+</body>
+</html>

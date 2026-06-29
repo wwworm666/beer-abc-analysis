@@ -70,6 +70,10 @@ start_open_check_polling()
 from core.monthly_report_scheduler import start_scheduler as start_monthly_report_scheduler
 start_monthly_report_scheduler()
 
+# Запустить фоновый опрос термометров по барам (если заданы TUYA_ACCESS_ID/SECRET)
+from core.temperature_scheduler import start_scheduler as start_temperature_scheduler
+start_temperature_scheduler()
+
 
 if __name__ == '__main__':
     # Под gunicorn эта ветка не исполняется — это только для локального запуска `python app.py`.

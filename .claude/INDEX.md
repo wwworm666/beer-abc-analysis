@@ -20,6 +20,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ├── Редактор меню (/menu)        → menu-editor.md
 ├── Остатки + Сводный заказ      → stocks.md
 ├── Shelf-Life Cockpit           → expiration.md
+├── Температура по барам         → temperature.md
 ├── iiko ↔ Честный Знак          → chz-stock-integration.md
 ├── Open-check Telegram bot      → open-check-bot.md
 ├── Планы выручки (4 точки)      → venues-plans.md
@@ -52,6 +53,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/menu-editor.md](../docs/menu-editor.md) | Редактор меню `/menu`: единый каталог, цены из iiko, вкусы/теги, печать A4 (перенос из menu_tool) | ✅ |
 | [docs/stocks.md](../docs/stocks.md) | Остатки: taplist/kitchen/bottles + Order Board (velocity) | ✅ |
 | [docs/expiration.md](../docs/expiration.md) | Shelf-Life Cockpit — `/expiration` с tier-логикой и уценкой | ✅ |
+| [docs/temperature.md](../docs/temperature.md) | Мониторинг температуры по барам — `/temperature`, Tuya Cloud, масштаб из спеки, история SQLite | ✅ |
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
 | [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting, override весов дней, «Планы по дням» | ✅ |
@@ -102,6 +104,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-06-29:** Новый модуль — мониторинг температуры по барам (`/temperature`, Tuya Cloud термо-гигрометры): клиент с кэшем токена и масштабом из спецификации, история в SQLite с дедупом по бакетам, фоновый опрос. Док: [temperature.md](../docs/temperature.md).
 - **2026-06-26 (5):** График: «План / Факт по дням» переделан в ОДНУ таблицу по всем ТТ (колонки точек: факт над планом, + «Итого» день и %, строка «Итого» месяца), **без вкладок**. Секция **свёрнута по умолчанию** (заголовок-тоггл, в заголовке месячная сводка `Σфакт/Σплан·%`). Деньги в ячейках сокращены (`formatK`, точные — в title). Клик по дню — кто работал по каждой ТТ (`pfPeople`). Док: [schedule.md](../docs/schedule.md).
 - **2026-06-26 (4):** График: «План / Факт по дням» — селектор точки (`Все` + по каждой точке: план/факт и смены именно этой точки, футер «Итого · точка»); мини-виджет «Выполнение плана» (`renderRecentCompletion`) в рейле под «Нагрузкой» на обеих страницах — позавчера/вчера/сегодня, % + факт/план, сегодня «идёт». Оба на уже загруженном `/plans`, без новых эндпоинтов. Док: [schedule.md](../docs/schedule.md).
 - **2026-06-26 (2):** График: «Покрытие по дням недели» заменено на денежный виджет «План / Факт по дням» (`renderPlanFact` в `common.js`, на **обеих** страницах — владелец захотел выручку и в просмотре; доступ к `/schedule` и `/schedule/edit` одинаковый, равные права) — за каждый день план/факт выручки, % выполнения, кто на смене; клик по дню — разбивка по барам. Строится на фронте из `/plans` (факт = iiko OLAP) + смен, без нового эндпоинта и без второго вызова iiko. Чип сетки переработан (`buildChip`): имя целиком + капсула «День»/«с HH:MM» + факт вместо инициалов (ячейка не пустует). Фикс XSS `loc.name` в `renderDayPanel`. Удалены `compute_coverage_by_dow`/`renderCoverage`/CSS `.cov-*`/тест. Док: [schedule.md](../docs/schedule.md).
