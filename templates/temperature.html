@@ -129,12 +129,14 @@ function fmtAge(ts) {
     return Math.floor(h / 24) + ' дн назад';
 }
 
-// Считаем показание устаревшим, если ему больше 2.5 интервалов опроса (по умолчанию
-// poll=15 мин -> ~38 мин). Тогда показываем бейдж «давно».
-function isStale(ts, pollMinutes) {
+// Датчики Tuya шлют значение при ИЗМЕНЕНИИ температуры, а не постоянно: при стабильной
+// температуре «возраст» показания 1-2 ч — это норма, не потеря связи. Поэтому признак
+// связи — online от Tuya (см. бейдж ниже), а «давно нет данных» показываем лишь как
+// запасной сигнал, когда online неизвестен И показание реально старое (> 3 ч).
+const STALE_LIMIT_S = 3 * 3600;
+function isStale(ts) {
     if (!ts) return true;
-    const limit = Math.max(5, (pollMinutes || 15) * 2.5) * 60;
-    return (Date.now() / 1000 - ts) > limit;
+    return (Date.now() / 1000 - ts) > STALE_LIMIT_S;
 }
 
 function bandClass(band) {
@@ -166,7 +168,7 @@ function sparkline(points) {
         + '</svg></div>';
 }
 
-function renderCard(bar, pollMinutes) {
+function renderCard(bar) {
     const band = bar.temperature != null ? bar.band : null;
     const cls = bandClass(band);
     const bandLabel = (STATE.bands.find(b => b.key === band) || {}).label || '';
@@ -186,11 +188,13 @@ function renderCard(bar, pollMinutes) {
         sec.push('<span class="chip' + (low ? ' warn' : '') + '">Батарея ' + bar.battery + '%</span>');
     }
 
-    // Бейдж связи: offline (online===false) / stale (давно нет обновлений) / online.
+    // Бейдж связи. Главный признак — online от Tuya: датчик шлёт данные по изменению
+    // температуры, поэтому старый «возраст» при online=true — норма, не потеря связи.
+    // «давно нет данных» — лишь запасной сигнал, когда online неизвестен.
     let badge = '';
-    if (bar.online === false) badge = '<span class="badge offline">не на связи</span>';
-    else if (isStale(bar.ts, pollMinutes)) badge = '<span class="badge stale">давно</span>';
-    else if (bar.online === true) badge = '<span class="badge online">на связи</span>';
+    if (bar.online === true) badge = '<span class="badge online">на связи</span>';
+    else if (bar.online === false) badge = '<span class="badge offline">не на связи</span>';
+    else if (isStale(bar.ts)) badge = '<span class="badge stale">давно нет данных</span>';
 
     const spark = sparkline(STATE.history[bar.venue_key]);
 
@@ -202,7 +206,7 @@ function renderCard(bar, pollMinutes) {
         + '<div class="temp-value">' + valueHtml + '</div>'
         + (sec.length ? '<div class="temp-secondary">' + sec.join('') + '</div>' : '')
         + spark
-        + '<div class="temp-foot"><span>' + fmtAge(bar.ts) + '</span>' + badge + '</div>'
+        + '<div class="temp-foot"><span title="Когда датчик последний раз присылал значение. Эти датчики шлют данные при изменении температуры, поэтому возраст 1-2 ч при стабильной температуре — это нормально.">' + fmtAge(bar.ts) + '</span>' + badge + '</div>'
         + '</div>';
 }
 
@@ -249,9 +253,8 @@ async function loadCurrent(force) {
         const data = await r.json();
         if (!data.success) throw new Error(data.error || 'Ошибка API');
         STATE.bands = (data.meta && data.meta.bands) || [];
-        const pollMinutes = (data.meta && data.meta.poll_minutes) || 15;
         document.getElementById('grid').innerHTML =
-            (data.bars || []).map(b => renderCard(b, pollMinutes)).join('');
+            (data.bars || []).map(b => renderCard(b)).join('');
         renderLegend();
         renderMeta(data);
         err.style.display = 'none';
