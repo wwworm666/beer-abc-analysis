@@ -301,7 +301,8 @@
     // Блок-смена внутри ячейки календаря (px, не %): высота — день/вечер,
     // ширина — день/вечер, рамка-кольцо — статус (сегодня/ждёт факт/конфликт).
     function calBarStyle(col, st, eve) {
-        var bg = rgba(col, st === 'soon' ? 0.45 : 0.9);
+        // Яркость: предстоящее (soon) — ярко, отработанное (done) — приглушённо.
+        var bg = rgba(col, st === 'done' ? 0.45 : 0.9);
         var bd = '1px solid rgba(0,0,0,.06)';
         if (st === 'today') { bd = '2px solid ' + ACCENT; bg = rgba(col, 0.85); }
         else if (st === 'nofact') { bd = '2px solid ' + AMBER; bg = rgba(col, 0.18); }
@@ -538,10 +539,10 @@
 
         // СТАТУС СМЕНЫ
         var sts = [
-            { l: 'отработана', s: 'факт есть', r: '', o: 0.92 },
-            { l: 'предстоит', s: '', r: '', o: 0.5 },
+            { l: 'предстоит', s: 'ярко', r: '', o: 0.92 },
+            { l: 'отработана', s: 'факт есть, приглушена', r: '', o: 0.5 },
             { l: 'сегодня', s: 'идёт', r: '0 0 0 2px ' + ACCENT, o: 0.92 },
-            { l: 'ждёт факт', s: 'прошла без часов', r: '0 0 0 2px ' + AMBER, o: 0.92 },
+            { l: 'ждёт факт', s: 'прошла без часов', r: '0 0 0 2px ' + AMBER, o: 0.5 },
             { l: 'конфликт', s: 'просил выходной', r: '0 0 0 2px ' + RED, o: 0.92 }
         ].map(function (x) {
             return '<div class="lg-item"><span class="lg-sq" style="background:' + rgba(SAMPLE, x.o)
@@ -618,9 +619,9 @@
                         + '" data-day="' + x.d + '">'
                         + (off ? '<span class="el-dayoff-blk" title="обязательный выходной"></span>' : '') + '</div>';
                 }
-                var col = colorById(s.location_id), eve = isEvening(s), future = x.ds > today;
+                var col = colorById(s.location_id), eve = isEvening(s), past = x.ds < today;
                 // ждёт факт: прошедшая смена без введённого факта часов (как в легенде)
-                var nofact = x.ds < today && s.fact_minutes == null;
+                var nofact = past && s.fact_minutes == null;
                 var bd = '1px solid rgba(0,0,0,.06)';
                 if (nofact) bd = '2px solid ' + AMBER;            // ждёт факт
                 if (x.ds === today) bd = '2px solid ' + ACCENT;   // сегодня
@@ -629,8 +630,9 @@
                 var tip = (loc ? (loc.short_name || loc.name) : '') + ' · ' + (eve ? 'вечер' : 'день')
                     + (s.start_time ? ' · ' + s.start_time : '')
                     + (nofact ? ' · ждёт факт' : '') + (off ? ' · конфликт с выходным' : '');
+                // Яркость: предстоящее и сегодня — ярко, прошедшее (отработана/ждёт факт) — приглушённо.
                 var blk = '<span class="el-blk" style="height:' + (eve ? '9px' : '16px')
-                    + ';background:' + rgba(col, future ? 0.5 : 0.9) + ';border:' + bd + '"></span>';
+                    + ';background:' + rgba(col, past ? 0.5 : 0.9) + ';border:' + bd + '"></span>';
                 return '<div class="el-cell' + dayCls(x) + '" data-emp="' + dataEmp + '" data-ds="' + x.ds
                     + '" data-day="' + x.d + '" data-shift-id="' + esc(s.id) + '" title="' + esc(tip) + '">' + blk + '</div>';
             }).join('');
