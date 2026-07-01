@@ -1199,7 +1199,10 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
    прокрутке), ячейки делаем компактнее, а хвост «план/факт» прячем — так за один экран
    видно ~12 дней вместо 6, и имя не уезжает. */
 @media (max-width: 700px) {
-    .el-tbl { min-width: 0 !important; }   /* снять inline min-width под десктопные 38px */
+    /* Таблица шириной РОВНО по содержимому (компактные ячейки), не по десктопным 38px и
+       не сжатая до экрана. Важно для sticky: строка-контейнер должна быть во всю ширину
+       содержимого, иначе замороженная колонка «отпускает» после ~одного экрана (12 числа). */
+    .el-tbl { min-width: -webkit-max-content !important; min-width: max-content !important; }
     .el-wrap { -webkit-overflow-scrolling: touch; }
     .el-name {
         position: sticky; left: 0; z-index: 3;
