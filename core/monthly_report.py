@@ -281,7 +281,7 @@ def _compute_liters(olap, bar_name, year, month):
     return {str(row['Style']): float(row['TotalLiters']) for _, row in summary.iterrows()}
 
 
-def _compute_topguests(olap, bar_name, year, month, limit=5):
+def _compute_topguests(olap, bar_name, year, month, limit=10):
     """ТОП гостей по тратам за месяц: [{name, card, visits, spend}] (1 OLAP-запрос).
     Гость идентифицируется картой лояльности; без карты — исключается.
 

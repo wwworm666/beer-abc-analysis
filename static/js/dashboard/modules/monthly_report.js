@@ -10,7 +10,7 @@
  *   GET /api/monthly-report?venue=&years=        — выручка/наценка/доли/локал-импорт
  *   GET /api/monthly-report/loyalty?venue=&year= — новые гости, выручка карты/без
  *   GET /api/monthly-report/draft-liters?...      — литры по стилям
- *   GET /api/monthly-report/top-guests?...&month= — ТОП-5 гостей за месяц
+ *   GET /api/monthly-report/top-guests?...&month= — ТОП-10 гостей за месяц
  */
 
 import { fetchAPI } from '../core/api.js';
@@ -24,6 +24,11 @@ const BARS = [
     { key: 'kremenchugskaya', label: 'Крем', color: '#D9B857' }, // жёлтый
     { key: 'varshavskaya', label: 'Варш', color: '#57B8D9' },    // синий
 ];
+
+// Бары для ЛИНЕЙНЫХ графиков (наложение): без «Общей» — её сумма кратно выше
+// выручки/чеков отдельных баров и сплющивает их линии у нижней границы, ничего не
+// видно. «Общая» остаётся выбором в выпадающих списках столбчатых/категорийных графиков.
+const LINE_BARS = BARS.filter((b) => b.key !== 'all');
 
 // Категории (для столбчатых, независимо от цвета бара)
 const CAT_COLORS = { draft: '#D97757', packaged: '#57B8D9', kitchen: '#7BD957' };
@@ -44,6 +49,51 @@ function hexToRgba(hex, alpha) {
     const b = parseInt(h.substring(4, 6), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+// Плагин: подписать долю каждого сегмента внутри накопительного столбца.
+// Сумму видно по оси Y; доля (сегмент / сумма столбца, %) вписывается по центру
+// сегмента. Тонкие сегменты пропускаются (нет места / визуально незначимы).
+const MIN_SEGMENT_PCT = 6;    // не подписывать сегменты мельче N% столбца
+const MIN_SEGMENT_PX = 14;    // ...и ниже N пикселей (текст не влезет)
+const percentInStackPlugin = {
+    id: 'percentInStack',
+    afterDatasetsDraw(chart) {
+        const { ctx, data } = chart;
+        const datasets = data.datasets || [];
+        const count = (data.labels || []).length;
+
+        // Сумма положительных значений по каждому столбцу (только видимые датасеты)
+        const totals = new Array(count).fill(0);
+        datasets.forEach((ds, di) => {
+            if (chart.getDatasetMeta(di).hidden) return;
+            for (let i = 0; i < count; i++) {
+                const v = Number(ds.data[i]) || 0;
+                if (v > 0) totals[i] += v;
+            }
+        });
+
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 10px "IBM Plex Mono", "Courier New", monospace';
+        ctx.fillStyle = '#fff';
+        datasets.forEach((ds, di) => {
+            const meta = chart.getDatasetMeta(di);
+            if (meta.hidden) return;
+            meta.data.forEach((el, i) => {
+                const v = Number(ds.data[i]) || 0;
+                const total = totals[i];
+                if (!total || v <= 0) return;
+                const pct = (v / total) * 100;
+                if (pct < MIN_SEGMENT_PCT) return;
+                if ((el.height || 0) < MIN_SEGMENT_PX) return;
+                const c = el.getCenterPoint();
+                ctx.fillText(`${pct.toFixed(0)}%`, c.x, c.y);
+            });
+        });
+        ctx.restore();
+    },
+};
 
 class MonthlyReportModule {
     constructor() {
@@ -84,7 +134,8 @@ class MonthlyReportModule {
         const container = document.getElementById('mr-bar-buttons');
         if (!container) return;
         container.innerHTML = '';
-        BARS.forEach((bar) => {
+        // Легенда описывает линии наложения -> без «Общей» (её на линейных нет)
+        LINE_BARS.forEach((bar) => {
             const item = document.createElement('span');
             item.className = 'mr-legend-item';
             item.innerHTML = `<span class="mr-bar-dot" style="--bar-color:${bar.color}"></span>${bar.label}`;
@@ -496,7 +547,8 @@ class MonthlyReportModule {
     // -------------------------- Chart.js строители ----------------------- //
 
     _overlayLine(canvasId, key, valueFormat, source, zeroBased = true) {
-        const bars = this._orderedSelected();
+        // Только отдельные бары, без «Общей» — иначе её линия сплющивает остальные
+        const bars = LINE_BARS;
         const datasets = bars.map((b) => {
             const raw = source === 'loyalty' ? this._loyaltySeries(b.key, key) : this._coreSeries(b.key, key);
             return {
@@ -546,9 +598,13 @@ class MonthlyReportModule {
         };
         if (opts.percent) scales.y.max = 100;
 
+        // Накопительные столбцы: подписываем долю каждого сегмента внутри столбца
+        const localPlugins = opts.stacked ? [percentInStackPlugin] : [];
+
         this.charts[canvasId] = new Chart(canvas.getContext('2d'), {
             type,
             data: { labels, datasets },
+            plugins: localPlugins,
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
