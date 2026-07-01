@@ -76,6 +76,25 @@ def test_escaping_special_chars():
     assert ev["SUMMARY"] == "Большой пр. В.О\\; зал\\, 2"
 
 
+def test_color_by_venue_key():
+    shifts = [{
+        "id": 3, "date": "2026-06-28", "start_time": None, "fact_minutes": None,
+        "location_name": "Варшавская", "venue_key": "varshavskaya",
+        "role_id": 1, "role_name": "бармен",
+    }]
+    ev = _events(build_calendar("РЮ", shifts, dtstamp=STAMP))[0]
+    assert ev["COLOR"] == "cadetblue"          # цвет точки как в сетке (CSS3-имя)
+
+
+def test_no_color_without_venue_key():
+    shifts = [{
+        "id": 4, "date": "2026-06-28", "start_time": None, "fact_minutes": None,
+        "location_name": "Варшавская", "role_id": 1, "role_name": "бармен",
+    }]
+    ics = build_calendar("РЮ", shifts, dtstamp=STAMP)
+    assert "COLOR:" not in ics                  # нет venue_key -> без COLOR (не ломаемся)
+
+
 def test_dtstamp_passthrough_and_count():
     shifts = [
         {"id": i, "date": "2026-06-%02d" % i, "start_time": None, "fact_minutes": 540,

@@ -414,6 +414,7 @@ class ShiftsManager:
                         s.id, s.date, s.employee_name, s.employee_id,
                         s.start_time, s.fact_minutes,
                         l.id as location_id, l.name as location_name, l.short_name as location_short,
+                        l.venue_key as venue_key,
                         r.id as role_id, r.name as role_name
                     FROM shifts s
                     JOIN locations l ON s.location_id = l.id
