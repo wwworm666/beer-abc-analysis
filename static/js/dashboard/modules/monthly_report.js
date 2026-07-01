@@ -279,6 +279,8 @@ class MonthlyReportModule {
             this._renderLoyalty();
             await this._runTasks(bars.map((b) => () => this._loadLiters(b.key, force)), force);
             this._renderLitersChart();
+            // Литры загружены -> обновить расход (в режиме «Кол-во» розлив берёт литры отсюда)
+            this._renderConsumption();
             await this._loadTop(this._topVenue(), this.selectedMonth, force);
         } catch (e) {
             console.error('[Monthly] Фоновая загрузка блоков:', e);
@@ -476,20 +478,36 @@ class MonthlyReportModule {
         this._stackedBar('mr-liters', datasets, { valueFormat: fmt });
     }
 
-    // Линии-категории для ОДНОГО бара (старый дизайн); бар выбирается выпадающим списком
+    // Линии-категории для ОДНОГО бара (старый дизайн); бар выбирается выпадающим списком.
+    // it.data — готовый ряд (иначе берётся core-серия по it.key); it.fmt — свой формат
+    // значения этой линии (для смешанных единиц: розлив в литрах, фасовка в штуках).
     _renderCategoryLines(canvasId, items, valueFormat, zeroBased) {
         const v = this._venueFor(canvasId);
         const datasets = items.map((it) => ({
             label: it.label,
-            data: this._clip(this._coreSeries(v, it.key)),
+            data: this._clip(it.data || this._coreSeries(v, it.key)),
             borderColor: it.color,
             backgroundColor: hexToRgba(it.color, it.fill ? 0.12 : 0.08),
             fill: !!it.fill,
             tension: 0.3,
             pointRadius: 2,
             borderWidth: 2,
+            _fmt: it.fmt || null,
         }));
         this._render(canvasId, 'line', this._labels(), datasets, { valueFormat, legend: true, zeroBased });
+    }
+
+    // Суммарные литры розлива по месяцам для бара (сумма по всем стилям из блока литров)
+    _draftLitersSeries(venue) {
+        const d = this.litersByVenue[venue];
+        if (!d || !d.series) return [];
+        const styles = d.styles || [];
+        const totals = new Array(12).fill(0);
+        styles.forEach((s) => {
+            const arr = d.series[s] || [];
+            for (let i = 0; i < 12; i++) totals[i] += Number(arr[i]) || 0;
+        });
+        return totals;
     }
 
     // Наценка: Розлив/Фасовка/Кухня — 3 линии для выбранного бара
@@ -501,14 +519,25 @@ class MonthlyReportModule {
         ], (x) => `${(x || 0).toFixed(1)}%`, false);
     }
 
-    // Расход: Розлив/Фасовка — 2 линии (деньги/штуки) для выбранного бара
+    // Расход: Розлив/Фасовка — 2 линии для выбранного бара.
+    // Деньги: обе линии в ₽. Количество: розлив — в ЛИТРАХ (он продаётся объёмом, штуки-
+    // порции 0.3/0.5 несопоставимы), фасовка — в штуках (бутылки/банки). У каждой линии
+    // своя единица (см. _fmt), ось — просто число.
     _renderConsumption() {
-        const prefix = this.consumptionMode === 'money' ? 'revenue' : 'units';
-        const fmt = this.consumptionMode === 'money' ? formatMoney : formatNumber;
+        if (this.consumptionMode === 'money') {
+            this._renderCategoryLines('mr-consumption', [
+                { label: 'Розлив', key: 'revenue_draft', color: CAT_COLORS.draft, fill: true },
+                { label: 'Фасовка', key: 'revenue_packaged', color: CAT_COLORS.packaged, fill: true },
+            ], formatMoney, true);
+            return;
+        }
+        const v = this._venueFor('mr-consumption');
+        const litersFmt = (x) => `${formatNumber(Math.round(x || 0))} л`;
+        const unitsFmt = (x) => `${formatNumber(x || 0)} шт`;
         this._renderCategoryLines('mr-consumption', [
-            { label: 'Розлив', key: `${prefix}_draft`, color: CAT_COLORS.draft, fill: true },
-            { label: 'Фасовка', key: `${prefix}_packaged`, color: CAT_COLORS.packaged, fill: true },
-        ], fmt, true);
+            { label: 'Розлив, л', data: this._draftLitersSeries(v), color: CAT_COLORS.draft, fill: true, fmt: litersFmt },
+            { label: 'Фасовка, шт', key: 'units_packaged', color: CAT_COLORS.packaged, fill: true, fmt: unitsFmt },
+        ], formatNumber, true);
     }
 
     _renderLoyalty() {
@@ -616,7 +645,13 @@ class MonthlyReportModule {
                         labels: { boxWidth: 12, font: { size: 11 } },
                     },
                     tooltip: {
-                        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${valueFormat(ctx.parsed.y)}` },
+                        // _fmt на датасете переопределяет формат (смешанные единицы: л/шт)
+                        callbacks: {
+                            label: (ctx) => {
+                                const f = ctx.dataset._fmt || valueFormat;
+                                return `${ctx.dataset.label}: ${f(ctx.parsed.y)}`;
+                            },
+                        },
                     },
                 },
                 scales,
