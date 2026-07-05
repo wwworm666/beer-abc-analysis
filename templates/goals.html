@@ -99,68 +99,105 @@
             font-weight: 600;
         }
 
-        /* KPI goal cards */
-        .kpi-goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        /* KPI goal cards — фиксированная ширина, не растягиваются на пустоту */
+        .kpi-goals { display: flex; flex-wrap: wrap; gap: 14px; }
         .kpi-goal {
-            background: var(--bg-tertiary);
+            flex: 0 1 240px;
+            background: var(--bg-secondary);
             border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 14px 16px;
-        }
-        .kpi-goal-name { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
-        .kpi-goal-target {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--success);
-            font-variant-numeric: tabular-nums;
-            line-height: 1;
-        }
-        .kpi-goal-target .unit { font-size: 0.9rem; font-weight: 500; color: var(--text-tertiary); margin-left: 2px; }
-        .kpi-goal-min { font-size: 0.78rem; color: var(--text-tertiary); margin-top: 6px; }
-        .kpi-goal-min b { color: var(--warning); font-variant-numeric: tabular-nums; }
-
-        /* Daily plan calendar */
-        .cal {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
+            border-radius: 14px;
+            padding: 16px 18px;
+            box-shadow: var(--shadow-sm);
+            display: flex;
+            flex-direction: column;
             gap: 6px;
         }
+        .kpi-goal-name {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            line-height: 1.35;
+            min-height: 2.2em;              /* два имени на разной длине держат одну высоту */
+        }
+        /* Крупное число + единица на одной базовой линии */
+        .kpi-goal-target {
+            display: flex;
+            align-items: baseline;
+            gap: 3px;
+            font-variant-numeric: tabular-nums;
+        }
+        .kpi-goal-target .val { font-size: 2rem; font-weight: 700; color: var(--success); line-height: 1; letter-spacing: -0.02em; }
+        .kpi-goal-target .unit { font-size: 1rem; font-weight: 600; color: var(--success); opacity: 0.7; }
+        .kpi-goal-target.none .val { font-size: 1.1rem; color: var(--text-tertiary); font-weight: 500; }
+        .kpi-goal-min {
+            font-size: 0.78rem;
+            color: var(--text-tertiary);
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+        }
+        .kpi-goal-min b { color: var(--warning); font-variant-numeric: tabular-nums; font-weight: 700; }
+
+        /* Daily plan calendar — ограничиваем ширину, чтобы ячейки были соразмерны,
+           а не растягивались на всю карточку (иначе суммы «плавают» в пустоте). */
+        .cal {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+            max-width: 920px;
+        }
         .cal-dow {
-            text-align: center;
+            text-align: left;
             font-size: 0.72rem;
             color: var(--text-tertiary);
             font-weight: 600;
-            padding-bottom: 2px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 0 0 2px 2px;
         }
         .cal-dow.we { color: var(--accent); }
         .cal-cell {
             background: var(--bg-tertiary);
             border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 8px 6px;
-            min-height: 58px;
+            border-radius: 12px;
+            padding: 9px 11px 11px;
+            min-height: 66px;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            gap: 4px;                        /* день и сумма — одна вертикальная пара, без распора */
         }
         .cal-cell.empty { background: transparent; border: none; }
-        .cal-cell.weekend { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color)); }
-        .cal-cell.today { outline: 2px solid var(--accent); outline-offset: -1px; }
-        .cal-daynum { font-size: 0.72rem; color: var(--text-tertiary); display: flex; justify-content: space-between; align-items: center; }
+        /* Выходной: мягкая акцентная заливка, а не только рамка — сразу видно ритм пт/сб */
+        .cal-cell.weekend {
+            background: var(--accent-light);
+            border-color: color-mix(in srgb, var(--accent) 35%, var(--border-color));
+        }
+        .cal-cell.today { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+        .cal-daynum {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            line-height: 1;
+        }
+        .cal-cell.weekend .cal-daynum { color: var(--accent); }
         .cal-x2 {
-            font-size: 0.6rem;
-            color: var(--accent);
+            font-size: 0.62rem;
+            color: #fff;
+            background: var(--accent);
             font-weight: 700;
-            background: color-mix(in srgb, var(--accent) 14%, transparent);
-            border-radius: 4px;
-            padding: 0 4px;
+            border-radius: 5px;
+            padding: 1px 5px;
+            letter-spacing: 0.02em;
         }
         .cal-plan {
-            font-size: 0.92rem;
+            font-size: 1.02rem;
             font-weight: 700;
             color: var(--text-primary);
             font-variant-numeric: tabular-nums;
-            text-align: right;
+            letter-spacing: -0.01em;
+            margin-top: auto;               /* сумма прижата к низу, но НЕ через space-between (день сверху остаётся плотно) */
         }
         .cal-plan.none { color: var(--text-tertiary); font-weight: 400; }
 
@@ -375,9 +412,12 @@
 
             // Footnote (формулы)
             const foot = document.getElementById('foot');
+            // plan_formula с бэкенда уже начинается со слов «План дня = …» — не дублируем префикс
+            const planFormula = plansData.plan_formula ||
+                'План дня = месячный план точки / сумма весов месяца × вес дня (пт и сб = ×2)';
             foot.innerHTML =
                 `<strong style="color:var(--text-secondary);">Как считаются цифры</strong><br>` +
-                `<b>План дня</b> = ${plansData.plan_formula || 'месячный план точки / сумма весов месяца × вес дня (пт и сб = ×2)'}<br>` +
+                `${planFormula}<br>` +
                 `<b>KPI</b> — цель и минимум за месяц по каждой точке (задаются на странице «Расчёт ЗП»). ` +
                 `Премия начисляется при достижении минимума и растёт до цели.`;
             document.getElementById('foot-card').style.display = 'block';
@@ -439,13 +479,15 @@
                     const name = conf.name || metric;
                     const t = barTargets[k];
                     if (!t || (t.target === 0 && t.min === 0)) {
-                        s += `<div class="kpi-goal"><div class="kpi-goal-name">${name}</div>` +
-                             `<div class="kpi-goal-target none" style="color:var(--text-tertiary);font-size:1rem;">не задано</div></div>`;
+                        s += `<div class="kpi-goal">` +
+                             `<div class="kpi-goal-name">${name}</div>` +
+                             `<div class="kpi-goal-target none"><span class="val">не задано</span></div>` +
+                             `</div>`;
                     } else {
                         s += `<div class="kpi-goal">` +
                              `<div class="kpi-goal-name">${name}</div>` +
-                             `<div class="kpi-goal-target">${fmtNum(t.target, info.decimals)}<span class="unit">${info.unit || ''}</span></div>` +
-                             `<div class="kpi-goal-min">минимум <b>${fmtNum(t.min, info.decimals)}${info.unit || ''}</b> — ниже премии нет</div>` +
+                             `<div class="kpi-goal-target"><span class="val">${fmtNum(t.target, info.decimals)}</span><span class="unit">${info.unit || ''}</span></div>` +
+                             `<div class="kpi-goal-min">минимум <b>${fmtNum(t.min, info.decimals)}&#8239;${info.unit || ''}</b> — ниже премии нет</div>` +
                              `</div>`;
                     }
                 });
