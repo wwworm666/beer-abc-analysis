@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Цели месяца</title>
+
+    <!-- Shared CSS -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+
+    <style>
+        /* Card */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 20px;
+        }
+
+        /* Controls: month + bar switcher */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: end;
+            justify-content: space-between;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { text-align: left; font-size: 0.85rem; color: var(--text-secondary); }
+        input[type="month"] {
+            padding: 8px 12px;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            outline: none;
+        }
+        input[type="month"]:focus { border-color: var(--accent); }
+
+        /* Bar tabs */
+        .bar-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+        .bar-tab {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-family: inherit;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 150ms ease;
+        }
+        .bar-tab:hover { border-color: var(--accent); color: var(--accent); }
+        .bar-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* Loading / error */
+        .loading { display: none; text-align: center; padding: 48px 24px; color: var(--text-secondary); }
+        .loading.active { display: block; }
+        .spinner { width: 36px; height: 36px; border: 2px solid var(--border-color); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error { background: var(--danger); color: #fff; padding: 14px 18px; border-radius: 12px; margin-bottom: 16px; display: none; font-weight: 500; }
+        .error.active { display: block; }
+        .empty-note { color: var(--text-tertiary); font-size: 0.9rem; padding: 8px 0; }
+
+        /* Bar section (one per bar in "Все", single in bar view) */
+        .bar-section { margin-bottom: 22px; }
+        .bar-title {
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+        .bar-title h2 { font-size: 1.35rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+        .bar-month { font-size: 0.95rem; color: var(--text-tertiary); }
+        .bar-plan-total {
+            margin-left: auto;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+        .bar-plan-total strong { color: var(--accent); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+        /* Section subheading */
+        .subhead {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-tertiary);
+            margin: 18px 0 10px;
+            font-weight: 600;
+        }
+
+        /* KPI goal cards */
+        .kpi-goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .kpi-goal {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .kpi-goal-name { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
+        .kpi-goal-target {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success);
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+        .kpi-goal-target .unit { font-size: 0.9rem; font-weight: 500; color: var(--text-tertiary); margin-left: 2px; }
+        .kpi-goal-min { font-size: 0.78rem; color: var(--text-tertiary); margin-top: 6px; }
+        .kpi-goal-min b { color: var(--warning); font-variant-numeric: tabular-nums; }
+
+        /* Daily plan calendar */
+        .cal {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+        .cal-dow {
+            text-align: center;
+            font-size: 0.72rem;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            padding-bottom: 2px;
+        }
+        .cal-dow.we { color: var(--accent); }
+        .cal-cell {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 8px 6px;
+            min-height: 58px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .cal-cell.empty { background: transparent; border: none; }
+        .cal-cell.weekend { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color)); }
+        .cal-cell.today { outline: 2px solid var(--accent); outline-offset: -1px; }
+        .cal-daynum { font-size: 0.72rem; color: var(--text-tertiary); display: flex; justify-content: space-between; align-items: center; }
+        .cal-x2 {
+            font-size: 0.6rem;
+            color: var(--accent);
+            font-weight: 700;
+            background: color-mix(in srgb, var(--accent) 14%, transparent);
+            border-radius: 4px;
+            padding: 0 4px;
+        }
+        .cal-plan {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
+        .cal-plan.none { color: var(--text-tertiary); font-weight: 400; }
+
+        /* Weekly rhythm summary line */
+        .rhythm {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 10px;
+        }
+        .rhythm span b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+        /* Formula footnote */
+        .foot {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            line-height: 1.6;
+            margin-top: 8px;
+        }
+        .foot code { background: var(--bg-tertiary); padding: 1px 6px; border-radius: 5px; color: var(--accent); font-family: inherit; }
+
+        /* Print: hide chrome, keep goals */
+        @media print {
+            .sidebar, .sidebar-backdrop, .header-bar, .no-print { display: none !important; }
+            .container { padding: 0 !important; max-width: none !important; }
+            body { background: #fff; }
+            .card, .kpi-goal, .cal-cell { border-color: #ccc; break-inside: avoid; }
+            .bar-section { break-inside: avoid; }
+        }
+
+        @media (max-width: 768px) {
+            .card { padding: 18px 14px; }
+            .kpi-goals { grid-template-columns: repeat(2, 1fr); }
+            .cal { gap: 4px; }
+            .cal-cell { min-height: 48px; padding: 6px 4px; }
+            .cal-plan { font-size: 0.8rem; }
+            .bar-plan-total { margin-left: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% set page_title = "Цели месяца" %}
+        {% set page_subtitle = "План по дням + KPI на месяц" %}
+        {% include 'shared/nav.html' %}
+
+        <!-- Controls -->
+        <div class="card no-print">
+            <div class="controls">
+                <div class="form-group">
+                    <label for="goal-month">Месяц</label>
+                    <input type="month" id="goal-month" onchange="load()">
+                </div>
+                <div class="form-group" style="flex:1;min-width:220px;">
+                    <label>Точка</label>
+                    <div class="bar-tabs" id="bar-tabs"></div>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn" onclick="window.print()">Печать / PDF</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="error" id="error"></div>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Загружаем цели месяца...</p>
+        </div>
+
+        <div id="content"></div>
+
+        <div class="card no-print" id="foot-card" style="display:none;">
+            <div class="foot" id="foot"></div>
+        </div>
+    </div>
+
+    <script>
+        // ===================== STATE =====================
+        // Точки: venue_key (планы) <-> русское имя (KPI-цели). Порядок = порядок вкладок.
+        const BARS = [
+            { key: 'kremenchugskaya', name: 'Кременчугская', short: 'Крем' },
+            { key: 'varshavskaya',    name: 'Варшавская',    short: 'Варш' },
+            { key: 'bolshoy',         name: 'Большой пр. В.О', short: 'ВО' },
+            { key: 'ligovskiy',       name: 'Лиговский',     short: 'Лиг' },
+        ];
+        const DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        const MONTHS_RU = ['январь','февраль','март','апрель','май','июнь','июль',
+                           'август','сентябрь','октябрь','ноябрь','декабрь'];
+
+        let selectedBar = 'all';          // 'all' | venue_key
+        let plansData = null;             // ответ /api/schedule/plans/<y>/<m>
+        let locations = [];               // /api/schedule/locations (id, name, venue_key, short_name)
+        let kpiTargets = null;            // /api/kpi-targets
+        let availableMetrics = {};
+
+        // ===================== HELPERS =====================
+        function nWords(s) { return new Set((s || '').toLowerCase().replace(/\./g, ' ').trim().split(/\s+/).filter(Boolean)); }
+        function namesMatch(a, b) {
+            const wa = nWords(a), wb = nWords(b);
+            if (!wa.size || !wb.size) return false;
+            let aInB = true, bInA = true;
+            for (const w of wa) if (!wb.has(w)) { aInB = false; break; }
+            for (const w of wb) if (!wa.has(w)) { bInA = false; break; }
+            return aInB || bInA;
+        }
+        function fmtMoney(v) {
+            if (v === null || v === undefined) return '—';
+            return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Math.round(v)) + ' ₽';
+        }
+        function fmtK(v) {
+            if (v === null || v === undefined) return '—';
+            if (v >= 1000) return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: v >= 100000 ? 0 : 1 }).format(v / 1000) + 'k';
+            return String(Math.round(v));
+        }
+        function fmtNum(v, dec) {
+            if (v === null || v === undefined) return '—';
+            return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+        }
+        function showError(msg) { const e = document.getElementById('error'); e.textContent = msg; e.classList.add('active'); }
+        function hideError() { document.getElementById('error').classList.remove('active'); }
+
+        // Русское имя KPI-целей точки -> ключ в month_targets (устойчиво к «Большой пр В.О.» vs «Большой пр. В.О»)
+        function kpiKeyForBar(bar, monthTargets) {
+            if (!monthTargets) return null;
+            if (monthTargets[bar.name]) return bar.name;
+            for (const key of Object.keys(monthTargets)) {
+                if (key === 'kpi_config') continue;
+                if (namesMatch(key, bar.name)) return key;
+            }
+            return null;
+        }
+
+        // ===================== INIT =====================
+        document.addEventListener('DOMContentLoaded', () => {
+            // По умолчанию — прошлый месяц (в начале месяца скидываем цели на текущий,
+            // но чаще открыто «что было»; текущий доступен переключателем).
+            const now = new Date();
+            const m = document.getElementById('goal-month');
+            m.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            renderBarTabs();
+            load();
+        });
+
+        function renderBarTabs() {
+            const tabs = [{ key: 'all', short: 'Все' }].concat(BARS.map(b => ({ key: b.key, short: b.short })));
+            document.getElementById('bar-tabs').innerHTML = tabs.map(t =>
+                `<button class="bar-tab ${selectedBar === t.key ? 'active' : ''}" onclick="selectBar('${t.key}')">${t.short}</button>`
+            ).join('');
+        }
+
+        function selectBar(key) {
+            selectedBar = key;
+            renderBarTabs();
+            render();
+        }
+
+        // ===================== LOAD =====================
+        async function load() {
+            hideError();
+            const monthVal = document.getElementById('goal-month').value;
+            if (!monthVal) return;
+            const [year, month] = monthVal.split('-').map(Number);
+
+            document.getElementById('content').innerHTML = '';
+            document.getElementById('foot-card').style.display = 'none';
+            document.getElementById('loading').classList.add('active');
+
+            try {
+                const [plansRes, locRes, kpiRes] = await Promise.all([
+                    fetch(`/api/schedule/plans/${year}/${month}`),
+                    fetch('/api/schedule/locations'),
+                    fetch('/api/kpi-targets'),
+                ]);
+                if (!plansRes.ok) throw new Error('Не удалось загрузить планы по дням');
+                if (!locRes.ok) throw new Error('Не удалось загрузить точки');
+                if (!kpiRes.ok) throw new Error('Не удалось загрузить KPI-цели');
+
+                plansData = await plansRes.json();
+                locations = await locRes.json();
+                kpiTargets = await kpiRes.json();
+                availableMetrics = kpiTargets.available_metrics || {};
+
+                render();
+            } catch (e) {
+                console.error(e);
+                showError('Ошибка: ' + e.message);
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        // ===================== RENDER =====================
+        function render() {
+            const monthVal = document.getElementById('goal-month').value;
+            const [year, month] = monthVal.split('-').map(Number);
+            const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+            const monthLabel = `${MONTHS_RU[month - 1]} ${year}`;
+            const monthTargets = ((kpiTargets.months || {})[monthKey]) || null;
+            const kpiConfig = monthTargets ? (monthTargets.kpi_config || {}) : {};
+
+            const barsToShow = selectedBar === 'all' ? BARS : BARS.filter(b => b.key === selectedBar);
+
+            let html = '';
+            barsToShow.forEach(bar => {
+                html += renderBarSection(bar, year, month, monthLabel, monthTargets, kpiConfig);
+            });
+            document.getElementById('content').innerHTML = html || `<div class="card"><div class="empty-note">Нет данных за этот месяц.</div></div>`;
+
+            // Footnote (формулы)
+            const foot = document.getElementById('foot');
+            foot.innerHTML =
+                `<strong style="color:var(--text-secondary);">Как считаются цифры</strong><br>` +
+                `<b>План дня</b> = ${plansData.plan_formula || 'месячный план точки / сумма весов месяца × вес дня (пт и сб = ×2)'}<br>` +
+                `<b>KPI</b> — цель и минимум за месяц по каждой точке (задаются на странице «Расчёт ЗП»). ` +
+                `Премия начисляется при достижении минимума и растёт до цели.`;
+            document.getElementById('foot-card').style.display = 'block';
+        }
+
+        function renderBarSection(bar, year, month, monthLabel, monthTargets, kpiConfig) {
+            const loc = locations.find(l => l.venue_key === bar.key);
+            const locId = loc ? String(loc.id) : null;
+
+            // --- План выручки по дням ---
+            const days = plansData.days || {};
+            const daysInMonth = new Date(year, month, 0).getDate();
+            let planTotal = 0, hasPlan = false;
+            let weekdaySum = 0, weekendSum = 0, weekdayCnt = 0, weekendCnt = 0;
+            const dayPlans = [];  // {day, dow, plan|null, weekend}
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const jsDow = new Date(year, month - 1, d).getDay();     // 0=Вс
+                const dow = (jsDow + 6) % 7;                             // 0=Пн
+                const isWeekend = (jsDow === 5 || jsDow === 6);          // пт, сб = вес ×2
+                let plan = null;
+                const dayObj = days[dateStr];
+                if (dayObj && locId && dayObj.locations && dayObj.locations[locId]) {
+                    const cell = dayObj.locations[locId];
+                    if (cell.plan !== null && cell.plan !== undefined) plan = cell.plan;
+                }
+                if (plan !== null) {
+                    planTotal += plan; hasPlan = true;
+                    if (isWeekend) { weekendSum += plan; weekendCnt++; } else { weekdaySum += plan; weekdayCnt++; }
+                }
+                dayPlans.push({ day: d, dow, plan, weekend: isWeekend });
+            }
+
+            // --- KPI-цели ---
+            const kpiBarKey = kpiKeyForBar(bar, monthTargets);
+            const barTargets = (kpiBarKey && monthTargets) ? (monthTargets[kpiBarKey] || {}) : {};
+            const kpiKeys = Object.keys(kpiConfig).filter(k => /^kpi\d+$/.test(k))
+                .sort((a, b) => (parseInt(a.slice(3)) || 0) - (parseInt(b.slice(3)) || 0));
+
+            let s = `<div class="card bar-section">`;
+            s += `<div class="bar-title">`;
+            s += `<h2>${bar.name}</h2>`;
+            s += `<span class="bar-month">${monthLabel}</span>`;
+            s += `<span class="bar-plan-total">План месяца: <strong>${hasPlan ? fmtMoney(planTotal) : '—'}</strong></span>`;
+            s += `</div>`;
+
+            // KPI block
+            s += `<div class="subhead">Цели месяца (KPI)</div>`;
+            if (!monthTargets) {
+                s += `<div class="empty-note">KPI-цели на ${monthLabel} не заданы. Задайте их на странице «Расчёт ЗП» → «Настройка KPI-целей».</div>`;
+            } else if (kpiKeys.length === 0) {
+                s += `<div class="empty-note">Нет настроенных показателей KPI на этот месяц.</div>`;
+            } else {
+                s += `<div class="kpi-goals">`;
+                kpiKeys.forEach(k => {
+                    const conf = kpiConfig[k] || {};
+                    const metric = conf.metric || '';
+                    const info = availableMetrics[metric] || { unit: '', decimals: 1 };
+                    const name = conf.name || metric;
+                    const t = barTargets[k];
+                    if (!t || (t.target === 0 && t.min === 0)) {
+                        s += `<div class="kpi-goal"><div class="kpi-goal-name">${name}</div>` +
+                             `<div class="kpi-goal-target none" style="color:var(--text-tertiary);font-size:1rem;">не задано</div></div>`;
+                    } else {
+                        s += `<div class="kpi-goal">` +
+                             `<div class="kpi-goal-name">${name}</div>` +
+                             `<div class="kpi-goal-target">${fmtNum(t.target, info.decimals)}<span class="unit">${info.unit || ''}</span></div>` +
+                             `<div class="kpi-goal-min">минимум <b>${fmtNum(t.min, info.decimals)}${info.unit || ''}</b> — ниже премии нет</div>` +
+                             `</div>`;
+                    }
+                });
+                s += `</div>`;
+            }
+
+            // Daily plan calendar
+            s += `<div class="subhead">План выручки по дням</div>`;
+            if (!hasPlan) {
+                s += `<div class="empty-note">План по дням не рассчитан. Задайте месячный план точки на дашборде (План/Факт).</div>`;
+            } else {
+                s += renderCalendar(dayPlans, year, month);
+                const avgWd = weekdayCnt ? weekdaySum / weekdayCnt : 0;
+                const avgWe = weekendCnt ? weekendSum / weekendCnt : 0;
+                s += `<div class="rhythm">`;
+                s += `<span>Будни (пн–чт, вс): в среднем <b>${fmtMoney(avgWd)}</b>/день</span>`;
+                s += `<span>Пт–Сб (×2): в среднем <b>${fmtMoney(avgWe)}</b>/день</span>`;
+                s += `</div>`;
+            }
+
+            s += `</div>`;
+            return s;
+        }
+
+        function renderCalendar(dayPlans, year, month) {
+            const todayStr = new Date().toISOString().slice(0, 10);
+            let html = '<div class="cal">';
+            // Заголовки дней недели
+            DOW.forEach((d, i) => {
+                html += `<div class="cal-dow ${i >= 4 && i <= 5 ? 'we' : ''}">${d}</div>`;
+            });
+            // Ведущие пустые ячейки до первого дня
+            const firstDow = dayPlans.length ? dayPlans[0].dow : 0;
+            for (let i = 0; i < firstDow; i++) html += `<div class="cal-cell empty"></div>`;
+
+            dayPlans.forEach(dp => {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dp.day).padStart(2, '0')}`;
+                const cls = ['cal-cell'];
+                if (dp.weekend) cls.push('weekend');
+                if (dateStr === todayStr) cls.push('today');
+                html += `<div class="${cls.join(' ')}">`;
+                html += `<div class="cal-daynum"><span>${dp.day}</span>${dp.weekend ? '<span class="cal-x2">×2</span>' : ''}</div>`;
+                html += `<div class="cal-plan ${dp.plan === null ? 'none' : ''}" title="${dp.plan === null ? 'нет плана' : fmtMoney(dp.plan)}">${dp.plan === null ? '—' : fmtK(dp.plan)}</div>`;
+                html += `</div>`;
+            });
+            html += '</div>';
+            return html;
+        }
+    </script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

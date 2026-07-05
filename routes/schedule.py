@@ -138,6 +138,11 @@ def schedule_sync_employees():
     finally:
         iiko.logout()
     pairs = [(e.get('id'), e.get('name')) for e in emps if e.get('id') and e.get('name')]
+    if not pairs:
+        # get_employees() при ошибке iiko (HTTP != 200, таймаут, битый XML) возвращает [],
+        # неотличимый от пустого справочника. Синк с pairs=[] удалил бы legacy-строки
+        # реестра (шаг чистки в sync_employees), поэтому пустой ответ — всегда отказ.
+        return jsonify({'error': 'iiko вернул пустой справочник сотрудников — синхронизация отменена'}), 503
     report = shifts_mgr.sync_employees(pairs, overrides=overrides)
     report['total_from_iiko'] = len(pairs)
     _audit('employees_sync',
@@ -638,6 +643,9 @@ def _aggregate_cash_shifts_by_day(cash_shifts, locations):
                loc['short_name'].lower() in point_of_sale.lower():
                 day_map = by_day.setdefault(open_date, {})
                 day_map[loc['name']] = day_map.get(loc['name'], 0) + revenue
+                # Одна кассовая смена = одна точка: без break выручка задвоилась бы,
+                # если pointOfSale содержит подстроки двух локаций (short_name «ВО» и т.п.).
+                break
     return by_day
 
 
@@ -649,7 +657,10 @@ def schedule_sync_revenue(date_str):
     iiko = None
     try:
         iiko = IikoAPI()
-        iiko.authenticate()
+        if not iiko.authenticate():
+            # Без проверки get_cash_shifts вернул бы [] и синк отчитался бы
+            # 200 «обновлено точек 0», маскируя недоступность iiko.
+            return jsonify({'error': 'iiko недоступен'}), 503
 
         # Получаем кассовые смены за дату
         date_to = (datetime.strptime(date_str, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -694,7 +705,8 @@ def schedule_sync_revenue_month(year, month):
             next_month_first = f"{year}-{month + 1:02d}-01"
 
         iiko = IikoAPI()
-        iiko.authenticate()
+        if not iiko.authenticate():
+            return jsonify({'error': 'iiko недоступен'}), 503
         cash_shifts = iiko.get_cash_shifts(first_day, next_month_first)
 
         by_day = _aggregate_cash_shifts_by_day(cash_shifts, shifts_mgr.get_locations())

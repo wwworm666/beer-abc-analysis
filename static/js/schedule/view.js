@@ -37,6 +37,7 @@
 
     var selectedDate = null;      // открытая денежная панель дня
     var editingShiftId = null;    // модалка смены (десктоп)
+    var editingShiftFactInitial = ''; // снимок поля «Факт» при открытии: не трогали — не шлём PUT /fact
     var currentFactShift = null;  // модалка факта (мобильный)
     var wishes = {};
     var wishTimers = {};
@@ -418,6 +419,7 @@
         document.getElementById('shiftStartTime').value = shift.start_time || '';
         document.getElementById('shiftFact').value =
             shift.fact_minutes != null ? S.minutesToHhMm(shift.fact_minutes) : '';
+        editingShiftFactInitial = document.getElementById('shiftFact').value;
         var dayOffEmps = S.getDayOffEmployees(shift.date);
         document.getElementById('dayoffWarning').style.display =
             dayOffEmps.indexOf(shift.employee_name) !== -1 ? 'block' : 'none';
@@ -441,9 +443,15 @@
             }
         }
         var id = editingShiftId;
+        // Поле «Факт» не меняли — PUT /fact не шлём: иначе stale-значение из модалки
+        // затёрло бы факт, введённый барменом, пока модалка была открыта.
+        var factChanged = factRaw !== editingShiftFactInitial;
         saving = true;
         S.api('/api/schedule/shift/' + id, { method: 'PUT', body: { role_id: roleId, start_time: startTime } })
-            .then(function () { return S.api('/api/schedule/shift/' + id + '/fact', { method: 'PUT', body: { fact_minutes: factMin } }); })
+            .then(function () {
+                if (!factChanged) return;
+                return S.api('/api/schedule/shift/' + id + '/fact', { method: 'PUT', body: { fact_minutes: factMin } });
+            })
             .then(function () { closeShiftModal(); S.showToast('Сохранено'); return reload(); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
             .then(function () { saving = false; });

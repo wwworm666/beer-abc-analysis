@@ -37,7 +37,7 @@
 
 | Blueprint | URL-префикс | Что отдаёт | Файл |
 |---|---|---|---|
-| `pages_bp` | `/` | HTML-страницы (/, /packaging, /draft, /waiters, /discounts, /explorer, /taps/<bar>, /schedule, /employee, /salary, /bonus, /expiration) | [routes/pages.py](../routes/pages.py) |
+| `pages_bp` | `/` | HTML-страницы (/, /packaging, /draft, /waiters, /discounts, /explorer, /taps/<bar>, /schedule, /goals, /employee, /salary, /bonus, /expiration) | [routes/pages.py](../routes/pages.py) |
 | `analysis_bp` | `/api` | ABC/XYZ, draft, waiters, discounts (RFM) | [routes/analysis.py](../routes/analysis.py) |
 | `dashboard_bp` | `/api` | dashboard-analytics, venues, weeks, plans CRUD, export xlsx | [routes/dashboard.py](../routes/dashboard.py) |
 | `employee_bp` | `/api` | employee KPI, salary, bonus | [routes/employee.py](../routes/employee.py) |

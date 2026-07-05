@@ -58,6 +58,14 @@ def salary_page():
     return render_template('bonus.html')
 
 
+@pages_bp.route('/goals')
+def goals_page():
+    """Цели месяца — памятка для персонала: план выручки по дням + KPI-цели
+    по каждой точке. Собирается из готовых данных (daily_plans + kpi_targets),
+    ничего не считает заново. Чтобы в начале месяца скинуть смене её цифры."""
+    return render_template('goals.html', app_version=APP_VERSION)
+
+
 @pages_bp.route('/bonus')
 def bonus_redirect():
     return redirect('/salary')
