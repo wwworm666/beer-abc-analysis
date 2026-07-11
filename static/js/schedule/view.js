@@ -504,6 +504,8 @@
             expense = S.parseRubInput(cashEl(prefix, 'ExpenseAmt').value);
             if (expense == null || isNaN(expense) || expense <= 0)
                 return { ok: false, error: 'Траты из кассы: укажи сумму больше 0' };
+            if (!cashEl(prefix, 'ExpenseNote').value.trim())
+                return { ok: false, error: 'Траты из кассы: укажи, на что потрачено' };
         }
         if (cashEl(prefix, 'CollectionOn').checked) {
             collection = S.parseRubInput(cashEl(prefix, 'CollectionAmt').value);
