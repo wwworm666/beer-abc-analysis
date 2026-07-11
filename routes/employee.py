@@ -392,6 +392,64 @@ def employee_compare():
         return jsonify({'error': str(e)}), 500
 
 
+def _canon_venue(loc):
+    """Каноничный ключ точки (venue_key) для сопоставления имён из iiko и графика.
+
+    `normalize_bar_name` лишь lower/strip — реальное схождение даёт `BAR_NAME_MAPPING`
+    (напр. кассовая группа «Пивная культура» и точка графика «Кременчугская» обе ->
+    `kremenchugskaya`). Без маппинга ключи бы не совпали и премия ошибочно обнулилась.
+    """
+    from core.employee_plans import normalize_bar_name, BAR_NAME_MAPPING
+    n = normalize_bar_name(loc)
+    return BAR_NAME_MAPPING.get(n, n)
+
+
+def _cash_filled_day_keys(date_from, date_to):
+    """Дни с заполненной кассовой дисциплиной за период — из графика (shifts.db).
+
+    Возвращает множество ключей (venue_key, 'YYYY-MM-DD'), где касса смены сдана
+    (`cash_end_kop` не NULL). Нужно для премии «передача смены»: за день без сданной
+    кассы премия не платится. Кассу сдаёт дневной бармен — поэтому день точки
+    считается «закрытым по кассе» для ВСЕХ, кто в этот день на ней работал.
+
+    None при сбое чтения графика -> премию НЕ режем (fail-open: сбой БД не должен
+    молча обнулять премию всей смене).
+    """
+    try:
+        from extensions import shifts_mgr
+        d0 = datetime.strptime(date_from[:10], '%Y-%m-%d').date()
+        d1 = datetime.strptime(date_to[:10], '%Y-%m-%d').date()
+        keys = set()
+        y, m = d0.year, d0.month
+        while (y, m) <= (d1.year, d1.month):
+            for s in shifts_mgr.get_shifts_for_month(y, m):
+                if s.get('cash_end_kop') is not None:
+                    keys.add((_canon_venue(s.get('location_name', '')), s['date']))
+            m += 1
+            if m > 12:
+                m, y = 1, y + 1
+        return keys
+    except Exception as e:
+        print(f"   [BONUS] cash-lookup failed, «передача смены» не режем: {e}")
+        return None
+
+
+def _paid_handover_shifts(shifts_count, shift_locations, cash_filled_keys):
+    """Сколько смен оплачивается премией «передача смены».
+
+    За день без сданной кассовой дисциплины премию не платим: считаем дни смен
+    (`shift_locations`: дата -> точка), ключ которых нет в `cash_filled_keys`, и
+    вычитаем из общего числа смен. `cash_filled_keys=None` -> данные графика
+    недоступны, платим все (fail-open). Чистая функция — тестируется
+    (`tests/test_bonus_handover_cash.py`). Возвращает (paid_shifts, without_cash).
+    """
+    if cash_filled_keys is None:
+        return shifts_count, 0
+    without = sum(1 for d, loc in (shift_locations or {}).items()
+                  if (_canon_venue(loc), d) not in cash_filled_keys)
+    return max(0, shifts_count - without), without
+
+
 @employee_bp.route('/api/bonus-calculate', methods=['POST'])
 def bonus_calculate():
     """
@@ -451,6 +509,11 @@ def bonus_calculate():
         # 2. Подготовка: планы ТТ из daily_plans.json (рассчитываются автоматически из месячных планов)
         # Формула: пт/сб = 2x, остальные дни = 1x
         from core.employee_plans import normalize_bar_name, BAR_NAME_MAPPING
+
+        # Дни с заполненной кассовой дисциплиной (для премии «передача смены»):
+        # за день без сданной кассы премию не платим. None -> данные графика
+        # недоступны, премию не режем (fail-open).
+        cash_filled_keys = _cash_filled_day_keys(date_from, date_to)
 
         # Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
@@ -537,8 +600,13 @@ def bonus_calculate():
             # Часы работы из кассовых смен
             total_hours = emp_metrics.get('total_hours', 0.0)
 
-            # Премия за передачу смены: 500 ₽ × количество смен
-            shift_handover_bonus = shifts_count * 500
+            # Премия за передачу смены: 500 ₽ за смену, но ТОЛЬКО за дни с
+            # заполненной кассовой дисциплиной (наличные в сейфе сданы). За день без
+            # сданной кассы премию не платим. Дни берём из shift_locations (дата ->
+            # точка); ключ — (нормализованная точка, дата) в множестве cash_filled_keys.
+            paid_shifts, shifts_without_cash = _paid_handover_shifts(
+                shifts_count, shift_locations, cash_filled_keys)
+            shift_handover_bonus = paid_shifts * 500
 
             results.append({
                 'name': emp_name,
@@ -552,6 +620,7 @@ def bonus_calculate():
                 'penalty': penalty,
                 'net': round(net, 2),
                 'shift_handover_bonus': shift_handover_bonus,
+                'shift_handover_unpaid_days': shifts_without_cash,
                 'total_hours': round(total_hours, 1),
                 'days': days_detail
             })
