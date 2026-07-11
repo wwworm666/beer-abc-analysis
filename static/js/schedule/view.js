@@ -38,6 +38,7 @@
     var selectedDate = null;      // открытая денежная панель дня
     var editingShiftId = null;    // модалка смены (десктоп)
     var editingShiftFactInitial = ''; // снимок поля «Факт» при открытии: не трогали — не шлём PUT /fact
+    var editingShift = null;      // объект смены в десктоп-модалке (для кассы)
     var currentFactShift = null;  // модалка факта (мобильный)
     var wishes = {};
     var wishTimers = {};
@@ -95,6 +96,9 @@
         document.getElementById('factForm').addEventListener('submit', onFactSubmit);
         document.getElementById('factClear').addEventListener('click', onFactClear);
         document.getElementById('factCancel').addEventListener('click', closeFactModal);
+        // касса: тумблеры «были траты / инкассация» показывают поля сумм
+        wireCashToggles('fact');
+        wireCashToggles('shift');
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') { closeShiftModal(); closeFactModal(); }
@@ -160,8 +164,59 @@
         S.renderLegend(document.getElementById('legend'));
         S.renderPlanFact(document.getElementById('planFactBody'));
         renderWishesBoard();
+        renderCashHistory(document.getElementById('cashHistBody'));
         renderEmployeesAdmin();
         if (selectedDate) renderDayPanel(selectedDate);
+    }
+
+    // ==================== История кассы за месяц (read-only) ====================
+    // Список сдач кассы по сменам месяца из уже загруженного state.shifts (без
+    // нового запроса): дата, точка, бармен, траты (+заметка), инкассация, наличные
+    // на конец. Итог месяца — суммы трат и инкассаций (наличные на конец —
+    // остаток, не поток, не суммируем).
+    function renderCashHistory(host) {
+        if (!host) return;
+        var rows = S.state.shifts.filter(function (s) {
+            return s.cash_end_kop != null || s.cash_expense_kop != null
+                || s.cash_collection_kop != null;
+        }).slice().sort(function (a, b) {
+            return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
+        });
+        if (!rows.length) {
+            setTeaser('cashTeaser', 'за месяц пусто');
+            host.innerHTML = '<div class="cash-hist-empty">Кассу за этот месяц ещё не сдавали</div>';
+            return;
+        }
+        var sumExp = 0, sumCol = 0;
+        var body = rows.map(function (s) {
+            var e = s.cash_expense_kop, c = s.cash_collection_kop, k = s.cash_end_kop;
+            if (e != null) sumExp += e;
+            if (c != null) sumCol += c;
+            var loc = S.state.locations.filter(function (L) { return L.id === s.location_id; })[0];
+            var locName = loc ? (loc.short_name || loc.name) : '';
+            var expCell = e == null ? '<span class="ch-dim">&mdash;</span>'
+                : S.kopToRubDisplay(e) + (e > 0 && s.cash_expense_note
+                    ? ' <span class="ch-note" title="' + S.escapeHtml(s.cash_expense_note) + '">*</span>' : '');
+            var colCell = c == null ? '<span class="ch-dim">&mdash;</span>' : S.kopToRubDisplay(c);
+            var endCell = k == null ? '<span class="ch-dim">&mdash;</span>' : '<b>' + S.kopToRubDisplay(k) + '</b>';
+            return '<tr>'
+                + '<td>' + S.formatDateHuman(s.date).slice(0, 5) + '</td>'
+                + '<td>' + S.escapeHtml(locName) + '</td>'
+                + '<td>' + S.escapeHtml(S.employeeShortName(S.shiftDisplayName(s))) + '</td>'
+                + '<td class="ch-num">' + expCell + '</td>'
+                + '<td class="ch-num">' + colCell + '</td>'
+                + '<td class="ch-num">' + endCell + '</td>'
+                + '</tr>';
+        }).join('');
+        var total = '<tr class="ch-total"><td colspan="3">Итого за месяц</td>'
+            + '<td class="ch-num">' + S.kopToRubDisplay(sumExp) + '</td>'
+            + '<td class="ch-num">' + S.kopToRubDisplay(sumCol) + '</td>'
+            + '<td class="ch-num">&mdash;</td></tr>';
+        setTeaser('cashTeaser', rows.length + ' смен · инкассация ' + S.kopToRubDisplay(sumCol) + ' ₽');
+        host.innerHTML = '<div class="cash-hist-wrap"><table class="cash-hist"><thead><tr>'
+            + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
+            + '<th class="ch-num">Траты</th><th class="ch-num">Инкасс.</th><th class="ch-num">На конец</th>'
+            + '</tr></thead><tbody>' + body + total + '</tbody></table></div>';
     }
 
     function renderLanes() {
@@ -402,6 +457,96 @@
         }
     }
 
+    // ==================== Касса на смене (общее для обеих модалок) ====================
+    // Показывается только для ДНЕВНОЙ смены (кассу сдаёт дневной бармен). В полях —
+    // рубли; в данных смены (state) — копейки; API принимает рубли. Ручной ввод, без iiko.
+
+    function cashEl(prefix, suffix) { return document.getElementById(prefix + suffix); }
+
+    // Тумблер «были траты / инкассация» -> показать/скрыть поле суммы.
+    function wireCashToggles(prefix) {
+        var expOn = cashEl(prefix, 'ExpenseOn');
+        var colOn = cashEl(prefix, 'CollectionOn');
+        if (expOn) expOn.addEventListener('change', function () {
+            cashEl(prefix, 'ExpenseSub').hidden = !expOn.checked;
+            if (expOn.checked) cashEl(prefix, 'ExpenseAmt').focus();
+        });
+        if (colOn) colOn.addEventListener('change', function () {
+            cashEl(prefix, 'CollectionSub').hidden = !colOn.checked;
+            if (colOn.checked) cashEl(prefix, 'CollectionAmt').focus();
+        });
+    }
+
+    // Заполнить блок кассы из смены; спрятать для вечерней смены (isDay=false).
+    function fillCashBlock(prefix, shift, isDay) {
+        var block = cashEl(prefix, 'CashBlock');
+        if (!block) return;
+        block.style.display = isDay ? '' : 'none';
+        if (!isDay) return;
+        var exp = shift.cash_expense_kop, col = shift.cash_collection_kop, end = shift.cash_end_kop;
+        var expOn = exp != null && exp > 0;
+        var colOn = col != null && col > 0;
+        cashEl(prefix, 'ExpenseOn').checked = expOn;
+        cashEl(prefix, 'ExpenseSub').hidden = !expOn;
+        cashEl(prefix, 'ExpenseAmt').value = expOn ? S.kopToRubInput(exp) : '';
+        cashEl(prefix, 'ExpenseNote').value = shift.cash_expense_note || '';
+        cashEl(prefix, 'CollectionOn').checked = colOn;
+        cashEl(prefix, 'CollectionSub').hidden = !colOn;
+        cashEl(prefix, 'CollectionAmt').value = colOn ? S.kopToRubInput(col) : '';
+        cashEl(prefix, 'CashEnd').value = S.kopToRubInput(end);
+    }
+
+    // Прочитать и провалидировать поля кассы -> {ok, error, payload} (рубли).
+    // Тумблер выкл -> 0; тумблер вкл, но пусто/<=0 -> ошибка.
+    function readCashPayload(prefix) {
+        var expense = 0, collection = 0;
+        if (cashEl(prefix, 'ExpenseOn').checked) {
+            expense = S.parseRubInput(cashEl(prefix, 'ExpenseAmt').value);
+            if (expense == null || isNaN(expense) || expense <= 0)
+                return { ok: false, error: 'Траты из кассы: укажи сумму больше 0' };
+        }
+        if (cashEl(prefix, 'CollectionOn').checked) {
+            collection = S.parseRubInput(cashEl(prefix, 'CollectionAmt').value);
+            if (collection == null || isNaN(collection) || collection <= 0)
+                return { ok: false, error: 'Инкассация: укажи сумму больше 0' };
+        }
+        var end = S.parseRubInput(cashEl(prefix, 'CashEnd').value);  // null = не заполнено
+        if (isNaN(end)) return { ok: false, error: 'Наличные на конец: только число' };
+        return { ok: true, payload: {
+            cash_expense: expense, cash_collection: collection, cash_end: end,
+            cash_expense_note: cashEl(prefix, 'ExpenseNote').value.trim()
+        } };
+    }
+
+    function cashHasInput(p) {
+        return p.cash_expense > 0 || p.cash_collection > 0 || p.cash_end != null
+            || (p.cash_expense_note || '') !== '';
+    }
+    function shiftHadCash(shift) {
+        return shift.cash_end_kop != null || shift.cash_expense_kop != null
+            || shift.cash_collection_kop != null;
+    }
+
+    // Разобрать блок кассы для сабмита -> {ok, error, body|null}.
+    //   body=null — слать /cash не нужно (блок скрыт, либо пусто и раньше было пусто);
+    //   body=obj  — PUT /cash (set при вводе, clear-нулями если стёрли ранее сданную).
+    function readCashForSubmit(prefix, shift) {
+        var block = cashEl(prefix, 'CashBlock');
+        if (!block || block.style.display === 'none') return { ok: true, body: null };
+        var res = readCashPayload(prefix);
+        if (!res.ok) return res;
+        if (!cashHasInput(res.payload)) {
+            if (!shiftHadCash(shift)) return { ok: true, body: null };
+            return { ok: true, body: { cash_expense: null, cash_collection: null,
+                cash_end: null, cash_expense_note: '' } };
+        }
+        return { ok: true, body: res.payload };
+    }
+    function sendCash(shiftId, cash) {
+        if (!cash.body) return Promise.resolve(true);
+        return S.api('/api/schedule/shift/' + shiftId + '/cash', { method: 'PUT', body: cash.body });
+    }
+
     // ==================== Модалка смены (десктоп) ====================
     // Роль + плановое время + факт часов (владелец может править факт здесь).
 
@@ -413,6 +558,7 @@
     }
     function openShiftModal(shift) {
         editingShiftId = shift.id;
+        editingShift = shift;
         document.getElementById('shiftModalTitle').textContent =
             S.shiftDisplayName(shift) + ' — ' + S.formatDateHuman(shift.date);
         document.getElementById('shiftRole').value = shift.role_id;
@@ -420,6 +566,7 @@
         document.getElementById('shiftFact').value =
             shift.fact_minutes != null ? S.minutesToHhMm(shift.fact_minutes) : '';
         editingShiftFactInitial = document.getElementById('shiftFact').value;
+        fillCashBlock('shift', shift, !S.isEvening(shift));
         var dayOffEmps = S.getDayOffEmployees(shift.date);
         document.getElementById('dayoffWarning').style.display =
             dayOffEmps.indexOf(shift.employee_name) !== -1 ? 'block' : 'none';
@@ -428,6 +575,7 @@
     function closeShiftModal() {
         document.getElementById('shiftModal').classList.remove('active');
         editingShiftId = null;
+        editingShift = null;
     }
     function onShiftFormSubmit(e) {
         e.preventDefault();
@@ -442,6 +590,9 @@
                 S.showToast('Факт: введи часы как 10:30 или 10.5', true); return;
             }
         }
+        // касса (дневная смена) — валидируем ДО записи
+        var cash = readCashForSubmit('shift', editingShift || {});
+        if (!cash.ok) { S.showToast(cash.error, true); return; }
         var id = editingShiftId;
         // Поле «Факт» не меняли — PUT /fact не шлём: иначе stale-значение из модалки
         // затёрло бы факт, введённый барменом, пока модалка была открыта.
@@ -449,9 +600,12 @@
         saving = true;
         S.api('/api/schedule/shift/' + id, { method: 'PUT', body: { role_id: roleId, start_time: startTime } })
             .then(function () {
+                // Поле «Факт» не меняли — PUT /fact не шлём (иначе stale-значение
+                // затёрло бы факт, введённый барменом, пока модалка была открыта).
                 if (!factChanged) return;
                 return S.api('/api/schedule/shift/' + id + '/fact', { method: 'PUT', body: { fact_minutes: factMin } });
             })
+            .then(function () { return sendCash(id, cash); })
             .then(function () { closeShiftModal(); S.showToast('Сохранено'); return reload(); })
             .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
             .then(function () { saving = false; });
@@ -473,6 +627,7 @@
             S.shiftDisplayName(shift) + ' — ' + S.formatDateHuman(shift.date) + ' — ' + shift.location_name;
         var input = document.getElementById('factInput');
         input.value = shift.fact_minutes != null ? S.minutesToHhMm(shift.fact_minutes) : '';
+        fillCashBlock('fact', shift, !S.isEvening(shift));
         document.getElementById('factModal').classList.add('active');
         input.focus();
     }
@@ -487,9 +642,14 @@
         if (minutes === null || minutes < 0 || minutes > 1440) {
             S.showToast('Введи часы как 10:30 или 10.5', true); return;
         }
+        // касса (дневная смена) — валидируем ДО записи
+        var shift = currentFactShift;
+        var cash = readCashForSubmit('fact', shift);
+        if (!cash.ok) { S.showToast(cash.error, true); return; }
         saving = true;
-        S.api('/api/schedule/shift/' + currentFactShift.id + '/fact', { method: 'PUT', body: { fact_minutes: minutes } })
-            .then(function () { closeFactModal(); S.showToast('Часы сохранены'); return reload(); })
+        S.api('/api/schedule/shift/' + shift.id + '/fact', { method: 'PUT', body: { fact_minutes: minutes } })
+            .then(function () { return sendCash(shift.id, cash); })
+            .then(function () { closeFactModal(); S.showToast('Смена закрыта'); return reload(); })
             .catch(function (err) { S.showToast('Не сохранилось: ' + err.message, true); })
             .then(function () { saving = false; });
     }
@@ -521,6 +681,33 @@
         selectedDate = null;
         document.getElementById('dayPanel').classList.remove('active');
     }
+    // Дневная смена точки за день (кассу сдаёт дневной бармен). Если есть только
+    // вечерняя — берём её (чтобы касса не потерялась). null, если смен нет.
+    function dayShiftCashFor(ds, locId) {
+        var list = S.state.shifts.filter(function (s) {
+            return s.date === ds && s.location_id === locId;
+        });
+        return list.filter(function (s) { return !S.isEvening(s); })[0] || list[0] || null;
+    }
+    // Кассовые строки карточки дня (агрегат по бару): траты / инкассация / касса на
+    // конец. Показываем только если в этот день на точке есть смена (есть кому сдавать).
+    function cashRowsHtml(ds, locId) {
+        var sh = dayShiftCashFor(ds, locId);
+        if (!sh) return '';
+        var e = sh.cash_expense_kop, c = sh.cash_collection_kop, k = sh.cash_end_kop;
+        var expHtml = e == null ? '<span class="v empty">—</span>'
+            : '<span class="v">' + S.kopToRubDisplay(e) + ' ₽</span>';
+        var noteHtml = (e != null && e > 0 && sh.cash_expense_note)
+            ? '<div class="cash-note">' + S.escapeHtml(sh.cash_expense_note) + '</div>' : '';
+        var colHtml = c == null ? '<span class="v empty">—</span>'
+            : '<span class="v">' + S.kopToRubDisplay(c) + ' ₽</span>';
+        var endHtml = k == null ? '<span class="v cash-none">не сдана</span>'
+            : '<span class="v fact">' + S.kopToRubDisplay(k) + ' ₽</span>';
+        return '<div class="cash-divider"></div>'
+            + '<div class="metric"><span class="k">Траты</span>' + expHtml + '</div>' + noteHtml
+            + '<div class="metric"><span class="k">Инкассация</span>' + colHtml + '</div>'
+            + '<div class="metric"><span class="k">Касса на конец</span>' + endHtml + '</div>';
+    }
     function renderDayPanel(ds) {
         document.getElementById('dayPanelDate').textContent = S.formatDateHuman(ds);
         var grid = document.getElementById('dayPanelGrid');
@@ -544,7 +731,8 @@
                 + '<div class="location">' + S.escapeHtml(loc.name) + '</div>'
                 + '<div class="metric"><span class="k">План</span>' + planHtml + '</div>'
                 + '<div class="metric"><span class="k">Факт</span>' + factHtml + '</div>'
-                + sourceHtml + '</div>';
+                + sourceHtml
+                + cashRowsHtml(ds, loc.id) + '</div>';
         }).join('');
     }
 
@@ -689,6 +877,7 @@
         // деньги/ставки/реестр — отдельные цвета (изменения с финансовым весом)
         role_rate: '#b45309', revenue_set: '#0d9488',
         revenue_sync: '#0d9488', revenue_sync_month: '#0d9488',
+        cash_set: '#0891b2', cash_clear: '#94a3b8',
         employee_update: '#6b7280', employees_sync: '#6b7280'
     };
     function loadFeed() {

@@ -36,7 +36,13 @@ class ShiftsManager:
     #     фоллбэка и обновляется на актуальное при синке. Переименование сотрудника
     #     в iiko больше не плодит дублей: смены и реестр привязаны к id, а не к
     #     строке-имени. См. sync_employees() и docs/schedule.md.
-    SCHEMA_VERSION = 6
+    # v7: касса на смене — ручной ввод бармена в конце смены (без iiko):
+    #     cash_expense_kop (траты из кассы), cash_expense_note (на что),
+    #     cash_collection_kop (инкассация), cash_end_kop (наличные на конец смены).
+    #     Деньги в КОПЕЙКАХ (INTEGER — точно, без float). NULL = не заполнено,
+    #     0 = «не было». Заполняет дневная смена; замена бумажного чеклиста
+    #     кассовой дисциплины. См. set_shift_cash() и docs/schedule.md.
+    SCHEMA_VERSION = 7
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -262,6 +268,14 @@ class ShiftsManager:
                 self._ensure_columns(cursor, 'schedule_employees', {'iiko_id': 'TEXT'})
                 self._ensure_columns(cursor, 'day_off_requests', {'employee_id': 'TEXT'})
                 self._ensure_columns(cursor, 'wishes', {'employee_id': 'TEXT'})
+                # v7: касса на смене (ручной ввод бармена, без iiko). Деньги в
+                # копейках (INTEGER — точно). NULL = не заполнено, 0 = «не было».
+                self._ensure_columns(cursor, 'shifts', {
+                    'cash_expense_kop': 'INTEGER',
+                    'cash_expense_note': 'TEXT',
+                    'cash_collection_kop': 'INTEGER',
+                    'cash_end_kop': 'INTEGER',
+                })
 
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
@@ -389,6 +403,8 @@ class ShiftsManager:
                     SELECT
                         s.id, s.date, s.employee_name, s.employee_id, s.notes,
                         s.start_time, s.fact_minutes,
+                        s.cash_expense_kop, s.cash_expense_note,
+                        s.cash_collection_kop, s.cash_end_kop,
                         l.id as location_id, l.name as location_name, l.short_name as location_short,
                         r.id as role_id, r.name as role_name, r.short_name as role_short, r.color as role_color
                     FROM shifts s
@@ -434,6 +450,8 @@ class ShiftsManager:
                     SELECT
                         s.id, s.date, s.employee_name, s.employee_id, s.notes,
                         s.start_time, s.fact_minutes,
+                        s.cash_expense_kop, s.cash_expense_note,
+                        s.cash_collection_kop, s.cash_end_kop,
                         l.id as location_id, l.name as location_name, l.short_name as location_short,
                         r.id as role_id, r.name as role_name, r.short_name as role_short
                     FROM shifts s
@@ -531,6 +549,35 @@ class ShiftsManager:
                 cursor.execute(
                     'UPDATE shifts SET fact_minutes = ?, updated_at = ? WHERE id = ?',
                     (fact_minutes, datetime.now().isoformat(), shift_id)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+
+    def set_shift_cash(self, shift_id: int, expense_kop: Optional[int],
+                       collection_kop: Optional[int], cash_end_kop: Optional[int],
+                       expense_note: Optional[str] = None) -> bool:
+        """Записать кассу смены (ручной ввод бармена в конце смены, без iiko).
+
+        Деньги — в КОПЕЙКАХ (INTEGER, точно). Смысл значений:
+          None  — поле не заполнено (касса за смену не сдана);
+          0     — «трат/инкассации не было»;
+          >0    — сумма.
+        Все None + пустая заметка = очистить кассу смены. expense_note — на что
+        потрачено (свободный текст, в журнал не пишется). Пишется атомарно одним
+        UPDATE, как set_shift_fact; касса и часы независимы (очистка одного не
+        трогает другое). Заполняет, как правило, дневная смена — см.
+        docs/schedule.md, «Кассовая дисциплина».
+        """
+        note = (expense_note or '').strip() or None
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'UPDATE shifts SET cash_expense_kop = ?, cash_expense_note = ?, '
+                    'cash_collection_kop = ?, cash_end_kop = ?, updated_at = ? '
+                    'WHERE id = ?',
+                    (expense_kop, note, collection_kop, cash_end_kop,
+                     datetime.now().isoformat(), shift_id)
                 )
                 conn.commit()
                 return cursor.rowcount > 0

@@ -457,9 +457,13 @@
                 var role = eve ? 'вечер · второй бармен' : 'день · бармен';
                 var hours = st === 'done' ? 'факт ' + S.minutesToHhMm(s.fact_minutes)
                     : (st === 'nofact' ? 'часы не введены' : '');
+                // Касса сдаётся дневным барменом. Пометка «не сдана» — для дневной
+                // смены без наличных на конец (сегодня или в прошлом, не в будущем).
+                var cashMissing = !isEvening(s) && s.cash_end_kop == null && st !== 'soon';
+                var cashWarn = cashMissing ? '<div class="ms-cashwarn">Касса не сдана</div>' : '';
                 // кнопка действия
                 var btn = '';
-                if (st === 'nofact') btn = '<div class="ms-dbtn ms-dbtn-warn" data-act="fact" data-shift-id="' + esc(s.id) + '">Ввести факт часов</div>';
+                if (st === 'nofact') btn = '<div class="ms-dbtn ms-dbtn-warn" data-act="fact" data-shift-id="' + esc(s.id) + '">Закрыть смену — часы и касса</div>';
                 else if (st === 'today') btn = '<div class="ms-dbtn ms-dbtn-dark" data-act="fact" data-shift-id="' + esc(s.id) + '">Отметить конец смены</div>';
                 else if (st === 'done') btn = '<div class="ms-dbtn" data-act="fact" data-shift-id="' + esc(s.id) + '">Факт ' + S.minutesToHhMm(s.fact_minutes) + ' · править</div>';
                 return out + '<div class="ms-card' + (st === 'today' ? ' ms-today' : '') + '">'
@@ -470,7 +474,7 @@
                     + '<span class="ms-drole">' + role + '</span></div>'
                     + '<div class="ms-dmeta">' + (s.start_time ? '<span>старт ' + esc(s.start_time) + '</span>' : '')
                     + (hours ? '<span class="ms-dh">' + esc(hours) + '</span>' : '') + '</div>'
-                    + btn + '</div>';
+                    + cashWarn + btn + '</div>';
             }
             // выходной / не назначено
             var off = offReqOn(ds);
@@ -486,11 +490,14 @@
         function paint() {
             host.innerHTML = headHtml + chipsHtml + calendarHtml(selN) + legendHtml
                 + detailHtml(selN) + actsHtml(selN);
-            // выбор дня
+            // выбор дня; если в этот день есть смена — сразу открыть окно
+            // закрытия смены (часы + касса), не только через кнопку в карточке.
             host.querySelectorAll('.ms-cell[data-n]').forEach(function (el) {
                 el.addEventListener('click', function () {
                     selN = +el.dataset.n;
                     paint();
+                    var sh = byDate[S.dateStr(year, month, selN)];
+                    if (sh && S._onScreenShiftClick) S._onScreenShiftClick(sh);
                 });
             });
             // запрос/снятие выходного на выбранный день

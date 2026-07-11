@@ -91,6 +91,32 @@
         return null;
     }
 
+    /* Касса (v7): деньги в копейках в данных, в рублях в полях ввода/показе. */
+
+    /* Копейки -> строка рублей для value input ('' если null): 1534025 -> '15340.25' */
+    function kopToRubInput(kop) {
+        if (kop == null) return '';
+        return String(kop % 100 === 0 ? kop / 100 : (kop / 100).toFixed(2));
+    }
+
+    /* Копейки -> человекочитаемые рубли для показа: 1534025 -> '15 340,25' */
+    function kopToRubDisplay(kop) {
+        if (kop == null) return '—';
+        var rub = kop / 100;
+        return new Intl.NumberFormat('ru-RU',
+            { minimumFractionDigits: kop % 100 === 0 ? 0 : 2,
+              maximumFractionDigits: 2 }).format(rub);
+    }
+
+    /* Строка рублей из поля -> рубли (число) или null; NaN/пусто -> null.
+       Принимает '15340', '15 340', '350,50', '350.50'. */
+    function parseRubInput(text) {
+        text = (text || '').trim().replace(/\s/g, '').replace(',', '.');
+        if (!text) return null;
+        if (!/^\d+(\.\d+)?$/.test(text)) return NaN;
+        return parseFloat(text);
+    }
+
     /* Короткая подпись сотрудника: short_label из реестра, иначе инициалы
        («Романов Юрий» -> «РЮ»), как в гугл-таблице владельца. */
     function employeeLabel(name) {
@@ -673,6 +699,9 @@
         formatMoney: formatMoney,
         minutesToHhMm: minutesToHhMm,
         parseHoursInput: parseHoursInput,
+        kopToRubInput: kopToRubInput,
+        kopToRubDisplay: kopToRubDisplay,
+        parseRubInput: parseRubInput,
         employeeLabel: employeeLabel,
         employeeShortName: employeeShortName,
         getEmployeeById: getEmployeeById,

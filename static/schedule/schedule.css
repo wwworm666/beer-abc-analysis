@@ -760,6 +760,95 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 
 .modal .form-hint { font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px; }
 
+/* ==================== Касса на смене (v7) ==================== */
+/* Блок кассовой дисциплины в модалке закрытия смены. Показывается только для
+   дневной смены (view.js прячет для вечерней). Ручной ввод, без iiko.
+   Дизайн единый с модалкой: шрифты/поля как у остальных .form-group; два главных
+   поля (часы, наличные на конец) выделены только акцентной рамкой инпута. */
+.cash-block { margin: 4px 0 2px; }
+
+/* Два главных поля — часы и наличные на конец: тот же шрифт, выделены рамкой. */
+.modal .form-group.cash-primary input {
+    border: 1.5px solid var(--accent);
+}
+.cash-block .cash-end-group.cash-primary { margin: 0 0 12px; }
+
+/* Второстепенное: траты/инкассация — тот же шрифт/размер, обычная рамка,
+   отделено линией сверху. */
+.cash-optional {
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+.cash-opt-h { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; }
+.cash-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 4px 0;
+}
+.cash-toggle input { width: 15px; height: 15px; flex: 0 0 auto; accent-color: var(--accent); }
+.cash-sub {
+    display: flex;
+    gap: 8px;
+    margin: 4px 0 8px 23px;
+    flex-wrap: wrap;
+}
+.cash-sub input {
+    flex: 1 1 120px;
+    padding: 11px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--sch-radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+.cash-sub input:focus { outline: none; border-color: var(--accent); }
+
+/* Строки кассы в панели дня (агрегат по бару за день) */
+.day-panel-card .cash-divider {
+    border-top: 1px dashed var(--border-color);
+    margin: 8px 0 6px;
+}
+.day-panel-card .metric .v.cash-none { color: var(--warning); font-weight: 600; }
+.day-panel-card .cash-note { font-size: 0.7rem; color: var(--text-tertiary); }
+
+/* История кассы за месяц (сворачиваемый блок): компактная таблица сдач кассы. */
+.cash-hist-wrap { overflow-x: auto; }
+.cash-hist { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.cash-hist th, .cash-hist td {
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--border-light, #eef0f3);
+    text-align: left;
+    white-space: nowrap;
+}
+.cash-hist th {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--text-tertiary); font-weight: 600;
+}
+.cash-hist .ch-num { text-align: right; font-variant-numeric: tabular-nums; }
+.cash-hist .ch-dim { color: var(--text-tertiary); }
+.cash-hist .ch-note { color: var(--accent); cursor: help; }
+.cash-hist .ch-total td {
+    font-weight: 600; border-top: 2px solid var(--border-color); border-bottom: none;
+}
+.cash-hist-empty { padding: 12px; font-size: 0.85rem; color: var(--text-tertiary); }
+
+/* Мобильная карточка дня: пометка «касса не сдана» (дневная смена без наличных) */
+.ms-cashwarn {
+    margin: 8px 0 2px;
+    padding: 7px 10px;
+    border-radius: var(--sch-radius-sm);
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+}
+
 .modal .warning-box {
     background: var(--warning-bg);
     border: 1px solid var(--warning);

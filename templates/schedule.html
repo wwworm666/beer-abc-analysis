@@ -168,6 +168,19 @@
           </div>
         </div>
 
+        <!-- История кассы за месяц (read-only): даты, точки, бармены, траты/
+             инкассация/наличные на конец. Данные из уже загруженных смен месяца. -->
+        <div class="sc-fold" id="foldCash">
+          <button type="button" class="sc-fold-head" data-fold-toggle>
+            <span class="sc-fold-title">Касса за месяц</span>
+            <span class="sc-fold-sub" id="cashTeaser">история денег по сменам</span>
+            <span class="sc-fold-chev">&#9662;</span>
+          </button>
+          <div class="sc-fold-body" hidden>
+            <div id="cashHistBody"></div>
+          </div>
+        </div>
+
         <!-- Лента последних изменений графика (кто что менял). -->
         <div class="sc-fold" id="foldFeed">
           <button type="button" class="sc-fold-head" data-fold-toggle>
@@ -192,11 +205,42 @@
       <div class="modal">
         <h2 id="factModalTitle">Отработанные часы</h2>
         <form id="factForm">
-          <div class="form-group">
+          <!-- Главное поле №1 — отработанные часы (выделено). -->
+          <div class="form-group cash-primary">
             <label for="factInput">Сколько отработано</label>
             <input type="text" id="factInput" inputmode="numeric"
                    placeholder="10:30" autocomplete="off">
             <div class="form-hint">Формат: 10:30 (часы:минуты) или 10.5</div>
+          </div>
+          <!-- Касса на конец смены (только дневная смена). Ручной пересчёт бармена,
+               без iiko. Главное поле №2 — наличные на конец; траты/инкассация — вторично. -->
+          <div class="cash-block" id="factCashBlock">
+            <div class="form-group cash-end-group cash-primary">
+              <label for="factCashEnd">Наличные в кассе на конец смены, ₽</label>
+              <input type="text" id="factCashEnd" inputmode="decimal"
+                     placeholder="напр. 15340" autocomplete="off">
+            </div>
+            <div class="cash-optional">
+              <div class="cash-opt-h">Если было за смену:</div>
+              <label class="cash-toggle">
+                <input type="checkbox" id="factExpenseOn">
+                <span>Траты из кассы</span>
+              </label>
+              <div class="cash-sub" id="factExpenseSub" hidden>
+                <input type="text" id="factExpenseAmt" inputmode="decimal"
+                       placeholder="сумма, ₽" autocomplete="off">
+                <input type="text" id="factExpenseNote"
+                       placeholder="на что (необязательно)" autocomplete="off">
+              </div>
+              <label class="cash-toggle">
+                <input type="checkbox" id="factCollectionOn">
+                <span>Инкассация</span>
+              </label>
+              <div class="cash-sub" id="factCollectionSub" hidden>
+                <input type="text" id="factCollectionAmt" inputmode="decimal"
+                       placeholder="сумма, ₽" autocomplete="off">
+              </div>
+            </div>
           </div>
           <div class="actions">
             <button type="button" class="btn btn-danger" id="factClear">Очистить</button>
@@ -225,11 +269,41 @@
                    pattern="^([01]\d|2[0-3]):[0-5]\d$" autocomplete="off">
             <div class="form-hint">18:00 = вечер; другое время — для нестандартных случаев</div>
           </div>
-          <div class="form-group">
+          <div class="form-group cash-primary">
             <label for="shiftFact">Факт часов (вводит бармен в конце смены)</label>
             <input type="text" id="shiftFact" inputmode="numeric"
                    placeholder="10:30" autocomplete="off">
             <div class="form-hint">Формат: 10:30 или 10.5. Пусто — факт не введён.</div>
+          </div>
+          <!-- Касса (только дневная смена). Владелец может править то, что ввёл бармен.
+               Главное поле — наличные на конец; траты/инкассация — вторично. -->
+          <div class="cash-block" id="shiftCashBlock">
+            <div class="form-group cash-end-group cash-primary">
+              <label for="shiftCashEnd">Наличные в кассе на конец смены, ₽</label>
+              <input type="text" id="shiftCashEnd" inputmode="decimal"
+                     placeholder="напр. 15340" autocomplete="off">
+            </div>
+            <div class="cash-optional">
+              <div class="cash-opt-h">Если было за смену:</div>
+              <label class="cash-toggle">
+                <input type="checkbox" id="shiftExpenseOn">
+                <span>Траты из кассы</span>
+              </label>
+              <div class="cash-sub" id="shiftExpenseSub" hidden>
+                <input type="text" id="shiftExpenseAmt" inputmode="decimal"
+                       placeholder="сумма, ₽" autocomplete="off">
+                <input type="text" id="shiftExpenseNote"
+                       placeholder="на что (необязательно)" autocomplete="off">
+              </div>
+              <label class="cash-toggle">
+                <input type="checkbox" id="shiftCollectionOn">
+                <span>Инкассация</span>
+              </label>
+              <div class="cash-sub" id="shiftCollectionSub" hidden>
+                <input type="text" id="shiftCollectionAmt" inputmode="decimal"
+                       placeholder="сумма, ₽" autocomplete="off">
+              </div>
+            </div>
           </div>
           <div class="actions">
             <button type="button" class="btn btn-danger" id="shiftDelete">Удалить</button>

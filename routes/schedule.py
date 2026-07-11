@@ -91,6 +91,37 @@ def _fmt_hhmm(minutes):
     return f"{m // 60}:{m % 60:02d}"
 
 
+# Касса на смене (v7): ручной ввод бармена, без iiko. Деньги приходят в РУБЛЯХ,
+# хранятся в КОПЕЙКАХ (INTEGER — точно). Потолок против опечаток — 1 млн ₽.
+CASH_MAX_RUB = 1_000_000
+
+
+def _rub_to_kop(value):
+    """Рубли (число или null/'') -> копейки INTEGER. (ok, kop_or_None).
+
+    None/'' -> (True, None): поле не заполнено. 0 допустимо («не было»).
+    Отрицательное, не-число или сверх потолка -> (False, None).
+    """
+    if value in (None, ''):
+        return True, None
+    try:
+        rub = float(value)
+    except (TypeError, ValueError):
+        return False, None
+    if rub < 0 or rub > CASH_MAX_RUB:
+        return False, None
+    return True, int(round(rub * 100))
+
+
+def _fmt_kop(kop):
+    """Копейки -> строка рублей для журнала: '15 340' или '350.50 ₽'-часть."""
+    if kop is None:
+        return '—'
+    rub = kop / 100.0
+    s = f"{rub:,.0f}" if kop % 100 == 0 else f"{rub:,.2f}"
+    return s.replace(',', ' ')
+
+
 def _audit(action, summary, entity_date=None, employee_name=None):
     """Записать действие текущего пользователя в журнал графика (best-effort)."""
     try:
@@ -351,6 +382,46 @@ def schedule_set_shift_fact(shift_id):
             _audit('fact_set',
                    f"Проставлен факт часов: {sh['employee_name']} — {_fmt_hhmm(fact)}"
                    f" за {_fmt_dm(sh['date'])}",
+                   entity_date=sh['date'], employee_name=sh['employee_name'])
+    return jsonify({'ok': True})
+
+
+@schedule_bp.route('/api/schedule/shift/<int:shift_id>/cash', methods=['PUT'])
+def schedule_set_shift_cash(shift_id):
+    """Записать кассу смены — ручной ввод бармена в конце смены (без iiko).
+
+    Body в РУБЛЯХ (число или null): {cash_expense, cash_collection, cash_end,
+    cash_expense_note}. Хранится в копейках. 0 = «трат/инкассации не было»,
+    null = поле не заполнено. Все три null -> очистка кассы смены. Заполняет,
+    как правило, дневная смена (замена бумажного чеклиста кассовой дисциплины).
+    Часы (fact) не трогаются — касса и часы независимы.
+    """
+    data = request.get_json() or {}
+    ok_e, exp = _rub_to_kop(data.get('cash_expense'))
+    ok_c, col = _rub_to_kop(data.get('cash_collection'))
+    ok_k, end = _rub_to_kop(data.get('cash_end'))
+    if not (ok_e and ok_c and ok_k):
+        return jsonify({'error': f'Суммы кассы — число от 0 до {CASH_MAX_RUB} ₽'}), 400
+    note = data.get('cash_expense_note')
+    if note is not None and not isinstance(note, str):
+        return jsonify({'error': 'cash_expense_note должен быть строкой'}), 400
+
+    updated = shifts_mgr.set_shift_cash(shift_id, exp, col, end, note)
+    if not updated:
+        return jsonify({'error': 'Смена не найдена'}), 404
+
+    sh = shifts_mgr.get_shift(shift_id)
+    if sh:
+        if exp is None and col is None and end is None:
+            _audit('cash_clear',
+                   f"Очищена касса: {sh['employee_name']}, {_fmt_dm(sh['date'])}",
+                   entity_date=sh['date'], employee_name=sh['employee_name'])
+        else:
+            # Заметку «на что» в журнал не пишем (низкая ценность, как текст пожеланий).
+            _audit('cash_set',
+                   f"Касса ({sh['employee_name']}, {_fmt_dm(sh['date'])}): "
+                   f"траты {_fmt_kop(exp)}, инкассация {_fmt_kop(col)}, "
+                   f"на конец {_fmt_kop(end)} ₽",
                    entity_date=sh['date'], employee_name=sh['employee_name'])
     return jsonify({'ok': True})
 
