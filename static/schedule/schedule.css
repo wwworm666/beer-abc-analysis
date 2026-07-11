@@ -587,19 +587,20 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 }
 .pf-table thead th.pf-tt, .pf-table thead th.pf-pct { text-align: right; }
 .pf-table tbody td { padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
-.pf-day { cursor: pointer; }
-.pf-day:hover, .pf-day.open { background: var(--bg-tertiary); }
+.pf-day:hover { background: var(--bg-tertiary); }
 .pf-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pf-dow { color: var(--text-tertiary); margin-right: 2px; }
 .pf-dow.pf-we { color: var(--accent); }
 .pf-pct { text-align: right; white-space: nowrap; }
 .pf-dim { color: var(--text-tertiary); }
 
-/* Ячейка точки: факт (сверху, цвет по уровню) над планом (снизу, приглушённо) */
+/* Ячейка точки: факт (сверху, цвет по уровню) над планом, ниже — бармены (кто
+   работал + часы). Верхнее выравнивание, чтобы числа строк были на одной линии. */
 .pf-tt {
     text-align: right;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
+    vertical-align: top;
 }
 .pf-tt-f { display: block; font-weight: 600; }
 .pf-tt-p { display: block; font-size: 0.74em; color: var(--text-tertiary); margin-top: 1px; }
@@ -625,45 +626,41 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     padding-top: 9px;
 }
 
-/* Разворот дня: подробно по точкам — кто работал, где, план/факт/% и часы смены */
-.pf-detail > td { padding: 6px 8px 12px 22px; background: var(--bg-tertiary); }
-.pf-pd { padding: 7px 0; }
-.pf-pd + .pf-pd { border-top: 1px solid var(--border-color); }
-/* Шапка точки: цветная точка + имя + деньги + бейдж % (справа) */
-.pf-pd-loc {
+/* Бармены прямо в ячейке точки: кто работал (короткое имя) + часы/статус смены.
+   Столбиком под числами, выровнены вправо — числовая колонка остаётся ровной. */
+.pf-tt-ppl {
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    margin-top: 5px;
+}
+.pf-pp {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 5px;
+    max-width: 100%;
+    font-weight: 400;
 }
-.pf-pd-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
-.pf-pd-name { font-weight: 600; color: var(--text-primary); font-size: 0.85rem; }
-.pf-pd-money { font-size: 0.8rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.pf-pd-money b { font-weight: 700; }
-.pf-pd-mut { color: var(--text-tertiary); }
-.pf-pd-loc .pf-badge { margin-left: auto; }
-/* Люди на точке: цветная точка роли + имя + роль/время/часы */
-.pf-pd-people {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px 18px;
-    margin: 6px 0 1px 17px;
-}
-.pf-emp { display: inline-flex; align-items: baseline; gap: 6px; }
-.pf-emp-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+.pf-pp-dot {
+    width: 7px; height: 7px; border-radius: 50%;
     background: var(--role-color, var(--accent));
     flex: 0 0 auto;
-    align-self: center;
 }
-.pf-emp-nm { font-size: 0.83rem; color: var(--text-primary); font-weight: 500; }
-.pf-emp-meta {
-    font-size: 0.76rem;
-    color: var(--text-tertiary);
+.pf-pp-nm {
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pf-pp-h {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
-.pf-emp-h { color: var(--text-secondary); font-weight: 600; }
-.pf-emp-nofact .pf-emp-h { color: var(--warning); }
+.pf-nf .pf-pp-h { color: var(--warning); } /* прошлое без факта — надо дозакрыть */
 .pf-empty { color: var(--text-tertiary); font-size: 0.86rem; padding: 10px 0; }
 .pf-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 10px; }
 

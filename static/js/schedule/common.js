@@ -474,79 +474,42 @@
         return String(n);
     }
 
-    /* Часы/статус смены для разворота дня: факт есть → «10:30 ч»; сегодня без
-       факта → «идёт»; прошлое без факта → «факт?» (не закрыта); будущее → «план».
-       ds — дата смены, today — сегодня (S.todayStr). */
-    function pfShiftHours(shift, ds, today) {
-        if (shift.fact_minutes != null) return minutesToHhMm(shift.fact_minutes) + ' ч';
+    /* Часы/статус смены для ячейки точки: факт есть → «10:30»; сегодня без факта →
+       «идёт»; прошлое без факта → «факт?» (не закрыта); будущее → плановое начало
+       «с HH:MM» (или пусто для дневной нормы). ds — дата смены, today — сегодня. */
+    function pfCellHours(shift, ds, today) {
+        if (shift.fact_minutes != null) return minutesToHhMm(shift.fact_minutes);
         if (ds === today) return 'идёт';
         if (ds < today) return 'факт?';
-        return 'план'; // будущее: плановое начало уже показано отдельно в мете
+        return shift.start_time ? 'с ' + shift.start_time : '';
     }
 
-    /* Разворот дня: подробная разбивка ПО ТОЧКАМ — кто работал, где, план/факт/%
-       точки и сколько часов длилась смена у каждого. Всё из уже загруженного state
-       (plans + shifts), без новых запросов. ds — дата дня, dayShifts — смены дня.
-       Единый порог «вечер» и цвет точки берём из screens.js (S.isEvening/S.colorById),
-       чтобы не разошлись с сеткой; есть локальный фоллбэк, если screens.js не загружен. */
-    function pfPeople(ds, dayShifts) {
-        var S = window.Schedule;
-        var isEve = (S && S.isEvening) || function (s) {
-            return !!((s.role_name && /втор/i.test(s.role_name))
-                || (s.start_time && s.start_time >= '18:00'));
-        };
-        var colorOf = (S && S.colorById) || function () { return 'var(--accent)'; };
-        var today = todayStr();
-        var dl = (state.plans && state.plans.days[ds] && state.plans.days[ds].locations) || {};
-
-        var byLoc = {};
-        dayShifts.forEach(function (s) { (byLoc[s.location_id] = byLoc[s.location_id] || []).push(s); });
-
-        var blocks = state.locations.map(function (loc) {
-            var ls = byLoc[loc.id] || [];
-            if (!ls.length) return '';
-            ls.sort(function (a, b) { return (isEve(a) ? 1 : 0) - (isEve(b) ? 1 : 0); }); // день раньше вечера
-
-            var c = dl[loc.id] || {};
-            var plan = c.plan != null ? c.plan : null;
-            var fact = c.fact != null ? c.fact : null;
-            var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
-
-            var money = '<span class="pf-pd-money"><b>'
-                + (fact != null ? formatMoney(fact) : '&mdash;') + '</b> факт'
-                + '<span class="pf-pd-mut"> &middot; ' + (plan != null ? formatMoney(plan) : '&mdash;')
-                + ' план</span></span>';
-
-            var people = ls.map(function (s) {
-                var eve = isEve(s);
-                var nofact = s.fact_minutes == null && ds < today;
-                var meta = (eve ? 'вечер' : 'день')
-                    + (s.start_time ? ' &middot; с ' + escapeHtml(s.start_time) : '')
-                    + ' &middot; <span class="pf-emp-h">' + escapeHtml(pfShiftHours(s, ds, today)) + '</span>';
-                return '<div class="pf-emp' + (nofact ? ' pf-emp-nofact' : '') + '">'
-                    + '<span class="pf-emp-dot" style="--role-color:' + (s.role_color || 'var(--accent)') + '"></span>'
-                    + '<span class="pf-emp-nm">' + escapeHtml(shiftDisplayName(s)) + '</span>'
-                    + '<span class="pf-emp-meta">' + meta + '</span>'
-                    + '</div>';
-            }).join('');
-
-            return '<div class="pf-pd">'
-                + '<div class="pf-pd-loc">'
-                + '<span class="pf-pd-dot" style="background:' + colorOf(loc.id) + '"></span>'
-                + '<span class="pf-pd-name">' + escapeHtml(loc.short_name || loc.name) + '</span>'
-                + money + (pct != null ? pfPctBadge(pct) : '')
-                + '</div>'
-                + '<div class="pf-pd-people">' + people + '</div>'
-                + '</div>';
-        }).filter(Boolean).join('');
-
-        return blocks || '<span class="pf-dim">смен в этот день нет</span>';
+    /* Строка бармена внутри ячейки точки: цветная точка роли, короткое имя
+       («Фамилия Имя»), часы/статус смены. Полное описание — в title. Прошлое без
+       факта помечаем (pf-nf, янтарным) — надо дозакрыть. */
+    function pfCellPerson(shift, ds, today) {
+        var name = employeeShortName(shiftDisplayName(shift));
+        var hrs = pfCellHours(shift, ds, today);
+        var nofact = shift.fact_minutes == null && ds < today;
+        var eve = !!(window.Schedule && window.Schedule.isEvening
+            ? window.Schedule.isEvening(shift)
+            : ((shift.role_name && /втор/i.test(shift.role_name))
+                || (shift.start_time && shift.start_time >= '18:00')));
+        var title = shiftDisplayName(shift) + ' — ' + (eve ? 'вечер' : 'день')
+            + (shift.start_time ? ', с ' + shift.start_time : '')
+            + (shift.fact_minutes != null ? ', факт ' + minutesToHhMm(shift.fact_minutes) : '');
+        return '<span class="pf-pp' + (nofact ? ' pf-nf' : '') + '" title="' + escapeHtml(title) + '">'
+            + '<span class="pf-pp-dot" style="--role-color:' + (shift.role_color || 'var(--accent)') + '"></span>'
+            + '<span class="pf-pp-nm">' + escapeHtml(name) + '</span>'
+            + (hrs ? '<span class="pf-pp-h">' + escapeHtml(hrs) + '</span>' : '')
+            + '</span>';
     }
 
-    /* Таблица «План / Факт по дням»: ОДНА таблица — колонки по всем точкам (факт над
-       планом), плюс «Итого» (день) и %. Без вкладок. Клик по строке дня — кто работал
-       на каждой точке. host — контейнер; данные из state.plans/shifts. Месячную сводку
-       пишем в .pf-summary заголовка карточки (видна, когда таблица свёрнута). */
+    /* Таблица «План / Факт по дням»: ОДНА таблица — колонки по всем точкам, плюс
+       «Итого» (день) и %. В ячейке точки: факт над планом И бармены, кто работал
+       (короткое имя + часы/статус смены) — сразу, без разворота. host — контейнер;
+       данные из state.plans/shifts. Месячную сводку пишем в .pf-summary заголовка
+       карточки (видна, когда таблица свёрнута). */
     function renderPlanFact(host) {
         if (!host) return;
         var card = host.closest && host.closest('.section-card');
@@ -557,18 +520,26 @@
 
         var locs = state.locations;
         var daysInMonth = new Date(state.year, state.month, 0).getDate();
+        var today = todayStr();
+        var isEve = (window.Schedule && window.Schedule.isEvening) || function (s) {
+            return !!((s.role_name && /втор/i.test(s.role_name))
+                || (s.start_time && s.start_time >= '18:00'));
+        };
         var shiftsByDay = {};
         state.shifts.forEach(function (s) { (shiftsByDay[s.date] = shiftsByDay[s.date] || []).push(s); });
 
-        // Ячейка точки: факт (цвет по %) над планом; «—» если нет данных
-        function ttCell(plan, fact, name, isTotal) {
+        // Ячейка точки: факт (цвет по %) над планом; «—» если нет данных. peopleHtml —
+        // бармены этой точки за день (кто работал + часы) прямо в ячейке, чтобы не
+        // тыкать разворот; для строки «Итого» не передаётся.
+        function ttCell(plan, fact, name, isTotal, peopleHtml) {
             var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
             var lvl = pct == null ? '' : (pct >= 100 ? ' rc-good' : (pct >= 85 ? ' rc-mid' : ' rc-low'));
             var title = name + ': факт ' + (fact != null ? formatMoney(fact) : '—')
                 + ' / план ' + (plan != null ? formatMoney(plan) : '—') + (pct != null ? ' (' + pct + '%)' : '');
             return '<td class="pf-tt' + (isTotal ? ' pf-tt-total' : '') + '" title="' + escapeHtml(title) + '">'
                 + '<span class="pf-tt-f' + lvl + '">' + formatK(fact) + '</span>'
-                + '<span class="pf-tt-p">' + formatK(plan) + '</span></td>';
+                + '<span class="pf-tt-p">' + formatK(plan) + '</span>'
+                + (peopleHtml || '') + '</td>';
         }
 
         var body = [];
@@ -593,13 +564,22 @@
             var weekend = (dow === 5 || dow === 6);
             var dayPct = (pt != null && pt > 0 && ft != null) ? Math.round(ft / pt * 100) : null;
 
+            var dsInner = ds; // ds — var в цикле; фиксируем для замыкания карты точек
             var ttTds = locs.map(function (L) {
                 var c = dl[L.id] || {};
                 var p = (c.plan != null) ? c.plan : null;
                 var f = (c.fact != null) ? c.fact : null;
                 if (p != null) { ttSum[L.id].p += p; ttSum[L.id].hasP = true; }
                 if (f != null) { ttSum[L.id].f += f; ttSum[L.id].hasF = true; }
-                return ttCell(p, f, L.short_name || L.name, false);
+                // Бармены этой точки за день (день раньше вечера) — прямо в ячейке.
+                var pplList = dayShifts.filter(function (s) { return s.location_id === L.id; })
+                    .sort(function (a, b) { return (isEve(a) ? 1 : 0) - (isEve(b) ? 1 : 0); });
+                var pplHtml = pplList.length
+                    ? '<span class="pf-tt-ppl">' + pplList.map(function (s) {
+                        return pfCellPerson(s, dsInner, today);
+                      }).join('') + '</span>'
+                    : '';
+                return ttCell(p, f, L.short_name || L.name, false, pplHtml);
             }).join('');
 
             body.push(
@@ -610,8 +590,6 @@
                 + ttCell(pt, ft, 'Итого день', true)
                 + '<td class="pf-pct">' + pfPctBadge(dayPct) + '</td>'
                 + '</tr>'
-                + '<tr class="pf-detail" data-detail="' + ds + '" hidden><td colspan="'
-                + (locs.length + 3) + '">' + pfPeople(ds, dayShifts) + '</td></tr>'
             );
         }
 
@@ -645,15 +623,6 @@
             '<table class="pf-table"><thead><tr>'
             + '<th>Дата</th>' + headTt + '<th class="pf-tt">Итого</th><th class="pf-pct">%</th>'
             + '</tr></thead><tbody>' + body.join('') + totalRow + '</tbody></table>';
-
-        host.querySelectorAll('tr.pf-day').forEach(function (tr) {
-            tr.addEventListener('click', function () {
-                var detail = host.querySelector('tr.pf-detail[data-detail="' + tr.dataset.date + '"]');
-                if (!detail) return;
-                detail.hidden = !detail.hidden;
-                tr.classList.toggle('open', !detail.hidden);
-            });
-        });
     }
 
     /* Мини-виджет «Выполнение плана»: матрица точки × 3 дня (позавчера/вчера/сегодня).
