@@ -594,73 +594,59 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .pf-pct { text-align: right; white-space: nowrap; }
 .pf-dim { color: var(--text-tertiary); }
 
-/* Ячейка точки: факт (сверху, цвет по уровню) над планом, ниже — бармены (кто
-   работал + часы). Верхнее выравнивание, чтобы числа строк были на одной линии. */
+/* Ячейка точки — ОДНА строка: слева бармены (сокращения + часы), справа факт/план.
+   Числа прижаты вправо (колонка ровная по всем дням), сокращения слева. Цветом
+   выделяем ТОЛЬКО перевыполнение (.pf-over — зелёный); недобор — нейтральный. */
 .pf-tt {
     text-align: right;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
-    vertical-align: top;
+    vertical-align: middle;
 }
-.pf-tt-f { display: block; font-weight: 600; }
-.pf-tt-p { display: block; font-size: 0.74em; color: var(--text-tertiary); margin-top: 1px; }
+/* Раскладка внутри ячейки — flex во ВЛОЖЕННОМ span (td остаётся table-cell,
+   иначе колонки таблицы ломаются): имена слева, числа справа. */
+.pf-tt-in {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 12px;
+}
+.pf-tt-ppl {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    justify-content: flex-start;
+    gap: 12px;
+    overflow: hidden;
+}
+.pf-nums { flex: 0 0 auto; display: inline-flex; align-items: baseline; gap: 1px; }
+.pf-tt-f { font-weight: 600; color: var(--text-primary); }
+.pf-tt-f.pf-over { color: var(--success); }  /* перевыполнение — единственный цвет */
+.pf-tt-p { font-size: 0.82em; color: var(--text-tertiary); }
 .pf-tt-total { background: var(--bg-tertiary); }
 
+/* Бармен в ячейке: сокращение + часы, нейтральные тона, одна строка */
+.pf-pp { display: inline-flex; align-items: baseline; gap: 4px; font-weight: 400; }
+.pf-pp-nm { font-size: 0.8rem; color: var(--text-secondary); }
+.pf-pp-h { font-size: 0.8rem; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+/* % выполнения: зелёная пилюля только при перевыполнении, иначе нейтральное число */
 .pf-badge {
     display: inline-block;
-    min-width: 44px;
-    text-align: center;
-    padding: 2px 7px;
+    padding: 1px 8px;
     border-radius: var(--border-radius-pill);
     font-size: 0.76rem;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
 }
-.pf-good { background: var(--success-bg); color: var(--success); }
-.pf-mid { background: var(--warning-bg); color: var(--warning); }
-.pf-low { background: var(--danger-bg); color: var(--danger); }
+.pf-badge.pf-over { background: var(--success-bg); color: var(--success); }
+.pf-pct-n { color: var(--text-tertiary); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 .pf-total td {
     font-weight: 700;
     border-top: 2px solid var(--border-color);
     border-bottom: none;
     padding-top: 9px;
 }
-
-/* Бармены прямо в ячейке точки: кто работал (короткое имя) + часы/статус смены.
-   Столбиком под числами, выровнены вправо — числовая колонка остаётся ровной. */
-.pf-tt-ppl {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    margin-top: 5px;
-}
-.pf-pp {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    max-width: 100%;
-    font-weight: 400;
-}
-.pf-pp-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--role-color, var(--accent));
-    flex: 0 0 auto;
-}
-.pf-pp-nm {
-    font-size: 0.78rem;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.pf-pp-h {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-.pf-nf .pf-pp-h { color: var(--warning); } /* прошлое без факта — надо дозакрыть */
 .pf-empty { color: var(--text-tertiary); font-size: 0.86rem; padding: 10px 0; }
 .pf-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 10px; }
 

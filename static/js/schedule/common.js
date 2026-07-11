@@ -457,11 +457,14 @@
     // на смене; клик по дню — разбивка по барам. Читает state.plans (GET /plans) +
     // state.shifts. Общий для редактора и просмотра (host передаётся снаружи).
 
-    /* Бейдж % выполнения: >=100 зелёный, 85..99 янтарный, <85 красный, нет — тире. */
+    /* % выполнения. Цветом выделяем ТОЛЬКО перевыполнение (>=100 — зелёный пилюлей);
+       недобор — нейтральное число без заливки (владелец: подсвечивать только
+       перевыполнение). Нет факта — тире. */
     function pfPctBadge(pct) {
         if (pct == null) return '<span class="pf-dim">&mdash;</span>';
-        var cls = pct >= 100 ? 'good' : (pct >= 85 ? 'mid' : 'low');
-        return '<span class="pf-badge pf-' + cls + '">' + pct + '%</span>';
+        return pct >= 100
+            ? '<span class="pf-badge pf-over">' + pct + '%</span>'
+            : '<span class="pf-pct-n">' + pct + '%</span>';
     }
 
     /* Аббревиатура денег для плотной таблицы: 134400 -> «134к», 2.89М -> «2.9М».
@@ -484,13 +487,13 @@
         return shift.start_time ? 'с ' + shift.start_time : '';
     }
 
-    /* Строка бармена внутри ячейки точки: цветная точка роли, короткое имя
-       («Фамилия Имя»), часы/статус смены. Полное описание — в title. Прошлое без
-       факта помечаем (pf-nf, янтарным) — надо дозакрыть. */
+    /* Бармен в ячейке точки — компактно, в одну строку: сокращение (short_label
+       из реестра, напр. «РЮ») + часы/статус смены. Без ярких цветов — нейтральные
+       тона дизайн-системы. Полное имя, роль (день/вечер) и время — в title (hover).
+       ds — дата смены, today — сегодня. */
     function pfCellPerson(shift, ds, today) {
-        var name = employeeShortName(shiftDisplayName(shift));
+        var abbr = shiftLabel(shift);
         var hrs = pfCellHours(shift, ds, today);
-        var nofact = shift.fact_minutes == null && ds < today;
         var eve = !!(window.Schedule && window.Schedule.isEvening
             ? window.Schedule.isEvening(shift)
             : ((shift.role_name && /втор/i.test(shift.role_name))
@@ -498,9 +501,8 @@
         var title = shiftDisplayName(shift) + ' — ' + (eve ? 'вечер' : 'день')
             + (shift.start_time ? ', с ' + shift.start_time : '')
             + (shift.fact_minutes != null ? ', факт ' + minutesToHhMm(shift.fact_minutes) : '');
-        return '<span class="pf-pp' + (nofact ? ' pf-nf' : '') + '" title="' + escapeHtml(title) + '">'
-            + '<span class="pf-pp-dot" style="--role-color:' + (shift.role_color || 'var(--accent)') + '"></span>'
-            + '<span class="pf-pp-nm">' + escapeHtml(name) + '</span>'
+        return '<span class="pf-pp" title="' + escapeHtml(title) + '">'
+            + '<span class="pf-pp-nm">' + escapeHtml(abbr) + '</span>'
             + (hrs ? '<span class="pf-pp-h">' + escapeHtml(hrs) + '</span>' : '')
             + '</span>';
     }
@@ -528,18 +530,22 @@
         var shiftsByDay = {};
         state.shifts.forEach(function (s) { (shiftsByDay[s.date] = shiftsByDay[s.date] || []).push(s); });
 
-        // Ячейка точки: факт (цвет по %) над планом; «—» если нет данных. peopleHtml —
-        // бармены этой точки за день (кто работал + часы) прямо в ячейке, чтобы не
-        // тыкать разворот; для строки «Итого» не передаётся.
+        // Ячейка точки в ОДНУ строку: слева — бармены (сокращения + часы), справа —
+        // факт «/» план. Цветом выделяем ТОЛЬКО перевыполнение (факт >= план) —
+        // зелёным (--success); недобор нейтральный, без янтарного/красного (решение
+        // владельца: «таб цветам выделить нужно только перевыполнение»). peopleHtml —
+        // бармены точки за день; для строки «Итого» не передаётся.
         function ttCell(plan, fact, name, isTotal, peopleHtml) {
             var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
-            var lvl = pct == null ? '' : (pct >= 100 ? ' rc-good' : (pct >= 85 ? ' rc-mid' : ' rc-low'));
+            var over = pct != null && pct >= 100;
             var title = name + ': факт ' + (fact != null ? formatMoney(fact) : '—')
                 + ' / план ' + (plan != null ? formatMoney(plan) : '—') + (pct != null ? ' (' + pct + '%)' : '');
             return '<td class="pf-tt' + (isTotal ? ' pf-tt-total' : '') + '" title="' + escapeHtml(title) + '">'
-                + '<span class="pf-tt-f' + lvl + '">' + formatK(fact) + '</span>'
-                + '<span class="pf-tt-p">' + formatK(plan) + '</span>'
-                + (peopleHtml || '') + '</td>';
+                + '<span class="pf-tt-in">'
+                + (peopleHtml || '<span class="pf-tt-ppl"></span>')
+                + '<span class="pf-nums"><span class="pf-tt-f' + (over ? ' pf-over' : '') + '">' + formatK(fact) + '</span>'
+                + '<span class="pf-tt-p">/' + formatK(plan) + '</span></span>'
+                + '</span></td>';
         }
 
         var body = [];
