@@ -857,6 +857,9 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     font-weight: 600; border-top: 2px solid var(--border-color); border-bottom: none;
 }
 .cash-hist-empty { padding: 12px; font-size: 0.85rem; color: var(--text-tertiary); }
+/* Месячная история кассы — инструмент владельца на десктопе; на телефоне бармену
+   не нужна и мозолит глаза в полном графике. Прячем блок целиком на мобильном. */
+@media (max-width: 700px) { #foldCash { display: none; } }
 
 /* Мобильная карточка дня: пометка «касса не сдана» (дневная смена без наличных) */
 .ms-cashwarn {
