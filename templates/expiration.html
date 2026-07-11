@@ -428,6 +428,12 @@
         .list-table td.days.urgent { color: var(--warning); }
         .list-table td.days.watch { color: var(--accent); }
         .list-table td.blank { min-width: 110px; }
+        .org-mark {
+            color: var(--text-tertiary);
+            font-weight: 700;
+            cursor: help;
+            margin-left: 2px;
+        }
 
         .print-header { display: none; }
 
@@ -747,6 +753,13 @@ function daysShort(it) {
     return fmtDay(it.days_to_expiry);
 }
 
+function orgMark(it) {
+    // Срок посчитан по партиям юрлица: в ЧЗ нет привязки приёмки к бару
+    // (старые ОСУ-поставки, импорт без ЭДО-УПД).
+    if (it.chz_scope !== 'org') return '';
+    return '<span class="org-mark" title="Срок по партиям юрлица: в ЧЗ нет привязки приёмки к этому бару">*</span>';
+}
+
 function renderActiveList() {
     const content = document.getElementById('content');
     const items = STATE.raw?.items || [];
@@ -765,17 +778,20 @@ function renderActiveList() {
             <td class="num">${i + 1}</td>
             <td class="name">${it.name}</td>
             ${showBar ? `<td>${it.bar}</td>` : ''}
-            <td class="date">${fmtDate(it.nearest_expiry)}</td>
+            <td class="date">${fmtDate(it.nearest_expiry)}${orgMark(it)}</td>
             <td class="days ${daysClass(it.tier)}">${daysShort(it)}</td>
             <td class="qty">${fmtUnits(it.stock)}</td>
             <td>${recOptionText(((it.recommendation || {}).options || [])[0])}</td>
         </tr>`).join('');
 
+    const hotLegend = hot.some(it => it.chz_scope === 'org')
+        ? '<div class="section-hint" style="margin-top: 8px;">* — срок по партиям юрлица: в ЧЗ нет привязки приёмки к этому бару.</div>'
+        : '';
     const hotTable = hot.length ? `
         <div class="table-wrap"><table class="list-table">
             <thead><tr><th>№</th><th>Название</th>${barTh}<th>Ближайший срок</th><th>Осталось</th><th>Остаток</th><th>Действие</th></tr></thead>
             <tbody>${hotRows}</tbody>
-        </table></div>`
+        </table></div>${hotLegend}`
         : '<div class="empty">Нет позиций с истечением до 30 дней</div>';
 
     const unkRows = unknown.map((it, i) => `
@@ -839,7 +855,7 @@ function renderCard(it) {
                 <span class="label">Расход</span><span class="value">${it.avg_sales} шт/день</span>
                 ${it.price > 0 ? `<span class="label">Цена</span><span class="value">${fmtRub(it.price)}</span>` : ''}
                 ${it.surplus > 0 ? `<span class="label">Под списание</span><span class="value danger">${fmtUnits(it.surplus)} ≈ ${fmtRub(it.risk_rub)}</span>` : ''}
-                ${it.nearest_expiry ? `<span class="label">Ближайший срок</span><span class="value">${fmtDate(it.nearest_expiry)}</span>` : ''}
+                ${it.nearest_expiry ? `<span class="label">Ближайший срок</span><span class="value">${fmtDate(it.nearest_expiry)}${orgMark(it)}</span>` : ''}
             </div>
 
             <div class="card-recommendation">

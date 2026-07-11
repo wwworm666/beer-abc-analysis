@@ -284,6 +284,7 @@ def expiration_board():
             gtins = product_to_gtins.get(pid, [])
             matched_gtins = []
             bar_batches = []
+            org_batches = []
             bar_chz_count = 0
             chz_total_count = 0
             for g in gtins:
@@ -295,6 +296,16 @@ def expiration_board():
                 cnt, batches = _bar_batches_for(ci, target_kpp)
                 bar_chz_count += cnt
                 bar_batches.extend(batches)
+                org_batches.extend(ci.get('batches', []))
+
+            # Fallback «по юрлицу»: у части позиций в ЧЗ нет привязки приёмки
+            # к бару (старые ОСУ-поставки без поштучных кодов, импорт без
+            # ЭДО-УПД — см. docs/chz-stock-integration.md). Партии юрлица дают
+            # те же сроки; в UI такая позиция помечается «по юрлицу».
+            chz_scope = 'bar'
+            if not bar_batches and org_batches:
+                bar_batches = list(org_batches)
+                chz_scope = 'org'
 
             bar_batches.sort(key=lambda b: b.get('production_date', ''), reverse=True)
 
@@ -328,6 +339,7 @@ def expiration_board():
                 'avg_sales': round(velocity, 2),
                 'gtins': matched_gtins,
                 'has_chz_data': has_chz,
+                'chz_scope': chz_scope,
                 'bar_chz_count': bar_chz_count,
                 'chz_total_count': chz_total_count,
                 'expiration_dates': expirations,

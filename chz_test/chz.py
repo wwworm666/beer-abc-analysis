@@ -1022,16 +1022,149 @@ def resolve_mod_kpp(token, cis):
     return kpp, fias
 
 
+# ==================== ПРИВЯЗКА К БАРУ ЧЕРЕЗ УПД (ЭДО-приёмки) ====================
+# У ПИВА каждый код в /cises/search несёт modId места приёмки -> ownerMod.kpp
+# (основной механизм, НЕ трогаем). У NABEER/SOFTDRINKS modId пустой: вывод из
+# оборота бухгалтерия подаёт одним LK_RECEIPT от юрлица, без точки (проверено
+# 2026-07-11 по /cises/info и телу документа вывода). Но ПРИЁМКА этих групп идёт
+# по ЭДО: входящий УПД несёт КПП точки-грузополучателя (receiverMod.kpp — ставит
+# сам ЧЗ; buyerInfo.kpp — от поставщика) и, у современных поставщиков, поштучные
+# коды. Старые поставки/Метро — ОСУ-строки "02<gtin>37<кол-во>" без кодов, их
+# привязать нельзя (для них прод показывает срок «по юрлицу»).
+#
+# Отсюда КАРТА cis -> КПП бара: fallback ТОЛЬКО для кодов без modId.
+# Кэш инкрементальный (upd_kpp_map.json): обработанный УПД не перечитывается,
+# новые документы подхватываются каждым search-stock автоматически — новые
+# позиции/поставки не требуют ручных действий.
+
+UPD_KPP_GROUPS = ["nabeer", "softdrinks"]  # у beer входящих УПД в ЧЗ нет (там modId)
+UPD_KPP_CACHE = os.path.join(DEBUG_DIR, "upd_kpp_map.json")
+
+
+def _cis_key(code):
+    """Нормализовать КИ к ключу 'gtin|serial'.
+
+    Формат UNIT-кода: 01<gtin, 14 цифр>21<serial до GS-разделителя \\x1d>.
+    В УПД и /cises/search серийники совпадают, но крипто-хвосты (группы 91/92/93)
+    могут отличаться — сравниваем только gtin+serial.
+    """
+    if not code or not code.startswith("01") or len(code) < 19:
+        return ""
+    gtin = code[2:16]
+    if not gtin.isdigit() or code[16:18] != "21":
+        return ""
+    serial = code[18:].split("\x1d")[0]
+    return f"{gtin}|{serial}" if serial else ""
+
+
+def _harvest_upd_codes(token, pg, doc_number, kpp_hint, cache):
+    """Обработать один УПД: КПП точки + поштучные коды -> в кэш.
+
+    Возвращает (units, osu): сколько кодов привязано / сколько ОСУ-строк без кодов.
+    """
+    hdr = {"Authorization": f"Bearer {token}"}
+    st, resp = make_request(
+        f"{CHZ_BASE_URL_V4}/doc/{doc_number}/info?pg={pg}&body=true", headers=hdr)
+    if st != 200 or not isinstance(resp, list) or not resp:
+        # Запомнить с ошибкой, чтобы не долбить каждый прогон; err очистится
+        # при ручной пересборке кэша (удалить upd_kpp_map.json).
+        cache["docs"][doc_number] = {"kpp": "", "units": 0, "err": f"HTTP {st}"}
+        return 0, 0
+    doc = resp[0]
+    body = doc.get("body") or {}
+    kpp = str((doc.get("receiverMod") or {}).get("kpp")
+              or kpp_hint
+              or (body.get("buyerInfo") or {}).get("kpp") or "")
+    units = osu = 0
+    if kpp.isdigit() and len(kpp) == 9:
+        for p in (body.get("products") or []):
+            code = p.get("code") or p.get("cis") or ""
+            key = _cis_key(code)
+            if key:
+                cache["cis"][key] = kpp
+                units += 1
+            elif code.startswith("02"):
+                osu += 1
+    cache["docs"][doc_number] = {"kpp": kpp, "units": units}
+    return units, osu
+
+
+def refresh_upd_kpp_map(token, groups=None):
+    """Инкрементально обновить и вернуть карту {cis_key: kpp} из входящих УПД.
+
+    Ошибки сети/API не фатальны: возвращаем то, что накоплено в кэше, — сбор
+    остатков продолжит работать как раньше (привязка только по modId).
+    """
+    groups = groups or UPD_KPP_GROUPS
+    cache = {"docs": {}, "cis": {}}
+    if os.path.exists(UPD_KPP_CACHE):
+        try:
+            with open(UPD_KPP_CACHE, encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict) and isinstance(loaded.get("cis"), dict):
+                cache = loaded
+        except Exception as e:
+            print(f"  [UPD] кэш не прочитан ({e}) — пересобираем с нуля")
+
+    hdr = {"Authorization": f"Bearer {token}"}
+    new_docs = osu_total = 0
+    for pg in groups:
+        date_from = None
+        for _ in range(10):  # предохранитель пагинации
+            url = (f"{CHZ_BASE_URL_V4}/doc/list?limit=1000&pg={pg}"
+                   f"&documentType=UNIVERSAL_TRANSFER_DOCUMENT")
+            if date_from:
+                url += f"&dateFrom={date_from}"
+            try:
+                st, resp = make_request(url, headers=hdr)
+            except Exception as e:
+                print(f"  [UPD/{pg}] doc/list: {e} — пропуск группы")
+                break
+            if st != 200 or not isinstance(resp, dict):
+                print(f"  [UPD/{pg}] doc/list HTTP {st} — пропуск группы")
+                break
+            docs = resp.get("results") or []
+            for d in docs:
+                num = d.get("number")
+                if (not num or num in cache["docs"]
+                        or not d.get("input") or d.get("status") != "CHECKED_OK"):
+                    continue
+                kpp_hint = str((d.get("receiverMod") or {}).get("kpp") or "")
+                try:
+                    _, osu = _harvest_upd_codes(token, pg, num, kpp_hint, cache)
+                    osu_total += osu
+                    new_docs += 1
+                except Exception as e:
+                    print(f"  [UPD/{pg}] {num[:40]}: {e}")
+            if not resp.get("nextPage") or not docs:
+                break
+            date_from = docs[-1].get("receivedAt")  # список ascending по receivedAt
+
+    try:
+        with open(UPD_KPP_CACHE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"  [UPD] кэш не сохранён: {e}")
+    if new_docs or osu_total:
+        print(f"  [UPD] новых УПД: {new_docs}, ОСУ-строк без кодов: {osu_total}")
+    return cache["cis"]
+
+
 # Точечный режим: сколько страниц (×100 кодов) тянуть на один GTIN. Большинство
 # GTIN держат <100 кодов → хватает 1 страницы; высокообъёмным берём пару про запас.
 SEARCH_GTIN_MAX_PAGES = 3
 
 
-def _accumulate_code(by_gtin, mod_to_place, token, it, default_group):
+def _accumulate_code(by_gtin, mod_to_place, token, it, default_group, upd_map=None):
     """Учесть один код ЧЗ в структуре by_gtin (как parse_chz_csv).
 
     Возвращает batch_key (gtin, kpp_key, prod, exp) если код штучный (UNIT) и учтён,
     иначе None. modId резолвится в КПП лениво (кешируется в mod_to_place).
+
+    Привязка к бару двухступенчатая:
+    1. modId -> ownerMod.kpp (пиво; основной механизм, как раньше);
+    2. если modId пуст (nabeer/softdrinks) — карта cis->КПП из входящих УПД
+       (upd_map, см. refresh_upd_kpp_map). Без карты поведение прежнее.
     """
     gtin = it.get("gtin") or ""
     if not gtin:
@@ -1046,6 +1179,10 @@ def _accumulate_code(by_gtin, mod_to_place, token, it, default_group):
         mod_to_place[mid] = resolve_mod_kpp(token, it.get("cis"))
         print(f"  [MOD] {mid} -> kpp={mod_to_place[mid][0] or '?'}")
     kpp, fias = mod_to_place.get(mid, ("", ""))
+    if not kpp and upd_map:
+        upd_kpp = upd_map.get(_cis_key(it.get("cis") or ""))
+        if upd_kpp:
+            kpp, fias = upd_kpp, ""
 
     e = by_gtin.get(gtin)
     if e is None:
@@ -1104,6 +1241,16 @@ def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS,
         print("[ERR] Нет токена")
         return []
 
+    # Карта cis -> КПП из входящих УПД (для кодов без modId: nabeer/softdrinks).
+    # Любой сбой здесь НЕ ломает сбор — просто работаем как раньше (только modId).
+    upd_map = {}
+    try:
+        upd_map = refresh_upd_kpp_map(token)
+        if upd_map:
+            print(f"  [UPD] карта приёмок ЭДО: {len(upd_map)} кодов -> КПП")
+    except Exception as e:
+        print(f"  [UPD] карта приёмок недоступна ({e}) — привязка только по modId")
+
     by_gtin = {}
     mod_to_place = {}      # modId -> (kpp, fiasId), резолвим лениво по мере встречи
 
@@ -1121,7 +1268,7 @@ def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS,
                 if not items:
                     break
                 for it in items:
-                    _accumulate_code(by_gtin, mod_to_place, token, it, groups[0])
+                    _accumulate_code(by_gtin, mod_to_place, token, it, groups[0], upd_map)
                 if resp.get("isLastPage") or len(items) < 100:
                     break
             if (idx + 1) % 100 == 0:
@@ -1149,7 +1296,7 @@ def get_chz_stock_via_search(product_groups=None, days=SEARCH_STOCK_WINDOW_DAYS,
                 new_here = 0
                 for it in items:
                     total += 1
-                    bk = _accumulate_code(by_gtin, mod_to_place, token, it, g)
+                    bk = _accumulate_code(by_gtin, mod_to_place, token, it, g, upd_map)
                     if bk and bk not in seen_batches:
                         seen_batches.add(bk)
                         new_here += 1
@@ -1401,6 +1548,19 @@ def main():
             print("[WARN] пустой результат — chz_stock.json НЕ перезаписан")
         else:
             print_stock_report(stock)
+
+    elif cmd == "upd-map":
+        # python chz.py upd-map — вручную обновить карту cis->КПП из УПД (диагностика).
+        # В боевом режиме карта обновляется автоматически внутри search-stock.
+        token = load_token()
+        if not token:
+            print("[ERR] Нет токена")
+            return
+        m = refresh_upd_kpp_map(token)
+        by_kpp_cnt = {}
+        for v in m.values():
+            by_kpp_cnt[v] = by_kpp_cnt.get(v, 0) + 1
+        print(f"Карта УПД: {len(m)} кодов; по КПП: {by_kpp_cnt}")
 
     elif cmd == "mods":
         # python chz.py mods — справочник МОД (мест осуществления деятельности)
