@@ -392,6 +392,12 @@ def employee_compare():
         return jsonify({'error': str(e)}), 500
 
 
+# Правило «нет кассы -> нет премии за передачу смены» действует с этой даты
+# (решение владельца). Дни ДО неё оплачиваются как раньше, без требования кассы —
+# исторические месяцы (где кассовой дисциплины ещё не было) не обнуляются.
+HANDOVER_CASH_RULE_FROM = '2026-07-11'
+
+
 def _canon_venue(loc):
     """Каноничный ключ точки (venue_key) для сопоставления имён из iiko и графика.
 
@@ -434,19 +440,23 @@ def _cash_filled_day_keys(date_from, date_to):
         return None
 
 
-def _paid_handover_shifts(shifts_count, shift_locations, cash_filled_keys):
+def _paid_handover_shifts(shifts_count, shift_locations, cash_filled_keys,
+                          rule_from=HANDOVER_CASH_RULE_FROM):
     """Сколько смен оплачивается премией «передача смены».
 
-    За день без сданной кассовой дисциплины премию не платим: считаем дни смен
-    (`shift_locations`: дата -> точка), ключ которых нет в `cash_filled_keys`, и
-    вычитаем из общего числа смен. `cash_filled_keys=None` -> данные графика
-    недоступны, платим все (fail-open). Чистая функция — тестируется
-    (`tests/test_bonus_handover_cash.py`). Возвращает (paid_shifts, without_cash).
+    За день без сданной кассовой дисциплины премию не платим — но только начиная с
+    `rule_from` (`HANDOVER_CASH_RULE_FROM`): дни ДО этой даты оплачиваются всегда
+    (исторические месяцы без кассы не режем). Считаем дни смен (`shift_locations`:
+    дата -> точка) на/после `rule_from`, ключ которых нет в `cash_filled_keys`, и
+    вычитаем из числа смен. `cash_filled_keys=None` -> данные графика недоступны,
+    платим все (fail-open). Даты ISO 'YYYY-MM-DD' сравниваются строкой. Чистая
+    функция — тест `tests/test_bonus_handover_cash.py`. Возвращает
+    (paid_shifts, without_cash).
     """
     if cash_filled_keys is None:
         return shifts_count, 0
     without = sum(1 for d, loc in (shift_locations or {}).items()
-                  if (_canon_venue(loc), d) not in cash_filled_keys)
+                  if d >= rule_from and (_canon_venue(loc), d) not in cash_filled_keys)
     return max(0, shifts_count - without), without
 
 
