@@ -464,13 +464,6 @@
         return '<span class="pf-badge pf-' + cls + '">' + pct + '%</span>';
     }
 
-    /* Чип бармена: короткая метка (как в сетке), полное имя — в title. */
-    function pfWhoChip(shift) {
-        var title = shiftDisplayName(shift) + (shift.start_time ? ' — с ' + shift.start_time : '');
-        return '<span class="pf-who" title="' + escapeHtml(title) + '">'
-            + escapeHtml(shiftLabel(shift)) + '</span>';
-    }
-
     /* Аббревиатура денег для плотной таблицы: 134400 -> «134к», 2.89М -> «2.9М».
        Точные рубли — в title ячейки. */
     function formatK(n) {
@@ -481,18 +474,73 @@
         return String(n);
     }
 
-    /* Разворот дня: кто работал на каждой точке (бармен). Деньги/% уже в строке. */
-    function pfPeople(dayShifts) {
+    /* Часы/статус смены для разворота дня: факт есть → «10:30 ч»; сегодня без
+       факта → «идёт»; прошлое без факта → «факт?» (не закрыта); будущее → «план».
+       ds — дата смены, today — сегодня (S.todayStr). */
+    function pfShiftHours(shift, ds, today) {
+        if (shift.fact_minutes != null) return minutesToHhMm(shift.fact_minutes) + ' ч';
+        if (ds === today) return 'идёт';
+        if (ds < today) return 'факт?';
+        return 'план'; // будущее: плановое начало уже показано отдельно в мете
+    }
+
+    /* Разворот дня: подробная разбивка ПО ТОЧКАМ — кто работал, где, план/факт/%
+       точки и сколько часов длилась смена у каждого. Всё из уже загруженного state
+       (plans + shifts), без новых запросов. ds — дата дня, dayShifts — смены дня.
+       Единый порог «вечер» и цвет точки берём из screens.js (S.isEvening/S.colorById),
+       чтобы не разошлись с сеткой; есть локальный фоллбэк, если screens.js не загружен. */
+    function pfPeople(ds, dayShifts) {
+        var S = window.Schedule;
+        var isEve = (S && S.isEvening) || function (s) {
+            return !!((s.role_name && /втор/i.test(s.role_name))
+                || (s.start_time && s.start_time >= '18:00'));
+        };
+        var colorOf = (S && S.colorById) || function () { return 'var(--accent)'; };
+        var today = todayStr();
+        var dl = (state.plans && state.plans.days[ds] && state.plans.days[ds].locations) || {};
+
         var byLoc = {};
         dayShifts.forEach(function (s) { (byLoc[s.location_id] = byLoc[s.location_id] || []).push(s); });
-        var rows = state.locations.map(function (loc) {
+
+        var blocks = state.locations.map(function (loc) {
             var ls = byLoc[loc.id] || [];
             if (!ls.length) return '';
-            return '<tr><td class="pf-pp-name">' + escapeHtml(loc.short_name || loc.name) + '</td>'
-                + '<td>' + ls.map(pfWhoChip).join('') + '</td></tr>';
+            ls.sort(function (a, b) { return (isEve(a) ? 1 : 0) - (isEve(b) ? 1 : 0); }); // день раньше вечера
+
+            var c = dl[loc.id] || {};
+            var plan = c.plan != null ? c.plan : null;
+            var fact = c.fact != null ? c.fact : null;
+            var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
+
+            var money = '<span class="pf-pd-money"><b>'
+                + (fact != null ? formatMoney(fact) : '&mdash;') + '</b> факт'
+                + '<span class="pf-pd-mut"> &middot; ' + (plan != null ? formatMoney(plan) : '&mdash;')
+                + ' план</span></span>';
+
+            var people = ls.map(function (s) {
+                var eve = isEve(s);
+                var nofact = s.fact_minutes == null && ds < today;
+                var meta = (eve ? 'вечер' : 'день')
+                    + (s.start_time ? ' &middot; с ' + escapeHtml(s.start_time) : '')
+                    + ' &middot; <span class="pf-emp-h">' + escapeHtml(pfShiftHours(s, ds, today)) + '</span>';
+                return '<div class="pf-emp' + (nofact ? ' pf-emp-nofact' : '') + '">'
+                    + '<span class="pf-emp-dot" style="--role-color:' + (s.role_color || 'var(--accent)') + '"></span>'
+                    + '<span class="pf-emp-nm">' + escapeHtml(shiftDisplayName(s)) + '</span>'
+                    + '<span class="pf-emp-meta">' + meta + '</span>'
+                    + '</div>';
+            }).join('');
+
+            return '<div class="pf-pd">'
+                + '<div class="pf-pd-loc">'
+                + '<span class="pf-pd-dot" style="background:' + colorOf(loc.id) + '"></span>'
+                + '<span class="pf-pd-name">' + escapeHtml(loc.short_name || loc.name) + '</span>'
+                + money + (pct != null ? pfPctBadge(pct) : '')
+                + '</div>'
+                + '<div class="pf-pd-people">' + people + '</div>'
+                + '</div>';
         }).filter(Boolean).join('');
-        return rows ? '<table class="pf-pp"><tbody>' + rows + '</tbody></table>'
-            : '<span class="pf-dim">смен в этот день нет</span>';
+
+        return blocks || '<span class="pf-dim">смен в этот день нет</span>';
     }
 
     /* Таблица «План / Факт по дням»: ОДНА таблица — колонки по всем точкам (факт над
@@ -563,7 +611,7 @@
                 + '<td class="pf-pct">' + pfPctBadge(dayPct) + '</td>'
                 + '</tr>'
                 + '<tr class="pf-detail" data-detail="' + ds + '" hidden><td colspan="'
-                + (locs.length + 3) + '">' + pfPeople(dayShifts) + '</td></tr>'
+                + (locs.length + 3) + '">' + pfPeople(ds, dayShifts) + '</td></tr>'
             );
         }
 

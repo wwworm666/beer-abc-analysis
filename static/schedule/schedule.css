@@ -625,25 +625,45 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     padding-top: 9px;
 }
 
-/* Разворот дня: кто работал на каждой точке */
-.pf-detail > td { padding: 4px 8px 10px 22px; background: var(--bg-tertiary); }
-.pf-pp { border-collapse: collapse; font-size: 0.82rem; }
-.pf-pp td { padding: 3px 0; vertical-align: top; }
-.pf-pp-name {
-    color: var(--text-secondary);
-    font-weight: 600;
-    white-space: nowrap;
-    padding-right: 12px !important;
+/* Разворот дня: подробно по точкам — кто работал, где, план/факт/% и часы смены */
+.pf-detail > td { padding: 6px 8px 12px 22px; background: var(--bg-tertiary); }
+.pf-pd { padding: 7px 0; }
+.pf-pd + .pf-pd { border-top: 1px solid var(--border-color); }
+/* Шапка точки: цветная точка + имя + деньги + бейдж % (справа) */
+.pf-pd-loc {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
-.pf-who {
-    display: inline-block;
-    margin: 1px 4px 1px 0;
-    padding: 1px 8px;
-    border-radius: var(--border-radius-pill);
-    background: var(--bg-secondary);
-    font-size: 0.78rem;
-    color: var(--text-secondary);
+.pf-pd-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.pf-pd-name { font-weight: 600; color: var(--text-primary); font-size: 0.85rem; }
+.pf-pd-money { font-size: 0.8rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.pf-pd-money b { font-weight: 700; }
+.pf-pd-mut { color: var(--text-tertiary); }
+.pf-pd-loc .pf-badge { margin-left: auto; }
+/* Люди на точке: цветная точка роли + имя + роль/время/часы */
+.pf-pd-people {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px 18px;
+    margin: 6px 0 1px 17px;
 }
+.pf-emp { display: inline-flex; align-items: baseline; gap: 6px; }
+.pf-emp-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--role-color, var(--accent));
+    flex: 0 0 auto;
+    align-self: center;
+}
+.pf-emp-nm { font-size: 0.83rem; color: var(--text-primary); font-weight: 500; }
+.pf-emp-meta {
+    font-size: 0.76rem;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+.pf-emp-h { color: var(--text-secondary); font-weight: 600; }
+.pf-emp-nofact .pf-emp-h { color: var(--warning); }
 .pf-empty { color: var(--text-tertiary); font-size: 0.86rem; padding: 10px 0; }
 .pf-cap { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 10px; }
 
