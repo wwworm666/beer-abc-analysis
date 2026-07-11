@@ -340,6 +340,109 @@
             color: var(--text-tertiary);
             margin-bottom: 16px;
         }
+
+        /* View switch: Cockpit / Актив-лист */
+        .view-switch {
+            display: inline-flex;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .view-btn {
+            padding: 10px 16px;
+            background: var(--bg-tertiary);
+            border: none;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            cursor: pointer;
+        }
+        .view-btn + .view-btn { border-left: 1px solid var(--border-color); }
+        .view-btn.active {
+            background: var(--text-primary);
+            color: var(--bg-secondary);
+            font-weight: 600;
+        }
+
+        /* Актив-лист: таблицы для барменов */
+        .list-section { margin-bottom: 36px; }
+        .list-section .section-title {
+            font-size: 1.02rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: var(--text-primary);
+        }
+        .list-section .section-hint {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+        }
+        .table-wrap {
+            overflow-x: auto;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+        }
+        .list-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        .list-table th {
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+        .list-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        .list-table tr:last-child td { border-bottom: none; }
+        .list-table td.num { color: var(--text-tertiary); font-variant-numeric: tabular-nums; width: 1%; }
+        .list-table td.name { font-weight: 600; }
+        .list-table td.qty, .list-table td.date { font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .list-table td.days { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .list-table td.days.critical { color: var(--danger); }
+        .list-table td.days.urgent { color: var(--warning); }
+        .list-table td.days.watch { color: var(--accent); }
+        .list-table td.blank { min-width: 110px; }
+
+        .print-header { display: none; }
+
+        @media print {
+            body { background: #fff; }
+            .sidebar, .sidebar-backdrop, .header-bar, .toolbar,
+            #kpi-strip, #tier-tabs { display: none !important; }
+            .container { max-width: none; padding: 0; }
+            .print-header { display: block; margin-bottom: 16px; color: #000; }
+            .print-header .ph-title { font-size: 14pt; font-weight: 700; }
+            .print-header .ph-meta { font-size: 9pt; margin-top: 4px; }
+            .list-section { margin-bottom: 0; }
+            .list-section + .list-section { page-break-before: always; margin-top: 24px; }
+            .list-section .section-title { color: #000; font-size: 12pt; }
+            .list-section .section-hint { color: #000; }
+            .table-wrap { border: none; border-radius: 0; overflow: visible; background: #fff; }
+            .list-table { font-size: 10pt; color: #000; }
+            .list-table th, .list-table td {
+                border: 1px solid #000;
+                color: #000;
+                padding: 4pt 6pt;
+            }
+            .list-table td.days.critical,
+            .list-table td.days.urgent,
+            .list-table td.days.watch { color: #000; }
+            .list-table tr { page-break-inside: avoid; }
+            /* Пустые графы под запись ручкой: шире и выше обычной строки
+               (box-sizing: border-box — 32pt это вся ячейка, ~1.1 см). */
+            .list-table td.blank { min-width: 90pt; height: 32pt; }
+        }
     </style>
 </head>
 <body>
@@ -359,9 +462,19 @@
                     <option value="bar4">Варшавская</option>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Режим</label>
+                <div class="view-switch">
+                    <button type="button" id="view-btn-cockpit" class="view-btn active" onclick="setView('cockpit')">Cockpit</button>
+                    <button type="button" id="view-btn-list" class="view-btn" onclick="setView('list')">Актив-лист</button>
+                </div>
+            </div>
             <button class="toolbar-btn" onclick="loadBoard(true)">Обновить</button>
+            <button class="toolbar-btn" id="print-btn" onclick="window.print()" style="display: none;">Печать</button>
             <div id="meta-info" class="meta-row" style="margin-left: auto; margin-bottom: 0;"></div>
         </div>
+
+        <div id="print-header" class="print-header"></div>
 
         <div id="kpi-strip" class="kpi-grid"></div>
 
@@ -376,7 +489,11 @@
 const STATE = {
     raw: null,
     activeTier: null,
+    view: 'cockpit',
 };
+
+// Tier-ы «горящих» позиций для актив-листа (всё с истечением до 30 дней).
+const HOT_TIERS = ['expired', 'critical', 'urgent', 'watch'];
 
 const TIER_ORDER = ['expired', 'critical', 'urgent', 'watch', 'fresh', 'unknown'];
 const TIER_LABELS = {
@@ -459,9 +576,26 @@ function renderAll() {
         : (STATE.loadMs ? `<span class="cache-badge" title="Время ответа ${STATE.loadMs} мс">${(STATE.loadMs/1000).toFixed(1)}с</span>` : '');
     meta.innerHTML = `Данные ЧЗ: ${chzDate}${cacheTag}`;
 
-    renderKpi(data.kpi);
-    renderTabs(data.tier_counts);
-    renderCards();
+    const isList = STATE.view === 'list';
+    document.getElementById('kpi-strip').style.display = isList ? 'none' : '';
+    document.getElementById('tier-tabs').style.display = isList ? 'none' : '';
+    document.getElementById('print-btn').style.display = isList ? '' : 'none';
+
+    if (isList) {
+        renderPrintHeader();
+        renderActiveList();
+    } else {
+        renderKpi(data.kpi);
+        renderTabs(data.tier_counts);
+        renderCards();
+    }
+}
+
+function setView(v) {
+    STATE.view = v;
+    document.getElementById('view-btn-cockpit').classList.toggle('active', v === 'cockpit');
+    document.getElementById('view-btn-list').classList.toggle('active', v === 'list');
+    renderAll();
 }
 
 function renderKpi(kpi) {
@@ -547,6 +681,97 @@ function recOptionHtml(opt) {
         return `<div class="rec-option transfer"><span class="opt-tag">Передать</span>${fmtUnits(opt.amount)} → «${opt.to_bar}» (там ${opt.target_velocity} шт/день, остаток ${opt.target_level})</div>`;
     }
     return '';
+}
+
+// --- Актив-лист (режим для барменов) ---
+
+function renderPrintHeader() {
+    const data = STATE.raw;
+    const sel = document.getElementById('bar-select');
+    const barName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+    const printedAt = new Date().toLocaleString('ru-RU', {day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+    const chzDate = data.chz_updated_at
+        ? new Date(data.chz_updated_at).toLocaleString('ru-RU', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})
+        : 'нет';
+    document.getElementById('print-header').innerHTML = `
+        <div class="ph-title">Сроки годности — актив-лист · ${barName}</div>
+        <div class="ph-meta">Распечатано: ${printedAt} · Данные ЧЗ: ${chzDate}</div>`;
+}
+
+function recOptionText(opt) {
+    if (!opt) return '—';
+    if (opt.kind === 'writeoff') return 'Списать ' + fmtUnits(opt.amount);
+    if (opt.kind === 'markdown') return 'Уценка −' + opt.discount_pct + '%';
+    if (opt.kind === 'transfer') return 'Передать ' + fmtUnits(opt.amount) + ' → ' + opt.to_bar;
+    return '—';
+}
+
+function daysShort(it) {
+    if (it.days_to_expiry === null || it.days_to_expiry === undefined) return '—';
+    if (it.days_to_expiry < 0) return 'просрочено ' + fmtDay(it.days_to_expiry);
+    return fmtDay(it.days_to_expiry);
+}
+
+function renderActiveList() {
+    const content = document.getElementById('content');
+    const items = STATE.raw?.items || [];
+    const showBar = (STATE.raw?.bars || []).length > 1;
+
+    const hot = items
+        .filter(it => HOT_TIERS.includes(it.tier))
+        .slice()
+        .sort((a, b) => (a.days_to_expiry ?? 9999) - (b.days_to_expiry ?? 9999));
+    const unknown = items.filter(it => it.tier === 'unknown');
+
+    const barTh = showBar ? '<th>Бар</th>' : '';
+
+    const hotRows = hot.map((it, i) => `
+        <tr>
+            <td class="num">${i + 1}</td>
+            <td class="name">${it.name}</td>
+            ${showBar ? `<td>${it.bar}</td>` : ''}
+            <td class="date">${it.nearest_expiry || '—'}</td>
+            <td class="days ${daysClass(it.tier)}">${daysShort(it)}</td>
+            <td class="qty">${fmtUnits(it.stock)}</td>
+            <td>${recOptionText(((it.recommendation || {}).options || [])[0])}</td>
+        </tr>`).join('');
+
+    const hotTable = hot.length ? `
+        <div class="table-wrap"><table class="list-table">
+            <thead><tr><th>№</th><th>Название</th>${barTh}<th>Ближайший срок</th><th>Осталось</th><th>Остаток</th><th>Действие</th></tr></thead>
+            <tbody>${hotRows}</tbody>
+        </table></div>`
+        : '<div class="empty">Нет позиций с истечением до 30 дней</div>';
+
+    const unkRows = unknown.map((it, i) => `
+        <tr>
+            <td class="num">${i + 1}</td>
+            <td class="name">${it.name}</td>
+            ${showBar ? `<td>${it.bar}</td>` : ''}
+            <td class="qty">${fmtUnits(it.stock)}</td>
+            <td class="blank"></td>
+            <td class="blank"></td>
+            <td class="blank"></td>
+        </tr>`).join('');
+
+    const unkTable = unknown.length ? `
+        <div class="table-wrap"><table class="list-table">
+            <thead><tr><th>№</th><th>Название</th>${barTh}<th>Остаток по iiko</th><th>Срок годности</th><th>Кол-во с этим сроком</th><th>Примечание</th></tr></thead>
+            <tbody>${unkRows}</tbody>
+        </table></div>`
+        : '<div class="empty">Все позиции имеют сроки из ЧЗ</div>';
+
+    content.innerHTML = `
+        <div class="list-section">
+            <div class="section-title">Горящие сроки (до 30 дней)</div>
+            <div class="section-hint">Отсортировано от самых срочных. Действие — рекомендация системы.</div>
+            ${hotTable}
+        </div>
+        <div class="list-section">
+            <div class="section-title">Нет данных ЧЗ — проставить сроки вручную</div>
+            <div class="section-hint">Проверьте бутылки на полке и впишите срок годности с этикетки.</div>
+            ${unkTable}
+        </div>`;
 }
 
 function renderCard(it) {
