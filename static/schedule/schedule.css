@@ -603,14 +603,22 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
 }
+/* Вертикальные разделители МЕЖДУ барами (колонки точек + Итого + %) —
+   каждый бар отдельным столбцом. Цвет из дизайн-системы (--border-color). */
+.pf-table th.pf-tt, .pf-table td.pf-tt,
+.pf-table th.pf-pct, .pf-table td.pf-pct {
+    border-left: 1px solid var(--border-color);
+}
 .pf-tt-f { font-weight: 600; color: var(--text-primary); }
 .pf-tt-f.pf-over { color: var(--success); }  /* перевыполнение — единственный цвет */
 .pf-tt-p { color: var(--text-tertiary); }
 .pf-tt-total { background: var(--bg-tertiary); }
 
-/* Бармен сразу за суммами: сокращение + часы (только если проставлен факт) */
+/* Бармен сразу за суммами: сокращение + часы (только если проставлен факт). */
 .pf-pp { margin-left: 12px; font-weight: 400; white-space: nowrap; }
 .pf-pp + .pf-pp { margin-left: 8px; }
+/* Тонкая СВЕТЛАЯ линия ВНУТРИ колонки отделяет выручку (факт/план) от часов. */
+.pf-nums + .pf-pp { border-left: 1px solid var(--border-light); padding-left: 12px; }
 .pf-pp-nm { color: var(--text-secondary); }
 .pf-pp-h { color: var(--text-primary); margin-left: 3px; }
 
