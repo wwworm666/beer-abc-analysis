@@ -365,6 +365,21 @@
         }
 
         /* Актив-лист: таблицы для барменов */
+        .coverage {
+            display: inline-flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .coverage b { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .coverage .cov-warn b { color: var(--warning); }
+
         .list-section { margin-bottom: 36px; }
         .list-section .section-title {
             font-size: 1.02rem;
@@ -419,7 +434,7 @@
         @media print {
             body { background: #fff; }
             .sidebar, .sidebar-backdrop, .header-bar, .toolbar,
-            #kpi-strip, #tier-tabs { display: none !important; }
+            #kpi-strip, #tier-tabs, .coverage { display: none !important; }
             .container { max-width: none; padding: 0; }
             .print-header { display: block; margin-bottom: 16px; color: #000; }
             .print-header .ph-title { font-size: 14pt; font-weight: 700; }
@@ -697,15 +712,25 @@ function recOptionHtml(opt) {
 
 // --- Актив-лист (режим для барменов) ---
 
+function chzCoverage() {
+    // Покрытие ЧЗ по выбранным барам: «нет в ЧЗ» = tier unknown (тот же
+    // критерий, что и вторая таблица актив-листа).
+    const items = STATE.raw?.items || [];
+    const without = items.filter(it => it.tier === 'unknown').length;
+    return {total: items.length, with_chz: items.length - without, without};
+}
+
 function renderPrintHeader() {
     const data = STATE.raw;
     const sel = document.getElementById('bar-select');
     const barName = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
     const printedAt = fmtDateTime(new Date());
     const chzDate = data.chz_updated_at ? fmtDateTime(data.chz_updated_at) : 'нет';
+    const cov = chzCoverage();
     document.getElementById('print-header').innerHTML = `
         <div class="ph-title">Сроки годности — актив-лист · ${barName}</div>
-        <div class="ph-meta">Распечатано: ${printedAt} · Данные ЧЗ: ${chzDate}</div>`;
+        <div class="ph-meta">Распечатано: ${printedAt} · Данные ЧЗ: ${chzDate}
+            · Позиций: ${cov.total}, сверено по ЧЗ: ${cov.with_chz}, нет в ЧЗ: ${cov.without}</div>`;
 }
 
 function recOptionText(opt) {
@@ -771,7 +796,16 @@ function renderActiveList() {
         </table></div>`
         : '<div class="empty">Все позиции имеют сроки из ЧЗ</div>';
 
+    const cov = chzCoverage();
+    const covHtml = `
+        <div class="coverage">
+            <span>Позиций в баре: <b>${cov.total}</b></span>
+            <span>Сверено по ЧЗ: <b>${cov.with_chz}</b></span>
+            <span class="${cov.without > 0 ? 'cov-warn' : ''}">Нет в ЧЗ: <b>${cov.without}</b></span>
+        </div>`;
+
     content.innerHTML = `
+        ${covHtml}
         <div class="list-section">
             <div class="section-title">Горящие сроки (до 30 дней)</div>
             <div class="section-hint">Отсортировано от самых срочных. Действие — рекомендация системы.</div>
