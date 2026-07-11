@@ -776,6 +776,18 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
    поля (часы, наличные на конец) выделены только акцентной рамкой инпута. */
 .cash-block { margin: 4px 0 2px; }
 
+/* Заморозка кассы (прошло окно правок): пометка + приглушённые заблокированные поля. */
+.cash-locked {
+    margin-bottom: 10px;
+    padding: 8px 11px;
+    border-radius: var(--sch-radius-sm);
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+.cash-block input:disabled { opacity: 0.55; cursor: not-allowed; }
+
 /* Два главных поля — часы и наличные на конец: тот же шрифт, выделены рамкой. */
 .modal .form-group.cash-primary input {
     border: 1.5px solid var(--accent);

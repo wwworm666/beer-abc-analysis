@@ -463,6 +463,18 @@
 
     function cashEl(prefix, suffix) { return document.getElementById(prefix + suffix); }
 
+    // Окно правок кассы — 72 часа от даты смены (день смены + 2 дня, лок с 00:00
+    // 3-го дня). То же значение на сервере (routes/schedule.py); сервер авторитетен,
+    // фронт заранее прячет поля и блокирует ввод.
+    var CASH_EDIT_WINDOW_HOURS = 72;
+    function cashLocked(shift) {
+        if (!shift || !shift.date) return false;
+        var p = String(shift.date).split('-');
+        var deadline = new Date(+p[0], +p[1] - 1, +p[2], 0, 0, 0);
+        deadline.setHours(deadline.getHours() + CASH_EDIT_WINDOW_HOURS);
+        return new Date() > deadline;
+    }
+
     // Тумблер «были траты / инкассация» -> показать/скрыть поле суммы.
     function wireCashToggles(prefix) {
         var expOn = cashEl(prefix, 'ExpenseOn');
@@ -494,6 +506,18 @@
         cashEl(prefix, 'CollectionSub').hidden = !colOn;
         cashEl(prefix, 'CollectionAmt').value = colOn ? S.kopToRubInput(col) : '';
         cashEl(prefix, 'CashEnd').value = S.kopToRubInput(end);
+
+        // Заморозка: касса старше окна — read-only. Поля блокируем, показываем
+        // пометку. Значения остаются видны. Сервер тоже вернёт 403 при попытке.
+        var locked = cashLocked(shift);
+        var lockEl = cashEl(prefix, 'CashLocked');
+        if (lockEl) {
+            lockEl.hidden = !locked;
+            if (locked) lockEl.textContent = 'Касса заморожена: правки только '
+                + CASH_EDIT_WINDOW_HOURS + ' часа после смены. Значения только для просмотра.';
+        }
+        ['ExpenseOn', 'ExpenseAmt', 'ExpenseNote', 'CollectionOn', 'CollectionAmt', 'CashEnd']
+            .forEach(function (f) { var el = cashEl(prefix, f); if (el) el.disabled = locked; });
     }
 
     // Прочитать и провалидировать поля кассы -> {ok, error, payload} (рубли).
@@ -535,6 +559,7 @@
     function readCashForSubmit(prefix, shift) {
         var block = cashEl(prefix, 'CashBlock');
         if (!block || block.style.display === 'none') return { ok: true, body: null };
+        if (cashLocked(shift)) return { ok: true, body: null };  // заморожена — не шлём
         var res = readCashPayload(prefix);
         if (!res.ok) return res;
         if (!cashHasInput(res.payload)) {

@@ -215,6 +215,7 @@
           <!-- Касса на конец смены (только дневная смена). Ручной пересчёт бармена,
                без iiko. Главное поле №2 — наличные на конец; траты/инкассация — вторично. -->
           <div class="cash-block" id="factCashBlock">
+            <div class="cash-locked" id="factCashLocked" hidden></div>
             <div class="form-group cash-end-group cash-primary">
               <label for="factCashEnd">Наличные в сейфе на конец смены, ₽</label>
               <input type="text" id="factCashEnd" inputmode="decimal"
@@ -278,6 +279,7 @@
           <!-- Касса (только дневная смена). Владелец может править то, что ввёл бармен.
                Главное поле — наличные на конец; траты/инкассация — вторично. -->
           <div class="cash-block" id="shiftCashBlock">
+            <div class="cash-locked" id="shiftCashLocked" hidden></div>
             <div class="form-group cash-end-group cash-primary">
               <label for="shiftCashEnd">Наличные в сейфе на конец смены, ₽</label>
               <input type="text" id="shiftCashEnd" inputmode="decimal"

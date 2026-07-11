@@ -122,6 +122,24 @@ def _fmt_kop(kop):
     return s.replace(',', ' ')
 
 
+# Окно правок кассы: после N часов от даты смены касса заморожена (read-only) для
+# ВСЕХ — защита кассовой дисциплины от поздних правок. Отсчёт от даты смены 00:00
+# локального серверного времени: смену дня X можно править X, X+1, X+2 (лок с
+# X+3 00:00). То же значение дублируется в UI (view.js: CASH_EDIT_WINDOW_HOURS) —
+# сервер авторитетен, фронт лишь прячет поля заранее.
+CASH_EDIT_WINDOW_HOURS = 72
+
+
+def _cash_edit_locked(shift_date):
+    """True, если касса смены заморожена (прошло > окна от даты смены).
+    Некорректную дату не блокируем (fail-open — не запираем по ошибке разбора)."""
+    try:
+        d = datetime.strptime(str(shift_date)[:10], '%Y-%m-%d')
+    except (ValueError, TypeError):
+        return False
+    return datetime.now() > d + timedelta(hours=CASH_EDIT_WINDOW_HOURS)
+
+
 def _audit(action, summary, entity_date=None, employee_name=None):
     """Записать действие текущего пользователя в журнал графика (best-effort)."""
     try:
@@ -406,23 +424,31 @@ def schedule_set_shift_cash(shift_id):
     if note is not None and not isinstance(note, str):
         return jsonify({'error': 'cash_expense_note должен быть строкой'}), 400
 
+    sh = shifts_mgr.get_shift(shift_id)
+    if not sh:
+        return jsonify({'error': 'Смена не найдена'}), 404
+    # Касса заморожена через 72 часа после смены — правки (и первичный ввод)
+    # блокируются для всех, чтобы кассовую дисциплину нельзя было переписать задним
+    # числом. Проверка ДО мутации; сервер — источник истины (фронт лишь прячет поля).
+    if _cash_edit_locked(sh['date']):
+        return jsonify({'error': f'Касса заморожена: правки только {CASH_EDIT_WINDOW_HOURS} часа '
+                                 f'после смены ({_fmt_dm(sh["date"])})'}), 403
+
     updated = shifts_mgr.set_shift_cash(shift_id, exp, col, end, note)
     if not updated:
         return jsonify({'error': 'Смена не найдена'}), 404
 
-    sh = shifts_mgr.get_shift(shift_id)
-    if sh:
-        if exp is None and col is None and end is None:
-            _audit('cash_clear',
-                   f"Очищена касса: {sh['employee_name']}, {_fmt_dm(sh['date'])}",
-                   entity_date=sh['date'], employee_name=sh['employee_name'])
-        else:
-            # Заметку «на что» в журнал не пишем (низкая ценность, как текст пожеланий).
-            _audit('cash_set',
-                   f"Касса ({sh['employee_name']}, {_fmt_dm(sh['date'])}): "
-                   f"траты {_fmt_kop(exp)}, инкассация {_fmt_kop(col)}, "
-                   f"на конец {_fmt_kop(end)} ₽",
-                   entity_date=sh['date'], employee_name=sh['employee_name'])
+    if exp is None and col is None and end is None:
+        _audit('cash_clear',
+               f"Очищена касса: {sh['employee_name']}, {_fmt_dm(sh['date'])}",
+               entity_date=sh['date'], employee_name=sh['employee_name'])
+    else:
+        # Заметку «на что» в журнал не пишем (низкая ценность, как текст пожеланий).
+        _audit('cash_set',
+               f"Касса ({sh['employee_name']}, {_fmt_dm(sh['date'])}): "
+               f"траты {_fmt_kop(exp)}, инкассация {_fmt_kop(col)}, "
+               f"на конец {_fmt_kop(end)} ₽",
+               entity_date=sh['date'], employee_name=sh['employee_name'])
     return jsonify({'ok': True})
 
 

@@ -121,6 +121,20 @@ def test_set_cash_unknown_shift(tmp_path):
     assert mgr.set_shift_cash(999999, 100, 0, 500) is False
 
 
+def test_cash_edit_lock_window():
+    """Касса замораживается через 72 ч от даты смены (окно правок)."""
+    from datetime import datetime, timedelta
+    from routes.schedule import _cash_edit_locked, CASH_EDIT_WINDOW_HOURS
+    assert CASH_EDIT_WINDOW_HOURS == 72
+    today = datetime.now()
+    fmt = lambda d: d.strftime('%Y-%m-%d')
+    assert _cash_edit_locked(fmt(today)) is False              # сегодня — открыто
+    assert _cash_edit_locked(fmt(today - timedelta(days=2))) is False   # в окне
+    assert _cash_edit_locked(fmt(today - timedelta(days=4))) is True    # вышло из окна
+    assert _cash_edit_locked(fmt(today - timedelta(days=30))) is True
+    assert _cash_edit_locked('bad-date') is False              # мусор — не блокируем
+
+
 def test_cash_independent_from_fact(tmp_path):
     """Очистка часов не трогает кассу и наоборот."""
     mgr = _mgr(tmp_path)
