@@ -609,9 +609,23 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .pf-table th.pf-pct, .pf-table td.pf-pct {
     border-left: 1px solid var(--border-color);
 }
-.pf-tt-f { font-weight: 600; color: var(--text-primary); }
+/* Фикс. ширина чисел (шрифт моноширинный): факт и план занимают одинаковое место
+   при 2 и 3 цифрах («99к» = «999к»), иначе бармен и линия «съезжают» по строкам.
+   Факт прижат вправо к «/», план — влево; вместе даёт постоянную ширину блока. */
+.pf-tt-f {
+    display: inline-block;
+    min-width: 4ch;             /* до «999к» / «1.2М» */
+    text-align: right;
+    font-weight: 600;
+    color: var(--text-primary);
+}
 .pf-tt-f.pf-over { color: var(--success); }  /* перевыполнение — единственный цвет */
-.pf-tt-p { color: var(--text-tertiary); }
+.pf-tt-p {
+    display: inline-block;
+    min-width: 5ch;             /* «/999к» / «/1.2М» */
+    text-align: left;
+    color: var(--text-tertiary);
+}
 .pf-tt-total { background: var(--bg-tertiary); }
 
 /* Бармен сразу за суммами: сокращение + часы (только если проставлен факт). */

@@ -83,7 +83,7 @@
                залогиненным — права равные, финансовые данные открыты (не only-owner). -->
           <div id="planFactPanel" class="sc-pf-panel" style="display: none;">
             <div id="planFactBody"></div>
-            <div class="pf-cap">В ячейках точек: факт (сверху) / план (снизу), наведите для точных сумм. В каждой точке — факт/план, рядом сокращение бармена и часы смены (если факт проставлен). Зелёным выделено только перевыполнение плана. Итоговый % — за дни, где факт уже проставлен.</div>
+            <div class="pf-cap">В каждой точке — факт/план и, если проставлен факт, сокращение бармена с часами смены. Наведите на ячейку — точные суммы. Зелёным выделено только перевыполнение плана. Итоговый % — за дни, где факт уже проставлен.</div>
           </div>
         </div>
 
@@ -216,7 +216,7 @@
                без iiko. Главное поле №2 — наличные на конец; траты/инкассация — вторично. -->
           <div class="cash-block" id="factCashBlock">
             <div class="form-group cash-end-group cash-primary">
-              <label for="factCashEnd">Наличные в кассе на конец смены, ₽</label>
+              <label for="factCashEnd">Наличные в сейфе на конец смены, ₽</label>
               <input type="text" id="factCashEnd" inputmode="decimal"
                      placeholder="напр. 15340" autocomplete="off">
             </div>
@@ -230,7 +230,7 @@
                 <input type="text" id="factExpenseAmt" inputmode="decimal"
                        placeholder="сумма, ₽" autocomplete="off">
                 <input type="text" id="factExpenseNote"
-                       placeholder="на что (необязательно)" autocomplete="off">
+                       placeholder="на что (обязательно)" autocomplete="off">
               </div>
               <label class="cash-toggle">
                 <input type="checkbox" id="factCollectionOn">
@@ -279,7 +279,7 @@
                Главное поле — наличные на конец; траты/инкассация — вторично. -->
           <div class="cash-block" id="shiftCashBlock">
             <div class="form-group cash-end-group cash-primary">
-              <label for="shiftCashEnd">Наличные в кассе на конец смены, ₽</label>
+              <label for="shiftCashEnd">Наличные в сейфе на конец смены, ₽</label>
               <input type="text" id="shiftCashEnd" inputmode="decimal"
                      placeholder="напр. 15340" autocomplete="off">
             </div>
@@ -293,7 +293,7 @@
                 <input type="text" id="shiftExpenseAmt" inputmode="decimal"
                        placeholder="сумма, ₽" autocomplete="off">
                 <input type="text" id="shiftExpenseNote"
-                       placeholder="на что (необязательно)" autocomplete="off">
+                       placeholder="на что (обязательно)" autocomplete="off">
               </div>
               <label class="cash-toggle">
                 <input type="checkbox" id="shiftCollectionOn">
