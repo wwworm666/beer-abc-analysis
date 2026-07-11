@@ -127,6 +127,36 @@ def _build_bar_data(olap, nomenclature, bar_id: str, fasovka_ids: set,
     return products
 
 
+def _shelf_batches(bar_batches: list[dict], stock: float) -> list[dict]:
+    """Партии, которые физически могут лежать на полке (FIFO-покрытие остатка).
+
+    Проблема: ЧЗ-кэш хранит ВСЕ приёмки GTIN (коды выводятся из оборота при
+    приёмке и в ЧЗ никогда не «расходуются»), поэтому давно проданные партии
+    остаются в данных и давали ложный «ближайший срок» (см. docs/expiration.md,
+    changelog 2026-07-11).
+
+    Модель: бар продаёт старые партии раньше (FEFO), значит текущий остаток iiko
+    состоит из ПОСЛЕДНИХ приёмок. Формула: партии в порядке production_date
+    от новых к старым (bar_batches уже так отсортирован), набираем их count,
+    пока сумма не покроет stock; сроки считаем только по покрывающим партиям.
+
+    Пример: партии (новые→старые) 30шт до 2027-04-15, 12шт до 2026-07-15;
+    остаток 4 → покрывает первая партия → срок полки 2027-04-15, а не 2026-07-15.
+
+    Если stock <= 0 или партий нет — возвращаем все партии (поведение как раньше).
+    """
+    if stock <= 0 or not bar_batches:
+        return bar_batches
+    need = stock
+    covered = []
+    for b in bar_batches:
+        if need <= 0:
+            break
+        covered.append(b)
+        need -= float(b.get('count', 0) or 0)
+    return covered
+
+
 def _bar_batches_for(chz_item: dict, target_kpp: str | None):
     """Партии этого GTIN для конкретного КПП (бара) или для всего юрлица."""
     bar_count = 0
@@ -268,8 +298,12 @@ def expiration_board():
 
             bar_batches.sort(key=lambda b: b.get('production_date', ''), reverse=True)
 
-            expirations = sorted({b['expiration_date'] for b in bar_batches if b.get('expiration_date')})
-            productions = sorted({b['production_date'] for b in bar_batches if b.get('production_date')})
+            # Сроки считаем не по всем приёмкам, а по партиям, покрывающим
+            # текущий остаток (FIFO) — иначе проданные партии дают ложный срок.
+            shelf = _shelf_batches(bar_batches, stock)
+
+            expirations = sorted({b['expiration_date'] for b in shelf if b.get('expiration_date')})
+            productions = sorted({b['production_date'] for b in shelf if b.get('production_date')})
 
             has_chz = bool(matched_gtins) and bool(bar_batches)
             nearest_expiry = None
@@ -298,7 +332,7 @@ def expiration_board():
                 'chz_total_count': chz_total_count,
                 'expiration_dates': expirations,
                 'production_dates': productions,
-                'inferred_batches': bar_batches,
+                'inferred_batches': shelf,
                 'nearest_expiry': nearest_expiry,
                 'days_to_expiry': days_to_expiry,
             }))
