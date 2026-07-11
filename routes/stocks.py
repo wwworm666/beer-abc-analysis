@@ -793,13 +793,20 @@ def get_chz_stock_api():
     return jsonify({'items': items, 'updated_at': updated_at})
 
 
-@stocks_bp.route('/api/chz/refresh', methods=['POST'])
-def refresh_chz_stock():
-    """Запускает обновление кеша ЧЗ в фоне через /cises/search.
+def start_chz_refresh() -> tuple[dict, int]:
+    """Запустить фоновое обновление кеша ЧЗ через /cises/search. Общая логика.
 
     Делает на бар-ПК: token refresh → chz.py search-stock (beer+nabeer+softdrinks
     через синхронный /cises/search, привязка к бару по modId) → pull chz_stock.json.
-    Возвращает сразу status=started; прогресс в chz_test/debug/refresh.log.
+    Возвращает сразу ('started'); прогресс — в chz_test/debug/refresh.log.
+
+    ВАЖНО: зовётся из ДВУХ мест — HTTP-эндпоинта (кнопка в UI) и планировщика
+    (core/chz_scheduler.py) НАПРЯМУЮ. Планировщик обязан звать эту функцию, а не
+    POST'ить на /api/chz/refresh: у него нет сессии, и auth-гейт отбивает внутренний
+    запрос 401 — из-за этого авторефреш молча стоял (см. docs/lessons.md).
+
+    Возвращает (result, http_status): result['status'] ∈
+    {'started', 'already_running', 'error'}.
 
     Контекст: с 2026-06 коды выводятся из оборота сразу при приёмке
     (RETIRED/OWN_USE), фильтр INTRODUCED пуст, а dispenser-выгрузка по RETIRED
@@ -807,13 +814,13 @@ def refresh_chz_stock():
     """
     global _refresh_proc, _refresh_log_file
     if not os.environ.get('REMOTE_PASS'):
-        return jsonify({'status': 'error', 'error': 'REMOTE_PASS not configured'}), 503
+        return {'status': 'error', 'error': 'REMOTE_PASS not configured'}, 503
     with _refresh_lock:
         # Cross-worker check: если lock-файл существует и pid в нём жив — refresh уже идёт
         # в другом воркере (или в этом). Lock-файл создаётся atomic'но через O_EXCL.
         if _refresh_proc is not None:
             if _refresh_proc.poll() is None:
-                return jsonify({'status': 'already_running'}), 409
+                return {'status': 'already_running'}, 409
             _refresh_proc = None
             if _refresh_log_file is not None:
                 _refresh_log_file.close()
@@ -827,15 +834,15 @@ def refresh_chz_stock():
                 if age > 1800:  # 30 минут — refresh всегда укладывается
                     _CHZ_REFRESH_LOCK.unlink()
                 else:
-                    return jsonify({'status': 'already_running', 'note': 'cross-worker lock'}), 409
+                    return {'status': 'already_running', 'note': 'cross-worker lock'}, 409
             fd = os.open(str(_CHZ_REFRESH_LOCK),
                          os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
             os.write(fd, f'{os.getpid()}\n'.encode())
             os.close(fd)
         except FileExistsError:
-            return jsonify({'status': 'already_running', 'note': 'cross-worker lock race'}), 409
+            return {'status': 'already_running', 'note': 'cross-worker lock race'}, 409
         except OSError as e:
-            return jsonify({'status': 'error', 'error': f'lock failed: {e}'}), 500
+            return {'status': 'error', 'error': f'lock failed: {e}'}, 500
 
         remote_exec = str(_BASE_DIR / 'remote_exec.py')
         log_file = None
@@ -858,8 +865,19 @@ def refresh_chz_stock():
                 _CHZ_REFRESH_LOCK.unlink()
             except OSError:
                 pass
-            return jsonify({'status': 'error', 'error': str(e)}), 500
-    return jsonify({'status': 'started'})
+            return {'status': 'error', 'error': str(e)}, 500
+    return {'status': 'started'}, 200
+
+
+@stocks_bp.route('/api/chz/refresh', methods=['POST'])
+def refresh_chz_stock():
+    """HTTP-обёртка над start_chz_refresh() (кнопка «Обновить ЧЗ» в UI).
+
+    Тело вынесено в start_chz_refresh(), чтобы планировщик мог звать ту же логику
+    напрямую, минуя auth-гейт. Здесь только перевод результата в JSON-ответ.
+    """
+    result, code = start_chz_refresh()
+    return jsonify(result), code
 
 
 @stocks_bp.route('/api/chz/refresh/status', methods=['GET'])

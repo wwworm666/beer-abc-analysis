@@ -15,12 +15,10 @@
 import os
 import threading
 import time
-import urllib.request
 from datetime import datetime, timedelta
 
 REFRESH_HOUR = int(os.environ.get("CHZ_REFRESH_HOUR", "3"))
 REFRESH_MINUTE = int(os.environ.get("CHZ_REFRESH_MINUTE", "0"))
-LOCAL_REFRESH_URL = os.environ.get("CHZ_REFRESH_URL", "http://127.0.0.1:10000/api/chz/refresh")
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOCK_DIR = os.path.join(_BASE_DIR, 'data')
@@ -75,11 +73,15 @@ def _trigger_refresh():
     if not _try_acquire_daily_lock(date_str):
         print(f"[CHZ-SCHED] {datetime.now().isoformat()} lock уже взят другим воркером — пропуск")
         return
+    # Зовём refresh НАПРЯМУЮ, а не POST'ом на /api/chz/refresh: у планировщика нет
+    # сессии, и auth-гейт отбивает внутренний запрос 401 (из-за этого авторефреш
+    # молча стоял с 26.06.2026, см. docs/lessons.md). Прямой вызов разделяет ту же
+    # cross-worker блокировку, что и кнопка в UI. Импорт ленивый — routes.stocks
+    # тянет Flask-контекст, грузим только в момент срабатывания.
     try:
-        req = urllib.request.Request(LOCAL_REFRESH_URL, method="POST")
-        with urllib.request.urlopen(req, timeout=15) as r:
-            body = r.read().decode("utf-8", errors="replace")
-        print(f"[CHZ-SCHED] {datetime.now().isoformat()} POST refresh → {r.status}: {body[:200]}")
+        from routes.stocks import start_chz_refresh
+        result, code = start_chz_refresh()
+        print(f"[CHZ-SCHED] {datetime.now().isoformat()} refresh → {code}: {result}")
     except Exception as e:
         print(f"[CHZ-SCHED] {datetime.now().isoformat()} refresh failed: {e}")
 
