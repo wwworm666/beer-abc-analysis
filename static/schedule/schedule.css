@@ -585,7 +585,7 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     padding: 6px 8px;
     border-bottom: 1px solid var(--border-color);
 }
-.pf-table thead th.pf-tt, .pf-table thead th.pf-pct { text-align: right; }
+.pf-table thead th.pf-pct { text-align: right; }
 .pf-table tbody td { padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
 .pf-day:hover { background: var(--bg-tertiary); }
 .pf-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -594,41 +594,25 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .pf-pct { text-align: right; white-space: nowrap; }
 .pf-dim { color: var(--text-tertiary); }
 
-/* Ячейка точки — ОДНА строка: слева бармены (сокращения + часы), справа факт/план.
-   Числа прижаты вправо (колонка ровная по всем дням), сокращения слева. Цветом
+/* Ячейка точки — ОДНА строка (Вариант 1): слева факт «/» план, сразу за ними —
+   бармен (сокращение + часы, если факт есть). Всё сгруппировано слева, ячейка
+   выровнена влево — бармен вплотную к СВОИМ суммам, а не к соседней точке. Цветом
    выделяем ТОЛЬКО перевыполнение (.pf-over — зелёный); недобор — нейтральный. */
 .pf-tt {
-    text-align: right;
+    text-align: left;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
-    vertical-align: middle;
 }
-/* Раскладка внутри ячейки — flex во ВЛОЖЕННОМ span (td остаётся table-cell,
-   иначе колонки таблицы ломаются): имена слева, числа справа. */
-.pf-tt-in {
-    display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 12px;
-}
-.pf-tt-ppl {
-    flex: 1 1 auto;
-    min-width: 0;
-    display: flex;
-    justify-content: flex-start;
-    gap: 12px;
-    overflow: hidden;
-}
-.pf-nums { flex: 0 0 auto; display: inline-flex; align-items: baseline; gap: 1px; }
 .pf-tt-f { font-weight: 600; color: var(--text-primary); }
 .pf-tt-f.pf-over { color: var(--success); }  /* перевыполнение — единственный цвет */
-.pf-tt-p { font-size: 0.82em; color: var(--text-tertiary); }
+.pf-tt-p { color: var(--text-tertiary); }
 .pf-tt-total { background: var(--bg-tertiary); }
 
-/* Бармен в ячейке: сокращение + часы, нейтральные тона, одна строка */
-.pf-pp { display: inline-flex; align-items: baseline; gap: 4px; font-weight: 400; }
-.pf-pp-nm { font-size: 0.8rem; color: var(--text-secondary); }
-.pf-pp-h { font-size: 0.8rem; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+/* Бармен сразу за суммами: сокращение + часы (только если проставлен факт) */
+.pf-pp { margin-left: 12px; font-weight: 400; white-space: nowrap; }
+.pf-pp + .pf-pp { margin-left: 8px; }
+.pf-pp-nm { color: var(--text-secondary); }
+.pf-pp-h { color: var(--text-primary); margin-left: 3px; }
 
 /* % выполнения: зелёная пилюля только при перевыполнении, иначе нейтральное число */
 .pf-badge {

@@ -477,23 +477,19 @@
         return String(n);
     }
 
-    /* Часы/статус смены для ячейки точки: факт есть → «10:30»; сегодня без факта →
-       «идёт»; прошлое без факта → «факт?» (не закрыта); будущее → плановое начало
-       «с HH:MM» (или пусто для дневной нормы). ds — дата смены, today — сегодня. */
-    function pfCellHours(shift, ds, today) {
-        if (shift.fact_minutes != null) return minutesToHhMm(shift.fact_minutes);
-        if (ds === today) return 'идёт';
-        if (ds < today) return 'факт?';
-        return shift.start_time ? 'с ' + shift.start_time : '';
+    /* Часы смены для ячейки точки: только если проставлен факт → «10:30». Нет
+       факта → пусто (никаких «идёт»/«факт?»/«с HH:MM» — решение владельца). */
+    function pfCellHours(shift) {
+        return shift.fact_minutes != null ? minutesToHhMm(shift.fact_minutes) : '';
     }
 
-    /* Бармен в ячейке точки — компактно, в одну строку: сокращение (short_label
-       из реестра, напр. «РЮ») + часы/статус смены. Без ярких цветов — нейтральные
-       тона дизайн-системы. Полное имя, роль (день/вечер) и время — в title (hover).
-       ds — дата смены, today — сегодня. */
-    function pfCellPerson(shift, ds, today) {
+    /* Бармен в ячейке точки — компактно, в одну строку рядом с суммами: сокращение
+       (short_label из реестра, напр. «РЮ») + часы смены, если факт проставлен. Без
+       ярких цветов — нейтральные тона дизайн-системы. Полное имя, роль (день/вечер)
+       и время — в title (hover). */
+    function pfCellPerson(shift) {
         var abbr = shiftLabel(shift);
-        var hrs = pfCellHours(shift, ds, today);
+        var hrs = pfCellHours(shift);
         var eve = !!(window.Schedule && window.Schedule.isEvening
             ? window.Schedule.isEvening(shift)
             : ((shift.role_name && /втор/i.test(shift.role_name))
@@ -522,7 +518,6 @@
 
         var locs = state.locations;
         var daysInMonth = new Date(state.year, state.month, 0).getDate();
-        var today = todayStr();
         var isEve = (window.Schedule && window.Schedule.isEvening) || function (s) {
             return !!((s.role_name && /втор/i.test(s.role_name))
                 || (s.start_time && s.start_time >= '18:00'));
@@ -530,22 +525,21 @@
         var shiftsByDay = {};
         state.shifts.forEach(function (s) { (shiftsByDay[s.date] = shiftsByDay[s.date] || []).push(s); });
 
-        // Ячейка точки в ОДНУ строку: слева — бармены (сокращения + часы), справа —
-        // факт «/» план. Цветом выделяем ТОЛЬКО перевыполнение (факт >= план) —
-        // зелёным (--success); недобор нейтральный, без янтарного/красного (решение
-        // владельца: «таб цветам выделить нужно только перевыполнение»). peopleHtml —
-        // бармены точки за день; для строки «Итого» не передаётся.
+        // Ячейка точки в ОДНУ строку: слева факт «/» план, сразу за ними — бармены
+        // (сокращение + часы, если факт есть). Числа и бармен сгруппированы слева,
+        // поэтому бармен вплотную к СВОИМ суммам, а не к соседней точке. Цветом
+        // выделяем ТОЛЬКО перевыполнение (факт >= план) — зелёным (--success); недобор
+        // нейтральный (решение владельца). peopleHtml — для строки «Итого» не передаётся.
         function ttCell(plan, fact, name, isTotal, peopleHtml) {
             var pct = (plan != null && plan > 0 && fact != null) ? Math.round(fact / plan * 100) : null;
             var over = pct != null && pct >= 100;
             var title = name + ': факт ' + (fact != null ? formatMoney(fact) : '—')
                 + ' / план ' + (plan != null ? formatMoney(plan) : '—') + (pct != null ? ' (' + pct + '%)' : '');
             return '<td class="pf-tt' + (isTotal ? ' pf-tt-total' : '') + '" title="' + escapeHtml(title) + '">'
-                + '<span class="pf-tt-in">'
-                + (peopleHtml || '<span class="pf-tt-ppl"></span>')
                 + '<span class="pf-nums"><span class="pf-tt-f' + (over ? ' pf-over' : '') + '">' + formatK(fact) + '</span>'
                 + '<span class="pf-tt-p">/' + formatK(plan) + '</span></span>'
-                + '</span></td>';
+                + (peopleHtml || '')
+                + '</td>';
         }
 
         var body = [];
@@ -570,21 +564,16 @@
             var weekend = (dow === 5 || dow === 6);
             var dayPct = (pt != null && pt > 0 && ft != null) ? Math.round(ft / pt * 100) : null;
 
-            var dsInner = ds; // ds — var в цикле; фиксируем для замыкания карты точек
             var ttTds = locs.map(function (L) {
                 var c = dl[L.id] || {};
                 var p = (c.plan != null) ? c.plan : null;
                 var f = (c.fact != null) ? c.fact : null;
                 if (p != null) { ttSum[L.id].p += p; ttSum[L.id].hasP = true; }
                 if (f != null) { ttSum[L.id].f += f; ttSum[L.id].hasF = true; }
-                // Бармены этой точки за день (день раньше вечера) — прямо в ячейке.
-                var pplList = dayShifts.filter(function (s) { return s.location_id === L.id; })
-                    .sort(function (a, b) { return (isEve(a) ? 1 : 0) - (isEve(b) ? 1 : 0); });
-                var pplHtml = pplList.length
-                    ? '<span class="pf-tt-ppl">' + pplList.map(function (s) {
-                        return pfCellPerson(s, dsInner, today);
-                      }).join('') + '</span>'
-                    : '';
+                // Бармены этой точки за день (день раньше вечера) — сразу за суммами.
+                var pplHtml = dayShifts.filter(function (s) { return s.location_id === L.id; })
+                    .sort(function (a, b) { return (isEve(a) ? 1 : 0) - (isEve(b) ? 1 : 0); })
+                    .map(function (s) { return pfCellPerson(s); }).join('');
                 return ttCell(p, f, L.short_name || L.name, false, pplHtml);
             }).join('');
 
