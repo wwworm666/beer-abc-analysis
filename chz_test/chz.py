@@ -1037,7 +1037,11 @@ def resolve_mod_kpp(token, cis):
 # новые документы подхватываются каждым search-stock автоматически — новые
 # позиции/поставки не требуют ручных действий.
 
-UPD_KPP_GROUPS = ["nabeer", "softdrinks"]  # у beer входящих УПД в ЧЗ нет (там modId)
+# beer в списке — как fallback для кодов БЕЗ modId (импорт с RETAIL-выбытием:
+# бельгийцы и пр.); основной путь пива (modId -> ownerMod) картой не затрагивается,
+# т.к. fallback применяется только при пустом modId (см. _accumulate_code).
+# Проверено 2026-07-11: входящих УПД по пиву 1040 шт, свежие — поштучные с КПП.
+UPD_KPP_GROUPS = ["beer", "nabeer", "softdrinks"]
 UPD_KPP_CACHE = os.path.join(DEBUG_DIR, "upd_kpp_map.json")
 
 
