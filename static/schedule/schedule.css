@@ -746,9 +746,24 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     max-height: calc(100dvh - 32px);  /* учитывает адресную строку мобильного */
     overflow-y: auto;                 /* внутренний скролл — кнопки всегда достижимы */
     -webkit-overflow-scrolling: touch;
+    position: relative;               /* якорь для крестика закрытия */
 }
 
-.modal h2 { margin-bottom: 18px; font-size: 1.05rem; }
+.modal h2 { margin-bottom: 18px; font-size: 1.05rem; padding-right: 34px; }
+
+/* Крестик закрытия в углу — вместо кнопки «Отмена». Дублируется тапом по
+   затемнению и Escape. Крупный тап-таргет 34px. */
+.modal-x {
+    position: absolute;
+    top: 12px; right: 14px;
+    width: 34px; height: 34px;
+    border: none; background: transparent;
+    font-size: 26px; line-height: 1;
+    color: var(--text-tertiary);
+    cursor: pointer; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+}
+.modal-x:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 
 .modal .form-group { margin-bottom: 14px; }
 

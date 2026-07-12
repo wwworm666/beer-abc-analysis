@@ -91,11 +91,17 @@
         // модалка смены (десктоп)
         document.getElementById('shiftForm').addEventListener('submit', onShiftFormSubmit);
         document.getElementById('shiftDelete').addEventListener('click', onShiftDelete);
-        document.getElementById('shiftCancel').addEventListener('click', closeShiftModal);
+        document.getElementById('shiftClose').addEventListener('click', closeShiftModal);
         // модалка факта (мобильный)
         document.getElementById('factForm').addEventListener('submit', onFactSubmit);
-        document.getElementById('factClear').addEventListener('click', onFactClear);
-        document.getElementById('factCancel').addEventListener('click', closeFactModal);
+        document.getElementById('factClose').addEventListener('click', closeFactModal);
+        // Закрытие по тапу на затемнение (клик по самому оверлею, не по .modal внутри).
+        document.getElementById('factModal').addEventListener('click', function (e) {
+            if (e.target === this) closeFactModal();
+        });
+        document.getElementById('shiftModal').addEventListener('click', function (e) {
+            if (e.target === this) closeShiftModal();
+        });
         // касса: тумблеры «были траты / инкассация» показывают поля сумм
         wireCashToggles('fact');
         wireCashToggles('shift');
@@ -678,14 +684,6 @@
             .then(function () { return sendCash(shift.id, cash); })
             .then(function () { closeFactModal(); S.showToast('Смена закрыта'); return reload(); })
             .catch(function (err) { S.showToast('Не сохранилось: ' + err.message, true); })
-            .then(function () { saving = false; });
-    }
-    function onFactClear() {
-        if (!currentFactShift || saving) return;
-        saving = true;
-        S.api('/api/schedule/shift/' + currentFactShift.id + '/fact', { method: 'PUT', body: { fact_minutes: null } })
-            .then(function () { closeFactModal(); S.showToast('Часы очищены'); return reload(); })
-            .catch(function (err) { S.showToast('Ошибка: ' + err.message, true); })
             .then(function () { saving = false; });
     }
 

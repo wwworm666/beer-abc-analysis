@@ -203,6 +203,7 @@
     <!-- Модалка ввода факта часов (мобильный «мои смены»). -->
     <div class="modal-overlay" id="factModal">
       <div class="modal">
+        <button type="button" class="modal-x" id="factClose" aria-label="Закрыть">&times;</button>
         <h2 id="factModalTitle">Отработанные часы</h2>
         <form id="factForm">
           <!-- Главное поле №1 — отработанные часы (выделено). -->
@@ -244,8 +245,6 @@
             </div>
           </div>
           <div class="actions">
-            <button type="button" class="btn btn-danger" id="factClear">Очистить</button>
-            <button type="button" class="btn btn-secondary" id="factCancel">Отмена</button>
             <button type="submit" class="btn btn-primary">Сохранить</button>
           </div>
         </form>
@@ -255,6 +254,7 @@
     <!-- Модалка смены (десктоп): роль + плановое время + факт часов. -->
     <div class="modal-overlay" id="shiftModal">
       <div class="modal">
+        <button type="button" class="modal-x" id="shiftClose" aria-label="Закрыть">&times;</button>
         <h2 id="shiftModalTitle">Смена</h2>
         <div class="warning-box" id="dayoffWarning" style="display: none;">
           Сотрудник просил выходной на эту дату
@@ -309,7 +309,6 @@
           </div>
           <div class="actions">
             <button type="button" class="btn btn-danger" id="shiftDelete">Удалить</button>
-            <button type="button" class="btn btn-secondary" id="shiftCancel">Отмена</button>
             <button type="submit" class="btn btn-primary">Сохранить</button>
           </div>
         </form>
