@@ -739,12 +739,15 @@ function renderPrintHeader() {
             · Позиций: ${cov.total}, сверено по ЧЗ: ${cov.with_chz}, нет в ЧЗ: ${cov.without}</div>`;
 }
 
-function recOptionText(opt) {
-    if (!opt) return '—';
-    if (opt.kind === 'writeoff') return 'Списать ' + fmtUnits(opt.amount);
-    if (opt.kind === 'markdown') return 'Уценка −' + opt.discount_pct + '%';
-    if (opt.kind === 'transfer') return 'Передать ' + fmtUnits(opt.amount) + ' → ' + opt.to_bar;
-    return '—';
+// Скидка строго по сроку (шкала утверждена владельцем 2026-07-12, совпадает с
+// tier-ставками core/expiry_recommend.py): 0-7 дн -35%, 8-14 -20%, 15-30 -10%,
+// просрочено - снять с полки. Показывается всегда, без условия «не успеваем продать».
+const TIER_DISCOUNT = {critical: 35, urgent: 20, watch: 10};
+
+function discountText(it) {
+    if (it.tier === 'expired') return 'снять с полки';
+    const pct = TIER_DISCOUNT[it.tier];
+    return pct ? `−${pct}%` : '—';
 }
 
 function daysShort(it) {
@@ -781,7 +784,7 @@ function renderActiveList() {
             <td class="date">${fmtDate(it.nearest_expiry)}${orgMark(it)}</td>
             <td class="days ${daysClass(it.tier)}">${daysShort(it)}</td>
             <td class="qty">${fmtUnits(it.stock)}</td>
-            <td>${recOptionText(((it.recommendation || {}).options || [])[0])}</td>
+            <td class="days ${daysClass(it.tier)}">${discountText(it)}</td>
         </tr>`).join('');
 
     const hotLegend = hot.some(it => it.chz_scope === 'org')
@@ -789,7 +792,7 @@ function renderActiveList() {
         : '';
     const hotTable = hot.length ? `
         <div class="table-wrap"><table class="list-table">
-            <thead><tr><th>№</th><th>Название</th>${barTh}<th>Ближайший срок</th><th>Осталось</th><th>Остаток</th><th>Действие</th></tr></thead>
+            <thead><tr><th>№</th><th>Название</th>${barTh}<th>Ближайший срок</th><th>Осталось</th><th>Остаток</th><th>Скидка</th></tr></thead>
             <tbody>${hotRows}</tbody>
         </table></div>${hotLegend}`
         : '<div class="empty">Нет позиций с истечением до 30 дней</div>';
@@ -824,7 +827,7 @@ function renderActiveList() {
         ${covHtml}
         <div class="list-section">
             <div class="section-title">Горящие сроки (до 30 дней)</div>
-            <div class="section-hint">Отсортировано от самых срочных. Действие — рекомендация системы.</div>
+            <div class="section-hint">Отсортировано от самых срочных. Скидка по сроку: 0–7 дн −35%, 8–14 дн −20%, 15–30 дн −10%, просрочено — снять с полки.</div>
             ${hotTable}
         </div>
         <div class="list-section">
