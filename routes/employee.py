@@ -581,6 +581,17 @@ def bonus_calculate():
                 open_time = times.get('open', '')
                 close_time = times.get('close', '')
 
+                # Статус кассовой дисциплины дня (для столбца «Касса» на странице ЗП):
+                #   True  — касса сдана (наличные в сейфе есть в графике);
+                #   False — не сдана;
+                #   None  — нельзя определить (нет точки дня или график недоступен).
+                # cash_rule_applies — влияет ли день на премию «передача смены»
+                # (только с даты-отсечки HANDOVER_CASH_RULE_FROM).
+                if not location or cash_filled_keys is None:
+                    cash_filled = None
+                else:
+                    cash_filled = (_canon_venue(location), date_str) in cash_filled_keys
+
                 days_detail.append({
                     'date': date_str,
                     'revenue': round(day_revenue, 2),
@@ -589,7 +600,9 @@ def bonus_calculate():
                     'day_bonus': round(day_bonus, 2),
                     'is_late': date_str in late_dates_set,
                     'open_time': open_time,
-                    'close_time': close_time
+                    'close_time': close_time,
+                    'cash_filled': cash_filled,
+                    'cash_rule_applies': date_str >= HANDOVER_CASH_RULE_FROM
                 })
 
             # Формула бонуса: 1000 за каждую успешную смену + 5% от перевыполнения

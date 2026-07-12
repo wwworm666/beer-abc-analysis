@@ -221,6 +221,10 @@
         .days-table td.right { text-align: right; font-variant-numeric: tabular-nums; }
         .days-table tr.day-over td { color: var(--success); }
         .days-table tr.day-under td { color: var(--text-tertiary); }
+        .days-table td.cash-cell { font-weight: 600; }
+        .cash-yes { color: var(--success); }
+        .cash-no { color: var(--danger, #c0392b); }
+        .cash-na { color: var(--text-tertiary); font-weight: 400; }
 
         .penalty-value { font-weight: 600; color: var(--danger); }
         .bonus-value { font-weight: 600; color: var(--success); }
@@ -968,6 +972,19 @@
             const b = emp.bonus;
             if (!b || !b.days) return;
 
+            // Столбец «Касса»: сдана ли кассовая дисциплина за день. «нет» краснеет
+            // только если день влияет на премию (с даты-отсечки cash_rule_applies);
+            // до отсечки — серым (информативно, премию не режет). Без эмодзи.
+            function cashCell(day) {
+                if (day.cash_filled === true) return '<span class="cash-yes">сдана</span>';
+                if (day.cash_filled === false) {
+                    return day.cash_rule_applies
+                        ? '<span class="cash-no" title="Премия за передачу смены за этот день не начислена">нет</span>'
+                        : '<span class="cash-na" title="До 11.07.2026 — на премию не влияет">нет</span>';
+                }
+                return '<span class="cash-na">—</span>';
+            }
+
             let rows = '';
             b.days.forEach(day => {
                 const isOver = day.overperformance > 0;
@@ -975,6 +992,7 @@
                 rows += `<tr class="${isOver ? 'day-over' : 'day-under'}">
                     <td>${formatDate(day.date)}${day.is_late ? ' <span class="late-badge">опоздание</span>' : ''}</td>
                     <td>${timeStr}</td>
+                    <td class="cash-cell">${cashCell(day)}</td>
                     <td class="right">${formatMoney(day.plan)}</td>
                     <td class="right">${formatMoney(day.revenue)}</td>
                     <td class="right">${isOver ? '+' + formatMoney(day.overperformance) : '—'}</td>
@@ -988,6 +1006,7 @@
                     <thead><tr>
                         <th>Дата</th>
                         <th>Время</th>
+                        <th title="Заполнена ли кассовая дисциплина (наличные в сейфе) за день">Касса</th>
                         <th class="right">План ТТ</th>
                         <th class="right">Выручка</th>
                         <th class="right">Перевыполнение</th>
