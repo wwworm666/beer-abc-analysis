@@ -728,6 +728,8 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     justify-content: center;
     z-index: 1000;
     padding: 16px;
+    overflow-y: auto;                 /* длинная модалка (часы+касса) — скроллим оверлей */
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal-overlay.active { display: flex; }
@@ -739,6 +741,11 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     width: 100%;
     max-width: 440px;
     box-shadow: var(--shadow-md);
+    margin: auto;                     /* центр по вертикали, пока помещается */
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);  /* учитывает адресную строку мобильного */
+    overflow-y: auto;                 /* внутренний скролл — кнопки всегда достижимы */
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal h2 { margin-bottom: 18px; font-size: 1.05rem; }
@@ -883,12 +890,40 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     color: var(--warning);
 }
 
+/* Кнопки — прилипший футер модалки: всегда видны и нажимаемы даже при скролле
+   длинного содержимого (часы+касса). Негативные поля «съедают» паддинг модалки,
+   чтобы полоса шла во всю ширину и легла к нижнему краю. */
 .modal .actions {
     display: flex;
     gap: 12px;
     justify-content: flex-end;
-    margin-top: 20px;
     flex-wrap: wrap;
+    margin: 20px -24px -24px;
+    padding: 14px 24px;
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 var(--sch-radius) var(--sch-radius);
+}
+
+/* Мобильный: модалка почти во всю ширину, прижата к верху (видно верхние поля при
+   открытой клавиатуре), кнопки крупные во всю строку — надёжные тап-таргеты. */
+@media (max-width: 700px) {
+    .modal-overlay { padding: 8px; align-items: flex-start; }
+    .modal {
+        padding: 18px 16px;
+        max-width: none;
+        max-height: calc(100dvh - 16px);
+        border-radius: 14px;
+    }
+    .modal h2 { margin-bottom: 14px; font-size: 1rem; }
+    .modal .actions {
+        margin: 16px -16px -18px;
+        padding: 12px 16px;
+        gap: 8px;
+    }
+    .modal .actions .btn { flex: 1 1 auto; padding: 13px 12px; text-align: center; }
 }
 
 /* ==================== Buttons / misc ==================== */
