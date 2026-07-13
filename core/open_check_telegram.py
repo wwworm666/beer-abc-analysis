@@ -212,6 +212,7 @@ def set_my_commands():
         {"command": "start", "description": "Подписка и меню"},
         {"command": "status", "description": "Статус баров сейчас"},
         {"command": "temp", "description": "Температура в барах сейчас"},
+        {"command": "cash", "description": "Возможная инкассация по барам"},
     ]})
 
 
@@ -226,6 +227,7 @@ def _menu_keyboard(subscribed: bool) -> dict:
         [toggle],
         [{"text": "Статус баров сейчас", "callback_data": "oc_status"}],
         [{"text": "Температура в барах", "callback_data": "oc_temp"}],
+        [{"text": "Возможная инкассация", "callback_data": "oc_cash"}],
     ]}
 
 
@@ -238,7 +240,9 @@ def _start_text(chat_id, subscribed: bool) -> str:
         f"ID этого чата: {chat_id}\n\n"
         "Кнопкой ниже можно подписаться или отписаться. "
         "«Статус баров сейчас» — проверить открытие вручную в любой момент, "
-        "«Температура в барах» — текущая температура датчиков (команда /temp)."
+        "«Температура в барах» — текущая температура датчиков (команда /temp), "
+        "«Возможная инкассация» — сколько наличных можно забрать с каждого бара "
+        f"по последней сданной кассе (остаётся {CASH_CHANGE_FLOAT_RUB} ₽ на размен, команда /cash)."
     )
 
 
@@ -299,6 +303,60 @@ def _live_temperature_text() -> str:
     return "\n".join(lines)
 
 
+# Минимум наличных на размен, который остаётся в баре и НЕ инкассируется.
+# Бизнес-правило владельца (в рублях). Единственное место значения.
+CASH_CHANGE_FLOAT_RUB = 5000
+
+
+def _fmt_rub(kop) -> str:
+    """Копейки -> рубли с пробелом-разделителем тысяч: 1534050 -> '15 341'."""
+    return f"{round(kop / 100):,}".replace(",", " ")
+
+
+def collectable_kop(cash_end_kop: int, float_kop: int) -> int:
+    """Сколько можно инкассировать: всё сверх размена, но не меньше 0.
+    Чистая функция (детерминированно, тестируется)."""
+    return max(0, cash_end_kop - float_kop)
+
+
+def _live_cash_collection_text() -> str:
+    """Сколько можно инкассировать с каждого бара по ПОСЛЕДНЕЙ сданной кассе.
+
+    Инкассируем всё сверх минимума на размен (`CASH_CHANGE_FLOAT_RUB`) — в баре
+    всегда остаётся размен. Наличные берём из графика (ручной пересчёт бармена —
+    «наличные в сейфе на конец смены»), без iiko. Дата кассы показывается, чтобы
+    было видно свежесть данных.
+    """
+    from core.shifts_manager import get_shifts_manager
+    mgr = get_shifts_manager()
+    locs = mgr.get_locations()
+    latest = mgr.get_latest_cash_by_location()
+    float_kop = CASH_CHANGE_FLOAT_RUB * 100
+
+    lines = [f"Возможная инкассация (в баре остаётся {_fmt_rub(float_kop)} ₽ на размен)", ""]
+    total = 0
+    for loc in locs:
+        short = loc.get("short_name") or loc.get("name")
+        info = latest.get(loc["id"])
+        if not info or info.get("cash_end_kop") is None:
+            lines.append(f"{short} — нет данных по кассе")
+            continue
+        end = info["cash_end_kop"]
+        collect = collectable_kop(end, float_kop)
+        total += collect
+        d = str(info.get("date") or "")
+        dm = f"{d[8:10]}.{d[5:7]}" if len(d) >= 10 else d
+        if collect > 0:
+            lines.append(f"{short} — в сейфе {_fmt_rub(end)} / к инкассации "
+                         f"{_fmt_rub(collect)} ₽ (касса от {dm})")
+        else:
+            lines.append(f"{short} — в сейфе {_fmt_rub(end)} ₽, ниже размена — "
+                         f"не инкассируем (от {dm})")
+    lines.append("")
+    lines.append(f"Итого к инкассации: {_fmt_rub(total)} ₽")
+    return "\n".join(lines)
+
+
 def _send_menu(chat_id, subs) -> None:
     sub = subs.is_subscribed(chat_id)
     send_message(chat_id, _start_text(chat_id, sub), reply_markup=_menu_keyboard(sub))
@@ -324,6 +382,11 @@ def _handle_callback(cq: dict, subs) -> None:
     if data == "oc_temp":
         answer_callback(cq_id, "Опрашиваю датчики...")
         send_message(chat_id, _live_temperature_text(), html=True)
+        return
+
+    if data == "oc_cash":
+        answer_callback(cq_id, "Считаю кассу...")
+        send_message(chat_id, _live_cash_collection_text())
         return
 
     # subscribed = состояние ПОСЛЕ переключения (не перечитываем файл повторно).
@@ -370,6 +433,8 @@ def handle_update(update: dict) -> None:
     elif cmd in ("/temp", "/temperature", "/t", "/температура"):
         # html=True: бары вне нормы помечаются <b>…</b>
         send_message(chat_id, _live_temperature_text(), html=True)
+    elif cmd in ("/cash", "/incass", "/инкассация", "/касса"):
+        send_message(chat_id, _live_cash_collection_text())
     elif cmd == "/subscribe":
         subs.subscribe(chat_id)
         send_message(chat_id, "Подписка оформлена. Уведомления будут приходить в этот чат.")

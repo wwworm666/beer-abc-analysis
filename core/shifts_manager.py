@@ -582,6 +582,35 @@ class ShiftsManager:
                 conn.commit()
                 return cursor.rowcount > 0
 
+    def get_latest_cash_by_location(self) -> Dict:
+        """Последняя сданная касса (cash_end_kop) по каждой точке — самая свежая
+        смена с непустым `cash_end`. Для отчёта «возможная инкассация» (сколько
+        наличных сейчас в сейфе каждого бара, из ручного пересчёта бармена, без iiko).
+
+        Возвращает `{location_id: {location_id, location_name, short_name,
+        cash_end_kop, date}}`. Точки без единой сданной кассы в результат НЕ
+        попадают (у бота -> «нет данных»). При нескольких сменах самого свежего дня
+        берётся последняя по `id` (последняя внесённая) — детерминированно.
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute('''
+                    SELECT location_id, location_name, short_name, cash_end_kop, date
+                    FROM (
+                        SELECT s.location_id,
+                               l.name AS location_name, l.short_name AS short_name,
+                               s.cash_end_kop, s.date,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY s.location_id
+                                   ORDER BY s.date DESC, s.id DESC) AS rn
+                        FROM shifts s
+                        JOIN locations l ON s.location_id = l.id
+                        WHERE s.cash_end_kop IS NOT NULL
+                    ) WHERE rn = 1
+                ''')
+                return {row['location_id']: dict(row) for row in cur.fetchall()}
+
     def update_shift(self, shift_id: int, **kwargs) -> bool:
         """Обновить смену. Факт часов сюда НЕ входит — он меняется только через
         set_shift_fact (роут /fact с проверкой 0..1440), чтобы битые минуты не

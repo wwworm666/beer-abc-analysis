@@ -121,6 +121,39 @@ def test_set_cash_unknown_shift(tmp_path):
     assert mgr.set_shift_cash(999999, 100, 0, 500) is False
 
 
+def test_latest_cash_by_location(tmp_path):
+    """Последняя сданная касса по точке: свежая дата побеждает, смена без кассы
+    не перебивает, точка без кассы отсутствует."""
+    mgr = _mgr(tmp_path)
+    locs = mgr.get_locations()
+    role = mgr.get_roles()[0]['id']
+    l0, l1, l2 = locs[0]['id'], locs[1]['id'], locs[2]['id']
+    s_old = mgr.create_shift('2026-07-01', 'A', l0, role)
+    mgr.set_shift_cash(s_old, 0, 0, 1000000)          # 10 000, старая
+    s_new = mgr.create_shift('2026-07-05', 'A', l0, role)
+    mgr.set_shift_cash(s_new, 0, 0, 1500000)          # 15 000, свежая
+    s1 = mgr.create_shift('2026-07-03', 'B', l1, role)
+    mgr.set_shift_cash(s1, 0, 0, 300000)              # 3 000
+    mgr.create_shift('2026-07-06', 'C', l1, role)      # без кассы — не перебивает
+
+    latest = mgr.get_latest_cash_by_location()
+    assert latest[l0]['cash_end_kop'] == 1500000
+    assert latest[l0]['date'] == '2026-07-05'
+    assert latest[l1]['cash_end_kop'] == 300000
+    assert l2 not in latest                            # нет ни одной сданной кассы
+
+
+def test_collectable_math():
+    """Инкассируем всё сверх размена, минимум 0."""
+    from core.open_check_telegram import collectable_kop, CASH_CHANGE_FLOAT_RUB
+    assert CASH_CHANGE_FLOAT_RUB == 5000
+    f = 5000 * 100
+    assert collectable_kop(1500000, f) == 1000000     # 15000 -> к инкассации 10000
+    assert collectable_kop(300000, f) == 0            # ниже размена
+    assert collectable_kop(500000, f) == 0            # ровно размен
+    assert collectable_kop(500100, f) == 100          # чуть выше размена
+
+
 def test_cash_edit_lock_window():
     """Касса замораживается через 72 ч от даты смены (окно правок)."""
     from datetime import datetime, timedelta
