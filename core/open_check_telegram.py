@@ -327,19 +327,24 @@ def _live_cash_collection_text() -> str:
     «наличные в сейфе на конец смены»), без iiko. Дата кассы показывается, чтобы
     было видно свежесть данных.
     """
+    import html as _html
     from core.shifts_manager import get_shifts_manager
     mgr = get_shifts_manager()
     locs = mgr.get_locations()
     latest = mgr.get_latest_cash_by_location()
     float_kop = CASH_CHANGE_FLOAT_RUB * 100
 
-    lines = [f"Возможная инкассация (в баре остаётся {_fmt_rub(float_kop)} ₽ на размен)", ""]
+    # Один бар — блок из двух строк (главная цифра «забрать» жирным + деталь мельче),
+    # между барами пустая строка: так цифры не слипаются. html=True при отправке.
+    lines = ["<b>Возможная инкассация</b>",
+             f"В каждом баре оставляем {_fmt_rub(float_kop)} ₽ на размен.", ""]
     total = 0
     for loc in locs:
-        short = loc.get("short_name") or loc.get("name")
+        short = _html.escape(loc.get("short_name") or loc.get("name"))
         info = latest.get(loc["id"])
         if not info or info.get("cash_end_kop") is None:
-            lines.append(f"{short} — нет данных по кассе")
+            lines.append(f"<b>{short}</b> — нет данных по кассе")
+            lines.append("")
             continue
         end = info["cash_end_kop"]
         collect = collectable_kop(end, float_kop)
@@ -347,13 +352,12 @@ def _live_cash_collection_text() -> str:
         d = str(info.get("date") or "")
         dm = f"{d[8:10]}.{d[5:7]}" if len(d) >= 10 else d
         if collect > 0:
-            lines.append(f"{short} — в сейфе {_fmt_rub(end)} / к инкассации "
-                         f"{_fmt_rub(collect)} ₽ (касса от {dm})")
+            lines.append(f"<b>{short}</b> — забрать <b>{_fmt_rub(collect)} ₽</b>")
         else:
-            lines.append(f"{short} — в сейфе {_fmt_rub(end)} ₽, ниже размена — "
-                         f"не инкассируем (от {dm})")
-    lines.append("")
-    lines.append(f"Итого к инкассации: {_fmt_rub(total)} ₽")
+            lines.append(f"<b>{short}</b> — забрать <b>0</b> (ниже размена)")
+        lines.append(f"в сейфе {_fmt_rub(end)}, касса от {dm}")
+        lines.append("")
+    lines.append(f"<b>Итого к инкассации: {_fmt_rub(total)} ₽</b>")
     return "\n".join(lines)
 
 
@@ -386,7 +390,7 @@ def _handle_callback(cq: dict, subs) -> None:
 
     if data == "oc_cash":
         answer_callback(cq_id, "Считаю кассу...")
-        send_message(chat_id, _live_cash_collection_text())
+        send_message(chat_id, _live_cash_collection_text(), html=True)
         return
 
     # subscribed = состояние ПОСЛЕ переключения (не перечитываем файл повторно).
@@ -434,7 +438,7 @@ def handle_update(update: dict) -> None:
         # html=True: бары вне нормы помечаются <b>…</b>
         send_message(chat_id, _live_temperature_text(), html=True)
     elif cmd in ("/cash", "/incass", "/инкассация", "/касса"):
-        send_message(chat_id, _live_cash_collection_text())
+        send_message(chat_id, _live_cash_collection_text(), html=True)
     elif cmd == "/subscribe":
         subs.subscribe(chat_id)
         send_message(chat_id, "Подписка оформлена. Уведомления будут приходить в этот чат.")
