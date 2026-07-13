@@ -303,9 +303,12 @@ def _live_temperature_text() -> str:
     return "\n".join(lines)
 
 
-# Минимум наличных на размен, который остаётся в баре и НЕ инкассируется.
-# Бизнес-правило владельца (в рублях). Единственное место значения.
+# Бизнес-правила инкассации (в рублях; единственное место значений):
+#  - размен, который остаётся в баре и НЕ инкассируется;
+#  - шаг инкассации: забираем только кратно этой сумме (сотни/копейки в банкомат
+#    не носим — остаток лежит в баре сверх размена).
 CASH_CHANGE_FLOAT_RUB = 5000
+INCASS_STEP_RUB = 1000
 
 
 def _fmt_rub(kop) -> str:
@@ -313,10 +316,14 @@ def _fmt_rub(kop) -> str:
     return f"{round(kop / 100):,}".replace(",", " ")
 
 
-def collectable_kop(cash_end_kop: int, float_kop: int) -> int:
-    """Сколько можно инкассировать: всё сверх размена, но не меньше 0.
-    Чистая функция (детерминированно, тестируется)."""
-    return max(0, cash_end_kop - float_kop)
+def collectable_kop(cash_end_kop: int, float_kop: int, step_kop: int = None) -> int:
+    """Сколько можно инкассировать: всё сверх размена, округлённое ВНИЗ до шага
+    (кратно 1000 ₽), не меньше 0. Остаток (меньше шага) остаётся в баре сверх
+    размена. Чистая функция (детерминированно, тестируется)."""
+    if step_kop is None:
+        step_kop = INCASS_STEP_RUB * 100
+    avail = max(0, cash_end_kop - float_kop)
+    return (avail // step_kop) * step_kop
 
 
 def _live_cash_collection_text() -> str:
@@ -337,7 +344,8 @@ def _live_cash_collection_text() -> str:
     # Один бар — блок из двух строк (главная цифра «забрать» жирным + деталь мельче),
     # между барами пустая строка: так цифры не слипаются. html=True при отправке.
     lines = ["<b>Возможная инкассация</b>",
-             f"В каждом баре оставляем {_fmt_rub(float_kop)} ₽ на размен.", ""]
+             f"Оставляем {_fmt_rub(float_kop)} ₽ на размен, забираем кратно "
+             f"{_fmt_rub(INCASS_STEP_RUB * 100)} ₽.", ""]
     total = 0
     for loc in locs:
         short = _html.escape(loc.get("short_name") or loc.get("name"))

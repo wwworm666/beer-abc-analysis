@@ -144,14 +144,19 @@ def test_latest_cash_by_location(tmp_path):
 
 
 def test_collectable_math():
-    """Инкассируем всё сверх размена, минимум 0."""
-    from core.open_check_telegram import collectable_kop, CASH_CHANGE_FLOAT_RUB
+    """Инкассируем сверх размена, округляя вниз до 1000 ₽ (остаток в баре)."""
+    from core.open_check_telegram import (
+        collectable_kop, CASH_CHANGE_FLOAT_RUB, INCASS_STEP_RUB)
     assert CASH_CHANGE_FLOAT_RUB == 5000
+    assert INCASS_STEP_RUB == 1000
     f = 5000 * 100
-    assert collectable_kop(1500000, f) == 1000000     # 15000 -> к инкассации 10000
+    assert collectable_kop(1500000, f) == 1000000     # 15000 -> 10000
+    assert collectable_kop(1534050, f) == 1000000     # 15340.50 -> сверх 10340.50 -> 10000
     assert collectable_kop(300000, f) == 0            # ниже размена
     assert collectable_kop(500000, f) == 0            # ровно размен
-    assert collectable_kop(500100, f) == 100          # чуть выше размена
+    assert collectable_kop(500100, f) == 0            # +1 ₽ — меньше шага, не берём
+    assert collectable_kop(600000, f) == 100000       # сверх 1000 -> 1000
+    assert collectable_kop(659900, f) == 100000       # сверх 1599 -> 1000 (599 в баре)
 
 
 def test_cash_edit_lock_window():
