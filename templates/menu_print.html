@@ -10,7 +10,10 @@
      каждая на своей A4-странице. */
   html, body{ background: #2a2824; margin: 0; }
   body{ display: block; }
-  .page{ margin: 0 auto; background: #e5cba3; }
+  /* Фон .page задаёт menu_card.css (screen — бежевый var(--paper), print — белый).
+     Здесь его НЕ переопределять: незаскоупленное правило встало бы после
+     @media print из menu_card.css и печатало бы бежевый фон. */
+  .page{ margin: 0 auto; }
   .page + .page{ margin-top: 8mm; }
   @media print{
     html, body{ background: #fff; }
@@ -22,38 +25,45 @@
 <body class="mc-root">
 {% for item in items %}{% include 'menu_card_body.html' %}{% endfor %}
 <script>
-  (function fitName(){
+  function fitName(){
     var MAX = 140, MIN = 36;
     document.querySelectorAll('.name').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       while (el.scrollHeight > MAX && size > MIN){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
-  (function fitTags(){
+  }
+  function fitTags(){
     document.querySelectorAll('.tags').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       var min = 12;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
-  (function fitStyle(){
+  }
+  function fitStyle(){
     document.querySelectorAll('.facts .style').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       var min = 20;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
-  (function fitTrans(){
+  }
+  function fitTrans(){
     document.querySelectorAll('.trans').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       var min = 9;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
+  }
+  /* Метрики текста зависят от шрифта: первый прогон идёт на запасном (Georgia),
+     PT Serif шире -> после его загрузки нужно ПЕРЕмерить, иначе строки обрезает
+     overflow:hidden. Повторный прогон идемпотентен (fontSize сбрасывается). */
+  function fitAll(){ fitName(); fitTags(); fitStyle(); fitTrans(); }
+  window.fitAll = fitAll;
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
 </script>
 </body>
 </html>

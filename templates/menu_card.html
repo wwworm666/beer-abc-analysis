@@ -15,42 +15,49 @@
 <script>
   /* Авто-уменьшение заголовка по высоте: короткое двухсловное имя на 72pt всё равно
      переносится в 2 строки и переполняет hero -> уменьшаем шрифт, пока влезает. */
-  (function fitName(){
+  function fitName(){
     var MAX = 140, MIN = 36;
     document.querySelectorAll('.name').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       while (el.scrollHeight > MAX && size > MIN){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
+  }
   /* Теги в одну строку: уменьшаем, пока не влезут по ширине. */
-  (function fitTags(){
+  function fitTags(){
     document.querySelectorAll('.tags').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       var min = 12;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
+  }
   /* Стиль в одну строку: длинное название («Бельгийский трипель») ужимаем по ширине,
      чтобы не наезжало на ABV. */
-  (function fitStyle(){
+  function fitStyle(){
     document.querySelectorAll('.facts .style').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       var min = 20;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
+  }
   /* Транскрипция в одну строку: длинная латиница (полное имя+пивоварня) ужимается по ширине. */
-  (function fitTrans(){
+  function fitTrans(){
     document.querySelectorAll('.trans').forEach(function(el){
       el.style.fontSize = '';
       var size = parseFloat(getComputedStyle(el).fontSize);
       var min = 9;
       while (el.scrollWidth > el.clientWidth + 1 && size > min){ size -= 1; el.style.fontSize = size + 'px'; }
     });
-  })();
+  }
+  /* Метрики текста зависят от шрифта: первый прогон идёт на запасном (Georgia),
+     PT Serif шире -> после его загрузки нужно ПЕРЕмерить, иначе строки обрезает
+     overflow:hidden. Повторный прогон идемпотентен (fontSize сбрасывается). */
+  function fitAll(){ fitName(); fitTags(); fitStyle(); fitTrans(); }
+  window.fitAll = fitAll;
+  fitAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
 </script>
 </body>
 </html>

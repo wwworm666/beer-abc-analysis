@@ -314,6 +314,11 @@ def _render_pdf_html(html):
         context = browser.new_context(viewport={"width": 794, "height": 1123})
         page = context.new_page()
         page.set_content(html, wait_until="networkidle")
+        # Дождаться загрузки PT Serif и перемерить авто-ужатие строк: первый прогон
+        # fit-функций идёт на запасном шрифте (уже), без перемера PT Serif шире и
+        # строки («Дескрипторы», «Стиль», имя) обрезает overflow:hidden.
+        page.wait_for_function("document.fonts.status === 'loaded'")
+        page.evaluate("window.fitAll && window.fitAll()")
         pdf = page.pdf(format="A4",
                        margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
                        print_background=True, prefer_css_page_size=True)
