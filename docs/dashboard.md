@@ -23,68 +23,75 @@
 Все метрики рассчитываются из ОДНОГО комплексного OLAP запроса (`get_all_sales_report`):
 
 ```python
-# core/dashboard_analysis.py:14-108
+# core/dashboard_analysis.py
 def calculate_metrics(self, all_sales_data):
     # Разделяем по категориям на основе DishGroup.TopParent
     draft_records = []    # "Напитки Розлив"
     bottles_records = []  # "Напитки Фасовка"
-    kitchen_records = []  # Всё остальное
+    kitchen_records = []  # "ЕДА" (строго эта группа)
+    other_records = []    # Всё остальное: НАБОРЫ, Чай/Кофе, Газ и Пэт, ...
 
-    # 1-3. Выручка по категориям
-    draft_revenue = self._sum_revenue(draft_records)
-    bottles_revenue = self._sum_revenue(bottles_records)
-    kitchen_revenue = self._sum_revenue(kitchen_records)
-    total_revenue = draft_revenue + bottles_revenue + kitchen_revenue
+    # Выручка по категориям (итог = все 4 категории)
+    total_revenue = draft_revenue + bottles_revenue + kitchen_revenue + other_revenue
 
-    # 4-6. Доли категорий (%)
-    draft_share = (draft_revenue / total_revenue * 100) if total_revenue > 0 else 0
-    bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
-    kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
+    # Доли категорий (%): 4 доли в сумме дают 100%,
+    # на дашборде отображаются только розлив/фасовка/кухня
+    draft_share = draft_revenue / total_revenue * 100
+    ...
 
-    # 7. Количество чеков (уникальные заказы)
-    total_checks = self._count_unique_orders(...)
+    # Чеки (уникальные заказы) и средний чек — по ВСЕМ записям
+    total_checks = self._count_unique_orders(all_records)
+    avg_check = total_revenue / total_checks
 
-    # 8. Средний чек
-    avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
+    # Наценка — агрегатом, как строка «Итого» в OLAP iiko:
+    # (Σ выручка - Σ себестоимость) / Σ себестоимость
+    draft_markup = self._calculate_markup(draft_records)
+    ...
+    avg_markup = self._calculate_markup(all_records)
 
-    # 9-11. Наценка по категориям (%)
-    draft_markup = self._calculate_weighted_markup(draft_records)
-    bottles_markup = self._calculate_weighted_markup(bottles_records)
-    kitchen_markup = self._calculate_weighted_markup(kitchen_records)
+    # Прибыль (маржа) — по всем 4 категориям
+    total_margin = draft + bottles + kitchen + other
 
-    # 12. Средняя наценка
-    avg_markup = self._calculate_weighted_markup(all_records)
-
-    # 13. Прибыль (маржа)
-    total_margin = (
-        self._sum_margin(draft_records) +
-        self._sum_margin(bottles_records) +
-        self._sum_margin(kitchen_records)
-    )
-
-    # 14. Списания баллов
+    # Списания баллов
     loyalty_points = self._sum_discounts(all_records)
 ```
+
+### Категории (DishGroup.TopParent)
+
+| Категория | Группы iiko 1-го уровня | Отображается |
+|-----------|-------------------------|--------------|
+| Розлив | Напитки Розлив | да |
+| Фасовка | Напитки Фасовка | да |
+| Кухня | ЕДА (строго) | да |
+| Прочее | всё остальное: НАБОРЫ, Чай/Кофе, Газ и Пэт, ... | **нет** (only backend: `other_revenue`, `other_share`, `other_markup`) |
+
+До 2026-07-16 «Кухня» включала всё, что не напитки (НАБОРЫ с наценкой ~500%
+и Чай/Кофе ~800% завышали наценку кухни: 197% вместо честных 174% по ЕДЕ).
 
 ### Таблица метрик
 
 | № | Метрика | Формула | Ед. изм. |
 |---|---------|---------|----------|
-| 1 | Выручка | Σ(DishDiscountSumInt) | ₽ |
+| 1 | Выручка | Σ(DishDiscountSumInt) по всем записям | ₽ |
 | 2 | Чеки | count(DISTINCT UniqOrderId.Id) | шт |
 | 3 | Средний чек | Выручка / Чеки | ₽ |
 | 4 | Доля розлива | Розлив / Выручка × 100 | % |
 | 5 | Доля фасовки | Фасовка / Выручка × 100 | % |
-| 6 | Доля кухни | Кухня / Выручка × 100 | % |
+| 6 | Доля кухни | Кухня (ЕДА) / Выручка × 100 | % |
 | 7 | Выручка розлив | Σ(DishDiscountSumInt) для розлива | ₽ |
 | 8 | Выручка фасовка | Σ(DishDiscountSumInt) для фасовки | ₽ |
-| 9 | Выручка кухня | Σ(DishDiscountSumInt) для кухни | ₽ |
-| 10 | % наценки | Σ(MarkUp×Cost)/Σ(Cost) | % |
-| 11 | Прибыль | Выручка - Себестоимость | ₽ |
-| 12 | Наценка розлив | Взвешенная для розлива | % |
-| 13 | Наценка фасовка | Взвешенная для фасовки | % |
-| 14 | Наценка кухня | Взвешенная для кухни | % |
+| 9 | Выручка кухня | Σ(DishDiscountSumInt) для группы ЕДА | ₽ |
+| 10 | % наценки | (Σ выручка − Σ Cost) / Σ Cost, все записи | % |
+| 11 | Прибыль | Выручка - Себестоимость (все 4 категории) | ₽ |
+| 12 | Наценка розлив | (Σ выручка − Σ Cost) / Σ Cost для розлива | % |
+| 13 | Наценка фасовка | (Σ выручка − Σ Cost) / Σ Cost для фасовки | % |
+| 14 | Наценка кухня | (Σ выручка − Σ Cost) / Σ Cost для ЕДА | % |
 | 15 | Списания баллов | Σ(DiscountSum) | баллов |
+
+**Наценка = агрегат, а не среднее построчных MarkUp.** Формула совпадает со строкой
+«Итого» OLAP-отчёта iiko: строки с нулевой себестоимостью (позиции без техкарты)
+участвуют выручкой в числителе. `calculate_metrics` возвращает наценку дробью
+(2.2448 = 224.48%), округление до 4 знаков; фронт и месячный отчёт умножают на 100.
 
 ---
 
@@ -282,6 +289,7 @@ POST /api/export/pdf
 
 ## Changelog
 
+- **2026-07-16** — Сверка метрик с OLAP iiko: (1) «Кухня» = строго группа «ЕДА»; НАБОРЫ, Чай/Кофе, Газ и Пэт выделены в скрытую категорию «Прочее» (`other_revenue/other_share/other_markup` в API есть, карточек на экране нет); (2) наценка считается агрегатом (Σвыручка−Σсебестоимость)/Σсебестоимость вместо средневзвешенного построчного MarkUp — теперь все наценки совпадают с iiko копейка в копейку (фасовка была 134% вместо 139%); (3) точность наценки — 4 знака дроби (224.48% вместо 224.0%). Метрики сотрудников/KPI (зарплата) НЕ менялись.
 - **2026-06-06** — Вкладка «Планы» (подвкладка «Месячные») показывает только плановые значения: колонки Факт/Отклонение/% убраны, факт больше не запрашивается.
 - **2026-06-06** — Подвкладка «Планы по дням» + 3 эндпоинта `/api/plans/daily/...`. Логика веса дня унифицирована в `core/day_weights.py`; добавлены override весов дней (праздник/закрытый день). Подробнее: [venues-plans.md](venues-plans.md).
 - **2026-03-27** — Создан документ dashboard.md с описанием 15 метрик, формул расчёта, планов и weekend weighting

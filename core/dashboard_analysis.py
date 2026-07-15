@@ -7,14 +7,21 @@
 class DashboardMetrics:
     """Класс для расчета всех метрик дашборда из сырых OLAP данных"""
 
+    # Значения DishGroup.TopParent («Группа блюда 1-го уровня» в iiko).
+    # Кухня = строго группа «ЕДА»; всё, что не попало в три именованные
+    # категории (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...), уходит в «Прочее».
+    TOP_PARENT_DRAFT = 'Напитки Розлив'
+    TOP_PARENT_BOTTLES = 'Напитки Фасовка'
+    TOP_PARENT_KITCHEN = 'ЕДА'
+
     def __init__(self):
         """Инициализация калькулятора метрик"""
         pass
 
     def calculate_metrics(self, all_sales_data):
         """
-        Рассчитать все 15 метрик из комплексных OLAP данных.
-        Один запрос содержит все категории (розлив + фасовка + кухня).
+        Рассчитать все метрики из комплексных OLAP данных.
+        Один запрос содержит все категории (розлив + фасовка + кухня + прочее).
 
         Args:
             all_sales_data: dict - сырой ответ от get_all_sales_report()
@@ -22,10 +29,12 @@ class DashboardMetrics:
                 Каждая запись имеет поле 'DishGroup.TopParent':
                 - "Напитки Розлив" - разливное
                 - "Напитки Фасовка" - фасовка
-                - прочие - кухня
+                - "ЕДА" - кухня
+                - прочие (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...) - «Прочее»
 
         Returns:
-            dict с 15 метриками
+            dict с метриками. Категория «Прочее» (other_*) считается,
+            но на дашборде пока не отображается (нет в get_table_data).
         """
 
         # Извлекаем все записи
@@ -35,53 +44,63 @@ class DashboardMetrics:
         draft_records = []
         bottles_records = []
         kitchen_records = []
+        other_records = []
 
         for record in all_records:
             category = record.get('DishGroup.TopParent', '')
-            if category == 'Напитки Розлив':
+            if category == self.TOP_PARENT_DRAFT:
                 draft_records.append(record)
-            elif category == 'Напитки Фасовка':
+            elif category == self.TOP_PARENT_BOTTLES:
                 bottles_records.append(record)
-            else:
-                # Всё остальное - кухня
+            elif category == self.TOP_PARENT_KITCHEN:
                 kitchen_records.append(record)
+            else:
+                other_records.append(record)
 
-        # 1-3. Выручка по категориям
+        # 1-4. Выручка по категориям
         draft_revenue = self._sum_revenue(draft_records)
         bottles_revenue = self._sum_revenue(bottles_records)
         kitchen_revenue = self._sum_revenue(kitchen_records)
+        other_revenue = self._sum_revenue(other_records)
 
-        total_revenue = draft_revenue + bottles_revenue + kitchen_revenue
+        total_revenue = draft_revenue + bottles_revenue + kitchen_revenue + other_revenue
 
-        # 4-6. Доли категорий (%)
+        # 5-8. Доли категорий (%). Сумма четырёх долей = 100%,
+        # но на экране показываются только розлив/фасовка/кухня.
         draft_share = (draft_revenue / total_revenue * 100) if total_revenue > 0 else 0
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
+        other_share = (other_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
-        # 7. Количество чеков - считаем из уже полученных данных (без дополнительного OLAP запроса)
-        total_checks = self._count_unique_orders(draft_records, bottles_records, kitchen_records)
+        # Количество чеков - считаем из уже полученных данных (без дополнительного OLAP запроса)
+        total_checks = self._count_unique_orders(all_records)
 
-        # 8. Средний чек
+        # Средний чек
         avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
 
-        # 9-11. Наценка по категориям (%)
-        draft_markup = self._calculate_weighted_markup(draft_records)
-        bottles_markup = self._calculate_weighted_markup(bottles_records)
-        kitchen_markup = self._calculate_weighted_markup(kitchen_records)
+        # Наценка по категориям (дробь: 2.84 = 284%)
+        draft_markup = self._calculate_markup(draft_records)
+        bottles_markup = self._calculate_markup(bottles_records)
+        kitchen_markup = self._calculate_markup(kitchen_records)
+        other_markup = self._calculate_markup(other_records)
 
-        # 12. Средняя наценка (взвешенная по себестоимости)
-        avg_markup = self._calculate_weighted_markup(draft_records + bottles_records + kitchen_records)
+        # Средняя наценка по всем записям (включая «Прочее») —
+        # совпадает со строкой «Итого» OLAP-отчёта iiko
+        avg_markup = self._calculate_markup(all_records)
 
-        # 13. Прибыль (маржа)
+        # Прибыль (маржа)
         draft_margin = self._sum_margin(draft_records)
         bottles_margin = self._sum_margin(bottles_records)
         kitchen_margin = self._sum_margin(kitchen_records)
-        total_margin = draft_margin + bottles_margin + kitchen_margin
+        other_margin = self._sum_margin(other_records)
+        total_margin = draft_margin + bottles_margin + kitchen_margin + other_margin
 
-        # 14. Списания баллов (сумма скидок из DiscountSum)
-        loyalty_points = self._sum_discounts(draft_records + bottles_records + kitchen_records)
+        # Списания баллов (сумма скидок из DiscountSum)
+        loyalty_points = self._sum_discounts(all_records)
 
-        # Формируем результат
+        # Формируем результат.
+        # Наценки округляются до 4 знаков: это дробь (2.2448),
+        # после ×100 на фронте получается 224.48% — как в iiko.
         metrics = {
             'total_revenue': round(total_revenue, 2),
             'total_checks': total_checks,
@@ -90,17 +109,20 @@ class DashboardMetrics:
             'draft_share': round(draft_share, 2),
             'bottles_share': round(bottles_share, 2),
             'kitchen_share': round(kitchen_share, 2),
+            'other_share': round(other_share, 2),
 
             'draft_revenue': round(draft_revenue, 2),
             'bottles_revenue': round(bottles_revenue, 2),
             'kitchen_revenue': round(kitchen_revenue, 2),
+            'other_revenue': round(other_revenue, 2),
 
-            'avg_markup': round(avg_markup, 2),
+            'avg_markup': round(avg_markup, 4),
             'total_margin': round(total_margin, 2),
 
-            'draft_markup': round(draft_markup, 2),
-            'bottles_markup': round(bottles_markup, 2),
-            'kitchen_markup': round(kitchen_markup, 2),
+            'draft_markup': round(draft_markup, 4),
+            'bottles_markup': round(bottles_markup, 4),
+            'kitchen_markup': round(kitchen_markup, 4),
+            'other_markup': round(other_markup, 4),
 
             'loyalty_points_written_off': loyalty_points
         }
@@ -189,37 +211,40 @@ class DashboardMetrics:
 
         return total
 
-    def _calculate_weighted_markup(self, records):
+    def _calculate_markup(self, records):
         """
-        Рассчитать среднюю наценку, взвешенную по себестоимости
+        Рассчитать наценку агрегатом, как строка «Итого» OLAP-отчёта iiko:
+
+            наценка = (Σ выручка - Σ себестоимость) / Σ себестоимость
+
+        Строки с нулевой себестоимостью (позиции без техкарты/оприходования)
+        участвуют выручкой в числителе — ровно как в iiko. Раньше здесь было
+        средневзвешенное построчного поля MarkUp с выбросом таких строк,
+        из-за чего наценка расходилась с iiko (фасовка: 134% против 139%).
 
         Args:
             records: list - массив записей с полями:
-                - 'ProductCostBase.MarkUp' (наценка в %)
+                - 'DishDiscountSumInt' (выручка со скидкой)
                 - 'ProductCostBase.ProductCost' (себестоимость)
 
         Returns:
-            float - средняя наценка в %
+            float - наценка как дробь (2.84 = 284%); 0.0 если себестоимость <= 0
         """
-        total_weighted_markup = 0.0
+        total_revenue = 0.0
         total_cost = 0.0
 
         for record in records:
-            markup = record.get('ProductCostBase.MarkUp', 0)
+            revenue = record.get('DishDiscountSumInt', 0)
             cost = record.get('ProductCostBase.ProductCost', 0)
 
             try:
-                markup_float = float(markup) if markup else 0.0
-                cost_float = float(cost) if cost else 0.0
-
-                if cost_float > 0:
-                    total_weighted_markup += markup_float * cost_float
-                    total_cost += cost_float
+                total_revenue += float(revenue) if revenue else 0.0
+                total_cost += float(cost) if cost else 0.0
             except (ValueError, TypeError):
                 continue
 
         if total_cost > 0:
-            return total_weighted_markup / total_cost
+            return (total_revenue - total_cost) / total_cost
         return 0.0
 
     def _sum_discounts(self, records):
@@ -242,23 +267,18 @@ class DashboardMetrics:
                     continue
         return total
 
-    def _count_unique_orders(self, draft_records, bottles_records, kitchen_records):
+    def _count_unique_orders(self, all_records):
         """
         Посчитать количество уникальных заказов (чеков) из уже полученных OLAP данных.
         Избегает дополнительного OLAP запроса get_orders_count().
 
         Args:
-            draft_records: list - записи разливного пива
-            bottles_records: list - записи фасованного пива
-            kitchen_records: list - записи кухни
+            all_records: list - все записи OLAP (без разбивки по категориям)
 
         Returns:
             int - количество уникальных заказов
         """
         unique_order_ids = set()
-
-        # Объединяем все записи
-        all_records = draft_records + bottles_records + kitchen_records
 
         # Собираем уникальные ID заказов из OLAP данных
         for record in all_records:
