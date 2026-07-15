@@ -69,6 +69,10 @@ data/monthly_cache/
 data/.monthly_report_lock_*
 data/.monthly_report_startup_*
 
+# Аналитика гостей: lock-файлы шедулера синка (витрина data/guests.db покрыта data/*.db)
+data/.guests_sync_lock_*
+data/.guests_sync_startup_*
+
 # API ключи и секреты
 апи
 .env

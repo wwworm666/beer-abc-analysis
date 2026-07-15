@@ -2215,6 +2215,129 @@ class OlapReports:
             print(f"[ERROR] Oshibka: {e}")
             return None
 
+    def _post_olap_with_retries(self, request_body, tag):
+        """POST /v2/reports/olap с ретраями сетевых сбоев.
+
+        Тот же паттерн, что в get_all_sales_report: 2 попытки, лёгкий backoff.
+        Вызывается ТОЛЬКО из фонового синка гостей, поэтому таймаут 90 с
+        (бюджет gunicorn --timeout здесь не ограничивает — HTTP-запроса нет).
+        Возвращает list строк ответа или None при неудаче.
+        """
+        url = f"{self.api.base_url}/v2/reports/olap"
+        params = {"key": self.token}
+        headers = {"Content-Type": "application/json"}
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, params=params, json=request_body,
+                                         headers=headers, timeout=90)
+                if response.status_code == 200:
+                    return response.json().get('data', [])
+                print(f"[ERROR] {tag}: HTTP {response.status_code}: {response.text[:300]}")
+                return None
+            except (requests.exceptions.ReadTimeout,
+                    requests.exceptions.ConnectTimeout,
+                    requests.exceptions.ConnectionError) as e:
+                print(f"[WARN] {tag}: setevoy sboy na popitke {attempt + 1}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 * (attempt + 1))
+                else:
+                    print(f"[ERROR] {tag}: sboy posle {max_retries} popytok")
+                    return None
+            except Exception as e:
+                print(f"[ERROR] {tag}: {e}")
+                return None
+        return None
+
+    def get_guest_receipts_month(self, date_from, date_to_excl):
+        """Чеки гостей программы лояльности за период — уровень чека.
+
+        Источник модуля «Аналитика гостей» (docs/guests.md). Одна строка ответа =
+        один чек с опознанным гостем (карта лояльности проведена). Правая граница
+        date_to_excl ЭКСКЛЮЗИВНАЯ (конвенция OpenDate.Typed DateRange).
+
+        Гостевые поля Delivery.* заполнены только при проведённой карте
+        (см. get_employee_discount_checks, проверено на живых данных 2026-06-17);
+        строки без карты и телефона отбрасывает вызывающая сторона.
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+        request_body = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "Delivery.CustomerCardNumber",
+                "Delivery.CustomerPhone",
+                "Delivery.CustomerName",
+                "Delivery.CustomerCreatedDateTyped",
+                "OrderNum",
+                "OpenDate.Typed",
+            ],
+            "groupByColFields": [],
+            "aggregateFields": ["DishDiscountSumInt", "DiscountSum", "DishSumInt"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to_excl}",
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"],
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"],
+                },
+            },
+        }
+        return self._post_olap_with_retries(
+            request_body, f"guest_receipts {date_from}..{date_to_excl}")
+
+    def get_guest_receipt_items_month(self, date_from, date_to_excl):
+        """Позиции чеков гостей за период — уровень позиции (блюдо в чеке).
+
+        Источник товарных отчётов модуля «Аналитика гостей». Привязка позиции
+        к гостю делается вызывающей стороной по (дата, бар, номер чека, карта) —
+        чек с той же картой всегда присутствует в get_guest_receipts_month
+        того же месяца. Правая граница ЭКСКЛЮЗИВНАЯ.
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+        request_body = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "Delivery.CustomerCardNumber",
+                "OrderNum",
+                "OpenDate.Typed",
+                "DishName",
+            ],
+            "groupByColFields": [],
+            "aggregateFields": ["DishAmountInt", "DishDiscountSumInt"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to_excl}",
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"],
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"],
+                },
+            },
+        }
+        return self._post_olap_with_retries(
+            request_body, f"guest_items {date_from}..{date_to_excl}")
+
 
 # Тестовый запуск
 if __name__ == "__main__":

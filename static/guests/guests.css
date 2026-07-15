@@ -1,0 +1,148 @@
+/* Раздел «Гости» — аналитика гостей и программы лояльности.
+   Только переменные дизайн-системы (variables.css), без эмодзи. */
+
+.guests-wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px 48px; }
+
+/* --- Управление периодом --- */
+.guests-controls {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    margin: 18px 0 14px;
+}
+.period-types { display: flex; gap: 4px; background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-radius: 999px; padding: 4px; }
+.ptype-btn { border: none; background: transparent; cursor: pointer;
+    padding: 8px 16px; border-radius: 999px; font-family: inherit;
+    font-size: 0.85rem; color: var(--text-secondary); transition: all .15s ease; }
+.ptype-btn:hover { color: var(--text-primary); }
+.ptype-btn.active { background: var(--accent); color: #fff; }
+
+.period-nav { display: flex; align-items: center; gap: 8px; }
+.pnav-btn { border: 1px solid var(--border-color); background: var(--bg-secondary);
+    cursor: pointer; width: 34px; height: 34px; border-radius: 50%;
+    font-family: inherit; color: var(--text-primary); transition: all .15s ease; }
+.pnav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.period-label { min-width: 150px; text-align: center; font-weight: 600;
+    font-size: 0.95rem; }
+
+.coverage-banner { margin-left: auto; font-size: 0.75rem;
+    color: var(--text-tertiary); text-align: right; line-height: 1.35; }
+.sync-btn { border: 1px solid var(--border-color); background: var(--bg-secondary);
+    color: var(--text-secondary); cursor: pointer; padding: 8px 16px;
+    border-radius: 999px; font-family: inherit; font-size: 0.8rem;
+    transition: all .15s ease; }
+.sync-btn:hover { border-color: var(--accent); color: var(--accent); }
+.sync-btn[disabled] { opacity: .5; cursor: default; }
+
+/* --- Вкладки --- */
+.guests-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 18px; }
+.gtab-btn { border: 1px solid var(--border-color); background: var(--bg-secondary);
+    cursor: pointer; padding: 9px 16px; border-radius: 999px; font-family: inherit;
+    font-size: 0.85rem; color: var(--text-secondary); transition: all .15s ease; }
+.gtab-btn:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+.gtab-btn.active { background: var(--text-primary); border-color: var(--text-primary);
+    color: var(--bg-primary); }
+
+.gtab-pane { display: none; }
+.gtab-pane.active { display: block; }
+.pane-loading, .pane-error { padding: 40px 0; text-align: center;
+    color: var(--text-tertiary); font-size: 0.9rem; }
+.pane-error { color: var(--danger, #DC2626); }
+
+/* --- Карточки метрик --- */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 14px; margin-bottom: 20px; }
+.gmetric { background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 14px; padding: 16px 18px; }
+.gmetric-label { font-size: 0.72rem; font-weight: 600; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 6px; }
+.gmetric-value { font-size: 1.65rem; font-weight: 700; margin-top: 6px;
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.gmetric-sub { font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;
+    font-variant-numeric: tabular-nums; }
+
+/* Значок формулы: у каждой метрики "?" с расшифровкой расчёта */
+.metric-help { display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; border-radius: 50%; flex: 0 0 auto;
+    border: 1px solid var(--border-color); color: var(--text-tertiary);
+    font-size: 10px; font-weight: 600; cursor: help; }
+.metric-help:hover { border-color: var(--accent); color: var(--accent); }
+
+/* --- Карточки-контейнеры --- */
+.gcard { background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 16px; padding: 20px; margin-bottom: 18px; }
+.gcard h3 { margin: 0 0 14px; font-size: 0.85rem; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 8px; }
+.gcard-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 900px) { .gcard-grid-2 { grid-template-columns: 1fr; } }
+.chart-box { position: relative; height: 300px; }
+.chart-box.tall { height: 460px; }
+
+/* --- Таблицы --- */
+.gtable-wrap { overflow-x: auto; }
+.gtable { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.gtable th { text-align: left; padding: 9px 12px; font-weight: 600;
+    font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: .05em; border-bottom: 2px solid var(--border-color);
+    white-space: nowrap; }
+.gtable td { padding: 9px 12px; border-bottom: 1px solid var(--border-color);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gtable tr:hover td { background: var(--bg-tertiary); }
+.gtable .num { text-align: right; }
+.gtable .dim { color: var(--text-tertiary); }
+.heat { text-align: right; }
+
+/* --- Бейджи статусов и сегментов --- */
+.gbadge { display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: .03em;
+    border: 1px solid var(--border-color); color: var(--text-secondary); }
+.gbadge.active { border-color: var(--success, #059669); color: var(--success, #059669); }
+.gbadge.sleeping { border-color: var(--warning, #D97706); color: var(--warning, #D97706); }
+.gbadge.at_risk { border-color: var(--accent); color: var(--accent); }
+.gbadge.lost { border-color: var(--danger, #DC2626); color: var(--danger, #DC2626); }
+
+.delta-up { color: var(--success, #059669); }
+.delta-down { color: var(--danger, #DC2626); }
+
+/* --- Подпереключатели внутри вкладки --- */
+.sub-switch { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
+.sub-btn { border: 1px solid var(--border-color); background: transparent;
+    cursor: pointer; padding: 7px 14px; border-radius: 999px; font-family: inherit;
+    font-size: 0.8rem; color: var(--text-secondary); transition: all .15s ease; }
+.sub-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* --- Блок «Как считается» --- */
+.how-block { margin-top: 8px; border: 1px dashed var(--border-color);
+    border-radius: 12px; padding: 4px 16px; }
+.how-block summary { cursor: pointer; font-size: 0.78rem; font-weight: 600;
+    color: var(--text-tertiary); padding: 8px 0; text-transform: uppercase;
+    letter-spacing: .05em; }
+.how-block .how-item { font-size: 0.8rem; color: var(--text-secondary);
+    padding: 6px 0; border-top: 1px solid var(--border-color); line-height: 1.5; }
+.how-item b { color: var(--text-primary); }
+
+/* --- Поиск гостя / карточка гостя --- */
+.guest-search { display: flex; gap: 10px; margin-bottom: 16px; }
+.guest-search input { flex: 1 1 auto; max-width: 420px; padding: 11px 16px;
+    border: 1px solid var(--border-color); border-radius: 999px;
+    font-family: inherit; font-size: 0.9rem; background: var(--bg-secondary);
+    color: var(--text-primary); }
+.guest-search input:focus { outline: none; border-color: var(--accent); }
+.search-results { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.search-hit { display: flex; gap: 14px; align-items: baseline; cursor: pointer;
+    padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 12px;
+    background: var(--bg-secondary); transition: all .15s ease; font-size: 0.85rem; }
+.search-hit:hover { border-color: var(--accent); }
+.search-hit .dim { color: var(--text-tertiary); font-size: 0.78rem; }
+
+.note-line { font-size: 0.75rem; color: var(--text-tertiary); margin: 8px 0 0;
+    line-height: 1.45; }
+
+@media (max-width: 700px) {
+    .guests-controls { gap: 10px; }
+    .coverage-banner { margin-left: 0; text-align: left; width: 100%; }
+    .period-label { min-width: 0; }
+    .metric-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+    .chart-box { height: 240px; }
+}

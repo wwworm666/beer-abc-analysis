@@ -12,6 +12,7 @@ from .open_check import open_check_bp
 from .menu_editor import menu_editor_bp
 from .auth import auth_bp
 from .temperature import temperature_bp
+from .guests import guests_bp
 
 # Редактор меню (/menu) перенесён из локального menu_tool/ в основное приложение:
 # данные на постоянном диске (/kultura), Chromium для PDF есть в прод-образе
@@ -33,3 +34,4 @@ def register_blueprints(app):
     app.register_blueprint(menu_editor_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(temperature_bp)
+    app.register_blueprint(guests_bp)

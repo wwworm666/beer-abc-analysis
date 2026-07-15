@@ -74,6 +74,10 @@ start_monthly_report_scheduler()
 from core.temperature_scheduler import start_scheduler as start_temperature_scheduler
 start_temperature_scheduler()
 
+# Запустить фоновую синхронизацию витрины «Аналитика гостей» (ночной синк + бэкфилл)
+from core.guest_sync_scheduler import start_scheduler as start_guest_sync_scheduler
+start_guest_sync_scheduler()
+
 
 if __name__ == '__main__':
     # Под gunicorn эта ветка не исполняется — это только для локального запуска `python app.py`.

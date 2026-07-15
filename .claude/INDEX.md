@@ -14,6 +14,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ├── Employee Dashboard           → employee.md
 ├── ABC/XYZ Анализ               → abc-xyz-analysis.md
 ├── Анализ скидок (RFM)          → discounts.md
+├── Аналитика гостей (CRM)       → guests.md
 ├── Анализ разливного            → draft-beer-errors.md, draft-beer-fixes.md
 ├── Конструктор отчётов          → explorer.md
 ├── Управление кранами           → taps.md
@@ -47,6 +48,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/employee.md](../docs/employee.md) | Employee Dashboard — аналитика сотрудников, KPI, бонусы | ✅ |
 | [docs/abc-xyz-analysis.md](../docs/abc-xyz-analysis.md) | ABC/XYZ анализ ассортимента пива | ✅ |
 | [docs/discounts.md](../docs/discounts.md) | Анализ скидок — RFM-сегментация, ROI | ✅ |
+| [docs/guests.md](../docs/guests.md) | Аналитика гостей (CRM) — `/guests`, витрина guests.db, 14 отчётов | ✅ |
 | [docs/draft-beer-errors.md](../docs/draft-beer-errors.md) | Ошибки анализа разливного (классификация) | ✅ |
 | [docs/draft-beer-fixes.md](../docs/draft-beer-fixes.md) | Исправления анализа разливного (2026-03-31) | ✅ |
 | [docs/explorer.md](../docs/explorer.md) | Конструктор отчётов — `/explorer`, pivot iiko-данных | ✅ |
