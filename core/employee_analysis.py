@@ -82,20 +82,26 @@ class EmployeeMetricsCalculator:
         # Средний чек — считаем из OLAP (выручка OLAP / чеки OLAP), не мешая с кассовыми сменами
         olap_revenue = float(emp_aggregated.get('DishDiscountSumInt', 0) or 0)
 
-        # Фильтруем записи по сотруднику для расчёта по категориям
+        # Фильтруем записи по сотруднику для расчёта по категориям.
+        # kitchen_data содержит всё кроме напитков (OLAP ExcludeValues);
+        # кухня = строго группа «ЕДА», остальное (НАБОРЫ, Чай/Кофе, Газ и Пэт) — «Прочее»
         draft_records = self._filter_by_employee(draft_data, employee_name)
         bottles_records = self._filter_by_employee(bottles_data, employee_name)
-        kitchen_records = self._filter_by_employee(kitchen_data, employee_name)
+        non_drink_records = self._filter_by_employee(kitchen_data, employee_name)
+        kitchen_records = [r for r in non_drink_records if r.get('DishGroup.TopParent', '') == 'ЕДА']
+        other_records = [r for r in non_drink_records if r.get('DishGroup.TopParent', '') != 'ЕДА']
 
         # 1. Выручка по категориям
         draft_revenue = self._sum_revenue(draft_records)
         bottles_revenue = self._sum_revenue(bottles_records)
         kitchen_revenue = self._sum_revenue(kitchen_records)
+        other_revenue = self._sum_revenue(other_records)
 
         # 2. Доли категорий
         draft_share = (draft_revenue / total_revenue * 100) if total_revenue > 0 else 0
         bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
         kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
+        other_share = (other_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
         # 3. Данные о сменах
         shifts_count = 0
@@ -132,8 +138,8 @@ class EmployeeMetricsCalculator:
         drink_records = draft_records + bottles_records
         top_beers = self._get_top_beers(drink_records)
 
-        # 7. Наценка (взвешенная средняя)
-        all_records = draft_records + bottles_records + kitchen_records
+        # 7. Наценка (взвешенная средняя) — по всем категориям, включая «Прочее»
+        all_records = draft_records + bottles_records + kitchen_records + other_records
         avg_markup = self._calculate_weighted_markup(all_records) * 100
 
         # 8. % скидок от выручки
@@ -155,15 +161,17 @@ class EmployeeMetricsCalculator:
             'employee_name': employee_name,
             'total_revenue': round(total_revenue, 2),
 
-            # Доли по категориям
+            # Доли по категориям (other_* — скрытая категория «Прочее»)
             'draft_share': round(draft_share, 2),
             'bottles_share': round(bottles_share, 2),
             'kitchen_share': round(kitchen_share, 2),
+            'other_share': round(other_share, 2),
 
             # Выручка по категориям
             'draft_revenue': round(draft_revenue, 2),
             'bottles_revenue': round(bottles_revenue, 2),
             'kitchen_revenue': round(kitchen_revenue, 2),
+            'other_revenue': round(other_revenue, 2),
 
             # Эффективность
             'shifts_count': shifts_count,

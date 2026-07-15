@@ -97,10 +97,12 @@ def calculate(self, employee_name, aggregated_data, ...):
     'total_revenue': float,         # Выручка
     'draft_share': float,           # % розлива
     'bottles_share': float,         # % фасовки
-    'kitchen_share': float,         # % кухни
+    'kitchen_share': float,         # % кухни (строго группа «ЕДА», с 2026-07-16)
+    'other_share': float,           # % прочего (НАБОРЫ, Чай/Кофе, Газ и Пэт) — скрытая категория
     'draft_revenue': float,
     'bottles_revenue': float,
-    'kitchen_revenue': float,
+    'kitchen_revenue': float,       # только группа «ЕДА»
+    'other_revenue': float,         # прочие не-напитки
     'shifts_count': int,            # Количество смен
     'work_hours': float,            # Часы работы
     'revenue_per_shift': float,     # Выручка/смена
@@ -678,6 +680,16 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ---
 
 ## Changelog
+
+### 2026-07-16 — Кухня = строго группа «ЕДА», скрытая категория «Прочее»
+
+Во всех расчётах по сотрудникам (карточка /employee, KPI-метрики,
+/api/employee-metrics-breakdown) «кухня» теперь строго группа iiko «ЕДА».
+НАБОРЫ, Чай/Кофе, Газ и Пэт выделены в скрытую категорию «Прочее»
+(`other_share`/`other_revenue` в ответах есть, в UI не отображается).
+Итоговая выручка/прибыль/наценка по-прежнему считаются по всем категориям.
+ВАЖНО для KPI: факт «Доля кухни» с этой даты ниже (без НАБОРОВ и чая) —
+июльские цели kitchen_share ставились под старое определение.
 
 ### 2026-06-17 — Скидки по чекам: % скидки от полной суммы чека
 

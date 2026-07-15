@@ -4,7 +4,8 @@
 - метрика (revenue в MVP, задел на qty/cost/margin/checks),
 - измерение (top_category / third_parent / dish_name),
 - гранулярность времени (day / week / month),
-- фильтр верхней категории (kitchen / draft / bottled / all).
+- фильтр верхней категории (kitchen / draft / bottled / other / all);
+  kitchen = строго группа «ЕДА», other = прочие не-напитки (НАБОРЫ, Чай/Кофе, Газ и Пэт).
 
 Логика читает строки из get_all_sales_report (кэш в DASHBOARD_OLAP_CACHE,
 namespaced ключом explorer_*), затем pandas-агрегирует и возвращает
@@ -25,8 +26,9 @@ from extensions import DASHBOARD_OLAP_CACHE, DASHBOARD_OLAP_CACHE_TTL
 
 DRAFT_TOP = 'Напитки Розлив'
 BOTTLED_TOP = 'Напитки Фасовка'
+KITCHEN_TOP = 'ЕДА'
 
-TOP_CATEGORY_FILTERS = {'kitchen', 'draft', 'bottled'}
+TOP_CATEGORY_FILTERS = {'kitchen', 'draft', 'bottled', 'other'}
 GROUP_BY_FIELD = {
     'top_category': 'DishGroup.TopParent',
     'second_parent': 'DishGroup.SecondParent',
@@ -93,7 +95,10 @@ def _apply_top_category_filter(df: pd.DataFrame, top_category: str | None) -> pd
     if top_category == 'bottled':
         return df[top == BOTTLED_TOP]
     if top_category == 'kitchen':
-        return df[~top.isin([DRAFT_TOP, BOTTLED_TOP])]
+        return df[top == KITCHEN_TOP]
+    if top_category == 'other':
+        # Прочее = всё, что не напитки и не ЕДА (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...)
+        return df[~top.isin([DRAFT_TOP, BOTTLED_TOP, KITCHEN_TOP])]
     return df
 
 

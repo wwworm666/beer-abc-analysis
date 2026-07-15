@@ -1,5 +1,30 @@
 ﻿# Changelog
 
+### 2026-07-16 (2) — «Кухня = ЕДА» распространено на все расчёты (сотрудники, KPI, explorer)
+
+Продолжение утреннего фикса дашборда: по решению владельца определение
+«кухня = строго группа iiko „ЕДА“, остальные не-напитки = скрытое „Прочее“»
+применено во всех остальных местах:
+
+- `core/employee_analysis.py` (карточка /employee): kitchen_records = только
+  «ЕДА»; добавлены `other_share`/`other_revenue`; наценка и топы — по всем записям.
+- `routes/employee.py`: KPI-метрики из kpi_olap (cat == 'ЕДА' → кухня) и
+  /api/employee-metrics-breakdown (split по DishGroup.TopParent; «Прочее»
+  участвует в total_cost/прибыли, otherShare/revenueOther/markupOther в ответе).
+- `core/explorer.py` + `routes/explorer.py` (без изменений кода роута):
+  фильтр `kitchen` = «ЕДА»; новый фильтр `other` доступен через API,
+  в UI-селект /explorer пока не выведен.
+- `core/olap_reports.py`: только докстринги — kitchen-запросы по-прежнему
+  тянут ВСЕ не-напитки (ExcludeValues), деление кухня/прочее в Python.
+
+ВАЖНО (KPI/зарплата): факт «Доля кухни» (kpi1 по умолчанию) с этой даты
+считается без НАБОРОВ/Чая/Газа и стал ниже. Июльские цели KPI ставились под
+старое определение — владельцу предложено скорректировать цели kitchen_share.
+Пирог категорий на /employee показывает 3 доли без «Прочего» (сумма < 100%).
+
+Файлы: `core/employee_analysis.py`, `routes/employee.py`, `core/explorer.py`,
+`core/olap_reports.py`, `docs/employee.md`, `docs/explorer.md`.
+
 ### 2026-07-16 — Дашборд: наценки сведены с OLAP iiko, «Кухня» = только ЕДА
 
 Владелец сверил карточки дашборда с OLAP-отчётом iiko (Варшавская, 06–12.07):

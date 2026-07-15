@@ -454,7 +454,8 @@ class OlapReports:
             Каждая запись содержит поле 'DishGroup.TopParent' для разделения категорий:
             - "Напитки Розлив" - разливное пиво
             - "Напитки Фасовка" - фасованное пиво
-            - прочие - кухня
+            - "ЕДА" - кухня
+            - прочие (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...) - категория «Прочее»
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
@@ -625,7 +626,12 @@ class OlapReports:
             return None
 
     def _build_kitchen_olap_request(self, date_from, date_to, bar_name=None):
-        """Построить JSON запрос для OLAP отчета по блюдам кухни"""
+        """Построить JSON запрос для OLAP отчета по НЕ-напиткам.
+
+        Фильтр — ExcludeValues(Розлив, Фасовка), т.е. в ответе кухня («ЕДА»)
+        ПЛЮС «Прочее» (НАБОРЫ, Чай/Кофе, Газ и Пэт). Разделение кухня/прочее
+        делается на стороне Python по DishGroup.TopParent == 'ЕДА'.
+        """
 
         request = {
             "reportType": "SALES",
@@ -1129,7 +1135,11 @@ class OlapReports:
             return None
 
     def _build_kitchen_olap_request_with_waiter(self, date_from, date_to, bar_name=None):
-        """Построить JSON запрос для OLAP отчета по блюдам кухни с информацией об официантах"""
+        """Построить JSON запрос для OLAP отчета по НЕ-напиткам с официантами.
+
+        Как _build_kitchen_olap_request: в ответе кухня («ЕДА») ПЛЮС «Прочее»;
+        разделение делается получателем по DishGroup.TopParent == 'ЕДА'.
+        """
 
         request = {
             "reportType": "SALES",

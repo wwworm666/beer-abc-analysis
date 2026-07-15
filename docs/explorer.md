@@ -67,7 +67,7 @@ UI controls → fetch /api/explorer/pivot?...
 | `venue` | `bolshoy / ligovskiy / kremenchugskaya / varshavskaya / all` | да |
 | `granularity` | `day / week / month` | да |
 | `group_by` | `top_category / second_parent / third_parent / dish_name` | да |
-| `top_category` | `kitchen / draft / bottled` или пусто | нет |
+| `top_category` | `kitchen / draft / bottled / other` или пусто | нет |
 | `metric` | `revenue` (по умолчанию) | нет |
 
 **Ответ:**
@@ -102,7 +102,9 @@ UI controls → fetch /api/explorer/pivot?...
 2. **Фильтр top_category** (применяется ДО группировки):
    - `draft` → `DishGroup.TopParent == "Напитки Розлив"`
    - `bottled` → `DishGroup.TopParent == "Напитки Фасовка"`
-   - `kitchen` → `NOT IN ("Напитки Розлив", "Напитки Фасовка")`
+   - `kitchen` → `DishGroup.TopParent == "ЕДА"` (с 2026-07-16; раньше — все не-напитки)
+   - `other` → `NOT IN ("Напитки Розлив", "Напитки Фасовка", "ЕДА")` —
+     НАБОРЫ, Чай/Кофе, Газ и Пэт (в UI-селекте пока не показывается, доступен через API)
    - пусто → без фильтра
 
 3. **Бакеты времени:**
@@ -194,6 +196,8 @@ python app.py
 
 ## Changelog
 
+- **2026-07-16** — фильтр `kitchen` = строго группа «ЕДА» (раньше — все не-напитки);
+  добавлен API-фильтр `other` (НАБОРЫ, Чай/Кофе, Газ и Пэт), в UI-селект пока не выведен
 - **2026-05-17** — первая версия. Только метрика «выручка», MVP-фильтры
   (бар × период × гранулярность × измерение × top-category). Реализованы
   страница `/explorer`, API `GET /api/explorer/pivot`, кэш OLAP-данных с

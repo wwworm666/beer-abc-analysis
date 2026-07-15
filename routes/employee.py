@@ -709,7 +709,7 @@ def _build_kpi_metrics(
 
     Источники:
       summary    -> total_checks, total_revenue, discount_sum
-      categories -> draft/bottles/kitchen revenue, markup
+      categories -> draft/bottles/kitchen(ЕДА)/other revenue, markup
       cashshifts -> shifts_count, total_hours, late_count
       OLAP loyalty -> loyalty_cards_count
       OLAP cancelled -> cancelled_count
@@ -722,10 +722,12 @@ def _build_kpi_metrics(
     total_revenue = summary.get('total_revenue', 0) if summary else 0
     discount_sum = summary.get('discount_sum', 0) if summary else 0
 
-    # Разбивка по категориям
+    # Разбивка по категориям: кухня = строго группа «ЕДА»,
+    # остальное не-напитки (НАБОРЫ, Чай/Кофе, Газ и Пэт) — «Прочее»
     draft_revenue = 0.0
     bottles_revenue = 0.0
     kitchen_revenue = 0.0
+    other_revenue = 0.0
     total_cost = 0.0
     total_weighted_markup = 0.0
 
@@ -739,8 +741,10 @@ def _build_kpi_metrics(
             draft_revenue += rev
         elif cat == 'Напитки Фасовка':
             bottles_revenue += rev
-        else:
+        elif cat == 'ЕДА':
             kitchen_revenue += rev
+        else:
+            other_revenue += rev
 
         if cost > 0:
             total_weighted_markup += markup * cost
@@ -750,6 +754,7 @@ def _build_kpi_metrics(
     draft_share = (draft_revenue / total_revenue * 100) if total_revenue > 0 else 0
     bottles_share = (bottles_revenue / total_revenue * 100) if total_revenue > 0 else 0
     kitchen_share = (kitchen_revenue / total_revenue * 100) if total_revenue > 0 else 0
+    other_share = (other_revenue / total_revenue * 100) if total_revenue > 0 else 0
 
     # Производные метрики
     avg_check = (total_revenue / total_checks) if total_checks > 0 else 0
@@ -765,9 +770,11 @@ def _build_kpi_metrics(
         'draft_share': round(draft_share, 2),
         'bottles_share': round(bottles_share, 2),
         'kitchen_share': round(kitchen_share, 2),
+        'other_share': round(other_share, 2),
         'draft_revenue': round(draft_revenue, 2),
         'bottles_revenue': round(bottles_revenue, 2),
         'kitchen_revenue': round(kitchen_revenue, 2),
+        'other_revenue': round(other_revenue, 2),
         'avg_check': round(avg_check, 2),
         'total_checks': total_checks,
         'revenue_per_shift': round(revenue_per_shift, 2),
@@ -1096,21 +1103,28 @@ def employee_metrics_breakdown():
                     'loyaltyWriteoffs': float(metrics.get('DiscountSum', 0) or 0),
                     'draft_revenue': 0, 'draft_cost': 0,
                     'bottles_revenue': 0, 'bottles_cost': 0,
-                    'kitchen_revenue': 0, 'kitchen_cost': 0
+                    'kitchen_revenue': 0, 'kitchen_cost': 0,
+                    'other_revenue': 0, 'other_cost': 0
                 }
 
-        # Добавляем выручку и себестоимость по категориям из OLAP данных
-        for category, cat_key, cost_key in [
-            (draft, 'draft', 'draft'),
-            (bottles, 'bottles', 'bottles'),
-            (kitchen, 'kitchen', 'kitchen')
+        # Добавляем выручку и себестоимость по категориям из OLAP данных.
+        # kitchen-отчёт содержит всё кроме напитков: кухня = строго группа «ЕДА»,
+        # остальное (НАБОРЫ, Чай/Кофе, Газ и Пэт) — скрытая категория «Прочее»
+        def _kitchen_bucket(row):
+            return 'kitchen' if row.get('DishGroup.TopParent', '') == 'ЕДА' else 'other'
+
+        for category, cat_key in [
+            (draft, 'draft'),
+            (bottles, 'bottles'),
+            (kitchen, None)  # None -> бакет по группе (kitchen/other)
         ]:
             for row in category:
                 if isinstance(row, dict):
                     name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
                     if name and name != 'Итого' and name in employees_data:
-                        employees_data[name][f'{cat_key}_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
-                        employees_data[name][f'{cat_key}_cost'] += float(row.get('ProductCostBase.ProductCost', 0) or 0)
+                        bucket = cat_key or _kitchen_bucket(row)
+                        employees_data[name][f'{bucket}_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
+                        employees_data[name][f'{bucket}_cost'] += float(row.get('ProductCostBase.ProductCost', 0) or 0)
 
         # Рассчитываем производные метрики
         result = []
@@ -1125,15 +1139,17 @@ def employee_metrics_breakdown():
             draft_share = (data['draft_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
             bottles_share = (data['bottles_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
             kitchen_share = (data['kitchen_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
+            other_share = (data['other_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
 
-            # Себестоимость и прибыль
-            total_cost = data['draft_cost'] + data['bottles_cost'] + data['kitchen_cost']
+            # Себестоимость и прибыль (включая «Прочее»)
+            total_cost = data['draft_cost'] + data['bottles_cost'] + data['kitchen_cost'] + data['other_cost']
             profit = total_revenue - total_cost
 
             # Наценки по категориям: (выручка / себестоимость - 1) * 100
             markup_draft = ((data['draft_revenue'] / data['draft_cost'] - 1) * 100) if data['draft_cost'] > 0 else 0
             markup_packaged = ((data['bottles_revenue'] / data['bottles_cost'] - 1) * 100) if data['bottles_cost'] > 0 else 0
             markup_kitchen = ((data['kitchen_revenue'] / data['kitchen_cost'] - 1) * 100) if data['kitchen_cost'] > 0 else 0
+            markup_other = ((data['other_revenue'] / data['other_cost'] - 1) * 100) if data['other_cost'] > 0 else 0
             markup_percent = ((total_revenue / total_cost - 1) * 100) if total_cost > 0 else 0
 
             result.append({
@@ -1144,14 +1160,17 @@ def employee_metrics_breakdown():
                 'draftShare': round(draft_share, 1),
                 'packagedShare': round(bottles_share, 1),
                 'kitchenShare': round(kitchen_share, 1),
+                'otherShare': round(other_share, 1),
                 'revenueDraft': round(data['draft_revenue'], 0),
                 'revenuePackaged': round(data['bottles_revenue'], 0),
                 'revenueKitchen': round(data['kitchen_revenue'], 0),
+                'revenueOther': round(data['other_revenue'], 0),
                 'profit': round(profit, 0),
                 'markupPercent': round(markup_percent, 1),
                 'markupDraft': round(markup_draft, 1),
                 'markupPackaged': round(markup_packaged, 1),
                 'markupKitchen': round(markup_kitchen, 1),
+                'markupOther': round(markup_other, 1),
                 'loyaltyWriteoffs': round(data['loyaltyWriteoffs'], 0)
             })
 
