@@ -29,8 +29,8 @@ Guests.registerView('rfm', function (pane) {
             '<th>Сегмент</th></tr></thead><tbody id="rfmTbody"></tbody></table></div>' +
             '<div class="note-line" id="rfmMore"></div>' +
             '<div class="note-line">Пороги R: до ' + d.r_thresholds.join(' / ') +
-            ' дней. Пороги F (визитов за окно): ' + d.f_thresholds.join(' / ') +
-            ' — предварительные, уточняются по реальному распределению.</div></div>';
+            ' дней. Пороги F (визитов за окно 12 мес): ' + d.f_thresholds.join(' / ') +
+            ' — постоянный (5+ в неделю) / частый (2+ в неделю) / раз в неделю / раз в месяц.</div></div>';
 
         html += G.howBlock(['rfm', 'visit', 'revenue']);
         pane.innerHTML = html;
