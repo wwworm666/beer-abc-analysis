@@ -93,7 +93,8 @@ def test_hours_by_role_pay_and_breakdown(tmpdir):
     s5 = mgr.create_shift('2026-08-01', 'Романов Юрий', loc, barmen)
     mgr.set_shift_fact(s5, 600)
 
-    rows = mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31')
+    rows = mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31',
+                                            today='2026-07-18')
     by_name = {e['employee_name']: e for e in rows}
 
     rom = by_name['Романов Юрий']
@@ -119,6 +120,36 @@ def test_hours_by_role_pay_and_breakdown(tmpdir):
 def test_hours_by_role_empty_period(tmpdir):
     mgr = _fresh_mgr(tmpdir)
     assert mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31') == []
+
+
+def test_future_shifts_not_counted_as_without_fact(tmpdir):
+    """Будущие смены (и смена «сегодня») без факта — НЕ пробел в часах.
+
+    Факт вносится после смены; иначе в начале месяца весь график светился бы
+    предупреждением «N смен без часов» на странице ЗП."""
+    mgr = _fresh_mgr(tmpdir)
+    loc = mgr.get_locations()[0]['id']
+    barmen = _role_id(mgr, 'бармен')
+
+    s1 = mgr.create_shift('2026-07-03', 'Романов Юрий', loc, barmen)
+    mgr.set_shift_fact(s1, 720)                                  # прошедшая, с фактом
+    mgr.create_shift('2026-07-05', 'Романов Юрий', loc, barmen)  # прошедшая, БЕЗ факта
+    mgr.create_shift('2026-07-10', 'Романов Юрий', loc, barmen)  # «сегодня», без факта
+    mgr.create_shift('2026-07-20', 'Романов Юрий', loc, barmen)  # будущая, без факта
+    mgr.create_shift('2026-07-25', 'Романов Юрий', loc, barmen)  # будущая, без факта
+
+    rows = mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31',
+                                            today='2026-07-10')
+    rom = next(e for e in rows if e['employee_name'] == 'Романов Юрий')
+    # Пробел — только прошедшая смена 05.07; сегодня (10.07) и будущие не считаются
+    assert rom['shifts_without_fact'] == 1
+    assert rom['total_minutes'] == 720   # часы будущих смен и так не суммируются
+
+    # В начале месяца (сегодня = 1-е число) пробелов нет вообще
+    rows2 = mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31',
+                                             today='2026-07-01')
+    rom2 = next(e for e in rows2 if e['employee_name'] == 'Романов Юрий')
+    assert rom2['shifts_without_fact'] == 0
 
 
 def test_only_two_roles_no_intern(tmpdir):

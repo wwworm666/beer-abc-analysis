@@ -462,15 +462,22 @@ class ShiftsManager:
                 row = cursor.fetchone()
                 return dict(row) if row else None
 
-    def get_hours_by_role_for_period(self, date_from: str, date_to: str) -> List[Dict]:
+    def get_hours_by_role_for_period(self, date_from: str, date_to: str,
+                                     today: str = None) -> List[Dict]:
         """Часы по ролям и оплата для каждого сотрудника за период (для расчёта ЗП).
 
         Источник часов — fact_minutes из графика: это единственный верный источник
         часов оплаты (iiko-часы для оплаты больше не используются). Смены без факта
-        (fact_minutes NULL) часов не дают, но попадают в shifts_without_fact, чтобы
-        на странице ЗП было видно пробелы. Оплата роли = часы × roles.rate_per_hour.
-        Даты включительно (date >= from AND date <= to).
+        (fact_minutes NULL) часов не дают; ПРОШЕДШИЕ из них (date < today) попадают
+        в shifts_without_fact — предупреждение «пробел в часах» на странице ЗП.
+        Будущие смены и смена сегодня не считаются пробелом: факт вносится после
+        смены, иначе в начале месяца весь график светился бы как «без часов».
+        Оплата роли = часы × roles.rate_per_hour.
+        Даты включительно (date >= from AND date <= to). today — ISO-дата «сегодня»
+        (по умолчанию date.today(); параметр для детерминированных тестов).
         """
+        if today is None:
+            today = date.today().isoformat()
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
@@ -484,13 +491,13 @@ class ShiftsManager:
                            r.sort_order AS sort_order,
                            COALESCE(SUM(s.fact_minutes), 0) AS minutes,
                            SUM(CASE WHEN s.fact_minutes IS NOT NULL THEN 1 ELSE 0 END) AS shifts_with_fact,
-                           SUM(CASE WHEN s.fact_minutes IS NULL THEN 1 ELSE 0 END) AS shifts_without_fact
+                           SUM(CASE WHEN s.fact_minutes IS NULL AND s.date < ? THEN 1 ELSE 0 END) AS shifts_without_fact
                     FROM shifts s
                     JOIN roles r ON s.role_id = r.id
                     WHERE s.date >= ? AND s.date <= ?
                     GROUP BY emp_key, r.id
                     ORDER BY employee_name, r.sort_order
-                ''', (date_from, date_to))
+                ''', (today, date_from, date_to))
                 rows = [dict(row) for row in cursor.fetchall()]
 
         by_emp = {}
