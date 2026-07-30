@@ -158,25 +158,26 @@
         .sal-total-label { font-weight: 600; color: var(--text-primary); padding: 6px 0; font-size: 0.95rem; }
         .sal-total-value { text-align: right; font-weight: 700; color: var(--accent); padding: 6px 0; font-size: 1.05rem; }
 
-        /* Ручные корректировки внутри карточки (отпуск/доп доход/вычеты) */
-        .adj-input {
-            width: 90px;
-            padding: 4px 6px;
+        /* Ручной штраф за кассовую смену (кнопка в таблице смен) */
+        .pen-btn {
+            background: none;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 0.85rem;
-            text-align: right;
-            outline: none;
-            transition: border-color 150ms ease;
+            border-radius: 6px;
+            padding: 2px 8px;
+            font-family: inherit;
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            transition: all 150ms ease;
+            white-space: nowrap;
         }
-        .adj-input:focus { border-color: var(--accent); }
-        .adj-input::placeholder { color: var(--text-tertiary); }
-        .adj-input.saving { border-color: var(--warning); }
-        .adj-input.save-error { border-color: var(--danger); }
-        .sal-value .adj-wrap { display: flex; justify-content: flex-end; }
+        .pen-btn:hover { border-color: var(--danger); color: var(--danger); }
+        .pen-btn.active {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+        .pen-btn.saving { opacity: 0.5; cursor: wait; }
 
         /* Detail toggle buttons */
         .detail-toggles {
@@ -562,7 +563,7 @@
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
                 <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
                 <strong>Оплата часов:</strong> сумма по сменам — <code>часы из графика x ставка роли</code> (часы = факт из графика смен; ставки ролей настраиваются выше)<br>
-                <strong>Ручные корректировки:</strong> отпуск и доп доход прибавляются, вычеты (инвент / дисциплина / доп) минусуются; вводятся в карточке сотрудника и сохраняются за месяц начала периода
+                <strong>Штраф кассы (ручной):</strong> кнопка «штраф» в таблице смен сотрудника снимает премию за передачу смены (<code>-500</code>) за конкретный день — если сумма кассы указана неверно или забыты траты; с днями «нет кассы» не задваивается
             </div>
 
             <!-- Summary -->
@@ -570,12 +571,6 @@
 
             <!-- Employee cards -->
             <div class="emp-cards" id="emp-cards"></div>
-
-            <!-- Сотрудник без данных за период (весь месяц в отпуске) не получает
-                 карточку из расчёта — добавляется вручную для ввода корректировок -->
-            <div style="margin-top:12px;">
-                <button class="btn-secondary" onclick="addManualEmployee()">Добавить сотрудника (для корректировок)</button>
-            </div>
         </div>
     </div>
 
@@ -588,25 +583,8 @@
         let hoursData = null;   // часы по ролям из графика — источник часов оплаты
         let rolesRates = [];    // ставки за час по ролям (для редактора и подписей)
         let targetsData = null;
-        // Ручные корректировки ЗП за месяц (shifts.db, salary_adjustments):
-        // {employee_name: {category: {amount, note}}}. Месяц = месяц начала периода.
-        let adjustmentsData = {};
-        let adjustmentsMonth = null;
-        // Защита от гонки «ввод корректировки + новый расчёт»: epoch растёт при
-        // каждом расчёте (устаревшие сохранения не трогают свежий стейт), а
-        // pendingAdjSaves дожидается in-flight POST-ов перед GET корректировок
-        let adjEpoch = 0;
-        let pendingAdjSaves = [];
-        // Порядок и подписи категорий — как в эталонной таблице владельца.
-        // deduction_* вычитаются из ЗП, остальные прибавляются (суммы >= 0).
-        const ADJ_CATEGORIES = [
-            ['vacation', 'Отпуск'],
-            ['extra_income', 'Доп доход'],
-            ['deduction_inventory', 'Вычет инвент'],
-            ['deduction_discipline', 'Вычет дисциплина (ручной)'],
-            ['deduction_other', 'Доп вычет'],
-        ];
-        const ADJ_DEDUCTIONS = ['deduction_inventory', 'deduction_discipline', 'deduction_other'];
+        // Месяц периода расчёта ('YYYY-MM', от date_from) — для имени файла экспорта
+        let periodMonth = null;
         const LOCATIONS = ['Кременчугская', 'Варшавская', 'Лиговский', 'Большой пр В.О.'];
         const LOC_SHORT = {'Кременчугская': 'Крем', 'Варшавская': 'Варш', 'Лиговский': 'Лиг', 'Большой пр В.О.': 'ВО'};
         const DEFAULT_KPI_KEYS = ['kpi1', 'kpi2', 'kpi3'];
@@ -709,45 +687,29 @@
             document.getElementById('loading').classList.add('active');
             document.getElementById('calc-btn').disabled = true;
 
-            // Незавершённые сохранения корректировок должны дойти до БД раньше,
-            // чем GET перечитает месяц; epoch отсекает их колбэки от нового стейта
-            adjEpoch++;
-            if (pendingAdjSaves.length) {
-                await Promise.allSettled(pendingAdjSaves);
-                pendingAdjSaves = [];
-            }
-
             try {
                 const body = JSON.stringify({ date_from: dates.from, date_to: dates.to });
                 const headers = { 'Content-Type': 'application/json' };
                 const hoursUrl = `/api/schedule/hours-by-role?date_from=${dates.from}&date_to=${dates.to}`;
-                // Корректировки ключуются месяцем начала периода (обычный
-                // сценарий — расчёт за календарный месяц)
-                const adjMonth = dates.from.slice(0, 7);
-                const adjUrl = `/api/salary/adjustments?month=${adjMonth}`;
 
-                const [bonusRes, kpiRes, hoursRes, adjRes] = await Promise.all([
+                const [bonusRes, kpiRes, hoursRes] = await Promise.all([
                     fetch('/api/bonus-calculate', { method: 'POST', headers, body }),
                     fetch('/api/kpi-calculate', { method: 'POST', headers, body }),
-                    fetch(hoursUrl),
-                    fetch(adjUrl)
+                    fetch(hoursUrl)
                 ]);
 
                 const bData = await bonusRes.json();
                 const kData = await kpiRes.json();
                 const hData = await hoursRes.json();
-                const aData = await adjRes.json();
 
                 if (!bonusRes.ok) throw new Error(bData.error || 'Ошибка bonus API');
                 if (!kpiRes.ok) throw new Error(kData.error || 'Ошибка KPI API');
                 if (!hoursRes.ok) throw new Error(hData.error || 'Ошибка часов из графика');
-                if (!adjRes.ok) throw new Error(aData.error || 'Ошибка загрузки корректировок');
 
                 bonusData = bData;
                 kpiData = kData;
                 hoursData = hData;
-                adjustmentsData = aData.adjustments || {};
-                adjustmentsMonth = adjMonth;
+                periodMonth = dates.from.slice(0, 7);
 
                 mergeAndRender();
                 document.getElementById('export-btn').disabled = false;
@@ -817,41 +779,6 @@
                 }
             });
 
-            // Привязать ручные корректировки месяца по имени. adjKey — под каким
-            // именем корректировки лежат в БД, чтобы правки сохранялись в ту же
-            // строку, а не плодили варианты имени. Привязка эксклюзивная (Set)
-            // и в два прохода — сначала точное имя, потом подмножество слов:
-            // иначе «Иванов Иван» мог бы забрать строку тёзки с полным ФИО
-            const adjNames = Object.keys(adjustmentsData);
-            const adjUsed = new Set();
-            mergedEmployees.forEach(emp => {
-                const exact = adjNames.find(n => !adjUsed.has(n)
-                    && n.toLowerCase().trim() === emp.name.toLowerCase().trim());
-                if (exact) { emp.adjKey = exact; adjUsed.add(exact); }
-            });
-            mergedEmployees.forEach(emp => {
-                if (emp.adjKey) return;
-                const fuzzy = adjNames.find(n => !adjUsed.has(n) && namesMatch(emp.name, n));
-                if (fuzzy) adjUsed.add(fuzzy);
-                emp.adjKey = fuzzy || emp.name;
-            });
-            // Осиротевшие корректировки (сотрудник без данных за период —
-            // например, весь месяц в отпуске) НЕ теряются: псевдо-карточка,
-            // чтобы суммы попали в сводку и экспорт
-            adjNames.forEach(n => {
-                if (!adjUsed.has(n)) {
-                    mergedEmployees.push({ name: n, bonus: null, kpi: null,
-                                           hoursByRole: null, adjKey: n });
-                }
-            });
-            mergedEmployees.forEach(emp => {
-                const saved = adjustmentsData[emp.adjKey] || {};
-                emp.adj = {};
-                ADJ_CATEGORIES.forEach(([cat]) => {
-                    emp.adj[cat] = (saved[cat] && saved[cat].amount) || 0;
-                });
-            });
-
             // Calculate totals and sort
             mergedEmployees.forEach(emp => {
                 recalcEmployeeTotals(emp);
@@ -863,8 +790,8 @@
             renderCards();
         }
 
-        // Итоги сотрудника: авто-расчёт (премии, KPI, часы) + ручные корректировки.
-        // Вынесено отдельно, чтобы пересчитывать на лету при вводе вычета.
+        // Итоги сотрудника — вынесено отдельно, чтобы пересчитывать на лету
+        // (штраф кассы меняет премию за передачу смены без нового расчёта)
         function recalcEmployeeTotals(emp) {
             const b = emp.bonus;
             const k = emp.kpi;
@@ -879,11 +806,7 @@
             const penalty = b?.penalty || 0;
             const kpiPrem = k?.total_premium || 0;
             emp.baseSalary = bonusPlan + handover - penalty + kpiPrem;
-            // Ручные корректировки: отпуск и доп доход прибавляются, вычеты минусуются
-            const a = emp.adj || {};
-            emp.adjPlus = (a.vacation || 0) + (a.extra_income || 0);
-            emp.adjMinus = ADJ_DEDUCTIONS.reduce((s, cat) => s + (a[cat] || 0), 0);
-            emp.totalSalary = emp.baseSalary + emp.hoursPay + emp.adjPlus - emp.adjMinus;
+            emp.totalSalary = emp.baseSalary + emp.hoursPay;
         }
 
         // ===================== RENDER SUMMARY =====================
@@ -893,8 +816,6 @@
             const totalPenalty = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.penalty : 0), 0);
             const totalKpi = mergedEmployees.reduce((s, e) => s + (e.kpi ? e.kpi.total_premium : 0), 0);
             const totalHoursPay = mergedEmployees.reduce((s, e) => s + (e.hoursPay || 0), 0);
-            const totalAdjPlus = mergedEmployees.reduce((s, e) => s + (e.adjPlus || 0), 0);
-            const totalAdjMinus = mergedEmployees.reduce((s, e) => s + (e.adjMinus || 0), 0);
             const totalSalary = mergedEmployees.reduce((s, e) => s + e.totalSalary, 0);
 
             document.getElementById('summary').innerHTML = `
@@ -921,14 +842,6 @@
                 <div class="summary-card">
                     <div class="summary-label">Оплата часов</div>
                     <div class="summary-value" style="color:var(--success);" id="summary-hours-pay">${formatMoney(totalHoursPay)}</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-label">Отпуск + доп доход</div>
-                    <div class="summary-value" style="color:${totalAdjPlus > 0 ? 'var(--success)' : 'var(--text-tertiary)'};">${formatMoney(totalAdjPlus)}</div>
-                </div>
-                <div class="summary-card">
-                    <div class="summary-label">Ручные вычеты</div>
-                    <div class="summary-value" style="color:${totalAdjMinus > 0 ? 'var(--danger)' : 'var(--text-tertiary)'};">${totalAdjMinus > 0 ? '-' + formatMoney(totalAdjMinus) : '0 ₽'}</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-label">Сотрудников</div>
@@ -964,12 +877,11 @@
                 html += `<div class="sal-label">Премия за план</div>`;
                 html += `<div class="sal-value ${bonusVal > 0 ? 'positive' : 'neutral'}">${bonusVal > 0 ? formatMoney(bonusVal) : '—'}</div>`;
 
-                // Shift handover bonus: 500 ₽ × смены со сданной кассой
-                // (дни без кассовой дисциплины не оплачиваются — показываем счётчик).
+                // Shift handover bonus: 500 ₽ × смены со сданной кассой (минус
+                // дни без кассы и дни с ручным штрафом — id для обновления на лету)
                 const handoverBonus = b?.shift_handover_bonus || 0;
-                const unpaidDays = b?.shift_handover_unpaid_days || 0;
-                html += `<div class="sal-label">За передачу смены${unpaidDays > 0 ? ` (${unpaidDays} дн. без кассы)` : ''}</div>`;
-                html += `<div class="sal-value ${handoverBonus > 0 ? 'positive' : 'neutral'}">${handoverBonus > 0 ? formatMoney(handoverBonus) : '—'}</div>`;
+                html += `<div class="sal-label" id="handover-label-${i}">${handoverLabel(b)}</div>`;
+                html += `<div class="sal-value ${handoverBonus > 0 ? 'positive' : 'neutral'}" id="handover-val-${i}">${handoverBonus > 0 ? formatMoney(handoverBonus) : '—'}</div>`;
 
                 // Penalty row
                 html += `<div class="sal-label">Штраф${lateCount > 0 ? ' (' + lateCount + ' опозд.)' : ''}</div>`;
@@ -982,10 +894,6 @@
                 // Hours rows — из графика, по ролям (часы × ставка роли). Read-only:
                 // часы правятся в графике смен, не здесь (график — источник истины).
                 html += renderHoursRows(emp);
-
-                // Ручные корректировки (отпуск/доп доход/вычеты) — вводятся здесь,
-                // сохраняются в shifts.db на месяц начала периода
-                html += renderAdjRows(emp, i);
 
                 // Divider + Total
                 html += `<div class="sal-divider"></div>`;
@@ -1046,96 +954,80 @@
             return out;
         }
 
-        // ===================== РУЧНЫЕ КОРРЕКТИРОВКИ (вычеты, отпуск, доп доход) =====================
-        // Ввод прямо в карточке; сохранение на blur/change (одна корректировка —
-        // один POST). Суммы >= 0, знак задаёт категория (вычеты минусуются).
-        function renderAdjRows(emp, index) {
-            const monthLabel = adjustmentsMonth ? adjustmentsMonth.split('-').reverse().join('.') : '';
-            let out = `<div class="sal-divider"></div>`;
-            ADJ_CATEGORIES.forEach(([cat, label]) => {
-                const isDed = ADJ_DEDUCTIONS.includes(cat);
-                const val = emp.adj[cat] || 0;
-                out += `<div class="sal-label" title="Ручная корректировка, сохраняется за ${monthLabel}">${label}</div>`;
-                out += `<div class="sal-value"><span class="adj-wrap">${isDed && val > 0 ? '<span style="color:var(--danger);margin-right:6px;">-</span>' : ''}<input type="number" class="adj-input" min="0" step="1"
-                        id="adj-${index}-${cat}" value="${val || ''}" placeholder="0"
-                        onchange="onAdjChange(${index}, '${cat}', this)"></span></div>`;
-            });
-            return out;
+        // ===================== ШТРАФ ЗА КАССОВУЮ СМЕНУ =====================
+        // Владелец помечает конкретный день сотрудника (сумма кассы указана
+        // неверно, забыты траты) — премия «передача смены» за этот день не
+        // платится. Работает поверх автоправила «нет кассы — нет премии» и не
+        // задваивается с ним (день, уже не оплаченный автоправилом, повторно
+        // не вычитается — та же логика, что _manual_penalty_days на бэке).
+
+        function penaltyEffective(day) {
+            return day.manual_cash_penalty
+                && !(day.cash_rule_applies && day.cash_filled === false);
         }
 
-        async function onAdjChange(index, category, inputEl) {
-            const emp = mergedEmployees[index];
-            const myEpoch = adjEpoch;
-            let amount = parseFloat(inputEl.value);
-            if (isNaN(amount)) amount = 0;
-            // Знак задаёт категория (вычеты и так минусуются) — «-500» значит 500
-            amount = Math.abs(amount);
-            // Поле показывает ровно то, что сохраняется (без расхождения ввод/стейт)
-            inputEl.value = amount || '';
-            inputEl.classList.remove('save-error');
-            inputEl.classList.add('saving');
-            // Заметка (если была) отправляется обратно: POST без note затёр бы её
-            const savedNote = (adjustmentsData[emp.adjKey]
-                && adjustmentsData[emp.adjKey][category]
-                && adjustmentsData[emp.adjKey][category].note) || null;
-            const op = (async () => {
-                const resp = await fetch('/api/salary/adjustments', {
+        function handoverLabel(b) {
+            const unpaidDays = b?.shift_handover_unpaid_days || 0;
+            const manualDays = b?.shift_handover_manual_days || 0;
+            const parts = [];
+            if (unpaidDays > 0) parts.push(`${unpaidDays} дн. без кассы`);
+            if (manualDays > 0) parts.push(`${manualDays} штраф`);
+            return `За передачу смены${parts.length ? ` (${parts.join(', ')})` : ''}`;
+        }
+
+        async function toggleCashPenalty(empIndex, date, btnEl) {
+            const emp = mergedEmployees[empIndex];
+            const b = emp.bonus;
+            const day = b && b.days ? b.days.find(d => d.date === date) : null;
+            if (!day || btnEl.classList.contains('saving')) return;
+
+            const penalized = !day.manual_cash_penalty;
+            let note = day.manual_cash_penalty_note || null;
+            if (penalized) {
+                note = (prompt('Причина штрафа (неверная сумма, забыты траты...):') || '').trim() || null;
+            }
+
+            btnEl.classList.add('saving');
+            try {
+                const resp = await fetch('/api/salary/handover-penalty', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        month: adjustmentsMonth,
-                        employee_name: emp.adjKey,
-                        category: category,
-                        amount: amount,
-                        note: savedNote
+                        date: date,
+                        employee_name: b.name || emp.name,
+                        penalized: penalized,
+                        note: note
                     })
                 });
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok) throw new Error(data.error || 'Ошибка сохранения');
-            })();
-            pendingAdjSaves.push(op);
-            try {
-                await op;
-                // Новый расчёт уже перечитал корректировки — не трогаем свежий стейт
-                if (myEpoch !== adjEpoch) return;
-                // Локальное состояние + пересчёт итогов на лету (без полного ререндера)
-                emp.adj[category] = amount;
-                if (!adjustmentsData[emp.adjKey]) adjustmentsData[emp.adjKey] = {};
-                adjustmentsData[emp.adjKey][category] = { amount: amount, note: savedNote };
-                recalcEmployeeTotals(emp);
-                document.getElementById(`card-total-${index}`).textContent = formatMoney(emp.totalSalary);
-                document.getElementById(`emp-total-${index}`).textContent = formatMoney(emp.totalSalary);
-                renderSummary();
-                // Баннер гасим, только если не осталось несохранённых полей
-                if (!document.querySelector('.adj-input.save-error')) hideError();
-            } catch (e) {
-                if (myEpoch === adjEpoch) {
-                    inputEl.classList.add('save-error');
-                    showError('Корректировка не сохранена: ' + e.message);
-                }
-            } finally {
-                inputEl.classList.remove('saving');
-            }
-        }
 
-        // Пустая карточка для сотрудника без данных за период (весь месяц в
-        // отпуске и т.п.) — иначе некуда вписать отпуск/вычеты
-        function addManualEmployee() {
-            if (!adjustmentsMonth) { showError('Сначала выполните расчёт'); return; }
-            const name = (prompt('Имя сотрудника (как в графике/iiko):') || '').trim();
-            if (!name) return;
-            if (mergedEmployees.some(e => namesMatch(e.name, name))) {
-                showError('Такой сотрудник уже есть в списке');
-                return;
+                // Локальный пересчёт — зеркало бэка: paid = смены - без_кассы - штрафы
+                day.manual_cash_penalty = penalized;
+                day.manual_cash_penalty_note = penalized ? note : null;
+                const manualDays = b.days.reduce((s, d) => s + (penaltyEffective(d) ? 1 : 0), 0);
+                b.shift_handover_manual_days = manualDays;
+                const unpaid = b.shift_handover_unpaid_days || 0;
+                const paid = Math.max(0, (b.shifts_count || 0) - unpaid - manualDays);
+                b.shift_handover_bonus = paid * 500;
+                recalcEmployeeTotals(emp);
+
+                document.getElementById(`card-total-${empIndex}`).textContent = formatMoney(emp.totalSalary);
+                document.getElementById(`emp-total-${empIndex}`).textContent = formatMoney(emp.totalSalary);
+                document.getElementById(`handover-label-${empIndex}`).textContent = handoverLabel(b);
+                const valEl = document.getElementById(`handover-val-${empIndex}`);
+                valEl.textContent = b.shift_handover_bonus > 0 ? formatMoney(b.shift_handover_bonus) : '—';
+                valEl.className = `sal-value ${b.shift_handover_bonus > 0 ? 'positive' : 'neutral'}`;
+                renderSummary();
+                // Перерисовать таблицу смен (кнопка и подсветка дня)
+                document.getElementById(`detail-shifts-${empIndex}`).innerHTML = '';
+                renderShiftsDetail(empIndex);
+                hideError();
+            } catch (e) {
+                showError('Штраф не сохранён: ' + e.message);
+            } finally {
+                btnEl.classList.remove('saving');
             }
-            const emp = { name: name, bonus: null, kpi: null, hoursByRole: null,
-                          adjKey: name, adj: {} };
-            ADJ_CATEGORIES.forEach(([cat]) => { emp.adj[cat] = 0; });
-            recalcEmployeeTotals(emp);
-            mergedEmployees.push(emp);
-            renderSummary();
-            renderCards();
-            hideError();
         }
 
         // ===================== ЭКСПОРТ В EXCEL =====================
@@ -1143,7 +1035,7 @@
         // экспорт совпадает с показанным расчётом. Контракт payload —
         // core/salary_export.py.
         async function exportExcel() {
-            if (!mergedEmployees.length || !adjustmentsMonth) {
+            if (!mergedEmployees.length || !periodMonth) {
                 showError('Сначала выполните расчёт');
                 return;
             }
@@ -1198,7 +1090,9 @@
                     day_plan_bonus: emp.bonus?.bonus || 0,
                     kpi_premiums: kpiPremiums,
                     late_penalty: emp.bonus?.penalty || 0,
-                    adjustments: emp.adj || {}
+                    // Отпуск/доп доход/вычеты владелец заполняет в Excel —
+                    // соответствующие строки в файле пустые
+                    adjustments: {}
                 };
             });
 
@@ -1207,7 +1101,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        month: adjustmentsMonth,
+                        month: periodMonth,
                         kpi_names: kpiNames,
                         base_per_kpi: basePerKpi,
                         roles: roles,
@@ -1222,7 +1116,7 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `salary_${adjustmentsMonth}.xlsx`;
+                a.download = `salary_${periodMonth}.xlsx`;
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
@@ -1278,6 +1172,26 @@
                 return '<span class="cash-na">—</span>';
             }
 
+            // Кнопка ручного штрафа кассы: клик снимает/возвращает премию за
+            // передачу смены (-500) за конкретный день. Если день уже не
+            // оплачен автоправилом (нет кассы) — штраф помечается, но повторно
+            // не вычитается (подсказка в title).
+            function penaltyBtn(day) {
+                const active = day.manual_cash_penalty;
+                let title;
+                if (!active) {
+                    title = 'Оштрафовать: снять премию за передачу смены (500) за этот день';
+                } else if (!penaltyEffective(day)) {
+                    title = 'Штраф отмечен, но день и так не оплачен (нет кассы) — повторно не вычитается'
+                        + (day.manual_cash_penalty_note ? '. Причина: ' + day.manual_cash_penalty_note : '');
+                } else {
+                    title = 'Штраф: премия за передачу смены за день снята. Клик — убрать'
+                        + (day.manual_cash_penalty_note ? '. Причина: ' + day.manual_cash_penalty_note : '');
+                }
+                return `<button class="pen-btn${active ? ' active' : ''}" title="${title.replace(/"/g, '&quot;')}"
+                    onclick="toggleCashPenalty(${index}, '${day.date}', this)">${active ? '-500' : 'штраф'}</button>`;
+            }
+
             let rows = '';
             b.days.forEach(day => {
                 const isOver = day.overperformance > 0;
@@ -1291,6 +1205,7 @@
                     <td class="right">${isOver ? '+' + formatMoney(day.overperformance) : '—'}</td>
                     <td class="right">${isOver ? formatMoney(day.day_bonus) : '—'}</td>
                     <td class="right">${day.is_late ? '<span class="penalty-value">-' + formatMoney(day.late_penalty) + '</span>' : ''}</td>
+                    <td class="right">${penaltyBtn(day)}</td>
                 </tr>`;
             });
 
@@ -1304,7 +1219,8 @@
                         <th class="right">Выручка</th>
                         <th class="right">Перевыполнение</th>
                         <th class="right">Бонус</th>
-                        <th class="right">Штраф</th>
+                        <th class="right" title="Штраф за опоздания (авто)">Опоздания</th>
+                        <th class="right" title="Ручной штраф: снять премию за передачу смены за день">Штраф кассы</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>

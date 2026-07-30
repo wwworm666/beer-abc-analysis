@@ -31,7 +31,9 @@ Payload (все суммы в рублях, уже рассчитаны стра
           "day_plan_bonus": float,                # премия за дневной план
           "kpi_premiums": [float, ...],           # по каждому KPI, уже с koef
           "late_penalty": float,                  # авто-штраф за опоздания
-          "adjustments": {категория: сумма}       # SALARY_ADJUSTMENT_CATEGORIES
+          "adjustments": {категория: сумма}       # vacation/extra_income/deduction_*;
+                                                  # с 2026-07-31 фронт шлёт {} —
+                                                  # эти строки заполняются в Excel
       }, ...]
     }
 """

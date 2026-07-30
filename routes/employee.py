@@ -440,6 +440,39 @@ def _cash_filled_day_keys(date_from, date_to):
         return None
 
 
+def _manual_handover_penalties(date_from, date_to):
+    """Ручные штрафы за кассовые смены (v9 shifts.db) за период.
+
+    Возвращает {имя_lower: {дата: note}} — дни, за которые владелец руками снял
+    премию «передача смены» (сумма кассы указана неверно, забыты траты и т.п.).
+    Ключ — employee_name как на странице ЗП (штраф ставится из карточки
+    сотрудника, поэтому имя совпадает с iiko-именем расчёта). {} при сбое —
+    fail-open, как у _cash_filled_day_keys: сбой БД не трогает премию.
+    """
+    try:
+        from extensions import shifts_mgr
+        result = {}
+        for p in shifts_mgr.get_handover_penalties(date_from, date_to):
+            emp = result.setdefault((p['employee_name'] or '').strip().lower(), {})
+            emp[p['date']] = p.get('note')
+        return result
+    except Exception as e:
+        print(f"   [BONUS] manual-penalty lookup failed, штрафы не применяем: {e}")
+        return {}
+
+
+def _manual_penalty_days(days_detail):
+    """Сколько дней с ручным штрафом кассы вычесть из оплачиваемых смен.
+
+    День уже не оплаченный автоправилом (cash_rule_applies и касса не сдана)
+    не вычитается второй раз — ручной штраф режет только дни, которые иначе
+    были бы оплачены. Чистая функция — тест tests/test_handover_penalties.py.
+    """
+    return sum(1 for d in days_detail
+               if d.get('manual_cash_penalty')
+               and not (d.get('cash_rule_applies') and d.get('cash_filled') is False))
+
+
 def _paid_handover_shifts(shifts_count, shift_locations, cash_filled_keys,
                           rule_from=HANDOVER_CASH_RULE_FROM):
     """Сколько смен оплачивается премией «передача смены».
@@ -525,6 +558,10 @@ def bonus_calculate():
         # недоступны, премию не режем (fail-open).
         cash_filled_keys = _cash_filled_day_keys(date_from, date_to)
 
+        # Ручные штрафы за кассовые смены: {имя_lower: {дата: note}} — владелец
+        # снял премию за конкретный день (неверная сумма кассы и т.п.)
+        manual_penalties = _manual_handover_penalties(date_from, date_to)
+
         # Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
 
@@ -547,6 +584,7 @@ def bonus_calculate():
             shifts_count = emp_metrics.get('shifts_count', 0)
             late_count = emp_metrics.get('late_count', 0)
             late_dates_set = set(emp_metrics.get('late_dates', []))
+            emp_manual = manual_penalties.get(emp_name.strip().lower(), {})
 
             # Считаем по дням
             total_revenue = 0.0
@@ -602,7 +640,10 @@ def bonus_calculate():
                     'open_time': open_time,
                     'close_time': close_time,
                     'cash_filled': cash_filled,
-                    'cash_rule_applies': date_str >= HANDOVER_CASH_RULE_FROM
+                    'cash_rule_applies': date_str >= HANDOVER_CASH_RULE_FROM,
+                    # Ручной штраф кассы: владелец снял премию за этот день
+                    'manual_cash_penalty': date_str in emp_manual,
+                    'manual_cash_penalty_note': emp_manual.get(date_str)
                 })
 
             # Формула бонуса: 1000 за каждую успешную смену + 5% от перевыполнения
@@ -629,6 +670,11 @@ def bonus_calculate():
             # точка); ключ — (нормализованная точка, дата) в множестве cash_filled_keys.
             paid_shifts, shifts_without_cash = _paid_handover_shifts(
                 shifts_count, shift_locations, cash_filled_keys)
+            # Ручные штрафы кассы поверх автоправила: день, снятый владельцем
+            # руками, не оплачивается; уже не оплаченные автоправилом дни не
+            # вычитаются второй раз
+            manual_days = _manual_penalty_days(days_detail)
+            paid_shifts = max(0, paid_shifts - manual_days)
             shift_handover_bonus = paid_shifts * 500
 
             results.append({
@@ -644,6 +690,7 @@ def bonus_calculate():
                 'net': round(net, 2),
                 'shift_handover_bonus': shift_handover_bonus,
                 'shift_handover_unpaid_days': shifts_without_cash,
+                'shift_handover_manual_days': manual_days,
                 'total_hours': round(total_hours, 1),
                 'days': days_detail
             })

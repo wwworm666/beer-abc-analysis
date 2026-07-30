@@ -1,11 +1,17 @@
 """
-API страницы расчёта ЗП (/salary): ручные корректировки и экспорт в Excel.
+API страницы расчёта ЗП (/salary): ручной штраф за кассовую смену и экспорт в Excel.
 
-Корректировки (отпуск, доп доход, вычеты) хранятся в shifts.db
-(salary_adjustments, схема v8) по ключу месяц + имя сотрудника + категория —
-страница мёржит источники по имени, поэтому и корректировки ключуются именем.
-Каждое изменение суммы пишется в журнал графика (schedule_audit) — как ставки
-ролей: кто и когда вписал вычет, видно в истории.
+Штраф за кассовую смену — решение владельца по конкретному дню сотрудника
+(сумма кассы указана неверно, забыты траты из кассы): премия «передача смены»
+(500 ₽) за этот день не платится. Работает поверх автоправила «нет кассы — нет
+премии» (с 11.07.2026) и не задваивается с ним: день, уже не оплаченный
+автоправилом, повторно не вычитается (routes/employee.py, _manual_penalty_days).
+Хранение — shifts.db, handover_cash_penalties (схема v9); каждая простановка/
+снятие пишется в журнал графика (schedule_audit).
+
+Ручные корректировки ЗП (отпуск/доп доход/вычеты, схема v8) выведены из
+приложения 2026-07-31 — владелец ведёт эти строки только в Excel-таблице;
+таблица salary_adjustments оставлена в БД (миграции additive-only).
 
 Экспорт принимает уже посчитанные страницей данные (payload — контракт в
 core/salary_export.py) и отдаёт .xlsx в формате эталонной таблицы владельца:
@@ -13,27 +19,35 @@ core/salary_export.py) и отдаёт .xlsx в формате эталонно�
 """
 
 import io
-import math
 import re
+from datetime import datetime
 from flask import Blueprint, request, jsonify, send_file
 
 from extensions import shifts_mgr
 from core.auth_guard import current_user
-from core.shifts_manager import SALARY_ADJUSTMENT_CATEGORIES
 from core.salary_export import build_salary_workbook
 
 salary_bp = Blueprint('salary', __name__)
 
-# fullmatch + \Z-семантика: '$' в re пропускает завершающий '\n' — такой month
-# ушёл бы в БД строкой-сиротой и в имя файла экспорта
+# fullmatch + \Z-семантика: '$' в re пропускает завершающий '\n' — такое
+# значение ушло бы в БД строкой-сиротой и в имя файла экспорта
 MONTH_RE = re.compile(r'\d{4}-(0[1-9]|1[0-2])\Z')
+DATE_RE = re.compile(r'\d{4}-\d{2}-\d{2}\Z')
 
 
 def _valid_month(month):
     return isinstance(month, str) and bool(MONTH_RE.fullmatch(month))
 
-# Потолок одной корректировки — против опечаток (как CASH_MAX_RUB у кассы).
-ADJUSTMENT_MAX_RUB = 1_000_000
+
+def _valid_date(date_str):
+    """Корректная ISO-дата 'YYYY-MM-DD' (существующая)."""
+    if not isinstance(date_str, str) or not DATE_RE.fullmatch(date_str):
+        return False
+    try:
+        datetime.strptime(date_str, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
 
 
 def _audit(action, summary, entity_date=None, employee_name=None):
@@ -52,74 +66,42 @@ def _audit(action, summary, entity_date=None, employee_name=None):
         print(f"[SALARY AUDIT WARNING] журнал не записан ({action}): {e}")
 
 
-def _fmt_amount(v):
-    """Сумма для строки журнала: целые без копеек."""
-    if v is None:
-        return '—'
-    v = float(v)
-    return f"{v:.0f}" if v == int(v) else f"{v:.2f}"
+@salary_bp.route('/api/salary/handover-penalty', methods=['POST'])
+def set_handover_penalty():
+    """Поставить/снять штраф за кассовую смену дня.
 
-
-@salary_bp.route('/api/salary/adjustments', methods=['GET'])
-def get_adjustments():
-    """Корректировки за месяц. Query: month='YYYY-MM'.
-
-    Ответ: {month, categories, adjustments: {имя: {категория: {amount, note}}}}.
-    categories — словарь код->русская подпись (единый источник для фронта).
-    """
-    month = request.args.get('month') or ''
-    if not _valid_month(month):
-        return jsonify({'error': "month обязателен в формате YYYY-MM"}), 400
-    return jsonify({
-        'month': month,
-        'categories': SALARY_ADJUSTMENT_CATEGORIES,
-        'adjustments': shifts_mgr.get_salary_adjustments(month),
-    })
-
-
-@salary_bp.route('/api/salary/adjustments', methods=['POST'])
-def set_adjustment():
-    """Записать одну корректировку (UPSERT; сумма 0 без заметки = удалить).
-
-    Body: {month, employee_name, category, amount, note?}. Суммы в рублях,
-    неотрицательные (знак задаёт категория: deduction_* вычитаются из ЗП).
-    Изменение суммы пишется в журнал графика (salary_adjustment).
+    Body: {date: 'YYYY-MM-DD', employee_name, penalized: bool, note?}.
+    penalized=true — премия «передача смены» за этот день не платится
+    (-500 ₽), false — штраф снят. Изменение пишется в журнал графика
+    (handover_penalty); повторная простановка того же состояния — не событие.
     """
     data = request.get_json(silent=True) or {}
-    month = data.get('month') or ''
-    if not _valid_month(month):
-        return jsonify({'error': "month обязателен в формате YYYY-MM"}), 400
+    date_str = data.get('date')
+    if not _valid_date(date_str):
+        return jsonify({'error': "date обязателен в формате YYYY-MM-DD"}), 400
     employee_name = data.get('employee_name')
     employee_name = employee_name.strip() if isinstance(employee_name, str) else ''
     if not employee_name:
         return jsonify({'error': 'employee_name обязателен'}), 400
-    category = data.get('category')
-    if category not in SALARY_ADJUSTMENT_CATEGORIES:
-        allowed = ', '.join(SALARY_ADJUSTMENT_CATEGORIES)
-        return jsonify({'error': f"category должна быть одной из: {allowed}"}), 400
-    try:
-        amount = float(data.get('amount') or 0)
-    except (TypeError, ValueError):
-        return jsonify({'error': 'amount должен быть числом'}), 400
-    # isfinite отсекает NaN/inf: NaN проходит сравнения ниже (все False) и
-    # ломал бы и запись, и строку журнала
-    if not math.isfinite(amount) or amount < 0 or amount > ADJUSTMENT_MAX_RUB:
-        return jsonify({'error': f"amount должен быть в пределах 0..{ADJUSTMENT_MAX_RUB}"}), 400
+    penalized = bool(data.get('penalized'))
     note = data.get('note')
     if note is not None and not isinstance(note, str):
-        note = str(note)  # число в note — не повод для 500
+        note = str(note)
 
-    old_amount = shifts_mgr.set_salary_adjustment(
-        month, employee_name, category, amount, note)
+    changed = shifts_mgr.set_handover_penalty(date_str, employee_name, penalized, note)
 
-    if (old_amount or 0) != amount:
-        label = SALARY_ADJUSTMENT_CATEGORIES[category]
-        _audit('salary_adjustment',
-               f"ЗП {month}: «{label}» {employee_name}: "
-               f"{_fmt_amount(old_amount)} -> {_fmt_amount(amount)} ₽",
-               entity_date=f"{month}-01", employee_name=employee_name)
+    if changed:
+        d, m = date_str[8:10], date_str[5:7]
+        if penalized:
+            reason = f" ({note.strip()})" if note and note.strip() else ''
+            summary = (f"Штраф кассы {d}.{m}: {employee_name} — премия за "
+                       f"передачу смены за день снята{reason}")
+        else:
+            summary = f"Штраф кассы {d}.{m}: {employee_name} — штраф снят"
+        _audit('handover_penalty', summary,
+               entity_date=date_str, employee_name=employee_name)
 
-    return jsonify({'ok': True, 'old_amount': old_amount})
+    return jsonify({'ok': True, 'changed': changed})
 
 
 @salary_bp.route('/api/salary/export', methods=['POST'])
@@ -128,8 +110,9 @@ def export_salary():
 
     Body — контракт build_salary_workbook (core/salary_export.py): фронт
     присылает уже посчитанные и смёрженные данные страницы, поэтому файл
-    совпадает с показанным расчётом. Корректировки в payload тоже с фронта —
-    те же значения, что были на экране в момент экспорта.
+    совпадает с показанным расчётом. Строки «Отпуск», «Доп доход», вычеты и
+    такси остаются пустыми — владелец заполняет их в Excel (формулы в файле
+    живые и пересчитаются).
     """
     payload = request.get_json(silent=True) or {}
     month = payload.get('month') or ''

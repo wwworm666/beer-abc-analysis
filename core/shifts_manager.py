@@ -22,18 +22,6 @@ LOCATION_VENUE_KEYS = {
 }
 
 
-# Категории ручных корректировок ЗП (v8, страница /salary). Ключ — машинный код,
-# значение — русская подпись (для журнала и экспорта). Суммы хранятся
-# ПОЛОЖИТЕЛЬНЫМИ; знак задаёт категория: deduction_* вычитаются из ЗП,
-# остальные прибавляются. Единственный источник допустимых категорий —
-# роуты и экспорт валидируются по этому словарю.
-SALARY_ADJUSTMENT_CATEGORIES = {
-    'vacation': 'Отпуск',
-    'extra_income': 'Доп доход',
-    'deduction_inventory': 'Вычет инвент',
-    'deduction_discipline': 'Вычет дисциплина',
-    'deduction_other': 'Доп вычет',
-}
 
 
 class ShiftsManager:
@@ -56,12 +44,16 @@ class ShiftsManager:
     #     Деньги в КОПЕЙКАХ (INTEGER — точно, без float). NULL = не заполнено,
     #     0 = «не было». Заполняет дневная смена; замена бумажного чеклиста
     #     кассовой дисциплины. См. set_shift_cash() и docs/schedule.md.
-    # v8: salary_adjustments — ручные корректировки ЗП по месяцам (страница
-    #     /salary): отпуск, доп доход, вычеты (инвент/дисциплина/доп). Суммы в
-    #     РУБЛЯХ (REAL, как daily_revenue) и хранятся положительными — знак
-    #     задаёт категория (SALARY_ADJUSTMENT_CATEGORIES). Ключ сотрудника —
-    #     employee_name как на странице ЗП (мёрж источников там по имени).
-    SCHEMA_VERSION = 8
+    # v8: salary_adjustments — ручные корректировки ЗП по месяцам. UI ввода
+    #     убран 2026-07-31 (решение владельца: отпуск/доп доход/вычеты ведутся
+    #     только в Excel-таблице); таблица оставлена — миграции additive-only,
+    #     DROP запрещён.
+    # v9: handover_cash_penalties — ручной штраф за кассовую смену (страница
+    #     /salary): владелец помечает конкретный день сотрудника (сумма кассы
+    #     указана неверно, забыты траты и т.п.) — премия «передача смены»
+    #     (500 ₽) за этот день не платится, поверх автоправила «нет кассы — нет
+    #     премии». Одна строка на (date, employee_name).
+    SCHEMA_VERSION = 9
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -296,11 +288,9 @@ class ShiftsManager:
                     'cash_end_kop': 'INTEGER',
                 })
 
-                # v8: ручные корректировки ЗП (страница /salary). Суммы в рублях,
-                # положительные; категория задаёт знак (deduction_* вычитаются).
-                # UNIQUE(month, employee_name, category) — UPSERT одной строки на
-                # сотрудника-категорию в месяце (та же защита от гонки двух
-                # gunicorn-воркеров, что и в daily_revenue).
+                # v8: ручные корректировки ЗП. UI и API убраны 2026-07-31
+                # (владелец ведёт эти строки в Excel) — таблица оставлена:
+                # миграции additive-only, DROP запрещён.
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS salary_adjustments (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -311,6 +301,21 @@ class ShiftsManager:
                         note TEXT,
                         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE(month, employee_name, category)
+                    )
+                ''')
+
+                # v9: ручной штраф за кассовую смену — помеченный владельцем день
+                # сотрудника исключается из премии «передача смены» (-500 ₽).
+                # UNIQUE(date, employee_name): один штраф на день; note — причина
+                # (неверная сумма, забыты траты) для журнала.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS handover_cash_penalties (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        date TEXT NOT NULL,
+                        employee_name TEXT NOT NULL,
+                        note TEXT,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(date, employee_name)
                     )
                 ''')
 
@@ -327,6 +332,7 @@ class ShiftsManager:
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_entity_date ON schedule_audit(entity_date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_id ON schedule_audit(id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_salary_adj_month ON salary_adjustments(month)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_handover_pen_date ON handover_cash_penalties(date)')
 
                 cursor.execute(f"PRAGMA user_version = {self.SCHEMA_VERSION}")
                 conn.commit()
@@ -1013,75 +1019,66 @@ class ShiftsManager:
                 conn.commit()
                 return cursor.rowcount > 0
 
-    # ==================== SALARY ADJUSTMENTS (ручные корректировки ЗП) ====================
+    # ==================== HANDOVER CASH PENALTIES (штраф за кассовую смену) ====================
 
-    def get_salary_adjustments(self, month: str) -> Dict:
-        """Ручные корректировки ЗП за месяц ('YYYY-MM').
+    def get_handover_penalties(self, date_from: str, date_to: str) -> List[Dict]:
+        """Ручные штрафы за кассовые смены за период (даты включительно).
 
-        Возвращает {employee_name: {category: {'amount': float, 'note': str|None}}}.
-        Суммы положительные; знак задаёт категория (SALARY_ADJUSTMENT_CATEGORIES):
-        deduction_* вычитаются из ЗП, остальные прибавляются.
+        Возвращает [{date, employee_name, note}]. Каждая строка = день, за
+        который сотруднику не платится премия «передача смены» (решение
+        владельца поверх автоправила «нет кассы — нет премии»).
         """
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT employee_name, category, amount, note
-                    FROM salary_adjustments
-                    WHERE month = ?
-                ''', (month,))
-                result = {}
-                for row in cursor.fetchall():
-                    emp = result.setdefault(row['employee_name'], {})
-                    emp[row['category']] = {'amount': row['amount'], 'note': row['note']}
-                return result
+                    SELECT date, employee_name, note
+                    FROM handover_cash_penalties
+                    WHERE date >= ? AND date <= ?
+                    ORDER BY date
+                ''', (date_from, date_to))
+                return [dict(row) for row in cursor.fetchall()]
 
-    def set_salary_adjustment(self, month: str, employee_name: str, category: str,
-                              amount: float, note: str = None) -> Optional[float]:
-        """UPSERT одной корректировки; возвращает прежнюю сумму (None — не было).
+    def set_handover_penalty(self, date_str: str, employee_name: str,
+                             penalized: bool, note: str = None) -> bool:
+        """Поставить/снять штраф за кассовую смену дня. Возвращает True, если
+        состояние изменилось (для журнала: повторный клик — не событие).
 
-        Сумма 0 без заметки = «корректировки нет» — строка удаляется, чтобы
-        таблица не зарастала нулями. Валидация категории/суммы — в роуте
-        (как fact_minutes валидируется в /fact, а не здесь); менеджер только
-        зажимает сумму в неотрицательную, знак задаёт категория.
+        penalized=True — UPSERT строки (повторная простановка обновляет note),
+        penalized=False — удаление. Валидация даты/имени — в роуте.
         """
-        amount = max(0.0, float(amount or 0))
         note = (note or '').strip() or None
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                # BEGIN IMMEDIATE: threading.Lock не защищает между 2 gunicorn-
-                # воркерами, а SELECT в autocommit не держит снимок — без явной
-                # транзакции два одновременных POST прочитали бы одно old_amount
-                # и цепочка «было -> стало» в журнале лгала бы. busy_timeout=5000
-                # заставляет второго писателя подождать, а не упасть.
+                # BEGIN IMMEDIATE: SELECT+запись атомарны и между 2 gunicorn-
+                # воркерами — «changed» не соврёт журналу при одновременных кликах
                 cursor.execute('BEGIN IMMEDIATE')
                 cursor.execute(
-                    'SELECT amount FROM salary_adjustments '
-                    'WHERE month = ? AND employee_name = ? AND category = ?',
-                    (month, employee_name, category)
+                    'SELECT note FROM handover_cash_penalties '
+                    'WHERE date = ? AND employee_name = ?',
+                    (date_str, employee_name)
                 )
                 row = cursor.fetchone()
-                old_amount = row['amount'] if row else None
-                if amount == 0 and note is None:
-                    cursor.execute(
-                        'DELETE FROM salary_adjustments '
-                        'WHERE month = ? AND employee_name = ? AND category = ?',
-                        (month, employee_name, category)
-                    )
-                else:
+                if penalized:
+                    changed = row is None or row['note'] != note
                     cursor.execute('''
-                        INSERT INTO salary_adjustments
-                            (month, employee_name, category, amount, note, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(month, employee_name, category) DO UPDATE SET
-                            amount = excluded.amount,
-                            note = excluded.note,
-                            updated_at = excluded.updated_at
-                    ''', (month, employee_name, category, amount, note,
+                        INSERT INTO handover_cash_penalties
+                            (date, employee_name, note, created_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(date, employee_name) DO UPDATE SET
+                            note = excluded.note
+                    ''', (date_str, employee_name, note,
                           datetime.now().isoformat()))
+                else:
+                    cursor.execute(
+                        'DELETE FROM handover_cash_penalties '
+                        'WHERE date = ? AND employee_name = ?',
+                        (date_str, employee_name)
+                    )
+                    changed = row is not None
                 conn.commit()
-                return old_amount
+                return changed
 
     # ==================== AUDIT (журнал изменений графика) ====================
 
