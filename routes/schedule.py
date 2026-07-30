@@ -266,13 +266,18 @@ def schedule_hours_by_role():
 
     Часы — из графика (fact_minutes), единственный источник часов оплаты;
     оплата = часы × ставка роли. Query: date_from, date_to (включительно).
+    У сотрудников есть day_shifts (состоявшиеся полноценные дневные смены) —
+    компенсация такси на странице ЗП = day_shifts × taxi_rate; тариф отдаётся
+    здесь же, чтобы фронт не хардкодил 700.
     """
+    from core.salary_export import TAXI_RATE_PER_SHIFT
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     if not date_from or not date_to:
         return jsonify({'error': 'date_from и date_to обязательны'}), 400
     return jsonify({
         'rates': shifts_mgr.get_roles(),
+        'taxi_rate': TAXI_RATE_PER_SHIFT,
         'employees': shifts_mgr.get_hours_by_role_for_period(date_from, date_to),
     })
 

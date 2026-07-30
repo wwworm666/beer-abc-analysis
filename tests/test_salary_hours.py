@@ -152,6 +152,38 @@ def test_future_shifts_not_counted_as_without_fact(tmpdir):
     assert rom2['shifts_without_fact'] == 0
 
 
+def test_day_shifts_for_taxi(tmpdir):
+    """day_shifts — состоявшиеся ПОЛНОЦЕННЫЕ ДНЕВНЫЕ смены (такси 700 ₽/смена).
+
+    Определение «вечер» зеркалит S.isEvening (static/js/schedule/screens.js):
+    роль «второй …» ИЛИ start_time >= '18:00'. Вечерние и будущие смены без
+    факта не считаются; дневная прошедшая смена без факта — считается
+    (смена состоялась, такси было)."""
+    mgr = _fresh_mgr(tmpdir)
+    loc = mgr.get_locations()[0]['id']
+    barmen = _role_id(mgr, 'бармен')
+    vtoroy = _role_id(mgr, 'второй бармен')
+
+    s1 = mgr.create_shift('2026-07-05', 'Романов Юрий', loc, barmen)
+    mgr.set_shift_fact(s1, 720)                                   # день, с фактом
+    mgr.create_shift('2026-07-06', 'Романов Юрий', loc, barmen)   # день, прошедшая без факта
+    s3 = mgr.create_shift('2026-07-07', 'Романов Юрий', loc, barmen,
+                          start_time='14:00')                     # день с явным началом
+    mgr.set_shift_fact(s3, 600)
+    s4 = mgr.create_shift('2026-07-08', 'Романов Юрий', loc, vtoroy,
+                          start_time='18:00')                     # вечер: роль «второй»
+    mgr.set_shift_fact(s4, 300)
+    s5 = mgr.create_shift('2026-07-09', 'Романов Юрий', loc, barmen,
+                          start_time='19:00')                     # вечер: по времени
+    mgr.set_shift_fact(s5, 300)
+    mgr.create_shift('2026-07-25', 'Романов Юрий', loc, barmen)   # будущая без факта
+
+    rows = mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31',
+                                            today='2026-07-10')
+    rom = next(e for e in rows if e['employee_name'] == 'Романов Юрий')
+    assert rom['day_shifts'] == 3   # 05, 06, 07 июля; вечера и будущее не в счёт
+
+
 def test_only_two_roles_no_intern(tmpdir):
     """Роль «стажёр» убрана: остаются только бармен и второй бармен."""
     mgr = _fresh_mgr(tmpdir)

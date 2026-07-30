@@ -527,6 +527,12 @@ class ShiftsManager:
                 cursor = conn.cursor()
                 # Идентичность сотрудника — стабильный employee_id (v6), имя только
                 # для показа. Фоллбэк на имя, пока у смены нет id (до бэкофилла).
+                # day_shifts — состоявшиеся ПОЛНОЦЕННЫЕ ДНЕВНЫЕ смены (такси
+                # 700 ₽/смена на странице ЗП). Определение «вечер» зеркалит
+                # S.isEvening из static/js/schedule/screens.js — единый язык
+                # страниц графика: роль «второй …» ИЛИ start_time >= '18:00';
+                # дневная = всё остальное. «Состоявшиеся» = есть факт часов или
+                # дата уже прошла (как в сумме shifts_with_fact + without_fact).
                 cursor.execute('''
                     SELECT COALESCE(s.employee_id, s.employee_name) AS emp_key,
                            MIN(s.employee_name) AS employee_name,
@@ -535,13 +541,17 @@ class ShiftsManager:
                            r.sort_order AS sort_order,
                            COALESCE(SUM(s.fact_minutes), 0) AS minutes,
                            SUM(CASE WHEN s.fact_minutes IS NOT NULL THEN 1 ELSE 0 END) AS shifts_with_fact,
-                           SUM(CASE WHEN s.fact_minutes IS NULL AND s.date < ? THEN 1 ELSE 0 END) AS shifts_without_fact
+                           SUM(CASE WHEN s.fact_minutes IS NULL AND s.date < ? THEN 1 ELSE 0 END) AS shifts_without_fact,
+                           SUM(CASE WHEN r.name NOT LIKE 'второй%'
+                                     AND (s.start_time IS NULL OR s.start_time < '18:00')
+                                     AND (s.fact_minutes IS NOT NULL OR s.date < ?)
+                                    THEN 1 ELSE 0 END) AS day_shifts
                     FROM shifts s
                     JOIN roles r ON s.role_id = r.id
                     WHERE s.date >= ? AND s.date <= ?
                     GROUP BY emp_key, r.id
                     ORDER BY employee_name, r.sort_order
-                ''', (today, date_from, date_to))
+                ''', (today, today, date_from, date_to))
                 rows = [dict(row) for row in cursor.fetchall()]
 
         by_emp = {}
@@ -550,6 +560,7 @@ class ShiftsManager:
                 'employee_name': row['employee_name'],
                 'roles': [], 'total_minutes': 0, 'total_pay': 0.0,
                 'shifts_with_fact': 0, 'shifts_without_fact': 0,
+                'day_shifts': 0,
             })
             minutes = row['minutes'] or 0
             rate = row['rate_per_hour'] or 0
@@ -564,6 +575,7 @@ class ShiftsManager:
             emp['total_pay'] += pay
             emp['shifts_with_fact'] += row['shifts_with_fact']
             emp['shifts_without_fact'] += row['shifts_without_fact']
+            emp['day_shifts'] += row['day_shifts']
 
         result = []
         for emp in by_emp.values():

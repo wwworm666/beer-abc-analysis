@@ -563,6 +563,7 @@
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
                 <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
                 <strong>Оплата часов:</strong> сумма по сменам — <code>часы из графика x ставка роли</code> (часы = факт из графика смен; ставки ролей настраиваются выше)<br>
+                <strong>Такси:</strong> <code>700 x полноценная дневная смена</code> из графика (вечерние смены и «второй бармен» не считаются)<br>
                 <strong>Штраф кассы (ручной):</strong> кнопка «штраф» в таблице смен сотрудника снимает премию за передачу смены (<code>-500</code>) за конкретный день — если сумма кассы указана неверно или забыты траты; с днями «нет кассы» не задваивается
             </div>
 
@@ -800,13 +801,21 @@
             emp.hours = h ? h.total_hours : 0;
             emp.hoursPay = h ? h.total_pay : 0;
             emp.shiftsWithoutFact = h ? h.shifts_without_fact : 0;
+            // Такси: 700 ₽ × полноценная дневная смена из графика (вечер/2-й
+            // бармен не считается); тариф — с бэка, один источник с экспортом
+            emp.dayShifts = h ? (h.day_shifts || 0) : 0;
+            emp.taxiPay = emp.dayShifts * taxiRate();
             // База без часов
             const bonusPlan = b?.bonus || 0;
             const handover = b?.shift_handover_bonus || 0;
             const penalty = b?.penalty || 0;
             const kpiPrem = k?.total_premium || 0;
             emp.baseSalary = bonusPlan + handover - penalty + kpiPrem;
-            emp.totalSalary = emp.baseSalary + emp.hoursPay;
+            emp.totalSalary = emp.baseSalary + emp.hoursPay + emp.taxiPay;
+        }
+
+        function taxiRate() {
+            return (hoursData && hoursData.taxi_rate != null) ? hoursData.taxi_rate : 700;
         }
 
         // ===================== RENDER SUMMARY =====================
@@ -816,6 +825,7 @@
             const totalPenalty = mergedEmployees.reduce((s, e) => s + (e.bonus ? e.bonus.penalty : 0), 0);
             const totalKpi = mergedEmployees.reduce((s, e) => s + (e.kpi ? e.kpi.total_premium : 0), 0);
             const totalHoursPay = mergedEmployees.reduce((s, e) => s + (e.hoursPay || 0), 0);
+            const totalTaxi = mergedEmployees.reduce((s, e) => s + (e.taxiPay || 0), 0);
             const totalSalary = mergedEmployees.reduce((s, e) => s + e.totalSalary, 0);
 
             document.getElementById('summary').innerHTML = `
@@ -842,6 +852,10 @@
                 <div class="summary-card">
                     <div class="summary-label">Оплата часов</div>
                     <div class="summary-value" style="color:var(--success);" id="summary-hours-pay">${formatMoney(totalHoursPay)}</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-label">Такси</div>
+                    <div class="summary-value" style="color:${totalTaxi > 0 ? 'var(--success)' : 'var(--text-tertiary)'};" title="${formatNum(taxiRate(), 0)} ₽ x полноценная дневная смена из графика">${formatMoney(totalTaxi)}</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-label">Сотрудников</div>
@@ -894,6 +908,11 @@
                 // Hours rows — из графика, по ролям (часы × ставка роли). Read-only:
                 // часы правятся в графике смен, не здесь (график — источник истины).
                 html += renderHoursRows(emp);
+
+                // Такси: тариф × полноценные дневные смены из графика (вечер и
+                // «второй бармен» не считаются)
+                html += `<div class="sal-label">Такси <span style="color:var(--text-tertiary);">${emp.dayShifts} дн. смен x ${formatNum(taxiRate(), 0)}</span></div>`;
+                html += `<div class="sal-value ${emp.taxiPay > 0 ? 'positive' : 'neutral'}">${emp.taxiPay > 0 ? formatMoney(emp.taxiPay) : '—'}</div>`;
 
                 // Divider + Total
                 html += `<div class="sal-divider"></div>`;
@@ -1073,8 +1092,10 @@
                     hoursByRole[r.role_name] = r.hours;
                     payByRole[r.role_name] = r.pay;
                 });
-                // Смены — из графика (все смены периода); фоллбэк — кассовые смены iiko
-                const shiftsCount = h ? ((h.shifts_with_fact || 0) + (h.shifts_without_fact || 0))
+                // «Количество смен» в эталонной таблице = полноценные ДНЕВНЫЕ
+                // смены (такси в файле = смены x тариф, как на странице);
+                // фоллбэк для сотрудника без графика — кассовые смены iiko
+                const shiftsCount = h ? (h.day_shifts || 0)
                     : (emp.bonus ? emp.bonus.shifts_count : 0);
                 const k = emp.kpi;
                 const kpiPremiums = kpiKeys.map(key => {
