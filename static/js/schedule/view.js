@@ -88,6 +88,15 @@
         });
         document.getElementById('empSyncBtn').addEventListener('click', syncEmployees);
 
+        // касса за месяц: переключатель вида (сводная/траты/инкассации) + CSV
+        document.getElementById('cashViewSeg').addEventListener('click', function (e) {
+            var b = e.target.closest('[data-cash-view]');
+            if (b) setCashView(b.dataset.cashView);
+        });
+        document.getElementById('cashCsvBtn').addEventListener('click', exportCashCsv);
+        // стартовое состояние блока до загрузки месяца: подсветка вида + «Загрузка...»
+        renderCashHistory(document.getElementById('cashHistBody'));
+
         // модалка смены (десктоп)
         document.getElementById('shiftForm').addEventListener('submit', onShiftFormSubmit);
         document.getElementById('shiftDelete').addEventListener('click', onShiftDelete);
@@ -158,6 +167,7 @@
     }
 
     function renderAll() {
+        cashDataReady = true;   // renderAll зовётся только после загрузки месяца
         // мобильный личный экран (ввод факта + запрос выходного)
         S.setScreenShiftClick(openFactModal);
         var emp = (document.body.dataset.empIiko || '').trim();
@@ -176,39 +186,102 @@
     }
 
     // ==================== История кассы за месяц (read-only) ====================
-    // Список сдач кассы по сменам месяца из уже загруженного state.shifts (без
-    // нового запроса): дата, точка, бармен, траты (+заметка), инкассация, наличные
-    // на конец. Итог месяца — суммы трат и инкассаций (наличные на конец —
-    // остаток, не поток, не суммируем).
-    function renderCashHistory(host) {
-        if (!host) return;
-        var rows = S.state.shifts.filter(function (s) {
+    // Блок «Касса за месяц»: данные из уже загруженного state.shifts (без нового
+    // запроса), три вида на выбор (выбор запоминается в браузере):
+    //   «Сводная»    — все кассовые поля смены: траты / инкассация / на конец;
+    //   «Траты»      — только траты, комментарий «на что» — колонкой целиком;
+    //   «Инкассации» — только сдачи инкассации.
+    // Итог месяца — суммы потоков (Σ трат, Σ инкассаций); «наличные на конец» —
+    // остаток, не поток, не суммируем. В видах «Траты»/«Инкассации» перед итогом —
+    // подытоги по точкам (сверка кассовой дисциплины в конце месяца).
+    // «Скачать CSV» — текущий вид в Excel-совместимый CSV (exportCashCsv).
+
+    var CASH_VIEW_KEY = 'schedule.cashView';
+    var CASH_VIEW_SLUG = { all: 'svodnaya', expense: 'traty', collection: 'inkassacii' };
+    var cashView = readCashView();
+    // Пока месяц не загружен, пустой state.shifts не отличим от «кассы не было» —
+    // до первого renderAll показываем «Загрузка...», а не ложное «пусто».
+    var cashDataReady = false;
+
+    function readCashView() {
+        try {
+            var v = localStorage.getItem(CASH_VIEW_KEY);
+            return CASH_VIEW_SLUG.hasOwnProperty(v) ? v : 'all';
+        } catch (e) { return 'all'; }
+    }
+    function setCashView(v) {
+        if (!CASH_VIEW_SLUG.hasOwnProperty(v) || v === cashView) return;
+        cashView = v;
+        try { localStorage.setItem(CASH_VIEW_KEY, v); } catch (e) { /* приватный режим */ }
+        renderCashHistory(document.getElementById('cashHistBody'));
+    }
+
+    // Смены месяца, где касса заполнена хоть одним полем -> плоские строки по датам.
+    function cashHistRows() {
+        return S.state.shifts.filter(function (s) {
             return s.cash_end_kop != null || s.cash_expense_kop != null
                 || s.cash_collection_kop != null;
         }).slice().sort(function (a, b) {
             return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
-        });
-        if (!rows.length) {
-            setTeaser('cashTeaser', 'за месяц пусто');
-            host.innerHTML = '<div class="cash-hist-empty">Кассу за этот месяц ещё не сдавали</div>';
-            return;
-        }
-        var sumExp = 0, sumCol = 0;
-        var body = rows.map(function (s) {
-            var e = s.cash_expense_kop, c = s.cash_collection_kop, k = s.cash_end_kop;
-            if (e != null) sumExp += e;
-            if (c != null) sumCol += c;
+        }).map(function (s) {
             var loc = S.state.locations.filter(function (L) { return L.id === s.location_id; })[0];
-            var locName = loc ? (loc.short_name || loc.name) : '';
-            var expCell = e == null ? '<span class="ch-dim">&mdash;</span>'
-                : S.kopToRubDisplay(e) + (e > 0 && s.cash_expense_note
-                    ? ' <span class="ch-note" title="' + S.escapeHtml(s.cash_expense_note) + '">*</span>' : '');
-            var colCell = c == null ? '<span class="ch-dim">&mdash;</span>' : S.kopToRubDisplay(c);
-            var endCell = k == null ? '<span class="ch-dim">&mdash;</span>' : '<b>' + S.kopToRubDisplay(k) + '</b>';
+            return {
+                date: s.date,
+                loc: loc ? (loc.short_name || loc.name) : '',
+                barman: S.employeeShortName(S.shiftDisplayName(s)),
+                expense: s.cash_expense_kop,        // копейки | null
+                note: s.cash_expense_note || '',
+                collection: s.cash_collection_kop,  // копейки | null
+                end: s.cash_end_kop                 // копейки | null
+            };
+        });
+    }
+
+    // Строки текущего вида: «Траты»/«Инкассации» — только операции с суммой > 0
+    // (0 = «не было», NULL = не заполнено — в частных видах не показываем).
+    function cashViewRows(rows) {
+        if (cashView === 'expense')
+            return rows.filter(function (r) { return r.expense != null && r.expense > 0; });
+        if (cashView === 'collection')
+            return rows.filter(function (r) { return r.collection != null && r.collection > 0; });
+        return rows;
+    }
+
+    var CH_DASH = '<span class="ch-dim">&mdash;</span>';
+
+    // Подытоги по точкам: строка «Итого <точка>» на каждую точку с операциями
+    // (порядок появления в месяце). Одна точка — подытога нет, хватает общего итога.
+    // labelSpan — colspan ячейки-подписи, tailCells — пустых ячеек после суммы.
+    function cashSubtotalRows(rows, field, labelSpan, tailCells) {
+        var sums = {}, order = [];
+        rows.forEach(function (r) {
+            var k = r.loc || '—';
+            if (!(k in sums)) { sums[k] = 0; order.push(k); }
+            sums[k] += r[field];
+        });
+        if (order.length < 2) return '';
+        var tail = new Array(tailCells + 1).join('<td></td>');
+        return order.map(function (k) {
+            return '<tr class="ch-sub"><td colspan="' + labelSpan + '">Итого ' + S.escapeHtml(k) + '</td>'
+                + '<td class="ch-num">' + S.kopToRubDisplay(sums[k]) + '</td>' + tail + '</tr>';
+        }).join('');
+    }
+
+    // «Сводная»: все кассовые поля; комментарий к тратам — звёздочкой (title).
+    function cashTableAll(rows) {
+        var sumExp = 0, sumCol = 0;
+        var body = rows.map(function (r) {
+            if (r.expense != null) sumExp += r.expense;
+            if (r.collection != null) sumCol += r.collection;
+            var expCell = r.expense == null ? CH_DASH
+                : S.kopToRubDisplay(r.expense) + (r.expense > 0 && r.note
+                    ? ' <span class="ch-note" title="' + S.escapeHtml(r.note) + '">*</span>' : '');
+            var colCell = r.collection == null ? CH_DASH : S.kopToRubDisplay(r.collection);
+            var endCell = r.end == null ? CH_DASH : '<b>' + S.kopToRubDisplay(r.end) + '</b>';
             return '<tr>'
-                + '<td>' + S.formatDateHuman(s.date).slice(0, 5) + '</td>'
-                + '<td>' + S.escapeHtml(locName) + '</td>'
-                + '<td>' + S.escapeHtml(S.employeeShortName(S.shiftDisplayName(s))) + '</td>'
+                + '<td>' + S.formatDateHuman(r.date).slice(0, 5) + '</td>'
+                + '<td>' + S.escapeHtml(r.loc) + '</td>'
+                + '<td>' + S.escapeHtml(r.barman) + '</td>'
                 + '<td class="ch-num">' + expCell + '</td>'
                 + '<td class="ch-num">' + colCell + '</td>'
                 + '<td class="ch-num">' + endCell + '</td>'
@@ -218,11 +291,143 @@
             + '<td class="ch-num">' + S.kopToRubDisplay(sumExp) + '</td>'
             + '<td class="ch-num">' + S.kopToRubDisplay(sumCol) + '</td>'
             + '<td class="ch-num">&mdash;</td></tr>';
-        setTeaser('cashTeaser', rows.length + ' смен · инкассация ' + S.kopToRubDisplay(sumCol) + ' ₽');
-        host.innerHTML = '<div class="cash-hist-wrap"><table class="cash-hist"><thead><tr>'
+        return '<table class="cash-hist"><thead><tr>'
             + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
             + '<th class="ch-num">Траты</th><th class="ch-num">Инкасс.</th><th class="ch-num">На конец</th>'
-            + '</tr></thead><tbody>' + body + total + '</tbody></table></div>';
+            + '</tr></thead><tbody>' + body + total + '</tbody></table>';
+    }
+
+    // «Траты»: дата / точка / бармен / сумма / на что (комментарий целиком).
+    function cashTableExpense(rows) {
+        var sum = 0;
+        var body = rows.map(function (r) {
+            sum += r.expense;
+            return '<tr>'
+                + '<td>' + S.formatDateHuman(r.date).slice(0, 5) + '</td>'
+                + '<td>' + S.escapeHtml(r.loc) + '</td>'
+                + '<td>' + S.escapeHtml(r.barman) + '</td>'
+                + '<td class="ch-num">' + S.kopToRubDisplay(r.expense) + '</td>'
+                + '<td class="ch-comment">' + (r.note ? S.escapeHtml(r.note) : CH_DASH) + '</td>'
+                + '</tr>';
+        }).join('');
+        var foot = cashSubtotalRows(rows, 'expense', 3, 1)
+            + '<tr class="ch-total"><td colspan="3">Итого за месяц (' + rows.length + ')</td>'
+            + '<td class="ch-num">' + S.kopToRubDisplay(sum) + '</td><td></td></tr>';
+        return '<table class="cash-hist"><thead><tr>'
+            + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
+            + '<th class="ch-num">Сумма, ₽</th><th>На что</th>'
+            + '</tr></thead><tbody>' + body + foot + '</tbody></table>';
+    }
+
+    // «Инкассации»: дата / точка / бармен / сумма.
+    function cashTableCollection(rows) {
+        var sum = 0;
+        var body = rows.map(function (r) {
+            sum += r.collection;
+            return '<tr>'
+                + '<td>' + S.formatDateHuman(r.date).slice(0, 5) + '</td>'
+                + '<td>' + S.escapeHtml(r.loc) + '</td>'
+                + '<td>' + S.escapeHtml(r.barman) + '</td>'
+                + '<td class="ch-num">' + S.kopToRubDisplay(r.collection) + '</td>'
+                + '</tr>';
+        }).join('');
+        var foot = cashSubtotalRows(rows, 'collection', 3, 0)
+            + '<tr class="ch-total"><td colspan="3">Итого за месяц (' + rows.length + ')</td>'
+            + '<td class="ch-num">' + S.kopToRubDisplay(sum) + '</td></tr>';
+        return '<table class="cash-hist"><thead><tr>'
+            + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
+            + '<th class="ch-num">Сумма, ₽</th>'
+            + '</tr></thead><tbody>' + body + foot + '</tbody></table>';
+    }
+
+    function renderCashHistory(host) {
+        if (!host) return;
+        document.querySelectorAll('#cashViewSeg [data-cash-view]').forEach(function (b) {
+            b.classList.toggle('selected', b.dataset.cashView === cashView);
+        });
+        if (!cashDataReady) {
+            host.innerHTML = '<div class="cash-hist-empty">Загрузка...</div>';
+            return;
+        }
+        var rows = cashHistRows();
+        var sumExp = 0, sumCol = 0;
+        rows.forEach(function (r) {
+            sumExp += r.expense || 0;
+            sumCol += r.collection || 0;
+        });
+        setTeaser('cashTeaser', rows.length
+            ? rows.length + ' смен · траты ' + S.kopToRubDisplay(sumExp)
+                + ' · инкасс. ' + S.kopToRubDisplay(sumCol) + ' ₽'
+            : 'за месяц пусто');
+        var shown = cashViewRows(rows);
+        if (!shown.length) {
+            host.innerHTML = '<div class="cash-hist-empty">' + ({
+                all: 'Кассу за этот месяц ещё не сдавали',
+                expense: 'Трат из кассы за этот месяц не записано',
+                collection: 'Инкассаций за этот месяц не записано'
+            }[cashView]) + '</div>';
+            return;
+        }
+        var table = cashView === 'expense' ? cashTableExpense(shown)
+            : cashView === 'collection' ? cashTableCollection(shown)
+                : cashTableAll(shown);
+        host.innerHTML = '<div class="cash-hist-wrap">' + table + '</div>';
+    }
+
+    // ==================== Выгрузка кассы в CSV (Excel) ====================
+    // Текущий вид -> CSV: разделитель «;» (русская локаль Excel), UTF-8 BOM для
+    // кириллицы, CRLF. Суммы — числом в рублях: запятая-десятичная, без
+    // разделителей тысяч — Excel видит число и умеет SUM. Только строки данных,
+    // без итогов: итоги считаются в Excel самостоятельно.
+
+    function csvField(v) {
+        v = String(v == null ? '' : v);
+        // Ячейка с ведущим = + - @ (свободный текст заметки) получает апостроф-
+        // префикс: иначе Excel считает её формулой («=закупка» -> ошибка имени)
+        // или числом («+7900...» теряет плюс). Суммы/даты начинаются с цифры —
+        // их префикс не касается. Апостроф Excel прячет, текст остаётся как есть.
+        if (/^[=+@-]/.test(v)) v = "'" + v;
+        return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }
+    // Копейки -> число для CSV: 1534025 -> '15340,25'; 500000 -> '5000'; null -> ''.
+    function kopToRubCsv(kop) {
+        if (kop == null) return '';
+        var rub = Math.floor(kop / 100), c = kop % 100;
+        return c === 0 ? String(rub) : rub + ',' + (c < 10 ? '0' : '') + c;
+    }
+    function exportCashCsv() {
+        if (!cashDataReady) { S.showToast('Месяц ещё загружается, попробуй через секунду', true); return; }
+        var rows = cashViewRows(cashHistRows());
+        if (!rows.length) { S.showToast('Выгружать нечего: таблица пуста', true); return; }
+        var lines;
+        if (cashView === 'expense') {
+            lines = [['Дата', 'Точка', 'Бармен', 'Трата из кассы, руб', 'На что']]
+                .concat(rows.map(function (r) {
+                    return [S.formatDateHuman(r.date), r.loc, r.barman, kopToRubCsv(r.expense), r.note];
+                }));
+        } else if (cashView === 'collection') {
+            lines = [['Дата', 'Точка', 'Бармен', 'Инкассация, руб']]
+                .concat(rows.map(function (r) {
+                    return [S.formatDateHuman(r.date), r.loc, r.barman, kopToRubCsv(r.collection)];
+                }));
+        } else {
+            lines = [['Дата', 'Точка', 'Бармен', 'Траты, руб', 'На что', 'Инкассация, руб', 'Наличные на конец, руб']]
+                .concat(rows.map(function (r) {
+                    return [S.formatDateHuman(r.date), r.loc, r.barman,
+                        kopToRubCsv(r.expense), r.note, kopToRubCsv(r.collection), kopToRubCsv(r.end)];
+                }));
+        }
+        var csv = '\ufeff' + lines.map(function (l) { return l.map(csvField).join(';'); }).join('\r\n');
+        var m = S.state.month;
+        var name = 'kassa-' + CASH_VIEW_SLUG[cashView] + '-' + S.state.year + '-' + (m < 10 ? '0' : '') + m + '.csv';
+        var a = document.createElement('a');
+        var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
 
     function renderLanes() {

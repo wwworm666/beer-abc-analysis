@@ -879,6 +879,22 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     font-weight: 600; border-top: 2px solid var(--border-color); border-bottom: none;
 }
 .cash-hist-empty { padding: 12px; font-size: 0.85rem; color: var(--text-tertiary); }
+/* Панель над таблицей кассы: переключатель вида (сводная/траты/инкассации) + CSV. */
+.cash-hist-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.cash-seg { display: inline-flex; border: 1px solid var(--border-color); border-radius: 9px; overflow: hidden; }
+.cash-seg-btn { padding: 7px 14px; cursor: pointer; font-size: 0.72rem; font-weight: 600;
+    background: var(--bg-secondary); color: var(--text-secondary); border: none; }
+.cash-seg-btn + .cash-seg-btn { border-left: 1px solid var(--border-color); }
+.cash-seg-btn.selected { background: var(--accent); color: #fff; }
+#cashCsvBtn { margin-left: auto; padding: 7px 14px; font-size: 0.72rem; }
+/* Вид «Траты»: колонка «На что» — единственная с переносом строк. */
+.cash-hist .ch-comment { white-space: normal; min-width: 160px; }
+/* Подытоги по точкам перед общим итогом (виды «Траты»/«Инкассации»). */
+.cash-hist .ch-sub td {
+    font-weight: 600; font-size: 0.8rem; color: var(--text-secondary);
+    border-top: 1px dashed var(--border-color); border-bottom: none;
+}
+.cash-hist .ch-sub + .ch-sub td { border-top: none; }
 /* Месячная история кассы — инструмент владельца на десктопе; на телефоне бармену
    не нужна и мозолит глаза в полном графике. Прячем блок целиком на мобильном. */
 @media (max-width: 700px) { #foldCash { display: none; } }

@@ -169,7 +169,8 @@
         </div>
 
         <!-- История кассы за месяц (read-only): даты, точки, бармены, траты/
-             инкассация/наличные на конец. Данные из уже загруженных смен месяца. -->
+             инкассация/наличные на конец. Данные из уже загруженных смен месяца.
+             Три вида на выбор (сводная / траты / инкассации) + выгрузка CSV. -->
         <div class="sc-fold" id="foldCash">
           <button type="button" class="sc-fold-head" data-fold-toggle>
             <span class="sc-fold-title">Касса за месяц</span>
@@ -177,6 +178,18 @@
             <span class="sc-fold-chev">&#9662;</span>
           </button>
           <div class="sc-fold-body" hidden>
+            <div class="cash-hist-bar">
+              <div class="cash-seg" id="cashViewSeg">
+                <button type="button" class="cash-seg-btn" data-cash-view="all"
+                        title="Все кассовые поля смены: траты, инкассация, наличные на конец">Сводная</button>
+                <button type="button" class="cash-seg-btn" data-cash-view="expense"
+                        title="Только траты из кассы, с комментарием «на что»">Траты</button>
+                <button type="button" class="cash-seg-btn" data-cash-view="collection"
+                        title="Только сдачи инкассации">Инкассации</button>
+              </div>
+              <button type="button" class="btn btn-secondary" id="cashCsvBtn"
+                      title="Скачать текущую таблицу как CSV — открывается в Excel">Скачать CSV</button>
+            </div>
             <div id="cashHistBody"></div>
           </div>
         </div>
