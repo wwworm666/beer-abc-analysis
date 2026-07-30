@@ -22,6 +22,20 @@ LOCATION_VENUE_KEYS = {
 }
 
 
+# Категории ручных корректировок ЗП (v8, страница /salary). Ключ — машинный код,
+# значение — русская подпись (для журнала и экспорта). Суммы хранятся
+# ПОЛОЖИТЕЛЬНЫМИ; знак задаёт категория: deduction_* вычитаются из ЗП,
+# остальные прибавляются. Единственный источник допустимых категорий —
+# роуты и экспорт валидируются по этому словарю.
+SALARY_ADJUSTMENT_CATEGORIES = {
+    'vacation': 'Отпуск',
+    'extra_income': 'Доп доход',
+    'deduction_inventory': 'Вычет инвент',
+    'deduction_discipline': 'Вычет дисциплина',
+    'deduction_other': 'Доп вычет',
+}
+
+
 class ShiftsManager:
     """Thread-safe менеджер для работы со сменами в SQLite."""
 
@@ -42,7 +56,12 @@ class ShiftsManager:
     #     Деньги в КОПЕЙКАХ (INTEGER — точно, без float). NULL = не заполнено,
     #     0 = «не было». Заполняет дневная смена; замена бумажного чеклиста
     #     кассовой дисциплины. См. set_shift_cash() и docs/schedule.md.
-    SCHEMA_VERSION = 7
+    # v8: salary_adjustments — ручные корректировки ЗП по месяцам (страница
+    #     /salary): отпуск, доп доход, вычеты (инвент/дисциплина/доп). Суммы в
+    #     РУБЛЯХ (REAL, как daily_revenue) и хранятся положительными — знак
+    #     задаёт категория (SALARY_ADJUSTMENT_CATEGORIES). Ключ сотрудника —
+    #     employee_name как на странице ЗП (мёрж источников там по имени).
+    SCHEMA_VERSION = 8
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -277,6 +296,24 @@ class ShiftsManager:
                     'cash_end_kop': 'INTEGER',
                 })
 
+                # v8: ручные корректировки ЗП (страница /salary). Суммы в рублях,
+                # положительные; категория задаёт знак (deduction_* вычитаются).
+                # UNIQUE(month, employee_name, category) — UPSERT одной строки на
+                # сотрудника-категорию в месяце (та же защита от гонки двух
+                # gunicorn-воркеров, что и в daily_revenue).
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS salary_adjustments (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        month TEXT NOT NULL,
+                        employee_name TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        amount REAL NOT NULL DEFAULT 0,
+                        note TEXT,
+                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(month, employee_name, category)
+                    )
+                ''')
+
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_employee ON shifts(employee_name)')
@@ -289,6 +326,7 @@ class ShiftsManager:
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_revenue_date ON daily_revenue(date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_entity_date ON schedule_audit(entity_date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_id ON schedule_audit(id)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_salary_adj_month ON salary_adjustments(month)')
 
                 cursor.execute(f"PRAGMA user_version = {self.SCHEMA_VERSION}")
                 conn.commit()
@@ -975,6 +1013,76 @@ class ShiftsManager:
                 conn.commit()
                 return cursor.rowcount > 0
 
+    # ==================== SALARY ADJUSTMENTS (ручные корректировки ЗП) ====================
+
+    def get_salary_adjustments(self, month: str) -> Dict:
+        """Ручные корректировки ЗП за месяц ('YYYY-MM').
+
+        Возвращает {employee_name: {category: {'amount': float, 'note': str|None}}}.
+        Суммы положительные; знак задаёт категория (SALARY_ADJUSTMENT_CATEGORIES):
+        deduction_* вычитаются из ЗП, остальные прибавляются.
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT employee_name, category, amount, note
+                    FROM salary_adjustments
+                    WHERE month = ?
+                ''', (month,))
+                result = {}
+                for row in cursor.fetchall():
+                    emp = result.setdefault(row['employee_name'], {})
+                    emp[row['category']] = {'amount': row['amount'], 'note': row['note']}
+                return result
+
+    def set_salary_adjustment(self, month: str, employee_name: str, category: str,
+                              amount: float, note: str = None) -> Optional[float]:
+        """UPSERT одной корректировки; возвращает прежнюю сумму (None — не было).
+
+        Сумма 0 без заметки = «корректировки нет» — строка удаляется, чтобы
+        таблица не зарастала нулями. Валидация категории/суммы — в роуте
+        (как fact_minutes валидируется в /fact, а не здесь); менеджер только
+        зажимает сумму в неотрицательную, знак задаёт категория.
+        """
+        amount = max(0.0, float(amount or 0))
+        note = (note or '').strip() or None
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # BEGIN IMMEDIATE: threading.Lock не защищает между 2 gunicorn-
+                # воркерами, а SELECT в autocommit не держит снимок — без явной
+                # транзакции два одновременных POST прочитали бы одно old_amount
+                # и цепочка «было -> стало» в журнале лгала бы. busy_timeout=5000
+                # заставляет второго писателя подождать, а не упасть.
+                cursor.execute('BEGIN IMMEDIATE')
+                cursor.execute(
+                    'SELECT amount FROM salary_adjustments '
+                    'WHERE month = ? AND employee_name = ? AND category = ?',
+                    (month, employee_name, category)
+                )
+                row = cursor.fetchone()
+                old_amount = row['amount'] if row else None
+                if amount == 0 and note is None:
+                    cursor.execute(
+                        'DELETE FROM salary_adjustments '
+                        'WHERE month = ? AND employee_name = ? AND category = ?',
+                        (month, employee_name, category)
+                    )
+                else:
+                    cursor.execute('''
+                        INSERT INTO salary_adjustments
+                            (month, employee_name, category, amount, note, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(month, employee_name, category) DO UPDATE SET
+                            amount = excluded.amount,
+                            note = excluded.note,
+                            updated_at = excluded.updated_at
+                    ''', (month, employee_name, category, amount, note,
+                          datetime.now().isoformat()))
+                conn.commit()
+                return old_amount
+
     # ==================== AUDIT (журнал изменений графика) ====================
 
     def log_audit(self, action: str, summary: str, actor_login: str = None,
@@ -985,7 +1093,8 @@ class ShiftsManager:
         action — машинный код (shift_create / shift_update / shift_delete /
         fact_set / fact_clear / dayoff_create / dayoff_delete / role_rate /
         revenue_set / revenue_sync / revenue_sync_month / employee_update /
-        employees_sync). summary — готовая русская строка для показа. Изменения без
+        employees_sync / salary_adjustment). summary — готовая русская строка
+        для показа. Изменения без
         собственной даты (ставка, реестр) логируются с entity_date = сегодня, чтобы
         попасть в историю текущего месяца. actor_name — снимок display_name автора
         (журнал читается, даже если аккаунт потом переименуют/удалят).

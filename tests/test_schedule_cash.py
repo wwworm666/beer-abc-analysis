@@ -28,7 +28,10 @@ def test_fresh_db_has_cash_columns(tmp_path):
     mgr = _mgr(tmp_path)
     with sqlite3.connect(mgr.db_path) as conn:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(shifts)")}
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 7
+        # Не литерал 7: схема растёт (v8 salary_adjustments и дальше),
+        # тест проверяет «свежая БД домигрирована до текущей версии»
+        assert (conn.execute("PRAGMA user_version").fetchone()[0]
+                == ShiftsManager.SCHEMA_VERSION)
     for c in ('cash_expense_kop', 'cash_expense_note',
               'cash_collection_kop', 'cash_end_kop'):
         assert c in cols, f"нет колонки {c}"
