@@ -201,17 +201,22 @@
         .detail-toggle:hover { border-color: var(--accent); color: var(--accent); }
         .detail-toggle.active { background: var(--accent); color: white; border-color: var(--accent); }
 
-        /* Detail panel (inside card) */
+        /* Detail panel (inside card). overflow-x: таблица смен (9 колонок) шире
+           мобильного экрана — без прокрутки колонки просто обрезались */
         .emp-details {
             display: none;
             padding: 16px 24px 20px;
             border-top: 1px solid var(--border-color);
             background: var(--bg-tertiary);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .emp-details.active { display: block; }
 
-        /* Shifts table */
-        .days-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        /* Shifts table. min-width держит колонки читаемыми — на узком экране
+           таблица листается горизонтально, а не сжимается в кашу */
+        .days-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 0.8rem; }
+        .days-table th, .days-table td { white-space: nowrap; }
         .days-table th { padding: 8px 10px; font-size: 0.75rem; color: var(--text-tertiary); border-bottom: 1px solid var(--border-color); font-weight: 500; text-align: left; }
         .days-table th.right { text-align: right; }
         .days-table td { padding: 6px 10px; border-bottom: 1px solid var(--border-color); color: var(--text-secondary); }
