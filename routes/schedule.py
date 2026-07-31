@@ -267,11 +267,12 @@ def schedule_hours_by_role():
     Часы — из графика (fact_minutes), единственный источник часов оплаты;
     оплата = часы × ставка роли. Query: date_from, date_to (включительно).
     У сотрудников есть day_shifts (состоявшиеся полноценные дневные смены) —
-    такси на странице ЗП: разница = day_shifts × taxi_rate −
-    taxi_official_shifts × taxi_rate (оф. всегда за фикс 15 смен); константы
-    отдаются здесь же, чтобы фронт их не хардкодил.
+    такси на странице ЗП = day_shifts × taxi_rate («такси фактически», вид
+    бармена); зачёт официальной оплаты (фикс 15 смен) и «мосты» — только в
+    Excel-экспорте для бухгалтера. Тариф отдаётся здесь, чтобы фронт не
+    хардкодил 700.
     """
-    from core.salary_export import TAXI_RATE_PER_SHIFT, TAXI_OFFICIAL_SHIFTS
+    from core.salary_export import TAXI_RATE_PER_SHIFT
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     if not date_from or not date_to:
@@ -279,7 +280,6 @@ def schedule_hours_by_role():
     return jsonify({
         'rates': shifts_mgr.get_roles(),
         'taxi_rate': TAXI_RATE_PER_SHIFT,
-        'taxi_official_shifts': TAXI_OFFICIAL_SHIFTS,
         'employees': shifts_mgr.get_hours_by_role_for_period(date_from, date_to),
     })
 

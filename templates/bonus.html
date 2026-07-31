@@ -563,7 +563,7 @@
                 <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
                 <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
                 <strong>Оплата часов:</strong> сумма по сменам — <code>часы из графика x ставка роли</code> (часы = факт из графика смен; ставки ролей настраиваются выше)<br>
-                <strong>Такси разница:</strong> расчёт <code>700 x полноценная дневная смена</code> − оф. <code>15 x 700 = 10 500</code> (фикс); доплата или удержание в ЗП. Вечер и «второй бармен» не считаются; «мосты» бухгалтер добавляет в Excel<br>
+                <strong>Такси:</strong> <code>700 x полноценная дневная смена</code> из графика (вечер и «второй бармен» не считаются); зачёт официальной оплаты и «мосты» — в Excel-таблице у бухгалтера<br>
                 <strong>Штраф кассы (ручной):</strong> кнопка «штраф» в таблице смен сотрудника снимает премию за передачу смены (<code>-500</code>) за конкретный день — если сумма кассы указана неверно или забыты траты; с днями «нет кассы» не задваивается
             </div>
 
@@ -801,15 +801,12 @@
             emp.hours = h ? h.total_hours : 0;
             emp.hoursPay = h ? h.total_pay : 0;
             emp.shiftsWithoutFact = h ? h.shifts_without_fact : 0;
-            // Такси: расчёт = 700 × дневные смены; оф. — всегда за фикс 15 смен
-            // (правило владельца, 10 500). В ЗП идёт РАЗНИЦА (доплата или
-            // удержание). «Мосты» бухгалтер добавляет вручную в Excel — на
-            // странице их нет. Без дневных смен оф. не начисляется (иначе у
-            // «только вечернего» сотрудника появилось бы удержание 10 500).
+            // Такси фактически: 700 × полноценная дневная смена из графика.
+            // Сайт — вид бармена, показывает только фактическое такси;
+            // бухгалтерия (оф. за фикс 15 смен, разница, мосты) живёт в
+            // Excel-экспорте и на странице не показывается.
             emp.dayShifts = h ? (h.day_shifts || 0) : 0;
-            emp.taxiCalc = emp.dayShifts * taxiRate();
-            emp.taxiOfficial = emp.dayShifts > 0 ? taxiOfficialShifts() * taxiRate() : 0;
-            emp.taxiPay = emp.taxiCalc - emp.taxiOfficial;
+            emp.taxiPay = emp.dayShifts * taxiRate();
             // База без часов
             const bonusPlan = b?.bonus || 0;
             const handover = b?.shift_handover_bonus || 0;
@@ -821,17 +818,6 @@
 
         function taxiRate() {
             return (hoursData && hoursData.taxi_rate != null) ? hoursData.taxi_rate : 700;
-        }
-
-        function taxiOfficialShifts() {
-            return (hoursData && hoursData.taxi_official_shifts != null)
-                ? hoursData.taxi_official_shifts : 15;
-        }
-
-        // Знаковая сумма для такси-разницы: «-2 800 ₽» / «+3 900 ₽»
-        function formatSigned(v) {
-            if (!v) return '—';
-            return (v > 0 ? '+' : '-') + formatMoney(Math.abs(v));
         }
 
         // ===================== RENDER SUMMARY =====================
@@ -870,8 +856,8 @@
                     <div class="summary-value" style="color:var(--success);" id="summary-hours-pay">${formatMoney(totalHoursPay)}</div>
                 </div>
                 <div class="summary-card">
-                    <div class="summary-label">Такси разница</div>
-                    <div class="summary-value" style="color:${totalTaxi > 0 ? 'var(--success)' : (totalTaxi < 0 ? 'var(--danger)' : 'var(--text-tertiary)')};" title="Расчёт (дневные смены x ${formatNum(taxiRate(), 0)}) − оф. (${taxiOfficialShifts()} x ${formatNum(taxiRate(), 0)}); мосты — бухгалтер в Excel">${formatSigned(totalTaxi)}</div>
+                    <div class="summary-label">Такси</div>
+                    <div class="summary-value" style="color:${totalTaxi > 0 ? 'var(--success)' : 'var(--text-tertiary)'};" title="${formatNum(taxiRate(), 0)} ₽ x полноценная дневная смена из графика">${formatMoney(totalTaxi)}</div>
                 </div>
                 <div class="summary-card">
                     <div class="summary-label">Сотрудников</div>
@@ -925,12 +911,10 @@
                 // часы правятся в графике смен, не здесь (график — источник истины).
                 html += renderHoursRows(emp);
 
-                // Такси-разница: расчёт (дневные смены × 700) минус оф. (фикс
-                // 15 × 700) — доплата или удержание; мосты — бухгалтер в Excel
-                const taxiTitle = `Расчёт ${emp.dayShifts} x ${formatNum(taxiRate(), 0)} = ${formatMoney(emp.taxiCalc)}`
-                    + ` − оф. (${taxiOfficialShifts()} смен) ${formatMoney(emp.taxiOfficial)}`;
-                html += `<div class="sal-label" title="${taxiTitle}">Такси разница <span style="color:var(--text-tertiary);">${emp.dayShifts} дн. смен x ${formatNum(taxiRate(), 0)} − оф. ${formatMoney(emp.taxiOfficial)}</span></div>`;
-                html += `<div class="sal-value ${emp.taxiPay > 0 ? 'positive' : (emp.taxiPay < 0 ? 'negative' : 'neutral')}">${formatSigned(emp.taxiPay)}</div>`;
+                // Такси фактически: тариф × полноценные дневные смены (вечер и
+                // «второй бармен» не считаются); оф./разница/мосты — в Excel
+                html += `<div class="sal-label">Такси <span style="color:var(--text-tertiary);">${emp.dayShifts} дн. смен x ${formatNum(taxiRate(), 0)}</span></div>`;
+                html += `<div class="sal-value ${emp.taxiPay > 0 ? 'positive' : 'neutral'}">${emp.taxiPay > 0 ? formatMoney(emp.taxiPay) : '—'}</div>`;
 
                 // Divider + Total
                 html += `<div class="sal-divider"></div>`;
