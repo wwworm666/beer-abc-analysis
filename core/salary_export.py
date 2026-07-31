@@ -124,13 +124,15 @@ def build_salary_workbook(payload: dict) -> Workbook:
     total_col = first_emp_col + n_emp      # последний столбец — ИТОГО
     emp_cols = [first_emp_col + i for i in range(n_emp)]
 
-    def put(row, col, value, fill=None, font=None, fmt=None, align=None,
-            is_formula=False):
+    def put(row, col, value, fill=None, font=None, fmt=None, align=None):
         cell = ws.cell(row=row, column=col, value=value)
         # openpyxl типизирует любую строку с ведущим «=» как формулу: имя
         # сотрудника вида «=Иванов» (опечатка или крафт) ушло бы в файл живой
-        # формулой. Только явно помеченные ячейки остаются формулами.
-        if isinstance(value, str) and value.startswith('=') and not is_formula:
+        # формулой. Формул в файле нет вообще (все суммы посчитаны сервером:
+        # openpyxl не пишет кэш значений, и формульные ячейки выглядели пустыми
+        # в предпросмотре Google Drive / защищённом режиме Excel) — любую
+        # «=»-строку принудительно делаем текстом.
+        if isinstance(value, str) and value.startswith('='):
             cell.data_type = 's'
         cell.border = _BORDER
         if fill:
@@ -162,9 +164,9 @@ def build_salary_workbook(payload: dict) -> Workbook:
 
     def data_row(label, values, meta=None, tariff=None, label_fill=None,
                  label_font=None, data_fill=None, fmt=_FMT_MONEY,
-                 formula=None, sum_total=True):
+                 sum_total=True):
         """Одна строка таблицы. values — список по сотрудникам (None = пусто);
-        formula(col_letter, row) — формула вместо значений; ИТОГО = SUM по строке."""
+        ИТОГО = посчитанная сервером сумма по строке (число, не формула)."""
         nonlocal row
         r = row
         put(r, 1, label, fill=label_fill, font=label_font)
@@ -174,19 +176,13 @@ def build_salary_workbook(payload: dict) -> Workbook:
         put(r, 4, checker or None, align=center)
         put(r, 5, tariff, font=Font(italic=True), fmt=_FMT_MONEY, align=center)
         for i, col in enumerate(emp_cols):
-            letter = get_column_letter(col)
-            if formula is not None:
-                put(r, col, formula(letter, r), fill=data_fill, fmt=fmt,
-                    is_formula=True)
-            else:
-                v = values[i] if values else None
-                put(r, col, v if v not in (None, 0) or fmt == _FMT_MONEY_2 else None,
-                    fill=data_fill, fmt=fmt)
-        if n_emp and sum_total:
-            first_l = get_column_letter(first_emp_col)
-            last_l = get_column_letter(total_col - 1)
-            put(r, total_col, f"=SUM({first_l}{r}:{last_l}{r})",
-                fill=_FILL_TOTAL, font=Font(bold=True), fmt=fmt, is_formula=True)
+            v = values[i] if values else None
+            put(r, col, v if v not in (None, 0) or fmt == _FMT_MONEY_2 else None,
+                fill=data_fill, fmt=fmt)
+        if n_emp and sum_total and values:
+            total = sum(v for v in values if isinstance(v, (int, float)))
+            put(r, total_col, round(total, 2) if total else None,
+                fill=_FILL_TOTAL, font=Font(bold=True), fmt=fmt)
         else:
             put(r, total_col, None, fill=_FILL_TOTAL)
         row += 1
@@ -246,66 +242,68 @@ def build_salary_workbook(payload: dict) -> Workbook:
     extra_income_row = data_row('Доп доход', emp_vals(lambda e: adj(e, 'extra_income')),
                                 meta=_META['extra_income'])
 
-    # Такси: «расчёт» — формула смены x тариф; «мосты» и «оф.» дозаполняются в
-    # файле; «разница» — формула, пересчитывается при заполнении.
-    taxi_calc_row = data_row('Такси за смены расчет.', None,
-                             meta=_META['taxi'], tariff=TAXI_RATE_PER_SHIFT,
-                             label_fill=_FILL_YELLOW,
-                             formula=lambda L, r, sr=shifts_row: f"={L}{sr}*$E{r}")
-    mosty_row = data_row('мосты', None, label_fill=_FILL_YELLOW)
-    # Оф. = фикс 15 смен x тариф (ссылка на ячейку тарифа расчёта — правка
-    # тарифа в файле пересчитает и оф.); без дневных смен не начисляется
-    taxi_official_row = data_row(
-        'Такси за смены оф.', None, meta=_META['taxi'],
-        formula=lambda L, r, sr=shifts_row, cr=taxi_calc_row:
-            f"=IF({L}{sr}>0,{TAXI_OFFICIAL_SHIFTS}*$E{cr},0)")
-    taxi_diff_row = data_row(
-        'Такси разница: доплата/удержание', None,
-        meta=_META['taxi'], label_fill=_FILL_YELLOW,
-        formula=lambda L, r, a=taxi_calc_row, b=mosty_row, c=taxi_official_row:
-            f"={L}{a}+{L}{b}-{L}{c}")
+    # Такси — все строки посчитаны сервером (числа, не формулы: openpyxl не
+    # пишет кэш значений формул, и они выглядели пустыми в предпросмотрах).
+    # «Мосты» — единственная ручная строка бухгалтера; после её заполнения
+    # разницу бухгалтер сводит в своей таблице.
+    def taxi_calc(e):
+        return (e.get('shifts_count') or 0) * TAXI_RATE_PER_SHIFT
+
+    def taxi_official(e):
+        # Оф. = фикс 15 смен x тариф; без дневных смен не начисляется
+        return TAXI_OFFICIAL_SHIFTS * TAXI_RATE_PER_SHIFT \
+            if (e.get('shifts_count') or 0) > 0 else 0
+
+    def taxi_diff(e):
+        # Разница = расчёт + мосты - оф.; мосты на момент экспорта 0
+        return taxi_calc(e) - taxi_official(e)
+
+    data_row('Такси за смены расчет.', emp_vals(taxi_calc),
+             meta=_META['taxi'], tariff=TAXI_RATE_PER_SHIFT,
+             label_fill=_FILL_YELLOW)
+    data_row('мосты', None, label_fill=_FILL_YELLOW)
+    data_row('Такси за смены оф.', emp_vals(taxi_official), meta=_META['taxi'])
+    data_row('Такси разница: доплата/удержание', emp_vals(taxi_diff),
+             meta=_META['taxi'], label_fill=_FILL_YELLOW)
 
     red_label_font = Font(bold=True, color='FFFFFF')
-    ded_inventory_row = data_row(
-        'Вычет инвент', emp_vals(lambda e: adj(e, 'deduction_inventory')),
-        meta=_META['ded_inventory'],
-        label_fill=_FILL_RED_LABEL, label_font=red_label_font, data_fill=_FILL_RED_DATA)
+    data_row('Вычет инвент', emp_vals(lambda e: adj(e, 'deduction_inventory')),
+             meta=_META['ded_inventory'],
+             label_fill=_FILL_RED_LABEL, label_font=red_label_font, data_fill=_FILL_RED_DATA)
     # Дисциплина = авто-штраф за опоздания (страница ЗП) + ручной вычет
-    ded_discipline_row = data_row(
-        'Вычет дисциплина',
-        emp_vals(lambda e: (e.get('late_penalty') or 0) + adj(e, 'deduction_discipline')),
-        meta=_META['ded_discipline'],
-        label_fill=_FILL_RED_LABEL, label_font=red_label_font, data_fill=_FILL_RED_DATA)
-    ded_other_row = data_row(
-        'Доп вычет', emp_vals(lambda e: adj(e, 'deduction_other')),
-        meta=_META['ded_other'],
-        label_fill=_FILL_RED_LABEL, label_font=red_label_font, data_fill=_FILL_RED_DATA)
+    data_row('Вычет дисциплина',
+             emp_vals(lambda e: (e.get('late_penalty') or 0) + adj(e, 'deduction_discipline')),
+             meta=_META['ded_discipline'],
+             label_fill=_FILL_RED_LABEL, label_font=red_label_font, data_fill=_FILL_RED_DATA)
+    data_row('Доп вычет', emp_vals(lambda e: adj(e, 'deduction_other')),
+             meta=_META['ded_other'],
+             label_fill=_FILL_RED_LABEL, label_font=red_label_font, data_fill=_FILL_RED_DATA)
 
     # ИТОГО БАРМЕН = оплата по ролям + отпуск + премии + KPI + доп доход +
-    # такси-разница - вычеты (часы/смены/такси-расчёт в итог не входят)
-    plus_rows = pay_rows + [vacation_row, handover_row, day_plan_row] + kpi_rows + \
-        [extra_income_row, taxi_diff_row]
-    minus_rows = [ded_inventory_row, ded_discipline_row, ded_other_row]
+    # такси-разница - вычеты (часы/смены/такси-расчёт в итог не входят);
+    # посчитано сервером, мосты на момент экспорта 0
+    def employee_total(e):
+        pay = sum(v for v in (e.get('pay_by_role') or {}).values()
+                  if isinstance(v, (int, float)))
+        kpi_sum = sum(v for v in (e.get('kpi_premiums') or [])
+                      if isinstance(v, (int, float)))
+        deductions = (adj(e, 'deduction_inventory')
+                      + (e.get('late_penalty') or 0) + adj(e, 'deduction_discipline')
+                      + adj(e, 'deduction_other'))
+        return round(pay + adj(e, 'vacation') + (e.get('handover_bonus') or 0)
+                     + (e.get('day_plan_bonus') or 0) + kpi_sum
+                     + adj(e, 'extra_income') + taxi_diff(e) - deductions, 2)
 
-    def total_formula(L):
-        plus = '+'.join(f"{L}{r}" for r in plus_rows)
-        minus = ''.join(f"-{L}{r}" for r in minus_rows)
-        return f"={plus}{minus}"
-
+    totals = [employee_total(e) for e in employees]
     total_row = row
     put(total_row, 1, 'ИТОГО БАРМЕН', fill=_FILL_TOTAL, font=Font(bold=True))
     for col in range(2, first_emp_col):
         put(total_row, col, None, fill=_FILL_TOTAL)
-    for col in emp_cols:
-        put(total_row, col, total_formula(get_column_letter(col)),
-            fill=_FILL_TOTAL, font=Font(bold=True), fmt=_FMT_MONEY, is_formula=True)
-    if n_emp:
-        put(total_row, total_col,
-            f"=SUM({get_column_letter(first_emp_col)}{total_row}:"
-            f"{get_column_letter(total_col - 1)}{total_row})",
-            fill=_FILL_TOTAL, font=Font(bold=True), fmt=_FMT_MONEY, is_formula=True)
-    else:
-        put(total_row, total_col, None, fill=_FILL_TOTAL)
+    for i, col in enumerate(emp_cols):
+        put(total_row, col, totals[i],
+            fill=_FILL_TOTAL, font=Font(bold=True), fmt=_FMT_MONEY)
+    put(total_row, total_col, round(sum(totals), 2) if n_emp else None,
+        fill=_FILL_TOTAL, font=Font(bold=True), fmt=_FMT_MONEY)
 
     # --- Оформление листа ---
     ws.column_dimensions['A'].width = 34
