@@ -4,9 +4,11 @@
 (`core/salary_payload.py` — тот же мёрж, что делает страница /salary) и
 переписывает в таблице `SALARY_SHEET_ID` вкладку «Июль_2026_Автоматическая».
 
-ЧТО ВЫГРУЖАЕТСЯ: текущий месяц всегда; плюс предыдущий, пока число месяца
-<= SALARY_SYNC_PREV_UNTIL_DAY (по умолчанию 10) — закрытый месяц дособирается
-по дедлайнам самой таблицы бухгалтерии («05 число», «10 число»).
+ЧТО ВЫГРУЖАЕТСЯ: текущий месяц всегда — вкладка появляется 1-го числа и
+наполняется по ходу месяца (в первые дни продаж ещё нет, премии честно нулевые,
+часы и смены уже идут из графика). Плюс предыдущий месяц, пока число
+<= SALARY_SYNC_PREV_UNTIL_DAY (по умолчанию 7): закрытый месяц ещё неделю
+подтягивает поздние правки графика и кассы.
 
 ПОЧЕМУ ОТДЕЛЬНАЯ ВКЛАДКА: ручная вкладка месяца («июль2026») содержит строки,
 которых приложение не знает — «мосты», отпуск, доп доход, вычеты инвент/доп.
@@ -28,9 +30,9 @@ from datetime import date, datetime, timedelta
 
 SYNC_HOUR = int(os.environ.get('SALARY_SYNC_HOUR', '4'))
 SYNC_MINUTE = int(os.environ.get('SALARY_SYNC_MINUTE', '0'))
-# До какого числа месяца ещё дособирать предыдущий месяц (дедлайны таблицы
-# бухгалтерии — «05 число» и «10 число»)
-PREV_UNTIL_DAY = int(os.environ.get('SALARY_SYNC_PREV_UNTIL_DAY', '10'))
+# До какого числа месяца ещё обновлять предыдущий: закрытый месяц неделю
+# подтягивает поздние правки графика и кассы
+PREV_UNTIL_DAY = int(os.environ.get('SALARY_SYNC_PREV_UNTIL_DAY', '7'))
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOCK_DIR = os.path.join(_BASE_DIR, 'data')
@@ -95,7 +97,7 @@ def _cleanup_old_locks() -> None:
 
 
 def months_to_sync(today: date = None) -> list:
-    """Какие месяцы выгружать сегодня: текущий (+ предыдущий до N числа)."""
+    """Какие месяцы выгружать сегодня: текущий (+ предыдущий первую неделю)."""
     from core.salary_payload import previous_month
     today = today or date.today()
     current = today.strftime('%Y-%m')
@@ -108,7 +110,7 @@ def months_to_sync(today: date = None) -> list:
 def sync_once(tag: str = 'manual') -> dict:
     """Выгрузить нужные месяцы. Возвращает {месяц: результат|ошибка}."""
     from core.salary_gsheet import sync_to_master
-    from core.salary_payload import NoDataForPeriod, build_payload_for_month
+    from core.salary_payload import build_payload_for_month
 
     results = {}
     for month in months_to_sync():
@@ -117,8 +119,10 @@ def sync_once(tag: str = 'manual') -> dict:
         # обрабатывается независимо, ошибка попадает в результат и в лог
         try:
             payload = build_payload_for_month(_app, month)
+            # Пусто = ни продаж, ни смен в графике. Вкладку не создаём: писать
+            # нечего, а пустой лист только мусорил бы в таблице
             if not payload.get('employees'):
-                print(f"[SALARY-SYNC] {tag} {month}: net sotrudnikov — propusk")
+                print(f"[SALARY-SYNC] {tag} {month}: net dannyh i grafika — propusk")
                 results[month] = 'пусто'
                 continue
             res = sync_to_master(payload)
@@ -126,11 +130,6 @@ def sync_once(tag: str = 'manual') -> dict:
                   f"vkladka {res['tab']}, {len(payload['employees'])} sotr., "
                   f"{time.time() - started:.0f}s")
             results[month] = res
-        except NoDataForPeriod:
-            # Штатно в первые дни месяца: закрытых данных iiko ещё нет,
-            # страница за этот период тоже ничего не показывает
-            print(f"[SALARY-SYNC] {tag} {month}: dannyh za period poka net — propusk")
-            results[month] = 'нет данных за период'
         except Exception as e:
             print(f"[SALARY-SYNC] {datetime.now().isoformat()} {tag} {month} oshibka: {e}")
             results[month] = f"ошибка: {e}"

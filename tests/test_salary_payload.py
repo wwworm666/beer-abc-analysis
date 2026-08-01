@@ -88,10 +88,10 @@ def test_total_salary_drives_column_order():
 
 
 def test_no_data_for_period_is_not_an_error():
-    """404 «нет данных за период» — штатный пропуск месяца, а не сбой.
+    """404 «нет данных за период» — штатная ситуация, а не сбой.
 
-    В первые дни месяца закрытых данных iiko ещё нет; ронять всю выгрузку
-    (и заодно предыдущий месяц) из-за этого нельзя.
+    В первые дни месяца продажи ещё не закрыты. Месяц всё равно выгружается
+    (часы и смены есть в графике), а вот 500 маскировать нельзя.
     """
     from flask import Flask, jsonify
 
@@ -121,12 +121,61 @@ def test_no_data_for_period_is_not_an_error():
 
 
 def test_months_to_sync():
-    """Текущий месяц всегда; предыдущий — пока число <= порога (по умолчанию 10)."""
+    """Текущий месяц всегда; предыдущий — первую неделю месяца."""
     from core.salary_scheduler import PREV_UNTIL_DAY, months_to_sync
+    assert PREV_UNTIL_DAY == 7
     assert months_to_sync(date(2026, 8, 1)) == ['2026-08', '2026-07']
-    assert months_to_sync(date(2026, 8, PREV_UNTIL_DAY)) == ['2026-08', '2026-07']
-    assert months_to_sync(date(2026, 8, PREV_UNTIL_DAY + 1)) == ['2026-08']
+    assert months_to_sync(date(2026, 8, 7)) == ['2026-08', '2026-07']
+    assert months_to_sync(date(2026, 8, 8)) == ['2026-08']
+    assert months_to_sync(date(2026, 8, 31)) == ['2026-08']
     assert months_to_sync(date(2026, 1, 3)) == ['2026-01', '2025-12']
+
+
+def test_payload_survives_month_without_sales():
+    """Месяц без закрытых продаж всё равно собирается — из графика.
+
+    1-го числа iiko отвечает 404, но часы и смены уже есть; вкладка должна
+    появиться сразу и наполняться по ходу месяца, а не ждать первых продаж.
+    """
+    from flask import Flask, jsonify
+
+    import core.salary_payload as sp
+
+    app = Flask(__name__)
+
+    class _FakeShiftsMgr:
+        def get_hours_by_role_for_period(self, a, b):
+            return [{'employee_name': 'Юреня Роман', 'total_pay': 29100,
+                     'day_shifts': 11, 'roles': [
+                         {'role_name': 'бармен', 'hours': 97, 'pay': 29100}]}]
+
+        def get_roles(self):
+            return [{'name': 'бармен', 'rate_per_hour': 300, 'sort_order': 1}]
+
+    def _fake_call(app_, view, path, **kw):
+        raise sp.NoDataForPeriod(path)
+
+    # Подменяем только источник часов: расчёт iiko не дёргается (_call_view
+    # замокан), а график отдаёт фиксированного сотрудника
+    import extensions
+
+    real_call, real_mgr = sp._call_view, extensions.shifts_mgr
+    sp._call_view = _fake_call
+    extensions.shifts_mgr = _FakeShiftsMgr()
+    try:
+        payload = sp.build_payload_for_month(app, '2026-08')
+    finally:
+        sp._call_view = real_call
+        extensions.shifts_mgr = real_mgr
+
+    assert len(payload['employees']) == 1
+    emp = payload['employees'][0]
+    assert emp['name'] == 'Юреня Роман'
+    assert emp['hours_by_role'] == {'бармен': 97}
+    assert emp['shifts_count'] == 11
+    # Премий ещё нет — они честно нулевые, а не «потерялись»
+    assert emp['handover_bonus'] == 0 and emp['day_plan_bonus'] == 0
+    assert payload['kpi_names'] == []
 
 
 if __name__ == '__main__':

@@ -83,11 +83,11 @@ def _sorted_kpi_keys(obj):
 
 
 class NoDataForPeriod(Exception):
-    """За период ещё нет закрытых данных iiko — месяц выгружать нечего.
+    """За период ещё нет закрытых данных iiko (404 от расчёта).
 
-    Штатная ситуация, а не сбой: в первые дни месяца (и в ночь на 1-е)
-    `/api/bonus-calculate` отвечает 404 «Нет данных за выбранный период» —
-    страница в этом случае тоже ничего не показывает.
+    Штатная ситуация, а не сбой: в первые дни месяца продажи ещё не закрыты.
+    Обрабатывается внутри `build_payload_for_month` — источник просто даёт
+    пустой результат, а месяц выгружается по тому, что есть в графике.
     """
 
 
@@ -161,10 +161,20 @@ def build_payload_for_month(app, month: str) -> dict:
     date_from, date_to = month_bounds(month)
     body = {'date_from': date_from, 'date_to': date_to}
 
-    bonus_data = _call_view(app, bonus_calculate, '/api/bonus-calculate',
-                            method='POST', json=body)
-    kpi_data = _call_view(app, kpi_calculate, '/api/kpi-calculate',
-                          method='POST', json=body)
+    # В начале месяца закрытых продаж в iiko ещё нет — расчёт отвечает 404.
+    # Это не повод не выгружать месяц: часы и смены уже есть в графике, и
+    # вкладка должна существовать с первого дня, наполняясь по ходу месяца.
+    # Премии в этот момент честно равны нулю — они ещё не заработаны.
+    try:
+        bonus_data = _call_view(app, bonus_calculate, '/api/bonus-calculate',
+                                method='POST', json=body)
+    except NoDataForPeriod:
+        bonus_data = {}
+    try:
+        kpi_data = _call_view(app, kpi_calculate, '/api/kpi-calculate',
+                              method='POST', json=body)
+    except NoDataForPeriod:
+        kpi_data = {}
     hours_emps = shifts_mgr.get_hours_by_role_for_period(date_from, date_to)
     roles_raw = shifts_mgr.get_roles()
 
