@@ -134,6 +134,7 @@ docker exec beer-app python -c "from core.salary_gsheet import _load_credentials
 |---|---|---|
 | «Экспорт в Google Таблицу не настроен» / «Нет ключа сервис-аккаунта» | Ключа нет по пути или папка не примонтирована | Часть 2, шаги 1–4 |
 | «Не установлены библиотеки Google API» | Образ собран до появления зависимостей | `docker compose up -d --build app` |
+| `SERVICE_DISABLED` / «Google Sheets API has not been used in project ...» | В проекте не включён Sheets API. Частый случай: проект заведён автоматически под Gemini/AI Studio (имя вида `gen-lang-client-…`) — там включён только Generative Language API | Открыть ссылку из текста ошибки (`console.developers.google.com/apis/api/sheets.googleapis.com/overview?project=<номер>`) -> **Включить**, подождать 1–2 минуты |
 | «Таблица ... недоступна» | Таблица не расшарена на сервис-аккаунт | Часть 1, шаг 5, права **Редактор** |
 | Вкладка уже существует | Месяц уже выгружали | Подтвердить перезапись или переименовать старую вкладку |
 
