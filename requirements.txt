@@ -15,3 +15,7 @@ openpyxl>=3.1,<4
 python-dateutil>=2.8.2,<3
 paramiko>=3.4.0,<4
 Markdown>=3.5,<4
+# Экспорт ЗП в Google Таблицу (core/salary_gsheet.py). Импортируются лениво:
+# без ключа сервис-аккаунта приложение работает, кнопка отвечает «не настроено».
+google-api-python-client>=2.100,<3
+google-auth>=2.23,<3

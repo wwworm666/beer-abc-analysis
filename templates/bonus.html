@@ -475,6 +475,11 @@
                     <button class="btn-secondary" id="export-btn" onclick="exportExcel()" disabled
                             title="Скачать таблицу расчёта за месяц в Excel (сначала выполните расчёт)">Экспорт Excel</button>
                 </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <button class="btn-secondary" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
+                            title="Записать расчёт за месяц вкладкой в Google Таблицу (сначала выполните расчёт)">Экспорт Google</button>
+                </div>
             </div>
         </div>
 
@@ -727,6 +732,7 @@
 
                 mergeAndRender();
                 document.getElementById('export-btn').disabled = false;
+                document.getElementById('export-gsheet-btn').disabled = false;
             } catch (error) {
                 console.error('Error:', error);
                 showError('Ошибка: ' + error.message);
@@ -1068,20 +1074,21 @@
         // Файл собирает сервер (openpyxl) из уже посчитанных страницей данных —
         // экспорт совпадает с показанным расчётом. Контракт payload —
         // core/salary_export.py.
-        async function exportExcel() {
+        // Payload общий для обоих экспортов (.xlsx и Google Таблица) — иначе
+        // форматы разъехались бы на входных данных. Возвращает null, если
+        // экспортировать нечего (сообщение уже показано).
+        async function buildExportPayload() {
             if (!mergedEmployees.length || !periodMonth) {
                 showError('Сначала выполните расчёт');
-                return;
+                return null;
             }
             // Роли могли не загрузиться при старте (сбой сети) — без них файл
             // остался бы без строк часов и оплаты; пробуем ещё раз перед экспортом
             if (!Array.isArray(rolesRates) || !rolesRates.length) await loadRoles();
             if (!rolesRates.length) {
                 showError('Ставки ролей не загрузились — обновите страницу и повторите экспорт');
-                return;
+                return null;
             }
-            const btn = document.getElementById('export-btn');
-            btn.disabled = true;
 
             // Показатели KPI месяца в порядке kpi1..kpiN
             const kpiConfig = (kpiData && kpiData.kpi_config) || {};
@@ -1132,17 +1139,25 @@
                 };
             });
 
+            return {
+                month: periodMonth,
+                kpi_names: kpiNames,
+                base_per_kpi: basePerKpi,
+                roles: roles,
+                employees: employees
+            };
+        }
+
+        async function exportExcel() {
+            const payload = await buildExportPayload();
+            if (!payload) return;
+            const btn = document.getElementById('export-btn');
+            btn.disabled = true;
             try {
                 const resp = await fetch('/api/salary/export', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        month: periodMonth,
-                        kpi_names: kpiNames,
-                        base_per_kpi: basePerKpi,
-                        roles: roles,
-                        employees: employees
-                    })
+                    body: JSON.stringify(payload)
                 });
                 if (!resp.ok) {
                     const data = await resp.json().catch(() => ({}));
@@ -1162,6 +1177,46 @@
                 showError('Экспорт не удался: ' + e.message);
             } finally {
                 btn.disabled = false;
+            }
+        }
+
+        // Запись расчёта вкладкой в Google Таблицу. Существующую вкладку месяца
+        // сервер без подтверждения не трогает (409): бухгалтер вносит в неё
+        // руками «мосты», отпуск, доп доход и вычеты — перезапись их сотрёт.
+        async function exportGoogleSheet(overwrite) {
+            const payload = await buildExportPayload();
+            if (!payload) return;
+            payload.overwrite = !!overwrite;
+            const btn = document.getElementById('export-gsheet-btn');
+            // Подпись константой, а не btn.textContent: при подтверждении
+            // перезаписи функция вызывает себя, и «текущая» подпись была бы
+            // уже «Записываем...» — кнопка так и осталась бы с ней.
+            const LABEL = 'Экспорт Google';
+            btn.disabled = true;
+            btn.textContent = 'Записываем...';
+            try {
+                const resp = await fetch('/api/salary/export-gsheet', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (resp.status === 409 && data.exists) {
+                    const ok = confirm(
+                        `Вкладка «${data.tab}» в Google Таблице уже есть.\n\n` +
+                        'Перезапись сотрёт всё, что заполнено в ней руками ' +
+                        '(мосты, отпуск, доп доход, вычеты).\n\nПерезаписать?');
+                    if (ok) await exportGoogleSheet(true);
+                    return;
+                }
+                if (!resp.ok) throw new Error(data.error || 'Ошибка экспорта');
+                hideError();
+                window.open(data.url, '_blank', 'noopener');
+            } catch (e) {
+                showError('Экспорт в Google Таблицу не удался: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = LABEL;
             }
         }
 

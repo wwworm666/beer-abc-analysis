@@ -14,8 +14,14 @@ API страницы расчёта ЗП (/salary): ручной штраф за
 таблица salary_adjustments оставлена в БД (миграции additive-only).
 
 Экспорт принимает уже посчитанные страницей данные (payload — контракт в
-core/salary_export.py) и отдаёт .xlsx в формате эталонной таблицы владельца:
-экспорт бит-в-бит совпадает с тем, что показывает страница.
+core/salary_export.py) и отдаёт результат в формате таблицы бухгалтерии:
+экспорт совпадает с тем, что показывает страница. Два формата, две кнопки:
+
+- `POST /api/salary/export`         -> .xlsx (openpyxl, core/salary_export.py);
+- `POST /api/salary/export-gsheet`  -> вкладка в Google Таблице
+  (Sheets API, core/salary_gsheet.py).
+
+Строки, формулы и оформление у обоих общие — `core/salary_layout.py`.
 """
 
 import io
@@ -26,6 +32,8 @@ from flask import Blueprint, request, jsonify, send_file
 from extensions import shifts_mgr
 from core.auth_guard import current_user
 from core.salary_export import build_salary_workbook
+from core.salary_gsheet import (GSheetError, GSheetNotConfigured, TabExists,
+                                export_to_gsheet)
 
 salary_bp = Blueprint('salary', __name__)
 
@@ -137,3 +145,43 @@ def export_salary():
         as_attachment=True,
         download_name=f"salary_{month}.xlsx",
     )
+
+
+@salary_bp.route('/api/salary/export-gsheet', methods=['POST'])
+def export_salary_gsheet():
+    """Экспорт таблицы ЗП за месяц в Google Таблицу.
+
+    Body — тот же контракт, что у /api/salary/export, плюс `overwrite: bool`.
+    Пишет вкладку с именем месяца («июль2026») в таблицу SALARY_SHEET_ID;
+    если переменная не задана — создаёт новую таблицу. Существующая вкладка
+    без `overwrite` не трогается (409): бухгалтер вносит в неё руками «мосты»,
+    отпуск, доп доход и вычеты, и перезапись их сотрёт.
+
+    Ответы: 200 {url, tab} | 409 {exists, tab, url} | 503 не настроено | 500.
+    """
+    payload = request.get_json(silent=True) or {}
+    month = payload.get('month') or ''
+    if not _valid_month(month):
+        return jsonify({'error': "month обязателен в формате YYYY-MM"}), 400
+    if not payload.get('employees'):
+        return jsonify({'error': 'Нет данных для экспорта — сначала выполните расчёт'}), 400
+    overwrite = bool(payload.get('overwrite'))
+
+    try:
+        result = export_to_gsheet(payload, overwrite=overwrite)
+    except TabExists as e:
+        return jsonify({'exists': True, 'tab': e.tab, 'url': e.url,
+                        'error': str(e)}), 409
+    except GSheetNotConfigured as e:
+        return jsonify({'error': str(e)}), 503
+    except GSheetError as e:
+        print(f"[ERROR] Экспорт ЗП в Google Таблицу: {e}")
+        return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        print(f"[ERROR] Экспорт ЗП в Google Таблицу (непредвиденно): {e}")
+        return jsonify({'error': f"Не удалось записать таблицу: {e}"}), 500
+
+    _audit('salary_gsheet_export',
+           f"Экспорт ЗП за {month} в Google Таблицу, вкладка «{result['tab']}»"
+           + (' (перезапись)' if overwrite else ''))
+    return jsonify(result)
