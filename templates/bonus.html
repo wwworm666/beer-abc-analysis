@@ -478,7 +478,7 @@
                 <div class="form-group">
                     <label>&nbsp;</label>
                     <button class="btn-secondary" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
-                            title="Записать расчёт за месяц вкладкой в Google Таблицу (сначала выполните расчёт)">Экспорт Google</button>
+                            title="Создать отдельную Google Таблицу с расчётом за месяц (сначала выполните расчёт). В таблицу бухгалтерии данные уходят сами каждую ночь в 04:00">Экспорт Google</button>
                 </div>
             </div>
         </div>
@@ -1180,20 +1180,16 @@
             }
         }
 
-        // Запись расчёта вкладкой в Google Таблицу. Существующую вкладку месяца
-        // сервер без подтверждения не трогает (409): бухгалтер вносит в неё
-        // руками «мосты», отпуск, доп доход и вычеты — перезапись их сотрёт.
-        async function exportGoogleSheet(overwrite) {
+        // Создаёт ОТДЕЛЬНУЮ новую Google Таблицу с расчётом и открывает её.
+        // Ничего существующего не трогает: в таблицу бухгалтерии данные уходят
+        // сами — ночная выгрузка в 04:00 (core/salary_scheduler.py).
+        async function exportGoogleSheet() {
             const payload = await buildExportPayload();
             if (!payload) return;
-            payload.overwrite = !!overwrite;
             const btn = document.getElementById('export-gsheet-btn');
-            // Подпись константой, а не btn.textContent: при подтверждении
-            // перезаписи функция вызывает себя, и «текущая» подпись была бы
-            // уже «Записываем...» — кнопка так и осталась бы с ней.
             const LABEL = 'Экспорт Google';
             btn.disabled = true;
-            btn.textContent = 'Записываем...';
+            btn.textContent = 'Создаём...';
             try {
                 const resp = await fetch('/api/salary/export-gsheet', {
                     method: 'POST',
@@ -1201,14 +1197,6 @@
                     body: JSON.stringify(payload)
                 });
                 const data = await resp.json().catch(() => ({}));
-                if (resp.status === 409 && data.exists) {
-                    const ok = confirm(
-                        `Вкладка «${data.tab}» в Google Таблице уже есть.\n\n` +
-                        'Перезапись сотрёт всё, что заполнено в ней руками ' +
-                        '(мосты, отпуск, доп доход, вычеты).\n\nПерезаписать?');
-                    if (ok) await exportGoogleSheet(true);
-                    return;
-                }
                 if (!resp.ok) throw new Error(data.error || 'Ошибка экспорта');
                 hideError();
                 window.open(data.url, '_blank', 'noopener');

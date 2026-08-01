@@ -32,8 +32,7 @@ from flask import Blueprint, request, jsonify, send_file
 from extensions import shifts_mgr
 from core.auth_guard import current_user
 from core.salary_export import build_salary_workbook
-from core.salary_gsheet import (GSheetError, GSheetNotConfigured, TabExists,
-                                export_to_gsheet)
+from core.salary_gsheet import GSheetError, GSheetNotConfigured, export_to_gsheet
 
 salary_bp = Blueprint('salary', __name__)
 
@@ -149,15 +148,14 @@ def export_salary():
 
 @salary_bp.route('/api/salary/export-gsheet', methods=['POST'])
 def export_salary_gsheet():
-    """Экспорт таблицы ЗП за месяц в Google Таблицу.
+    """Экспорт таблицы ЗП за месяц в НОВУЮ Google Таблицу.
 
-    Body — тот же контракт, что у /api/salary/export, плюс `overwrite: bool`.
-    Пишет вкладку с именем месяца («июль2026») в таблицу SALARY_SHEET_ID;
-    если переменная не задана — создаёт новую таблицу. Существующая вкладка
-    без `overwrite` не трогается (409): бухгалтер вносит в неё руками «мосты»,
-    отпуск, доп доход и вычеты, и перезапись их сотрёт.
+    Body — тот же контракт, что у /api/salary/export. Каждый вызов создаёт
+    отдельную таблицу и возвращает ссылку; ничего существующего не трогает
+    (в таблицу бухгалтерии данные уходят сами — ночная выгрузка 04:00,
+    core/salary_scheduler.py).
 
-    Ответы: 200 {url, tab} | 409 {exists, tab, url} | 503 не настроено | 500.
+    Ответы: 200 {url, tab} | 503 не настроено | 500.
     """
     payload = request.get_json(silent=True) or {}
     month = payload.get('month') or ''
@@ -165,13 +163,9 @@ def export_salary_gsheet():
         return jsonify({'error': "month обязателен в формате YYYY-MM"}), 400
     if not payload.get('employees'):
         return jsonify({'error': 'Нет данных для экспорта — сначала выполните расчёт'}), 400
-    overwrite = bool(payload.get('overwrite'))
 
     try:
-        result = export_to_gsheet(payload, overwrite=overwrite)
-    except TabExists as e:
-        return jsonify({'exists': True, 'tab': e.tab, 'url': e.url,
-                        'error': str(e)}), 409
+        result = export_to_gsheet(payload)
     except GSheetNotConfigured as e:
         return jsonify({'error': str(e)}), 503
     except GSheetError as e:
@@ -179,9 +173,28 @@ def export_salary_gsheet():
         return jsonify({'error': str(e)}), 500
     except Exception as e:
         print(f"[ERROR] Экспорт ЗП в Google Таблицу (непредвиденно): {e}")
-        return jsonify({'error': f"Не удалось записать таблицу: {e}"}), 500
+        return jsonify({'error': f"Не удалось создать таблицу: {e}"}), 500
 
     _audit('salary_gsheet_export',
-           f"Экспорт ЗП за {month} в Google Таблицу, вкладка «{result['tab']}»"
-           + (' (перезапись)' if overwrite else ''))
+           f"Экспорт ЗП за {month} в новую Google Таблицу «{result['tab']}»")
     return jsonify(result)
+
+
+@salary_bp.route('/api/salary/sync-gsheet', methods=['POST'])
+def sync_salary_gsheet():
+    """Прогнать ночную выгрузку в таблицу бухгалтерии прямо сейчас.
+
+    Ручной запуск того же, что делает планировщик в 04:00
+    (core/salary_scheduler.py): пишет вкладку «Июль_2026_Автоматическая» в
+    SALARY_SHEET_ID. Нужен для проверки настройки и разовой досборки, чтобы
+    не ждать ночи. Payload не принимает — собирает его на сервере сам.
+    """
+    from core.salary_scheduler import sync_once
+
+    results = sync_once('manual')
+    ok = {m: r for m, r in results.items() if isinstance(r, dict)}
+    _audit('salary_gsheet_sync',
+           'Ручной прогон выгрузки ЗП в таблицу бухгалтерии: '
+           + (', '.join(f"{m} -> {r['tab']}" for m, r in ok.items()) or 'без результата'))
+    return jsonify({'results': {m: (r if isinstance(r, dict) else str(r))
+                                for m, r in results.items()}})

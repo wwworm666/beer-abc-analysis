@@ -78,6 +78,11 @@ start_temperature_scheduler()
 from core.guest_sync_scheduler import start_scheduler as start_guest_sync_scheduler
 start_guest_sync_scheduler()
 
+# Запустить ночную выгрузку расчёта ЗП в Google Таблицу бухгалтерии
+# (04:00; молча не стартует, если не задан SALARY_SHEET_ID или нет ключа)
+from core.salary_scheduler import start_scheduler as start_salary_sync_scheduler
+start_salary_sync_scheduler(app)
+
 
 if __name__ == '__main__':
     # Под gunicorn эта ветка не исполняется — это только для локального запуска `python app.py`.

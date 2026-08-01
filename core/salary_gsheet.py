@@ -19,30 +19,45 @@
   Sheets API и выполняет их.
 - `routes/salary.py`       — эндпоинт `POST /api/salary/export-gsheet`.
 
+## Два разных сценария (решение владельца 2026-08-01)
+
+**Кнопка «Экспорт Google»** — `export_to_gsheet()`: каждый раз создаёт
+ОТДЕЛЬНУЮ новую таблицу и отдаёт ссылку. Ничего существующего не трогает,
+подтверждений не требует. Файл создаёт сервис-аккаунт, поэтому лежит он на
+его Диске — чтобы владелец мог открыть ссылку, файлу выдаётся доступ
+«всем, у кого есть ссылка» (осознанный выбор владельца; альтернатива —
+шаринг на конкретный адрес через `SALARY_SHARE_WITH`).
+
+**Ночная выгрузка в 04:00** — `sync_to_master()`: пишет в таблицу
+бухгалтерии `SALARY_SHEET_ID` в СВОЮ вкладку «Июль_2026_Автоматическая» и
+переписывает её целиком. Ручная вкладка месяца («июль2026») не трогается —
+в ней бухгалтер ведёт «мосты», отпуск, доп доход и вычеты, которых
+приложение не знает. Разделение вкладок и снимает конфликт.
+
 ## Как работает
 
 1. Авторизация — сервис-аккаунт Google Cloud (JSON-ключ). API-ключа
    недостаточно: запись в Таблицы требует OAuth-учётки, а сервис-аккаунт —
    единственный вариант без интерактивного входа пользователя.
-2. Целевая таблица — `SALARY_SHEET_ID` из окружения (таблица бухгалтерии,
-   расшаренная на email сервис-аккаунта с правом «Редактор»). Если переменная
-   не задана — создаётся новая таблица и возвращается ссылка на неё.
-3. Вкладка называется по месяцу — «июль2026», как листы в таблице
-   бухгалтерии; данные пишутся одним `batchUpdate`.
-4. **Существующая вкладка не перезаписывается молча.** Бухгалтер вносит в неё
-   руками «мосты», «Отпуск», «Доп доход» и вычеты — перезапись их сотрёт.
-   Поэтому при совпадении имени модуль поднимает `TabExists`, а страница
-   спрашивает подтверждение и повторяет запрос с `overwrite=True`.
+2. Данные пишутся одним `batchUpdate` из общей раскладки — значения,
+   оформление, закрепление шапки и ширины колонок.
+3. Скоуп Drive — `drive.file`: сервис-аккаунт видит только то, что создал
+   сам. Поэтому таблицу бухгалтерии он читает через Sheets API (она ему
+   расшарена), а правами управляет только у собственных новых файлов.
 
 ## Переменные окружения
 
     GOOGLE_SA_JSON   путь к JSON-ключу сервис-аккаунта
                      (по умолчанию /app/secrets/google-sa.json)
-    SALARY_SHEET_ID  id целевой таблицы; пусто — создавать новую каждый раз
+    SALARY_SHEET_ID  id таблицы бухгалтерии — цель НОЧНОЙ выгрузки
+    SALARY_SHARE_WITH  (опц.) email через запятую: кому шарить новые таблицы
+                     кнопки. Задан — доступ по ссылке не включается
     SALARY_SHEET_FOLDER_ID  (опц.) папка Drive для новых таблиц
 
 ## Changelog
 
+- 2026-08-01 (2) — кнопка создаёт новую таблицу; ночная выгрузка пишет в
+  отдельную вкладку «..._Автоматическая» таблицы бухгалтерии.
 - 2026-08-01 — модуль создан (вторая кнопка экспорта, запрос владельца).
 """
 
@@ -53,7 +68,7 @@ from core.salary_layout import (FILL_HEADER, FILL_RED_LABEL, FILL_TOTAL,
                                 FIRST_DATA_ROW, FMT_HOURS, FMT_MONEY,
                                 FONT_NAME, FONT_SIZE, HEADER_ROW, HEADERS,
                                 WIDTH_EMP, WIDTH_LABEL, WIDTH_META, WIDTH_TOTAL,
-                                Formula, build_sheet)
+                                Formula, auto_sheet_title, build_sheet)
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets',
           'https://www.googleapis.com/auth/drive.file']
@@ -74,13 +89,8 @@ class GSheetNotConfigured(GSheetError):
     """Нет ключа сервис-аккаунта или библиотек — интеграция не настроена."""
 
 
-class TabExists(GSheetError):
-    """Вкладка месяца уже есть; перезапись сотрёт ручные правки бухгалтера."""
-
-    def __init__(self, tab, url):
-        super().__init__(f"Вкладка «{tab}» уже существует")
-        self.tab = tab
-        self.url = url
+class MasterSheetNotSet(GSheetError):
+    """Не задан SALARY_SHEET_ID — ночной выгрузке некуда писать."""
 
 
 def _px(width):
@@ -261,47 +271,74 @@ def spreadsheet_url(spreadsheet_id, sheet_id=None):
     return f"{url}#gid={sheet_id}" if sheet_id is not None else url
 
 
-def export_to_gsheet(payload: dict, overwrite: bool = False) -> dict:
-    """Записать расчёт в Google Таблицу. Возвращает {url, tab, spreadsheet_id}.
+def export_to_gsheet(payload: dict) -> dict:
+    """Кнопка «Экспорт Google»: создать НОВУЮ таблицу с расчётом.
 
-    `overwrite=False` и вкладка месяца уже есть -> TabExists (ручные правки
-    бухгалтера не трогаем без подтверждения).
+    Ничего существующего не трогает. Возвращает {url, tab, spreadsheet_id}.
     """
     sheet = build_sheet(payload)
-    svc = _service()
-    spreadsheets = svc.spreadsheets()
+    spreadsheets = _service().spreadsheets()
+
+    created = spreadsheets.create(body={
+        'properties': {'title': f"Расчёт ЗП — {sheet.title}"},
+        'sheets': [{'properties': {'title': sheet.title}}],
+    }, fields='spreadsheetId,sheets.properties').execute()
+    spreadsheet_id = created['spreadsheetId']
+    sheet_id = created['sheets'][0]['properties']['sheetId']
+
+    spreadsheets.batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={'requests': build_requests(sheet, sheet_id)}).execute()
+
+    # Файл принадлежит сервис-аккаунту: без выдачи прав владелец его не
+    # откроет. Best-effort — таблица уже создана и ссылка валидна.
+    _grant_access(spreadsheet_id)
+    _move_to_folder(spreadsheet_id)
+
+    return {'url': spreadsheet_url(spreadsheet_id, sheet_id),
+            'tab': sheet.title,
+            'spreadsheet_id': spreadsheet_id}
+
+
+def sync_to_master(payload: dict) -> dict:
+    """Ночная выгрузка: переписать вкладку «..._Автоматическая» в таблице ЗП.
+
+    Цель — `SALARY_SHEET_ID` (таблица бухгалтерии). Вкладка отдельная от
+    ручной («июль2026»), поэтому переписывается целиком без подтверждений:
+    ручные строки бухгалтера живут в соседней вкладке и не задеваются.
+    """
+    sheet = build_sheet(payload)
+    sheet.title = auto_sheet_title(payload.get('month') or '')
 
     spreadsheet_id = (os.environ.get('SALARY_SHEET_ID') or '').strip()
-    if spreadsheet_id:
-        try:
-            meta = spreadsheets.get(spreadsheetId=spreadsheet_id,
-                                    fields='sheets.properties').execute()
-        except Exception as e:
-            raise GSheetError(
-                f"Таблица {spreadsheet_id} недоступна. Проверьте, что она "
-                f"расшарена на сервис-аккаунт с правом «Редактор». ({e})") from e
-        existing = {s['properties']['title']: s['properties']
-                    for s in meta.get('sheets', [])}
-        prop = existing.get(sheet.title)
-        if prop and not overwrite:
-            raise TabExists(sheet.title, spreadsheet_url(spreadsheet_id, prop['sheetId']))
-        if prop:
-            sheet_id = prop['sheetId']
-        else:
-            added = spreadsheets.batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={'requests': [{'addSheet': {'properties': {'title': sheet.title}}}]}
-            ).execute()
-            sheet_id = added['replies'][0]['addSheet']['properties']['sheetId']
+    if not spreadsheet_id:
+        raise MasterSheetNotSet(
+            'Не задан SALARY_SHEET_ID — ночной выгрузке некуда писать '
+            '(см. docs/guides/google-sheets-export.md)')
+
+    spreadsheets = _service().spreadsheets()
+    try:
+        meta = spreadsheets.get(spreadsheetId=spreadsheet_id,
+                                fields='sheets.properties').execute()
+    except Exception as e:
+        raise GSheetError(
+            f"Таблица {spreadsheet_id} недоступна. Проверьте, что она "
+            f"расшарена на сервис-аккаунт с правом «Редактор». ({e})") from e
+
+    existing = {s['properties']['title']: s['properties'] for s in meta.get('sheets', [])}
+    prop = existing.get(sheet.title)
+    if prop:
+        sheet_id = prop['sheetId']
+        # Лист мог остаться от прошлого месяца с бОльшим числом сотрудников:
+        # чистим целиком, иначе справа останутся колонки-призраки
+        spreadsheets.values().clear(
+            spreadsheetId=spreadsheet_id, range=f"'{sheet.title}'", body={}).execute()
     else:
-        # Целевая таблица не задана — создаём новую (лист сразу с нужным именем)
-        created = spreadsheets.create(body={
-            'properties': {'title': f"Расчёт ЗП — {sheet.title}"},
-            'sheets': [{'properties': {'title': sheet.title}}],
-        }, fields='spreadsheetId,sheets.properties').execute()
-        spreadsheet_id = created['spreadsheetId']
-        sheet_id = created['sheets'][0]['properties']['sheetId']
-        _move_to_folder(spreadsheet_id)
+        added = spreadsheets.batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={'requests': [{'addSheet': {'properties': {'title': sheet.title}}}]}
+        ).execute()
+        sheet_id = added['replies'][0]['addSheet']['properties']['sheetId']
 
     spreadsheets.batchUpdate(
         spreadsheetId=spreadsheet_id,
@@ -312,20 +349,52 @@ def export_to_gsheet(payload: dict, overwrite: bool = False) -> dict:
             'spreadsheet_id': spreadsheet_id}
 
 
+def _drive():
+    from googleapiclient.discovery import build as build_service
+    return build_service('drive', 'v3', credentials=_load_credentials(),
+                         cache_discovery=False)
+
+
+def _grant_access(spreadsheet_id):
+    """Выдать права на новую таблицу.
+
+    `SALARY_SHARE_WITH` задан — шарим на эти адреса (Редактор), иначе доступ
+    «всем, у кого есть ссылка» (выбор владельца 2026-08-01: файл создаёт
+    сервис-аккаунт, и без прав ссылка открывается только ему).
+
+    Best-effort: таблица уже создана, и неудачная выдача прав не повод валить
+    экспорт — ссылку всегда можно расшарить руками.
+    """
+    emails = [e.strip() for e in (os.environ.get('SALARY_SHARE_WITH') or '').split(',')
+              if e.strip()]
+    try:
+        drive = _drive()
+        if emails:
+            for email in emails:
+                drive.permissions().create(
+                    fileId=spreadsheet_id, sendNotificationEmail=False,
+                    body={'type': 'user', 'role': 'writer', 'emailAddress': email}
+                ).execute()
+        else:
+            drive.permissions().create(
+                fileId=spreadsheet_id,
+                body={'type': 'anyone', 'role': 'writer'}).execute()
+    except Exception as e:
+        print(f"[GSHEET WARNING] права на таблицу {spreadsheet_id} не выданы: {e}")
+
+
 def _move_to_folder(spreadsheet_id):
     """Перенести новую таблицу в папку SALARY_SHEET_FOLDER_ID (если задана).
 
-    Best-effort: таблица уже создана, и неудачный перенос не повод валить
-    экспорт — файл просто останется в корне Диска сервис-аккаунта.
+    Best-effort: с скоупом drive.file папка видна, только если её создал сам
+    сервис-аккаунт, поэтому перенос может не пройти — файл просто останется
+    на Диске сервис-аккаунта, ссылка при этом рабочая.
     """
     folder = (os.environ.get('SALARY_SHEET_FOLDER_ID') or '').strip()
     if not folder:
         return
     try:
-        from googleapiclient.discovery import build as build_service
-        drive = build_service('drive', 'v3', credentials=_load_credentials(),
-                              cache_discovery=False)
-        drive.files().update(fileId=spreadsheet_id, addParents=folder,
-                             fields='id').execute()
+        _drive().files().update(fileId=spreadsheet_id, addParents=folder,
+                                fields='id').execute()
     except Exception as e:
         print(f"[GSHEET WARNING] таблица не перенесена в папку {folder}: {e}")

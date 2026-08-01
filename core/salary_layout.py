@@ -200,6 +200,21 @@ def sheet_title(month: str) -> str:
     return month_title(month).replace(' ', '') or 'ЗП'
 
 
+def auto_sheet_title(month: str) -> str:
+    """'2026-07' -> 'Июль_2026_Автоматическая'.
+
+    Вкладка ночной выгрузки в таблицу бухгалтерии. Отдельная от ручной
+    «июль2026» намеренно: ночная задача переписывает свою вкладку целиком, и
+    будь она общей — стирала бы «мосты», отпуск, доп доход и вычеты, которые
+    бухгалтер вносит руками (решение владельца 2026-08-01).
+    """
+    try:
+        y, m = month.split('-')
+        return f"{_MONTH_NAMES[int(m) - 1].capitalize()}_{y}_Автоматическая"
+    except (ValueError, IndexError):
+        return f"{month}_Автоматическая"
+
+
 def build_sheet(payload: dict) -> Sheet:
     """Собрать раскладку листа из payload страницы /salary.
 

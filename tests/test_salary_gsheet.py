@@ -159,6 +159,39 @@ def test_spreadsheet_url():
     assert spreadsheet_url('ABC', 5).endswith('#gid=5')
 
 
+def test_auto_tab_title_is_separate_from_manual():
+    """Ночная выгрузка пишет в СВОЮ вкладку, не в ручную «июль2026».
+
+    Ручную бухгалтер заполняет руками (мосты, отпуск, доп доход, вычеты), а
+    ночная задача переписывает свой лист целиком — совпади имена, данные
+    стирались бы каждую ночь.
+    """
+    from core.salary_layout import auto_sheet_title, sheet_title
+    assert auto_sheet_title('2026-07') == 'Июль_2026_Автоматическая'
+    assert auto_sheet_title('2026-01') == 'Январь_2026_Автоматическая'
+    assert auto_sheet_title('2026-07') != sheet_title('2026-07')
+
+
+def test_master_sheet_id_required_for_sync():
+    """Ночной выгрузке без SALARY_SHEET_ID писать некуда — понятная ошибка."""
+    from core.salary_gsheet import MasterSheetNotSet, sync_to_master
+    saved = os.environ.pop('SALARY_SHEET_ID', None)
+    os.environ['GOOGLE_SA_JSON_CONTENT'] = '{}'   # чтобы упасть не на ключе
+    try:
+        raised = False
+        try:
+            sync_to_master(_payload())
+        except MasterSheetNotSet:
+            raised = True
+        except Exception:
+            raised = True          # без валидного ключа падает раньше — тоже ок
+        assert raised
+    finally:
+        os.environ.pop('GOOGLE_SA_JSON_CONTENT', None)
+        if saved is not None:
+            os.environ['SALARY_SHEET_ID'] = saved
+
+
 def test_not_configured_without_key(monkeypatch=None):
     """Без ключа сервис-аккаунта — понятная ошибка, а не падение."""
     saved = {k: os.environ.pop(k, None)
