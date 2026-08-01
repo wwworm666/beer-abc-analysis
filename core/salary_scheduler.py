@@ -108,11 +108,13 @@ def months_to_sync(today: date = None) -> list:
 def sync_once(tag: str = 'manual') -> dict:
     """Выгрузить нужные месяцы. Возвращает {месяц: результат|ошибка}."""
     from core.salary_gsheet import sync_to_master
-    from core.salary_payload import build_payload_for_month
+    from core.salary_payload import NoDataForPeriod, build_payload_for_month
 
     results = {}
     for month in months_to_sync():
         started = time.time()
+        # Сбой одного месяца не должен ронять остальные: каждый месяц
+        # обрабатывается независимо, ошибка попадает в результат и в лог
         try:
             payload = build_payload_for_month(_app, month)
             if not payload.get('employees'):
@@ -124,6 +126,11 @@ def sync_once(tag: str = 'manual') -> dict:
                   f"vkladka {res['tab']}, {len(payload['employees'])} sotr., "
                   f"{time.time() - started:.0f}s")
             results[month] = res
+        except NoDataForPeriod:
+            # Штатно в первые дни месяца: закрытых данных iiko ещё нет,
+            # страница за этот период тоже ничего не показывает
+            print(f"[SALARY-SYNC] {tag} {month}: dannyh za period poka net — propusk")
+            results[month] = 'нет данных за период'
         except Exception as e:
             print(f"[SALARY-SYNC] {datetime.now().isoformat()} {tag} {month} oshibka: {e}")
             results[month] = f"ошибка: {e}"

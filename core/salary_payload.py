@@ -82,6 +82,15 @@ def _sorted_kpi_keys(obj):
     return sorted(keys, key=lambda k: int(k[3:]))
 
 
+class NoDataForPeriod(Exception):
+    """За период ещё нет закрытых данных iiko — месяц выгружать нечего.
+
+    Штатная ситуация, а не сбой: в первые дни месяца (и в ночь на 1-е)
+    `/api/bonus-calculate` отвечает 404 «Нет данных за выбранный период» —
+    страница в этом случае тоже ничего не показывает.
+    """
+
+
 def _call_view(app, view, path, **kwargs):
     """Вызвать view-функцию напрямую в тестовом контексте запроса.
 
@@ -92,6 +101,8 @@ def _call_view(app, view, path, **kwargs):
         resp = view()
     if isinstance(resp, tuple):        # (response, status)
         resp, status = resp[0], resp[1]
+        if status == 404:
+            raise NoDataForPeriod(f"{path}: нет данных за период")
         if status >= 400:
             raise RuntimeError(f"{path} вернул {status}: "
                                f"{resp.get_data(as_text=True)[:200]}")

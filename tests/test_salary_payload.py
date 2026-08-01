@@ -87,6 +87,39 @@ def test_total_salary_drives_column_order():
     assert _total_salary({'bonus': None, 'kpi': None, 'hours': None}, 700) == 0
 
 
+def test_no_data_for_period_is_not_an_error():
+    """404 «нет данных за период» — штатный пропуск месяца, а не сбой.
+
+    В первые дни месяца закрытых данных iiko ещё нет; ронять всю выгрузку
+    (и заодно предыдущий месяц) из-за этого нельзя.
+    """
+    from flask import Flask, jsonify
+
+    from core.salary_payload import NoDataForPeriod, _call_view
+
+    app = Flask(__name__)
+
+    def view_404():
+        return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+    def view_500():
+        return jsonify({'error': 'внутренняя ошибка'}), 500
+
+    try:
+        _call_view(app, view_404, '/api/bonus-calculate', method='POST', json={})
+        assert False, 'ожидалась NoDataForPeriod'
+    except NoDataForPeriod:
+        pass
+    # Прочие ошибки маскировать нельзя — они должны быть видны
+    try:
+        _call_view(app, view_500, '/api/bonus-calculate', method='POST', json={})
+        assert False, 'ожидалась RuntimeError'
+    except NoDataForPeriod:
+        assert False, '500 не должен превращаться в «нет данных»'
+    except RuntimeError:
+        pass
+
+
 def test_months_to_sync():
     """Текущий месяц всегда; предыдущий — пока число <= порога (по умолчанию 10)."""
     from core.salary_scheduler import PREV_UNTIL_DAY, months_to_sync
