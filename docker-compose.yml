@@ -17,6 +17,10 @@ services:
       - /srv/kultura:/kultura
       - /srv/beer/data:/app/data
       - /srv/beer/chz_debug:/app/chz_test/debug
+      # Ключ сервис-аккаунта Google для экспорта ЗП в Таблицы
+      # (core/salary_gsheet.py). Только чтение; в образ ключ не пекётся и в
+      # репозитории его нет — настройка в docs/guides/google-sheets-export.md.
+      - /srv/beer/secrets:/app/secrets:ro
     # /app/logs не маунтим: gunicorn пишет access/error в stdout,
     # логи доступны через `docker compose logs app`. Маунт ломался
     # из-за случайно закоммиченного файла logs в репо (не папка).
