@@ -75,6 +75,10 @@ KPI (N строк), «Доп доход», блок такси (4 строки),
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Tuple
 
+# Ключ алфавитного порядка колонок. Живёт в salary_payload (там же сортируется
+# мёрж для страницы), обратной зависимости нет — цикла импорта не возникает.
+from core.salary_payload import name_sort_key
+
 # --- Геометрия листа ------------------------------------------------------
 HEADER_ROW = 2
 FIRST_DATA_ROW = 3
@@ -244,7 +248,14 @@ def build_sheet(payload: dict) -> Sheet:
     roles = payload.get('roles') or []
     kpi_names = payload.get('kpi_names') or []
     base_per_kpi = payload.get('base_per_kpi') or 0
-    employees = payload.get('employees') or []
+    # Порядок колонок задаёт СЕРВЕР, а не порядок в payload. Клиенту тут верить
+    # нельзя: страница, открытая до деплоя алфавитной сортировки, прислала
+    # старый порядок «по сумме ЗП», и кнопка «Обновить Google» откатила вкладку
+    # июля (прод 2026-08-07, журнал salary_gsheet_export 21:54 UTC). Сортировка
+    # здесь одна на все три пути записи — .xlsx, кнопка, ночная выгрузка.
+    # sorted() стабильна: полные тёзки сохраняют порядок мёржа.
+    employees = sorted(payload.get('employees') or [],
+                       key=lambda e: name_sort_key(e.get('name')))
 
     n_emp = len(employees)
     emp_cols = [FIRST_EMP_COL + i for i in range(n_emp)]

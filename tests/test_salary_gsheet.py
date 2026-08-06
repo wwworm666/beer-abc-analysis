@@ -36,7 +36,7 @@ def test_value_types():
     assert _value(None) == {}
     assert _value(5000) == {'numberValue': 5000}
     assert _value('Юреня') == {'stringValue': 'Юреня'}
-    assert _value(Formula('=F3*$E$6')) == {'formulaValue': '=F3*$E$6'}
+    assert _value(Formula('=G3*$E$6')) == {'formulaValue': '=G3*$E$6'}
 
 
 def test_string_with_equals_is_not_a_formula():
@@ -48,9 +48,12 @@ def test_string_with_equals_is_not_a_formula():
     assert _value('=HYPERLINK("http://evil")') == {
         'stringValue': '=HYPERLINK("http://evil")'}
     p = _payload()
-    p['employees'][0]['name'] = '=HYPERLINK("http://evil";"Иванов")'
+    evil = '=HYPERLINK("http://evil";"Иванов")'
+    p['employees'][0]['name'] = evil
     grid = build_grid(build_sheet(p))
-    assert 'stringValue' in _cell(grid, 2, 6)['userEnteredValue']
+    # Колонку ищем по значению: лист сортирует имена, и «=» уводит его в начало
+    header = [c.get('userEnteredValue', {}) for c in grid[1]['values']]
+    assert {'stringValue': evil} in header
 
 
 def test_color_conversion():
@@ -70,7 +73,7 @@ def test_layout_matches_reference():
     grid = _grid()
     assert grid[0] == {'values': []}
     assert _cell(grid, 2, 1)['userEnteredValue'] == {'stringValue': 'Показатель'}
-    assert _cell(grid, 2, 6)['userEnteredValue'] == {'stringValue': 'Юреня Роман'}
+    assert _cell(grid, 2, 7)['userEnteredValue'] == {'stringValue': 'Юреня Роман'}
     assert _cell(grid, 2, 8)['userEnteredValue'] == {'stringValue': 'ИТОГО'}
     labels = [_cell(grid, r, 1)['userEnteredValue'].get('stringValue')
               for r in range(3, 24)]
@@ -83,13 +86,13 @@ def test_layout_matches_reference():
 
 def test_formulas_are_live():
     grid = _grid()
-    assert _cell(grid, 7, 6)['userEnteredValue'] == {'formulaValue': '=F3*$E$7'}
+    assert _cell(grid, 7, 7)['userEnteredValue'] == {'formulaValue': '=G3*$E$7'}
     # премия = оплаченные дни передачи кассы x тариф (своя база в строке 6)
-    assert _cell(grid, 10, 6)['userEnteredValue'] == {'formulaValue': '=F6*$E$10'}
-    assert _cell(grid, 16, 6)['userEnteredValue'] == {'formulaValue': '=F5*$E$16'}
-    assert _cell(grid, 19, 6)['userEnteredValue'] == {'formulaValue': '=F16+F17-F18'}
-    assert _cell(grid, 23, 6)['userEnteredValue'] == {
-        'formulaValue': '=SUM(F7:F15)-F20-F21-F22+F19'}
+    assert _cell(grid, 10, 7)['userEnteredValue'] == {'formulaValue': '=G6*$E$10'}
+    assert _cell(grid, 16, 7)['userEnteredValue'] == {'formulaValue': '=G5*$E$16'}
+    assert _cell(grid, 19, 7)['userEnteredValue'] == {'formulaValue': '=G16+G17-G18'}
+    assert _cell(grid, 23, 7)['userEnteredValue'] == {
+        'formulaValue': '=SUM(G7:G15)-G20-G21-G22+G19'}
     assert _cell(grid, 7, 8)['userEnteredValue'] == {'formulaValue': '=SUM(F7:G7)'}
 
 
@@ -127,7 +130,7 @@ def test_deduction_rows_are_red():
     label = _cell(grid, 20, 1)['userEnteredFormat']
     assert label['backgroundColor'] == _color('CC0000')
     assert label['textFormat']['foregroundColor'] == _color('FFFFFF')
-    assert _cell(grid, 20, 6)['userEnteredFormat']['backgroundColor'] == _color('F4CCCC')
+    assert _cell(grid, 20, 7)['userEnteredFormat']['backgroundColor'] == _color('F4CCCC')
 
 
 def test_requests_shape():
