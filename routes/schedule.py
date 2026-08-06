@@ -7,6 +7,7 @@ from core.auth_guard import current_user
 from core.iiko_api import IikoAPI
 from core.daily_plans_generator import DailyPlansGenerator
 from core.calendar_ics import build_calendar
+from core.cash_register import CASH_MAX_RUB, rub_to_kop, fmt_kop
 from core.schedule_plans import (
     build_month_plans,
     compute_month_summary,
@@ -92,34 +93,12 @@ def _fmt_hhmm(minutes):
 
 
 # Касса на смене (v7): ручной ввод бармена, без iiko. Деньги приходят в РУБЛЯХ,
-# хранятся в КОПЕЙКАХ (INTEGER — точно). Потолок против опечаток — 1 млн ₽.
-CASH_MAX_RUB = 1_000_000
-
-
-def _rub_to_kop(value):
-    """Рубли (число или null/'') -> копейки INTEGER. (ok, kop_or_None).
-
-    None/'' -> (True, None): поле не заполнено. 0 допустимо («не было»).
-    Отрицательное, не-число или сверх потолка -> (False, None).
-    """
-    if value in (None, ''):
-        return True, None
-    try:
-        rub = float(value)
-    except (TypeError, ValueError):
-        return False, None
-    if rub < 0 or rub > CASH_MAX_RUB:
-        return False, None
-    return True, int(round(rub * 100))
-
-
-def _fmt_kop(kop):
-    """Копейки -> строка рублей для журнала: '15 340' или '350.50 ₽'-часть."""
-    if kop is None:
-        return '—'
-    rub = kop / 100.0
-    s = f"{rub:,.0f}" if kop % 100 == 0 else f"{rub:,.2f}"
-    return s.replace(',', ' ')
+# хранятся в КОПЕЙКАХ (INTEGER — точно). Потолок против опечаток, разбор суммы и
+# формат для журнала живут в core/cash_register.py — там же ими пользуется
+# кассовый регистр бухгалтера (страница ЗП). Одно правило на два входа: иначе
+# бармен и бухгалтер разошлись бы в допустимых суммах.
+_rub_to_kop = rub_to_kop
+_fmt_kop = fmt_kop
 
 
 # Окно правок кассы: после N часов от даты смены касса заморожена (read-only) для

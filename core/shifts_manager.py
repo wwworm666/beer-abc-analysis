@@ -495,6 +495,35 @@ class ShiftsManager:
                 ''', (first_day.isoformat(), last_day.isoformat()))
                 return [dict(row) for row in cursor.fetchall()]
 
+    def get_shifts_for_period(self, date_from: str, date_to: str) -> List[Dict]:
+        """Смены за диапазон дат включительно — тот же набор полей, что у
+        get_shifts_for_month, плюс start_time (нужен, чтобы отличить дневную
+        смену от вечерней).
+
+        Период на странице ЗП — свободный диапазон, а не календарный месяц,
+        поэтому обход по месяцам тут не годится. Используется кассовым регистром
+        (`core/cash_register.py`).
+        """
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT
+                        s.id, s.date, s.employee_name, s.employee_id, s.notes,
+                        s.start_time, s.fact_minutes,
+                        s.cash_expense_kop, s.cash_expense_note,
+                        s.cash_collection_kop, s.cash_end_kop,
+                        l.id as location_id, l.name as location_name, l.short_name as location_short,
+                        r.id as role_id, r.name as role_name, r.short_name as role_short,
+                        r.sort_order as role_sort
+                    FROM shifts s
+                    JOIN locations l ON s.location_id = l.id
+                    JOIN roles r ON s.role_id = r.id
+                    WHERE s.date >= ? AND s.date <= ?
+                    ORDER BY s.date, l.id, r.sort_order
+                ''', (date_from, date_to))
+                return [dict(row) for row in cursor.fetchall()]
+
     def get_shifts_for_employee(self, employee_id: str,
                                 date_from: str, date_to: str) -> List[Dict]:
         """Смены одного сотрудника (по стабильному employee_id) за диапазон дат

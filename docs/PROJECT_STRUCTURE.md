@@ -65,7 +65,7 @@ beer-abc-analysis/
 | `revenue_metrics.py` | Единая точка чтения метрик выручки |
 | `explorer.py` | **build_pivot()** для конструктора отчётов |
 
-### Сотрудники и планы (6)
+### Сотрудники, ЗП и планы (11)
 | Файл | Что делает |
 |---|---|
 | `employee_analysis.py` | Метрики по AuthUser, word-set matching имён |
@@ -74,6 +74,11 @@ beer-abc-analysis/
 | `plans_manager.py` | CRUD планов + **portalocker** cross-worker |
 | `shifts_manager.py` | SQLite + WAL pragma |
 | `meeting_notes.py` | Заметки совещаний |
+| `salary_payload.py` | Серверная сборка payload расчёта ЗП (зеркало страницы) |
+| `salary_layout.py` | Раскладка листа ЗП: строки, формулы, порядок колонок |
+| `salary_export.py` | Рендерер раскладки в .xlsx (openpyxl) |
+| `salary_gsheet.py` | Рендерер раскладки в Google Таблицу (Sheets API) |
+| `cash_register.py` | Регистр «Касса за месяц»: строки, пробелы кассы, ₽ -> копейки |
 
 ### Краны и остатки (2)
 | Файл | Что делает |

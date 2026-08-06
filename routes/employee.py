@@ -463,20 +463,12 @@ def _manual_handover_penalties(date_from, date_to):
     """
     try:
         from extensions import shifts_mgr
-        by_id, by_name = {}, {}
-        for p in shifts_mgr.get_handover_penalties(date_from, date_to):
-            emp_id = (p.get('employee_id') or '').strip()
-            if emp_id:
-                by_id.setdefault(emp_id, {})[p['date']] = p.get('note')
-            else:
-                # По имени индексируем ТОЛЬКО строки без id. Иначе штраф,
-                # аккуратно привязанный к одному сотруднику, применялся бы и к
-                # его однофамильцу с другим id (расчёт берёт объединение
-                # индексов) — минус 500 у человека, которого не штрафовали.
-                by_name.setdefault(
-                    (p['employee_name'] or '').strip().lower(),
-                    {})[p['date']] = p.get('note')
-        return by_id, by_name
+        from core.cash_register import index_penalties
+        # Правило сопоставления (id -> имя только для строк без id) живёт в
+        # core/cash_register.py: им же пользуется кассовый регистр бухгалтера,
+        # и расходиться они не должны — иначе регистр покажет штраф там, где
+        # расчёт его не применил.
+        return index_penalties(shifts_mgr.get_handover_penalties(date_from, date_to))
     except Exception as e:
         print(f"   [BONUS] manual-penalty lookup failed, штрафы не применяем: {e}")
         return {}, {}
