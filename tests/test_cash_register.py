@@ -14,7 +14,7 @@ import pytest
 from flask import Flask
 
 from core.cash_register import (
-    CASH_MAX_RUB, PROBLEM_NO_CASH, PROBLEM_NO_NOTE,
+    CASH_MAX_RUB, PROBLEM_NO_CASH, PROBLEM_NO_NOTE, PROBLEM_NO_SHIFT,
     build_register, fmt_kop, index_penalties, is_evening, rub_to_kop)
 from core.shifts_manager import ShiftsManager
 
@@ -173,12 +173,46 @@ def test_penalty_by_name_only_for_rows_without_id():
                          end=1500000)],
                  [{'date': '2026-07-16', 'employee_id': 'guid-other',
                    'employee_name': 'Тёзка Тёзкин', 'note': 'чужой'}])
-    assert other['rows'][0]['penalized'] is False
+    shift_row = next(r for r in other['rows'] if r['shift_id'] == 1)
+    assert shift_row['penalized'] is False
+    # но и не проглатываем: чужой штраф видно отдельной строкой без смены
+    assert [r['problems'] for r in other['rows'] if r['shift_id'] is None] \
+        == [[PROBLEM_NO_SHIFT]]
 
     legacy = _reg([_shift(1, '2026-07-16', name='Без Айди', emp_id=None, end=1500000)],
                   [{'date': '2026-07-16', 'employee_id': None,
                     'employee_name': 'без айди', 'note': 'свой'}])
     assert legacy['rows'][0]['penalized'] is True
+    assert len(legacy['rows']) == 1
+
+
+def test_penalty_without_shift_becomes_its_own_row():
+    """Штраф, не легший ни на одну смену, показывается строкой без смены.
+
+    Реальный случай прода 26.07.2026: штраф стоял на дне, которого нет в графике
+    (дни на странице ЗП берутся из кассовых смен iiko) — регистр показывал 9
+    штрафов из 10. Молча терять нельзя: регистр перестаёт сходиться с расчётом.
+    """
+    reg = _reg([_shift(1, '2026-07-20', end=1500000)],
+               [{'date': '2026-07-26', 'employee_id': 'guid-нет-смены',
+                 'employee_name': 'Егор Верещагин', 'note': 'пропущена трата'}])
+    orphan = [r for r in reg['rows'] if r['shift_id'] is None]
+    assert len(orphan) == 1
+    assert orphan[0]['problems'] == [PROBLEM_NO_SHIFT]
+    assert orphan[0]['penalized'] is True
+    assert orphan[0]['penalty_note'] == 'пропущена трата'
+    assert orphan[0]['location_id'] is None      # точки нет -> в фильтр не попадёт
+    # штрафы периода сходятся с БД, «смен» считаем только настоящие
+    assert reg['totals']['penalties'] == 1
+    assert reg['totals']['shifts'] == 1
+
+
+def test_penalty_matched_by_shift_makes_no_orphan_row():
+    reg = _reg([_shift(1, '2026-07-20', end=1500000)],
+               [{'date': '2026-07-20', 'employee_id': 'guid-1',
+                 'employee_name': 'Егор Бобриков', 'note': None}])
+    assert all(r['shift_id'] is not None for r in reg['rows'])
+    assert len(reg['rows']) == 1
 
 
 def test_totals_and_locations():

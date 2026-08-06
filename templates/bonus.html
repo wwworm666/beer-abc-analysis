@@ -1473,7 +1473,9 @@
                     (cashReg.handover_rate || 500)} ₽</span>`
                 : '';
             const state = [crFlags(r), pen].filter(Boolean).join(' ') || CR_DASH;
-            const act = cashReg.can_edit
+            // Строка-сирота (штраф без смены в графике) — править нечего:
+            // кассу пишем в смену, а её нет. Штраф снимается на карточке сотрудника.
+            const act = cashReg.can_edit && r.shift_id != null
                 ? `<button type="button" class="cr-chip" onclick="crEdit(${r.shift_id})">`
                     + (r.has_cash ? 'Правка' : 'Внести') + '</button>'
                 : '';
@@ -1481,9 +1483,9 @@
                 .filter(Boolean).join(' ');
             return `<tr class="${cls}">`
                 + `<td>${r.date.slice(8, 10)}.${r.date.slice(5, 7)}</td>`
-                + `<td>${crEsc(r.location_short)}</td>`
+                + `<td>${r.location_short ? crEsc(r.location_short) : CR_DASH}</td>`
                 + `<td>${crEsc(r.employee_name)}</td>`
-                + `<td class="cr-dim">${r.evening ? 'вечер' : 'день'}</td>`
+                + `<td class="cr-dim">${r.shift_id == null ? '—' : (r.evening ? 'вечер' : 'день')}</td>`
                 + `<td class="num">${crCell(r.expense_kop)}</td>`
                 + `<td class="cr-note">${r.expense_note ? crEsc(r.expense_note) : CR_DASH}</td>`
                 + `<td class="num">${crCell(r.collection_kop)}</td>`

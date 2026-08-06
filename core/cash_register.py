@@ -23,6 +23,9 @@ shifts.db), на выходе строки с флагами. Ни БД, ни Fl
   смены (`routes/employee.py::_cash_filled_day_keys`), поэтому флаг = «здесь
   премия не начислена».
 - `no_note` — трата > 0 без комментария «на что»: бухгалтеру нечего провести.
+- `no_shift` — штраф периода, не легший ни на одну смену графика (строка без
+  смены). Значит, человек работал, а смену в график не внесли — иначе штраф был
+  бы в регистре невидим, и регистр перестал бы сходиться с расчётом ЗП.
 
 Чего в проблемах СОЗНАТЕЛЬНО нет: «не внесена инкассация». Инкассацию забирает
 владелец при визите, а не бармен каждую смену — наличные копятся в сейфе, и
@@ -58,10 +61,12 @@ CASH_MAX_RUB = 1_000_000
 # PROBLEM_LABELS, чтобы текст был один и в CSV, и в таблице.
 PROBLEM_NO_CASH = 'no_cash'
 PROBLEM_NO_NOTE = 'no_note'
+PROBLEM_NO_SHIFT = 'no_shift'
 
 PROBLEM_LABELS = {
     PROBLEM_NO_CASH: 'касса не сдана',
     PROBLEM_NO_NOTE: 'трата без комментария',
+    PROBLEM_NO_SHIFT: 'штраф без смены в графике',
 }
 
 
@@ -140,14 +145,54 @@ def index_penalties(penalties) -> Tuple[Dict, Dict]:
 
 
 def _penalty_for(by_id, by_name, employee_id, employee_name, date_str):
-    """(penalized, note) для смены. Сначала id, потом имя — как в расчёте ЗП."""
+    """(penalized, note, ключ_совпадения) для смены.
+
+    Сначала id, потом имя — как в расчёте ЗП. Третий элемент — ('id'|'name', key,
+    date) найденной строки штрафа или None: по нему build_register понимает, какие
+    штрафы НЕ легли ни на одну смену.
+    """
     key = (employee_id or '').strip()
     if key and key in by_id and date_str in by_id[key]:
-        return True, by_id[key][date_str]
+        return True, by_id[key][date_str], ('id', key, date_str)
     name = (employee_name or '').strip().lower()
     if name in by_name and date_str in by_name[name]:
-        return True, by_name[name][date_str]
-    return False, None
+        return True, by_name[name][date_str], ('name', name, date_str)
+    return False, None, None
+
+
+def _orphan_penalty_rows(penalties, by_id, by_name, matched) -> List[Dict]:
+    """Строки для штрафов, не легших ни на одну смену периода.
+
+    Так бывает: штраф ставится со страницы ЗП, где дни берутся из кассовых смен
+    iiko, а регистр строится по графику — если смену в график не внесли, штраф
+    оказался бы невидим (на проде 26.07.2026: 10 штрафов в БД, 9 строк в
+    регистре). Молча терять штраф нельзя: регистр перестал бы сходиться с
+    расчётом. Такая строка — сама по себе сигнал «в графике нет смены, а человек
+    работал», поэтому помечается проблемой `no_shift`; править кассу в ней нечего
+    (`shift_id = None`), только снять штраф на карточке сотрудника.
+    """
+    out = []
+    for p in penalties or []:
+        date_str = p.get('date') or ''
+        emp_id = (p.get('employee_id') or '').strip()
+        key = ('id', emp_id, date_str) if emp_id \
+            else ('name', (p.get('employee_name') or '').strip().lower(), date_str)
+        if key in matched:
+            continue
+        matched.add(key)                      # дубли штрафов не размножаем
+        out.append({
+            'shift_id': None, 'date': date_str,
+            'location_id': None, 'location_short': '', 'location_name': '',
+            'employee_id': p.get('employee_id'),
+            'employee_name': p.get('employee_name') or '',
+            'role_name': '', 'evening': False,
+            'expense_kop': None, 'expense_note': None,
+            'collection_kop': None, 'end_kop': None,
+            'has_cash': False, 'day_closed': False, 'cash_expected': False,
+            'problems': [PROBLEM_NO_SHIFT],
+            'penalized': True, 'penalty_note': p.get('note'),
+        })
+    return out
 
 
 def build_register(shifts, penalties, today, rule_from) -> Dict:
@@ -168,6 +213,9 @@ def build_register(shifts, penalties, today, rule_from) -> Dict:
     """
     rows = []
     by_id, by_name = index_penalties(penalties)
+    # Ключи штрафов, легших хотя бы на одну смену. Остальные добавим строками
+    # без смены: регистр обязан показывать ВСЕ штрафы периода.
+    matched = set()
 
     # Точка «закрыта по кассе» за день, если ХОТЬ ОДНА её смена этого дня имеет
     # cash_end — то же условие, что снимает премию (_cash_filled_day_keys).
@@ -209,8 +257,10 @@ def build_register(shifts, penalties, today, rule_from) -> Dict:
         if (expense or 0) > 0 and not note:
             problems.append(PROBLEM_NO_NOTE)
 
-        penalized, penalty_note = _penalty_for(
+        penalized, penalty_note, pkey = _penalty_for(
             by_id, by_name, s.get('employee_id'), s.get('employee_name'), date_str)
+        if pkey:
+            matched.add(pkey)
 
         rows.append({
             'shift_id': s.get('id'),
@@ -235,11 +285,12 @@ def build_register(shifts, penalties, today, rule_from) -> Dict:
             'penalty_note': penalty_note,
         })
 
+    rows.extend(_orphan_penalty_rows(penalties, by_id, by_name, matched))
     rows.sort(key=lambda r: (r['date'], r['location_short'], r['role_name'],
                              r['shift_id'] or 0))
 
     totals = {
-        'shifts': len(rows),
+        'shifts': sum(1 for r in rows if r['shift_id'] is not None),
         'with_cash': sum(1 for r in rows if r['has_cash']),
         'expense_kop': sum(r['expense_kop'] or 0 for r in rows),
         'collection_kop': sum(r['collection_kop'] or 0 for r in rows),
@@ -248,9 +299,10 @@ def build_register(shifts, penalties, today, rule_from) -> Dict:
     }
 
     # Точки — в порядке id (как в графике), только те, что есть в периоде.
+    # Строки-сироты точки не имеют (location_id = None) — в фильтр не попадают.
     seen, locations = set(), []
     for r in sorted(rows, key=lambda r: (r['location_id'] or 0)):
-        if r['location_id'] in seen:
+        if r['location_id'] is None or r['location_id'] in seen:
             continue
         seen.add(r['location_id'])
         locations.append({'id': r['location_id'], 'short': r['location_short'],
