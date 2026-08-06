@@ -62,3 +62,60 @@ def test_never_negative_on_count_mismatch():
     # смен по метрике меньше, чем дней без кассы — не уходим ниже нуля
     locs = {'2026-07-11': 'Варшавская', '2026-07-12': 'Лиговский'}
     assert _paid_handover_shifts(1, locs, set())[0] == 0
+
+
+# ==================== _handover_premium: правило целиком ====================
+# «Премия за передачу смены не выплачивается либо если не заполнена касса,
+# либо если проставлен штраф вручную» (формулировка владельца 2026-08-06).
+
+def _d(date, manual=False, cash=True, rule=True):
+    return {'date': date, 'manual_cash_penalty': manual,
+            'cash_filled': cash, 'cash_rule_applies': rule}
+
+
+def test_premium_pays_every_day_with_cash():
+    from routes.employee import _handover_premium
+    days = [_d('2026-07-11'), _d('2026-07-12')]
+    locs = {'2026-07-11': 'Варшавская', '2026-07-12': 'Варшавская'}
+    keys = {('varshavskaya', '2026-07-11'), ('varshavskaya', '2026-07-12')}
+    bonus, paid, without, manual = _handover_premium(days, locs, keys)
+    assert (bonus, paid, without, manual) == (1000, 2, 0, 0)
+
+
+def test_premium_skips_day_without_cash_and_day_with_penalty():
+    """Две причины не платить, и они не задваиваются."""
+    from routes.employee import _handover_premium
+    days = [_d('2026-07-11'),                                  # оплачен
+            _d('2026-07-12', cash=False),                      # нет кассы
+            _d('2026-07-13', manual=True)]                     # ручной штраф
+    locs = {'2026-07-11': 'Варшавская', '2026-07-12': 'Варшавская',
+            '2026-07-13': 'Варшавская'}
+    keys = {('varshavskaya', '2026-07-11'), ('varshavskaya', '2026-07-13')}
+    bonus, paid, without, manual = _handover_premium(days, locs, keys)
+    assert (bonus, paid, without, manual) == (500, 1, 1, 1)
+
+    # день без кассы И со штрафом вычитается ОДИН раз
+    days2 = [_d('2026-07-11'), _d('2026-07-12', manual=True, cash=False)]
+    locs2 = {'2026-07-11': 'Варшавская', '2026-07-12': 'Варшавская'}
+    keys2 = {('varshavskaya', '2026-07-11')}
+    assert _handover_premium(days2, locs2, keys2)[:2] == (500, 1)
+
+
+def test_two_cash_shifts_in_one_day_paid_once():
+    """Две кассовые смены в одном дне -> премия одна, за первую открытую.
+
+    Так быть не должно, но в июне 2026 у Верещагина было 10 кассовых смен на 9
+    дней. Раньше база премии была «кассовые смены», такой день давал 1000 ₽, а
+    ручной штраф снимал с него только 500. Решение владельца 2026-08-06 —
+    платить один раз за день, поэтому база = ДНИ (len(days_detail)).
+    """
+    from routes.employee import _handover_premium
+    # два кассовых чека 12.07 -> в days_detail всё равно ОДИН день
+    days = [_d('2026-07-11'), _d('2026-07-12')]
+    locs = {'2026-07-11': 'Варшавская', '2026-07-12': 'Варшавская'}
+    keys = {('varshavskaya', '2026-07-11'), ('varshavskaya', '2026-07-12')}
+    bonus, paid, _, _ = _handover_premium(days, locs, keys)
+    assert (bonus, paid) == (1000, 2), 'платим за дни, а не за кассовые смены'
+    # и штраф на такой день снимает премию этого дня целиком
+    days[1]['manual_cash_penalty'] = True
+    assert _handover_premium(days, locs, keys)[:2] == (500, 1)

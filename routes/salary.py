@@ -31,6 +31,7 @@ from flask import Blueprint, request, jsonify, send_file
 
 from extensions import shifts_mgr
 from core.auth_guard import current_user
+from core.shifts_manager import HandoverPenaltyConflict
 from core.salary_export import build_salary_workbook
 from core.salary_gsheet import GSheetError, GSheetNotConfigured, export_to_gsheet
 
@@ -55,6 +56,28 @@ def _valid_date(date_str):
         return True
     except ValueError:
         return False
+
+
+def _is_full_month(date_from, date_to, month):
+    """Совпадает ли период расчёта с целым календарным месяцем `month`.
+
+    Возвращает (ok, причина_отказа). Нужна Google-выгрузке: она переписывает
+    вкладку месяца целиком, а период на странице ЗП — свободный диапазон.
+    Старая открытая страница дат не присылает — тоже отказ, иначе она молча
+    затёрла бы вкладку данными неизвестного периода.
+    """
+    from core.salary_payload import month_bounds
+
+    if not (_valid_date(date_from) and _valid_date(date_to)):
+        return False, ('Обновите страницу и повторите расчёт: выгрузка в Google '
+                       'требует период расчёта, а он не передан')
+    want_from, want_to = month_bounds(month)
+    if (date_from, date_to) != (want_from, want_to):
+        return False, (f"Выгрузка в Google — только за целый месяц. Выбран период "
+                       f"{date_from}..{date_to}, нужен {want_from}..{want_to}: "
+                       f"вкладка «{month}» в таблице бухгалтерии переписывается "
+                       f"целиком, и половина месяца затёрла бы весь месяц")
+    return True, ''
 
 
 def _audit(action, summary, entity_date=None, employee_name=None):
@@ -102,8 +125,13 @@ def set_handover_penalty():
     if note is not None and not isinstance(note, str):
         note = str(note)
 
-    changed = shifts_mgr.set_handover_penalty(date_str, employee_name, penalized, note,
-                                              employee_id=employee_id)
+    try:
+        changed = shifts_mgr.set_handover_penalty(date_str, employee_name, penalized,
+                                                  note, employee_id=employee_id)
+    except HandoverPenaltyConflict as e:
+        # Два сотрудника с одинаковым ФИО на одном дне — записи неразличимы.
+        # Отказываем явно, вместо того чтобы перевесить чужой штраф.
+        return jsonify({'error': str(e)}), 409
 
     if changed:
         d, m = date_str[8:10], date_str[5:7]
@@ -156,12 +184,16 @@ def export_salary():
 
 @salary_bp.route('/api/salary/export-gsheet', methods=['POST'])
 def export_salary_gsheet():
-    """Экспорт таблицы ЗП за месяц в НОВУЮ Google Таблицу.
+    """Обновить Google Таблицу бухгалтерии расчётом за месяц — прямо сейчас.
 
-    Body — тот же контракт, что у /api/salary/export. Каждый вызов создаёт
-    отдельную таблицу и возвращает ссылку; ничего существующего не трогает
-    (в таблицу бухгалтерии данные уходят сами — ночная выгрузка 04:00,
-    core/salary_scheduler.py).
+    Body — тот же контракт, что у /api/salary/export. Пишет ту же вкладку
+    «Июль_2026_Автоматическая» таблицы SALARY_SHEET_ID, что и ночная выгрузка
+    в 04:00 (core/salary_scheduler.py), но за месяц, открытый на странице.
+    Ручная вкладка бухгалтера («июль2026») не трогается.
+
+    Раньше эндпоинт создавал НОВУЮ таблицу и падал 403: сервис-аккаунту
+    недоступно создание файлов. Этот путь остался фоллбэком, если
+    SALARY_SHEET_ID не задан.
 
     Ответы: 200 {url, tab} | 503 не настроено | 500.
     """
@@ -171,6 +203,17 @@ def export_salary_gsheet():
         return jsonify({'error': "month обязателен в формате YYYY-MM"}), 400
     if not payload.get('employees'):
         return jsonify({'error': 'Нет данных для экспорта — сначала выполните расчёт'}), 400
+
+    # Вкладка месяца в таблице бухгалтерии переписывается ЦЕЛИКОМ, поэтому
+    # выгружать можно только расчёт за полный месяц. Период на странице —
+    # свободный диапазон (flatpickr range), и без этой проверки расчёт за
+    # 01.07–15.07 затёр бы июль половинными часами и премиями, а ночная
+    # выгрузка после 7 числа предыдущий месяц уже не обновляет — то есть само
+    # бы не починилось. Файл .xlsx этой проверки не требует: он ничего не
+    # перезаписывает.
+    ok, why = _is_full_month(payload.get('date_from'), payload.get('date_to'), month)
+    if not ok:
+        return jsonify({'error': why}), 400
 
     try:
         result = export_to_gsheet(payload)
@@ -184,7 +227,7 @@ def export_salary_gsheet():
         return jsonify({'error': f"Не удалось создать таблицу: {e}"}), 500
 
     _audit('salary_gsheet_export',
-           f"Экспорт ЗП за {month} в новую Google Таблицу «{result['tab']}»")
+           f"Обновление Google Таблицы ЗП за {month}, вкладка «{result['tab']}»")
     return jsonify(result)
 
 

@@ -42,6 +42,8 @@ def _payload():
                 'pay_by_role': {'бармен': 29100, 'второй бармен': 8000},
                 'shifts_count': 11,
                 'handover_bonus': 5000,
+                # оплачено 10 дней из 11 (один день без сданной кассы)
+                'handover_paid_days': 10,
                 'day_plan_bonus': 9661,
                 'kpi_premiums': [6082.0, 0, 0],
                 'late_penalty': 0,
@@ -57,6 +59,7 @@ def _payload():
                 'pay_by_role': {'бармен': 28500, 'второй бармен': 19600},
                 'shifts_count': 8,
                 'handover_bonus': 3500,
+                'handover_paid_days': 7,
                 'day_plan_bonus': 13391,
                 'kpi_premiums': [9000.0, 0, 0],
                 'late_penalty': 500,
@@ -114,10 +117,13 @@ def test_header_and_layout():
     assert ws['G2'].value == 'Верещагин Егор'
     # 2 сотрудника: ИТОГО в колонке H (6 + 2)
     assert ws['H2'].value == 'ИТОГО'
-    # Порядок строк — как в эталоне (2 роли, 3 KPI => строки 3..22)
-    labels = [ws.cell(row=r, column=1).value for r in range(3, 23)]
+    # Порядок строк — как в эталоне (2 роли, 3 KPI => строки 3..23).
+    # «Смен с переданной кассой» — своя строка сверх эталона: база премии за
+    # передачу смены (её нельзя считать от «Количества смен» — там дневные
+    # смены графика, другое число). Стоит среди счётчиков, вне блока сумм.
+    labels = [ws.cell(row=r, column=1).value for r in range(3, 24)]
     assert labels == [
-        'Часы', 'Часы 2-й в смене', 'Количество смен',
+        'Часы', 'Часы 2-й в смене', 'Количество смен', 'Оплаченных дней передачи смены',
         'Ставка по часам', 'Ставка 2-й в смене', 'Отпуск',
         'Премия за приемку-передачу смены', 'Премия за дневной план',
         'KPI 1 — Доля кухни (%)', 'KPI 2 — Доля розлива (%)', 'KPI 3 — Средний чек (₽)',
@@ -142,43 +148,46 @@ def test_primary_values_are_numbers():
     ws = _sheet()
     assert ws['F3'].value == 97          # часы бармен
     assert ws['F4'].value == 20          # часы 2-й
-    assert ws['F5'].value == 11          # смены
-    assert ws['E6'].value == 300         # тариф часа
-    assert ws['E7'].value == 400
-    assert ws['E9'].value == 500         # тариф передачи смены
-    assert ws['E10'].value == 1000       # тариф дневного плана
-    assert ws['F10'].value == 9661
-    assert ws['E11'].value == 5000       # тариф KPI = фонд / кол-во
-    assert ws['F11'].value == 6082.0
-    assert ws['G12'].value == 0          # KPI с нулём пишется как 0.00, не пусто
-    assert ws['G14'].value == 1450       # доп доход
-    assert ws['F17'].value == 10500      # такси оф. — фикс 15 смен
-    assert ws['F19'].value == 6934       # вычет инвент
-    assert ws['F20'].value is None       # дисциплина 0 -> пусто
-    assert ws['F16'].value is None       # мосты — ручная строка бухгалтера
+    assert ws['F5'].value == 11          # смены (дневные, база такси)
+    assert ws['F6'].value == 10          # смен с переданной кассой (база премии)
+    assert ws['E7'].value == 300         # тариф часа
+    assert ws['E8'].value == 400
+    assert ws['E10'].value == 500        # тариф передачи смены
+    assert ws['E11'].value == 1000       # тариф дневного плана
+    assert ws['F11'].value == 9661
+    assert ws['E12'].value == 5000       # тариф KPI = фонд / кол-во
+    assert ws['F12'].value == 6082.0
+    assert ws['G13'].value == 0          # KPI с нулём пишется как 0.00, не пусто
+    assert ws['G15'].value == 1450       # доп доход
+    assert ws['F18'].value == 10500      # такси оф. — фикс 15 смен
+    assert ws['F20'].value == 6934       # вычет инвент
+    assert ws['F21'].value is None       # дисциплина 0 -> пусто
+    assert ws['F17'].value is None       # мосты — ручная строка бухгалтера
 
 
 def test_discipline_merges_auto_penalty_and_manual():
     """Строка «Вычет дисциплина» = авто-штраф за опоздания + ручной вычет."""
-    assert _sheet()['G20'].value == 750  # 500 (опоздания) + 250 (ручной)
+    assert _sheet()['G21'].value == 750  # 500 (опоздания) + 250 (ручной)
 
 
 def test_formulas_match_reference_shape():
     """Выводимые строки — живые формулы в той же форме, что у бухгалтерии."""
     ws = _sheet()
-    assert ws['F6'].value == '=F3*$E$6'          # оплата = часы x тариф
-    assert ws['G7'].value == '=G4*$E$7'
-    assert ws['F9'].value == '=F5*$E$9-500'      # смены x тариф - неоплаченный день
-    assert ws['G9'].value == '=G5*$E$9-500'
-    assert ws['E15'].value == TAXI_RATE_PER_SHIFT
-    assert ws['F15'].value == '=F5*$E$15'        # такси = смены x тариф
-    assert ws['F18'].value == '=F15+F16-F17'     # разница = расчёт + мосты - оф.
-    assert ws['F22'].value == '=SUM(F6:F14)-F19-F20-F21+F18'   # как в эталоне
-    assert ws['G22'].value == '=SUM(G6:G14)-G19-G20-G21+G18'
-    assert ws['H6'].value == '=SUM(F6:G6)'       # колонка ИТОГО — SUM по строке
-    assert ws['H22'].value == '=SUM(F22:G22)'
-    # У «Количества смен» итога по строке нет (как в таблице бухгалтерии)
+    assert ws['F7'].value == '=F3*$E$7'          # оплата = часы x тариф
+    assert ws['G8'].value == '=G4*$E$8'
+    # премия = оплаченные дни передачи кассы x тариф (своя база, строка 6)
+    assert ws['F10'].value == '=F6*$E$10'
+    assert ws['G10'].value == '=G6*$E$10'
+    assert ws['E16'].value == TAXI_RATE_PER_SHIFT
+    assert ws['F16'].value == '=F5*$E$16'        # такси = дневные смены x тариф
+    assert ws['F19'].value == '=F16+F17-F18'     # разница = расчёт + мосты - оф.
+    assert ws['F23'].value == '=SUM(F7:F15)-F20-F21-F22+F19'   # как в эталоне
+    assert ws['G23'].value == '=SUM(G7:G15)-G20-G21-G22+G19'
+    assert ws['H7'].value == '=SUM(F7:G7)'       # колонка ИТОГО — SUM по строке
+    assert ws['H23'].value == '=SUM(F23:G23)'
+    # У счётчиков смен итога по строке нет (как в таблице бухгалтерии)
     assert ws['H5'].value is None
+    assert ws['H6'].value is None
 
 
 def test_formulas_evaluate_to_page_numbers():
@@ -188,26 +197,26 @@ def test_formulas_evaluate_to_page_numbers():
     проверялось до перехода на формулы.
     """
     ws = _sheet()
-    assert _eval(ws, 'F6') == 29100              # 97 x 300
-    assert _eval(ws, 'F7') == 8000               # 20 x 400
-    assert _eval(ws, 'F9') == 5000               # премия за передачу смены
-    assert _eval(ws, 'G9') == 3500
-    assert _eval(ws, 'F15') == 11 * 700          # такси расчёт
-    assert _eval(ws, 'F18') == 7700 - 10500      # -2 800, как в эталоне
-    assert _eval(ws, 'G18') == 5600 - 10500      # -4 900
-    assert _eval(ws, 'F22') == 48109             # ИТОГО Юреня
-    assert _eval(ws, 'G22') == 64497             # ИТОГО Верещагин
-    assert _eval(ws, 'H6') == 29100 + 28500
-    assert _eval(ws, 'H18') == -2800 + -4900
-    assert _eval(ws, 'H22') == 48109 + 64497
+    assert _eval(ws, 'F7') == 29100               # 97 x 300
+    assert _eval(ws, 'F8') == 8000                # 20 x 400
+    assert _eval(ws, 'F10') == 5000               # премия = 10 оплаченных дней x 500
+    assert _eval(ws, 'G10') == 3500               # 7 x 500
+    assert _eval(ws, 'F16') == 11 * 700           # такси расчёт
+    assert _eval(ws, 'F19') == 7700 - 10500       # -2 800, как в эталоне
+    assert _eval(ws, 'G19') == 5600 - 10500       # -4 900
+    assert _eval(ws, 'F23') == 48109              # ИТОГО Юреня
+    assert _eval(ws, 'G23') == 64497              # ИТОГО Верещагин
+    assert _eval(ws, 'H7') == 29100 + 28500
+    assert _eval(ws, 'H19') == -2800 + -4900
+    assert _eval(ws, 'H23') == 48109 + 64497
 
 
 def test_bridges_flow_into_totals():
     """Вписанные бухгалтером «мосты» пересчитывают разницу и ИТОГО."""
     ws = _sheet()
-    ws['F16'] = 2100                             # мосты = 7 x 300, как в эталоне
-    assert _eval(ws, 'F18') == 7700 + 2100 - 10500
-    assert _eval(ws, 'F22') == 48109 + 2100
+    ws['F17'] = 2100                             # мосты = 7 x 300, как в эталоне
+    assert _eval(ws, 'F19') == 7700 + 2100 - 10500
+    assert _eval(ws, 'F23') == 48109 + 2100
 
 
 def test_full_calc_on_load():
@@ -216,19 +225,35 @@ def test_full_calc_on_load():
 
 
 def test_handover_falls_back_to_number_when_not_reconcilable():
-    """Премия не сходится с «Количеством смен» -> в файл идёт число, не формула.
+    """Премия не сходится с оплаченными днями -> в файл идёт число, не формула.
 
-    Премия считается по кассовым сменам iiko, строка «Количество смен» — по
-    дневным сменам графика; когда они расходятся, формула соврала бы.
+    Формула ставится только если воспроизводит сумму страницы: экспорт обязан
+    совпадать с расчётом, поэтому при любом расхождении пишем число.
     """
     p = _payload()
-    p['employees'][0]['handover_bonus'] = 5250   # не кратно тарифу 500
+    p['employees'][0]['handover_bonus'] = 5250   # 10 дней x 500 = 5000, не сходится
     ws = build_salary_workbook(p).active
-    assert ws['F9'].value == 5250
-    # Премия больше, чем «смены x тариф» (дневных смен меньше кассовых)
+    assert ws['F10'].value == 5250
+    # Оплаченных дней нет, а премия есть — формула дала бы 0
     p2 = _payload()
-    p2['employees'][0]['handover_bonus'] = 7000  # > 11 x 500
-    assert build_salary_workbook(p2).active['F9'].value == 7000
+    p2['employees'][0]['handover_paid_days'] = 0
+    assert build_salary_workbook(p2).active['F10'].value == 5000
+
+
+def test_handover_row_has_no_phantom_deduction():
+    """У сотрудника без штрафов и без дней «нет кассы» вычета в файле нет.
+
+    Раньше премия считалась формулой от «Количества смен» (дневные смены
+    графика), и разница баз гасилась константой — в файле появлялся вычет
+    «-500» у того, у кого штрафов не было вовсе (жалоба владельца 2026-08-06).
+    """
+    p = _payload()
+    p['employees'][0]['shifts_count'] = 8        # дневных смен графика меньше
+    p['employees'][0]['handover_paid_days'] = 11
+    p['employees'][0]['handover_bonus'] = 5500   # 11 x 500 — всё оплачено
+    ws = build_salary_workbook(p).active
+    assert ws['F10'].value == '=F6*$E$10'        # чистая формула, без «-N»
+    assert ws['F6'].value == 11
 
 
 def test_pay_falls_back_to_number_on_rounding_drift():
@@ -241,8 +266,8 @@ def test_pay_falls_back_to_number_on_rounding_drift():
     p['employees'][0]['hours_by_role']['бармен'] = 92.58   # округлено с 92.5833
     p['employees'][0]['pay_by_role']['бармен'] = 27775     # страница: 92.5833 x 300
     ws = build_salary_workbook(p).active
-    assert ws['F6'].value == 27775                          # число, не формула
-    assert ws['G6'].value == '=G3*$E$6'                     # у второго формула цела
+    assert ws['F7'].value == 27775                          # число, не формула
+    assert ws['G7'].value == '=G3*$E$7'                     # у второго формула цела
 
 
 def test_formula_injection_blocked():

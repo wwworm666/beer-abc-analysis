@@ -178,6 +178,14 @@
             color: white;
         }
         .pen-btn.saving { opacity: 0.5; cursor: wait; }
+        /* Штраф отмечен, но вычитать нечего: за день премия и так не начислена
+           (касса не сдана). Не красный «-500» — он читался как второй вычет. */
+        .pen-btn.noop {
+            border-style: dashed;
+            color: var(--text-tertiary);
+            background: none;
+        }
+        .pen-btn.noop:hover { border-color: var(--text-tertiary); color: var(--text-secondary); }
 
         /* Detail toggle buttons */
         .detail-toggles {
@@ -478,7 +486,7 @@
                 <div class="form-group">
                     <label>&nbsp;</label>
                     <button class="btn-secondary" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
-                            title="Создать отдельную Google Таблицу с расчётом за месяц (сначала выполните расчёт). В таблицу бухгалтерии данные уходят сами каждую ночь в 04:00">Экспорт Google</button>
+                            title="Обновить Google Таблицу бухгалтерии расчётом за этот месяц прямо сейчас (сначала выполните расчёт). Пишет ту же вкладку «Месяц_Автоматическая», что и ночная выгрузка в 04:00; ручная вкладка бухгалтера не трогается">Обновить Google</button>
                 </div>
             </div>
         </div>
@@ -565,7 +573,7 @@
             <div class="targets-content" id="formula-content">
                 <div class="formula-card">
                     <strong>Премия за план:</strong> за каждую смену где выручка >= плана ТТ <code>1 000 + перевыполнение x 5%</code><br>
-                    <strong>За передачу смены:</strong> <code>500 x смены</code> — с 11.07.2026 только за дни со сданной кассой (наличные в сейфе); за день без кассовой дисциплины премия не платится (дни до 11.07 оплачиваются как раньше)<br>
+                    <strong>За передачу смены:</strong> <code>500 x дни смен</code> — премия за день не платится, если не сдана касса (наличные в сейфе; правило с 11.07.2026, дни до неё оплачиваются как раньше) либо если на день проставлен ручной штраф. Две кассовые смены в одном дне = одна премия, за первую открытую<br>
                     <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
                     <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
                     <strong>Оплата часов:</strong> сумма по сменам — <code>часы из графика x ставка роли</code> (часы = факт из графика смен; ставки ролей настраиваются выше)<br>
@@ -604,6 +612,10 @@
         let targetsData = null;
         // Месяц периода расчёта ('YYYY-MM', от date_from) — для имени файла экспорта
         let periodMonth = null;
+        // Границы посчитанного периода. Нужны экспорту: Google-выгрузка пишет
+        // вкладку МЕСЯЦА в таблицу бухгалтерии, и данными половины месяца её
+        // затирать нельзя — сервер сверяет период с границами месяца
+        let periodFrom = null, periodTo = null;
         const LOCATIONS = ['Кременчугская', 'Варшавская', 'Лиговский', 'Большой пр В.О.'];
         const LOC_SHORT = {'Кременчугская': 'Крем', 'Варшавская': 'Варш', 'Лиговский': 'Лиг', 'Большой пр В.О.': 'ВО'};
         const DEFAULT_KPI_KEYS = ['kpi1', 'kpi2', 'kpi3'];
@@ -765,6 +777,8 @@
                 kpiData = kData;
                 hoursData = hData;
                 periodMonth = dates.from.slice(0, 7);
+                periodFrom = dates.from;
+                periodTo = dates.to;
 
                 mergeAndRender();
                 document.getElementById('export-btn').disabled = false;
@@ -1050,9 +1064,20 @@
             if (!day || btnEl.classList.contains('saving')) return;
 
             const penalized = !day.manual_cash_penalty;
-            let note = day.manual_cash_penalty_note || null;
+            // Причина берётся из активного штрафа, а если его сняли — из «памяти»
+            // дня: снятие УДАЛЯЕТ строку в БД, поэтому иначе текст исчезает
+            // безвозвратно, и повторная простановка начинается с пустого поля
+            // (реальный случай 2026-08-06 — так потерялась причина штрафа за 16.07)
+            const prevNote = day.manual_cash_penalty_note
+                || day.last_cash_penalty_note || null;
+            let note = prevNote;
             if (penalized) {
-                note = (prompt('Причина штрафа (неверная сумма, забыты траты...):') || '').trim() || null;
+                // Прошлая причина подставляется в поле и остаётся, если ввод
+                // отменили или оставили пустым. Чтобы сменить причину — перезаписать;
+                // стереть в ноль нельзя намеренно.
+                const entered = prompt('Причина штрафа (неверная сумма, забыты траты...):',
+                                       prevNote || '');
+                note = entered === null ? prevNote : ((entered.trim() || null) || prevNote);
             }
 
             btnEl.classList.add('saving');
@@ -1073,13 +1098,33 @@
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok) throw new Error(data.error || 'Ошибка сохранения');
 
-                // Локальный пересчёт — зеркало бэка: paid = смены - без_кассы - штрафы
+                // Сервер не сдвинул состояние (changed=false) — значит наш штраф
+                // относится к другой строке (например к однофамильцу с другим id).
+                // Не перерисовываем премию как изменённую: иначе экран показал бы
+                // сумму, которой в расчёте нет, и это вскрылось бы только после F5.
+                if (data.changed === false) {
+                    showError('Штраф не изменился — данные на странице устарели. '
+                        + 'Нажмите «Рассчитать» ещё раз.');
+                    return;
+                }
+
+                // Локальный пересчёт — зеркало бэка: paid = дни - без_кассы - штрафы
                 day.manual_cash_penalty = penalized;
+                // Запоминаем причину на случай повторной простановки: строку в БД
+                // снятие удаляет вместе с текстом
+                if (!penalized) day.last_cash_penalty_note = day.manual_cash_penalty_note
+                    || day.last_cash_penalty_note || null;
                 day.manual_cash_penalty_note = penalized ? note : null;
                 const manualDays = b.days.reduce((s, d) => s + (penaltyEffective(d) ? 1 : 0), 0);
                 b.shift_handover_manual_days = manualDays;
                 const unpaid = b.shift_handover_unpaid_days || 0;
-                const paid = Math.max(0, (b.shifts_count || 0) - unpaid - manualDays);
+                // База — ДНИ смен (b.days), а не кассовые смены: в дне может быть
+                // две кассовые смены, премия платится один раз. Зеркало бэка:
+                // routes/employee.py, handover_base_days
+                const baseDays = b.shift_handover_base_days != null
+                    ? b.shift_handover_base_days : b.days.length;
+                const paid = Math.max(0, baseDays - unpaid - manualDays);
+                b.shift_handover_paid_days = paid;
                 b.shift_handover_bonus = paid * 500;
                 recalcEmployeeTotals(emp);
 
@@ -1161,6 +1206,9 @@
                     pay_by_role: payByRole,
                     shifts_count: shiftsCount,
                     handover_bonus: emp.bonus?.shift_handover_bonus || 0,
+                    // Оплаченные дни — база строки премии в листе (премия =
+                    // оплаченные дни x тариф, а не «Количество смен» x тариф)
+                    handover_paid_days: emp.bonus?.shift_handover_paid_days || 0,
                     day_plan_bonus: emp.bonus?.bonus || 0,
                     kpi_premiums: kpiPremiums,
                     late_penalty: emp.bonus?.penalty || 0,
@@ -1172,6 +1220,11 @@
 
             return {
                 month: periodMonth,
+                // Границы посчитанного периода: по ним сервер проверяет, что
+                // Google-выгрузка идёт за ЦЕЛЫЙ месяц (вкладка бухгалтерии
+                // переписывается целиком, половиной месяца её затирать нельзя)
+                date_from: periodFrom,
+                date_to: periodTo,
                 kpi_names: kpiNames,
                 base_per_kpi: basePerKpi,
                 roles: roles,
@@ -1211,16 +1264,34 @@
             }
         }
 
-        // Создаёт ОТДЕЛЬНУЮ новую Google Таблицу с расчётом и открывает её.
-        // Ничего существующего не трогает: в таблицу бухгалтерии данные уходят
-        // сами — ночная выгрузка в 04:00 (core/salary_scheduler.py).
+        // Обновляет Google Таблицу бухгалтерии прямо сейчас: пишет ту же вкладку
+        // «Месяц_Автоматическая», что и ночная выгрузка в 04:00
+        // (core/salary_scheduler.py), но за месяц, открытый на странице.
+        // Ручная вкладка бухгалтера («июль2026») не трогается.
+        // Последний день месяца 'YYYY-MM' (день 0 следующего месяца)
+        function monthLastDay(month) {
+            const y = Number(month.slice(0, 4)), m = Number(month.slice(5, 7));
+            const d = new Date(y, m, 0);
+            return `${month}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
         async function exportGoogleSheet() {
             const payload = await buildExportPayload();
             if (!payload) return;
+            // Вкладка месяца в таблице бухгалтерии переписывается целиком, поэтому
+            // выгружаем только расчёт за полный месяц. Сервер проверяет то же
+            // самое (это решающая проверка), здесь — понятное сообщение заранее.
+            if (payload.date_from !== `${payload.month}-01`
+                || payload.date_to !== monthLastDay(payload.month)) {
+                showError('Обновление Google — только за целый месяц: выберите период '
+                    + `${payload.month}-01 … ${monthLastDay(payload.month)} и повторите расчёт. `
+                    + 'Excel можно скачать за любой период.');
+                return;
+            }
             const btn = document.getElementById('export-gsheet-btn');
-            const LABEL = 'Экспорт Google';
+            const LABEL = 'Обновить Google';
             btn.disabled = true;
-            btn.textContent = 'Создаём...';
+            btn.textContent = 'Обновляем...';
             try {
                 const resp = await fetch('/api/salary/export-gsheet', {
                     method: 'POST',
@@ -1232,7 +1303,7 @@
                 hideError();
                 window.open(data.url, '_blank', 'noopener');
             } catch (e) {
-                showError('Экспорт в Google Таблицу не удался: ' + e.message);
+                showError('Google Таблица не обновлена: ' + e.message);
             } finally {
                 btn.disabled = false;
                 btn.textContent = LABEL;
@@ -1283,23 +1354,34 @@
             }
 
             // Кнопка ручного штрафа кассы: клик снимает/возвращает премию за
-            // передачу смены (-500) за конкретный день. Если день уже не
-            // оплачен автоправилом (нет кассы) — штраф помечается, но повторно
-            // не вычитается (подсказка в title).
+            // передачу смены (-500) за конкретный день.
+            // Если день уже не оплачен автоправилом (касса не сдана), штраф
+            // отмечается, но НИЧЕГО не вычитает — 500 за этот день и так не
+            // платятся. Логика верная, поэтому кнопка не пишет «-500» (это
+            // читалось как «снято ещё 500»), а показывает «уже без премии»
+            // серым (правка по замечанию владельца 2026-08-06).
             function penaltyBtn(day) {
                 const active = day.manual_cash_penalty;
-                let title;
+                const effective = penaltyEffective(day);
+                const reason = day.manual_cash_penalty_note
+                    ? '. Причина: ' + day.manual_cash_penalty_note : '';
+                let title, label, cls;
                 if (!active) {
                     title = 'Оштрафовать: снять премию за передачу смены (500) за этот день';
-                } else if (!penaltyEffective(day)) {
-                    title = 'Штраф отмечен, но день и так не оплачен (нет кассы) — повторно не вычитается'
-                        + (day.manual_cash_penalty_note ? '. Причина: ' + day.manual_cash_penalty_note : '');
+                    label = 'штраф';
+                    cls = '';
+                } else if (!effective) {
+                    title = 'Штраф отмечен, но вычитать нечего: за этот день премия и так '
+                        + 'не начислена (касса не сдана). Клик — убрать отметку' + reason;
+                    label = 'уже без премии';
+                    cls = ' noop';
                 } else {
-                    title = 'Штраф: премия за передачу смены за день снята. Клик — убрать'
-                        + (day.manual_cash_penalty_note ? '. Причина: ' + day.manual_cash_penalty_note : '');
+                    title = 'Штраф: премия за передачу смены за день снята. Клик — убрать' + reason;
+                    label = '-500';
+                    cls = ' active';
                 }
-                return `<button class="pen-btn${active ? ' active' : ''}" title="${title.replace(/"/g, '&quot;')}"
-                    onclick="toggleCashPenalty(${index}, '${day.date}', this)">${active ? '-500' : 'штраф'}</button>`;
+                return `<button class="pen-btn${cls}" title="${title.replace(/"/g, '&quot;')}"
+                    onclick="toggleCashPenalty(${index}, '${day.date}', this)">${label}</button>`;
             }
 
             let rows = '';

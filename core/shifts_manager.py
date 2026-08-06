@@ -24,6 +24,17 @@ LOCATION_VENUE_KEYS = {
 
 
 
+class HandoverPenaltyConflict(Exception):
+    """Штраф за кассовую смену этого дня принадлежит другому сотруднику.
+
+    Возможно только при двух iiko-карточках с посимвольно одинаковым ФИО и
+    сменой в один день: `handover_cash_penalties` различает записи по
+    UNIQUE(date, employee_name), поэтому такие штрафы неразличимы. Раньше второй
+    клик молча перевешивал строку на нового сотрудника (штраф первого исчезал
+    вместе с причиной) — теперь операция отклоняется с объяснением.
+    """
+
+
 class ShiftsManager:
     """Thread-safe менеджер для работы со сменами в SQLite."""
 
@@ -1116,43 +1127,65 @@ class ShiftsManager:
                 # BEGIN IMMEDIATE: SELECT+запись атомарны и между 2 gunicorn-
                 # воркерами — «changed» не соврёт журналу при одновременных кликах
                 cursor.execute('BEGIN IMMEDIATE')
-                # Существующая строка дня: по id (надёжно), иначе по имени.
-                # Имя в условии остаётся и при поиске по id — подхватывает строку,
-                # проставленную до v10 (id ещё не был записан).
-                if employee_id:
-                    cursor.execute(
-                        'SELECT id, note FROM handover_cash_penalties '
-                        'WHERE date = ? AND (employee_id = ? OR '
-                        '                    (employee_id IS NULL AND employee_name = ?))',
-                        (date_str, employee_id, employee_name)
-                    )
-                else:
-                    cursor.execute(
-                        'SELECT id, note FROM handover_cash_penalties '
-                        'WHERE date = ? AND employee_name = ?',
-                        (date_str, employee_name)
-                    )
+                # Строка дня ищется ОДИНАКОВО для простановки и снятия: сначала
+                # по стабильному id, затем по имени. Асимметрия давала состояние
+                # «поставить можно, снять нельзя»: снятие не находило строку с
+                # чужим/устаревшим id, отвечало changed=False и ничего не удаляло,
+                # а страница рисовала премию восстановленной.
+                cursor.execute(
+                    'SELECT id, note, employee_id FROM handover_cash_penalties '
+                    'WHERE date = ? AND (employee_id = ? OR employee_name = ?) '
+                    'ORDER BY CASE WHEN employee_id = ? THEN 0 ELSE 1 END, id '
+                    'LIMIT 1',
+                    (date_str, employee_id, employee_name, employee_id)
+                )
                 row = cursor.fetchone()
+                # Строка принадлежит ДРУГОМУ сотруднику (совпало только имя, а id
+                # другой): два человека с посимвольно одинаковым ФИО на одном дне.
+                # Модель (UNIQUE по дате+имени) их не различает, поэтому не сливаем
+                # молча — раньше ON CONFLICT перевешивал строку на нового человека,
+                # и штраф первого исчезал вместе с причиной.
+                if row and employee_id and row['employee_id'] \
+                        and row['employee_id'] != employee_id:
+                    raise HandoverPenaltyConflict(
+                        f"На {date_str} уже есть штраф у другого сотрудника с тем же "
+                        f"именем «{employee_name}». Записи не различить по имени — "
+                        f"переименуйте одного из них в iiko и синхронизируйте реестр")
                 if penalized:
                     changed = row is None or row['note'] != note
                     if row:
-                        # Обновляем и снимок имени с id — строка «переезжает»
-                        # на текущее имя сотрудника вместо задвоения
+                        # Снимок имени обновляем только если новое имя на эту дату
+                        # не занято другой строкой: UNIQUE(date, employee_name) не
+                        # менялся, и безусловный UPDATE ловил IntegrityError (500 в
+                        # роуте, а затем падал и синк сотрудников)
                         cursor.execute(
-                            'UPDATE handover_cash_penalties '
-                            'SET note = ?, employee_name = ?, '
-                            '    employee_id = COALESCE(?, employee_id) '
-                            'WHERE id = ?',
-                            (note, employee_name, employee_id, row['id'])
-                        )
+                            'SELECT 1 FROM handover_cash_penalties '
+                            'WHERE date = ? AND employee_name = ? AND id <> ?',
+                            (date_str, employee_name, row['id']))
+                        name_taken = cursor.fetchone() is not None
+                        if name_taken:
+                            cursor.execute(
+                                'UPDATE handover_cash_penalties SET note = ?, '
+                                '    employee_id = COALESCE(?, employee_id) '
+                                'WHERE id = ?', (note, employee_id, row['id']))
+                        else:
+                            cursor.execute(
+                                'UPDATE handover_cash_penalties SET note = ?, '
+                                '    employee_name = ?, '
+                                '    employee_id = COALESCE(?, employee_id) '
+                                'WHERE id = ?',
+                                (note, employee_name, employee_id, row['id']))
                     else:
+                        # ON CONFLICT здесь — гонка двух воркеров на одну и ту же
+                        # (дата, имя): id НЕ перезаписываем (COALESCE от
+                        # существующего), иначе строка уехала бы к другому человеку
                         cursor.execute('''
                             INSERT INTO handover_cash_penalties
                                 (date, employee_id, employee_name, note, created_at)
                             VALUES (?, ?, ?, ?, ?)
                             ON CONFLICT(date, employee_name) DO UPDATE SET
                                 note = excluded.note,
-                                employee_id = COALESCE(excluded.employee_id, employee_id)
+                                employee_id = COALESCE(employee_id, excluded.employee_id)
                         ''', (date_str, employee_id, employee_name, note,
                               datetime.now().isoformat()))
                 else:

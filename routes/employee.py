@@ -397,6 +397,10 @@ def employee_compare():
 # исторические месяцы (где кассовой дисциплины ещё не было) не обнуляются.
 HANDOVER_CASH_RULE_FROM = '2026-07-11'
 
+# Тариф премии «приемка-передача смены» за день со сданной кассой. То же число
+# в колонке «Тариф» таблицы ЗП — core/salary_layout.HANDOVER_RATE.
+HANDOVER_RATE = 500
+
 
 def _canon_venue(loc):
     """Каноничный ключ точки (venue_key) для сопоставления имён из iiko и графика.
@@ -464,8 +468,14 @@ def _manual_handover_penalties(date_from, date_to):
             emp_id = (p.get('employee_id') or '').strip()
             if emp_id:
                 by_id.setdefault(emp_id, {})[p['date']] = p.get('note')
-            by_name.setdefault(
-                (p['employee_name'] or '').strip().lower(), {})[p['date']] = p.get('note')
+            else:
+                # По имени индексируем ТОЛЬКО строки без id. Иначе штраф,
+                # аккуратно привязанный к одному сотруднику, применялся бы и к
+                # его однофамильцу с другим id (расчёт берёт объединение
+                # индексов) — минус 500 у человека, которого не штрафовали.
+                by_name.setdefault(
+                    (p['employee_name'] or '').strip().lower(),
+                    {})[p['date']] = p.get('note')
         return by_id, by_name
     except Exception as e:
         print(f"   [BONUS] manual-penalty lookup failed, штрафы не применяем: {e}")
@@ -488,6 +498,12 @@ def _paid_handover_shifts(shifts_count, shift_locations, cash_filled_keys,
                           rule_from=HANDOVER_CASH_RULE_FROM):
     """Сколько смен оплачивается премией «передача смены».
 
+    `shifts_count` — база оплаты: число ДНЕЙ смен сотрудника, а не кассовых смен
+    iiko. Если в одном дне закрыто две кассовые смены (бывает, хотя не должно),
+    премия платится один раз — за ту, кто открыл первым (решение владельца
+    2026-08-06). До этого такой день давал 1000 ₽, а ручной штраф снимал с него
+    только 500.
+
     За день без сданной кассовой дисциплины премию не платим — но только начиная с
     `rule_from` (`HANDOVER_CASH_RULE_FROM`): дни ДО этой даты оплачиваются всегда
     (исторические месяцы без кассы не режем). Считаем дни смен (`shift_locations`:
@@ -502,6 +518,31 @@ def _paid_handover_shifts(shifts_count, shift_locations, cash_filled_keys,
     without = sum(1 for d, loc in (shift_locations or {}).items()
                   if d >= rule_from and (_canon_venue(loc), d) not in cash_filled_keys)
     return max(0, shifts_count - without), without
+
+
+def _handover_premium(days_detail, shift_locations, cash_filled_keys,
+                      rule_from=HANDOVER_CASH_RULE_FROM):
+    """Премия «приемка-передача смены» за период — единственное место расчёта.
+
+    Правило владельца: за день премия НЕ платится, если
+      (а) касса за день не сдана (с даты-отсечки `rule_from`), либо
+      (б) на день проставлен ручной штраф кассы.
+    Оба условия не задваиваются: день, уже не оплаченный по (а), повторно не
+    вычитается по (б).
+
+    База — число ДНЕЙ смен, а не кассовых смен iiko: если в одном дне закрыто
+    две кассовые смены (бывает, хотя не должно), премия платится один раз — за
+    ту, кто открыл первым (решение владельца 2026-08-06).
+
+    Возвращает (bonus, paid_days, without_cash, manual_days).
+    Чистая функция — тест `tests/test_bonus_handover_cash.py`.
+    """
+    base_days = len(days_detail)
+    paid, without_cash = _paid_handover_shifts(
+        base_days, shift_locations, cash_filled_keys, rule_from)
+    manual_days = _manual_penalty_days(days_detail)
+    paid = max(0, paid - manual_days)
+    return paid * HANDOVER_RATE, paid, without_cash, manual_days
 
 
 @employee_bp.route('/api/bonus-calculate', methods=['POST'])
@@ -682,18 +723,12 @@ def bonus_calculate():
             # Часы работы из кассовых смен
             total_hours = emp_metrics.get('total_hours', 0.0)
 
-            # Премия за передачу смены: 500 ₽ за смену, но ТОЛЬКО за дни с
-            # заполненной кассовой дисциплиной (наличные в сейфе сданы). За день без
-            # сданной кассы премию не платим. Дни берём из shift_locations (дата ->
-            # точка); ключ — (нормализованная точка, дата) в множестве cash_filled_keys.
-            paid_shifts, shifts_without_cash = _paid_handover_shifts(
-                shifts_count, shift_locations, cash_filled_keys)
-            # Ручные штрафы кассы поверх автоправила: день, снятый владельцем
-            # руками, не оплачивается; уже не оплаченные автоправилом дни не
-            # вычитаются второй раз
-            manual_days = _manual_penalty_days(days_detail)
-            paid_shifts = max(0, paid_shifts - manual_days)
-            shift_handover_bonus = paid_shifts * 500
+            # Премия «передача смены» — правило целиком в _handover_premium:
+            # 500 ₽ за ДЕНЬ смены, кроме дней без сданной кассы (с отсечки) и
+            # дней с ручным штрафом
+            shift_handover_bonus, paid_shifts, shifts_without_cash, manual_days = \
+                _handover_premium(days_detail, shift_locations, cash_filled_keys)
+            handover_base_days = len(days_detail)
 
             results.append({
                 'name': emp_name,
@@ -713,6 +748,11 @@ def bonus_calculate():
                 'shift_handover_bonus': shift_handover_bonus,
                 'shift_handover_unpaid_days': shifts_without_cash,
                 'shift_handover_manual_days': manual_days,
+                # База премии (дни смен) и сколько из них оплачено — чтобы в
+                # экспорте премия считалась формулой от своей базы, а не от
+                # «Количества смен» (там дневные смены графика, другое число)
+                'shift_handover_base_days': handover_base_days,
+                'shift_handover_paid_days': paid_shifts,
                 'total_hours': round(total_hours, 1),
                 'days': days_detail
             })

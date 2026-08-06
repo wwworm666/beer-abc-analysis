@@ -264,6 +264,9 @@ def build_payload_for_month(app, month: str) -> dict:
             'pay_by_role': pay_by_role,
             'shifts_count': shifts_count,
             'handover_bonus': (b or {}).get('shift_handover_bonus') or 0,
+            # Оплаченные дни — база строки премии в листе (см. salary_layout:
+            # премия = оплаченные дни x тариф, а не «Количество смен» x тариф)
+            'handover_paid_days': (b or {}).get('shift_handover_paid_days') or 0,
             'day_plan_bonus': (b or {}).get('bonus') or 0,
             'kpi_premiums': kpi_premiums,
             'late_penalty': (b or {}).get('penalty') or 0,

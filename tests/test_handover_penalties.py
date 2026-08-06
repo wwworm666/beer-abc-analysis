@@ -190,6 +190,92 @@ def test_sync_refreshes_penalty_name_snapshot(tmpdir):
     assert rows[0]['employee_id'] == ALEX_ID
 
 
+# ==================== Однофамильцы и симметрия снятия (ревью 2026-08-06) ====================
+
+OTHER_ID = '535427a8-2487-45c7-b77b-41fda1d7ac49'
+
+
+def test_penalty_of_namesake_is_not_silently_reassigned(tmpdir):
+    """Два сотрудника с одинаковым ФИО на один день — отказ, а не слияние.
+
+    Раньше ON CONFLICT перевешивал строку на нового человека: штраф первого
+    исчезал вместе с причиной, а снятие им же ничего не удаляло.
+    """
+    from core.shifts_manager import HandoverPenaltyConflict
+    mgr = _fresh_mgr(tmpdir)
+    mgr.set_handover_penalty('2026-07-24', 'Иван Петров', True,
+                             note='первый', employee_id=OTHER_ID)
+    raised = False
+    try:
+        mgr.set_handover_penalty('2026-07-24', 'Иван Петров', True,
+                                 note='второй', employee_id=ALEX_ID)
+    except HandoverPenaltyConflict:
+        raised = True
+    assert raised, 'штраф однофамильца молча перевесили'
+    rows = mgr.get_handover_penalties('2026-07-01', '2026-07-31')
+    assert len(rows) == 1
+    assert rows[0]['employee_id'] == OTHER_ID and rows[0]['note'] == 'первый'
+
+
+def test_unset_finds_row_by_name_even_with_foreign_id(tmpdir):
+    """«Снять» работает так же, как «поставить»: искать строку по id ИЛИ имени.
+
+    Асимметрия давала состояние «поставить можно, снять нельзя» — API отвечал
+    changed=False, строка оставалась, а страница рисовала премию восстановленной.
+    """
+    mgr = _fresh_mgr(tmpdir)
+    mgr.set_handover_penalty('2026-07-24', 'Иван Петров', True, employee_id=OTHER_ID)
+    # снимаем без id (старый фронт) — по имени строка должна найтись
+    assert mgr.set_handover_penalty('2026-07-24', 'Иван Петров', False)
+    assert mgr.get_handover_penalties('2026-07-01', '2026-07-31') == []
+
+
+def test_name_snapshot_update_does_not_break_unique(tmpdir):
+    """Обновление снимка имени не падает на UNIQUE(date, employee_name).
+
+    На дате может лежать legacy-строка с тем же новым именем; безусловный UPDATE
+    ловил IntegrityError -> 500 в роуте, а затем ронял и синк сотрудников.
+    """
+    mgr = _fresh_mgr(tmpdir)
+    conn = sqlite3.connect(mgr.db_path)
+    conn.execute("INSERT INTO handover_cash_penalties (date, employee_name) "
+                 "VALUES ('2026-07-24', 'Алексей Марченко')")          # legacy, id NULL
+    conn.execute("INSERT INTO handover_cash_penalties (date, employee_name, employee_id) "
+                 "VALUES ('2026-07-24', 'Алексей Стажер', ?)", (ALEX_ID,))
+    conn.commit()
+    conn.close()
+    # клик по тому же дню под НОВЫМ именем и своим id — не должен падать
+    mgr.set_handover_penalty('2026-07-24', 'Алексей Марченко', True,
+                             note='после переименования', employee_id=ALEX_ID)
+    rows = mgr.get_handover_penalties('2026-07-01', '2026-07-31')
+    mine = [r for r in rows if r['employee_id'] == ALEX_ID]
+    assert len(mine) == 1 and mine[0]['note'] == 'после переименования'
+
+
+def test_by_name_index_only_for_rows_without_id():
+    """Штраф с id не индексируется по имени — иначе прилипал бы к однофамильцу."""
+    import routes.employee as emp
+
+    class _Stub:
+        @staticmethod
+        def get_handover_penalties(a, b):
+            return [{'date': '2026-07-24', 'employee_id': ALEX_ID,
+                     'employee_name': 'Иван Петров', 'note': 'с id'},
+                    {'date': '2026-07-25', 'employee_id': None,
+                     'employee_name': 'Иван Петров', 'note': 'legacy'}]
+
+    import extensions
+    saved = extensions.shifts_mgr
+    extensions.shifts_mgr = _Stub()
+    try:
+        by_id, by_name = emp._manual_handover_penalties('2026-07-01', '2026-07-31')
+    finally:
+        extensions.shifts_mgr = saved
+    assert by_id == {ALEX_ID: {'2026-07-24': 'с id'}}
+    # по имени — ТОЛЬКО строка без id
+    assert by_name == {'иван петров': {'2026-07-25': 'legacy'}}
+
+
 # ==================== _manual_penalty_days (чистая логика вычета) ====================
 
 def _day(manual, rule_applies=True, cash_filled=True):

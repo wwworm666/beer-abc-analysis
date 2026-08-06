@@ -26,8 +26,11 @@ Payload (все суммы в рублях, уже рассчитаны стра
           "name": str,
           "hours_by_role": {role_name: часы},
           "pay_by_role": {role_name: оплата},     # для сверки; в файл идёт формула
-          "shifts_count": int,                    # дневные смены графика за период
+          "shifts_count": int,                    # дневные смены графика (база такси)
           "handover_bonus": float,                # премия за передачу смены
+          "handover_paid_days": int,              # оплаченных дней передачи кассы —
+                                                  # база строки премии (дни смен минус
+                                                  # дни без кассы и ручные штрафы)
           "day_plan_bonus": float,                # премия за дневной план
           "kpi_premiums": [float, ...],           # по каждому KPI, уже с koef
           "late_penalty": float,                  # авто-штраф за опоздания

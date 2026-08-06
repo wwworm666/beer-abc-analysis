@@ -62,29 +62,35 @@ def test_color_conversion():
 
 
 def test_layout_matches_reference():
-    """Строка 1 пустая, шапка во 2-й, подписи строк 3..22 — как в эталоне."""
+    """Строка 1 пустая, шапка во 2-й, подписи строк 3..23 — как в эталоне.
+
+    Строк 21, а не 20: своя строка базы премии «Смен с переданной кассой»
+    (её нельзя считать от «Количества смен» — там дневные смены графика).
+    """
     grid = _grid()
     assert grid[0] == {'values': []}
     assert _cell(grid, 2, 1)['userEnteredValue'] == {'stringValue': 'Показатель'}
     assert _cell(grid, 2, 6)['userEnteredValue'] == {'stringValue': 'Юреня Роман'}
     assert _cell(grid, 2, 8)['userEnteredValue'] == {'stringValue': 'ИТОГО'}
     labels = [_cell(grid, r, 1)['userEnteredValue'].get('stringValue')
-              for r in range(3, 23)]
+              for r in range(3, 24)]
     assert labels[0] == 'Часы'
     assert labels[2] == 'Количество смен'
+    assert labels[3] == 'Оплаченных дней передачи смены'
     assert labels[-1] == 'ИТОГО БАРМЕН'
-    assert len(grid) == 22
+    assert len(grid) == 23
 
 
 def test_formulas_are_live():
     grid = _grid()
-    assert _cell(grid, 6, 6)['userEnteredValue'] == {'formulaValue': '=F3*$E$6'}
-    assert _cell(grid, 9, 6)['userEnteredValue'] == {'formulaValue': '=F5*$E$9-500'}
-    assert _cell(grid, 15, 6)['userEnteredValue'] == {'formulaValue': '=F5*$E$15'}
-    assert _cell(grid, 18, 6)['userEnteredValue'] == {'formulaValue': '=F15+F16-F17'}
-    assert _cell(grid, 22, 6)['userEnteredValue'] == {
-        'formulaValue': '=SUM(F6:F14)-F19-F20-F21+F18'}
-    assert _cell(grid, 6, 8)['userEnteredValue'] == {'formulaValue': '=SUM(F6:G6)'}
+    assert _cell(grid, 7, 6)['userEnteredValue'] == {'formulaValue': '=F3*$E$7'}
+    # премия = оплаченные дни передачи кассы x тариф (своя база в строке 6)
+    assert _cell(grid, 10, 6)['userEnteredValue'] == {'formulaValue': '=F6*$E$10'}
+    assert _cell(grid, 16, 6)['userEnteredValue'] == {'formulaValue': '=F5*$E$16'}
+    assert _cell(grid, 19, 6)['userEnteredValue'] == {'formulaValue': '=F16+F17-F18'}
+    assert _cell(grid, 23, 6)['userEnteredValue'] == {
+        'formulaValue': '=SUM(F7:F15)-F20-F21-F22+F19'}
+    assert _cell(grid, 7, 8)['userEnteredValue'] == {'formulaValue': '=SUM(F7:G7)'}
 
 
 def test_parity_with_xlsx():
@@ -95,7 +101,7 @@ def test_parity_with_xlsx():
     """
     grid = _grid()
     ws = build_salary_workbook(_payload()).active
-    for row in range(2, 23):
+    for row in range(2, 24):
         for col in range(1, 9):
             xlsx = ws.cell(row=row, column=col).value
             gval = _cell(grid, row, col).get('userEnteredValue', {})
@@ -109,7 +115,7 @@ def test_parity_with_xlsx():
 def test_font_is_reference_everywhere():
     """Шрифт эталона (PT Serif 8) во всех ячейках, как в .xlsx."""
     grid = _grid()
-    for row in range(2, 23):
+    for row in range(2, 24):
         for col in range(1, 9):
             tf = _cell(grid, row, col)['userEnteredFormat']['textFormat']
             assert tf['fontFamily'] == FONT_NAME and tf['fontSize'] == FONT_SIZE
@@ -118,10 +124,10 @@ def test_font_is_reference_everywhere():
 def test_deduction_rows_are_red():
     """Вычеты: тёмно-красная плашка подписи белым, данные — светло-красные."""
     grid = _grid()
-    label = _cell(grid, 19, 1)['userEnteredFormat']
+    label = _cell(grid, 20, 1)['userEnteredFormat']
     assert label['backgroundColor'] == _color('CC0000')
     assert label['textFormat']['foregroundColor'] == _color('FFFFFF')
-    assert _cell(grid, 19, 6)['userEnteredFormat']['backgroundColor'] == _color('F4CCCC')
+    assert _cell(grid, 20, 6)['userEnteredFormat']['backgroundColor'] == _color('F4CCCC')
 
 
 def test_requests_shape():
@@ -129,7 +135,7 @@ def test_requests_shape():
     sheet = build_sheet(_payload())
     reqs = build_requests(sheet, sheet_id=777)
     update = reqs[0]['updateCells']
-    assert update['range'] == {'sheetId': 777, 'startRowIndex': 0, 'endRowIndex': 22,
+    assert update['range'] == {'sheetId': 777, 'startRowIndex': 0, 'endRowIndex': 23,
                                'startColumnIndex': 0, 'endColumnIndex': 8}
     assert update['fields'] == 'userEnteredValue,userEnteredFormat'
     props = reqs[1]['updateSheetProperties']['properties']['gridProperties']
@@ -190,6 +196,66 @@ def test_master_sheet_id_required_for_sync():
         os.environ.pop('GOOGLE_SA_JSON_CONTENT', None)
         if saved is not None:
             os.environ['SALARY_SHEET_ID'] = saved
+
+
+def test_button_updates_master_tab_instead_of_creating_file():
+    """Кнопка обновляет вкладку таблицы бухгалтерии, а не создаёт новый файл.
+
+    Создание файла сервис-аккаунту недоступно — в проде это был 403 «The caller
+    does not have permission» (2026-08-05). Запись в расшаренную таблицу
+    работает, ею же ходит ночная выгрузка. Создание осталось фоллбэком, когда
+    SALARY_SHEET_ID не задан.
+    """
+    import core.salary_gsheet as g
+
+    saved = os.environ.get('SALARY_SHEET_ID')
+    calls = []
+    orig_sync, orig_create = g.sync_to_master, g.create_new_spreadsheet
+    g.sync_to_master = lambda p: (calls.append('sync'),
+                                  {'url': 'u', 'tab': 'Июль_2026_Автоматическая',
+                                   'spreadsheet_id': 'master-id'})[1]
+    g.create_new_spreadsheet = lambda p: (calls.append('create'), {})[1]
+    try:
+        os.environ['SALARY_SHEET_ID'] = 'master-id'
+        res = g.export_to_gsheet(_payload())
+        assert calls == ['sync'], f"кнопка пошла не туда: {calls}"
+        assert res['spreadsheet_id'] == 'master-id'
+
+        # без цели выгрузки — фоллбэк на создание новой таблицы
+        os.environ.pop('SALARY_SHEET_ID', None)
+        calls.clear()
+        g.export_to_gsheet(_payload())
+        assert calls == ['create'], f"фоллбэк не сработал: {calls}"
+    finally:
+        g.sync_to_master, g.create_new_spreadsheet = orig_sync, orig_create
+        os.environ.pop('SALARY_SHEET_ID', None)
+        if saved is not None:
+            os.environ['SALARY_SHEET_ID'] = saved
+
+
+def test_full_month_guard():
+    """Google-выгрузка — только за целый месяц.
+
+    Вкладка месяца в таблице бухгалтерии переписывается ЦЕЛИКОМ, а период на
+    странице ЗП — свободный диапазон. Расчёт за 01.07-15.07 затёр бы июль
+    половинными часами и премиями, и ночная выгрузка после 7 числа предыдущий
+    месяц уже не обновляет — то есть само бы не починилось.
+    """
+    from routes.salary import _is_full_month
+
+    ok, why = _is_full_month('2026-07-01', '2026-07-31', '2026-07')
+    assert ok and why == ''
+    assert _is_full_month('2026-02-01', '2026-02-28', '2026-02')[0]
+    assert _is_full_month('2028-02-01', '2028-02-29', '2028-02')[0]      # високосный
+
+    # половина месяца — отказ с объяснением
+    ok, why = _is_full_month('2026-07-01', '2026-07-15', '2026-07')
+    assert not ok and 'целый месяц' in why
+    # дат нет вовсе (старая открытая страница) — тоже отказ
+    ok, why = _is_full_month(None, None, '2026-07')
+    assert not ok and 'Обновите страницу' in why
+    # мусор вместо дат
+    assert not _is_full_month('2026-7-1', '2026-07-31', '2026-07')[0]
 
 
 def test_not_configured_without_key(monkeypatch=None):
