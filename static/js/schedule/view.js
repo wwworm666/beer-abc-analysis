@@ -88,10 +88,26 @@
         });
         document.getElementById('empSyncBtn').addEventListener('click', syncEmployees);
 
-        // касса за месяц: переключатель вида (сводная/траты/инкассации) + CSV
+        // Касса за месяц: вид, фильтр по точке, поиск, CSV и правка строки.
+        // Всё через делегирование — таблица перерисовывается целиком, живые
+        // слушатели на её кнопках пришлось бы навешивать заново каждый раз.
         document.getElementById('cashViewSeg').addEventListener('click', function (e) {
             var b = e.target.closest('[data-cash-view]');
             if (b) setCashView(b.dataset.cashView);
+        });
+        document.getElementById('cashLocSeg').addEventListener('click', function (e) {
+            var b = e.target.closest('[data-cash-loc]');
+            if (b) setCashLoc(b.dataset.cashLoc);
+        });
+        document.getElementById('cashSearch').addEventListener('input', function () {
+            renderCashHistory(document.getElementById('cashHistBody'));
+        });
+        document.getElementById('cashHistBody').addEventListener('click', function (e) {
+            var edit = e.target.closest('[data-cash-edit]');
+            if (edit) { cashEdit(Number(edit.dataset.cashEdit)); return; }
+            var save = e.target.closest('[data-cash-save]');
+            if (save) { cashSave(Number(save.dataset.cashSave), save); return; }
+            if (e.target.closest('[data-cash-cancel]')) cashCancel();
         });
         document.getElementById('cashCsvBtn').addEventListener('click', exportCashCsv);
         // стартовое состояние блока до загрузки месяца: подсветка вида + «Загрузка...»
@@ -167,7 +183,6 @@
     }
 
     function renderAll() {
-        cashDataReady = true;   // renderAll зовётся только после загрузки месяца
         // мобильный личный экран (ввод факта + запрос выходного)
         S.setScreenShiftClick(openFactModal);
         var emp = (document.body.dataset.empIiko || '').trim();
@@ -180,28 +195,43 @@
         S.renderLegend(document.getElementById('legend'));
         S.renderPlanFact(document.getElementById('planFactBody'));
         renderWishesBoard();
-        renderCashHistory(document.getElementById('cashHistBody'));
+        loadCashRegister();
         renderEmployeesAdmin();
         if (selectedDate) renderDayPanel(selectedDate);
     }
 
-    // ==================== История кассы за месяц (read-only) ====================
-    // Блок «Касса за месяц»: данные из уже загруженного state.shifts (без нового
-    // запроса), три вида на выбор (выбор запоминается в браузере):
-    //   «Сводная»    — все кассовые поля смены: траты / инкассация / на конец;
-    //   «Траты»      — только траты, комментарий «на что» — колонкой целиком;
+    // ==================== Касса за месяц (регистр) ====================
+    // Блок «Касса за месяц» — рабочий стол владельца/бухгалтера. Показывает смены
+    // месяца вместе с ПРОБЕЛАМИ: день, за который кассу не сдали, автоматом
+    // снимает премию «передача смены», и найти его надо до расчёта ЗП.
+    //
+    // Строки собирает СЕРВЕР — GET /api/schedule/cash-register/<год>/<месяц>
+    // (core/cash_register.py): там же условие пробела, дословно то же, которое
+    // обнуляет премию в расчёте. Дублировать это условие на клиенте нельзя —
+    // разъедется. Фильтр по точке, поиск и виды работают по уже загруженным
+    // строкам, без новых запросов.
+    //
+    // Правка суммы — PUT /api/schedule/cash-register/shift/<id>: только
+    // администратору и БЕЗ окна 72 ч, которым заперта касса в модалке смены (в
+    // этом и смысл: внести трату, всплывшую в чате через неделю). В той же форме
+    // ставится штраф — без него внесение кассы задним числом ВЕРНУЛО бы бармену
+    // премию 500 ₽ за день, который он не закрыл.
+    //
+    // Пять видов (выбор запоминается в браузере):
+    //   «Сводная»    — смены с кассой + пробелы (рабочий вид);
+    //   «Проблемы»   — только строки с флагами;
+    //   «Все смены»  — все смены месяца, включая вечерние и будущие;
+    //   «Траты»      — только траты, комментарий «на что» колонкой целиком;
     //   «Инкассации» — только сдачи инкассации.
-    // Итог месяца — суммы потоков (Σ трат, Σ инкассаций); «наличные на конец» —
-    // остаток, не поток, не суммируем. В видах «Траты»/«Инкассации» перед итогом —
-    // подытоги по точкам (сверка кассовой дисциплины в конце месяца).
-    // «Скачать CSV» — текущий вид в Excel-совместимый CSV (exportCashCsv).
 
     var CASH_VIEW_KEY = 'schedule.cashView';
-    var CASH_VIEW_SLUG = { all: 'svodnaya', expense: 'traty', collection: 'inkassacii' };
+    var CASH_VIEW_SLUG = { all: 'svodnaya', problems: 'problemy', shifts: 'vse-smeny',
+                           expense: 'traty', collection: 'inkassacii' };
     var cashView = readCashView();
-    // Пока месяц не загружен, пустой state.shifts не отличим от «кассы не было» —
-    // до первого renderAll показываем «Загрузка...», а не ложное «пусто».
-    var cashDataReady = false;
+    var cashReg = null;        // ответ /api/schedule/cash-register целиком
+    var cashLoc = 'all';       // фильтр по точке: 'all' | location_id
+    var cashEditId = null;     // смена с открытой формой правки (одна за раз)
+    var cashLoading = false;
 
     function readCashView() {
         try {
@@ -212,42 +242,123 @@
     function setCashView(v) {
         if (!CASH_VIEW_SLUG.hasOwnProperty(v) || v === cashView) return;
         cashView = v;
+        cashEditId = null;
         try { localStorage.setItem(CASH_VIEW_KEY, v); } catch (e) { /* приватный режим */ }
         renderCashHistory(document.getElementById('cashHistBody'));
     }
-
-    // Смены месяца, где касса заполнена хоть одним полем -> плоские строки по датам.
-    function cashHistRows() {
-        return S.state.shifts.filter(function (s) {
-            return s.cash_end_kop != null || s.cash_expense_kop != null
-                || s.cash_collection_kop != null;
-        }).slice().sort(function (a, b) {
-            return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0);
-        }).map(function (s) {
-            var loc = S.state.locations.filter(function (L) { return L.id === s.location_id; })[0];
-            return {
-                date: s.date,
-                loc: loc ? (loc.short_name || loc.name) : '',
-                barman: S.employeeShortName(S.shiftDisplayName(s)),
-                expense: s.cash_expense_kop,        // копейки | null
-                note: s.cash_expense_note || '',
-                collection: s.cash_collection_kop,  // копейки | null
-                end: s.cash_end_kop                 // копейки | null
-            };
-        });
+    function setCashLoc(id) {
+        cashLoc = id;
+        cashEditId = null;
+        renderCashHistory(document.getElementById('cashHistBody'));
     }
 
-    // Строки текущего вида: «Траты»/«Инкассации» — только операции с суммой > 0
-    // (0 = «не было», NULL = не заполнено — в частных видах не показываем).
-    function cashViewRows(rows) {
-        if (cashView === 'expense')
-            return rows.filter(function (r) { return r.expense != null && r.expense > 0; });
-        if (cashView === 'collection')
-            return rows.filter(function (r) { return r.collection != null && r.collection > 0; });
+    // Регистр месяца. Зовётся из renderAll (после загрузки смен) и после правки.
+    function loadCashRegister() {
+        if (cashLoading) return Promise.resolve();
+        cashLoading = true;
+        return S.api('/api/schedule/cash-register/' + S.state.year + '/' + S.state.month)
+            .then(function (data) {
+                cashReg = data;
+                // точка из прошлого месяца могла не встретиться в этом
+                if (cashLoc !== 'all' && !(data.locations || [])
+                        .some(function (L) { return String(L.id) === String(cashLoc); })) {
+                    cashLoc = 'all';
+                }
+            })
+            .catch(function (err) {
+                console.error(err);
+                cashReg = null;
+                S.showToast('Касса за месяц не загрузилась', true);
+            })
+            .then(function () {
+                cashLoading = false;
+                renderCashHistory(document.getElementById('cashHistBody'));
+            });
+    }
+
+    // Уведомление под панелью (не тост): чем закончилось сохранение. Держится до
+    // следующего действия — его надо прочитать, а не поймать всплывашку.
+    function setCashNotice(msg) {
+        var el = document.getElementById('cashNotice');
+        if (!el) return;
+        el.textContent = msg || '';
+        el.classList.toggle('is-on', !!msg);
+    }
+
+    // Имя для показа: из реестра по стабильному id (актуальное после
+    // переименования в iiko), иначе снимок имени из смены — как S.shiftDisplayName.
+    function cashRowName(r) {
+        var emp = S.getEmployeeById(r.employee_id);
+        return (emp && emp.name) || r.employee_name || '';
+    }
+
+    // Строки текущего вида: фильтр по точке -> вид -> поиск.
+    function cashRows() {
+        var rows = (cashReg && cashReg.rows) || [];
+        if (cashLoc !== 'all') {
+            rows = rows.filter(function (r) { return String(r.location_id) === String(cashLoc); });
+        }
+        if (cashView === 'problems') {
+            rows = rows.filter(function (r) { return r.problems.length; });
+        } else if (cashView === 'all') {
+            rows = rows.filter(function (r) { return r.has_cash || r.problems.length; });
+        } else if (cashView === 'expense') {
+            // 0 = «трат не было», NULL = не заполнено — в частном виде не показываем
+            rows = rows.filter(function (r) { return r.expense_kop > 0; });
+        } else if (cashView === 'collection') {
+            rows = rows.filter(function (r) { return r.collection_kop > 0; });
+        }
+        var q = (document.getElementById('cashSearch').value || '').trim().toLowerCase();
+        if (q) {
+            rows = rows.filter(function (r) {
+                return cashRowName(r).toLowerCase().indexOf(q) !== -1
+                    || (r.expense_note || '').toLowerCase().indexOf(q) !== -1
+                    || (r.penalty_note || '').toLowerCase().indexOf(q) !== -1;
+            });
+        }
         return rows;
     }
 
     var CH_DASH = '<span class="ch-dim">&mdash;</span>';
+    function chCell(kop) { return kop == null ? CH_DASH : S.kopToRubDisplay(kop); }
+    function chDm(ds) { return ds.slice(8, 10) + '.' + ds.slice(5, 7); }
+
+    // Правка задним числом: дата смены вышла из окна, в котором кассу правит
+    // бармен. Тогда штраф в форме предлагается по умолчанию — сумму вносит
+    // владелец, потому что бармен этого не сделал.
+    function cashLateEdit(ds) {
+        var hours = (cashReg && cashReg.edit_window_hours) || 72;
+        return new Date(ds + 'T00:00:00').getTime() + hours * 3600e3 < Date.now();
+    }
+
+    function cashFlags(r) {
+        var labels = (cashReg && cashReg.problem_labels) || {};
+        var out = r.problems.map(function (p) {
+            return '<span class="ch-flag' + (p === 'no_note' ? ' warn' : '') + '">'
+                + S.escapeHtml(labels[p] || p) + '</span>';
+        });
+        if (r.penalized) {
+            out.push('<span class="ch-flag" title="Премия за передачу смены за этот день снята'
+                + (r.penalty_note ? '. Причина: ' + S.escapeHtml(r.penalty_note) : '')
+                + '">штраф ' + ((cashReg && cashReg.handover_rate) || 500) + ' &#8381;</span>');
+        }
+        return out.join(' ');
+    }
+
+    // Открыта ли форма правки для этой строки. Проверка на null обязательна: у
+    // строки-сироты (штраф без смены в графике) shift_id = null, и при закрытой
+    // форме cashEditId тоже null — без неё форма раскрывалась бы сама собой.
+    function cashIsEditing(r) {
+        return r.shift_id != null && cashEditId === r.shift_id;
+    }
+
+    // Кнопка правки. У строки-сироты (штраф без смены в графике) править нечего:
+    // кассу пишем в смену, а её нет — штраф снимается на странице ЗП.
+    function cashActionCell(r) {
+        if (!(cashReg && cashReg.can_edit) || r.shift_id == null) return '<td></td>';
+        return '<td><button type="button" class="ch-edit" data-cash-edit="'
+            + r.shift_id + '">' + (r.has_cash ? 'Правка' : 'Внести') + '</button></td>';
+    }
 
     // Подытоги по точкам: строка «Итого <точка>» на каждую точку с операциями
     // (порядок появления в месяце). Одна точка — подытога нет, хватает общего итога.
@@ -255,7 +366,7 @@
     function cashSubtotalRows(rows, field, labelSpan, tailCells) {
         var sums = {}, order = [];
         rows.forEach(function (r) {
-            var k = r.loc || '—';
+            var k = r.location_short || '—';
             if (!(k in sums)) { sums[k] = 0; order.push(k); }
             sums[k] += r[field];
         });
@@ -267,33 +378,39 @@
         }).join('');
     }
 
-    // «Сводная»: все кассовые поля; комментарий к тратам — звёздочкой (title).
-    function cashTableAll(rows) {
+    // Регистр («Сводная» / «Проблемы» / «Все смены»): все кассовые поля смены,
+    // состояние строки и правка. 10 колонок.
+    function cashTableRegister(rows) {
         var sumExp = 0, sumCol = 0;
         var body = rows.map(function (r) {
-            if (r.expense != null) sumExp += r.expense;
-            if (r.collection != null) sumCol += r.collection;
-            var expCell = r.expense == null ? CH_DASH
-                : S.kopToRubDisplay(r.expense) + (r.expense > 0 && r.note
-                    ? ' <span class="ch-note" title="' + S.escapeHtml(r.note) + '">*</span>' : '');
-            var colCell = r.collection == null ? CH_DASH : S.kopToRubDisplay(r.collection);
-            var endCell = r.end == null ? CH_DASH : '<b>' + S.kopToRubDisplay(r.end) + '</b>';
-            return '<tr>'
-                + '<td>' + S.formatDateHuman(r.date).slice(0, 5) + '</td>'
-                + '<td>' + S.escapeHtml(r.loc) + '</td>'
-                + '<td>' + S.escapeHtml(r.barman) + '</td>'
-                + '<td class="ch-num">' + expCell + '</td>'
-                + '<td class="ch-num">' + colCell + '</td>'
-                + '<td class="ch-num">' + endCell + '</td>'
-                + '</tr>';
+            sumExp += r.expense_kop || 0;
+            sumCol += r.collection_kop || 0;
+            var cls = [r.problems.length ? 'ch-problem' : '', r.evening ? 'ch-eve' : '']
+                .filter(Boolean).join(' ');
+            var row = '<tr class="' + cls + '">'
+                + '<td>' + chDm(r.date) + '</td>'
+                + '<td>' + (r.location_short ? S.escapeHtml(r.location_short) : CH_DASH) + '</td>'
+                + '<td>' + S.escapeHtml(S.employeeShortName(cashRowName(r))) + '</td>'
+                + '<td class="ch-dim">' + (r.shift_id == null ? '&mdash;'
+                    : (r.evening ? 'вечер' : 'день')) + '</td>'
+                + '<td class="ch-num">' + chCell(r.expense_kop) + '</td>'
+                + '<td class="ch-comment">'
+                + (r.expense_note ? S.escapeHtml(r.expense_note) : CH_DASH) + '</td>'
+                + '<td class="ch-num">' + chCell(r.collection_kop) + '</td>'
+                + '<td class="ch-num ch-end">' + chCell(r.end_kop) + '</td>'
+                + '<td>' + (cashFlags(r) || CH_DASH) + '</td>'
+                + cashActionCell(r) + '</tr>';
+            return row + (cashIsEditing(r) ? cashFormRow(r, 10) : '');
         }).join('');
-        var total = '<tr class="ch-total"><td colspan="3">Итого за месяц</td>'
-            + '<td class="ch-num">' + S.kopToRubDisplay(sumExp) + '</td>'
+        var total = '<tr class="ch-total"><td colspan="4">Итого</td>'
+            + '<td class="ch-num">' + S.kopToRubDisplay(sumExp) + '</td><td></td>'
             + '<td class="ch-num">' + S.kopToRubDisplay(sumCol) + '</td>'
-            + '<td class="ch-num">&mdash;</td></tr>';
+            + '<td colspan="3"></td></tr>';
         return '<table class="cash-hist"><thead><tr>'
-            + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
-            + '<th class="ch-num">Траты</th><th class="ch-num">Инкасс.</th><th class="ch-num">На конец</th>'
+            + '<th>Дата</th><th>Точка</th><th>Бармен</th><th>Смена</th>'
+            + '<th class="ch-num">Траты</th><th>На что</th>'
+            + '<th class="ch-num">Инкасс.</th><th class="ch-num">На конец</th>'
+            + '<th>Состояние</th><th></th>'
             + '</tr></thead><tbody>' + body + total + '</tbody></table>';
     }
 
@@ -301,21 +418,23 @@
     function cashTableExpense(rows) {
         var sum = 0;
         var body = rows.map(function (r) {
-            sum += r.expense;
-            return '<tr>'
-                + '<td>' + S.formatDateHuman(r.date).slice(0, 5) + '</td>'
-                + '<td>' + S.escapeHtml(r.loc) + '</td>'
-                + '<td>' + S.escapeHtml(r.barman) + '</td>'
-                + '<td class="ch-num">' + S.kopToRubDisplay(r.expense) + '</td>'
-                + '<td class="ch-comment">' + (r.note ? S.escapeHtml(r.note) : CH_DASH) + '</td>'
-                + '</tr>';
+            sum += r.expense_kop;
+            return '<tr class="' + (r.problems.length ? 'ch-problem' : '') + '">'
+                + '<td>' + chDm(r.date) + '</td>'
+                + '<td>' + S.escapeHtml(r.location_short) + '</td>'
+                + '<td>' + S.escapeHtml(S.employeeShortName(cashRowName(r))) + '</td>'
+                + '<td class="ch-num">' + S.kopToRubDisplay(r.expense_kop) + '</td>'
+                + '<td class="ch-comment">'
+                + (r.expense_note ? S.escapeHtml(r.expense_note) : CH_DASH) + '</td>'
+                + cashActionCell(r) + '</tr>'
+                + (cashIsEditing(r) ? cashFormRow(r, 6) : '');
         }).join('');
-        var foot = cashSubtotalRows(rows, 'expense', 3, 1)
+        var foot = cashSubtotalRows(rows, 'expense_kop', 3, 2)
             + '<tr class="ch-total"><td colspan="3">Итого за месяц (' + rows.length + ')</td>'
-            + '<td class="ch-num">' + S.kopToRubDisplay(sum) + '</td><td></td></tr>';
+            + '<td class="ch-num">' + S.kopToRubDisplay(sum) + '</td><td colspan="2"></td></tr>';
         return '<table class="cash-hist"><thead><tr>'
             + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
-            + '<th class="ch-num">Сумма, ₽</th><th>На что</th>'
+            + '<th class="ch-num">Сумма, &#8381;</th><th>На что</th><th></th>'
             + '</tr></thead><tbody>' + body + foot + '</tbody></table>';
     }
 
@@ -323,21 +442,114 @@
     function cashTableCollection(rows) {
         var sum = 0;
         var body = rows.map(function (r) {
-            sum += r.collection;
-            return '<tr>'
-                + '<td>' + S.formatDateHuman(r.date).slice(0, 5) + '</td>'
-                + '<td>' + S.escapeHtml(r.loc) + '</td>'
-                + '<td>' + S.escapeHtml(r.barman) + '</td>'
-                + '<td class="ch-num">' + S.kopToRubDisplay(r.collection) + '</td>'
-                + '</tr>';
+            sum += r.collection_kop;
+            return '<tr class="' + (r.problems.length ? 'ch-problem' : '') + '">'
+                + '<td>' + chDm(r.date) + '</td>'
+                + '<td>' + S.escapeHtml(r.location_short) + '</td>'
+                + '<td>' + S.escapeHtml(S.employeeShortName(cashRowName(r))) + '</td>'
+                + '<td class="ch-num">' + S.kopToRubDisplay(r.collection_kop) + '</td>'
+                + cashActionCell(r) + '</tr>'
+                + (cashIsEditing(r) ? cashFormRow(r, 5) : '');
         }).join('');
-        var foot = cashSubtotalRows(rows, 'collection', 3, 0)
+        var foot = cashSubtotalRows(rows, 'collection_kop', 3, 1)
             + '<tr class="ch-total"><td colspan="3">Итого за месяц (' + rows.length + ')</td>'
-            + '<td class="ch-num">' + S.kopToRubDisplay(sum) + '</td></tr>';
+            + '<td class="ch-num">' + S.kopToRubDisplay(sum) + '</td><td></td></tr>';
         return '<table class="cash-hist"><thead><tr>'
             + '<th>Дата</th><th>Точка</th><th>Бармен</th>'
-            + '<th class="ch-num">Сумма, ₽</th>'
+            + '<th class="ch-num">Сумма, &#8381;</th><th></th>'
             + '</tr></thead><tbody>' + body + foot + '</tbody></table>';
+    }
+
+    // Форма правки — строка под записью. Штраф предлагается по умолчанию, если
+    // день не закрыт кассой или правка идёт задним числом: и то и другое значит,
+    // что бармен свою часть не сделал.
+    function cashFormRow(r, cols) {
+        var suggest = r.penalized || r.problems.indexOf('no_cash') !== -1 || cashLateEdit(r.date);
+        var noteDefault = r.penalty_note
+            || (r.problems.indexOf('no_cash') !== -1 ? 'касса не сдана, внесена задним числом'
+                : 'касса исправлена задним числом');
+        var rate = (cashReg && cashReg.handover_rate) || 500;
+        return '<tr class="ch-form"><td colspan="' + cols + '">'
+            + '<div class="ch-form-grid">'
+            + '<label class="ch-field"><span>Траты, &#8381;</span>'
+            + '<input type="text" id="chExp" value="' + S.kopToRubInput(r.expense_kop) + '"></label>'
+            + '<label class="ch-field ch-field-wide"><span>На что</span>'
+            + '<input type="text" id="chNote" maxlength="200" value="'
+            + S.escapeHtml(r.expense_note || '') + '"></label>'
+            + '<label class="ch-field"><span>Инкассация, &#8381;</span>'
+            + '<input type="text" id="chCol" value="' + S.kopToRubInput(r.collection_kop) + '"></label>'
+            + '<label class="ch-field"><span>Наличные на конец, &#8381;</span>'
+            + '<input type="text" id="chEnd" value="' + S.kopToRubInput(r.end_kop) + '"></label>'
+            + '</div>'
+            + '<div class="ch-form-row">'
+            + '<label class="ch-check"><input type="checkbox" id="chPen"'
+            + (suggest ? ' checked' : '') + '> Штраф ' + rate + ' &#8381; — премия за передачу'
+            + ' смены за ' + chDm(r.date) + ' не платится</label>'
+            + '<input type="text" id="chPenNote" class="ch-pen-note" maxlength="200"'
+            + ' placeholder="Причина штрафа" value="' + S.escapeHtml(noteDefault) + '">'
+            + '</div>'
+            + '<div class="ch-form-row">'
+            + '<button type="button" class="btn" data-cash-save="' + r.shift_id + '">Сохранить</button>'
+            + '<button type="button" class="btn btn-secondary" data-cash-cancel>Отмена</button>'
+            + '<span class="ch-form-hint">Пустое поле — «не заполнено», 0 — «не было».'
+            + ' Все три суммы пустые = касса смены очищена. Правка попадёт в журнал'
+            + ' изменений с вашим именем.</span>'
+            + '</div></td></tr>';
+    }
+
+    function cashEdit(shiftId) {
+        cashEditId = cashEditId === shiftId ? null : shiftId;
+        setCashNotice('');
+        renderCashHistory(document.getElementById('cashHistBody'));
+        var el = document.getElementById('chEnd');
+        if (el) el.focus();
+    }
+    function cashCancel() {
+        cashEditId = null;
+        renderCashHistory(document.getElementById('cashHistBody'));
+    }
+
+    function cashSave(shiftId, btn) {
+        if (btn.disabled) return;
+        var read = function (id) {
+            var raw = (document.getElementById(id).value || '').trim();
+            if (!raw) return null;
+            var v = S.parseRubInput(raw);
+            return v;
+        };
+        var exp = read('chExp'), col = read('chCol'), end = read('chEnd');
+        if ([exp, col, end].some(function (v) { return typeof v === 'number' && isNaN(v); })) {
+            S.showToast('Суммы — числа в рублях, например 15340 или 350,50', true);
+            return;
+        }
+        btn.disabled = true;
+        S.api('/api/schedule/cash-register/shift/' + shiftId, {
+            method: 'PUT',
+            body: {
+                cash_expense: exp, cash_collection: col, cash_end: end,
+                cash_expense_note: document.getElementById('chNote').value || '',
+                penalize: document.getElementById('chPen').checked,
+                penalty_note: document.getElementById('chPenNote').value || ''
+            }
+        }).then(function (res) {
+            cashEditId = null;
+            // Месяц перечитываем целиком: пробел мог закрыться, а панель дня и
+            // сетка показывают ту же кассу.
+            return reload().then(function () {
+                // Премия могла вернуться к другим сотрудникам этой точки за этот
+                // день: касса дня закрылась, автоправило снова платит. Молчать
+                // нельзя — это чужая ЗП, а штраф их не касается.
+                setCashNotice((res.premium_restored_for || []).length
+                    ? 'Касса за день закрыта — премия за передачу смены вернулась к: '
+                        + res.premium_restored_for.join(', ')
+                        + '. Если премия им не положена, проставьте штраф и по их сменам.'
+                    : (res.cash_changed || res.penalty_changed
+                        ? 'Сохранено. Премии на странице ЗП пересчитаются при следующем расчёте.'
+                        : 'Изменений не было.'));
+            });
+        }).catch(function (err) {
+            S.showToast(err.message || 'Не сохранено', true);
+        }).then(function () { btn.disabled = false; });
     }
 
     function renderCashHistory(host) {
@@ -345,32 +557,65 @@
         document.querySelectorAll('#cashViewSeg [data-cash-view]').forEach(function (b) {
             b.classList.toggle('selected', b.dataset.cashView === cashView);
         });
-        if (!cashDataReady) {
+        if (!cashReg) {
             host.innerHTML = '<div class="cash-hist-empty">Загрузка...</div>';
             return;
         }
-        var rows = cashHistRows();
-        var sumExp = 0, sumCol = 0;
-        rows.forEach(function (r) {
-            sumExp += r.expense || 0;
-            sumCol += r.collection || 0;
+
+        // Чипы точек: «Все» + точки месяца, на чипе — число проблем этой точки
+        // (видно, где искать, не переключая фильтр).
+        var probByLoc = {}, totalProb = 0;
+        (cashReg.rows || []).forEach(function (r) {
+            if (!r.problems.length) return;
+            totalProb++;
+            probByLoc[r.location_id] = (probByLoc[r.location_id] || 0) + 1;
         });
-        setTeaser('cashTeaser', rows.length
-            ? rows.length + ' смен · траты ' + S.kopToRubDisplay(sumExp)
-                + ' · инкасс. ' + S.kopToRubDisplay(sumCol) + ' ₽'
+        var chip = function (id, label, count) {
+            return '<button type="button" class="ch-chip'
+                + (String(cashLoc) === String(id) ? ' selected' : '') + '"'
+                + ' data-cash-loc="' + id + '">' + S.escapeHtml(label)
+                + (count ? ' <b>' + count + '</b>' : '') + '</button>';
+        };
+        document.getElementById('cashLocSeg').innerHTML =
+            chip('all', 'Все точки', totalProb)
+            + (cashReg.locations || []).map(function (L) {
+                return chip(L.id, L.short || L.name, probByLoc[L.id] || 0);
+            }).join('');
+
+        var rows = cashRows();
+        var sumExp = 0, sumCol = 0, nProb = 0, nPen = 0;
+        rows.forEach(function (r) {
+            sumExp += r.expense_kop || 0;
+            sumCol += r.collection_kop || 0;
+            if (r.problems.length) nProb++;
+            if (r.penalized) nPen++;
+        });
+        document.getElementById('cashSummary').innerHTML =
+            'Строк: <b>' + rows.length + '</b> &middot; траты <b>' + S.kopToRubDisplay(sumExp)
+            + ' &#8381;</b> &middot; инкассации <b>' + S.kopToRubDisplay(sumCol)
+            + ' &#8381;</b> &middot; проблем <b>' + nProb + '</b> &middot; штрафов <b>' + nPen + '</b>'
+            + (cashReg.can_edit ? '' : ' &middot; правка доступна администратору');
+
+        var t = cashReg.totals || {};
+        setTeaser('cashTeaser', t.with_cash
+            ? t.with_cash + ' смен · траты ' + S.kopToRubDisplay(t.expense_kop)
+                + ' · инкасс. ' + S.kopToRubDisplay(t.collection_kop) + ' ₽'
+                + (t.problems ? ' · проблем ' + t.problems : '')
             : 'за месяц пусто');
-        var shown = cashViewRows(rows);
-        if (!shown.length) {
+
+        if (!rows.length) {
             host.innerHTML = '<div class="cash-hist-empty">' + ({
                 all: 'Кассу за этот месяц ещё не сдавали',
+                problems: 'Проблем по кассе за этот месяц нет',
+                shifts: 'Смен за этот месяц нет',
                 expense: 'Трат из кассы за этот месяц не записано',
                 collection: 'Инкассаций за этот месяц не записано'
             }[cashView]) + '</div>';
             return;
         }
-        var table = cashView === 'expense' ? cashTableExpense(shown)
-            : cashView === 'collection' ? cashTableCollection(shown)
-                : cashTableAll(shown);
+        var table = cashView === 'expense' ? cashTableExpense(rows)
+            : cashView === 'collection' ? cashTableCollection(rows)
+                : cashTableRegister(rows);
         host.innerHTML = '<div class="cash-hist-wrap">' + table + '</div>';
     }
 
@@ -396,25 +641,34 @@
         return c === 0 ? String(rub) : rub + ',' + (c < 10 ? '0' : '') + c;
     }
     function exportCashCsv() {
-        if (!cashDataReady) { S.showToast('Месяц ещё загружается, попробуй через секунду', true); return; }
-        var rows = cashViewRows(cashHistRows());
+        if (!cashReg) { S.showToast('Месяц ещё загружается, попробуй через секунду', true); return; }
+        var rows = cashRows();
         if (!rows.length) { S.showToast('Выгружать нечего: таблица пуста', true); return; }
+        var labels = cashReg.problem_labels || {};
         var lines;
         if (cashView === 'expense') {
             lines = [['Дата', 'Точка', 'Бармен', 'Трата из кассы, руб', 'На что']]
                 .concat(rows.map(function (r) {
-                    return [S.formatDateHuman(r.date), r.loc, r.barman, kopToRubCsv(r.expense), r.note];
+                    return [S.formatDateHuman(r.date), r.location_short, cashRowName(r),
+                        kopToRubCsv(r.expense_kop), r.expense_note || ''];
                 }));
         } else if (cashView === 'collection') {
             lines = [['Дата', 'Точка', 'Бармен', 'Инкассация, руб']]
                 .concat(rows.map(function (r) {
-                    return [S.formatDateHuman(r.date), r.loc, r.barman, kopToRubCsv(r.collection)];
+                    return [S.formatDateHuman(r.date), r.location_short, cashRowName(r),
+                        kopToRubCsv(r.collection_kop)];
                 }));
         } else {
-            lines = [['Дата', 'Точка', 'Бармен', 'Траты, руб', 'На что', 'Инкассация, руб', 'Наличные на конец, руб']]
+            lines = [['Дата', 'Точка', 'Бармен', 'Смена', 'Траты, руб', 'На что',
+                      'Инкассация, руб', 'Наличные на конец, руб', 'Проблема',
+                      'Штраф', 'Причина штрафа']]
                 .concat(rows.map(function (r) {
-                    return [S.formatDateHuman(r.date), r.loc, r.barman,
-                        kopToRubCsv(r.expense), r.note, kopToRubCsv(r.collection), kopToRubCsv(r.end)];
+                    return [S.formatDateHuman(r.date), r.location_short, cashRowName(r),
+                        r.shift_id == null ? '' : (r.evening ? 'вечер' : 'день'),
+                        kopToRubCsv(r.expense_kop), r.expense_note || '',
+                        kopToRubCsv(r.collection_kop), kopToRubCsv(r.end_kop),
+                        r.problems.map(function (p) { return labels[p] || p; }).join(', '),
+                        r.penalized ? 'да' : '', r.penalty_note || ''];
                 }));
         }
         var csv = '\ufeff' + lines.map(function (l) { return l.map(csvField).join(';'); }).join('\r\n');

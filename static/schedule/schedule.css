@@ -895,6 +895,73 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     border-top: 1px dashed var(--border-color); border-bottom: none;
 }
 .cash-hist .ch-sub + .ch-sub td { border-top: none; }
+
+/* ===== Регистр кассы: фильтр по точке, поиск, флаги, правка строки ===== */
+.cash-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ch-chip {
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 999px; padding: 5px 12px; cursor: pointer;
+    font-family: inherit; font-size: 0.72rem; font-weight: 600;
+    color: var(--text-secondary); white-space: nowrap;
+}
+.ch-chip:hover { border-color: var(--accent); color: var(--accent); }
+.ch-chip.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cash-search {
+    flex: 1 1 200px; min-width: 150px; max-width: 320px; padding: 6px 10px;
+    font-family: inherit; font-size: 0.78rem; color: var(--text-primary);
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-radius: 8px; outline: none;
+}
+.cash-search:focus { border-color: var(--accent); }
+
+.cash-summary {
+    font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 8px;
+    font-variant-numeric: tabular-nums;
+}
+.cash-summary b { color: var(--text-primary); }
+/* Итог сохранения: не тост — его надо прочитать (кому вернулась премия). */
+.cash-notice { display: none; font-size: 0.78rem; color: var(--warning); margin-bottom: 8px; }
+.cash-notice.is-on { display: block; }
+
+/* Строка с проблемой (пробел кассы, трата без комментария, штраф без смены). */
+.cash-hist tr.ch-problem td { background: rgba(239, 68, 68, 0.07); }
+[data-theme="dark"] .cash-hist tr.ch-problem td { background: rgba(239, 68, 68, 0.14); }
+.cash-hist tr.ch-eve td:first-child { color: var(--text-tertiary); }
+.cash-hist .ch-end { font-weight: 600; color: var(--text-primary); }
+.cash-hist .ch-flag {
+    display: inline-block; font-size: 0.68rem; padding: 2px 7px; border-radius: 4px;
+    background: rgba(239, 68, 68, 0.15); color: var(--danger); font-weight: 600;
+    white-space: nowrap;
+}
+.cash-hist .ch-flag.warn { background: rgba(245, 158, 11, 0.18); color: var(--warning); }
+[data-theme="dark"] .cash-hist .ch-flag { background: rgba(239, 68, 68, 0.25); }
+.ch-edit {
+    background: none; border: 1px solid var(--border-color); border-radius: 6px;
+    padding: 3px 10px; cursor: pointer; font-family: inherit; font-size: 0.7rem;
+    color: var(--text-tertiary); white-space: nowrap;
+}
+.ch-edit:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Форма правки — раскрывается строкой под записью. */
+.cash-hist tr.ch-form td { background: var(--bg-tertiary); white-space: normal; }
+.ch-form-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.ch-field { display: flex; flex-direction: column; gap: 3px; font-size: 0.7rem; color: var(--text-tertiary); }
+.ch-field input {
+    width: 120px; padding: 6px 8px; font-family: inherit; font-size: 0.8rem;
+    color: var(--text-primary); background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-radius: 8px; outline: none;
+}
+.ch-field input:focus, .ch-pen-note:focus { border-color: var(--accent); }
+.ch-field-wide input { width: 220px; }
+.ch-form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+.ch-check { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: var(--text-secondary); cursor: pointer; }
+.ch-pen-note {
+    width: 260px; padding: 6px 8px; font-family: inherit; font-size: 0.8rem;
+    color: var(--text-primary); background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-radius: 8px; outline: none;
+}
+.ch-form-row .btn { padding: 6px 14px; font-size: 0.78rem; }
+.ch-form-hint { font-size: 0.72rem; color: var(--text-tertiary); flex: 1 1 240px; }
 /* Месячная история кассы — инструмент владельца на десктопе; на телефоне бармену
    не нужна и мозолит глаза в полном графике. Прячем блок целиком на мобильном. */
 @media (max-width: 700px) { #foldCash { display: none; } }

@@ -3,11 +3,13 @@ import sqlite3
 from flask import Blueprint, request, jsonify, Response
 from datetime import datetime, timedelta, date
 from extensions import shifts_mgr, notes_manager
-from core.auth_guard import current_user
+from core.auth_guard import current_user, admin_required
 from core.iiko_api import IikoAPI
+from core.shifts_manager import HandoverPenaltyConflict
 from core.daily_plans_generator import DailyPlansGenerator
 from core.calendar_ics import build_calendar
-from core.cash_register import CASH_MAX_RUB, rub_to_kop, fmt_kop
+from core.cash_register import (
+    CASH_MAX_RUB, PROBLEM_LABELS, build_register, rub_to_kop, fmt_kop)
 from core.schedule_plans import (
     build_month_plans,
     compute_month_summary,
@@ -436,6 +438,171 @@ def schedule_set_shift_cash(shift_id):
                f"на конец {_fmt_kop(end)} ₽",
                entity_date=sh['date'], employee_name=sh['employee_name'])
     return jsonify({'ok': True})
+
+
+# ==================== Кассовый регистр (блок «Касса за месяц») ====================
+# Рабочий стол владельца/бухгалтера в блоке «Касса за месяц» на странице графика:
+# все смены месяца с кассой и с ПРОБЕЛАМИ (дни, за которые кассу не сдали). Сборка
+# строк — core/cash_register.py (чистая функция, тесты tests/test_cash_register.py);
+# здесь только чтение БД, права и журнал.
+#
+# Права: смотреть — всем (как любую бизнес-страницу), править — только
+# администратору. Правка из регистра идёт БЕЗ окна 72 ч (CASH_EDIT_WINDOW_HOURS),
+# которым заперта касса в модалке смены — в этом и смысл регистра: внести то, что
+# бармен забыл, а всплыло в чате через неделю. Окно в модалке остаётся: оно
+# защищает кассовую дисциплину от правок задним числом СВОИХ смен, а здесь правит
+# владелец, и каждое изменение попадает в журнал.
+
+
+def _handover_rule():
+    """(дата-отсечка правила «нет кассы — нет премии», тариф премии).
+
+    Импорт внутри функции: константы живут в routes/employee.py (там считается
+    премия), и импорт на уровне модуля связал бы два блюпринта при загрузке.
+    """
+    from routes.employee import HANDOVER_CASH_RULE_FROM, HANDOVER_RATE
+    return HANDOVER_CASH_RULE_FROM, HANDOVER_RATE
+
+
+@schedule_bp.route('/api/schedule/cash-register/<int:year>/<int:month>', methods=['GET'])
+def schedule_cash_register(year, month):
+    """Кассовый регистр месяца: строки по сменам, пробелы, штрафы, итоги.
+
+    Отдаёт всё, что нужно блоку «Касса за месяц»: строки (сборка — build_register),
+    точки месяца для фильтра, итоги, подписи проблем, право на правку.
+    Фильтрация/поиск — на фронте: месяц это ~140 строк, гонять запрос на каждый
+    щелчок фильтра незачем.
+    """
+    if not _valid_month(year, month):
+        return jsonify({'error': 'Некорректный год или месяц'}), 400
+    first = date(year, month, 1)
+    last = (date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)) \
+        - timedelta(days=1)
+    date_from, date_to = first.isoformat(), last.isoformat()
+
+    rule_from, rate = _handover_rule()
+    reg = build_register(
+        shifts_mgr.get_shifts_for_period(date_from, date_to),
+        shifts_mgr.get_handover_penalties(date_from, date_to),
+        today=_today_iso(),
+        rule_from=rule_from,
+    )
+    reg.update({
+        'date_from': date_from,
+        'date_to': date_to,
+        'rule_from': rule_from,
+        'handover_rate': rate,
+        'cash_max_rub': CASH_MAX_RUB,
+        'edit_window_hours': CASH_EDIT_WINDOW_HOURS,
+        'problem_labels': PROBLEM_LABELS,
+        'can_edit': bool((current_user() or {}).get('is_admin')),
+    })
+    return jsonify(reg)
+
+
+def _cash_diff_summary(sh, exp, col, end, note):
+    """Человекочитаемый список изменений кассы для журнала (только изменённое).
+
+    Задним числом правят редко и точечно — в истории должно быть видно, что
+    именно стало другим, а не «касса переписана».
+    """
+    parts = []
+    for label, old, new in (('траты', sh.get('cash_expense_kop'), exp),
+                            ('инкассация', sh.get('cash_collection_kop'), col),
+                            ('на конец', sh.get('cash_end_kop'), end)):
+        if old != new:
+            parts.append(f"{label} {fmt_kop(old)} -> {fmt_kop(new)}")
+    old_note = (sh.get('cash_expense_note') or '').strip() or None
+    if old_note != note:
+        parts.append(f"«на что» «{old_note or '—'}» -> «{note or '—'}»")
+    return parts
+
+
+@schedule_bp.route('/api/schedule/cash-register/shift/<int:shift_id>', methods=['PUT'])
+@admin_required
+def schedule_cash_register_set(shift_id):
+    """Внести/исправить кассу смены из регистра — без окна правок (только админ).
+
+    Body в РУБЛЯХ (число, строка или null): {cash_expense, cash_collection,
+    cash_end, cash_expense_note}. Все три суммы null = очистить кассу смены.
+    Плюс штраф за передачу смены тем же запросом:
+      penalize = true  -> проставить штраф на (дата, сотрудник смены);
+      penalize = false -> снять;
+      поле отсутствует -> штраф не трогаем.
+    penalty_note — причина (текст в журнал и в подсказку регистра).
+
+    Зачем штраф здесь: без него внесение кассы задним числом ВОЗВРАЩАЕТ бармену
+    премию 500 ₽ за день, который он не закрыл — автоправило видит заполненную
+    кассу и платит. Поэтому регистр предлагает штраф в той же форме, где вносят
+    сумму (решение владельца 2026-08-07).
+
+    Ответ: {ok, cash_changed, penalty_changed, penalized, premium_restored_for}.
+    `premium_restored_for` — сотрудники ДРУГИХ смен этой точки за этот день, к
+    которым премия вернулась (их штраф не касается): у вечернего бармена касса
+    не его обязанность, но раньше он терял премию вместе с дневным.
+    """
+    data = request.get_json(silent=True) or {}
+    ok_e, exp = rub_to_kop(data.get('cash_expense'))
+    ok_c, col = rub_to_kop(data.get('cash_collection'))
+    ok_k, end = rub_to_kop(data.get('cash_end'))
+    if not (ok_e and ok_c and ok_k):
+        return jsonify({'error': f'Суммы кассы — число от 0 до {CASH_MAX_RUB} ₽'}), 400
+    note = data.get('cash_expense_note')
+    if note is not None and not isinstance(note, str):
+        return jsonify({'error': 'cash_expense_note должен быть строкой'}), 400
+    note = (note or '').strip() or None
+
+    sh = shifts_mgr.get_shift(shift_id)
+    if not sh:
+        return jsonify({'error': 'Смена не найдена'}), 404
+
+    # Кому премия вернётся: день точки был БЕЗ кассы, а теперь закрывается.
+    restored = []
+    if end is not None and sh.get('cash_end_kop') is None:
+        same_day = shifts_mgr.get_shifts_for_period(sh['date'], sh['date'])
+        day_closed = any(o.get('cash_end_kop') is not None for o in same_day
+                         if o.get('location_id') == sh.get('location_id'))
+        if not day_closed:
+            restored = sorted({o.get('employee_name') for o in same_day
+                               if o.get('location_id') == sh.get('location_id')
+                               and o.get('id') != shift_id
+                               and (o.get('employee_name') or '').strip()})
+
+    changes = _cash_diff_summary(sh, exp, col, end, note)
+    cash_changed = bool(changes)
+    if cash_changed:
+        if not shifts_mgr.set_shift_cash(shift_id, exp, col, end, note):
+            return jsonify({'error': 'Смена не найдена'}), 404
+        _audit('cash_admin_set',
+               f"Касса задним числом ({sh['employee_name']}, {_fmt_dm(sh['date'])}, "
+               f"{sh.get('location_short') or ''}): " + '; '.join(changes),
+               entity_date=sh['date'], employee_name=sh['employee_name'])
+
+    penalty_changed = False
+    penalized = None
+    if 'penalize' in data:
+        penalized = bool(data.get('penalize'))
+        pnote = data.get('penalty_note')
+        pnote = pnote.strip() if isinstance(pnote, str) else None
+        try:
+            penalty_changed = shifts_mgr.set_handover_penalty(
+                sh['date'], sh['employee_name'], penalized, pnote or None,
+                employee_id=(sh.get('employee_id') or None))
+        except HandoverPenaltyConflict as e:
+            # Касса уже записана — сообщаем именно про штраф, чтобы владелец не
+            # думал, что не сохранилось ничего.
+            return jsonify({'error': f"Касса сохранена, штраф — нет: {e}"}), 409
+        if penalty_changed:
+            reason = f" ({pnote})" if pnote else ''
+            _audit('handover_penalty',
+                   (f"Штраф кассы {_fmt_dm(sh['date'])}: {sh['employee_name']} — премия "
+                    f"за передачу смены за день снята{reason}") if penalized
+                   else f"Штраф кассы {_fmt_dm(sh['date'])}: {sh['employee_name']} — штраф снят",
+                   entity_date=sh['date'], employee_name=sh['employee_name'])
+
+    return jsonify({'ok': True, 'cash_changed': cash_changed,
+                    'penalty_changed': penalty_changed, 'penalized': penalized,
+                    'premium_restored_for': restored})
 
 
 @schedule_bp.route('/api/schedule/shift/<int:shift_id>', methods=['DELETE'])

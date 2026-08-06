@@ -1,13 +1,14 @@
 """
-Тесты кассового регистра — раздел «Касса за месяц» на странице ЗП.
+Тесты кассового регистра — блок «Касса за месяц» на странице графика.
 
 Что проверяем:
   * разбор сумм (₽ -> копейки) — одно правило для бармена и бухгалтера;
   * сборку строк и ПРОБЕЛЫ («касса не сдана»): условие обязано совпадать с тем,
     которое снимает премию за передачу смены (routes/employee.py);
   * что штраф находится по стабильному id после переименования в iiko;
-  * эндпоинты: правка без окна 72 ч только администратору, штраф тем же
-    запросом, возврат премии другим сотрудникам смены — сообщением.
+  * эндпоинты /api/schedule/cash-register: правка без окна 72 ч только
+    администратору, штраф тем же запросом, возврат премии другим сотрудникам
+    смены — сообщением.
 """
 
 import pytest
@@ -237,23 +238,23 @@ def test_rows_sorted_by_date():
 
 @pytest.fixture
 def api(tmp_path, monkeypatch):
-    """Приложение с одним блюпринтом ЗП, временной БД и подменённым юзером.
+    """Приложение с блюпринтом графика, временной БД и подменённым юзером.
 
     Возвращает (client, mgr, set_user): set_user(is_admin) переключает права.
     """
     import core.auth_guard as guard
-    import routes.salary as salary
+    import routes.schedule as sched
 
     mgr = ShiftsManager(db_path=str(tmp_path / 'shifts.db'))
-    monkeypatch.setattr(salary, 'shifts_mgr', mgr)
+    monkeypatch.setattr(sched, 'shifts_mgr', mgr)
 
     user = {'login': 'owner', 'display_name': 'Владелец', 'is_admin': True}
     monkeypatch.setattr(guard, '_load_user', lambda: user)
-    monkeypatch.setattr(salary, 'current_user', lambda: user)
+    monkeypatch.setattr(sched, 'current_user', lambda: user)
 
     app = Flask(__name__)
     app.config['SECRET_KEY'] = 'test'
-    app.register_blueprint(salary.salary_bp)
+    app.register_blueprint(sched.schedule_bp)
 
     def set_admin(flag):
         user['is_admin'] = flag
@@ -271,7 +272,7 @@ def _make_shift(mgr, date_str='2026-07-20', name='Егор Бобриков', em
 def test_register_endpoint_lists_gap(api):
     client, mgr, _ = api
     _make_shift(mgr)
-    r = client.get('/api/salary/cash-register?date_from=2026-07-01&date_to=2026-07-31')
+    r = client.get('/api/schedule/cash-register/2026/7')
     assert r.status_code == 200
     data = r.get_json()
     assert data['can_edit'] is True
@@ -279,20 +280,19 @@ def test_register_endpoint_lists_gap(api):
     assert [row['problems'] for row in data['rows']] == [[PROBLEM_NO_CASH]]
 
 
-def test_register_endpoint_validates_period(api):
+def test_register_endpoint_validates_month(api):
     client, _, _ = api
-    assert client.get('/api/salary/cash-register').status_code == 400
-    assert client.get('/api/salary/cash-register?date_from=2026-07-31'
-                      '&date_to=2026-07-01').status_code == 400
-    assert client.get('/api/salary/cash-register?date_from=2020-01-01'
-                      '&date_to=2026-12-31').status_code == 400   # период-переросток
+    assert client.get('/api/schedule/cash-register/2026/13').status_code == 400
+    assert client.get('/api/schedule/cash-register/1999/7').status_code == 400
+    # не-число в пути — маршрут <int:...> просто не совпадает
+    assert client.get('/api/schedule/cash-register/2026/abc').status_code == 404
 
 
 def test_admin_fills_cash_late_and_penalty_lands(api):
     """Главный сценарий: касса внесена задним числом -> премия остаётся снятой."""
     client, mgr, _ = api
     sid = _make_shift(mgr)
-    r = client.put(f'/api/salary/cash-register/shift/{sid}', json={
+    r = client.put(f'/api/schedule/cash-register/shift/{sid}', json={
         'cash_expense': '350,50', 'cash_expense_note': 'лёд',
         'cash_collection': 0, 'cash_end': 15340.25,
         'penalize': True, 'penalty_note': 'касса не сдана, внесена задним числом',
@@ -319,7 +319,7 @@ def test_ignores_edit_window(api):
     """Окно 72 ч регистр не касается: смысл раздела — внести старое."""
     client, mgr, _ = api
     sid = _make_shift(mgr, '2026-01-15')
-    r = client.put(f'/api/salary/cash-register/shift/{sid}',
+    r = client.put(f'/api/schedule/cash-register/shift/{sid}',
                    json={'cash_end': 1000})
     assert r.status_code == 200
     assert mgr.get_shift(sid)['cash_end_kop'] == 100000
@@ -329,12 +329,11 @@ def test_non_admin_cannot_edit(api):
     client, mgr, set_admin = api
     sid = _make_shift(mgr)
     set_admin(False)
-    r = client.put(f'/api/salary/cash-register/shift/{sid}', json={'cash_end': 1000})
+    r = client.put(f'/api/schedule/cash-register/shift/{sid}', json={'cash_end': 1000})
     assert r.status_code == 403
     assert mgr.get_shift(sid)['cash_end_kop'] is None
     # смотреть регистр можно всем, только без правки
-    data = client.get('/api/salary/cash-register?date_from=2026-07-01'
-                      '&date_to=2026-07-31').get_json()
+    data = client.get('/api/schedule/cash-register/2026/7').get_json()
     assert data['can_edit'] is False
 
 
@@ -342,7 +341,7 @@ def test_penalty_untouched_when_field_absent(api):
     """Без поля penalize штраф не появляется: правка кассы и штраф независимы."""
     client, mgr, _ = api
     sid = _make_shift(mgr)
-    client.put(f'/api/salary/cash-register/shift/{sid}', json={'cash_end': 1000})
+    client.put(f'/api/schedule/cash-register/shift/{sid}', json={'cash_end': 1000})
     assert mgr.get_handover_penalties('2026-07-01', '2026-07-31') == []
 
 
@@ -351,7 +350,7 @@ def test_penalize_false_removes_penalty(api):
     sid = _make_shift(mgr)
     mgr.set_handover_penalty('2026-07-20', 'Егор Бобриков', True, 'старый',
                              employee_id='guid-1')
-    r = client.put(f'/api/salary/cash-register/shift/{sid}',
+    r = client.put(f'/api/schedule/cash-register/shift/{sid}',
                    json={'cash_end': 1000, 'penalize': False})
     assert r.status_code == 200 and r.get_json()['penalty_changed'] is True
     assert mgr.get_handover_penalties('2026-07-01', '2026-07-31') == []
@@ -366,12 +365,12 @@ def test_reports_whose_premium_came_back(api):
                            employee_id='guid-1')
     mgr.create_shift('2026-07-20', 'Дарья Коновцова', loc['id'], roles[-1]['id'],
                      employee_id='guid-2')
-    body = client.put(f'/api/salary/cash-register/shift/{day}',
+    body = client.put(f'/api/schedule/cash-register/shift/{day}',
                       json={'cash_end': 1000, 'penalize': True}).get_json()
     assert body['premium_restored_for'] == ['Дарья Коновцова']
 
     # день уже закрыт — повторная правка никому премию не «возвращает»
-    body2 = client.put(f'/api/salary/cash-register/shift/{day}',
+    body2 = client.put(f'/api/schedule/cash-register/shift/{day}',
                        json={'cash_end': 2000}).get_json()
     assert body2['premium_restored_for'] == []
 
@@ -379,17 +378,17 @@ def test_reports_whose_premium_came_back(api):
 def test_bad_amount_is_rejected(api):
     client, mgr, _ = api
     sid = _make_shift(mgr)
-    r = client.put(f'/api/salary/cash-register/shift/{sid}',
+    r = client.put(f'/api/schedule/cash-register/shift/{sid}',
                    json={'cash_end': CASH_MAX_RUB + 1})
     assert r.status_code == 400
     assert mgr.get_shift(sid)['cash_end_kop'] is None
-    assert client.put('/api/salary/cash-register/shift/999999',
+    assert client.put('/api/schedule/cash-register/shift/999999',
                       json={'cash_end': 1}).status_code == 404
 
 
 def test_audit_summary_lists_only_changed_fields():
     """В журнале — что именно стало другим, а не «касса переписана»."""
-    from routes.salary import _cash_diff_summary
+    from routes.schedule import _cash_diff_summary
     sh = {'cash_expense_kop': 100, 'cash_collection_kop': 0,
           'cash_end_kop': 500, 'cash_expense_note': 'лёд'}
     assert _cash_diff_summary(sh, 100, 0, 500, 'лёд') == []

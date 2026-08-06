@@ -168,9 +168,14 @@
           </div>
         </div>
 
-        <!-- История кассы за месяц (read-only): даты, точки, бармены, траты/
-             инкассация/наличные на конец. Данные из уже загруженных смен месяца.
-             Три вида на выбор (сводная / траты / инкассации) + выгрузка CSV. -->
+        <!-- Касса за месяц — рабочий стол владельца/бухгалтера: смены месяца с
+             кассой И с ПРОБЕЛАМИ (день, за который кассу не сдали; именно пробел
+             снимает премию за передачу смены). Правка суммы прямо в строке, без
+             окна 72 ч (право администратора), и в той же форме — штраф: иначе
+             внесение кассы задним числом вернуло бы бармену премию за день,
+             который он не закрыл. Фильтр по точке, поиск, пять видов, CSV.
+             Строки собирает сервер — core/cash_register.py, API —
+             GET/PUT /api/schedule/cash-register (routes/schedule.py). -->
         <div class="sc-fold" id="foldCash">
           <button type="button" class="sc-fold-head" data-fold-toggle>
             <span class="sc-fold-title">Касса за месяц</span>
@@ -181,7 +186,11 @@
             <div class="cash-hist-bar">
               <div class="cash-seg" id="cashViewSeg">
                 <button type="button" class="cash-seg-btn" data-cash-view="all"
-                        title="Все кассовые поля смены: траты, инкассация, наличные на конец">Сводная</button>
+                        title="Смены со сданной кассой плюс дни, за которые кассу не сдали">Сводная</button>
+                <button type="button" class="cash-seg-btn" data-cash-view="problems"
+                        title="Только пробелы кассы, траты без комментария и штрафы без смены">Проблемы</button>
+                <button type="button" class="cash-seg-btn" data-cash-view="shifts"
+                        title="Все смены месяца, включая вечерние и будущие">Все смены</button>
                 <button type="button" class="cash-seg-btn" data-cash-view="expense"
                         title="Только траты из кассы, с комментарием «на что»">Траты</button>
                 <button type="button" class="cash-seg-btn" data-cash-view="collection"
@@ -190,6 +199,13 @@
               <button type="button" class="btn btn-secondary" id="cashCsvBtn"
                       title="Скачать текущую таблицу как CSV — открывается в Excel">Скачать CSV</button>
             </div>
+            <div class="cash-hist-bar">
+              <div class="cash-chips" id="cashLocSeg"></div>
+              <input type="search" id="cashSearch" class="cash-search"
+                     placeholder="Бармен, «на что» или причина штрафа">
+            </div>
+            <div class="cash-summary" id="cashSummary"></div>
+            <div class="cash-notice" id="cashNotice"></div>
             <div id="cashHistBody"></div>
           </div>
         </div>
