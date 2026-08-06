@@ -440,6 +440,35 @@
             cursor: pointer;
         }
         .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Выгрузка «Excel / Google»: две кнопки в одной рамке. Рамка и отступы —
+           как у .btn-secondary, чтобы пара стояла в строке ровно с «Рассчитать»;
+           половинки кликаются отдельно, разделитель «/» — просто текст. */
+        .export-pair {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 18px;
+            white-space: nowrap;
+        }
+        .export-pair-label { font-size: 0.9rem; color: var(--text-tertiary); }
+        .export-pair-sep { color: var(--border-color); font-size: 0.9rem; }
+        .export-pair-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            font-family: inherit;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .export-pair-btn:hover:not(:disabled) { color: var(--accent); }
+        .export-pair-btn:disabled { opacity: 0.45; cursor: default; }
+        /* Подсветка рамки при наведении на активную половину (как у .btn-secondary) */
+        .export-pair:has(.export-pair-btn:hover:not(:disabled)) { border-color: var(--accent); }
         .success-msg { display: none; color: var(--success); padding: 12px; font-weight: 500; margin-bottom: 12px; }
         .success-msg.active { display: block; }
 
@@ -545,15 +574,19 @@
                     <label>&nbsp;</label>
                     <button class="btn" id="calc-btn" onclick="calculate()">Рассчитать</button>
                 </div>
+                <!-- Excel и Google — одна кнопка-пара в общей рамке. Раньше это
+                     были две отдельные кнопки, и четвёртая колонка в .controls
+                     (там их три) уезжала на вторую строку во всю ширину. -->
                 <div class="form-group">
                     <label>&nbsp;</label>
-                    <button class="btn-secondary" id="export-btn" onclick="exportExcel()" disabled
-                            title="Скачать таблицу расчёта за месяц в Excel (сначала выполните расчёт)">Экспорт Excel</button>
-                </div>
-                <div class="form-group">
-                    <label>&nbsp;</label>
-                    <button class="btn-secondary" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
-                            title="Обновить Google Таблицу бухгалтерии расчётом за этот месяц прямо сейчас (сначала выполните расчёт). Пишет ту же вкладку «Месяц_Автоматическая», что и ночная выгрузка в 04:00; ручная вкладка бухгалтера не трогается">Обновить Google</button>
+                    <div class="export-pair">
+                        <span class="export-pair-label">Выгрузка</span>
+                        <button class="export-pair-btn" id="export-btn" onclick="exportExcel()" disabled
+                                title="Скачать таблицу расчёта за месяц в Excel (сначала выполните расчёт)">Excel</button>
+                        <span class="export-pair-sep" aria-hidden="true">/</span>
+                        <button class="export-pair-btn" id="export-gsheet-btn" onclick="exportGoogleSheet()" disabled
+                                title="Обновить Google Таблицу бухгалтерии расчётом за этот месяц прямо сейчас (сначала выполните расчёт). Пишет ту же вкладку «Месяц_Автоматическая», что и ночная выгрузка в 04:00; ручная вкладка бухгалтера не трогается">Google</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1715,7 +1748,9 @@
             const payload = await buildExportPayload();
             if (!payload) return;
             const btn = document.getElementById('export-btn');
+            const LABEL = 'Excel';
             btn.disabled = true;
+            btn.textContent = 'готовим...';
             try {
                 const resp = await fetch('/api/salary/export', {
                     method: 'POST',
@@ -1740,6 +1775,7 @@
                 showError('Экспорт не удался: ' + e.message);
             } finally {
                 btn.disabled = false;
+                btn.textContent = LABEL;
             }
         }
 
@@ -1768,9 +1804,9 @@
                 return;
             }
             const btn = document.getElementById('export-gsheet-btn');
-            const LABEL = 'Обновить Google';
+            const LABEL = 'Google';
             btn.disabled = true;
-            btn.textContent = 'Обновляем...';
+            btn.textContent = 'обновляем...';
             try {
                 const resp = await fetch('/api/salary/export-gsheet', {
                     method: 'POST',
