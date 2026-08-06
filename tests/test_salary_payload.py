@@ -187,6 +187,26 @@ def test_months_to_sync():
     assert months_to_sync(date(2026, 1, 3)) == ['2026-01', '2025-12']
 
 
+def test_sync_once_works_without_scheduler_start():
+    """Разовый прогон выгрузки из своего процесса не должен падать на контексте.
+
+    `sync_once()` зовут не только из потока планировщика, но и командой из
+    docs/guides/google-sheets-export.md (`docker exec ... python -c`). Там
+    `start_scheduler` не отрабатывал, и модульный `_app` остался None — раньше
+    это давало AttributeError на `None.test_request_context`.
+    """
+    from flask import Flask
+
+    import core.salary_scheduler as sched
+
+    real_app = sched._app
+    sched._app = None
+    try:
+        assert isinstance(sched._context_app(), Flask)
+    finally:
+        sched._app = real_app
+
+
 def test_payload_survives_month_without_sales():
     """Месяц без закрытых продаж всё равно собирается — из графика.
 

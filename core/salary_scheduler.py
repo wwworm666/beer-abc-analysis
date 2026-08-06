@@ -107,18 +107,38 @@ def months_to_sync(today: date = None) -> list:
     return months
 
 
+def _context_app():
+    """Приложение для внутреннего вызова расчёта.
+
+    Обычно это боевое приложение из `start_scheduler`. Но `sync_once` зовут и из
+    разового процесса (`docker exec ... python -c "... sync_once()"` — так
+    написано в docs/guides/google-sheets-export.md), где `start_scheduler` не
+    отрабатывал и `_app` остался None. Пустого Flask достаточно:
+    `build_payload_for_month` использует приложение ТОЛЬКО как контекст запроса.
+
+    Импортировать здесь `app.py` нельзя — его импорт поднимает планировщики и
+    long-polling Telegram, а второй `getUpdates` перетягивает апдейты у боевого
+    поллера.
+    """
+    if _app is not None:
+        return _app
+    from flask import Flask
+    return Flask('salary-sync')
+
+
 def sync_once(tag: str = 'manual') -> dict:
     """Выгрузить нужные месяцы. Возвращает {месяц: результат|ошибка}."""
     from core.salary_gsheet import sync_to_master
     from core.salary_payload import build_payload_for_month
 
+    app = _context_app()
     results = {}
     for month in months_to_sync():
         started = time.time()
         # Сбой одного месяца не должен ронять остальные: каждый месяц
         # обрабатывается независимо, ошибка попадает в результат и в лог
         try:
-            payload = build_payload_for_month(_app, month)
+            payload = build_payload_for_month(app, month)
             # Пусто = ни продаж, ни смен в графике. Вкладку не создаём: писать
             # нечего, а пустой лист только мусорил бы в таблице
             if not payload.get('employees'):
