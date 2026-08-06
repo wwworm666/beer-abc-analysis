@@ -119,13 +119,12 @@ def test_header_and_layout():
     assert ws['G2'].value == 'Юреня Роман'
     # 2 сотрудника: ИТОГО в колонке H (6 + 2)
     assert ws['H2'].value == 'ИТОГО'
-    # Порядок строк — как в эталоне (2 роли, 3 KPI => строки 3..23).
-    # «Смен с переданной кассой» — своя строка сверх эталона: база премии за
-    # передачу смены (её нельзя считать от «Количества смен» — там дневные
-    # смены графика, другое число). Стоит среди счётчиков, вне блока сумм.
-    labels = [ws.cell(row=r, column=1).value for r in range(3, 24)]
+    # Порядок строк — ровно как в эталоне (2 роли, 3 KPI => строки 3..22).
+    # Строки «Оплаченных дней передачи смены» больше нет: владелец убрал её как
+    # лишнюю (2026-08-07), премия за передачу пишется числом.
+    labels = [ws.cell(row=r, column=1).value for r in range(3, 23)]
     assert labels == [
-        'Часы', 'Часы 2-й в смене', 'Количество смен', 'Оплаченных дней передачи смены',
+        'Часы', 'Часы 2-й в смене', 'Количество смен',
         'Ставка по часам', 'Ставка 2-й в смене', 'Отпуск',
         'Премия за приемку-передачу смены', 'Премия за дневной план',
         'KPI 1 — Доля кухни (%)', 'KPI 2 — Доля розлива (%)', 'KPI 3 — Средний чек (₽)',
@@ -151,48 +150,49 @@ def test_primary_values_are_numbers():
     assert ws['G3'].value == 97          # часы бармен
     assert ws['G4'].value == 20          # часы 2-й
     assert ws['G5'].value == 11          # смены (дневные, база такси)
-    assert ws['G6'].value == 10          # смен с переданной кассой (база премии)
-    assert ws['E7'].value == 300         # тариф часа
-    assert ws['E8'].value == 400
-    assert ws['E10'].value == 500        # тариф передачи смены
-    assert ws['E11'].value == 1000       # тариф дневного плана
-    assert ws['G11'].value == 9661
-    assert ws['E12'].value == 5000       # тариф KPI = фонд / кол-во
-    assert ws['G12'].value == 6082.0
-    assert ws['F13'].value == 0          # KPI с нулём пишется как 0.00, не пусто
-    assert ws['F15'].value == 1450       # доп доход
-    assert ws['G18'].value == 10500      # такси оф. — фикс 15 смен
-    assert ws['G20'].value == 6934       # вычет инвент
-    assert ws['G21'].value is None       # дисциплина 0 -> пусто
-    assert ws['G17'].value is None       # мосты — ручная строка бухгалтера
+    assert ws['G9'].value == 5000        # премия за передачу — число, не формула
+    assert ws['E6'].value == 300         # тариф часа
+    assert ws['E7'].value == 400
+    assert ws['E9'].value == 500        # тариф передачи смены
+    assert ws['E10'].value == 1000       # тариф дневного плана
+    assert ws['G10'].value == 9661
+    assert ws['E11'].value == 5000       # тариф KPI = фонд / кол-во
+    assert ws['G11'].value == 6082.0
+    assert ws['F12'].value == 0          # KPI с нулём пишется как 0.00, не пусто
+    assert ws['F14'].value == 1450       # доп доход
+    assert ws['G17'].value == 10500      # такси оф. — фикс 15 смен
+    assert ws['G19'].value == 6934       # вычет инвент
+    assert ws['G20'].value is None       # дисциплина 0 -> пусто
+    assert ws['G16'].value is None       # мосты — ручная строка бухгалтера
 
 
 def test_discipline_merges_auto_penalty_and_manual():
     """Строка «Вычет дисциплина» = авто-штраф за опоздания + ручной вычет."""
-    assert _sheet()['F21'].value == 750  # 500 (опоздания) + 250 (ручной)
+    assert _sheet()['F20'].value == 750  # 500 (опоздания) + 250 (ручной)
 
 
 def test_formulas_match_reference_shape():
     """Выводимые строки — живые формулы в той же форме, что у бухгалтерии."""
     ws = _sheet()
-    assert ws['G7'].value == '=G3*$E$7'          # оплата = часы x тариф
-    assert ws['F8'].value == '=F4*$E$8'
-    # премия = оплаченные дни передачи кассы x тариф (своя база, строка 6)
-    assert ws['G10'].value == '=G6*$E$10'
-    assert ws['F10'].value == '=F6*$E$10'
-    assert ws['E16'].value == TAXI_RATE_PER_SHIFT
-    assert ws['G16'].value == '=G5*$E$16'        # такси = дневные смены x тариф
-    assert ws['G19'].value == '=G16+G17-G18'     # разница = расчёт + мосты - оф.
+    assert ws['G6'].value == '=G3*$E$6'          # оплата = часы x тариф
+    assert ws['F7'].value == '=F4*$E$7'
+    # Премия за передачу — ЧИСЛО: базы (оплаченных дней) в листе больше нет,
+    # а «Количество смен» — другое число, формула от него врала бы
+    assert ws['G9'].value == 5000
+    assert ws['F9'].value == 3500
+    assert ws['E9'].value == 500                 # тариф виден в колонке «Тариф»
+    assert ws['E15'].value == TAXI_RATE_PER_SHIFT
+    assert ws['G15'].value == '=G5*$E$15'        # такси = дневные смены x тариф
+    assert ws['G18'].value == '=G15+G16-G17'     # разница = расчёт + мосты - оф.
     # ИТОГО берёт такси ПОЛНОСТЬЮ (расчёт + мосты), а не разницу: сумма листа
     # обязана совпадать со страницей ЗП (решение владельца 2026-08-07).
     # «Такси оф.» и «разница» остались справочными строками бухгалтерии.
-    assert ws['G23'].value == '=SUM(G7:G15)-G20-G21-G22+G16+G17'
-    assert ws['F23'].value == '=SUM(F7:F15)-F20-F21-F22+F16+F17'
-    assert ws['H7'].value == '=SUM(F7:G7)'       # колонка ИТОГО — SUM по строке
-    assert ws['H23'].value == '=SUM(F23:G23)'
-    # У счётчиков смен итога по строке нет (как в таблице бухгалтерии)
+    assert ws['G22'].value == '=SUM(G6:G14)-G19-G20-G21+G15+G16'
+    assert ws['F22'].value == '=SUM(F6:F14)-F19-F20-F21+F15+F16'
+    assert ws['H6'].value == '=SUM(F6:G6)'       # колонка ИТОГО — SUM по строке
+    assert ws['H22'].value == '=SUM(F22:G22)'
+    # У счётчика смен итога по строке нет (как в таблице бухгалтерии)
     assert ws['H5'].value is None
-    assert ws['H6'].value is None
 
 
 def test_formulas_evaluate_to_page_numbers():
@@ -205,19 +205,19 @@ def test_formulas_evaluate_to_page_numbers():
     историческим файлом — это и есть решение владельца.
     """
     ws = _sheet()
-    assert _eval(ws, 'G7') == 29100               # 97 x 300
-    assert _eval(ws, 'G8') == 8000                # 20 x 400
-    assert _eval(ws, 'G10') == 5000               # премия = 10 оплаченных дней x 500
-    assert _eval(ws, 'F10') == 3500               # 7 x 500
-    assert _eval(ws, 'G16') == 11 * 700           # такси расчёт
+    assert _eval(ws, 'G6') == 29100               # 97 x 300
+    assert _eval(ws, 'G7') == 8000                # 20 x 400
+    assert _eval(ws, 'G9') == 5000               # премия = 10 оплаченных дней x 500
+    assert _eval(ws, 'F9') == 3500               # 7 x 500
+    assert _eval(ws, 'G15') == 11 * 700           # такси расчёт
     # Справочные строки бухгалтерии живы и считаются по-прежнему
-    assert _eval(ws, 'G19') == 7700 - 10500       # -2 800, как в эталоне
-    assert _eval(ws, 'F19') == 5600 - 10500       # -4 900
-    assert _eval(ws, 'G23') == 48109 + 10500      # ИТОГО Юреня — с полным такси
-    assert _eval(ws, 'F23') == 64497 + 10500      # ИТОГО Верещагин
-    assert _eval(ws, 'H7') == 29100 + 28500
-    assert _eval(ws, 'H19') == -2800 + -4900
-    assert _eval(ws, 'H23') == 48109 + 64497 + 2 * 10500
+    assert _eval(ws, 'G18') == 7700 - 10500       # -2 800, как в эталоне
+    assert _eval(ws, 'F18') == 5600 - 10500       # -4 900
+    assert _eval(ws, 'G22') == 48109 + 10500      # ИТОГО Юреня — с полным такси
+    assert _eval(ws, 'F22') == 64497 + 10500      # ИТОГО Верещагин
+    assert _eval(ws, 'H6') == 29100 + 28500
+    assert _eval(ws, 'H18') == -2800 + -4900
+    assert _eval(ws, 'H22') == 48109 + 64497 + 2 * 10500
 
 
 def test_total_equals_page_sum():
@@ -239,15 +239,15 @@ def test_total_equals_page_sum():
                 - emp['adjustments'].get('deduction_inventory', 0)
                 - emp['adjustments'].get('deduction_discipline', 0)
                 - emp['adjustments'].get('deduction_other', 0))
-        assert _eval(ws, f'{letter}23') == page, emp['name']
+        assert _eval(ws, f'{letter}22') == page, emp['name']
 
 
 def test_bridges_flow_into_totals():
     """Вписанные бухгалтером «мосты» — доплата такси: идут и в разницу, и в ИТОГО."""
     ws = _sheet()
-    ws['G17'] = 2100                             # мосты = 7 x 300, как в эталоне
-    assert _eval(ws, 'G19') == 7700 + 2100 - 10500
-    assert _eval(ws, 'G23') == 48109 + 10500 + 2100
+    ws['G16'] = 2100                             # мосты = 7 x 300, как в эталоне
+    assert _eval(ws, 'G18') == 7700 + 2100 - 10500
+    assert _eval(ws, 'G22') == 48109 + 10500 + 2100
 
 
 def test_full_calc_on_load():
@@ -255,36 +255,36 @@ def test_full_calc_on_load():
     assert build_salary_workbook(_payload()).calculation.fullCalcOnLoad is True
 
 
-def test_handover_falls_back_to_number_when_not_reconcilable():
-    """Премия не сходится с оплаченными днями -> в файл идёт число, не формула.
+def test_handover_is_page_sum_whatever_the_shifts():
+    """Премия за передачу — сумма страницы, без пересчёта в листе.
 
-    Формула ставится только если воспроизводит сумму страницы: экспорт обязан
-    совпадать с расчётом, поэтому при любом расхождении пишем число.
+    Число всегда равно премии расчёта, сколько бы ни было «Количества смен»:
+    это разные базы (дневные смены графика против дней кассовых смен), и любая
+    формула от смен соврала бы.
     """
     p = _payload()
-    p['employees'][0]['handover_bonus'] = 5250   # 10 дней x 500 = 5000, не сходится
-    ws = build_salary_workbook(p).active
-    assert ws['G10'].value == 5250
-    # Оплаченных дней нет, а премия есть — формула дала бы 0
+    p['employees'][0]['handover_bonus'] = 5250   # не кратно 500 — всё равно как есть
+    assert build_salary_workbook(p).active['G9'].value == 5250
+
     p2 = _payload()
-    p2['employees'][0]['handover_paid_days'] = 0
-    assert build_salary_workbook(p2).active['G10'].value == 5000
+    p2['employees'][0]['shifts_count'] = 8       # дневных смен графика меньше
+    p2['employees'][0]['handover_bonus'] = 5500  # премия по своим дням
+    assert build_salary_workbook(p2).active['G9'].value == 5500
 
 
 def test_handover_row_has_no_phantom_deduction():
-    """У сотрудника без штрафов и без дней «нет кассы» вычета в файле нет.
+    """В ячейке премии — чистое число, без вычета-заглушки «-N».
 
     Раньше премия считалась формулой от «Количества смен» (дневные смены
     графика), и разница баз гасилась константой — в файле появлялся вычет
     «-500» у того, у кого штрафов не было вовсе (жалоба владельца 2026-08-06).
     """
     p = _payload()
-    p['employees'][0]['shifts_count'] = 8        # дневных смен графика меньше
-    p['employees'][0]['handover_paid_days'] = 11
-    p['employees'][0]['handover_bonus'] = 5500   # 11 x 500 — всё оплачено
+    p['employees'][0]['shifts_count'] = 8        # базы намеренно разъехались
+    p['employees'][0]['handover_bonus'] = 5500
     ws = build_salary_workbook(p).active
-    assert ws['G10'].value == '=G6*$E$10'        # чистая формула, без «-N»
-    assert ws['G6'].value == 11
+    for letter in ('F', 'G'):
+        assert not isinstance(ws[f'{letter}9'].value, str), 'премия стала формулой'
 
 
 def test_pay_falls_back_to_number_on_rounding_drift():
@@ -297,8 +297,8 @@ def test_pay_falls_back_to_number_on_rounding_drift():
     p['employees'][0]['hours_by_role']['бармен'] = 92.58   # округлено с 92.5833
     p['employees'][0]['pay_by_role']['бармен'] = 27775     # страница: 92.5833 x 300
     ws = build_salary_workbook(p).active
-    assert ws['G7'].value == 27775                          # число, не формула
-    assert ws['F7'].value == '=F3*$E$7'                     # у второго формула цела
+    assert ws['G6'].value == 27775                          # число, не формула
+    assert ws['F6'].value == '=F3*$E$6'                     # у второго формула цела
 
 
 def test_formula_injection_blocked():
@@ -323,7 +323,7 @@ def test_columns_sorted_by_server_not_by_payload_order():
     assert [ws['F2'].value, ws['G2'].value] == ['Верещагин Егор', 'Юреня Роман']
     # Данные едут вместе с именем, а не остаются в своей колонке
     assert ws['F3'].value == 95 and ws['G3'].value == 97      # часы бармена
-    assert ws['G20'].value == 6934                            # вычет инвент Юрени
+    assert ws['G19'].value == 6934                            # вычет инвент Юрени
 
 
 def test_empty_employees_no_crash():

@@ -65,36 +65,32 @@ def test_color_conversion():
 
 
 def test_layout_matches_reference():
-    """Строка 1 пустая, шапка во 2-й, подписи строк 3..23 — как в эталоне.
-
-    Строк 21, а не 20: своя строка базы премии «Смен с переданной кассой»
-    (её нельзя считать от «Количества смен» — там дневные смены графика).
-    """
+    """Строка 1 пустая, шапка во 2-й, подписи строк 3..22 — как в эталоне."""
     grid = _grid()
     assert grid[0] == {'values': []}
     assert _cell(grid, 2, 1)['userEnteredValue'] == {'stringValue': 'Показатель'}
     assert _cell(grid, 2, 7)['userEnteredValue'] == {'stringValue': 'Юреня Роман'}
     assert _cell(grid, 2, 8)['userEnteredValue'] == {'stringValue': 'ИТОГО'}
     labels = [_cell(grid, r, 1)['userEnteredValue'].get('stringValue')
-              for r in range(3, 24)]
+              for r in range(3, 23)]
     assert labels[0] == 'Часы'
     assert labels[2] == 'Количество смен'
-    assert labels[3] == 'Оплаченных дней передачи смены'
+    assert labels[3] == 'Ставка по часам'
     assert labels[-1] == 'ИТОГО БАРМЕН'
-    assert len(grid) == 23
+    assert len(grid) == 22
 
 
 def test_formulas_are_live():
     grid = _grid()
-    assert _cell(grid, 7, 7)['userEnteredValue'] == {'formulaValue': '=G3*$E$7'}
-    # премия = оплаченные дни передачи кассы x тариф (своя база в строке 6)
-    assert _cell(grid, 10, 7)['userEnteredValue'] == {'formulaValue': '=G6*$E$10'}
-    assert _cell(grid, 16, 7)['userEnteredValue'] == {'formulaValue': '=G5*$E$16'}
-    assert _cell(grid, 19, 7)['userEnteredValue'] == {'formulaValue': '=G16+G17-G18'}
+    assert _cell(grid, 6, 7)['userEnteredValue'] == {'formulaValue': '=G3*$E$6'}
+    # премия за передачу — число (базы «оплаченных дней» в листе больше нет)
+    assert _cell(grid, 9, 7)['userEnteredValue'] == {'numberValue': 5000}
+    assert _cell(grid, 15, 7)['userEnteredValue'] == {'formulaValue': '=G5*$E$15'}
+    assert _cell(grid, 18, 7)['userEnteredValue'] == {'formulaValue': '=G15+G16-G17'}
     # ИТОГО с полным такси (расчёт + мосты), чтобы сходиться со страницей ЗП
-    assert _cell(grid, 23, 7)['userEnteredValue'] == {
-        'formulaValue': '=SUM(G7:G15)-G20-G21-G22+G16+G17'}
-    assert _cell(grid, 7, 8)['userEnteredValue'] == {'formulaValue': '=SUM(F7:G7)'}
+    assert _cell(grid, 22, 7)['userEnteredValue'] == {
+        'formulaValue': '=SUM(G6:G14)-G19-G20-G21+G15+G16'}
+    assert _cell(grid, 6, 8)['userEnteredValue'] == {'formulaValue': '=SUM(F6:G6)'}
 
 
 def test_parity_with_xlsx():
@@ -105,7 +101,7 @@ def test_parity_with_xlsx():
     """
     grid = _grid()
     ws = build_salary_workbook(_payload()).active
-    for row in range(2, 24):
+    for row in range(2, 23):
         for col in range(1, 9):
             xlsx = ws.cell(row=row, column=col).value
             gval = _cell(grid, row, col).get('userEnteredValue', {})
@@ -119,7 +115,7 @@ def test_parity_with_xlsx():
 def test_font_is_reference_everywhere():
     """Шрифт эталона (PT Serif 8) во всех ячейках, как в .xlsx."""
     grid = _grid()
-    for row in range(2, 24):
+    for row in range(2, 23):
         for col in range(1, 9):
             tf = _cell(grid, row, col)['userEnteredFormat']['textFormat']
             assert tf['fontFamily'] == FONT_NAME and tf['fontSize'] == FONT_SIZE
@@ -128,10 +124,10 @@ def test_font_is_reference_everywhere():
 def test_deduction_rows_are_red():
     """Вычеты: тёмно-красная плашка подписи белым, данные — светло-красные."""
     grid = _grid()
-    label = _cell(grid, 20, 1)['userEnteredFormat']
+    label = _cell(grid, 19, 1)['userEnteredFormat']
     assert label['backgroundColor'] == _color('CC0000')
     assert label['textFormat']['foregroundColor'] == _color('FFFFFF')
-    assert _cell(grid, 20, 7)['userEnteredFormat']['backgroundColor'] == _color('F4CCCC')
+    assert _cell(grid, 19, 7)['userEnteredFormat']['backgroundColor'] == _color('F4CCCC')
 
 
 def test_requests_shape():
@@ -139,7 +135,7 @@ def test_requests_shape():
     sheet = build_sheet(_payload())
     reqs = build_requests(sheet, sheet_id=777)
     update = reqs[0]['updateCells']
-    assert update['range'] == {'sheetId': 777, 'startRowIndex': 0, 'endRowIndex': 23,
+    assert update['range'] == {'sheetId': 777, 'startRowIndex': 0, 'endRowIndex': 22,
                                'startColumnIndex': 0, 'endColumnIndex': 8}
     assert update['fields'] == 'userEnteredValue,userEnteredFormat'
     props = reqs[1]['updateSheetProperties']['properties']['gridProperties']
