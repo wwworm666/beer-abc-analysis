@@ -30,8 +30,8 @@
 2. Мёрж по имени: сопоставление «множество слов одного имени — подмножество
    другого» (`_names_match`), как `namesMatch` в bonus.html. Это нужно, потому
    что iiko и график пишут имена по-разному («Юреня Роман» / «Юреня»).
-3. Порядок сотрудников = порядок КОЛОНОК в выгрузке: сортировка по итогу ЗП
-   по убыванию — как на странице.
+3. Порядок сотрудников = порядок КОЛОНОК в выгрузке: по алфавиту
+   (`name_sort_key`) — как на странице.
 
 ## Changelog
 
@@ -180,16 +180,17 @@ def _merge_employees(bonus_emps, kpi_emps, hours_emps):
     return merged
 
 
-def _total_salary(entry, taxi_rate):
-    """Итог ЗП сотрудника — по нему сортируются колонки (recalcEmployeeTotals)."""
-    b, k, h = entry.get('bonus'), entry.get('kpi'), entry.get('hours')
-    hours_pay = (h or {}).get('total_pay') or 0
-    day_shifts = (h or {}).get('day_shifts') or 0
-    base = ((b or {}).get('bonus') or 0) \
-        + ((b or {}).get('shift_handover_bonus') or 0) \
-        - ((b or {}).get('penalty') or 0) \
-        + ((k or {}).get('total_premium') or 0)
-    return base + hours_pay + day_shifts * taxi_rate
+def name_sort_key(name):
+    """Ключ алфавитной сортировки сотрудника (решение владельца 2026-08-06).
+
+    Регистр не важен, «ё» считается за «е» (иначе в Unicode она уезжает после
+    «я»). Сравнение — обычное посимвольное, БЕЗ locale-коллации: тот же
+    алгоритм повторён в `templates/bonus.html` (`empSortKey`), а порядок
+    колонок в выгрузке обязан совпадать со страницей. Для кириллицы и латиницы
+    порядок кодовых точек совпадает с алфавитным, и оба языка дают один
+    результат — чего нельзя гарантировать для `localeCompare`.
+    """
+    return (name or '').strip().lower().replace('ё', 'е')
 
 
 def build_payload_for_month(app, month: str) -> dict:
@@ -217,11 +218,13 @@ def build_payload_for_month(app, month: str) -> dict:
     hours_emps = shifts_mgr.get_hours_by_role_for_period(date_from, date_to)
     roles_raw = shifts_mgr.get_roles()
 
-    from core.salary_layout import TAXI_RATE_PER_SHIFT
     merged = _merge_employees(bonus_data.get('employees') or [],
                               kpi_data.get('employees') or [],
                               hours_emps)
-    merged.sort(key=lambda e: -_total_salary(e, TAXI_RATE_PER_SHIFT))
+    # Колонки — по алфавиту (то же на странице ЗП: искать человека в таблице
+    # удобнее по имени, чем по сумме). Сортировка стабильная, поэтому полные
+    # тёзки сохраняют порядок мёржа.
+    merged.sort(key=lambda e: name_sort_key(e.get('name')))
 
     kpi_config = kpi_data.get('kpi_config') or {}
     kpi_keys = _sorted_kpi_keys(kpi_config)

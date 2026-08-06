@@ -704,6 +704,16 @@
             return String((rec && rec.employee_id) || '').trim();
         }
 
+        // Ключ алфавитной сортировки: регистр не важен, «ё» считается за «е»
+        // (иначе в Unicode она уезжает после «я»). Сравнение посимвольное, БЕЗ
+        // localeCompare — тот же алгоритм в core/salary_payload.py
+        // (name_sort_key), а порядок колонок в выгрузке обязан совпадать со
+        // страницей; для кириллицы и латиницы порядок кодовых точек и есть
+        // алфавитный.
+        function empSortKey(name) {
+            return String(name || '').trim().toLowerCase().replace(/ё/g, 'е');
+        }
+
         // Индекс подходящей записи источника: сначала точный матч по id, потом по имени.
         // Во втором проходе запись с ДРУГИМ id пропускается: если обе стороны знают
         // id и они разные — это разные люди, похожее имя не аргумент (иначе часы
@@ -846,7 +856,13 @@
                 recalcEmployeeTotals(emp);
             });
 
-            mergedEmployees.sort((a, b) => b.totalSalary - a.totalSalary);
+            // По алфавиту, а не по сумме: карточку человека проще найти по имени
+            // (решение владельца 2026-08-06). Тот же порядок уходит в колонки
+            // экспорта — payload собирается из этого же массива.
+            mergedEmployees.sort((a, b) => {
+                const ka = empSortKey(a.name), kb = empSortKey(b.name);
+                return ka < kb ? -1 : ka > kb ? 1 : 0;
+            });
 
             renderSummary();
             renderCards();

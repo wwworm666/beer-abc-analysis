@@ -18,7 +18,7 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.salary_payload import (_merge_employees, _names_match, _sorted_kpi_keys,
-                                 _total_salary, month_bounds, previous_month)
+                                 month_bounds, name_sort_key, previous_month)
 
 
 def test_month_bounds():
@@ -118,15 +118,29 @@ def test_merge_does_not_reuse_one_source_row_twice():
     assert merged[1]['kpi'] is None
 
 
-def test_total_salary_drives_column_order():
-    """Итог = премия + передача - штраф + KPI + оплата часов + такси."""
-    entry = {
-        'bonus': {'bonus': 1000, 'shift_handover_bonus': 500, 'penalty': 250},
-        'kpi': {'total_premium': 2000},
-        'hours': {'total_pay': 30000, 'day_shifts': 10},
-    }
-    assert _total_salary(entry, 700) == 1000 + 500 - 250 + 2000 + 30000 + 7000
-    assert _total_salary({'bonus': None, 'kpi': None, 'hours': None}, 700) == 0
+def test_name_sort_key_is_alphabetical():
+    """Колонки выгрузки и карточки страницы — по алфавиту (решение владельца).
+
+    Ключ обязан совпадать с empSortKey в templates/bonus.html: регистр не важен,
+    «ё» = «е» (в Unicode она стоит после «я» и уехала бы в конец списка).
+    """
+    names = ['Юреня Роман', 'артем новаев', 'Ёлкин Пётр', 'Егор Бобриков',
+             'Яшин Иван', 'Алексей Марченко']
+    assert sorted(names, key=name_sort_key) == [
+        'Алексей Марченко', 'артем новаев', 'Егор Бобриков', 'Ёлкин Пётр',
+        'Юреня Роман', 'Яшин Иван',
+    ]
+    assert name_sort_key('  Артем  ') == 'артем'
+    assert name_sort_key(None) == ''
+
+
+def test_columns_sorted_alphabetically():
+    """Порядок колонок = алфавит, а не итог ЗП: искать человека удобнее по имени."""
+    merged = [{'name': 'Юреня Роман'}, {'name': 'Алексей Марченко'},
+              {'name': 'Егор Бобриков'}]
+    merged.sort(key=lambda e: name_sort_key(e.get('name')))
+    assert [m['name'] for m in merged] == [
+        'Алексей Марченко', 'Егор Бобриков', 'Юреня Роман']
 
 
 def test_no_data_for_period_is_not_an_error():
