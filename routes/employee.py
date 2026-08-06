@@ -441,24 +441,35 @@ def _cash_filled_day_keys(date_from, date_to):
 
 
 def _manual_handover_penalties(date_from, date_to):
-    """Ручные штрафы за кассовые смены (v9 shifts.db) за период.
+    """Ручные штрафы за кассовые смены (v9/v10 shifts.db) за период.
 
-    Возвращает {имя_lower: {дата: note}} — дни, за которые владелец руками снял
-    премию «передача смены» (сумма кассы указана неверно, забыты траты и т.п.).
-    Ключ — employee_name как на странице ЗП (штраф ставится из карточки
-    сотрудника, поэтому имя совпадает с iiko-именем расчёта). {} при сбое —
-    fail-open, как у _cash_filled_day_keys: сбой БД не трогает премию.
+    Возвращает ({id: {дата: note}}, {имя_lower: {дата: note}}) — дни, за которые
+    владелец руками снял премию «передача смены» (сумма кассы указана неверно,
+    забыты траты и т.п.).
+
+    Два индекса, потому что имя — снимок: после переименования сотрудника в iiko
+    («Алексей Стажер» -> «Алексей Марченко») штраф, записанный под старым именем,
+    по имени уже не найдётся. Приоритет — id (v10); имя остаётся фоллбэком для
+    строк, у которых id восстановить не удалось. Сопоставление имён — точное
+    (lower/strip), как раньше: подмешивать fuzzy здесь нельзя, иначе штраф
+    одного сотрудника перетечёт на однофамильца.
+
+    ({}, {}) при сбое — fail-open, как у _cash_filled_day_keys: сбой БД не
+    трогает премию.
     """
     try:
         from extensions import shifts_mgr
-        result = {}
+        by_id, by_name = {}, {}
         for p in shifts_mgr.get_handover_penalties(date_from, date_to):
-            emp = result.setdefault((p['employee_name'] or '').strip().lower(), {})
-            emp[p['date']] = p.get('note')
-        return result
+            emp_id = (p.get('employee_id') or '').strip()
+            if emp_id:
+                by_id.setdefault(emp_id, {})[p['date']] = p.get('note')
+            by_name.setdefault(
+                (p['employee_name'] or '').strip().lower(), {})[p['date']] = p.get('note')
+        return by_id, by_name
     except Exception as e:
         print(f"   [BONUS] manual-penalty lookup failed, штрафы не применяем: {e}")
-        return {}
+        return {}, {}
 
 
 def _manual_penalty_days(days_detail):
@@ -558,9 +569,10 @@ def bonus_calculate():
         # недоступны, премию не режем (fail-open).
         cash_filled_keys = _cash_filled_day_keys(date_from, date_to)
 
-        # Ручные штрафы за кассовые смены: {имя_lower: {дата: note}} — владелец
-        # снял премию за конкретный день (неверная сумма кассы и т.п.)
-        manual_penalties = _manual_handover_penalties(date_from, date_to)
+        # Ручные штрафы за кассовые смены: владелец снял премию за конкретный
+        # день (неверная сумма кассы и т.п.). Два индекса: по стабильному id
+        # (v10) и по имени — фоллбэк для строк без id (см. докстроку).
+        manual_by_id, manual_by_name = _manual_handover_penalties(date_from, date_to)
 
         # Маппинг employee_id -> имя
         emp_id_to_name = {emp.get('id'): emp.get('name') for emp in employees_list}
@@ -584,7 +596,13 @@ def bonus_calculate():
             shifts_count = emp_metrics.get('shifts_count', 0)
             late_count = emp_metrics.get('late_count', 0)
             late_dates_set = set(emp_metrics.get('late_dates', []))
-            emp_manual = manual_penalties.get(emp_name.strip().lower(), {})
+            # Штрафы этого сотрудника: ОБЪЕДИНЕНИЕ найденного по стабильному id и
+            # по имени. Не «id, иначе имя»: у одного человека могут лежать и
+            # строка с id (новая), и строка без него (проставлена до v10, имя не
+            # сошлось с реестром при бэкофилле) — приоритет id потерял бы вторую.
+            # При совпадении дат побеждает запись с id.
+            emp_manual = dict(manual_by_name.get(emp_name.strip().lower(), {}))
+            emp_manual.update(manual_by_id.get(str(emp_id).strip(), {}))
 
             # Считаем по дням
             total_revenue = 0.0
@@ -679,6 +697,10 @@ def bonus_calculate():
 
             results.append({
                 'name': emp_name,
+                # Стабильный ключ iiko: страница ЗП и ночная выгрузка сводят по
+                # нему три источника. Имя — снимок, при переименовании в iiko
+                # мёрж по имени разрывал человека на двух (2026-08-06).
+                'employee_id': emp_id,
                 'plan_revenue': round(total_plan, 2),
                 'total_revenue': round(total_revenue, 2),
                 'plan_percent': round(plan_percent, 1),
@@ -993,6 +1015,10 @@ def kpi_calculate():
 
             if kpi_result:
                 kpi_result['total_hours'] = round(total_hours, 1)
+                # Стабильный ключ iiko — для мёржа на странице ЗП (см.
+                # bonus_calculate: по имени-снимку переименованный сотрудник
+                # разрывался на двух)
+                kpi_result['employee_id'] = emp_id
                 results.append(kpi_result)
                 total_premium += kpi_result['total_premium']
 

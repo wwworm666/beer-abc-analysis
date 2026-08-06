@@ -53,7 +53,13 @@ class ShiftsManager:
     #     указана неверно, забыты траты и т.п.) — премия «передача смены»
     #     (500 ₽) за этот день не платится, поверх автоправила «нет кассы — нет
     #     премии». Одна строка на (date, employee_name).
-    SCHEMA_VERSION = 9
+    # v10: handover_cash_penalties.employee_id — тот же стабильный ключ iiko, что
+    #     у смен (v6). Имя оставлено снимком для показа: без id переименование
+    #     сотрудника в iiko молча осиротило бы уже проставленные штрафы (расчёт
+    #     ищет их по имени). Существующие строки получают id по имени из реестра.
+    #     UNIQUE(date, employee_name) не меняется (DROP/rebuild запрещён) —
+    #     совпадение строки ищется по id ИЛИ имени, см. set_handover_penalty().
+    SCHEMA_VERSION = 10
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -319,6 +325,25 @@ class ShiftsManager:
                     )
                 ''')
 
+                # v10: стабильный ключ сотрудника у штрафа. Без него штраф жил
+                # только на имени-снимке, и переименование в iiko («Алексей
+                # Стажер» -> «Алексей Марченко») теряло его молча: расчёт ищет
+                # штрафы по текущему имени из iiko.
+                self._ensure_columns(cursor, 'handover_cash_penalties',
+                                     {'employee_id': 'TEXT'})
+                # Бэкофилл id уже проставленным штрафам — по имени из реестра
+                # (после синка имена реестра равны текущим именам iiko).
+                # Однозначность: iiko_id в реестре уникален, имя ищется точным
+                # совпадением, поэтому подставить чужой id нельзя.
+                cursor.execute('''
+                    UPDATE handover_cash_penalties SET employee_id = (
+                        SELECT e.iiko_id FROM schedule_employees e
+                         WHERE e.name = handover_cash_penalties.employee_name
+                           AND e.iiko_id IS NOT NULL
+                    )
+                    WHERE employee_id IS NULL
+                ''')
+
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_employee ON shifts(employee_name)')
@@ -536,6 +561,7 @@ class ShiftsManager:
                 cursor.execute('''
                     SELECT COALESCE(s.employee_id, s.employee_name) AS emp_key,
                            MIN(s.employee_name) AS employee_name,
+                           MAX(s.employee_id) AS employee_id,
                            r.id AS role_id, r.name AS role_name, r.short_name AS role_short,
                            COALESCE(r.rate_per_hour, 0) AS rate_per_hour,
                            r.sort_order AS sort_order,
@@ -558,6 +584,10 @@ class ShiftsManager:
         for row in rows:
             emp = by_emp.setdefault(row['emp_key'], {
                 'employee_name': row['employee_name'],
+                # Стабильный ключ iiko (v6): по нему страница ЗП сводит часы с
+                # премиями. Имя — снимок и после переименования в iiko не
+                # совпадёт с именем расчёта. None у смен до бэкофилла id.
+                'employee_id': row['employee_id'],
                 'roles': [], 'total_minutes': 0, 'total_pay': 0.0,
                 'shifts_with_fact': 0, 'shifts_without_fact': 0,
                 'day_shifts': 0,
@@ -953,6 +983,11 @@ class ShiftsManager:
                         'UPDATE shifts SET employee_name = ? '
                         'WHERE employee_id = ? AND employee_name <> ?', (n, i, n))
                     refreshed += cur.rowcount
+                    # то же для снимка имени у штрафов кассы (v10): расчёт ищет
+                    # их по id, но в журнале и на странице видно имя
+                    cur.execute(
+                        'UPDATE handover_cash_penalties SET employee_name = ? '
+                        'WHERE employee_id = ? AND employee_name <> ?', (n, i, n))
                 # 2) бэкофилл employee_id у смен без него (+ канонизация имени)
                 rows = cur.execute(
                     'SELECT employee_name, COUNT(*) c FROM shifts '
@@ -1036,15 +1071,21 @@ class ShiftsManager:
     def get_handover_penalties(self, date_from: str, date_to: str) -> List[Dict]:
         """Ручные штрафы за кассовые смены за период (даты включительно).
 
-        Возвращает [{date, employee_name, note}]. Каждая строка = день, за
-        который сотруднику не платится премия «передача смены» (решение
+        Возвращает [{date, employee_id, employee_name, note}]. Каждая строка =
+        день, за который сотруднику не платится премия «передача смены» (решение
         владельца поверх автоправила «нет кассы — нет премии»).
+
+        `employee_id` (v10) — стабильный ключ iiko, по нему штраф и надо искать:
+        `employee_name` — снимок на момент простановки, и после переименования
+        сотрудника в iiko он уже не совпадёт с именем в расчёте. У строк, для
+        которых id восстановить не удалось (сотрудника нет в реестре), id = None
+        и остаётся только имя.
         """
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT date, employee_name, note
+                    SELECT date, employee_id, employee_name, note
                     FROM handover_cash_penalties
                     WHERE date >= ? AND date <= ?
                     ORDER BY date
@@ -1052,42 +1093,73 @@ class ShiftsManager:
                 return [dict(row) for row in cursor.fetchall()]
 
     def set_handover_penalty(self, date_str: str, employee_name: str,
-                             penalized: bool, note: str = None) -> bool:
+                             penalized: bool, note: str = None,
+                             employee_id: str = None) -> bool:
         """Поставить/снять штраф за кассовую смену дня. Возвращает True, если
         состояние изменилось (для журнала: повторный клик — не событие).
 
         penalized=True — UPSERT строки (повторная простановка обновляет note),
         penalized=False — удаление. Валидация даты/имени — в роуте.
+
+        Личность сотрудника (v10) — `employee_id` (стабильный ключ iiko, тот же
+        что у смен). Строка дня ищется по id, а если id не передан — по имени,
+        как раньше. Имя пишется снимком для показа и ОБНОВЛЯЕТСЯ при совпадении
+        по id: иначе после переименования в iiko («Алексей Стажер» -> «Алексей
+        Марченко») клик создал бы вторую строку на тот же день, а расчёт нашёл
+        бы только одну из них.
         """
         note = (note or '').strip() or None
+        employee_id = (employee_id or '').strip() or None
         with self._lock:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 # BEGIN IMMEDIATE: SELECT+запись атомарны и между 2 gunicorn-
                 # воркерами — «changed» не соврёт журналу при одновременных кликах
                 cursor.execute('BEGIN IMMEDIATE')
-                cursor.execute(
-                    'SELECT note FROM handover_cash_penalties '
-                    'WHERE date = ? AND employee_name = ?',
-                    (date_str, employee_name)
-                )
-                row = cursor.fetchone()
-                if penalized:
-                    changed = row is None or row['note'] != note
-                    cursor.execute('''
-                        INSERT INTO handover_cash_penalties
-                            (date, employee_name, note, created_at)
-                        VALUES (?, ?, ?, ?)
-                        ON CONFLICT(date, employee_name) DO UPDATE SET
-                            note = excluded.note
-                    ''', (date_str, employee_name, note,
-                          datetime.now().isoformat()))
+                # Существующая строка дня: по id (надёжно), иначе по имени.
+                # Имя в условии остаётся и при поиске по id — подхватывает строку,
+                # проставленную до v10 (id ещё не был записан).
+                if employee_id:
+                    cursor.execute(
+                        'SELECT id, note FROM handover_cash_penalties '
+                        'WHERE date = ? AND (employee_id = ? OR '
+                        '                    (employee_id IS NULL AND employee_name = ?))',
+                        (date_str, employee_id, employee_name)
+                    )
                 else:
                     cursor.execute(
-                        'DELETE FROM handover_cash_penalties '
+                        'SELECT id, note FROM handover_cash_penalties '
                         'WHERE date = ? AND employee_name = ?',
                         (date_str, employee_name)
                     )
+                row = cursor.fetchone()
+                if penalized:
+                    changed = row is None or row['note'] != note
+                    if row:
+                        # Обновляем и снимок имени с id — строка «переезжает»
+                        # на текущее имя сотрудника вместо задвоения
+                        cursor.execute(
+                            'UPDATE handover_cash_penalties '
+                            'SET note = ?, employee_name = ?, '
+                            '    employee_id = COALESCE(?, employee_id) '
+                            'WHERE id = ?',
+                            (note, employee_name, employee_id, row['id'])
+                        )
+                    else:
+                        cursor.execute('''
+                            INSERT INTO handover_cash_penalties
+                                (date, employee_id, employee_name, note, created_at)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON CONFLICT(date, employee_name) DO UPDATE SET
+                                note = excluded.note,
+                                employee_id = COALESCE(excluded.employee_id, employee_id)
+                        ''', (date_str, employee_id, employee_name, note,
+                              datetime.now().isoformat()))
+                else:
+                    if row:
+                        cursor.execute(
+                            'DELETE FROM handover_cash_penalties WHERE id = ?',
+                            (row['id'],))
                     changed = row is not None
                 conn.commit()
                 return changed

@@ -68,6 +68,48 @@ def test_merge_three_sources():
     assert by_name['Только В Графике']['bonus'] is None
 
 
+def test_merge_by_id_survives_rename_in_iiko():
+    """Сотрудника переименовали в iiko, в графике осталось имя-снимок.
+
+    Реальный случай 2026-08-06: «Алексей Стажер» -> «Алексей Марченко». Слова
+    имён не пересекаются, поэтому матч по имени давал ДВУХ человек — у одного
+    часы и такси без премий, у другого премия без часов. Стабильный id один и
+    тот же, по нему и сводим.
+    """
+    ALEX = '4b83e5be-ffd3-46fa-820c-88ea9a257871'
+    bonus = [{'name': 'Алексей Марченко', 'employee_id': ALEX}]
+    kpi = [{'employee_name': 'Алексей Марченко', 'employee_id': ALEX}]
+    hours = [{'employee_name': 'Алексей Стажер', 'employee_id': ALEX}]
+    merged = _merge_employees(bonus, kpi, hours)
+    assert len(merged) == 1, 'переименованный сотрудник разорван на двух'
+    assert merged[0]['hours']['employee_name'] == 'Алексей Стажер'
+    assert merged[0]['kpi'] is not None
+
+
+def test_merge_id_wins_over_name():
+    """id важнее похожего имени: однофамильцы не склеиваются, а свои — находятся.
+
+    У часов имя совпадает с ПЕРВЫМ сотрудником, но id — второго. Правильный
+    ответ: часы уходят второму.
+    """
+    a, b = 'id-aaa', 'id-bbb'
+    bonus = [{'name': 'Егор Верещагин', 'employee_id': a},
+             {'name': 'Егор Бобриков', 'employee_id': b}]
+    hours = [{'employee_name': 'Егор Верещагин', 'employee_id': b}]
+    merged = _merge_employees(bonus, [], hours)
+    assert merged[0]['hours'] is None
+    assert merged[1]['hours']['employee_id'] == b
+
+
+def test_merge_falls_back_to_name_without_id():
+    """Смены до бэкофилла employee_id и люди не из iiko — матч по имени как раньше."""
+    bonus = [{'name': 'Юреня Роман', 'employee_id': 'id-yur'}]
+    hours = [{'employee_name': 'Юреня'}]            # id нет
+    merged = _merge_employees(bonus, [], hours)
+    assert len(merged) == 1
+    assert merged[0]['hours']['employee_name'] == 'Юреня'
+
+
 def test_merge_does_not_reuse_one_source_row_twice():
     """Один и тот же KPI-сотрудник не привязывается к двум людям."""
     bonus = [{'name': 'Юреня'}, {'name': 'Юреня Роман'}]

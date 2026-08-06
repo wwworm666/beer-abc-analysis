@@ -680,15 +680,51 @@
             return 'var(--danger)';
         }
 
-        // ===================== NAME MATCHING =====================
+        // ===================== IDENTITY MATCHING =====================
+        // Личность сотрудника — стабильный employee_id из iiko (тот же, что у смен
+        // графика). Имя во всех трёх источниках — снимок: пока его считали ключом,
+        // переименование в iiko («Алексей Стажер» -> «Алексей Марченко») давало
+        // ДВЕ карточки с половиной ЗП в каждой (2026-08-06). Матч по имени
+        // остался фоллбэком для смен без employee_id и людей не из iiko.
+        // Зеркало на бэке — core/salary_payload.py (_emp_id/_find_match): правки
+        // синхронно, иначе кнопка экспорта и ночная выгрузка разойдутся.
+        function empId(rec) {
+            return String((rec && rec.employee_id) || '').trim();
+        }
+
+        // Индекс подходящей записи источника: сначала точный матч по id, потом по имени.
+        // Во втором проходе запись с ДРУГИМ id пропускается: если обе стороны знают
+        // id и они разные — это разные люди, похожее имя не аргумент (иначе часы
+        // одного бармена уехали бы в ЗП другого). Имя связывает только там, где id
+        // отсутствует хотя бы с одной стороны.
+        function findMatch(entry, records, used) {
+            const eid = entry.employeeId || '';
+            if (eid) {
+                for (let i = 0; i < records.length; i++) {
+                    if (!used.has(i) && empId(records[i]) === eid) return i;
+                }
+            }
+            for (let i = 0; i < records.length; i++) {
+                if (used.has(i)) continue;
+                const rid = empId(records[i]);
+                if (eid && rid && rid !== eid) continue;
+                if (namesMatch(entry.name, records[i].employee_name)) return i;
+            }
+            return null;
+        }
+
+        // ===================== NAME MATCHING (фоллбэк) =====================
         function nameWords(name) {
-            return new Set(name.toLowerCase().trim().split(/\s+/));
+            return new Set(String(name || '').toLowerCase().trim().split(/\s+/));
         }
 
         function namesMatch(a, b) {
             const wa = nameWords(a);
             const wb = nameWords(b);
             if (wa.size === 0 || wb.size === 0) return false;
+            // Пустая строка даёт Set{''} — иначе два безымянных «сматчились» бы
+            if (wa.size === 1 && wa.has('')) return false;
+            if (wb.size === 1 && wb.has('')) return false;
             // Check if one is subset of the other
             let aInB = true, bInA = true;
             for (const w of wa) { if (!wb.has(w)) { aInB = false; break; } }
@@ -759,43 +795,35 @@
             bonusEmps.forEach(be => {
                 const merged = {
                     name: be.name,
+                    employeeId: empId(be),
                     bonus: be,
                     kpi: null
                 };
-                // Find matching KPI employee
-                for (let i = 0; i < kpiEmps.length; i++) {
-                    if (!kpiUsed.has(i) && namesMatch(be.name, kpiEmps[i].employee_name)) {
-                        merged.kpi = kpiEmps[i];
-                        kpiUsed.add(i);
-                        break;
-                    }
-                }
+                const i = findMatch(merged, kpiEmps, kpiUsed);
+                if (i !== null) { merged.kpi = kpiEmps[i]; kpiUsed.add(i); }
                 mergedEmployees.push(merged);
             });
 
             // Add unmatched KPI employees
             kpiEmps.forEach((ke, i) => {
                 if (!kpiUsed.has(i)) {
-                    mergedEmployees.push({ name: ke.employee_name, bonus: null, kpi: ke });
+                    mergedEmployees.push({ name: ke.employee_name, employeeId: empId(ke),
+                                           bonus: null, kpi: ke });
                 }
             });
 
-            // Привязать часы из графика (источник часов оплаты) по имени
+            // Привязать часы из графика (источник часов оплаты) — по id, затем по имени
             const hoursEmps = (hoursData && hoursData.employees) || [];
             const hoursUsed = new Set();
             mergedEmployees.forEach(emp => {
-                for (let i = 0; i < hoursEmps.length; i++) {
-                    if (!hoursUsed.has(i) && namesMatch(emp.name, hoursEmps[i].employee_name)) {
-                        emp.hoursByRole = hoursEmps[i];
-                        hoursUsed.add(i);
-                        break;
-                    }
-                }
+                const i = findMatch(emp, hoursEmps, hoursUsed);
+                if (i !== null) { emp.hoursByRole = hoursEmps[i]; hoursUsed.add(i); }
             });
             // Сотрудники из графика без данных iiko (bonus/kpi) — тоже в список
             hoursEmps.forEach((he, i) => {
                 if (!hoursUsed.has(i)) {
-                    mergedEmployees.push({ name: he.employee_name, bonus: null, kpi: null, hoursByRole: he });
+                    mergedEmployees.push({ name: he.employee_name, employeeId: empId(he),
+                                           bonus: null, kpi: null, hoursByRole: he });
                 }
             });
 
@@ -1034,6 +1062,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         date: date,
+                        // id — то, по чему штраф потом находит расчёт; имя пишется
+                        // снимком для журнала (переименование в iiko его обновит)
+                        employee_id: empId(b) || emp.employeeId || null,
                         employee_name: b.name || emp.name,
                         penalized: penalized,
                         note: note

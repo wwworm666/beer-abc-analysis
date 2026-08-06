@@ -77,10 +77,15 @@ def _audit(action, summary, entity_date=None, employee_name=None):
 def set_handover_penalty():
     """Поставить/снять штраф за кассовую смену дня.
 
-    Body: {date: 'YYYY-MM-DD', employee_name, penalized: bool, note?}.
-    penalized=true — премия «передача смены» за этот день не платится
-    (-500 ₽), false — штраф снят. Изменение пишется в журнал графика
+    Body: {date: 'YYYY-MM-DD', employee_name, penalized: bool, note?,
+    employee_id?}. penalized=true — премия «передача смены» за этот день не
+    платится (-500 ₽), false — штраф снят. Изменение пишется в журнал графика
     (handover_penalty); повторная простановка того же состояния — не событие.
+
+    `employee_id` (стабильный ключ iiko, v10) — то, по чему штраф потом
+    находится расчётом; `employee_name` остаётся снимком для журнала и показа.
+    Поле опциональное: у сотрудника без id (нет в iiko) работает старый путь по
+    имени.
     """
     data = request.get_json(silent=True) or {}
     date_str = data.get('date')
@@ -90,12 +95,15 @@ def set_handover_penalty():
     employee_name = employee_name.strip() if isinstance(employee_name, str) else ''
     if not employee_name:
         return jsonify({'error': 'employee_name обязателен'}), 400
+    employee_id = data.get('employee_id')
+    employee_id = employee_id.strip() if isinstance(employee_id, str) else None
     penalized = bool(data.get('penalized'))
     note = data.get('note')
     if note is not None and not isinstance(note, str):
         note = str(note)
 
-    changed = shifts_mgr.set_handover_penalty(date_str, employee_name, penalized, note)
+    changed = shifts_mgr.set_handover_penalty(date_str, employee_name, penalized, note,
+                                              employee_id=employee_id)
 
     if changed:
         d, m = date_str[8:10], date_str[5:7]

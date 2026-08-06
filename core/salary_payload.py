@@ -109,35 +109,74 @@ def _call_view(app, view, path, **kwargs):
     return json.loads(resp.get_data(as_text=True))
 
 
+def _emp_id(rec):
+    """Стабильный ключ iiko записи источника ('' если его нет)."""
+    return str((rec or {}).get('employee_id') or '').strip()
+
+
+def _find_match(entry, records, used):
+    """Индекс записи для сотрудника: сначала по стабильному id, потом по имени.
+
+    Два прохода на каждый источник, а не один: id — точное совпадение и не может
+    ошибиться, поэтому сначала расходятся все, у кого id есть с обеих сторон, и
+    только остаток сопоставляется по словам имени. Иначе переименованный в iiko
+    сотрудник («Алексей Стажер» -> «Алексей Марченко») не находился по имени и
+    попадал в выгрузку ДВУМЯ людьми с половиной ЗП у каждого (2026-08-06).
+
+    Во втором проходе запись с ДРУГИМ id пропускается: если обе стороны знают id
+    и они разные — это разные люди, и похожее имя тут не аргумент (иначе часы
+    одного бармена уехали бы в ЗП другого). Имя связывает только там, где id
+    отсутствует хотя бы с одной стороны — смены до бэкофилла id и люди не из iiko.
+    """
+    eid = str(entry.get('employee_id') or '').strip()
+    if eid:
+        for i, rec in enumerate(records):
+            if i not in used and _emp_id(rec) == eid:
+                return i
+    for i, rec in enumerate(records):
+        if i in used:
+            continue
+        rid = _emp_id(rec)
+        if eid and rid and rid != eid:
+            continue
+        if _names_match(entry['name'], rec.get('employee_name')):
+            return i
+    return None
+
+
 def _merge_employees(bonus_emps, kpi_emps, hours_emps):
-    """Мёрж трёх источников по имени — порядок как в mergeAndRender()."""
+    """Мёрж трёх источников по стабильному id, фоллбэк — имя.
+
+    Порядок и структура — как в mergeAndRender() (templates/bonus.html): при
+    правке одного править второй, иначе кнопка экспорта и ночная выгрузка
+    разойдутся.
+    """
     merged = []
     kpi_used = set()
     for be in bonus_emps:
-        entry = {'name': be.get('name'), 'bonus': be, 'kpi': None, 'hours': None}
-        for i, ke in enumerate(kpi_emps):
-            if i not in kpi_used and _names_match(entry['name'], ke.get('employee_name')):
-                entry['kpi'] = ke
-                kpi_used.add(i)
-                break
+        entry = {'name': be.get('name'), 'employee_id': _emp_id(be),
+                 'bonus': be, 'kpi': None, 'hours': None}
+        i = _find_match(entry, kpi_emps, kpi_used)
+        if i is not None:
+            entry['kpi'] = kpi_emps[i]
+            kpi_used.add(i)
         merged.append(entry)
 
     for i, ke in enumerate(kpi_emps):
         if i not in kpi_used:
-            merged.append({'name': ke.get('employee_name'), 'bonus': None,
-                           'kpi': ke, 'hours': None})
+            merged.append({'name': ke.get('employee_name'), 'employee_id': _emp_id(ke),
+                           'bonus': None, 'kpi': ke, 'hours': None})
 
     hours_used = set()
     for entry in merged:
-        for i, he in enumerate(hours_emps):
-            if i not in hours_used and _names_match(entry['name'], he.get('employee_name')):
-                entry['hours'] = he
-                hours_used.add(i)
-                break
+        i = _find_match(entry, hours_emps, hours_used)
+        if i is not None:
+            entry['hours'] = hours_emps[i]
+            hours_used.add(i)
     for i, he in enumerate(hours_emps):
         if i not in hours_used:
-            merged.append({'name': he.get('employee_name'), 'bonus': None,
-                           'kpi': None, 'hours': he})
+            merged.append({'name': he.get('employee_name'), 'employee_id': _emp_id(he),
+                           'bonus': None, 'kpi': None, 'hours': he})
     return merged
 
 
