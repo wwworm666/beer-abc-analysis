@@ -91,8 +91,9 @@ def test_formulas_are_live():
     assert _cell(grid, 10, 7)['userEnteredValue'] == {'formulaValue': '=G6*$E$10'}
     assert _cell(grid, 16, 7)['userEnteredValue'] == {'formulaValue': '=G5*$E$16'}
     assert _cell(grid, 19, 7)['userEnteredValue'] == {'formulaValue': '=G16+G17-G18'}
+    # ИТОГО с полным такси (расчёт + мосты), чтобы сходиться со страницей ЗП
     assert _cell(grid, 23, 7)['userEnteredValue'] == {
-        'formulaValue': '=SUM(G7:G15)-G20-G21-G22+G19'}
+        'formulaValue': '=SUM(G7:G15)-G20-G21-G22+G16+G17'}
     assert _cell(grid, 7, 8)['userEnteredValue'] == {'formulaValue': '=SUM(F7:G7)'}
 
 

@@ -183,8 +183,11 @@ def test_formulas_match_reference_shape():
     assert ws['E16'].value == TAXI_RATE_PER_SHIFT
     assert ws['G16'].value == '=G5*$E$16'        # такси = дневные смены x тариф
     assert ws['G19'].value == '=G16+G17-G18'     # разница = расчёт + мосты - оф.
-    assert ws['G23'].value == '=SUM(G7:G15)-G20-G21-G22+G19'   # как в эталоне
-    assert ws['F23'].value == '=SUM(F7:F15)-F20-F21-F22+F19'
+    # ИТОГО берёт такси ПОЛНОСТЬЮ (расчёт + мосты), а не разницу: сумма листа
+    # обязана совпадать со страницей ЗП (решение владельца 2026-08-07).
+    # «Такси оф.» и «разница» остались справочными строками бухгалтерии.
+    assert ws['G23'].value == '=SUM(G7:G15)-G20-G21-G22+G16+G17'
+    assert ws['F23'].value == '=SUM(F7:F15)-F20-F21-F22+F16+F17'
     assert ws['H7'].value == '=SUM(F7:G7)'       # колонка ИТОГО — SUM по строке
     assert ws['H23'].value == '=SUM(F23:G23)'
     # У счётчиков смен итога по строке нет (как в таблице бухгалтерии)
@@ -195,8 +198,11 @@ def test_formulas_match_reference_shape():
 def test_formulas_evaluate_to_page_numbers():
     """Формулы дают ровно те суммы, что показывает страница ЗП.
 
-    Юреня = 48 109 — число из эталонного файла бухгалтерии; это же значение
-    проверялось до перехода на формулы.
+    48 109 — число из эталонного файла бухгалтерии, где ИТОГО считалось от
+    такси-РАЗНИЦЫ. С 2026-08-07 итог берёт такси полностью, поэтому у Юрени
+    58 609 = 48 109 + 10 500 (та самая строка «Такси за смены оф.», из-за
+    которой лист и страница расходились). Сверка с сайтом важнее совпадения с
+    историческим файлом — это и есть решение владельца.
     """
     ws = _sheet()
     assert _eval(ws, 'G7') == 29100               # 97 x 300
@@ -204,21 +210,44 @@ def test_formulas_evaluate_to_page_numbers():
     assert _eval(ws, 'G10') == 5000               # премия = 10 оплаченных дней x 500
     assert _eval(ws, 'F10') == 3500               # 7 x 500
     assert _eval(ws, 'G16') == 11 * 700           # такси расчёт
+    # Справочные строки бухгалтерии живы и считаются по-прежнему
     assert _eval(ws, 'G19') == 7700 - 10500       # -2 800, как в эталоне
     assert _eval(ws, 'F19') == 5600 - 10500       # -4 900
-    assert _eval(ws, 'G23') == 48109              # ИТОГО Юреня
-    assert _eval(ws, 'F23') == 64497              # ИТОГО Верещагин
+    assert _eval(ws, 'G23') == 48109 + 10500      # ИТОГО Юреня — с полным такси
+    assert _eval(ws, 'F23') == 64497 + 10500      # ИТОГО Верещагин
     assert _eval(ws, 'H7') == 29100 + 28500
     assert _eval(ws, 'H19') == -2800 + -4900
-    assert _eval(ws, 'H23') == 48109 + 64497
+    assert _eval(ws, 'H23') == 48109 + 64497 + 2 * 10500
+
+
+def test_total_equals_page_sum():
+    """ИТОГО листа = сумма страницы ЗП: часы + такси + премии - штрафы.
+
+    Ровно эта сверка не сходилась у владельца: лист был меньше сайта на 10 500
+    у каждого (строка «Такси за смены оф.»). Считаем итог независимо от формул
+    листа — из тех же чисел, что показывает карточка сотрудника.
+    """
+    p = _payload()
+    ws = build_salary_workbook(p).active
+    for letter, emp in zip(('F', 'G'), sorted(p['employees'],
+                                              key=lambda e: e['name'].lower())):
+        page = (sum((emp.get('pay_by_role') or {}).values())
+                + emp['shifts_count'] * TAXI_RATE_PER_SHIFT
+                + emp['handover_bonus'] + emp['day_plan_bonus']
+                + sum(emp['kpi_premiums']) - emp['late_penalty']
+                + emp['adjustments'].get('extra_income', 0)
+                - emp['adjustments'].get('deduction_inventory', 0)
+                - emp['adjustments'].get('deduction_discipline', 0)
+                - emp['adjustments'].get('deduction_other', 0))
+        assert _eval(ws, f'{letter}23') == page, emp['name']
 
 
 def test_bridges_flow_into_totals():
-    """Вписанные бухгалтером «мосты» пересчитывают разницу и ИТОГО."""
+    """Вписанные бухгалтером «мосты» — доплата такси: идут и в разницу, и в ИТОГО."""
     ws = _sheet()
     ws['G17'] = 2100                             # мосты = 7 x 300, как в эталоне
     assert _eval(ws, 'G19') == 7700 + 2100 - 10500
-    assert _eval(ws, 'G23') == 48109 + 2100
+    assert _eval(ws, 'G23') == 48109 + 10500 + 2100
 
 
 def test_full_calc_on_load():
