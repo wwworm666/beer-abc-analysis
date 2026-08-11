@@ -5,7 +5,7 @@
 
 import { state } from '../core/state.js';
 import { calculatePlan, getAnalytics, getEmployeeBreakdown } from '../core/api.js';
-import { METRICS, METRIC_GROUPS } from '../core/config.js';
+import { METRICS, METRIC_GROUPS, HEADLINE_METRIC_IDS } from '../core/config.js';
 import { shiftPeriod } from '../core/period_model.js';
 import {
     formatValue,
@@ -263,10 +263,17 @@ class Analytics {
 
             const section = document.createElement('section');
             section.className = 'metric-group';
+            // Легенда шкал — одна на группу, а не подпись в каждой карточке:
+            // так на трек остаётся почти вся ширина карточки и сравнение читается.
+            // Скрыта, пока не догрузился предыдущий период (одна шкала легенды не требует).
             section.innerHTML = `
                 <div class="mg-separator">
                     <span class="mg-title">${group.name.toUpperCase()}</span>
                     <span class="mg-line"></span>
+                    <span class="mg-legend hidden">
+                        <span class="mg-legend-item"><span class="mg-swatch"></span>сейчас</span>
+                        <span class="mg-legend-item"><span class="mg-swatch mg-swatch-prev"></span>было</span>
+                    </span>
                 </div>
             `;
 
@@ -308,18 +315,20 @@ class Analytics {
             `;
         } else {
             const formattedDiff = formatValue(Math.abs(diff), metric.format);
+            // Цвет несёт ТОЛЬКО процент выполнения. Отклонение остаётся нейтральным:
+            // знак +/- уже показывает направление, а дублирование цвета на 16 карточках
+            // превращает экран в рябь из красного и зелёного.
             card.innerHTML = `
                 <span class="metric-name">${metric.name.toUpperCase()}</span>
                 <div class="metric-value">${formattedActual}</div>
                 <div class="mc-bars">
-                    <div class="mc-bar-row">
-                        <span class="mc-bar-label">СЕЙЧАС</span>
+                    <div class="mc-bar-row" title="Выполнение плана за выбранный период">
                         <span class="mc-track"><span class="mc-fill" style="width:${barWidth(percent)}%"></span></span>
                         <span class="mc-pct ${status}">${percent.toFixed(0)}%</span>
                     </div>
                 </div>
                 <div class="mc-footer">
-                    <span class="mc-delta ${status}">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
+                    <span class="mc-delta">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
                     <span class="mc-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
                 </div>
             `;
@@ -391,7 +400,7 @@ class Analytics {
         }
     }
 
-    /** Дорисовать шкалу «ПР. ПЕРИОД» в уже отрисованные карточки и строки. */
+    /** Дорисовать шкалу предыдущего периода в уже отрисованные карточки и строки. */
     applyPreviousPeriod(prevStats, prevPeriod) {
         const title = `Предыдущий период: ${prevPeriod.label}`;
 
@@ -408,11 +417,17 @@ class Analytics {
                 row.className = 'mc-bar-row mc-bar-row-prev';
                 row.title = title;
                 row.innerHTML = `
-                    <span class="mc-bar-label">ПР. ПЕРИОД</span>
                     <span class="mc-track"><span class="mc-fill mc-fill-prev" style="width:${barWidth(pct)}%"></span></span>
                     <span class="mc-pct mc-pct-prev">${pct.toFixed(0)}%</span>
                 `;
                 bars.appendChild(row);
+
+                // Легенда показывается только у той группы, где вторая шкала
+                // реально появилась: при отсутствии планов подпись «было» без
+                // единой серой шкалы вводила в заблуждение.
+                bars.closest('.metric-group')
+                    ?.querySelector('.mg-legend')
+                    ?.classList.remove('hidden');
             }
 
             // Мобильный: маленькая приписка «было N%» в строке метрики
@@ -439,25 +454,30 @@ class Analytics {
 
         root.appendChild(this.renderMobileSummary(stats));
 
-        const mainStats = stats.filter(s => s.metric.group === 'main');
-        if (mainStats.length) {
+        // «Главное» — метрики из HEADLINE_METRIC_IDS в порядке этого списка.
+        const headline = HEADLINE_METRIC_IDS
+            .map(id => stats.find(s => s.metric.id === id))
+            .filter(Boolean);
+
+        if (headline.length) {
             root.appendChild(this.sectionLabel('Главное'));
-            // Первая метрика группы (выручка) — крупной карточкой, остальные парой.
-            root.appendChild(this.renderMobileHero(mainStats[0]));
-            if (mainStats.length > 1) {
+            root.appendChild(this.renderMobileHero(headline[0]));
+            if (headline.length > 1) {
                 const duo = document.createElement('div');
                 duo.className = 'm-duo';
-                mainStats.slice(1).forEach(s => duo.appendChild(this.renderMobileCompact(s)));
+                headline.slice(1).forEach(s => duo.appendChild(this.renderMobileCompact(s)));
                 root.appendChild(duo);
             }
         }
 
-        const groups = METRIC_GROUPS.filter(g => g.collapsible);
-        const hasGroups = groups.some(g => stats.some(s => s.metric.group === g.id));
-        if (hasGroups) root.appendChild(this.sectionLabel('По направлениям'));
+        // Аккордеоны — те же группы, но БЕЗ метрик из «Главного», иначе они
+        // показывались бы дважды на одном экране.
+        const rest = stats.filter(s => !HEADLINE_METRIC_IDS.includes(s.metric.id));
+        const hasGroups = METRIC_GROUPS.some(g => rest.some(s => s.metric.group === g.id));
+        if (hasGroups) root.appendChild(this.sectionLabel('Показатели'));
 
-        groups.forEach(group => {
-            const groupStats = stats.filter(s => s.metric.group === group.id);
+        METRIC_GROUPS.forEach(group => {
+            const groupStats = rest.filter(s => s.metric.group === group.id);
             if (groupStats.length) root.appendChild(this.renderMobileGroup(group, groupStats));
         });
 
@@ -541,16 +561,16 @@ class Analytics {
             <div class="m-hero-row">
                 <span class="m-hero-value">${formatValue(actualValue, metric.format)}</span>
                 ${hasPlan
-                    ? `<span class="m-delta ${status}">${diff >= 0 ? '+' : '−'}${formatValue(Math.abs(diff), metric.format)}</span>`
+                    ? `<span class="m-delta">${diff >= 0 ? '+' : '−'}${formatValue(Math.abs(diff), metric.format)}</span>`
                     : ''}
             </div>
             ${hasPlan ? `
                 <div class="m-track"><span class="m-fill" style="width:${barWidth(percent)}%"></span></div>
                 <div class="m-card-foot">
                     <span class="m-pct">${percent.toFixed(0)}% плана</span>
+                    <span class="m-prev hidden"></span>
                     <span class="m-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
                 </div>
-                <span class="m-prev hidden"></span>
             ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
         `;
         return el;
@@ -600,7 +620,7 @@ class Analytics {
         head.className = 'm-group-head';
         head.setAttribute('aria-expanded', 'false');
         head.innerHTML = `
-            <span class="m-group-name">${group.mobileName.toUpperCase()}</span>
+            <span class="m-group-name">${group.name.toUpperCase()}</span>
             <span class="m-group-count">${groupStats.length} ${this.pluralMetrics(groupStats.length)}</span>
             <span class="m-group-pct ${status}">${withPlan.length ? avg.toFixed(0) + '%' : '—'}</span>
             ${CHEVRON_SVG}

@@ -4,22 +4,30 @@
  */
 
 /**
- * Группы метрик (редизайн 2026-08-11).
+ * Группы метрик — по ТИПУ показателя, ровно 4 группы по 4 метрики.
  *
- * Одна группировка на оба экрана: на десктопе группа = разделитель с названием
- * над сеткой карточек, на мобильном = свёрнутая строка-аккордеон.
+ * Почему по типу, а не по направлению (розлив/фасовка/кухня): 16 метрик делятся
+ * на 4x4 без остатка, поэтому в сетке из 4 колонок каждая строка заполнена
+ * целиком — при группировке по направлению группы были по 3 метрики и справа
+ * оставалась пустая четверть ряда. Побочная выгода: один тип показателя по всем
+ * направлениям стоит в одном ряду, и розлив/фасовка/кухня сравниваются глазом.
+ *
  * Порядок массива = порядок на экране.
- *
- * 'main' — три метрики, отвечающие на вопрос «как идёт период»: на мобильном они
- * показаны крупно и не сворачиваются.
+ * Одна группировка на оба экрана; на мобильном группа = строка-аккордеон.
  */
 export const METRIC_GROUPS = [
-    { id: 'main',     name: 'Итого',   mobileName: 'Главное', collapsible: false },
-    { id: 'draft',    name: 'Розлив',  mobileName: 'Розлив',  collapsible: true },
-    { id: 'packaged', name: 'Фасовка', mobileName: 'Фасовка', collapsible: true },
-    { id: 'kitchen',  name: 'Кухня',   mobileName: 'Кухня',   collapsible: true },
-    { id: 'other',    name: 'Прочее',  mobileName: 'Прочее',  collapsible: true }
+    { id: 'revenue',    name: 'Выручка' },
+    { id: 'operations', name: 'Чек и прибыль' },
+    { id: 'structure',  name: 'Структура' },
+    { id: 'markup',     name: 'Наценка' }
 ];
+
+/**
+ * Метрики, отвечающие на вопрос «как идёт период».
+ * На мобильном рисуются крупно в блоке «Главное» и исключаются из аккордеонов,
+ * чтобы не дублироваться. На десктопе живут в своих группах как обычные карточки.
+ */
+export const HEADLINE_METRIC_IDS = ['revenue', 'checks', 'averageCheck'];
 
 // Конфигурация метрик (16 показателей).
 // group — к какой группе относится метрика (см. METRIC_GROUPS).
@@ -27,7 +35,7 @@ export const METRICS = [
     {
         id: 'revenue',
         name: 'Выручка',
-        group: 'main',
+        group: 'revenue',
         planKey: 'revenue',
         actualKey: 'revenue',  // ИСПРАВЛЕНО: было total_revenue
         unit: '₽',
@@ -36,7 +44,7 @@ export const METRICS = [
     {
         id: 'checks',
         name: 'Чеки',
-        group: 'main',
+        group: 'operations',
         planKey: 'checks',
         actualKey: 'checks',  // ИСПРАВЛЕНО: было total_checks
         unit: 'шт',
@@ -45,16 +53,26 @@ export const METRICS = [
     {
         id: 'averageCheck',
         name: 'Средний чек',
-        group: 'main',
+        group: 'operations',
         planKey: 'averageCheck',
         actualKey: 'averageCheck',  // ИСПРАВЛЕНО: было avg_check
         unit: '₽',
         format: 'money'
     },
     {
+        // Итог группы идёт первым — как «Выручка» в группе выручки.
+        id: 'markupPercent',
+        name: '% наценки',
+        group: 'markup',
+        planKey: 'markupPercent',
+        actualKey: 'markupPercent',  // ИСПРАВЛЕНО: было avg_markup
+        unit: '%',
+        format: 'percent'
+    },
+    {
         id: 'draftShare',
         name: 'Доля розлива',
-        group: 'draft',
+        group: 'structure',
         planKey: 'draftShare',
         actualKey: 'draftShare',  // ИСПРАВЛЕНО: было draft_share
         unit: '%',
@@ -63,7 +81,7 @@ export const METRICS = [
     {
         id: 'revenueDraft',
         name: 'Выручка розлив',
-        group: 'draft',
+        group: 'revenue',
         planKey: 'revenueDraft',
         actualKey: 'revenueDraft',  // ИСПРАВЛЕНО: было draft_revenue
         unit: '₽',
@@ -72,7 +90,7 @@ export const METRICS = [
     {
         id: 'markupDraft',
         name: 'Наценка розлив',
-        group: 'draft',
+        group: 'markup',
         planKey: 'markupDraft',
         actualKey: 'markupDraft',  // ИСПРАВЛЕНО: было draft_markup
         unit: '%',
@@ -81,7 +99,7 @@ export const METRICS = [
     {
         id: 'packagedShare',
         name: 'Доля фасовки',
-        group: 'packaged',
+        group: 'structure',
         planKey: 'packagedShare',
         actualKey: 'packagedShare',  // ИСПРАВЛЕНО: было bottles_share
         unit: '%',
@@ -90,7 +108,7 @@ export const METRICS = [
     {
         id: 'revenuePackaged',
         name: 'Выручка фасовка',
-        group: 'packaged',
+        group: 'revenue',
         planKey: 'revenuePackaged',
         actualKey: 'revenuePackaged',  // ИСПРАВЛЕНО: было bottles_revenue
         unit: '₽',
@@ -99,7 +117,7 @@ export const METRICS = [
     {
         id: 'markupPackaged',
         name: 'Наценка фасовка',
-        group: 'packaged',
+        group: 'markup',
         planKey: 'markupPackaged',
         actualKey: 'markupPackaged',  // ИСПРАВЛЕНО: было bottles_markup
         unit: '%',
@@ -108,7 +126,7 @@ export const METRICS = [
     {
         id: 'kitchenShare',
         name: 'Доля кухни',
-        group: 'kitchen',
+        group: 'structure',
         planKey: 'kitchenShare',
         actualKey: 'kitchenShare',  // ИСПРАВЛЕНО: было kitchen_share
         unit: '%',
@@ -117,7 +135,7 @@ export const METRICS = [
     {
         id: 'revenueKitchen',
         name: 'Выручка кухня',
-        group: 'kitchen',
+        group: 'revenue',
         planKey: 'revenueKitchen',
         actualKey: 'revenueKitchen',  // ИСПРАВЛЕНО: было kitchen_revenue
         unit: '₽',
@@ -126,25 +144,16 @@ export const METRICS = [
     {
         id: 'markupKitchen',
         name: 'Наценка кухня',
-        group: 'kitchen',
+        group: 'markup',
         planKey: 'markupKitchen',
         actualKey: 'markupKitchen',  // ИСПРАВЛЕНО: было kitchen_markup
         unit: '%',
         format: 'percent'
     },
     {
-        id: 'markupPercent',
-        name: '% наценки',
-        group: 'other',
-        planKey: 'markupPercent',
-        actualKey: 'markupPercent',  // ИСПРАВЛЕНО: было avg_markup
-        unit: '%',
-        format: 'percent'
-    },
-    {
         id: 'profit',
         name: 'Прибыль',
-        group: 'other',
+        group: 'operations',
         planKey: 'profit',
         actualKey: 'profit',  // ИСПРАВЛЕНО: было total_margin
         unit: '₽',
@@ -153,7 +162,7 @@ export const METRICS = [
     {
         id: 'loyaltyWriteoffs',
         name: 'Списания баллов',
-        group: 'other',
+        group: 'operations',
         planKey: 'loyaltyWriteoffs',
         actualKey: 'loyaltyWriteoffs',  // ИСПРАВЛЕНО: было loyalty_points_written_off
         unit: '₽',
@@ -162,7 +171,7 @@ export const METRICS = [
     {
         id: 'tapActivity',
         name: 'Активность кранов',
-        group: 'other',
+        group: 'structure',
         planKey: 'tapActivity',
         actualKey: 'tapActivity',
         unit: '%',

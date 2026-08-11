@@ -49,6 +49,38 @@
     background: var(--border-color);
 }
 
+/* Легенда шкал — одна на группу вместо подписи в каждой карточке.
+   Так на трек остаётся почти вся ширина карточки. */
+.mg-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: none;
+}
+
+.mg-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-family);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+.mg-swatch {
+    width: 14px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+}
+
+.mg-swatch-prev {
+    background: var(--bar-prev);
+}
+
+/* Каждая группа — ровно 4 метрики, поэтому 4 колонки заполняются целиком
+   и справа не остаётся пустой четверти ряда. */
 .metrics-grid-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -56,13 +88,7 @@
     align-items: start;
 }
 
-@media (max-width: 1400px) {
-    .metrics-grid-row {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-@media (max-width: 1024px) {
+@media (max-width: 1100px) {
     .metrics-grid-row {
         grid-template-columns: repeat(2, 1fr);
     }
@@ -183,19 +209,9 @@
     gap: 10px;
 }
 
-.mc-bar-label {
-    width: 68px;
-    flex: none;
-    font-family: var(--font-family);
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    color: var(--text-tertiary);
-    white-space: nowrap;
-}
-
 .mc-track {
     flex: 1;
+    min-width: 0;
     height: 6px;
     background: var(--bg-tertiary);
     border-radius: 999px;
@@ -252,26 +268,31 @@
 .mc-footer {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    gap: 8px;
+    align-items: baseline;
+    gap: 10px;
     margin-top: 14px;
     font-family: var(--font-family);
     font-size: 11.5px;
 }
 
+/* Отклонение нейтральное: цветом статус сообщает только процент выполнения,
+   а знак +/- и так показывает направление. Иначе на 16 карточках экран рябит. */
 .mc-delta {
     font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
 }
 
-.mc-delta.success { color: var(--success); }
-.mc-delta.warning { color: var(--warning); }
-.mc-delta.danger  { color: var(--danger); }
-.mc-delta.neutral { color: var(--text-tertiary); }
-
+/* План может быть длинным («план 416 250 ₽») — ему разрешено сжиматься
+   с многоточием, иначе он вылезал за край узкой карточки. */
 .mc-plan,
 .mc-noplan {
-    color: var(--text-tertiary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: right;
+    color: var(--text-tertiary);
 }
 
 /* ============================================================
@@ -356,17 +377,15 @@
     color: var(--text-tertiary);
 }
 
+/* Нейтральное, как на десктопе: статус на мобильной карточке несёт точка,
+   дублировать его ещё и цветом отклонения незачем. */
 .m-delta {
     font-family: var(--font-family);
     font-size: 12.5px;
     font-weight: 600;
+    color: var(--text-secondary);
     white-space: nowrap;
 }
-
-.m-delta.success { color: var(--success); }
-.m-delta.warning { color: var(--warning); }
-.m-delta.danger  { color: var(--danger); }
-.m-delta.neutral { color: var(--text-tertiary); }
 
 /* --- Сводка «Выполнение плана» --- */
 
@@ -759,12 +778,16 @@
     cursor: pointer;
 }
 
+/* Каретка раскрытия — в правом ВЕРХНЕМ углу: снизу она налезала на подвал
+   карточки («план 416 250 ₽» / «План не задан»). Место сверху освободилось,
+   когда с десктопных карточек убрали точку статуса. */
 .metric-card.expandable::after {
     content: '▼';
     position: absolute;
-    bottom: 16px;
+    top: 16px;
     right: 16px;
-    font-size: 10px;
+    font-size: 9px;
+    line-height: 1;
     color: var(--border-color);
     transition: transform 0.2s ease;
 }

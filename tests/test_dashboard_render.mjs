@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { METRICS, METRIC_GROUPS } from '../static/js/dashboard/core/config.js';
+import { METRICS, METRIC_GROUPS, HEADLINE_METRIC_IDS } from '../static/js/dashboard/core/config.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -56,36 +56,39 @@ test('в каждой группе есть метрики', () => {
     }
 });
 
-test('раскладка групп совпадает с макетом: 3/3/3/3/4', () => {
+test('ровно 4 группы по 4 метрики — 4-колоночная сетка заполняется целиком', () => {
+    assert.equal(METRIC_GROUPS.length, 4);
     const counts = METRIC_GROUPS.map(g => METRICS.filter(m => m.group === g.id).length);
-    assert.deepEqual(counts, [3, 3, 3, 3, 4]);
+    assert.deepEqual(counts, [4, 4, 4, 4]);
 });
 
-test('в «Главном» именно выручка, чеки и средний чек', () => {
-    const ids = METRICS.filter(m => m.group === 'main').map(m => m.id);
-    assert.deepEqual(ids, ['revenue', 'checks', 'averageCheck']);
-    // Выручка идёт первой: на мобильном она рисуется крупной карточкой.
-    assert.equal(ids[0], 'revenue');
+test('итог группы идёт первым', () => {
+    // «Выручка» открывает группу выручки, «% наценки» — группу наценки:
+    // сначала общий показатель, потом разбивка по направлениям.
+    const first = (id) => METRICS.filter(m => m.group === id)[0].id;
+    assert.equal(first('revenue'), 'revenue');
+    assert.equal(first('markup'), 'markupPercent');
 });
 
-test('группа направления = доля + выручка + наценка', () => {
-    for (const g of ['draft', 'packaged', 'kitchen']) {
-        const ids = METRICS.filter(m => m.group === g).map(m => m.id);
-        assert.equal(ids.length, 3, g);
-        assert.ok(ids.some(id => id.includes('Share')), `${g}: нет доли`);
-        assert.ok(ids.some(id => id.startsWith('revenue')), `${g}: нет выручки`);
-        assert.ok(ids.some(id => id.startsWith('markup')), `${g}: нет наценки`);
+test('группа выручки и наценки покрывают все три направления', () => {
+    for (const g of ['revenue', 'markup']) {
+        const ids = METRICS.filter(m => m.group === g).map(m => m.id).join(' ');
+        for (const dir of ['Draft', 'Packaged', 'Kitchen']) {
+            assert.ok(ids.includes(dir), `${g}: нет ${dir}`);
+        }
+    }
+});
+
+test('«Главное» — выручка, чеки, средний чек и все они существуют', () => {
+    assert.deepEqual(HEADLINE_METRIC_IDS, ['revenue', 'checks', 'averageCheck']);
+    for (const id of HEADLINE_METRIC_IDS) {
+        assert.ok(METRICS.some(m => m.id === id), `нет метрики ${id}`);
     }
 });
 
 test('id метрик уникальны', () => {
     const ids = METRICS.map(m => m.id);
     assert.equal(new Set(ids).size, ids.length);
-});
-
-test('только «Главное» не сворачивается', () => {
-    const notCollapsible = METRIC_GROUPS.filter(g => !g.collapsible).map(g => g.id);
-    assert.deepEqual(notCollapsible, ['main']);
 });
 
 console.log('\n--- покрытие стилями ---');
@@ -105,12 +108,13 @@ const CSS = [
 const REDESIGN_CLASSES = [
     // единая панель периода
     'period-bar', 'period-granularity', 'pg-btn', 'period-nav', 'pn-arrow',
-    'pn-current', 'pn-label', 'pn-sub', 'pn-today', 'pn-calendar',
-    'period-picker-anchor', 'period-warning', 'control-group-period',
+    'pn-current', 'pn-label', 'pn-sub', 'pn-today',
+    'period-picker-anchor', 'period-warning', 'control-group-period', 'control-group-venue',
     // десктопные группы и карточка
     'mv-desktop', 'metric-group', 'mg-separator', 'mg-title', 'mg-line',
     'metrics-grid-row', 'metric-card', 'metric-name', 'metric-value',
-    'mc-bars', 'mc-bar-row', 'mc-bar-row-prev', 'mc-bar-label', 'mc-track',
+    'mg-legend', 'mg-legend-item', 'mg-swatch', 'mg-swatch-prev',
+    'mc-bars', 'mc-bar-row', 'mc-bar-row-prev', 'mc-track',
     'mc-fill', 'mc-fill-prev', 'mc-pct', 'mc-pct-prev', 'mc-footer',
     'mc-delta', 'mc-plan', 'mc-noplan',
     // мобильный экран
@@ -122,7 +126,7 @@ const REDESIGN_CLASSES = [
     'm-group', 'm-group-head', 'm-group-name', 'm-group-count', 'm-group-pct',
     'm-group-body', 'm-row', 'm-row-top', 'm-row-name', 'm-row-value',
     // нижняя таб-панель
-    'bottom-tabs', 'bt-item'
+    'bottom-tabs', 'bt-item', 'export-btn-text'
 ];
 
 test('каждый класс редизайна описан в CSS', () => {
@@ -131,7 +135,7 @@ test('каждый класс редизайна описан в CSS', () => {
 });
 
 test('статусные модификаторы покрыты для процентов и точек', () => {
-    for (const base of ['mc-pct', 'm-pct', 'm-dot', 'm-group-pct', 'mc-delta']) {
+    for (const base of ['mc-pct', 'm-pct', 'm-dot', 'm-group-pct']) {
         for (const st of ['success', 'warning', 'danger']) {
             assert.ok(CSS.includes(`.${base}.${st}`), `нет .${base}.${st}`);
         }

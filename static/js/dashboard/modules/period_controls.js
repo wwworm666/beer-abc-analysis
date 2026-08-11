@@ -58,13 +58,6 @@ const TAB_GRANULARITIES = {
 
 const HIDDEN_TABS = ['tab-comparison'];
 
-/**
- * Ниже этой ширины панель складывается: видна только подпись периода со стрелками,
- * а кнопки гранулярности и «Сегодня» разворачиваются по тапу на подпись.
- * Значение совпадает с брейкпоинтом mobile.css.
- */
-const MOBILE_MAX_WIDTH = 768;
-
 const DISABLED_HINT = {
     'tab-plans': 'Планы задаются на месяц — день и неделя недоступны'
 };
@@ -103,7 +96,6 @@ class PeriodControls {
         this.btnPrev = document.getElementById('period-prev');
         this.btnNext = document.getElementById('period-next');
         this.btnToday = document.getElementById('period-today');
-        this.btnCalendar = document.getElementById('period-calendar');
         this.btnCurrent = document.getElementById('period-current');
         this.labelEl = document.getElementById('period-label');
         this.subLabelEl = document.getElementById('period-sublabel');
@@ -117,25 +109,18 @@ class PeriodControls {
                 if (btn.disabled) return;
                 const g = btn.getAttribute('data-granularity');
                 this.setPeriod(changeGranularity(this.viewPeriod(), g), { immediate: true });
-                // На мобильном выбор сделан — складываем панель обратно.
-                if (this.isMobile()) this.bar.classList.remove('open');
             });
         });
 
         this.btnPrev?.addEventListener('click', () => this.navigate(-1));
         this.btnNext?.addEventListener('click', () => this.navigate(1));
         this.btnToday?.addEventListener('click', () => this.goToCurrent());
-        this.btnCalendar?.addEventListener('click', () => this.openPicker());
 
-        // Тап по подписи: на десктопе открывает календарь, на телефоне разворачивает
-        // панель (кнопки гранулярности там спрятаны, чтобы шапка не занимала полэкрана).
-        this.btnCurrent?.addEventListener('click', () => {
-            if (this.isMobile()) {
-                this.bar.classList.toggle('open');
-            } else {
-                this.openPicker();
-            }
-        });
+        // Клик по подписи открывает календарь — одинаково на десктопе и телефоне.
+        // Раньше на телефоне тот же клик разворачивал спрятанные кнопки
+        // гранулярности: про этот тап неоткуда было узнать, и сменить
+        // день/неделю/месяц/год на телефоне было нельзя. Теперь кнопки видны всегда.
+        this.btnCurrent?.addEventListener('click', () => this.openPicker());
 
         // Клавиши: стрелки листают, Home возвращает к текущему периоду.
         // Игнорируем, когда пользователь печатает в поле или панель скрыта.
@@ -176,11 +161,6 @@ class PeriodControls {
     // ============================================================
     // Период: чтение и запись
     // ============================================================
-
-    /** Узкий экран: панель работает в свёрнутом режиме. */
-    isMobile() {
-        return window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`).matches;
-    }
 
     /** Период, который панель СЕЙЧАС показывает (с учётом ещё не применённого). */
     viewPeriod() {

@@ -9,18 +9,23 @@
     <!-- Dashboard Controls - Единый блок управления -->
     <div class="dashboard-controls">
         <div class="controls-row">
-            <!-- Venue Selector -->
-            <div class="control-group">
+            <!-- Бар -->
+            <div class="control-group control-group-venue">
                 <label for="venue-selector">Бар</label>
                 <select id="venue-selector" class="control-input">
                     <option value="">Загрузка...</option>
                 </select>
             </div>
 
-            <!-- Единая панель периода: гранулярность + стрелки + подпись + календарь.
+            <!-- Единая панель периода: гранулярность + стрелки + подпись.
                  Одна на все вкладки; неприменимые гранулярности гасятся из JS
                  (на «Планах» планы хранятся помесячно, день/неделя там не к чему
-                 привязать). Разметку наполняет modules/period_controls.js. -->
+                 привязать). Состояние наполняет modules/period_controls.js.
+
+                 ВАЖНО: на десктопе панель обязана быть ОДНОЙ строкой той же высоты,
+                 что селектор бара — иначе .controls-row { align-items: flex-end }
+                 разъедет подписи «Бар» и «Период» по разным уровням. Поэтому
+                 бейдж незавершённого периода лежит ВНУТРИ строки, а не под ней. -->
             <div class="control-group control-group-period" id="cg-period">
                 <label id="period-bar-label">Период</label>
                 <div class="period-bar" id="period-bar">
@@ -48,36 +53,33 @@
                                 aria-label="Следующий период" title="Следующий период (стрелка вправо)">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                         </button>
-
                     </div>
 
                     <button type="button" class="pn-today" id="period-today"
                             title="Перейти к текущему периоду (Home)">Сегодня</button>
 
-                    <!-- Только мобильный: на телефоне подпись периода разворачивает
-                         панель, поэтому календарь нужен отдельной кнопкой. -->
-                    <button type="button" class="pn-calendar" id="period-calendar">Календарь</button>
+                    <!-- Бейдж незавершённого периода: «прошло 3 из 7 дней». -->
+                    <span class="period-warning hidden" id="period-warning"></span>
 
                     <!-- Якорь календаря: Flatpickr вешается на этот input.
                          Скрыт визуально, открывается кликом по подписи периода. -->
                     <input type="text" id="flexi-range-picker" class="period-picker-anchor"
                            tabindex="-1" aria-hidden="true" readonly>
                 </div>
-                <!-- Бейдж незавершённого периода: «прошло 3 из 7 дней». -->
-                <div class="period-warning hidden" id="period-warning"></div>
             </div>
 
-            <!-- Export Buttons -->
+            <!-- Экспорт. На телефоне подписи скрываются и остаются круглые иконки,
+                 чтобы не отжимать основной контрол — период. -->
             <div class="control-group control-group-button">
                 <label>&nbsp;</label>
                 <div class="export-btn-group">
-                    <button id="btn-export-excel" class="btn btn-secondary export-btn" title="Экспорт в Excel">
+                    <button id="btn-export-excel" class="btn btn-secondary export-btn" title="Экспорт в Excel" aria-label="Экспорт в Excel">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-                        Excel
+                        <span class="export-btn-text">Excel</span>
                     </button>
-                    <button id="btn-export-pdf" class="btn btn-secondary export-btn" title="Экспорт в PDF">
+                    <button id="btn-export-pdf" class="btn btn-secondary export-btn" title="Экспорт в PDF" aria-label="Экспорт в PDF">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                        PDF
+                        <span class="export-btn-text">PDF</span>
                     </button>
                 </div>
             </div>
