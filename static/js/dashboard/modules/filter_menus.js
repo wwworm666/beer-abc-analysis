@@ -25,6 +25,7 @@ class FilterMenus {
         this.select = document.getElementById('venue-selector');
         this.trigger = document.getElementById('venue-trigger');
         this.triggerName = document.getElementById('venue-trigger-name');
+        this.triggerHint = document.getElementById('venue-trigger-hint');
         this.menu = document.getElementById('venue-menu');
         this.optionList = document.getElementById('venue-option-list');
         this.backdrop = document.getElementById('fb-backdrop');
@@ -76,13 +77,20 @@ class FilterMenus {
         });
     }
 
-    /** Подпись на кнопке = текст выбранной опции скрытого select. */
+    /**
+     * Подпись на кнопке = текст выбранной опции скрытого select.
+     * Уточнение в скобках выносим мелким серым рядом: «Все заведения» + «сводно»
+     * (макет 7a) — так крупным остаётся только название.
+     */
     syncVenue() {
         if (!this.select || !this.triggerName) return;
         const opt = this.select.selectedOptions[0];
-        if (opt && opt.textContent.trim()) {
-            this.triggerName.textContent = opt.textContent.trim();
-        }
+        const text = opt && opt.textContent.trim();
+        if (!text) return;
+
+        const m = text.match(/^(.*?)\s*\(([^)]*)\)\s*$/);
+        this.triggerName.textContent = m ? m[1] : text;
+        if (this.triggerHint) this.triggerHint.textContent = m ? m[2] : '';
     }
 
     renderOptions() {

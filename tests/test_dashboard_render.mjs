@@ -117,7 +117,10 @@ const REDESIGN_CLASSES = [
     // десктопные группы и карточка
     'mv-desktop', 'metric-group', 'mg-separator', 'mg-title', 'mg-line',
     'metrics-grid-row', 'metric-card', 'metric-name', 'metric-value',
-    'mg-legend', 'mg-legend-item', 'mg-swatch', 'mg-swatch-prev',
+    'mc-head', 'mc-caret',
+    // легенда шкал — одна на страницу, в строке вкладок
+    'tabs-legend', 'tl-item', 'tl-swatch', 'tl-swatch-prev', 'tabs-divider',
+    'tabs-spacer', 'completion-label', 'completion-value',
     'mc-bars', 'mc-bar-row', 'mc-bar-row-prev', 'mc-track',
     'mc-fill', 'mc-fill-prev', 'mc-pct', 'mc-pct-prev', 'mc-footer',
     'mc-delta', 'mc-plan', 'mc-noplan',
@@ -183,6 +186,15 @@ test('шапка фильтров: один контрол, без сегмен�
                         'dashboard-controls', 'control-group-period']) {
         assert.ok(!html.includes(gone), `в разметке осталось «${gone}»`);
     }
+});
+
+test('легенда шкал стоит один раз — в строке вкладок', () => {
+    const html = read('templates/dashboard/base.html');
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(html.includes('id="tabs-legend"'), 'нет легенды в строке вкладок');
+    // Заголовок группы — только название и линия (макет 7a).
+    assert.ok(!js.includes('mg-legend'), 'легенда осталась в заголовке группы');
+    assert.ok(js.includes('tabs-legend'), 'JS не показывает легенду в строке вкладок');
 });
 
 test('в разметке дашборда нет эмодзи', () => {

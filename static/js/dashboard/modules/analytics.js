@@ -263,17 +263,12 @@ class Analytics {
 
             const section = document.createElement('section');
             section.className = 'metric-group';
-            // Легенда шкал — одна на группу, а не подпись в каждой карточке:
-            // так на трек остаётся почти вся ширина карточки и сравнение читается.
-            // Скрыта, пока не догрузился предыдущий период (одна шкала легенды не требует).
+            // Заголовок группы — только название и линия (макет 7a).
+            // Легенда шкал стоит один раз на страницу, в строке вкладок.
             section.innerHTML = `
                 <div class="mg-separator">
                     <span class="mg-title">${group.name.toUpperCase()}</span>
                     <span class="mg-line"></span>
-                    <span class="mg-legend hidden">
-                        <span class="mg-legend-item"><span class="mg-swatch"></span>сейчас</span>
-                        <span class="mg-legend-item"><span class="mg-swatch mg-swatch-prev"></span>было</span>
-                    </span>
                 </div>
             `;
 
@@ -304,10 +299,17 @@ class Analytics {
         card.setAttribute('data-metric-id', metric.id);
 
         const formattedActual = formatValue(actualValue, metric.format);
+        // Каретка раскрытия — в строке заголовка, справа (макет 7a). Раньше она
+        // висела абсолютом и налезала на подвал карточки.
+        const caret = EXPANDABLE_METRICS.includes(metric.id)
+            ? '<span class="mc-caret" aria-hidden="true">&#9662;</span>' : '';
 
         if (!hasPlan) {
             card.innerHTML = `
-                <span class="metric-name">${metric.name.toUpperCase()}</span>
+                <div class="mc-head">
+                    <span class="metric-name">${metric.name.toUpperCase()}</span>
+                    ${caret}
+                </div>
                 <div class="metric-value">${formattedActual}</div>
                 <div class="mc-footer">
                     <span class="mc-noplan">План не задан</span>
@@ -315,11 +317,13 @@ class Analytics {
             `;
         } else {
             const formattedDiff = formatValue(Math.abs(diff), metric.format);
-            // Цвет несёт ТОЛЬКО процент выполнения. Отклонение остаётся нейтральным:
-            // знак +/- уже показывает направление, а дублирование цвета на 16 карточках
-            // превращает экран в рябь из красного и зелёного.
+            // Процент выполнения окрашен по статусу плана, отклонение — по знаку
+            // (макет 7a): плюс зелёный, минус красный.
             card.innerHTML = `
-                <span class="metric-name">${metric.name.toUpperCase()}</span>
+                <div class="mc-head">
+                    <span class="metric-name">${metric.name.toUpperCase()}</span>
+                    ${caret}
+                </div>
                 <div class="metric-value">${formattedActual}</div>
                 <div class="mc-bars">
                     <div class="mc-bar-row" title="Выполнение плана за выбранный период">
@@ -328,7 +332,7 @@ class Analytics {
                     </div>
                 </div>
                 <div class="mc-footer">
-                    <span class="mc-delta">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
+                    <span class="mc-delta ${diff >= 0 ? 'positive' : 'negative'}">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
                     <span class="mc-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
                 </div>
             `;
@@ -422,12 +426,10 @@ class Analytics {
                 `;
                 bars.appendChild(row);
 
-                // Легенда показывается только у той группы, где вторая шкала
-                // реально появилась: при отсутствии планов подпись «было» без
-                // единой серой шкалы вводила в заблуждение.
-                bars.closest('.metric-group')
-                    ?.querySelector('.mg-legend')
-                    ?.classList.remove('hidden');
+                // Легенда — одна на страницу (в строке вкладок). Показываем её,
+                // когда вторая шкала реально появилась: без серых шкал подпись
+                // «было» вводила бы в заблуждение.
+                document.getElementById('tabs-legend')?.classList.remove('hidden');
             }
 
             // Мобильный: маленькая приписка «было N%» в строке метрики

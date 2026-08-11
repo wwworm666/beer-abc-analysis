@@ -21,6 +21,7 @@
                 aria-haspopup="listbox" aria-expanded="false">
             <svg class="fb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-5h4v5"/></svg>
             <span class="fb-strong" id="venue-trigger-name">Все заведения</span>
+            <span class="fb-hint" id="venue-trigger-hint"></span>
             <svg class="fb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <select id="venue-selector" class="fb-native-select" aria-hidden="true" tabindex="-1">
@@ -134,7 +135,20 @@
                     Графики
                 </button>
             </div>
+
+            <span class="tabs-spacer"></span>
+
+            <!-- Легенда шкал стоит ОДИН раз на страницу (макет 7a), а не в каждом
+                 заголовке группы. Скрыта, пока не догрузился предыдущий период. -->
+            <div class="tabs-legend hidden" id="tabs-legend">
+                <span class="tl-item"><span class="tl-swatch"></span>сейчас</span>
+                <span class="tl-item"><span class="tl-swatch tl-swatch-prev"></span>было</span>
+            </div>
+
+            <span class="tabs-divider"></span>
+
             <div class="completion-badge" id="completion-badge">
+                <span class="completion-label">выполнение плана</span>
                 <span class="completion-value" id="stat-avg-completion">—</span>
             </div>
         </div>

@@ -194,28 +194,31 @@
    HEADER BAR - Единая горизонтальная полоса
    ============================================ */
 
+/* Шапка страницы — панель того же уровня, что шапка фильтров и строка вкладок:
+   радиус 14px, высота 76px (макет 7a). */
 .header-bar {
     display: flex;
     align-items: center;
     gap: 16px;
-    margin-bottom: 32px;
-    padding: 16px 24px;
+    height: 76px;
+    margin-bottom: 14px;
+    padding: 0 22px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
+    border-radius: 14px;
     box-shadow: var(--shadow-sm);
 }
 
 /* Menu button — заметная кнопка с акцентом */
 .header-bar-menu {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--accent);
     border: none;
-    border-radius: 16px;
+    border-radius: 10px;
     cursor: pointer;
     color: white;
     transition: all var(--transition-fast);
@@ -247,21 +250,27 @@
 }
 
 .header-bar-page {
-    font-size: 1.3rem;
+    font-size: 19px;
     font-weight: 700;
     color: var(--text-primary);
-    letter-spacing: 0.01em;
+    letter-spacing: -0.02em;
     white-space: nowrap;
 }
 
+/* Разделитель — вертикальная линия, а не слэш (макет 7a). */
 .header-bar-sep {
-    color: var(--border-color);
-    font-size: 1.1rem;
-    font-weight: 300;
+    width: 1px;
+    height: 20px;
+    align-self: center;
+    background: var(--border-color);
+    color: transparent;
+    overflow: hidden;
+    flex: none;
 }
 
 .header-bar-sub {
-    font-size: 0.85rem;
+    font-size: 13px;
+    letter-spacing: -0.01em;
     color: var(--text-tertiary);
     font-weight: 400;
     white-space: nowrap;
@@ -275,10 +284,10 @@
     align-items: center;
     gap: 0;
     font-family: var(--font-family);
-    font-size: 1.65rem;
-    font-weight: 500;
+    font-size: 19px;
+    font-weight: 700;
     text-decoration: none;
-    letter-spacing: 0.5px;
+    letter-spacing: -0.02em;
     line-height: 1;
     color: var(--text-primary);
     transition: opacity 0.2s;

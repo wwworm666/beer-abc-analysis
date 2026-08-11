@@ -31,14 +31,14 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .mg-title {
     font-family: var(--font-family);
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     color: var(--text-secondary);
     white-space: nowrap;
 }
@@ -47,36 +47,6 @@
     flex: 1;
     height: 1px;
     background: var(--border-color);
-}
-
-/* Легенда шкал — одна на группу вместо подписи в каждой карточке.
-   Так на трек остаётся почти вся ширина карточки. */
-.mg-legend {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex: none;
-}
-
-.mg-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--font-family);
-    font-size: 10px;
-    color: var(--text-tertiary);
-    white-space: nowrap;
-}
-
-.mg-swatch {
-    width: 14px;
-    height: 5px;
-    border-radius: 999px;
-    background: var(--accent);
-}
-
-.mg-swatch-prev {
-    background: var(--bar-prev);
 }
 
 /* Каждая группа — ровно 4 метрики, поэтому 4 колонки заполняются целиком
@@ -177,9 +147,9 @@
     font-weight: 700;
     color: var(--text-primary);
     font-family: var(--font-family);
-    line-height: 1.2;
-    margin-top: 9px;
-    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin-top: 10px;
+    letter-spacing: -0.025em;
 }
 
 /* Вкладка «Сравнение» строит карточки со старой структурой (значение -> одна
@@ -246,7 +216,7 @@
     flex: none;
     text-align: right;
     font-family: var(--font-family);
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
 }
 
@@ -265,23 +235,29 @@
    ПОДВАЛ КАРТОЧКИ: отклонение и план
    ============================================ */
 
+/* Подвал отделён линией (макет 7a). */
 .mc-footer {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 10px;
-    margin-top: 14px;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 13px;
+    border-top: 1px solid var(--border-light);
     font-family: var(--font-family);
     font-size: 11.5px;
 }
 
-/* Отклонение нейтральное: цветом статус сообщает только процент выполнения,
-   а знак +/- и так показывает направление. Иначе на 16 карточках экран рябит. */
+/* Отклонение окрашено по ЗНАКУ: плюс зелёный, минус красный.
+   Процент выше окрашен по статусу плана — это разные вопросы. */
 .mc-delta {
+    font-size: 12px;
     font-weight: 600;
-    color: var(--text-secondary);
     white-space: nowrap;
 }
+
+.mc-delta.positive { color: var(--success); }
+.mc-delta.negative { color: var(--danger); }
 
 /* План может быть длинным («план 416 250 ₽») — ему разрешено сжиматься
    с многоточием, иначе он вылезал за край узкой карточки. */
@@ -778,21 +754,24 @@
     cursor: pointer;
 }
 
-/* Каретка раскрытия — в правом ВЕРХНЕМ углу: снизу она налезала на подвал
-   карточки («план 416 250 ₽» / «План не задан»). Место сверху освободилось,
-   когда с десктопных карточек убрали точку статуса. */
-.metric-card.expandable::after {
-    content: '▼';
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    font-size: 9px;
+/* Каретка раскрытия живёт В СТРОКЕ ЗАГОЛОВКА карточки (макет 7a).
+   Абсолютным позиционированием она налезала на подвал. */
+.mc-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mc-caret {
+    margin-left: auto;
+    font-size: 10px;
     line-height: 1;
-    color: var(--border-color);
+    color: var(--caret-color);
+    cursor: pointer;
     transition: transform 0.2s ease;
 }
 
-.metric-card.expanded::after {
+.metric-card.expanded .mc-caret {
     transform: rotate(180deg);
 }
 

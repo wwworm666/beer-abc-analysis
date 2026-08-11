@@ -387,7 +387,8 @@ input:focus, select:focus, textarea:focus {
     display: flex;
     align-items: stretch;
     height: 56px;
-    margin-bottom: var(--spacing-xl);
+    /* Ритм страницы (макет 7a): шапка 14px -> фильтры 24px -> вкладки 16px. */
+    margin-bottom: 24px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 14px;
@@ -490,7 +491,7 @@ input:focus, select:focus, textarea:focus {
     height: 30px;
     flex: none;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     background: transparent;
     color: var(--text-secondary);
     cursor: pointer;
@@ -515,7 +516,7 @@ input:focus, select:focus, textarea:focus {
 
 .fb-period-trigger {
     padding: 8px 12px;
-    border-radius: 8px;
+    border-radius: 10px;
     min-width: 0;
 }
 
@@ -538,7 +539,7 @@ input:focus, select:focus, textarea:focus {
     gap: 7px;
     padding: 7px 12px;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     background: transparent;
     color: var(--text-secondary);
     font-family: var(--font-family);
@@ -624,7 +625,7 @@ input:focus, select:focus, textarea:focus {
     width: 100%;
     padding: 9px 12px;
     border: none;
-    border-radius: 9px;
+    border-radius: 10px;
     background: transparent;
     font-family: var(--font-family);
     text-align: left;

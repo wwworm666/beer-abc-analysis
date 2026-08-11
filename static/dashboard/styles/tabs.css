@@ -4,34 +4,50 @@
     margin-bottom: var(--spacing-xl);
 }
 
+/* Строка вкладок — панель того же уровня, что шапка фильтров:
+   радиус 14px, высота 56px. Внутри вкладки-таблетки (999px), легенда шкал
+   и процент выполнения плана. Макет 7a. */
 .tabs-nav {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--spacing-lg);
-    padding: 6px;
+    height: 56px;
+    margin-bottom: 16px;
+    padding: 0 8px 0 6px;
     background: var(--bg-secondary);
-    border-radius: var(--border-radius-pill);
+    border-radius: 14px;
     border: 1px solid var(--border-color);
 }
 
 .tabs-buttons {
     display: flex;
-    gap: var(--spacing-xs);
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+}
+
+.tabs-spacer {
+    flex: 1;
+    min-width: 0;
 }
 
 .tab-button {
-    padding: 10px 20px;
+    padding: 9px 16px;
     border: none;
     background: transparent;
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 13px;
     font-weight: 500;
     font-family: var(--font-family);
     cursor: pointer;
     transition: all var(--transition-fast);
     border-radius: var(--border-radius-pill);
     white-space: nowrap;
+    text-decoration: none;
+}
+
+/* «Месячный отчёт» — ссылка на другую страницу, поэтому акцентным цветом. */
+a.tab-button {
+    color: var(--accent);
 }
 
 .tab-button:hover {
@@ -39,10 +55,53 @@
     background: var(--bg-tertiary);
 }
 
+a.tab-button:hover {
+    color: var(--accent-hover);
+    background: var(--bg-tertiary);
+}
+
 .tab-button.active {
     color: white;
     background: var(--accent);
-    box-shadow: var(--shadow-sm);
+    font-weight: 600;
+    padding: 9px 18px;
+}
+
+/* Легенда двух шкал — одна на страницу. */
+.tabs-legend {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding-right: 14px;
+    flex: none;
+}
+
+.tl-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-family);
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.tl-swatch {
+    width: 14px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+}
+
+.tl-swatch-prev {
+    background: var(--bar-prev);
+}
+
+.tabs-divider {
+    width: 1px;
+    height: 22px;
+    flex: none;
+    background: var(--border-color);
 }
 
 .tab-content {
@@ -90,28 +149,28 @@
     min-width: 200px;
 }
 
-/* Completion Badge в правом углу tabs-nav */
+/* Процент выполнения плана в правом углу строки вкладок (макет 7a):
+   подпись словами + значение, без плашки. */
 .completion-badge {
     display: none; /* Скрыт по умолчанию, показывается при загрузке данных */
-    align-items: center;
-    padding: 8px 16px;
-    background: var(--bg-tertiary);
-    border-radius: var(--border-radius-pill);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-secondary);
+    align-items: baseline;
+    gap: 8px;
+    padding: 0 6px 0 14px;
     white-space: nowrap;
+    font-family: var(--font-family);
 }
 
-.completion-badge::before {
-    content: '% выполнения: ';
-    font-weight: 500;
-    margin-right: 4px;
+.completion-label {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--text-secondary);
 }
 
 .completion-value {
-    color: var(--accent);
-    font-size: 0.95rem;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
 }
 
 @media (max-width: 768px) {
