@@ -4,7 +4,7 @@
  */
 
 import { state } from '../core/state.js';
-import { getPlan, savePlan, deletePlan } from '../core/api.js';
+import { getPlan, calculatePlan, savePlan, deletePlan } from '../core/api.js';
 import { METRICS } from '../core/config.js';
 import { formatValue } from '../core/utils.js';
 
@@ -98,10 +98,17 @@ class PlansViewer {
      * Настроить обработчики событий
      */
     setupEventListeners() {
-        // Месяц/год — глобальные (верхний адаптивный селектор). Перегружаем при смене
-        // месяца/года/бара. periodChanged (диапазон Аналитики) Планам не нужен.
+        // Период — глобальный (верхняя панель). Перегружаем при смене периода или
+        // бара, но только когда вкладка «Планы» открыта: на «Аналитике» листание
+        // стрелками не должно дёргать планы.
+        //
+        // Подписка на periodChanged, а не на monthChanged: переход месяц->год при
+        // том же месяце начала (январь) месяц/год не меняет, но вид меняет — нужен
+        // пересчёт (годовой вид = сумма месячных планов).
         state.subscribe((event) => {
-            if (event === 'venueChanged' || event === 'monthChanged') {
+            if (event !== 'venueChanged' && event !== 'periodChanged') return;
+            const activeTab = document.querySelector('.tab-button.active');
+            if (activeTab && activeTab.getAttribute('data-tab') === 'tab-plans') {
                 this.loadData();
             }
         });
@@ -262,7 +269,12 @@ class PlansViewer {
         this.updateButtonStates(false);
 
         try {
-            // Период — из глобального state (верхний Месяц/Год). Фолбэк — текущая дата.
+            // Гранулярность приходит из верхней панели периода. На «Планах» доступны
+            // только месяц и год (планы хранятся помесячно, ключ venue_YYYY-MM).
+            const period = state.currentPeriod;
+            this.isYearView = period?.granularity === 'year';
+
+            // Период — из глобального state (выводится из панели). Фолбэк — текущая дата.
             let year = state.currentYear ? String(state.currentYear) : null;
             let month = state.currentMonth;
             if (!year || !month) {
@@ -278,8 +290,21 @@ class PlansViewer {
             this.updateContextLabel();
 
             // Вкладка «Планы» показывает только плановые значения — факт не загружаем.
-            // getPlan возвращает null, если плана нет (404).
-            this.currentPlan = await getPlan(state.currentVenue, this.currentPeriodKey);
+            if (this.isYearView) {
+                // Год — сумма месячных планов (абсолютные метрики складываются,
+                // относительные усредняются с весом; core/plans_manager.py).
+                // Это ПРОИЗВОДНОЕ представление: редактировать нечего, месяцы без
+                // заведённого плана в сумму просто не попадают — сколько месяцев
+                // реально сложилось, показываем в подписи (_months_used).
+                this.currentPlan = await calculatePlan(state.currentVenue, period.start, period.end);
+            } else {
+                // getPlan возвращает null, если плана нет (404).
+                this.currentPlan = await getPlan(state.currentVenue, this.currentPeriodKey);
+            }
+
+            // Подпись обновляем ещё раз: для годового вида в ней участвует
+            // _months_used, известный только после загрузки плана.
+            this.updateContextLabel();
 
             // Отображаем данные
             this.displayData(this.currentPlan);
@@ -295,13 +320,16 @@ class PlansViewer {
      * Обновить состояние кнопок
      */
     updateButtonStates(hasPlan) {
-        // «Общее» — производное (сумма баров): редактировать/удалять нечего.
+        // Производные представления редактировать нечего:
+        //   «Общее» — сумма баров;
+        //   годовой вид — сумма месячных планов (правится помесячно).
         const isAggregate = ['all', 'total', ''].includes(state.currentVenue);
+        const isDerived = isAggregate || this.isYearView;
         if (this.btnEditPlan) {
-            this.btnEditPlan.disabled = !hasPlan || isAggregate;
+            this.btnEditPlan.disabled = !hasPlan || isDerived;
         }
         if (this.btnDeletePlan) {
-            this.btnDeletePlan.disabled = !hasPlan || isAggregate;
+            this.btnDeletePlan.disabled = !hasPlan || isDerived;
         }
     }
 
@@ -313,10 +341,23 @@ class PlansViewer {
         const venueName = VENUE_NAMES[state.currentVenue] || state.currentVenue || '—';
         if (this.contextVenue) {
             const isAggregate = ['all', 'total', ''].includes(state.currentVenue);
-            const suffix = isAggregate
+            const parts = [];
+            parts.push(isAggregate
                 ? ' — сумма баров (считается автоматически)'
-                : ' (выбирается селектором «Бар» вверху)';
-            this.contextVenue.textContent = `Заведение: ${venueName}${suffix}`;
+                : ' (выбирается селектором «Бар» вверху)');
+            if (this.isYearView) {
+                // «Общее» за год складывает 12 месяцев x 4 бара, поэтому _months_used
+                // делим на число баров — иначе подпись показала бы «48 месяцев».
+                const isAgg = ['all', 'total', ''].includes(state.currentVenue);
+                const used = this.currentPlan?._months_used;
+                const months = used ? Math.round(used / (isAgg ? 4 : 1)) : 0;
+                parts.push(months
+                    // Месяцы без заведённого плана в сумму не попадают — говорим прямо,
+                    // иначе неполный год выглядит как заниженный годовой план.
+                    ? ` · год — сумма ${months} мес. из 12 (правится помесячно)`
+                    : ' · год — сумма месячных планов, правится помесячно');
+            }
+            this.contextVenue.textContent = `Заведение: ${venueName}${parts.join('')}`;
         }
     }
 

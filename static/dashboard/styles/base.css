@@ -363,6 +363,261 @@ input:focus, select:focus, textarea:focus {
     box-shadow: 0 0 0 3px var(--accent-light);
 }
 
+/* ============================================
+   ПАНЕЛЬ ПЕРИОДА — [День|Неделя|Месяц|Год] [<] подпись [>] [Сегодня]
+   ============================================ */
+
+/* Панель шире селектора бара: в ней четыре кнопки, стрелки и подпись с датами.
+   Без этого правила .controls-row .control-group { flex: 1 } делит строку поровну. */
+.control-group-period {
+    flex: 3 1 520px;
+    min-width: 0;
+}
+
+.period-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+/* --- Сегментированный переключатель гранулярности --- */
+
+.period-granularity {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-pill);
+}
+
+.pg-btn {
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    border-radius: var(--border-radius-pill);
+    cursor: pointer;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.pg-btn:hover:not(:disabled):not(.active) {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.pg-btn.active {
+    background: var(--accent);
+    color: var(--bg-secondary);
+    font-weight: 600;
+}
+
+/* Гранулярность, неприменимая к активной вкладке (день/неделя на «Планах»). */
+.pg-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* --- Стрелки и подпись периода --- */
+
+.period-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pn-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.pn-arrow:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* Стрелка «вперёд» гаснет на текущем периоде: дальше данных нет. */
+.pn-arrow:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.pn-current {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-sm);
+    background: transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.pn-current:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+.pn-label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-family);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pn-sub {
+    font-family: var(--font-family);
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+.pn-today,
+.pn-calendar {
+    flex: 0 0 auto;
+    padding: 9px 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-family: var(--font-family);
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.pn-today:hover,
+.pn-calendar:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* На десктопе календарь открывается кликом по подписи периода — отдельная
+   кнопка нужна только на телефоне, где тот же клик разворачивает панель. */
+.pn-calendar {
+    display: none;
+}
+
+/* Якорь календаря: не занимает места, Flatpickr позиционируется по подписи.
+   Не display:none — по скрытому инпуту Flatpickr не смог бы спозиционироваться.
+   Селектор с двумя классами намеренно: tabs.css задаёт `.control-group input
+   { min-width: 200px }` и грузится позже, поэтому одного класса не хватило бы
+   и невидимый инпут раздулся бы на 200px. */
+.control-group .period-picker-anchor {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Бейдж незавершённого периода: «прошло 3 из 7 дней». */
+.period-warning {
+    margin-top: var(--spacing-xs);
+    padding: 4px 12px;
+    align-self: flex-start;
+    border-radius: var(--border-radius-pill);
+    background: var(--warning-bg);
+    color: var(--warning);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Фокус с клавиатуры виден на всех элементах панели. */
+.pg-btn:focus-visible,
+.pn-arrow:focus-visible,
+.pn-current:focus-visible,
+.pn-today:focus-visible,
+.pn-calendar:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* --- Календарь Flatpickr под тему дашборда ---
+   Библиотека и её CSS тянутся с CDN и знают только светлую тему: без этих правил
+   календарь в тёмной теме оставался белым. */
+
+.flatpickr-calendar {
+    font-family: var(--font-family);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+
+[data-theme="dark"] .flatpickr-calendar,
+[data-theme="dark"] .flatpickr-months,
+[data-theme="dark"] .flatpickr-month,
+[data-theme="dark"] .flatpickr-weekdays,
+[data-theme="dark"] span.flatpickr-weekday {
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+[data-theme="dark"] .flatpickr-current-month .flatpickr-monthDropdown-months,
+[data-theme="dark"] .flatpickr-current-month input.cur-year,
+[data-theme="dark"] .flatpickr-prev-month,
+[data-theme="dark"] .flatpickr-next-month,
+[data-theme="dark"] .flatpickr-day {
+    color: var(--text-primary);
+    fill: var(--text-primary);
+}
+
+[data-theme="dark"] .flatpickr-day:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .flatpickr-day.prevMonthDay,
+[data-theme="dark"] .flatpickr-day.nextMonthDay,
+[data-theme="dark"] .flatpickr-day.flatpickr-disabled {
+    color: var(--text-tertiary);
+}
+
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-secondary);
+}
+
+.flatpickr-day.inRange {
+    background: var(--accent-light);
+    border-color: transparent;
+    box-shadow: -5px 0 0 var(--accent-light), 5px 0 0 var(--accent-light);
+}
+
 .control-group-button {
     min-width: 120px;
 }

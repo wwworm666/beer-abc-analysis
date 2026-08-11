@@ -17,43 +17,54 @@
                 </select>
             </div>
 
-            <!-- Period Picker (диапазон) — показывается только на Аналитике -->
-            <div class="control-group" id="cg-period">
-                <label for="flexi-range-picker">Период анализа</label>
-                <input
-                    type="text"
-                    id="flexi-range-picker"
-                    class="control-input"
-                    placeholder="Выберите период"
-                    readonly
-                >
-            </div>
+            <!-- Единая панель периода: гранулярность + стрелки + подпись + календарь.
+                 Одна на все вкладки; неприменимые гранулярности гасятся из JS
+                 (на «Планах» планы хранятся помесячно, день/неделя там не к чему
+                 привязать). Разметку наполняет modules/period_controls.js. -->
+            <div class="control-group control-group-period" id="cg-period">
+                <label id="period-bar-label">Период</label>
+                <div class="period-bar" id="period-bar">
+                    <div class="period-granularity" id="period-granularity" role="group"
+                         aria-labelledby="period-bar-label">
+                        <button type="button" class="pg-btn" data-granularity="day">День</button>
+                        <button type="button" class="pg-btn" data-granularity="week">Неделя</button>
+                        <button type="button" class="pg-btn" data-granularity="month">Месяц</button>
+                        <button type="button" class="pg-btn" data-granularity="year">Год</button>
+                    </div>
 
-            <!-- Месяц/Год — показываются на Выручке и Планах (адаптивный период) -->
-            <div class="control-group hidden" id="cg-month">
-                <label for="global-month-select">Месяц</label>
-                <select id="global-month-select" class="control-input">
-                    <option value="01">Январь</option>
-                    <option value="02">Февраль</option>
-                    <option value="03">Март</option>
-                    <option value="04">Апрель</option>
-                    <option value="05">Май</option>
-                    <option value="06">Июнь</option>
-                    <option value="07">Июль</option>
-                    <option value="08">Август</option>
-                    <option value="09">Сентябрь</option>
-                    <option value="10">Октябрь</option>
-                    <option value="11">Ноябрь</option>
-                    <option value="12">Декабрь</option>
-                </select>
-            </div>
-            <div class="control-group hidden" id="cg-year">
-                <label for="global-year-select">Год</label>
-                <select id="global-year-select" class="control-input">
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                </select>
+                    <div class="period-nav">
+                        <button type="button" class="pn-arrow" id="period-prev"
+                                aria-label="Предыдущий период" title="Предыдущий период (стрелка влево)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+
+                        <button type="button" class="pn-current" id="period-current"
+                                title="Выбрать период в календаре">
+                            <span class="pn-label" id="period-label">—</span>
+                            <span class="pn-sub" id="period-sublabel"></span>
+                        </button>
+
+                        <button type="button" class="pn-arrow" id="period-next"
+                                aria-label="Следующий период" title="Следующий период (стрелка вправо)">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
+
+                    </div>
+
+                    <button type="button" class="pn-today" id="period-today"
+                            title="Перейти к текущему периоду (Home)">Сегодня</button>
+
+                    <!-- Только мобильный: на телефоне подпись периода разворачивает
+                         панель, поэтому календарь нужен отдельной кнопкой. -->
+                    <button type="button" class="pn-calendar" id="period-calendar">Календарь</button>
+
+                    <!-- Якорь календаря: Flatpickr вешается на этот input.
+                         Скрыт визуально, открывается кликом по подписи периода. -->
+                    <input type="text" id="flexi-range-picker" class="period-picker-anchor"
+                           tabindex="-1" aria-hidden="true" readonly>
+                </div>
+                <!-- Бейдж незавершённого периода: «прошло 3 из 7 дней». -->
+                <div class="period-warning hidden" id="period-warning"></div>
             </div>
 
             <!-- Export Buttons -->
@@ -123,6 +134,33 @@
         </div>
     </div>
 </div>
+
+<!-- Нижняя таб-панель — только мобильный (макет 1a).
+     Дублирует верхние вкладки: data-tab совпадает, обработчик один и тот же
+     (main.js setupTabs синхронизирует активное состояние обоих наборов).
+     «Ещё» открывает боковое меню (кнопка живёт в shared/nav.html). -->
+<nav class="bottom-tabs" id="bottom-tabs">
+    <button class="bt-item active" data-tab="tab-analytics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Аналитика</span>
+    </button>
+    <button class="bt-item" data-tab="tab-comparison">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Сравнение</span>
+    </button>
+    <button class="bt-item" data-tab="tab-revenue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Выручка</span>
+    </button>
+    <button class="bt-item" data-tab="tab-plans">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+        <span>Планы</span>
+    </button>
+    <button class="bt-item" id="bt-more">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+        <span>Ещё</span>
+    </button>
+</nav>
 
 <!-- Messages Container -->
 <div id="messages-container" class="messages-container"></div>

@@ -59,9 +59,12 @@ class DailyPlansViewer {
             btn.addEventListener('click', () => this.switchSubtab(btn));
         });
 
-        // Бар и месяц/год — глобальные (верхний бар). Перегружаем, когда подвкладка активна.
+        // Бар и период — глобальные (верхняя панель). Перегружаем, когда подвкладка
+        // активна. Подписка на periodChanged, а не на monthChanged: смена месяц->год
+        // при том же месяце начала (январь) события monthChanged не даёт, а показывать
+        // при этом подневную разбивку января нельзя.
         state.subscribe((event) => {
-            if ((event === 'venueChanged' || event === 'monthChanged') && this.isDailyActive()) {
+            if ((event === 'venueChanged' || event === 'periodChanged') && this.isDailyActive()) {
                 this.loadData();
             }
         });
@@ -117,6 +120,14 @@ class DailyPlansViewer {
 
     async loadData() {
         if (!this.isDailyActive()) return;
+
+        // Подневная разбивка существует только для месяца. На годовой гранулярности
+        // показывать разбивку января, подписав её годом, — врать; показываем пустое
+        // состояние с подсказкой.
+        if (state.currentPeriod?.granularity === 'year') {
+            this.showNoData('Выберите месяц: подневная разбивка считается для одного месяца.');
+            return;
+        }
 
         const venue = this._venue();
         const year = state.currentYear ? String(state.currentYear) : null;
@@ -281,11 +292,21 @@ class DailyPlansViewer {
         this.footer?.classList.add('hidden');
     }
 
-    showNoData() {
+    /**
+     * @param {string} [reason] — заменяет текст-объяснение в пустом состоянии;
+     *        без аргумента возвращается штатное «план на месяц не задан».
+     */
+    showNoData(reason) {
         this.loadingState?.classList.add('hidden');
         this.noDataState?.classList.remove('hidden');
         this.tableContainer?.classList.add('hidden');
         this.footer?.classList.add('hidden');
+
+        const text = this.noDataState?.querySelector('p');
+        if (text) {
+            text.textContent = reason || 'Для выбранного заведения и месяца план не задан. '
+                + 'Задайте месячный план на вкладке «Месячные».';
+        }
     }
 
     showTable() {

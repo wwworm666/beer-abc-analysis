@@ -5,7 +5,8 @@
 
 import { state } from '../core/state.js';
 import { calculatePlan, getAnalytics, getEmployeeBreakdown } from '../core/api.js';
-import { METRICS } from '../core/config.js';
+import { METRICS, METRIC_GROUPS } from '../core/config.js';
+import { shiftPeriod } from '../core/period_model.js';
 import {
     formatValue,
     formatMoney,
@@ -14,6 +15,25 @@ import {
     calculateDiff,
     getStatus
 } from '../core/utils.js';
+
+/** Метрики, у которых есть разбивка по сотрудникам (раскрытие карточки). */
+const EXPANDABLE_METRICS = [
+    'revenue', 'checks', 'averageCheck',
+    'draftShare', 'packagedShare', 'kitchenShare',
+    'revenueDraft', 'revenuePackaged', 'revenueKitchen',
+    'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
+    'loyaltyWriteoffs'
+];
+
+/** Шеврон для строк-аккордеонов и заголовков групп. */
+const CHEVRON_SVG = '<svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"'
+    + ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
+    + '<polyline points="6 9 12 15 18 9"/></svg>';
+
+/** Ширина шкалы: план перевыполнен — шкала всё равно полная. */
+function barWidth(percent) {
+    return Math.max(0, Math.min(percent, 100));
+}
 
 class Analytics {
     constructor() {
@@ -28,6 +48,7 @@ class Analytics {
         this.isProcessing = false; // Флаг для предотвращения множественных кликов
         this._inflightKey = null;     // Ключ выполняющегося запроса (дедупликация)
         this._inflightPromise = null; // Промис выполняющегося запроса
+        this._requestSeq = 0;         // Счётчик запросов (отсечение устаревших ответов)
     }
 
     /**
@@ -92,6 +113,12 @@ class Analytics {
         this.employeeData = null;  // Сбрасываем кэш сотрудников при смене бара/периода
         console.log('[Analytics] loadAnalytics вызван. state.currentPeriod:', state.currentPeriod);
 
+        // Номер запроса: ответ более раннего запроса, пришедший позже, игнорируется.
+        // Без этого листание стрелками рисует на экране период, который уже не выбран
+        // (быстрый ответ из кэша обгоняет медленный холодный OLAP).
+        const seq = ++this._requestSeq;
+        const isStale = () => seq !== this._requestSeq;
+
         this.showLoading();
 
         try {
@@ -111,6 +138,12 @@ class Analytics {
                     endDate
                 )
             ]);
+
+            // Пока ждали ответ, пользователь пролистал дальше — рисовать нельзя.
+            if (isStale()) {
+                console.log('[Analytics] Ответ устарел, период уже другой — пропускаем');
+                return;
+            }
 
             // Извлекаем план (может быть null если не найден)
             const plan = planResult.status === 'fulfilled' ? planResult.value : null;
@@ -142,174 +175,483 @@ class Analytics {
                 }
             }));
 
+            // Предыдущий период — вторым запросом, НЕ дожидаясь его: вторые шкалы
+            // («ПР. ПЕРИОД») дорисуются в уже показанные карточки.
+            this.loadPreviousPeriod(seq, isStale);
+
         } catch (error) {
             console.error('Ошибка загрузки аналитики:', error);
-            state.addMessage('error', 'Не удалось загрузить данные аналитики');
-            this.hideLoading();
+            // Ошибку устаревшего запроса пользователю не показываем: он уже смотрит
+            // другой период, и всплывающая ошибка относилась бы не к нему.
+            if (!isStale()) {
+                state.addMessage('error', 'Не удалось загрузить данные аналитики');
+                this.hideLoading();
+            }
         }
     }
 
     /**
-     * Отобразить сравнение план vs факт
+     * Свести план и факт в плоский список показателей для отрисовки.
+     * Один расчёт на оба экрана (десктоп и мобильный), чтобы цифры не разъезжались.
      */
-    displayComparison(plan, actual) {
-        console.log('[Analytics] displayComparison called with:', { plan, actual });
-
-        this.hideLoading();
-        this.hideNoPlan();
-        this.showMetricsGrid();
-
-        // Очищаем контейнер
-        this.metricsGrid.innerHTML = '';
-
-        // Статистика
-        let completedCount = 0;
-        let totalPercent = 0;
-
-        // Создаем карточки для каждой метрики
-        METRICS.forEach(metric => {
+    buildStats(plan, actual) {
+        return METRICS.map(metric => {
             let planValue = plan ? plan[metric.planKey] : null;
-            const actualValue = actual[metric.actualKey];
+            const actualValue = actual ? actual[metric.actualKey] : null;
 
             // Для активности кранов план всегда 100% (если не задан вручную)
             if (metric.id === 'tapActivity' && !planValue) {
                 planValue = 100;
             }
 
-            console.log(`[Analytics] Метрика "${metric.name}":`, {
-                planKey: metric.planKey,
-                actualKey: metric.actualKey,
-                planValue,
-                actualValue
-            });
+            const hasPlan = planValue !== null && planValue !== undefined && planValue !== 0;
+            const percent = hasPlan ? calculatePercent(actualValue, planValue) : 0;
+            const diff = hasPlan ? calculateDiff(actualValue, planValue) : 0;
 
-            const percent = planValue ? calculatePercent(actualValue, planValue) : 0;
-            const diff = planValue ? calculateDiff(actualValue, planValue) : 0;
-            const status = planValue ? getStatus(percent) : 'neutral';
-
-            if (percent >= 100) {
-                completedCount++;
-            }
-
-            totalPercent += percent;
-
-            const card = this.createMetricCard(
+            return {
                 metric,
-                planValue,
+                planValue: hasPlan ? planValue : null,
                 actualValue,
                 percent,
                 diff,
-                status
-            );
-
-            // Для активности кранов добавляем ссылку на страницу кранов
-            if (metric.id === 'tapActivity') {
-                card.style.cursor = 'pointer';
-                card.addEventListener('click', () => {
-                    // Получаем текущий venue из state
-                    const currentVenue = state.currentVenue;
-                    // Маппинг venue_key -> bar_id для страницы кранов
-                    const venueToBarMapping = {
-                        'bolshoy': 'bar1',
-                        'ligovskiy': 'bar2',
-                        'kremenchugskaya': 'bar3',
-                        'varshavskaya': 'bar4'
-                    };
-
-                    if (currentVenue === 'all') {
-                        // Если выбрано "Все заведения", идем на общую страницу кранов
-                        window.location.href = '/taps';
-                    } else {
-                        // Иначе идем на страницу конкретного бара
-                        const barId = venueToBarMapping[currentVenue];
-                        if (barId) {
-                            window.location.href = `/taps/${barId}`;
-                        } else {
-                            window.location.href = '/taps';
-                        }
-                    }
-                });
-            }
-
-            this.metricsGrid.appendChild(card);
+                hasPlan,
+                status: hasPlan ? getStatus(percent) : 'neutral'
+            };
         });
-
-        console.log('[Analytics] Всего метрик отрисовано:', METRICS.length);
-
-        // Обновляем статистику
-        this.updateStats(METRICS.length, completedCount, totalPercent / METRICS.length);
     }
 
     /**
-     * Создать карточку метрики
+     * Отобразить сравнение план vs факт.
+     * Рисует обе версии разметки; какую показать, решает CSS по ширине экрана
+     * (.mv-desktop / .mv-mobile) — так же, как сделано на странице графика смен.
      */
-    createMetricCard(metric, planValue, actualValue, percent, diff, status) {
+    displayComparison(plan, actual) {
+        this.hideLoading();
+        this.hideNoPlan();
+        this.showMetricsGrid();
+
+        const stats = this.buildStats(plan, actual);
+        this.currentStats = stats;
+
+        this.metricsGrid.innerHTML = '';
+        this.metricsGrid.appendChild(this.renderDesktop(stats));
+        this.metricsGrid.appendChild(this.renderMobile(stats));
+
+        const withPlan = stats.filter(s => s.hasPlan);
+        const avgPercent = withPlan.length
+            ? withPlan.reduce((sum, s) => sum + s.percent, 0) / withPlan.length
+            : 0;
+        this.updateStats(stats.length, withPlan.filter(s => s.percent >= 100).length, avgPercent);
+    }
+
+    // ============================================================
+    // ДЕСКТОП: группы + карточки с двумя шкалами
+    // ============================================================
+
+    /**
+     * Десктоп: метрики разбиты на группы, у каждой — разделитель с названием.
+     * Плашек-заголовков и точек-индикаторов больше нет: статус несёт цветной
+     * процент выполнения (макет 3b).
+     */
+    renderDesktop(stats) {
+        const root = document.createElement('div');
+        root.className = 'mv-desktop';
+
+        METRIC_GROUPS.forEach(group => {
+            const groupStats = stats.filter(s => s.metric.group === group.id);
+            if (groupStats.length === 0) return;
+
+            const section = document.createElement('section');
+            section.className = 'metric-group';
+            section.innerHTML = `
+                <div class="mg-separator">
+                    <span class="mg-title">${group.name.toUpperCase()}</span>
+                    <span class="mg-line"></span>
+                </div>
+            `;
+
+            const grid = document.createElement('div');
+            grid.className = 'metrics-grid-row';
+            groupStats.forEach(s => grid.appendChild(this.createMetricCard(s)));
+
+            section.appendChild(grid);
+            root.appendChild(section);
+        });
+
+        return root;
+    }
+
+    /**
+     * Карточка метрики: название, значение, шкала «СЕЙЧАС» и шкала «ПР. ПЕРИОД»
+     * одной длины (сравнение читается без чисел), внизу отклонение и план.
+     *
+     * Шкала предыдущего периода добавляется позже, когда догрузятся его данные
+     * (см. applyPreviousPeriod) — сначала показываем текущий период, не дожидаясь
+     * второго OLAP-запроса.
+     */
+    createMetricCard(stat) {
+        const { metric, planValue, actualValue, percent, diff, status, hasPlan } = stat;
+
         const card = document.createElement('div');
-        card.className = `metric-card ${status}`;
+        card.className = 'metric-card';
         card.setAttribute('data-metric-id', metric.id);
 
-        // Метрики с раскрытием по сотрудникам
-        const expandableMetrics = [
-            'revenue', 'checks', 'averageCheck',
-            'draftShare', 'packagedShare', 'kitchenShare',
-            'revenueDraft', 'revenuePackaged', 'revenueKitchen',
-            'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-            'loyaltyWriteoffs'
-        ];
+        const formattedActual = formatValue(actualValue, metric.format);
 
-        if (expandableMetrics.includes(metric.id)) {
+        if (!hasPlan) {
+            card.innerHTML = `
+                <span class="metric-name">${metric.name.toUpperCase()}</span>
+                <div class="metric-value">${formattedActual}</div>
+                <div class="mc-footer">
+                    <span class="mc-noplan">План не задан</span>
+                </div>
+            `;
+        } else {
+            const formattedDiff = formatValue(Math.abs(diff), metric.format);
+            card.innerHTML = `
+                <span class="metric-name">${metric.name.toUpperCase()}</span>
+                <div class="metric-value">${formattedActual}</div>
+                <div class="mc-bars">
+                    <div class="mc-bar-row">
+                        <span class="mc-bar-label">СЕЙЧАС</span>
+                        <span class="mc-track"><span class="mc-fill" style="width:${barWidth(percent)}%"></span></span>
+                        <span class="mc-pct ${status}">${percent.toFixed(0)}%</span>
+                    </div>
+                </div>
+                <div class="mc-footer">
+                    <span class="mc-delta ${status}">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
+                    <span class="mc-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
+                </div>
+            `;
+        }
+
+        this.attachCardBehaviour(card, metric);
+        return card;
+    }
+
+    /** Клик по карточке: краны ведут на свою страницу, остальные раскрывают сотрудников. */
+    attachCardBehaviour(card, metric) {
+        if (metric.id === 'tapActivity') {
+            card.classList.add('clickable');
+            card.addEventListener('click', () => {
+                const venueToBarMapping = {
+                    'bolshoy': 'bar1',
+                    'ligovskiy': 'bar2',
+                    'kremenchugskaya': 'bar3',
+                    'varshavskaya': 'bar4'
+                };
+                const barId = venueToBarMapping[state.currentVenue];
+                window.location.href = barId ? `/taps/${barId}` : '/taps';
+            });
+            return;
+        }
+
+        if (EXPANDABLE_METRICS.includes(metric.id)) {
             card.classList.add('expandable');
             card.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.handleCardClick(card, metric);
             });
         }
+    }
 
-        // Форматируем значения
-        const formattedPlan = planValue !== null ? formatValue(planValue, metric.format) : '—';
-        const formattedActual = formatValue(actualValue, metric.format);
-        const formattedDiff = planValue !== null ? formatValue(Math.abs(diff), metric.format) : '—';
+    // ============================================================
+    // ПРЕДЫДУЩИЙ ПЕРИОД (вторая шкала)
+    // ============================================================
 
-        // HTML карточки (минималистичный дизайн с диодом-индикатором)
-        card.innerHTML = planValue !== null ? `
-            <div class="status-indicator ${status}"></div>
-            <div class="metric-header">
-                <span class="metric-name">${metric.name.toUpperCase()}</span>
-            </div>
-            <div class="metric-value">${formattedActual}</div>
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: ${Math.min(percent, 100)}%"></div>
-            </div>
-            <div class="metric-footer">
-                <span class="metric-percentage">${percent.toFixed(0)}%</span>
-                <span class="metric-deviation ${diff >= 0 ? 'positive' : 'negative'}">${diff >= 0 ? '+' : ''}${formattedDiff}</span>
-                <span class="metric-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
-            </div>
-        ` : `
-            <div class="status-indicator neutral"></div>
-            <div class="metric-header">
-                <span class="metric-name">${metric.name.toUpperCase()}</span>
-            </div>
-            <div class="metric-value">${formattedActual}</div>
-            <div class="metric-footer">
-                <span class="metric-status neutral">План не задан</span>
-            </div>
-        `;
+    /**
+     * Догрузить предыдущий период того же размера и дорисовать вторые шкалы.
+     *
+     * Отдельным запросом ПОСЛЕ отрисовки текущего периода: пользователь видит
+     * цифры сразу, а сравнение доезжает через секунду. Если данных нет или запрос
+     * упал — вторая шкала просто не появляется, экран остаётся рабочим.
+     */
+    async loadPreviousPeriod(seq, isStale) {
+        const period = state.currentPeriod;
+        if (!period) return;
 
-        return card;
+        const prev = shiftPeriod(period, -1);
+
+        try {
+            const [planResult, actualResult] = await Promise.allSettled([
+                calculatePlan(state.currentVenue, prev.start, prev.end),
+                getAnalytics(state.currentVenue, prev.start, prev.end)
+            ]);
+
+            if (isStale()) return;
+            if (actualResult.status !== 'fulfilled' || !actualResult.value) return;
+
+            const prevStats = this.buildStats(
+                planResult.status === 'fulfilled' ? planResult.value : null,
+                actualResult.value
+            );
+            this.applyPreviousPeriod(prevStats, prev);
+        } catch (error) {
+            console.warn('[Analytics] Предыдущий период не загружен:', error);
+        }
+    }
+
+    /** Дорисовать шкалу «ПР. ПЕРИОД» в уже отрисованные карточки и строки. */
+    applyPreviousPeriod(prevStats, prevPeriod) {
+        const title = `Предыдущий период: ${prevPeriod.label}`;
+
+        prevStats.forEach(prevStat => {
+            if (!prevStat.hasPlan) return;
+
+            const id = prevStat.metric.id;
+            const pct = prevStat.percent;
+
+            // Десктоп: вторая шкала внутри карточки
+            const bars = this.metricsGrid.querySelector(`.mv-desktop [data-metric-id="${id}"] .mc-bars`);
+            if (bars && !bars.querySelector('.mc-bar-row-prev')) {
+                const row = document.createElement('div');
+                row.className = 'mc-bar-row mc-bar-row-prev';
+                row.title = title;
+                row.innerHTML = `
+                    <span class="mc-bar-label">ПР. ПЕРИОД</span>
+                    <span class="mc-track"><span class="mc-fill mc-fill-prev" style="width:${barWidth(pct)}%"></span></span>
+                    <span class="mc-pct mc-pct-prev">${pct.toFixed(0)}%</span>
+                `;
+                bars.appendChild(row);
+            }
+
+            // Мобильный: маленькая приписка «было N%» в строке метрики
+            const mobilePrev = this.metricsGrid.querySelector(`.mv-mobile [data-metric-id="${id}"] .m-prev`);
+            if (mobilePrev) {
+                mobilePrev.textContent = `было ${pct.toFixed(0)}%`;
+                mobilePrev.title = title;
+                mobilePrev.classList.remove('hidden');
+            }
+        });
+    }
+
+    // ============================================================
+    // МОБИЛЬНЫЙ: сводка, главное, аккордеон по направлениям
+    // ============================================================
+
+    /**
+     * Мобильный экран (макет 1a): сверху один ответ на вопрос «как идёт период»,
+     * ниже три главные метрики крупно, остальные 13 свёрнуты в группы.
+     */
+    renderMobile(stats) {
+        const root = document.createElement('div');
+        root.className = 'mv-mobile';
+
+        root.appendChild(this.renderMobileSummary(stats));
+
+        const mainStats = stats.filter(s => s.metric.group === 'main');
+        if (mainStats.length) {
+            root.appendChild(this.sectionLabel('Главное'));
+            // Первая метрика группы (выручка) — крупной карточкой, остальные парой.
+            root.appendChild(this.renderMobileHero(mainStats[0]));
+            if (mainStats.length > 1) {
+                const duo = document.createElement('div');
+                duo.className = 'm-duo';
+                mainStats.slice(1).forEach(s => duo.appendChild(this.renderMobileCompact(s)));
+                root.appendChild(duo);
+            }
+        }
+
+        const groups = METRIC_GROUPS.filter(g => g.collapsible);
+        const hasGroups = groups.some(g => stats.some(s => s.metric.group === g.id));
+        if (hasGroups) root.appendChild(this.sectionLabel('По направлениям'));
+
+        groups.forEach(group => {
+            const groupStats = stats.filter(s => s.metric.group === group.id);
+            if (groupStats.length) root.appendChild(this.renderMobileGroup(group, groupStats));
+        });
+
+        return root;
+    }
+
+    sectionLabel(text) {
+        const el = document.createElement('span');
+        el.className = 'm-section-label';
+        el.textContent = text.toUpperCase();
+        return el;
+    }
+
+    /** Слово периода для подписи сводки: «за неделю», «за месяц», ... */
+    periodWord() {
+        const g = state.currentPeriod?.granularity;
+        if (g === 'day') return 'за день';
+        if (g === 'week') return 'за неделю';
+        if (g === 'month') return 'за месяц';
+        if (g === 'year') return 'за год';
+        return 'за период';
     }
 
     /**
-     * Получить текст статуса
+     * Карточка «ВЫПОЛНЕНИЕ ПЛАНА»: средний процент по метрикам с планом плюс
+     * раскладка светофора — сколько метрик отстаёт, сколько близко, сколько в плане.
+     * Порог «близко» — 90% (config.js THRESHOLDS).
      */
-    getStatusText(status, percent) {
-        if (status === 'success') {
-            return `✅ Выполнено ${percent.toFixed(0)}%`;
-        } else if (status === 'warning') {
-            return `⚠️ Выполнено ${percent.toFixed(0)}%`;
-        } else {
-            return `❌ Выполнено ${percent.toFixed(0)}%`;
-        }
+    renderMobileSummary(stats) {
+        const withPlan = stats.filter(s => s.hasPlan);
+        const avg = withPlan.length
+            ? withPlan.reduce((sum, s) => sum + s.percent, 0) / withPlan.length
+            : 0;
+
+        const counts = { danger: 0, warning: 0, success: 0 };
+        withPlan.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
+
+        const period = state.currentPeriod;
+        const dates = period ? `${this.shortDate(period.start)} — ${this.shortDate(period.end)}` : '';
+
+        const el = document.createElement('div');
+        el.className = 'm-summary';
+        el.innerHTML = `
+            <div class="m-summary-top">
+                <span class="m-summary-label">Выполнение плана</span>
+                <span class="m-summary-dates">${dates}</span>
+            </div>
+            <div class="m-summary-value">
+                <span class="m-summary-pct">${avg.toFixed(1)}%</span>
+                <span class="m-summary-word">${this.periodWord()}</span>
+            </div>
+            <div class="m-track"><span class="m-fill" style="width:${barWidth(avg)}%"></span></div>
+            <div class="m-legend">
+                <span class="m-legend-item"><span class="m-dot danger"></span>${counts.danger} отстают</span>
+                <span class="m-legend-item"><span class="m-dot warning"></span>${counts.warning} близко</span>
+                <span class="m-legend-item"><span class="m-dot success"></span>${counts.success} в плане</span>
+            </div>
+        `;
+        return el;
+    }
+
+    /** 'YYYY-MM-DD' -> 'DD.MM' для компактных мобильных подписей. */
+    shortDate(iso) {
+        if (!iso) return '';
+        const [, m, d] = iso.split('-');
+        return `${d}.${m}`;
+    }
+
+    /** Крупная карточка главной метрики (выручка). */
+    renderMobileHero(stat) {
+        const { metric, planValue, actualValue, percent, diff, status, hasPlan } = stat;
+
+        const el = document.createElement('div');
+        el.className = 'm-hero';
+        el.setAttribute('data-metric-id', metric.id);
+        el.innerHTML = `
+            <div class="m-card-top">
+                <span class="m-card-label">${metric.name.toUpperCase()}</span>
+                <span class="m-dot ${status}"></span>
+            </div>
+            <div class="m-hero-row">
+                <span class="m-hero-value">${formatValue(actualValue, metric.format)}</span>
+                ${hasPlan
+                    ? `<span class="m-delta ${status}">${diff >= 0 ? '+' : '−'}${formatValue(Math.abs(diff), metric.format)}</span>`
+                    : ''}
+            </div>
+            ${hasPlan ? `
+                <div class="m-track"><span class="m-fill" style="width:${barWidth(percent)}%"></span></div>
+                <div class="m-card-foot">
+                    <span class="m-pct">${percent.toFixed(0)}% плана</span>
+                    <span class="m-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
+                </div>
+                <span class="m-prev hidden"></span>
+            ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
+        `;
+        return el;
+    }
+
+    /** Компактная карточка главной метрики (чеки, средний чек) — в паре. */
+    renderMobileCompact(stat) {
+        const { metric, planValue, actualValue, percent, status, hasPlan } = stat;
+
+        const el = document.createElement('div');
+        el.className = 'm-compact';
+        el.setAttribute('data-metric-id', metric.id);
+        el.innerHTML = `
+            <div class="m-card-top">
+                <span class="m-card-label">${metric.name.toUpperCase()}</span>
+                <span class="m-dot ${status}"></span>
+            </div>
+            <div class="m-compact-value">${formatValue(actualValue, metric.format)}</div>
+            ${hasPlan ? `
+                <div class="m-track"><span class="m-fill" style="width:${barWidth(percent)}%"></span></div>
+                <div class="m-card-foot">
+                    <span class="m-pct">${percent.toFixed(0)}%</span>
+                    <span class="m-plan">из ${this.formatPlanShort(planValue, metric.format)}</span>
+                </div>
+            ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
+        `;
+        return el;
+    }
+
+    /**
+     * Свёрнутая группа: строка с названием, числом метрик и общим процентом.
+     * Общий процент группы — среднее по метрикам группы, у которых есть план.
+     */
+    renderMobileGroup(group, groupStats) {
+        const withPlan = groupStats.filter(s => s.hasPlan);
+        const avg = withPlan.length
+            ? withPlan.reduce((sum, s) => sum + s.percent, 0) / withPlan.length
+            : 0;
+        const status = withPlan.length ? getStatus(avg) : 'neutral';
+
+        const el = document.createElement('div');
+        el.className = 'm-group';
+        el.setAttribute('data-group-id', group.id);
+
+        const head = document.createElement('button');
+        head.type = 'button';
+        head.className = 'm-group-head';
+        head.setAttribute('aria-expanded', 'false');
+        head.innerHTML = `
+            <span class="m-group-name">${group.mobileName.toUpperCase()}</span>
+            <span class="m-group-count">${groupStats.length} ${this.pluralMetrics(groupStats.length)}</span>
+            <span class="m-group-pct ${status}">${withPlan.length ? avg.toFixed(0) + '%' : '—'}</span>
+            ${CHEVRON_SVG}
+        `;
+
+        const body = document.createElement('div');
+        body.className = 'm-group-body hidden';
+        groupStats.forEach(s => body.appendChild(this.renderMobileRow(s)));
+
+        head.addEventListener('click', () => {
+            const open = el.classList.toggle('open');
+            body.classList.toggle('hidden', !open);
+            head.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+
+        el.appendChild(head);
+        el.appendChild(body);
+        return el;
+    }
+
+    /** Склонение слова «метрика» по числу. */
+    pluralMetrics(n) {
+        const last = n % 10;
+        if (n % 100 > 10 && n % 100 < 20) return 'метрик';
+        if (last === 1) return 'метрика';
+        if (last >= 2 && last <= 4) return 'метрики';
+        return 'метрик';
+    }
+
+    /** Строка метрики внутри раскрытой мобильной группы. */
+    renderMobileRow(stat) {
+        const { metric, planValue, actualValue, percent, status, hasPlan } = stat;
+
+        const el = document.createElement('div');
+        el.className = 'm-row';
+        el.setAttribute('data-metric-id', metric.id);
+        el.innerHTML = `
+            <div class="m-row-top">
+                <span class="m-row-name">${metric.name.toUpperCase()}</span>
+                <span class="m-row-value">${formatValue(actualValue, metric.format)}</span>
+            </div>
+            ${hasPlan ? `
+                <div class="m-track"><span class="m-fill" style="width:${barWidth(percent)}%"></span></div>
+                <div class="m-card-foot">
+                    <span class="m-pct ${status}">${percent.toFixed(0)}%</span>
+                    <span class="m-prev hidden"></span>
+                    <span class="m-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
+                </div>
+            ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
+        `;
+        return el;
     }
 
     /**

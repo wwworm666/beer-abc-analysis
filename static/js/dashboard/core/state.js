@@ -4,20 +4,26 @@
  */
 
 import { STORAGE_KEYS } from './config.js';
+import { defaultPeriod, monthYearOf } from './period_model.js';
 
 class DashboardState {
     constructor() {
         // Текущее выбранное заведение
         this.currentVenue = this.loadFromStorage(STORAGE_KEYS.SELECTED_VENUE) || 'all';
 
-        // Текущий период
-        this.currentPeriod = this.loadFromStorage(STORAGE_KEYS.SELECTED_PERIOD) || null;
+        // Текущий период — ЕДИНСТВЕННЫЙ источник дефолта на весь дашборд:
+        // последняя завершённая неделя (пн-вс). Намеренно НЕ восстанавливаем из
+        // localStorage: у незавершённого/старого периода факт и план несопоставимы,
+        // и до этого три источника дефолта (localStorage, /api/weeks, datepicker)
+        // перетирали друг друга, давая лишний OLAP-запрос на старте.
+        this.currentPeriod = defaultPeriod();
 
-        // Текущий месяц/год для месячных вкладок (Выручка, Планы).
-        // По умолчанию — текущий месяц; намеренно НЕ персистим, чтобы всегда стартовать с него.
-        const _now = new Date();
-        this.currentMonth = String(_now.getMonth() + 1).padStart(2, '0'); // '01'..'12'
-        this.currentYear = _now.getFullYear(); // число
+        // Месяц/год месячных вкладок (Выручка, Планы) ВЫВОДЯТСЯ из периода,
+        // отдельных селекторов больше нет. Формат обязателен: месяц — строка
+        // '01'..'12' (plans.js собирает ключ `${year}-${month}`), год — число.
+        const _my = monthYearOf(this.currentPeriod);
+        this.currentMonth = _my.month;
+        this.currentYear = _my.year;
 
         // Список всех заведений
         this.venues = [];
@@ -86,17 +92,42 @@ class DashboardState {
     }
 
     /**
-     * Установить текущий период
+     * Установить текущий период.
+     *
+     * Рассылает 'periodChanged' всегда, а 'monthChanged' — только когда реально
+     * сменился месяц или год. Месячные вкладки (Выручка, Планы, Планы по дням)
+     * подписаны именно на 'monthChanged', поэтому листание стрелками внутри
+     * одного месяца их не дёргает.
+     *
+     * Период НЕ персистится: дашборд всегда открывается на последней завершённой
+     * неделе (см. конструктор).
      */
     setPeriod(period) {
         this.currentPeriod = period;
-        this.saveToStorage(STORAGE_KEYS.SELECTED_PERIOD, period);
+
+        const my = monthYearOf(period);
+        const monthYearChanged = my && (my.month !== this.currentMonth || my.year !== this.currentYear);
+        if (monthYearChanged) {
+            this.currentMonth = my.month;
+            this.currentYear = my.year;
+        }
+
         this.notify('periodChanged', period);
+
+        if (monthYearChanged) {
+            this.notify('monthChanged', { month: this.currentMonth, year: this.currentYear });
+        }
     }
 
     /**
-     * Установить текущий месяц/год (месячные вкладки: Выручка, Планы).
-     * @param {string} month — '01'..'12'
+     * Установить месяц/год напрямую.
+     *
+     * Оставлено для совместимости: штатный путь — setPeriod(), который выводит
+     * месяц/год из периода. Прямой вызов нужен только тому, кто меняет месяц,
+     * не трогая период.
+     *
+     * @param {string} month — '01'..'12' (строка с ведущим нулём обязательна:
+     *                         plans.js собирает ключ плана как `${year}-${month}`)
      * @param {number} year
      */
     setMonthYear(month, year) {
@@ -119,20 +150,12 @@ class DashboardState {
     setWeeks(weeks) {
         this.weeks = weeks;
 
-        // Найти индекс текущей недели
+        // Найти индекс текущей недели (нужен графикам/трендам для окна в 12 недель).
+        // Период отсюда НЕ выставляется: единственный источник дефолта — конструктор,
+        // иначе ответ /api/weeks перетирал бы уже выбранный пользователем период.
         const currentWeek = weeks.find(w => w.is_current);
         if (currentWeek) {
             this.currentWeekIndex = weeks.indexOf(currentWeek);
-
-            // Если период не установлен, использовать текущую неделю
-            if (!this.currentPeriod) {
-                this.setPeriod({
-                    key: currentWeek.key,
-                    start: currentWeek.start,
-                    end: currentWeek.end,
-                    label: currentWeek.label
-                });
-            }
         }
 
         this.notify('weeksLoaded', weeks);

@@ -7,20 +7,22 @@ JavaScript модули дашборда и других страниц: state m
 ## Файлы
 
 ### Core модули
-- [`static/js/dashboard/core/state.js`](../../static/js/dashboard/core/state.js) — централизованное состояние (Singleton)
-- [`static/js/dashboard/core/api.js`](../../static/js/dashboard/core/api.js) — HTTP клиент
-- [`static/js/dashboard/core/config.js`](../../static/js/dashboard/core/config.js) — API endpoints, storage keys
-- [`static/js/dashboard/core/utils.js`](../../static/js/dashboard/core/utils.js) — утилиты
+- [`static/js/dashboard/core/state.js`](../static/js/dashboard/core/state.js) — централизованное состояние (Singleton)
+- [`static/js/dashboard/core/period_model.js`](../static/js/dashboard/core/period_model.js) — арифметика периода (границы гранулярностей, шаг стрелки, подписи); чистые функции, без DOM
+- [`static/js/dashboard/core/api.js`](../static/js/dashboard/core/api.js) — HTTP клиент
+- [`static/js/dashboard/core/config.js`](../static/js/dashboard/core/config.js) — метрики и их группы, API endpoints, storage keys
+- [`static/js/dashboard/core/utils.js`](../static/js/dashboard/core/utils.js) — утилиты
 
 ### UI модули
-- [`static/js/dashboard/modules/analytics.js`](../../static/js/dashboard/modules/analytics.js) — загрузка аналитики
-- [`static/js/dashboard/modules/charts.js`](../../static/js/dashboard/modules/charts.js) — Chart.js графики
-- [`static/js/dashboard/modules/trends.js`](../../static/js/dashboard/modules/trends.js) — тренды по неделям
-- [`static/js/dashboard/modules/comparison.js`](../../static/js/dashboard/modules/comparison.js) — сравнение периодов
-- [`static/js/dashboard/modules/venue_selector.js`](../../static/js/dashboard/modules/venue_selector.js) — селектор заведений
-- [`static/js/dashboard/modules/week_selector.js`](../../static/js/dashboard/modules/week_selector.js) — селектор недель
-- [`static/js/dashboard/modules/datepicker.js`](../../static/js/dashboard/modules/datepicker.js) — Flatpickr даты
-- [`static/js/dashboard/modules/export.js`](../../static/js/dashboard/modules/export.js) — экспорт Excel/PDF
+- [`static/js/dashboard/modules/analytics.js`](../static/js/dashboard/modules/analytics.js) — загрузка и отрисовка метрик (десктоп + мобильный)
+- [`static/js/dashboard/modules/period_controls.js`](../static/js/dashboard/modules/period_controls.js) — **единая панель периода** (гранулярность, стрелки, календарь)
+- [`static/js/dashboard/modules/charts.js`](../static/js/dashboard/modules/charts.js) — Chart.js графики
+- [`static/js/dashboard/modules/trends.js`](../static/js/dashboard/modules/trends.js) — тренды по неделям
+- [`static/js/dashboard/modules/comparison.js`](../static/js/dashboard/modules/comparison.js) — сравнение периодов
+- [`static/js/dashboard/modules/venue_selector.js`](../static/js/dashboard/modules/venue_selector.js) — селектор заведений
+- [`static/js/dashboard/modules/week_selector.js`](../static/js/dashboard/modules/week_selector.js) — загружает список недель в `state.weeks` (нужен графикам/трендам); DOM-ветки мертвы, селектора недель в разметке нет
+- [`static/js/dashboard/modules/datepicker.js`](../static/js/dashboard/modules/datepicker.js) — **устарел, пустая заглушка**; период живёт в `period_controls.js`. Файл оставлен намеренно: старые открытые вкладки импортируют его по имени, 404 уронил бы им весь дашборд
+- [`static/js/dashboard/modules/export.js`](../static/js/dashboard/modules/export.js) — экспорт Excel/PDF
 - [`static/js/dashboard/modules/comments.js`](../../static/js/dashboard/modules/comments.js) — комментарии
 - [`static/js/dashboard/modules/meeting_notes.js`](../../static/js/dashboard/modules/meeting_notes.js) — meeting notes
 - [`static/js/dashboard/modules/revenue_metrics.js`](../../static/js/dashboard/modules/revenue_metrics.js) — метрики выручки
@@ -42,66 +44,56 @@ JavaScript модули дашборда и других страниц: state m
 
 ### State Management (Singleton)
 
+Состояние — класс `DashboardState` с плоскими полями и рассылкой **именованных
+событий** (не единый объект `state` + `setState`):
+
 ```javascript
 // static/js/dashboard/core/state.js
-class StateManager {
+class DashboardState {
     constructor() {
-        if (StateManager.instance) {
-            return StateManager.instance;
-        }
-
-        this.state = {
-            currentVenue: null,
-            dateFrom: null,
-            dateTo: null,
-            metrics: null,
-            plan: null,
-            comparison: null,
-            trends: null,
-            isLoading: false,
-            error: null
-        };
-
-        this.listeners = [];
-        StateManager.instance = this;
+        this.currentVenue = /* localStorage или 'all' */;
+        this.currentPeriod = defaultPeriod();   // последняя завершённая неделя
+        this.currentMonth = '08';               // строка '01'..'12'
+        this.currentYear = 2026;                // число
+        this.subscribers = [];
     }
 
-    setState(newState) {
-        this.state = { ...this.state, ...newState };
-        this.notifyListeners();
-    }
-
-    getState() {
-        return this.state;
-    }
-
-    subscribe(listener) {
-        this.listeners.push(listener);
-    }
-
-    notifyListeners() {
-        this.listeners.forEach(listener => listener(this.state));
-    }
+    setPeriod(period) { /* notify('periodChanged'), при смене месяца — 'monthChanged' */ }
+    setVenue(key)     { /* notify('venueChanged') */ }
+    setActiveTab(tab) { /* notify('tabChanged') */ }
+    notify(event, data) { this.subscribers.forEach(cb => cb(event, data)); }
 }
 
-export const state = new StateManager();
+export const state = new DashboardState();
 ```
 
 ### Использование
 
 ```javascript
-// Подписка на изменения
-state.subscribe((newState) => {
-    updateUI(newState);
+// Подписчик получает (event, data), а не весь стейт
+state.subscribe((event, data) => {
+    if (event === 'periodChanged' || event === 'venueChanged') reload();
 });
 
-// Обновление состояния
-state.setState({
-    currentVenue: 'bolshoy',
-    dateFrom: '2026-03-01',
-    dateTo: '2026-03-07'
-});
+state.setPeriod(periodFor('week', new Date()));
 ```
+
+### Контракт, который нельзя ломать
+
+| Поле | Формат | Кто сломается при изменении |
+|------|--------|------------------------------|
+| `period.start` / `period.end` | ISO `YYYY-MM-DD`, **инклюзивно** | `analytics.js`, `export.js`, `meeting_notes.js`; сдвиг `+1` для iiko делает сервер |
+| `period.key` | `YYYY-MM-DD_YYYY-MM-DD` | `comments.js` (уходит в URL), `charts.js`/`trends.js` (ищут неделю по ключу), имя файла экспорта |
+| `currentMonth` | **строка** `'01'..'12'` с ведущим нулём | `plans.js` собирает ключ плана `${year}-${month}`; `2026-8` даёт 404 |
+| `currentYear` | **число** | там же |
+| событие `monthChanged` | шлётся при смене месяца/года | вкладки «Выручка», «Планы», «Планы по дням» |
+
+`setPeriod` рассылает `monthChanged` **только когда месяц или год реально
+сменились**, поэтому листание стрелками внутри одного месяца не дёргает месячные
+вкладки.
+
+Период **не персистится**: дашборд всегда открывается на последней завершённой
+неделе (единственный источник дефолта — конструктор `DashboardState`).
 
 ---
 
@@ -351,24 +343,34 @@ export function getTheme() {
 
 ---
 
-### Datepicker Module (Flatpickr)
+### Панель периода (period_controls.js)
+
+Flatpickr подключается **глобальным скриптом с CDN** (`templates/dashboard.html`),
+а не через `import` — сборщика в проекте нет. Панель владеет единственным
+экземпляром календаря:
 
 ```javascript
-// static/js/dashboard/modules/datepicker.js
-import flatpickr from 'flatpickr';
-import 'flatpickr/dist/flatpickr.min.css';
-import 'flatpickr/dist/themes/dark.css';
-
-export function initDatepicker(selector, options = {}) {
-    return flatpickr(selector, {
-        dateFormat: 'Y-m-d',
-        defaultDate: options.defaultDate,
-        maxDate: options.maxDate || 'today',
-        onChange: options.onChange,
-        theme: 'dark'
-    });
-}
+// static/js/dashboard/modules/period_controls.js
+this.flatpickr = flatpickr(this.pickerInput, {
+    mode: 'range',                       // 'single' на гранулярности «День»
+    dateFormat: 'd.m.Y',
+    locale: 'ru',
+    positionElement: this.btnCurrent,    // календарь у подписи, не у скрытого инпута
+    maxDate: new Date(2027, 11, 31),     // ТОЛЬКО Date-объект, не строка
+    onChange: (dates) => this.onPickerChange(dates)
+});
 ```
+
+**`maxDate` только Date-объектом.** Строку Flatpickr парсит собственным
+`dateFormat: 'd.m.Y'` и из `'2027-12-31'` читает день `20` — календарь упирается
+в 20-е число текущего месяца.
+
+**Стили Flatpickr подключены ДО наших** (`templates/dashboard.html`): специфичность
+правил одинаковая, решает порядок, иначе CDN побеждает и календарь в тёмной теме
+остаётся белым. Переопределения — в `static/dashboard/styles/base.css`.
+
+Тёмная тема применяется атрибутом `data-theme="dark"` на `<html>`
+(`modules/theme.js`), поэтому оверрайды пишутся как `[data-theme="dark"] .flatpickr-*`.
 
 ---
 
@@ -472,4 +474,13 @@ body {
 
 ## Changelog
 
+- **2026-08-11** — Приведено в соответствие с кодом + редизайн дашборда:
+  (1) секция State Management описывала несуществующий `StateManager` с
+  `setState/getState` — заменена на реальный `DashboardState` с событиями
+  `periodChanged`/`monthChanged`, добавлена таблица контракта полей;
+  (2) секция Datepicker содержала выдуманный код (`import flatpickr`, `theme: 'dark'`)
+  — заменена описанием реальной панели периода и грабель `maxDate`/порядка CSS;
+  (3) в список модулей добавлен `period_controls.js` (отсутствовал), у `datepicker.js`
+  и `week_selector.js` отмечено, что они устарели/частично мертвы;
+  (4) относительные ссылки исправлены с `../../` на `../` (файл лежит в `docs/`).
 - **2026-03-27** — Создан документ frontend.md с описанием state management, API клиента, модулей

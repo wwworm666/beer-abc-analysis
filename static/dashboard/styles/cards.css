@@ -4,30 +4,67 @@
    METRICS GRID
    ============================================ */
 
+/* Контейнер обеих версий разметки: какую показать — решает медиазапрос ниже.
+   Десктопная и мобильная версии строятся из ОДНИХ данных (analytics.buildStats),
+   поэтому цифры в них совпадают по определению. */
+.mv-desktop { display: block; }
+.mv-mobile { display: none; }
+
+@media (max-width: 768px) {
+    .mv-desktop { display: none; }
+    .mv-mobile { display: flex; flex-direction: column; gap: 12px; }
+}
+
 .metrics-grid {
+    margin-bottom: var(--spacing-xl);
+}
+
+/* ============================================
+   ГРУППА МЕТРИК (десктоп) — разделитель с названием
+   ============================================ */
+
+.metric-group + .metric-group {
+    margin-top: 26px;
+}
+
+.mg-separator {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.mg-title {
+    font-family: var(--font-family);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.mg-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+}
+
+.metrics-grid-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
-    margin-bottom: var(--spacing-xl);
     align-items: start;
 }
 
 @media (max-width: 1400px) {
-    .metrics-grid {
+    .metrics-grid-row {
         grid-template-columns: repeat(3, 1fr);
     }
 }
 
 @media (max-width: 1024px) {
-    .metrics-grid {
+    .metrics-grid-row {
         grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 640px) {
-    .metrics-grid {
-        grid-template-columns: 1fr;
-        gap: 12px;
     }
 }
 
@@ -40,49 +77,52 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 14px;
-    padding: 20px;
+    padding: 18px;
     transition: all var(--transition-fast);
     overflow: visible;
 }
 
 .metric-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+    box-shadow: 0 8px 24px var(--shadow);
+}
+
+.metric-card.clickable {
+    cursor: pointer;
 }
 
 /* ============================================
-   STATUS INDICATOR — Единственный цветной элемент
+   STATUS INDICATOR — точка статуса
+   Осталась только на мобильных карточках: на десктопе статус несёт цветной
+   процент выполнения, дублировать его точкой незачем (макет 3b).
    ============================================ */
+
+.status-indicator,
+.m-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: none;
+    transition: all var(--transition-fast);
+}
 
 .status-indicator {
     position: absolute;
     top: 16px;
     right: 16px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    transition: all var(--transition-fast);
 }
 
-/* Цвета индикатора */
-.status-indicator.success {
-    background: #10b981;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-}
+.status-indicator.success,
+.m-dot.success { background: var(--success); }
 
-.status-indicator.warning {
-    background: #f59e0b;
-    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
-}
+.status-indicator.warning,
+.m-dot.warning { background: var(--warning); }
 
-.status-indicator.danger {
-    background: #ef4444;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-}
+.status-indicator.danger,
+.m-dot.danger { background: var(--danger); }
 
-.status-indicator.neutral {
-    background: var(--text-tertiary);
-}
+.status-indicator.neutral,
+.m-dot.neutral { background: var(--text-tertiary); }
 
 /* ============================================
    METRIC HEADER
@@ -93,6 +133,7 @@
 }
 
 .metric-name {
+    display: block;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.08em;
@@ -106,13 +147,491 @@
    ============================================ */
 
 .metric-value {
-    font-size: 30px;
+    font-size: 28px;
     font-weight: 700;
     color: var(--text-primary);
     font-family: var(--font-family);
     line-height: 1.2;
-    margin-bottom: 16px;
+    margin-top: 9px;
     letter-spacing: -0.02em;
+}
+
+/* Вкладка «Сравнение» строит карточки со старой структурой (значение -> одна
+   шкала -> подвал) и переиспользует .metric-card. Отступ задаём смежностью,
+   чтобы не возвращать margin-bottom всем значениям: у новых карточек «Аналитики»
+   после значения идёт .mc-bars со своим отступом. */
+.metric-value + .progress-bar-container {
+    margin-top: 16px;
+}
+
+/* ============================================
+   ДВЕ ШКАЛЫ: СЕЙЧАС и ПР. ПЕРИОД
+   Одинаковой длины и на одной сетке — сравнение читается без чисел.
+   Вторая шкала дорисовывается после догрузки предыдущего периода.
+   ============================================ */
+
+.mc-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 16px;
+}
+
+.mc-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mc-bar-label {
+    width: 68px;
+    flex: none;
+    font-family: var(--font-family);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+.mc-track {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.mc-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.mc-fill-prev {
+    background: var(--bar-prev);
+}
+
+/* Шкала прошлого периода приезжает вторым запросом — проявляем её плавно,
+   чтобы карточка не «дёргалась» через секунду после отрисовки. */
+.mc-bar-row-prev {
+    animation: mcPrevIn var(--transition-base) ease both;
+}
+
+@keyframes mcPrevIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.mc-pct {
+    width: 40px;
+    flex: none;
+    text-align: right;
+    font-family: var(--font-family);
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.mc-pct.success { color: var(--success); }
+.mc-pct.warning { color: var(--warning); }
+.mc-pct.danger  { color: var(--danger); }
+.mc-pct.neutral { color: var(--text-tertiary); }
+
+/* Прошлый период — справочная величина, поэтому нейтральный серый без статуса. */
+.mc-pct-prev {
+    font-weight: 500;
+    color: var(--text-tertiary);
+}
+
+/* ============================================
+   ПОДВАЛ КАРТОЧКИ: отклонение и план
+   ============================================ */
+
+.mc-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    font-family: var(--font-family);
+    font-size: 11.5px;
+}
+
+.mc-delta {
+    font-weight: 600;
+}
+
+.mc-delta.success { color: var(--success); }
+.mc-delta.warning { color: var(--warning); }
+.mc-delta.danger  { color: var(--danger); }
+.mc-delta.neutral { color: var(--text-tertiary); }
+
+.mc-plan,
+.mc-noplan {
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+/* ============================================================
+   МОБИЛЬНЫЙ ЭКРАН АНАЛИТИКИ (макет 1a)
+   Сверху сводка «как идёт период», ниже три главные метрики крупно,
+   остальные свёрнуты в группы по направлениям.
+   Показывается только при max-width: 768px (см. .mv-mobile выше).
+   ============================================================ */
+
+/* --- Общие элементы мобильных карточек --- */
+
+.m-section-label {
+    padding-left: 2px;
+    font-family: var(--font-family);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    color: var(--text-tertiary);
+}
+
+.m-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.m-card-label {
+    font-family: var(--font-family);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    color: var(--text-secondary);
+}
+
+/* Шкала мобильных блоков (тоньше десктопной — плотнее вёрстка). */
+.m-track {
+    display: block;
+    height: 5px;
+    margin-top: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.m-fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.m-card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 9px;
+    font-family: var(--font-family);
+}
+
+.m-pct {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.m-pct.success { color: var(--success); }
+.m-pct.warning { color: var(--warning); }
+.m-pct.danger  { color: var(--danger); }
+
+.m-plan {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+/* Приписка «было N%» — процент того же показателя за предыдущий период. */
+.m-prev {
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.m-delta {
+    font-family: var(--font-family);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.m-delta.success { color: var(--success); }
+.m-delta.warning { color: var(--warning); }
+.m-delta.danger  { color: var(--danger); }
+.m-delta.neutral { color: var(--text-tertiary); }
+
+/* --- Сводка «Выполнение плана» --- */
+
+.m-summary {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    padding: 16px 16px 14px;
+}
+
+.m-summary-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.m-summary-label {
+    font-family: var(--font-family);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.m-summary-dates {
+    font-family: var(--font-family);
+    font-size: 10px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+.m-summary-value {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    margin-top: 9px;
+}
+
+.m-summary-pct {
+    font-family: var(--font-family);
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+}
+
+.m-summary-word {
+    font-family: var(--font-family);
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+.m-summary .m-track {
+    height: 6px;
+    margin-top: 14px;
+}
+
+/* Светофор: сколько метрик отстаёт / близко / в плане. */
+.m-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 14px;
+    padding-top: 13px;
+    border-top: 1px solid var(--border-light);
+}
+
+.m-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-family);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.m-legend-item .m-dot {
+    width: 7px;
+    height: 7px;
+}
+
+/* --- Главная метрика крупно --- */
+
+.m-hero {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 15px 16px;
+}
+
+.m-hero-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 7px;
+}
+
+.m-hero-value {
+    font-family: var(--font-family);
+    font-size: 29px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+/* --- Пара компактных карточек --- */
+
+.m-duo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.m-compact {
+    min-width: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 14px;
+}
+
+.m-compact .m-card-label {
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-compact-value {
+    margin-top: 6px;
+    font-family: var(--font-family);
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+}
+
+.m-compact .m-track {
+    height: 4px;
+    margin-top: 11px;
+}
+
+.m-compact .m-card-foot {
+    margin-top: 8px;
+}
+
+.m-compact .m-pct { font-size: 11px; }
+.m-compact .m-plan { font-size: 10px; }
+
+/* --- Группы по направлениям (аккордеон) --- */
+
+.m-group {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.m-group-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 16px;
+    border: none;
+    background: transparent;
+    font-family: var(--font-family);
+    text-align: left;
+    cursor: pointer;
+}
+
+/* У раскрытой группы шапка отделена подложкой от списка метрик. */
+.m-group.open .m-group-head {
+    background: var(--bg-primary);
+}
+
+.m-group-name {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    color: var(--text-primary);
+}
+
+.m-group-count {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+
+.m-group-pct {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.m-group-pct.success { color: var(--success); }
+.m-group-pct.warning { color: var(--warning); }
+.m-group-pct.danger  { color: var(--danger); }
+.m-group-pct.neutral { color: var(--text-tertiary); }
+
+.m-group-head .chevron {
+    flex: none;
+    color: var(--text-tertiary);
+    transition: transform var(--transition-fast);
+}
+
+.m-group.open .m-group-head .chevron {
+    transform: rotate(180deg);
+    color: var(--text-secondary);
+}
+
+/* Список метрик раскрытой группы: своих отступов нет — их несут строки. */
+.m-group-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.m-row {
+    padding: 13px 16px;
+    border-top: 1px solid var(--border-light);
+}
+
+.m-row-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.m-row-name {
+    font-family: var(--font-family);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+}
+
+.m-row-value {
+    font-family: var(--font-family);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.m-row .m-track {
+    height: 4px;
+    margin-top: 9px;
+}
+
+.m-row .m-card-foot {
+    margin-top: 8px;
+}
+
+.m-group-head:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
 }
 
 /* ============================================

@@ -107,42 +107,62 @@ class Dashboard {
     setupTabs() {
         const tabButtons = document.querySelectorAll('.tab-button');
         const tabContents = document.querySelectorAll('.tab-content');
+        // Нижняя таб-панель (мобильный редизайн) — второй набор кнопок с теми же data-tab.
+        const bottomButtons = document.querySelectorAll('.bt-item[data-tab]');
+
+        const activate = (tabId) => {
+            const selectedTab = document.getElementById(tabId);
+            if (!selectedTab) return;
+
+            // Снимаем active с обоих наборов кнопок и со всех панелей
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            bottomButtons.forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            // Подсвечиваем выбранную вкладку в верхних И нижних кнопках
+            document.querySelectorAll(`[data-tab="${tabId}"]`).forEach(btn => {
+                if (btn.tagName !== 'A') btn.classList.add('active');
+            });
+
+            selectedTab.classList.add('active');
+            state.setActiveTab(tabId);
+
+            // Загружаем данные при переключении на вкладки
+            if (tabId === 'tab-charts') {
+                chartsModule.loadChartsData();
+                trendsModule.loadTrendsData();
+            } else if (tabId === 'tab-revenue') {
+                // При переключении на вкладку Выручка — загружаем данные
+                revenueMetricsModule.loadAllMetrics();
+            } else if (tabId === 'tab-plans') {
+                // При переключении на вкладку Планы — загружаем данные
+                plansViewer.loadData();
+            }
+        };
 
         tabButtons.forEach(button => {
             // Ссылки-вкладки (напр. «Месячный отчёт» -> /monthly-report) просто переходят
             if (button.tagName === 'A') return;
+            button.addEventListener('click', () => activate(button.getAttribute('data-tab')));
+        });
+
+        bottomButtons.forEach(button => {
             button.addEventListener('click', () => {
-                const tabId = button.getAttribute('data-tab');
-
-                // Убираем active у всех
-                tabButtons.forEach(btn => btn.classList.remove('active'));
-                tabContents.forEach(content => content.classList.remove('active'));
-
-                // Добавляем active к выбранным
-                button.classList.add('active');
-                const selectedTab = document.getElementById(tabId);
-                if (selectedTab) {
-                    selectedTab.classList.add('active');
-                    state.setActiveTab(tabId);
-
-                    // Загружаем данные при переключении на вкладки
-                    if (tabId === 'tab-charts') {
-                        chartsModule.loadChartsData();
-                        trendsModule.loadTrendsData();
-                    } else if (tabId === 'tab-revenue') {
-                        // При переключении на вкладку Выручка — загружаем данные
-                        revenueMetricsModule.loadAllMetrics();
-                    } else if (tabId === 'tab-plans') {
-                        // При переключении на вкладку Планы — загружаем данные
-                        plansViewer.loadData();
-                    }
-                }
+                activate(button.getAttribute('data-tab'));
+                // На мобильном вкладка меняет весь экран — возвращаем пользователя наверх.
+                window.scrollTo({ top: 0, behavior: 'smooth' });
             });
         });
 
+        // «Ещё» в нижней панели открывает боковое меню (кнопка из shared/nav.html)
+        document.getElementById('bt-more')?.addEventListener('click', () => {
+            document.getElementById('sidebar-toggle')?.click();
+        });
+
         // Активируем первую вкладку по умолчанию
-        if (tabButtons.length > 0) {
-            tabButtons[0].click();
+        const firstTab = document.querySelector('.tab-button[data-tab]');
+        if (firstTab) {
+            activate(firstTab.getAttribute('data-tab'));
         }
     }
 

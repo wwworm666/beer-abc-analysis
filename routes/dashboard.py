@@ -56,16 +56,21 @@ def dashboard_analytics():
                 print("   [1/5] Запуск комплексного OLAP запроса...")
                 start_time = time.time()
                 data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
-                if not data or not data.get('data'):
+                if data is None:
+                    # Сбой iiko: наверх идёт None, такой результат НЕ кэшируется.
                     return None
                 print(f"   [OK] Комплексный запрос выполнен за {time.time() - start_time:.2f}s")
-                return data
+                # Пустой период (закрытый день, будущая дата) — это ВАЛИДНЫЙ ответ:
+                # возвращаем {'data': []}, чтобы он попал в кэш и метрики стали нулями.
+                # Раньше пустой ответ приравнивался к ошибке -> 500 и повторный поход
+                # в iiko на каждое нажатие стрелки. См. docs/lessons.md.
+                return data if data.get('data') else {'data': []}
             finally:
                 olap.disconnect()
 
         all_sales_data = cached_olap(cache_key, _fetch_all_sales)
 
-        if not all_sales_data or not all_sales_data.get('data'):
+        if all_sales_data is None:
             return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
         # 2. Создаем калькулятор метрик и рассчитываем из СЫРЫХ данных
@@ -860,9 +865,10 @@ def revenue_metrics():
                 print("   [DEBUG] Calling get_all_sales_report...")
                 data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
                 print(f"   [DEBUG] Got {len(data.get('data', [])) if data else 0} records")
-                if not data or not data.get('data'):
+                if data is None:
                     return None
-                return data
+                # Пустой период — валидный ответ (нули), а не ошибка. См. dashboard_analytics.
+                return data if data.get('data') else {'data': []}
             finally:
                 olap.disconnect()
 
@@ -870,7 +876,7 @@ def revenue_metrics():
         # шарится между вкладками, а не обнуляется отладочным .clear() на каждом запросе.
         all_sales_data = cached_olap(cache_key, _fetch_all_sales)
 
-        if not all_sales_data:
+        if all_sales_data is None:
             return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
         # Считаем метрики из сырых OLAP данных
@@ -909,46 +915,55 @@ def revenue_metrics():
         # 'revenue' = вся выручка после маппинга
         actual_revenue = mapped.get('revenue', 0)
 
-        # План за ВЕСЬ месяц. «Общее» (all/пусто) = сумма баров (calculate_plan_for_period
-        # суммирует по 4 точкам за полный месяц); конкретный бар — его месячный план.
+        # ---- Границы ПОЛНОГО периода, к которому относятся план и прогноз ----
+        # date_from/date_to — это диапазон, за который есть ФАКТ (для текущего месяца
+        # он обрезан по сегодня). period_from/period_to — весь выбранный период целиком.
+        # Разделение нужно, чтобы «Ожидаемая» экстраполировалась до конца периода,
+        # а «% выполнения» считался от плана за весь период.
+        #
+        # Старые открытые вкладки period_from/period_to не присылают — тогда полным
+        # периодом считается календарный месяц date_from, как было до 2026-08-11.
+        # На месячном периоде обе ветки дают одинаковые числа.
         _pdt = datetime.strptime(date_from, '%Y-%m-%d')
-        _mstart = _pdt.replace(day=1).strftime('%Y-%m-%d')
-        _mnext = datetime(_pdt.year + 1, 1, 1) if _pdt.month == 12 else datetime(_pdt.year, _pdt.month + 1, 1)
-        _mend = (_mnext - timedelta(days=1)).strftime('%Y-%m-%d')
+        period_from = data.get('period_from')
+        period_to = data.get('period_to')
 
-        if not venue_key or venue_key in ('all', 'total'):
-            month_plan = plans_manager.calculate_plan_for_period('', _mstart, _mend) or {}
-        else:
-            month_plan = plans_manager.get_monthly_plan(venue_key, _pdt.year, _pdt.month) or {}
-        plan_revenue = month_plan.get('revenue', 0.0)
+        if not period_from or not period_to:
+            _mnext = datetime(_pdt.year + 1, 1, 1) if _pdt.month == 12 else datetime(_pdt.year, _pdt.month + 1, 1)
+            period_from = _pdt.replace(day=1).strftime('%Y-%m-%d')
+            period_to = (_mnext - timedelta(days=1)).strftime('%Y-%m-%d')
 
-        # Расчёт метрик
+        period_start = datetime.strptime(period_from, '%Y-%m-%d')
+        period_end = datetime.strptime(period_to, '%Y-%m-%d')
+
+        # План за ВЕСЬ период. «Общее» (all/пусто) = сумма баров; для конкретного бара
+        # calculate_plan_for_period делит месячные планы пропорционально взвешенным
+        # дням (пт/сб = 2.0, core/day_weights.py). На полном месяце это ровно месячный
+        # план — прежнее поведение get_monthly_plan сохраняется.
+        _venue_for_plan = '' if (not venue_key or venue_key in ('all', 'total')) else venue_key
+        period_plan = plans_manager.calculate_plan_for_period(_venue_for_plan, period_from, period_to) or {}
+        plan_revenue = period_plan.get('revenue', 0.0)
+
+        # ---- Метрики ----
         start = datetime.strptime(date_from, '%Y-%m-%d')
         end = datetime.strptime(date_to, '%Y-%m-%d')
-        total_days = (end - start).days + 1  # Дней с 1-го по сегодня (для средней)
+        total_days = (end - start).days + 1          # дней с фактом (для средней)
+        period_days = (period_end - period_start).days + 1  # дней во всём периоде
 
-        # Дней в месяце (для прогноза)
-        if start.month == 12:
-            days_in_month = 31
-        else:
-            next_month = datetime(start.year, start.month + 1, 1)
-            days_in_month = (next_month - datetime(start.year, start.month, 1)).days
-
-        # Средняя в день (факт / прошедшие дни)
+        # Средняя в день = факт / дни с фактом
         average_daily = actual_revenue / total_days if total_days > 0 else 0
 
-        # Ожидаемая (прогноз на конец месяца)
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        days_elapsed = min((today - start).days + 1, days_in_month)
+        # Ожидаемая = факт + линейная экстраполяция средней на остаток периода.
+        # Период закончился (или данных на весь период уже есть) -> ожидаемая = факт.
+        today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        period_finished = today_dt > period_end or total_days >= period_days
 
-        if days_elapsed > 0 and days_elapsed < days_in_month:
-            # Экстраполируем среднюю на весь месяц
-            expected = average_daily * days_in_month
+        if not period_finished and total_days > 0:
+            expected = average_daily * period_days
         else:
-            # Месяц закончился — ожидаемая = факт
             expected = actual_revenue
 
-        # % выполнения
+        # % выполнения = факт / план за весь период
         completion = (actual_revenue / plan_revenue * 100) if plan_revenue > 0 else 0
 
         result = {
@@ -957,7 +972,9 @@ def revenue_metrics():
             'expected': round(expected, 2),
             'average': round(average_daily, 2),
             'period_days': total_days,
-            'days_in_month': days_in_month,
+            # days_in_month — историческое имя поля: число дней во ВСЁМ выбранном
+            # периоде (на месячной гранулярности это по-прежнему дни месяца).
+            'days_in_month': period_days,
             'completion_percent': round(completion, 1)
         }
 

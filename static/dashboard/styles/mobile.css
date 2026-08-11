@@ -1,8 +1,14 @@
 /* Адаптивная верстка для мобильных устройств */
 
+/* Нижняя таб-панель (мобильный редизайн) — вне медиазапросов, чтобы правило
+   скрытия на десктопе не зависело от порядка блоков ниже. */
+.bottom-tabs {
+    display: none;
+}
+
 /* Tablet (768px - 1024px) */
 @media (max-width: 1024px) {
-    .metrics-grid {
+    .metrics-grid-row {
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     }
 
@@ -23,21 +29,108 @@
 @media (max-width: 768px) {
     .container {
         padding: 20px 12px;
+        /* Место под нижнюю таб-панель, чтобы она не накрывала контент. */
+        padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
     }
 
     .header-with-sidebar {
         gap: 12px;
     }
 
+    /* Верхние вкладки на телефоне заменены нижней таб-панелью (макет 1a).
+       Разметка остаётся в DOM: main.js держит оба набора кнопок в синхроне,
+       и «Месячный отчёт» (ссылка) переезжает в боковое меню. */
     .tabs-nav {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        display: none;
     }
 
-    .tab-button {
-        white-space: nowrap;
-        padding: 10px 16px;
+    /* ---- Нижняя таб-панель ---- */
+    .bottom-tabs {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 90;
+        display: flex;
+        padding: 8px 6px calc(14px + env(safe-area-inset-bottom, 0px));
+        background: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+    }
+
+    .bt-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        padding: 2px 0;
+        border: none;
+        background: transparent;
+        font-family: var(--font-family);
+        font-size: 9.5px;
+        font-weight: 500;
+        color: var(--text-tertiary);
+        cursor: pointer;
+    }
+
+    .bt-item svg {
+        width: 19px;
+        height: 19px;
+    }
+
+    .bt-item.active {
+        color: var(--accent);
+        font-weight: 600;
+    }
+
+    .bt-item:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+        border-radius: 8px;
+    }
+
+    /* ---- Шапка: бар / период / экспорт одной строкой чипов ---- */
+    .dashboard-controls {
+        padding: var(--spacing-sm);
+        border-radius: var(--border-radius-sm);
+        margin-bottom: var(--spacing-md);
+    }
+
+    .controls-row {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: var(--spacing-sm);
+    }
+
+    /* Подписи «Бар» / «Период» на телефоне избыточны — сами чипы себя объясняют. */
+    .controls-row .control-group > label {
+        display: none;
+    }
+
+    .controls-row .control-group:not(.control-group-button):not(.control-group-period) {
+        flex: 1 1 100%;
+    }
+
+    .control-group-period {
+        flex: 1 1 100%;
+    }
+
+    .control-input {
+        padding: 10px 14px;
         font-size: 0.9rem;
+    }
+
+    /* Экспорт — компактные кнопки-иконки, обе (Excel и PDF) остаются доступны. */
+    .control-group-button {
+        min-width: 0;
+        flex: 0 0 auto;
+    }
+
+    .export-btn {
+        padding: 10px 14px;
+        font-size: 0.8rem;
     }
 
     .tab-controls {
@@ -49,6 +142,63 @@
     .control-group input {
         min-width: 100%;
         width: 100%;
+    }
+
+    /* Якорь календаря не растягиваем на всю ширину — он невидимый. */
+    .control-group .period-picker-anchor {
+        min-width: 0;
+        width: 1px;
+    }
+
+    /* ---- Панель периода на телефоне ----
+       Свёрнута: видна только строка со стрелками и подписью периода (чип из
+       макета 1a). Тап по подписи добавляет .open и разворачивает гранулярность,
+       «Сегодня» и «Календарь». Порядком управляет flex order — без обёрток,
+       чтобы десктопная раскладка осталась одной строкой. */
+    .period-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: var(--spacing-sm);
+    }
+
+    .period-nav { order: 1; }
+    .period-granularity { order: 2; justify-content: space-between; }
+    .pn-today { order: 3; }
+    /* На десктопе кнопка скрыта (base.css) — на телефоне возвращаем в поток. */
+    .pn-calendar { order: 4; display: block; }
+
+    .period-bar:not(.open) .period-granularity,
+    .period-bar:not(.open) .pn-today,
+    .period-bar:not(.open) .pn-calendar {
+        display: none;
+    }
+
+    /* Подпись периода — чип: видно, что по нему можно тапнуть. */
+    .pn-current {
+        border-color: var(--border-color);
+        border-radius: var(--border-radius-pill);
+        background: var(--bg-primary);
+        min-height: 44px;
+    }
+
+    .pn-label {
+        font-size: 0.9rem;
+    }
+
+    .pg-btn {
+        flex: 1 1 0;
+        min-height: 40px;
+        text-align: center;
+    }
+
+    .pn-arrow {
+        width: 44px;
+        height: 44px;
+    }
+
+    .pn-today,
+    .pn-calendar {
+        min-height: 44px;
     }
 
     /* Карточки в одну колонку */

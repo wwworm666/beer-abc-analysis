@@ -9,6 +9,11 @@
     <!-- IBM Plex Mono шрифты -->
     <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
 
+    <!-- Flatpickr Datepicker (СТИЛИ ДО наших: base.css переопределяет календарь
+         под тему дашборда — при обратном порядке побеждал бы CDN, т.к. специфичность
+         правил одинаковая и решает порядок подключения) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+
     <!-- CSS Стили (модульный подход) -->
     <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
     <link rel="stylesheet" href="/static/dashboard/styles/base.css">
@@ -20,9 +25,6 @@
     <link rel="stylesheet" href="/static/dashboard/styles/comparison.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
-
-    <!-- Flatpickr Datepicker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
 
     <!-- Preload критических JavaScript модулей -->
     <link rel="modulepreload" href="/static/js/dashboard/main.js?v={{ app_version }}">
@@ -51,23 +53,21 @@
             // Импортируем дополнительные модули
             return Promise.all([
                 import(`/static/js/dashboard/modules/export.js?v=${APP_VERSION}`),
-                import(`/static/js/dashboard/modules/comparison.js?v=${APP_VERSION}`),
-                import(`/static/js/dashboard/modules/datepicker.js?v=${APP_VERSION}`)
+                import(`/static/js/dashboard/modules/comparison.js?v=${APP_VERSION}`)
             ]);
-        }).then(([exportMod, comparisonMod, datepickerMod]) => {
-            // Инициализируем дополнительные модули
+        }).then(([exportMod, comparisonMod]) => {
+            // Инициализируем дополнительные модули.
+            // Период больше не грузится отдельно: панель периода инициализируется
+            // из main.js (periodControls) вместе с остальными модулями дашборда.
             if (exportMod && exportMod.exportModule) {
                 exportMod.exportModule.init();
             }
             if (comparisonMod && comparisonMod.comparisonModule) {
                 comparisonMod.comparisonModule.init();
             }
-            if (datepickerMod && datepickerMod.datepickerModule) {
-                datepickerMod.datepickerModule.init();
-            }
-            console.log('✅ Dashboard loaded successfully!');
+            console.log('Dashboard loaded successfully');
         }).catch(err => {
-            console.error('❌ Error loading dashboard:', err);
+            console.error('Error loading dashboard:', err);
         });
     </script>
 

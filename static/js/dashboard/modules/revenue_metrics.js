@@ -6,6 +6,12 @@
 import { state } from '../core/state.js';
 import { fetchAPI } from '../core/api.js';
 import { formatMoney, getStatus } from '../core/utils.js';
+import { toISO, today } from '../core/period_model.js';
+
+/** Сегодняшняя дата в 'YYYY-MM-DD' — строки этого формата сравнимы лексикографически. */
+function todayISO() {
+    return toISO(today());
+}
 
 class RevenueMetricsModule {
     constructor() {
@@ -38,10 +44,12 @@ class RevenueMetricsModule {
     }
 
     setupListeners() {
-        // Перезагрузка при смене глобального месяца/года или бара — когда вкладка активна.
-        // Месяц/год задаётся верхним адаптивным селектором (period_controls.js).
+        // Перезагрузка при смене периода или бара — только когда вкладка активна.
+        // Период задаёт единая верхняя панель (period_controls.js); подписка идёт
+        // на periodChanged, а не на monthChanged, потому что вкладка теперь умеет
+        // не только месяц (день/неделя/год тоже).
         state.subscribe((event) => {
-            if (event !== 'monthChanged' && event !== 'venueChanged') return;
+            if (event !== 'periodChanged' && event !== 'venueChanged') return;
             const activeTab = document.querySelector('.tab-button.active');
             if (activeTab && activeTab.getAttribute('data-tab') === 'tab-revenue') {
                 this.loadAllMetrics();
@@ -69,21 +77,27 @@ class RevenueMetricsModule {
 
     async loadAllMetrics() {
         const venue = state.currentVenue;
+        const period = state.currentPeriod;
+        if (!period) return;
 
-        // Период: выбранный месяц (с 1-го числа; для текущего месяца — по сегодня,
-        // чтобы «Ожидаемая» оставалась осмысленной проекцией). Месяц/год — из глобального state.
-        const now = new Date();
-        const monthNum = state.currentMonth ? parseInt(state.currentMonth, 10) : now.getMonth() + 1;
-        const year = state.currentYear || now.getFullYear();
-        const isCurrentMonth = (year === now.getFullYear() && monthNum === now.getMonth() + 1);
-        const lastDay = new Date(year, monthNum, 0).getDate();
-        const toDay = isCurrentMonth ? now.getDate() : lastDay;
-        const mm = String(monthNum).padStart(2, '0');
+        // Границы периода целиком — к ним привязаны план и «Ожидаемая».
+        const periodFrom = period.start;
+        const periodTo = period.end;
 
-        const dateFrom = `${year}-${mm}-01`;
-        const dateTo = `${year}-${mm}-${String(toDay).padStart(2, '0')}`;
+        // Диапазон, за который спрашиваем ФАКТ: у незавершённого периода обрезаем
+        // по сегодня, иначе средняя в день делилась бы на будущие дни и занижалась,
+        // а «Ожидаемая» переставала быть проекцией.
+        const dateFrom = periodFrom;
+        const dateTo = periodTo > todayISO() ? todayISO() : periodTo;
 
-        console.log('[RevenueMetrics] loadAllMetrics:', venue, dateFrom, '-', dateTo);
+        // Период целиком в будущем — считать нечего.
+        if (dateTo < dateFrom) {
+            this.showNoData();
+            return;
+        }
+
+        console.log('[RevenueMetrics] loadAllMetrics:', venue, dateFrom, '-', dateTo,
+                    '(период', periodFrom, '-', periodTo, ')');
 
         if (!this.elements.metricsRows) {
             this.cacheElements();
@@ -109,7 +123,14 @@ class RevenueMetricsModule {
         const promises = bars.map(bar =>
             fetchAPI('/api/revenue-metrics', {
                 method: 'POST',
-                body: JSON.stringify({ bar, date_from: dateFrom, date_to: dateTo })
+                body: JSON.stringify({
+                    bar,
+                    date_from: dateFrom,
+                    date_to: dateTo,
+                    // Границы всего периода: сервер берёт по ним план и горизонт прогноза.
+                    period_from: periodFrom,
+                    period_to: periodTo
+                })
             })
             .then(metrics => ({ bar, metrics, name: barNames[bar] }))
             .catch(error => {
