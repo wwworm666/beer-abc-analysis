@@ -1,32 +1,28 @@
 /**
- * Единая панель периода в верхнем баре.
+ * Шапка фильтров дашборда (макет 5a/6a).
  *
- *   [День|Неделя|Месяц|Год]  [<]  подпись периода  [>]  [Сегодня]
- *                                 вторая строка: «неделя 32 · 7 дней»
+ *   [ Все заведения ▾ | ‹  Август 2026  1—11 авг ▾  › |            Excel  PDF ]
  *
- * Одна панель на все вкладки (раньше «Аналитика» имела диапазон-пикер, а
- * «Выручка»/«Планы» — отдельные селекты Месяц+Год, которые жили своей жизнью).
+ * В строке ровно два выбора: заведение и период. Переключателя гранулярности,
+ * кнопки «Сегодня» и счётчика дней нет — всё это живёт в выпадающем списке
+ * периода, где выбор занимает один клик. Гранулярность задаёт сам пресет:
+ * выбрал «Прошлая неделя» — стрелки дальше листают неделями.
  *
- * Что делает модуль:
- *   - держит период в state (единственный источник — state.currentPeriod);
- *   - листает стрелками шагом выбранной гранулярности;
- *   - открывает Flatpickr по клику на подпись (день -> одна дата, иначе диапазон);
- *   - гасит гранулярности, неприменимые к активной вкладке;
- *   - показывает бейдж незавершённого периода;
- *   - дебаунсит применение периода, чтобы серия кликов по стрелке не превратилась
- *     в серию холодных OLAP-запросов (см. docs/lessons.md, урок про стампед).
+ * На телефоне полоса разворачивается в две строки, а списки открываются снизу
+ * нижним листом (одна и та же разметка, разные стили).
  *
  * Вся арифметика дат — в core/period_model.js, здесь только DOM и события.
  */
 
 import { state } from '../core/state.js';
 import {
-    CUSTOM,
+    PERIOD_PRESETS,
     changeGranularity,
-    currentPeriodFor,
-    formatSubLabel,
     fromISO,
+    matchPreset,
     periodFromSelection,
+    periodHint,
+    periodTitle,
     progressBadge,
     shiftPeriod,
     today
@@ -35,39 +31,38 @@ import {
 /**
  * Пауза перед применением периода после клика по стрелке.
  * 350 мс: успеваешь долистать до нужной недели, не отправив запрос на каждый шаг.
- * Подпись при этом обновляется мгновенно — ощущение мгновенного отклика есть,
- * дорогой запрос уходит один.
+ * Подпись при этом обновляется мгновенно — отклик есть, дорогой запрос уходит один.
  */
 const APPLY_DEBOUNCE_MS = 350;
 
 /**
  * Какие гранулярности осмысленны на каждой вкладке.
+ * Неприменимые пресеты в списке гаснут (а не исчезают — список не должен «прыгать»).
  *
- * tab-revenue  — все четыре: эндпоинт /api/revenue-metrics принимает явные границы
- *                периода и считает «Ожидаемую» и «% выполнения» относительно них.
- * tab-plans    — только месяц и год: планы хранятся помесячно (ключ venue_YYYY-MM),
- *                день и неделю не к чему привязать; год = сумма месячных планов.
- * tab-comparison — панель скрыта целиком, у вкладки свои Период 1 / Период 2.
+ * tab-plans — только месяц и год: планы хранятся помесячно (ключ venue_YYYY-MM),
+ *             день, неделю и квартал не к чему привязать.
+ * tab-comparison — шапка периода скрыта, у вкладки свои Период 1 / Период 2.
  */
 const TAB_GRANULARITIES = {
-    'tab-analytics': ['day', 'week', 'month', 'year'],
-    'analytics': ['day', 'week', 'month', 'year'],
-    'tab-revenue': ['day', 'week', 'month', 'year'],
+    'tab-analytics': ['day', 'week', 'month', 'quarter', 'year', 'custom'],
+    'analytics': ['day', 'week', 'month', 'quarter', 'year', 'custom'],
+    'tab-revenue': ['day', 'week', 'month', 'quarter', 'year', 'custom'],
     'tab-plans': ['month', 'year']
 };
 
 const HIDDEN_TABS = ['tab-comparison'];
 
 const DISABLED_HINT = {
-    'tab-plans': 'Планы задаются на месяц — день и неделя недоступны'
+    'tab-plans': 'Планы задаются на месяц — доступны только месяц и год'
 };
 
 class PeriodControls {
     constructor() {
         this.initialized = false;
-        this.pendingPeriod = null;   // период, показанный в панели, но ещё не применённый
+        this.pendingPeriod = null;   // период, показанный в шапке, но ещё не применённый
         this.applyTimer = null;
         this.flatpickr = null;
+        this.openMenu = null;        // id открытого списка
     }
 
     init() {
@@ -75,11 +70,12 @@ class PeriodControls {
 
         this.cacheElements();
         if (!this.bar) {
-            // Панели нет в DOM (не-дашбордная страница) — модуль ничего не делает.
+            // Шапки нет в DOM (не-дашбордная страница) — модуль ничего не делает.
             this.initialized = true;
             return;
         }
 
+        this.renderPresetList();
         this.setupEventListeners();
         this.initFlatpickr();
         this.applyTabVisibility(state.activeTab);
@@ -89,42 +85,145 @@ class PeriodControls {
     }
 
     cacheElements() {
+        this.bar = document.getElementById('filter-bar');
         this.group = document.getElementById('cg-period');
-        this.bar = document.getElementById('period-bar');
-        this.granularityBox = document.getElementById('period-granularity');
-        this.granularityButtons = Array.from(document.querySelectorAll('.pg-btn'));
         this.btnPrev = document.getElementById('period-prev');
         this.btnNext = document.getElementById('period-next');
-        this.btnToday = document.getElementById('period-today');
-        this.btnCurrent = document.getElementById('period-current');
-        this.labelEl = document.getElementById('period-label');
-        this.subLabelEl = document.getElementById('period-sublabel');
-        this.warningEl = document.getElementById('period-warning');
+        this.trigger = document.getElementById('period-trigger');
+        this.titleEl = document.getElementById('period-title');
+        this.hintEl = document.getElementById('period-hint');
+        this.menu = document.getElementById('period-menu');
+        this.presetList = document.getElementById('period-preset-list');
+        this.btnCustom = document.getElementById('period-custom');
+        this.backdrop = document.getElementById('fb-backdrop');
         this.pickerInput = document.getElementById('flexi-range-picker');
     }
 
-    setupEventListeners() {
-        this.granularityButtons.forEach(btn => {
-            btn.addEventListener('click', () => {
-                if (btn.disabled) return;
-                const g = btn.getAttribute('data-granularity');
-                this.setPeriod(changeGranularity(this.viewPeriod(), g), { immediate: true });
+    // ============================================================
+    // Список периода
+    // ============================================================
+
+    /** Отрисовать пункты быстрого выбора один раз; подсветку обновляет render(). */
+    renderPresetList() {
+        if (!this.presetList) return;
+
+        this.presetList.innerHTML = '';
+        PERIOD_PRESETS.forEach(preset => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'fb-menu-item';
+            item.setAttribute('role', 'menuitem');
+            item.dataset.preset = preset.id;
+            item.innerHTML = `
+                <span class="fb-menu-name"></span>
+                <span class="fb-menu-hint"></span>
+            `;
+            item.addEventListener('click', () => {
+                if (item.disabled) return;
+                this.setPeriod(preset.build(today()), { immediate: true });
+                this.closeMenus();
             });
+            this.presetList.appendChild(item);
+        });
+    }
+
+    /** Обновить подписи, подсказки, активный пункт и гашение в списке. */
+    updatePresetList() {
+        if (!this.presetList) return;
+
+        const now = today();
+        const activeId = matchPreset(this.viewPeriod(), now);
+        const allowed = this.allowedGranularities();
+
+        PERIOD_PRESETS.forEach(preset => {
+            const item = this.presetList.querySelector(`[data-preset="${preset.id}"]`);
+            if (!item) return;
+
+            const candidate = preset.build(now);
+            const isAllowed = allowed.includes(candidate.granularity);
+
+            item.querySelector('.fb-menu-name').textContent = preset.name;
+            // Подсказка — какие это числа: «11 авг», «3—9 авг», «янв—авг».
+            item.querySelector('.fb-menu-hint').textContent =
+                periodHint(candidate, now, { dayAsDate: true });
+            item.classList.toggle('active', preset.id === activeId);
+            item.disabled = !isAllowed;
+            item.title = isAllowed ? '' : (DISABLED_HINT[state.activeTab] || '');
         });
 
+        if (this.btnCustom) {
+            const customAllowed = allowed.includes('custom');
+            this.btnCustom.disabled = !customAllowed;
+            this.btnCustom.classList.toggle('active', activeId === null);
+        }
+    }
+
+    // ============================================================
+    // Открытие/закрытие списков
+    // ============================================================
+
+    toggleMenu(id, triggerEl) {
+        if (this.openMenu === id) {
+            this.closeMenus();
+            return;
+        }
+        this.closeMenus();
+
+        const menu = document.getElementById(id);
+        if (!menu) return;
+
+        menu.classList.remove('hidden');
+        this.backdrop?.classList.remove('hidden');
+        triggerEl?.setAttribute('aria-expanded', 'true');
+        // Список выпадает от своего триггера: на десктопе он абсолютный внутри
+        // шапки, поэтому смещение считаем от левого края триггера.
+        if (triggerEl && this.bar) {
+            const barRect = this.bar.getBoundingClientRect();
+            const tRect = triggerEl.getBoundingClientRect();
+            menu.style.setProperty('--fb-menu-left', `${Math.round(tRect.left - barRect.left)}px`);
+        }
+        this.openMenu = id;
+    }
+
+    closeMenus() {
+        document.querySelectorAll('.fb-menu').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('[aria-haspopup]').forEach(t => t.setAttribute('aria-expanded', 'false'));
+        this.backdrop?.classList.add('hidden');
+        this.openMenu = null;
+    }
+
+    setupEventListeners() {
         this.btnPrev?.addEventListener('click', () => this.navigate(-1));
         this.btnNext?.addEventListener('click', () => this.navigate(1));
-        this.btnToday?.addEventListener('click', () => this.goToCurrent());
 
-        // Клик по подписи открывает календарь — одинаково на десктопе и телефоне.
-        // Раньше на телефоне тот же клик разворачивал спрятанные кнопки
-        // гранулярности: про этот тап неоткуда было узнать, и сменить
-        // день/неделю/месяц/год на телефоне было нельзя. Теперь кнопки видны всегда.
-        this.btnCurrent?.addEventListener('click', () => this.openPicker());
+        this.trigger?.addEventListener('click', () => {
+            this.updatePresetList();
+            this.toggleMenu('period-menu', this.trigger);
+        });
 
-        // Клавиши: стрелки листают, Home возвращает к текущему периоду.
-        // Игнорируем, когда пользователь печатает в поле или панель скрыта.
+        this.btnCustom?.addEventListener('click', () => {
+            if (this.btnCustom.disabled) return;
+            this.closeMenus();
+            this.openPicker();
+        });
+
+        this.backdrop?.addEventListener('click', () => this.closeMenus());
+
+        // Клик вне списка закрывает его.
+        document.addEventListener('click', (e) => {
+            if (!this.openMenu) return;
+            const menu = document.getElementById(this.openMenu);
+            if (menu?.contains(e.target)) return;
+            if (e.target.closest('[aria-haspopup]')) return;
+            this.closeMenus();
+        });
+
+        // Клавиши: стрелки листают период, Esc закрывает список.
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.openMenu) {
+                this.closeMenus();
+                return;
+            }
             if (this.group?.classList.contains('hidden')) return;
             if (e.altKey || e.ctrlKey || e.metaKey) return;
 
@@ -140,9 +239,6 @@ class PeriodControls {
             } else if (e.key === 'ArrowRight') {
                 e.preventDefault();
                 this.navigate(1);
-            } else if (e.key === 'Home') {
-                e.preventDefault();
-                this.goToCurrent();
             }
         });
 
@@ -152,7 +248,7 @@ class PeriodControls {
                 this.snapToAllowedGranularity();
                 this.render();
             } else if (event === 'periodChanged') {
-                // Период мог измениться и не через панель — держим её в согласии со state.
+                // Период мог измениться и не через шапку — держим её в согласии со state.
                 if (!this.applyTimer) this.render();
             }
         });
@@ -162,17 +258,17 @@ class PeriodControls {
     // Период: чтение и запись
     // ============================================================
 
-    /** Период, который панель СЕЙЧАС показывает (с учётом ещё не применённого). */
+    /** Период, который шапка СЕЙЧАС показывает (с учётом ещё не применённого). */
     viewPeriod() {
         return this.pendingPeriod || state.currentPeriod;
     }
 
     /**
-     * Показать период в панели и применить его в state.
+     * Показать период в шапке и применить его в state.
      *
      * @param {Object} period — объект из period_model
      * @param {{immediate?: boolean}} opts — immediate:true применяет сразу
-     *        (смена гранулярности, календарь, «Сегодня»); стрелки идут через дебаунс.
+     *        (выбор в списке, календарь); стрелки идут через дебаунс.
      */
     setPeriod(period, { immediate = false } = {}) {
         if (!period) return;
@@ -209,14 +305,7 @@ class PeriodControls {
     }
 
     navigate(direction) {
-        const next = shiftPeriod(this.viewPeriod(), direction);
-        this.setPeriod(next);
-    }
-
-    goToCurrent() {
-        const view = this.viewPeriod();
-        const granularity = (view.granularity && view.granularity !== CUSTOM) ? view.granularity : 'week';
-        this.setPeriod(currentPeriodFor(granularity), { immediate: true });
+        this.setPeriod(shiftPeriod(this.viewPeriod(), direction));
     }
 
     // ============================================================
@@ -225,9 +314,9 @@ class PeriodControls {
 
     initFlatpickr() {
         if (!this.pickerInput || typeof flatpickr === 'undefined') {
-            // Библиотека грузится с CDN — если её нет, панель остаётся рабочей
-            // (стрелки и гранулярность), недоступен только выбор даты вручную.
-            this.btnCurrent?.setAttribute('title', 'Календарь недоступен: библиотека не загрузилась');
+            // Библиотека грузится с CDN — если её нет, шапка остаётся рабочей
+            // (стрелки и пресеты), недоступен только «Свой период».
+            this.btnCustom?.setAttribute('title', 'Календарь недоступен: библиотека не загрузилась');
             return;
         }
 
@@ -235,7 +324,7 @@ class PeriodControls {
             mode: 'range',
             dateFormat: 'd.m.Y',
             locale: 'ru',
-            positionElement: this.btnCurrent,
+            positionElement: this.trigger,
             // Date-объект, НЕ строка: строку Flatpickr парсит своим dateFormat 'd.m.Y'
             // и из '2027-12-31' читает день '20' -> календарь упирается в 20-е число
             // текущего месяца. См. docs/CHANGELOG.md (2026-06).
@@ -247,37 +336,15 @@ class PeriodControls {
     openPicker() {
         if (!this.flatpickr) return;
         const view = this.viewPeriod();
-        const isDay = view.granularity === 'day';
-
-        // Режим календаря идёт за гранулярностью: день — одна дата, иначе диапазон.
-        this.flatpickr.set('mode', isDay ? 'single' : 'range');
-        this.flatpickr.setDate(
-            isDay ? [fromISO(view.start)] : [fromISO(view.start), fromISO(view.end)],
-            false
-        );
+        this.flatpickr.setDate([fromISO(view.start), fromISO(view.end)], false);
         this.flatpickr.open();
     }
 
     onPickerChange(selectedDates) {
-        if (!selectedDates || selectedDates.length === 0) return;
+        if (!selectedDates || selectedDates.length < 2) return;
 
-        const view = this.viewPeriod();
-        const isDay = view.granularity === 'day';
-
-        if (isDay) {
-            this.setPeriod(periodFromSelection(selectedDates[0], selectedDates[0], 'day'), { immediate: true });
-            this.flatpickr.close();
-            return;
-        }
-
-        // Диапазон: ждём вторую дату.
-        if (selectedDates.length < 2) return;
-
-        const period = periodFromSelection(selectedDates[0], selectedDates[1], view.granularity);
-        const allowed = this.allowedGranularities();
-        if (!allowed.includes(period.granularity)) {
-            // На вкладке, где выбранная гранулярность запрещена (например день на
-            // «Планах»), молча не переключаемся — иначе экран покажет не то, что просили.
+        const period = periodFromSelection(selectedDates[0], selectedDates[1], null);
+        if (!this.allowedGranularities().includes(period.granularity)) {
             state.addMessage('warning', DISABLED_HINT[state.activeTab]
                 || 'Этот период недоступен на текущей вкладке', 3000);
             return;
@@ -307,51 +374,43 @@ class PeriodControls {
         const allowed = this.allowedGranularities();
         if (!period || allowed.includes(period.granularity)) return;
 
-        // Ближайшая по «крупности» разрешённая: месяц — единственный общий знаменатель.
         const target = allowed.includes('month') ? 'month' : allowed[0];
         this.setPeriod(changeGranularity(period, target), { immediate: true });
     }
 
     render() {
         const period = this.viewPeriod();
-        if (!period || !this.labelEl) return;
+        if (!period || !this.titleEl) return;
 
-        this.labelEl.textContent = period.label || `${period.start} - ${period.end}`;
-        if (this.subLabelEl) this.subLabelEl.textContent = formatSubLabel(period);
+        this.titleEl.textContent = periodTitle(period);
 
-        const allowed = this.allowedGranularities();
-        this.granularityButtons.forEach(btn => {
-            const g = btn.getAttribute('data-granularity');
-            const isAllowed = allowed.includes(g);
-            btn.disabled = !isAllowed;
-            btn.classList.toggle('active', g === period.granularity);
-            btn.title = isAllowed ? '' : (DISABLED_HINT[state.activeTab] || '');
-        });
-
-        // Бейдж незавершённого периода. Защита от «смотрю период, который ещё не
-        // прошёл, и вижу недовыполнение плана»: план урезается на весь период,
-        // а факт есть только за прошедшие дни.
-        const badge = progressBadge(period);
-        if (this.warningEl) {
-            this.warningEl.textContent = badge || '';
-            this.warningEl.classList.toggle('hidden', !badge);
+        // Подсказка: какие это числа. Для незавершённого периода — прошедшая часть,
+        // то есть ровно тот диапазон, за который на экране есть факт. Отдельного
+        // счётчика дней в шапке нет (макет 5a), поэтому предупреждение о
+        // незавершённости уходит в подсказку title.
+        if (this.hintEl) {
+            this.hintEl.textContent = periodHint(period);
+            const badge = progressBadge(period);
+            this.hintEl.title = badge || '';
         }
+
+        this.updatePresetList();
 
         // Вперёд дальше текущего периода листать незачем — данных там нет.
         if (this.btnNext) {
-            const nextPeriod = shiftPeriod(period, 1);
-            const nextStart = fromISO(nextPeriod.start);
+            const nextStart = fromISO(shiftPeriod(period, 1).start);
             this.btnNext.disabled = !!(nextStart && nextStart > today());
         }
     }
 
     /**
-     * Показать/скрыть панель под активную вкладку.
-     * «Сравнение» прячет её целиком — там свои Период 1 / Период 2.
+     * Показать/скрыть выбор периода под активную вкладку.
+     * «Сравнение» прячет его целиком — там свои Период 1 / Период 2.
      */
     applyTabVisibility(tabId) {
-        const t = tabId || '';
-        this.group?.classList.toggle('hidden', HIDDEN_TABS.includes(t));
+        const hide = HIDDEN_TABS.includes(tabId || '');
+        this.group?.classList.toggle('hidden', hide);
+        if (hide) this.closeMenus();
     }
 }
 

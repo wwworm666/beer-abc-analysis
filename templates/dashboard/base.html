@@ -6,83 +6,108 @@
 <div class="container">
     {% include 'shared/nav.html' %}
 
-    <!-- Dashboard Controls - Единый блок управления -->
-    <div class="dashboard-controls">
-        <div class="controls-row">
-            <!-- Бар -->
-            <div class="control-group control-group-venue">
-                <label for="venue-selector">Бар</label>
-                <select id="venue-selector" class="control-input">
-                    <option value="">Загрузка...</option>
-                </select>
-            </div>
+    <!-- ============================================================
+         Шапка фильтров (макет 5a/6a): ОДНА полоса, два выбора —
+         заведение и период. Сегментов гранулярности, кнопки «Сегодня» и
+         счётчика дней нет: всё это живёт в выпадающем списке периода,
+         где выбор занимает один клик. Стрелки листают выбранный период.
+         На телефоне полоса разворачивается в две строки, а список
+         периода открывается снизу нижним листом.
+         ============================================================ -->
+    <div class="filter-bar" id="filter-bar">
+        <!-- Заведение. Данные по-прежнему держит скрытый <select>:
+             его наполняет modules/venue_selector.js, а меню — только вид над ним. -->
+        <button type="button" class="fb-item fb-venue" id="venue-trigger"
+                aria-haspopup="listbox" aria-expanded="false">
+            <svg class="fb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M10 21v-5h4v5"/></svg>
+            <span class="fb-strong" id="venue-trigger-name">Все заведения</span>
+            <svg class="fb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <select id="venue-selector" class="fb-native-select" aria-hidden="true" tabindex="-1">
+            <option value="">Загрузка...</option>
+        </select>
 
-            <!-- Единая панель периода: гранулярность + стрелки + подпись.
-                 Одна на все вкладки; неприменимые гранулярности гасятся из JS
-                 (на «Планах» планы хранятся помесячно, день/неделя там не к чему
-                 привязать). Состояние наполняет modules/period_controls.js.
+        <span class="fb-divider"></span>
 
-                 ВАЖНО: на десктопе панель обязана быть ОДНОЙ строкой той же высоты,
-                 что селектор бара — иначе .controls-row { align-items: flex-end }
-                 разъедет подписи «Бар» и «Период» по разным уровням. Поэтому
-                 бейдж незавершённого периода лежит ВНУТРИ строки, а не под ней. -->
-            <div class="control-group control-group-period" id="cg-period">
-                <label id="period-bar-label">Период</label>
-                <div class="period-bar" id="period-bar">
-                    <div class="period-granularity" id="period-granularity" role="group"
-                         aria-labelledby="period-bar-label">
-                        <button type="button" class="pg-btn" data-granularity="day">День</button>
-                        <button type="button" class="pg-btn" data-granularity="week">Неделя</button>
-                        <button type="button" class="pg-btn" data-granularity="month">Месяц</button>
-                        <button type="button" class="pg-btn" data-granularity="year">Год</button>
-                    </div>
+        <!-- Период: стрелка назад, подпись со списком, стрелка вперёд -->
+        <div class="fb-period" id="cg-period">
+            <button type="button" class="fb-arrow" id="period-prev"
+                    aria-label="Предыдущий период" title="Предыдущий период (стрелка влево)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
 
-                    <div class="period-nav">
-                        <button type="button" class="pn-arrow" id="period-prev"
-                                aria-label="Предыдущий период" title="Предыдущий период (стрелка влево)">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                        </button>
+            <button type="button" class="fb-item fb-period-trigger" id="period-trigger"
+                    aria-haspopup="menu" aria-expanded="false">
+                <svg class="fb-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></svg>
+                <span class="fb-strong" id="period-title">—</span>
+                <span class="fb-hint" id="period-hint"></span>
+                <svg class="fb-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
 
-                        <button type="button" class="pn-current" id="period-current"
-                                title="Выбрать период в календаре">
-                            <span class="pn-label" id="period-label">—</span>
-                            <span class="pn-sub" id="period-sublabel"></span>
-                        </button>
+            <button type="button" class="fb-arrow" id="period-next"
+                    aria-label="Следующий период" title="Следующий период (стрелка вправо)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+        </div>
 
-                        <button type="button" class="pn-arrow" id="period-next"
-                                aria-label="Следующий период" title="Следующий период (стрелка вправо)">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        </button>
-                    </div>
+        <span class="fb-spacer"></span>
+        <span class="fb-divider fb-divider-export"></span>
 
-                    <button type="button" class="pn-today" id="period-today"
-                            title="Перейти к текущему периоду (Home)">Сегодня</button>
+        <!-- Экспорт: на десктопе две текстовые кнопки, на телефоне одна иконка,
+             открывающая тот же выбор Excel/PDF нижним листом. -->
+        <div class="fb-export">
+            <button type="button" class="fb-ghost" id="btn-export-excel" title="Экспорт в Excel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Excel</span>
+            </button>
+            <button type="button" class="fb-ghost" id="btn-export-pdf" title="Экспорт в PDF">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>PDF</span>
+            </button>
+        </div>
 
-                    <!-- Бейдж незавершённого периода: «прошло 3 из 7 дней». -->
-                    <span class="period-warning hidden" id="period-warning"></span>
+        <button type="button" class="fb-arrow fb-export-mobile" id="export-trigger"
+                aria-haspopup="menu" aria-expanded="false" aria-label="Выгрузка" title="Выгрузка">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
 
-                    <!-- Якорь календаря: Flatpickr вешается на этот input.
-                         Скрыт визуально, открывается кликом по подписи периода. -->
-                    <input type="text" id="flexi-range-picker" class="period-picker-anchor"
-                           tabindex="-1" aria-hidden="true" readonly>
-                </div>
-            </div>
+        <!-- Якорь календаря: Flatpickr вешается на этот input. -->
+        <input type="text" id="flexi-range-picker" class="period-picker-anchor"
+               tabindex="-1" aria-hidden="true" readonly>
 
-            <!-- Экспорт. На телефоне подписи скрываются и остаются круглые иконки,
-                 чтобы не отжимать основной контрол — период. -->
-            <div class="control-group control-group-button">
-                <label>&nbsp;</label>
-                <div class="export-btn-group">
-                    <button id="btn-export-excel" class="btn btn-secondary export-btn" title="Экспорт в Excel" aria-label="Экспорт в Excel">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
-                        <span class="export-btn-text">Excel</span>
-                    </button>
-                    <button id="btn-export-pdf" class="btn btn-secondary export-btn" title="Экспорт в PDF" aria-label="Экспорт в PDF">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                        <span class="export-btn-text">PDF</span>
-                    </button>
-                </div>
-            </div>
+        <!-- Затемнение под нижний лист (только мобильный) -->
+        <div class="fb-backdrop hidden" id="fb-backdrop"></div>
+
+        <!-- Список периода. На десктопе — выпадашка у подписи, на телефоне — лист снизу. -->
+        <div class="fb-menu hidden" id="period-menu" role="menu" aria-labelledby="period-trigger">
+            <span class="fb-grab"></span>
+            <span class="fb-menu-label">Быстрый выбор</span>
+            <div id="period-preset-list"></div>
+            <span class="fb-menu-sep"></span>
+            <button type="button" class="fb-menu-item" id="period-custom" role="menuitem">
+                <svg class="fb-menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span class="fb-menu-name fb-menu-muted">Свой период</span>
+                <span class="fb-menu-hint">&rsaquo;</span>
+            </button>
+        </div>
+
+        <!-- Список заведений -->
+        <div class="fb-menu hidden" id="venue-menu" role="listbox" aria-labelledby="venue-trigger">
+            <span class="fb-grab"></span>
+            <span class="fb-menu-label">Заведение</span>
+            <div id="venue-option-list"></div>
+        </div>
+
+        <!-- Выгрузка (мобильный) -->
+        <div class="fb-menu hidden" id="export-menu" role="menu" aria-labelledby="export-trigger">
+            <span class="fb-grab"></span>
+            <span class="fb-menu-label">Выгрузка</span>
+            <button type="button" class="fb-menu-item" data-export="excel" role="menuitem">
+                <span class="fb-menu-name">Excel</span>
+            </button>
+            <button type="button" class="fb-menu-item" data-export="pdf" role="menuitem">
+                <span class="fb-menu-name">PDF</span>
+            </button>
         </div>
     </div>
 

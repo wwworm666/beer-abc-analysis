@@ -70,6 +70,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/technical/OLAP_REPORTS_COLLECTION.md](../docs/technical/OLAP_REPORTS_COLLECTION.md) | Копии всех 24 OLAP-запросов проекта (дословные JSON-тела + потребители) | ✅ |
 | [docs/technical/OLAP_REPORT_BUILDING_RULES.md](../docs/technical/OLAP_REPORT_BUILDING_RULES.md) | Правила создания OLAP-отчётов (iiko API): тело запроса, поля, фильтры, даты, чек-лист | ✅ |
 | [docs/technical/audits/OLAP_AUDIT_2026-06-02.md](../docs/technical/audits/OLAP_AUDIT_2026-06-02.md) | Аудит OLAP-отчётов: 26 issue (4 high), приоритеты, рекомендации (без правок) | ✅ |
+| [docs/technical/ORDERIA_CASHAPI.md](../docs/technical/ORDERIA_CASHAPI.md) | Внешняя система лояльности Orderia: эндпоинт `never.php` (карты без покупок), поля, 6 ловушек данных, открытые вопросы | Разведка (интеграции нет) |
 | [docs/lessons.md](../docs/lessons.md) | Баги, ловушки, паттерны (Problem→Cause→Solution) | ✅ |
 | [docs/remote-sync.md](../docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale + SSH | ✅ |
 | [docs/CONNECTIVITY.md](../docs/CONNECTIVITY.md) | Подключение ко всем бар-ПК (SSH, сертификаты, доступ) | ✅ |
@@ -81,7 +82,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | Папка | Что внутри |
 |---|---|
 | [docs/guides/](../docs/guides/) | DEPLOYMENT_GUIDE, BACKUP_SETUP, TAPS_*.md, TELEGRAM_BOT_GUIDE, ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ |
-| [docs/technical/](../docs/technical/) | IIKO_API_REFERENCE, MAPPING_*, SYNC_FLOW_VISUAL, CODE_ANALYSIS_COMPLETE |
+| [docs/technical/](../docs/technical/) | IIKO_API_REFERENCE, MAPPING_*, SYNC_FLOW_VISUAL, CODE_ANALYSIS_COMPLETE, ORDERIA_CASHAPI |
 | [docs/changelog/](../docs/changelog/) | Исторические фиксы (BEER_SHARE_CALCULATION_BUG, FIX_DATE_HANDLING, etc.) |
 | [docs/iiko-api/](../docs/iiko-api/) | Локальная копия всех статей API-документации портала `ru.iiko.help` (153 шт., оглавление в INDEX.md папки). Синк: `py -3 scripts/fetch_iiko_api_docs.py` |
 | [docs/archive/](../docs/archive/) | Архивная документация |
@@ -107,6 +108,10 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ---
 
 ## Changelog (по версиям документации)
+
+- **2026-08-12:** Дашборд: **шапка фильтров по макету** — одна полоса 56px «заведение | стрелки и период | экспорт» вместо трёх групп контролов. Переключатель гранулярности, кнопка «Сегодня» и счётчик дней убраны: всё в выпадающем списке из 8 пресетов + «Свой период», гранулярность задаёт сам пресет. Добавлен «квартал». Подпись = название периода + диапазон чисел; у незавершённого периода — прошедшая часть. На телефоне две строки и нижние листы, выгрузка одной иконкой. Заведение — список-вид над скрытым `<select>` (загрузку по-прежнему держит `venue_selector.js`). Доки: [dashboard.md](../docs/dashboard.md) «Выбор периода — шапка фильтров», [frontend.md](../docs/frontend.md), [design-system.md](../docs/design-system.md).
+
+- **2026-08-12:** Разведка внешней системы лояльности **Orderia** (`loyalty.orderia.ru/cashapi/`) — новый справочник [technical/ORDERIA_CASHAPI.md](../docs/technical/ORDERIA_CASHAPI.md). Разобран один живой ответ `never.php` (карты, зарегистрированные и ни разу не купившие; срез 2026-08-11, 326 записей). Главное для проекта: это **единственный известный источник справочника карт** — в `guests.db` такие гости невидимы в принципе, потому что OLAP iiko знает гостя только по чеку. Найдено 6 ловушек данных: `dated` не является датой регистрации (у 51 записи бэкфилл одной секундой, у 48 расхождение ровно на 3 часа — MSK против UTC внутри одной записи), `cardnum` не уникален (один номер на трёх записях) и не выводится из `id`, телефоны не валидируются (2 записи — следы сканирования формы), номинал приветственного бонуса удвоен 18 февраля 2026. Кода не касается — интеграции нет, креды не в репозитории. Перекрёстная ссылка добавлена в [guests.md](../docs/guests.md).
 
 - **2026-08-11 (2):** Дашборд: правка вёрстки по замечаниям владельца (19 из 20 дефектов; один снят как несуществующий). Корень большинства — **специфичность CSS**: `.controls-row .control-group:not(...)` из трёх классов побеждало однокласcовое `.control-group-period`, панель периода получала чужую ширину и рвалась на два ряда, а на телефоне вставала в строку с экспортом и наезжала на дату. Панель приведена к одной строке с единой высотой `--control-h: 44px`; на телефоне ничего не спрятано (раньше гранулярность открывалась недокументированным тапом). Группы метрик перегруппированы **по типу показателя — 4 группы по 4** (было 5 по направлениям 3/3/3/3/4, из-за чего в 4-колоночной сетке оставалась пустая четверть ряда). Подписи шкал заменены легендой в разделителе группы (шкалы стали длиннее), цвет сигналит один раз (процент цветной, отклонение нейтральное). **Проверено скриншотами и замером геометрии в реальном Chrome через DevTools Protocol** — метод описан в [lessons.md](../docs/lessons.md) «Вёрстку нельзя сдавать, не увидев её». Доки: [dashboard.md](../docs/dashboard.md) «Дизайн», [design-system.md](../docs/design-system.md) (ловушки специфичности и flex-grow vs width).
 

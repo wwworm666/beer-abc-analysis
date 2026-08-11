@@ -20,7 +20,7 @@
  * Объект Date здесь всегда нормализован на полночь локального дня.
  */
 
-export const GRANULARITIES = ['day', 'week', 'month', 'year'];
+export const GRANULARITIES = ['day', 'week', 'month', 'quarter', 'year'];
 
 /** Гранулярность, у которой нет своей кнопки: произвольный диапазон из календаря. */
 export const CUSTOM = 'custom';
@@ -161,6 +161,15 @@ export function periodFor(granularity, anchor) {
             return build('month', start, end);
         }
 
+        case 'quarter': {
+            // Календарный квартал: янв-мар, апр-июн, июл-сен, окт-дек.
+            const qFirstMonth = Math.floor(a.getMonth() / 3) * 3;
+            const start = new Date(a.getFullYear(), qFirstMonth, 1);
+            const end = new Date(a.getFullYear(), qFirstMonth + 2,
+                daysInMonth(a.getFullYear(), qFirstMonth + 2));
+            return build('quarter', start, end);
+        }
+
         case 'year': {
             const start = new Date(a.getFullYear(), 0, 1);
             const end = new Date(a.getFullYear(), 11, 31);
@@ -241,6 +250,8 @@ export function shiftPeriod(period, direction) {
             return periodFor('week', addDays(start, direction * 7));
         case 'month':
             return periodFor('month', addMonths(start, direction));
+        case 'quarter':
+            return periodFor('quarter', addMonths(start, direction * 3));
         case 'year':
             return periodFor('year', new Date(start.getFullYear() + direction, 0, 1));
         default: {
@@ -358,6 +369,115 @@ export function progressBadge(period, now = today()) {
     if (p.isComplete) return null;
     if (p.isFuture) return 'период ещё не начался';
     return `прошло ${p.elapsed} из ${p.total} ${pluralDays(p.total)}`;
+}
+
+// ============================================================
+// Подписи для шапки фильтров
+// ============================================================
+
+const QUARTER_ROMAN = ['I', 'II', 'III', 'IV'];
+
+/**
+ * Название периода — крупная часть подписи в шапке: «Август 2026», «Неделя 32».
+ * Отвечает на вопрос «какой период выбран», а не «какие это числа».
+ */
+export function periodTitle(period) {
+    const s = fromISO(period.start);
+    const e = fromISO(period.end);
+    if (!s || !e) return '';
+
+    switch (period.granularity) {
+        case 'day':
+            return `${s.getDate()} ${MONTHS_GENITIVE[s.getMonth()]} ${s.getFullYear()}`;
+        case 'week':
+            return `Неделя ${isoWeekNumber(s)}`;
+        case 'month':
+            return `${capitalize(MONTHS_NOMINATIVE[s.getMonth()])} ${s.getFullYear()}`;
+        case 'quarter':
+            return `${QUARTER_ROMAN[Math.floor(s.getMonth() / 3)]} квартал ${s.getFullYear()}`;
+        case 'year':
+            return `${s.getFullYear()}`;
+        default:
+            return 'Свой период';
+    }
+}
+
+/**
+ * Подсказка рядом с названием — какие это числа: «1—11 авг», «3—9 авг», «янв—авг».
+ *
+ * Для незавершённого периода показывает ПРОШЕДШУЮ часть (месяц идёт — «1—11 авг»,
+ * закончился — «1—31 авг»): это и есть диапазон, за который на экране есть факт.
+ */
+export function periodHint(period, now = today(), { dayAsDate = false } = {}) {
+    const s = fromISO(period.start);
+    const e = fromISO(period.end);
+    if (!s || !e) return '';
+
+    // Хвост в будущем показывать нечем — обрезаем подсказку по сегодня.
+    const visibleEnd = (now >= s && now < e) ? now : e;
+    const isComplete = now > e;
+
+    if (period.granularity === 'day') {
+        // В списке пресетов — дата («11 авг»), в шапке рядом с полной датой —
+        // день недели: там число уже есть в названии периода.
+        return dayAsDate
+            ? `${s.getDate()} ${MONTHS_SHORT[s.getMonth()]}`
+            : WEEKDAYS_FULL[s.getDay()];
+    }
+
+    // Завершённый месяц описывается своим именем, а не числами от 1 до 31.
+    if (period.granularity === 'month' && isComplete) {
+        return MONTHS_NOMINATIVE[s.getMonth()];
+    }
+
+    // Длинные периоды подписываем месяцами, а не числами.
+    if (period.granularity === 'quarter' || period.granularity === 'year') {
+        const from = MONTHS_SHORT[s.getMonth()];
+        const to = MONTHS_SHORT[visibleEnd.getMonth()];
+        return from === to ? from : `${from}—${to}`;
+    }
+
+    if (s.getMonth() === visibleEnd.getMonth() && s.getFullYear() === visibleEnd.getFullYear()) {
+        return `${s.getDate()}—${visibleEnd.getDate()} ${MONTHS_SHORT[s.getMonth()]}`;
+    }
+    return `${s.getDate()} ${MONTHS_SHORT[s.getMonth()]}—${visibleEnd.getDate()} ${MONTHS_SHORT[visibleEnd.getMonth()]}`;
+}
+
+function capitalize(word) {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+const WEEKDAYS_FULL = ['воскресенье', 'понедельник', 'вторник', 'среда',
+    'четверг', 'пятница', 'суббота'];
+
+/**
+ * Быстрый выбор периода в выпадающем списке. Порядок = порядок в списке;
+ * `sep: true` — разделитель перед элементом.
+ *
+ * Гранулярность задаётся пресетом, отдельного переключателя нет: выбрал
+ * «Прошлая неделя» — стрелки дальше листают неделями.
+ */
+export const PERIOD_PRESETS = [
+    { id: 'today',     name: 'Сегодня',        build: (n) => periodFor('day', n) },
+    { id: 'yesterday', name: 'Вчера',          build: (n) => periodFor('day', addDays(n, -1)) },
+    { id: 'week',      name: 'Эта неделя',     build: (n) => periodFor('week', n) },
+    { id: 'prevWeek',  name: 'Прошлая неделя', build: (n) => periodFor('week', addDays(n, -7)) },
+    { id: 'month',     name: 'Этот месяц',     build: (n) => periodFor('month', n) },
+    { id: 'prevMonth', name: 'Прошлый месяц',  build: (n) => periodFor('month', addMonths(n, -1)) },
+    { id: 'quarter',   name: 'Квартал',        build: (n) => periodFor('quarter', n) },
+    { id: 'year',      name: 'Год',            build: (n) => periodFor('year', n) }
+];
+
+/**
+ * Совпадает ли период с пресетом (по границам) — чтобы подсветить активный пункт.
+ */
+export function matchPreset(period, now = today()) {
+    if (!period) return null;
+    const hit = PERIOD_PRESETS.find(p => {
+        const candidate = p.build(now);
+        return candidate.start === period.start && candidate.end === period.end;
+    });
+    return hit ? hit.id : null;
 }
 
 // ============================================================

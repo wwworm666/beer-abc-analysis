@@ -106,10 +106,14 @@ const CSS = [
 
 /** Классы, которые JS/шаблон ставит на элементы редизайна. */
 const REDESIGN_CLASSES = [
-    // единая панель периода
-    'period-bar', 'period-granularity', 'pg-btn', 'period-nav', 'pn-arrow',
-    'pn-current', 'pn-label', 'pn-sub', 'pn-today',
-    'period-picker-anchor', 'period-warning', 'control-group-period', 'control-group-venue',
+    // шапка фильтров: одна полоса «заведение | период | экспорт»
+    'filter-bar', 'fb-native-select', 'fb-item', 'fb-venue', 'fb-strong', 'fb-hint',
+    'fb-icon', 'fb-caret', 'fb-divider', 'fb-spacer',
+    'fb-period', 'fb-arrow', 'fb-period-trigger',
+    'fb-export', 'fb-ghost', 'fb-export-mobile', 'period-picker-anchor',
+    // выпадающие списки / нижний лист
+    'fb-backdrop', 'fb-menu', 'fb-grab', 'fb-menu-label', 'fb-menu-item',
+    'fb-menu-name', 'fb-menu-hint', 'fb-menu-icon', 'fb-menu-sep', 'fb-menu-muted',
     // десктопные группы и карточка
     'mv-desktop', 'metric-group', 'mg-separator', 'mg-title', 'mg-line',
     'metrics-grid-row', 'metric-card', 'metric-name', 'metric-value',
@@ -126,7 +130,7 @@ const REDESIGN_CLASSES = [
     'm-group', 'm-group-head', 'm-group-name', 'm-group-count', 'm-group-pct',
     'm-group-body', 'm-row', 'm-row-top', 'm-row-name', 'm-row-value',
     // нижняя таб-панель
-    'bottom-tabs', 'bt-item', 'export-btn-text'
+    'bottom-tabs', 'bt-item'
 ];
 
 test('каждый класс редизайна описан в CSS', () => {
@@ -163,6 +167,22 @@ test('нижняя таб-панель повторяет вкладки и со
     const bottom = [...html.matchAll(/class="bt-item[^"]*"[^>]*data-tab="([^"]+)"/g)].map(m => m[1]);
     assert.deepEqual(bottom, ['tab-analytics', 'tab-comparison', 'tab-revenue', 'tab-plans']);
     assert.ok(html.includes('id="bt-more"'), 'нет кнопки «Ещё»');
+});
+
+test('шапка фильтров: один контрол, без сегментов и «Сегодня»', () => {
+    const html = read('templates/dashboard/base.html');
+    // Обязательные части полосы (макет 5a)
+    for (const id of ['filter-bar', 'venue-trigger', 'venue-selector', 'period-prev',
+                      'period-trigger', 'period-title', 'period-hint', 'period-next',
+                      'period-menu', 'venue-menu', 'export-menu', 'fb-backdrop',
+                      'period-preset-list', 'period-custom', 'flexi-range-picker']) {
+        assert.ok(html.includes(`id="${id}"`), `нет элемента #${id}`);
+    }
+    // Убранное макетом не должно вернуться
+    for (const gone of ['data-granularity', 'period-today', 'period-sublabel',
+                        'dashboard-controls', 'control-group-period']) {
+        assert.ok(!html.includes(gone), `в разметке осталось «${gone}»`);
+    }
 });
 
 test('в разметке дашборда нет эмодзи', () => {

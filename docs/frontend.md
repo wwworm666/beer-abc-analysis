@@ -15,7 +15,8 @@ JavaScript модули дашборда и других страниц: state m
 
 ### UI модули
 - [`static/js/dashboard/modules/analytics.js`](../static/js/dashboard/modules/analytics.js) — загрузка и отрисовка метрик (десктоп + мобильный)
-- [`static/js/dashboard/modules/period_controls.js`](../static/js/dashboard/modules/period_controls.js) — **единая панель периода** (гранулярность, стрелки, календарь)
+- [`static/js/dashboard/modules/period_controls.js`](../static/js/dashboard/modules/period_controls.js) — **шапка фильтров**: период, стрелки, список пресетов, календарь
+- [`static/js/dashboard/modules/filter_menus.js`](../static/js/dashboard/modules/filter_menus.js) — списки заведения и выгрузки; вид над скрытым `<select>`, данными владеет venue_selector.js
 - [`static/js/dashboard/modules/charts.js`](../static/js/dashboard/modules/charts.js) — Chart.js графики
 - [`static/js/dashboard/modules/trends.js`](../static/js/dashboard/modules/trends.js) — тренды по неделям
 - [`static/js/dashboard/modules/comparison.js`](../static/js/dashboard/modules/comparison.js) — сравнение периодов
@@ -343,7 +344,7 @@ export function getTheme() {
 
 ---
 
-### Панель периода (period_controls.js)
+### Шапка фильтров (period_controls.js)
 
 Flatpickr подключается **глобальным скриптом с CDN** (`templates/dashboard.html`),
 а не через `import` — сборщика в проекте нет. Панель владеет единственным
@@ -352,10 +353,10 @@ Flatpickr подключается **глобальным скриптом с CD
 ```javascript
 // static/js/dashboard/modules/period_controls.js
 this.flatpickr = flatpickr(this.pickerInput, {
-    mode: 'range',                       // 'single' на гранулярности «День»
+    mode: 'range',
     dateFormat: 'd.m.Y',
     locale: 'ru',
-    positionElement: this.btnCurrent,    // календарь у подписи, не у скрытого инпута
+    positionElement: this.trigger,       // календарь у подписи, не у скрытого инпута
     maxDate: new Date(2027, 11, 31),     // ТОЛЬКО Date-объект, не строка
     onChange: (dates) => this.onPickerChange(dates)
 });
@@ -474,6 +475,7 @@ body {
 
 ## Changelog
 
+- **2026-08-12** — Период и заведение живут в единой шапке фильтров (макет 5a/6a); добавлен `filter_menus.js`. Отдельных селекторов и сегментов гранулярности больше нет.
 - **2026-08-11** — Приведено в соответствие с кодом + редизайн дашборда:
   (1) секция State Management описывала несуществующий `StateManager` с
   `setState/getState` — заменена на реальный `DashboardState` с событиями

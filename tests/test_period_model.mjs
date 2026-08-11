@@ -11,6 +11,8 @@
 import assert from 'node:assert/strict';
 import {
     CUSTOM,
+    PERIOD_PRESETS,
+    addDays,
     addMonths,
     changeGranularity,
     customPeriod,
@@ -22,9 +24,12 @@ import {
     monthYearOf,
     periodFor,
     periodFromSelection,
+    periodHint,
     periodProgress,
+    periodTitle,
     pluralDays,
     progressBadge,
+    matchPreset,
     shiftPeriod,
     startOfWeek,
     toISO
@@ -336,6 +341,78 @@ test('toISO не уезжает на день в положительной та
     assert.equal(toISO(D(2026, 1, 1)), '2026-01-01');
     assert.equal(toISO(D(2026, 12, 31)), '2026-12-31');
 });
+console.log('\n--- kvartal, podpisi shapki, presety ---');
+
+test('квартал = календарные три месяца', () => {
+    const q = periodFor('quarter', D(2026, 8, 11));
+    assert.equal(q.start, '2026-07-01');
+    assert.equal(q.end, '2026-09-30');
+    const q1 = periodFor('quarter', D(2026, 1, 15));
+    assert.equal(q1.start, '2026-01-01');
+    assert.equal(q1.end, '2026-03-31');
+});
+
+test('стрелка листает квартал на три месяца', () => {
+    const p = shiftPeriod(periodFor('quarter', D(2026, 8, 11)), -1);
+    assert.equal(p.start, '2026-04-01');
+    assert.equal(p.end, '2026-06-30');
+});
+
+test('квартальный диапазон распознаётся как квартал, а не произвольный', () => {
+    assert.equal(detectGranularity(D(2026, 7, 1), D(2026, 9, 30)), 'quarter');
+});
+
+test('шаг туда-обратно возвращает исходный период и для квартала', () => {
+    const p = periodFor('quarter', D(2026, 8, 11));
+    const rt = shiftPeriod(shiftPeriod(p, 1), -1);
+    assert.equal(rt.start, p.start);
+    assert.equal(rt.end, p.end);
+});
+
+test('название периода — как в макете', () => {
+    assert.equal(periodTitle(periodFor('month', D(2026, 8, 11))), 'Август 2026');
+    assert.equal(periodTitle(periodFor('week', D(2026, 8, 11))), 'Неделя 33');
+    assert.equal(periodTitle(periodFor('year', D(2026, 8, 11))), '2026');
+    assert.equal(periodTitle(periodFor('quarter', D(2026, 8, 11))), 'III квартал 2026');
+    assert.equal(periodTitle(periodFor('day', D(2026, 8, 11))), '11 августа 2026');
+});
+
+test('подсказка незавершённого месяца — прошедшая часть', () => {
+    assert.equal(periodHint(periodFor('month', D(2026, 8, 11)), D(2026, 8, 11)), '1—11 авг');
+});
+
+test('подсказка завершённого месяца — его имя', () => {
+    assert.equal(periodHint(periodFor('month', D(2026, 7, 5)), D(2026, 8, 11)), 'июль');
+});
+
+test('подсказка длинного периода — месяцами', () => {
+    assert.equal(periodHint(periodFor('year', D(2026, 8, 11)), D(2026, 8, 11)), 'янв—авг');
+    assert.equal(periodHint(periodFor('quarter', D(2026, 8, 11)), D(2026, 8, 11)), 'июл—авг');
+});
+
+test('подсказка дня: в списке дата, в шапке день недели', () => {
+    const day = periodFor('day', D(2026, 8, 11));
+    assert.equal(periodHint(day, D(2026, 8, 12), { dayAsDate: true }), '11 авг');
+    assert.equal(periodHint(day, D(2026, 8, 12)), 'вторник');
+});
+
+test('в списке восемь пресетов и все строят валидный период', () => {
+    assert.equal(PERIOD_PRESETS.length, 8);
+    const now = D(2026, 8, 11);
+    for (const preset of PERIOD_PRESETS) {
+        const period = preset.build(now);
+        assert.match(period.start, /^\d{4}-\d{2}-\d{2}$/, preset.id);
+        assert.ok(period.start <= period.end, preset.id);
+    }
+});
+
+test('активный пресет определяется по границам периода', () => {
+    const now = D(2026, 8, 11);
+    assert.equal(matchPreset(periodFor('week', addDays(now, -7)), now), 'prevWeek');
+    assert.equal(matchPreset(periodFor('month', now), now), 'month');
+    assert.equal(matchPreset(customPeriod(D(2026, 8, 3), D(2026, 8, 20)), now), null);
+});
+
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
 process.exit(failed === 0 ? 0 : 1);

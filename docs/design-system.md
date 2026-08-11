@@ -286,35 +286,63 @@ label {
 > `width: 44px` внутри flex-контейнера растянется на пол-строки, если ей достанется
 > `flex: 1` — нужен `flex: 0 0 auto`.
 
-### Сегментированный переключатель
+### Шапка фильтров (одна полоса)
 
-Выбор из нескольких взаимоисключающих значений (гранулярность периода):
+Группа связанных контролов оформляется как ОДИН элемент: общая рамка, а внутри
+контролы без своих рамок, разделённые вертикальными линиями.
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│ ⌂ Все заведения ▾ │ ‹  ▤ Август 2026  1—12 авг ▾  › │        Excel  PDF │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
 ```css
-.period-granularity {          /* контейнер-таблетка */
-    display: inline-flex; padding: 3px; gap: 2px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-pill);
+.filter-bar { position: relative; display: flex; align-items: stretch;
+              height: 56px; border: 1px solid var(--border-color);
+              border-radius: 14px; background: var(--bg-secondary); }
+.fb-item    { border: none; background: transparent; padding: 0 18px; }
+.fb-item:hover { background: var(--bg-primary); }
+.fb-divider { width: 1px; margin: 13px 0; background: var(--border-color); }
+.fb-spacer  { flex: 1; }          /* отбивает второстепенные действия вправо */
+```
+
+`position: relative` обязателен: выпадающие списки позиционируются `absolute`
+относительно полосы и должны лежать ВНУТРИ неё, иначе уезжают вниз страницы.
+
+**Подпись контрола = название + уточнение.** Крупным — что выбрано
+(«Август 2026»), мелким серым — какие это числа («1—12 авг»). Так контрол
+отвечает и на вопрос «что», и на вопрос «сколько», не требуя второй строки.
+
+### Выпадающий список / нижний лист
+
+Один компонент, две раскладки: на десктопе выпадашка 272px у своего триггера,
+на телефоне — лист снизу во всю ширину с ручкой.
+
+```css
+.fb-menu      { position: absolute; top: calc(100% + 6px);
+                left: var(--fb-menu-left, 0); width: 272px; padding: 6px;
+                border-radius: 14px; box-shadow: var(--shadow-lg); }
+.fb-menu-item { display: flex; gap: 10px; padding: 9px 12px; border-radius: 9px; }
+.fb-menu-hint { margin-left: auto; color: var(--text-tertiary); }
+.fb-menu-item.active { background: var(--accent-light); }   /* текст --accent-hover */
+
+@media (max-width: 768px) {
+  .fb-menu { position: fixed; left: 0; right: 0; bottom: 0; width: auto;
+             border-radius: 22px 22px 0 0;
+             padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+  .fb-grab { display: block; width: 38px; height: 4px; }   /* ручка листа */
 }
-.pg-btn.active { background: var(--accent); color: var(--bg-secondary); }
-.pg-btn:disabled { opacity: .35; cursor: not-allowed; }
 ```
 
-Неприменимый вариант **гасится**, а не убирается: набор кнопок не должен «прыгать»
-при переключении вкладок. Причина недоступности идёт в `title`.
+Неприменимый пункт **гасится** (`:disabled`, opacity .35), а не убирается: список
+не должен «прыгать» при переключении вкладок. Причина — в `title`.
 
-### Стрелки пред/след
+**Выбор из списка вместо переключателя.** Если вариантов больше трёх-четырёх или
+у каждого есть уточнение (диапазон дат), список компактнее и понятнее сегментов:
+в строке остаётся один контрол, а выбор занимает один клик.
 
-```css
-.pn-arrow { width: 38px; height: 38px; border-radius: 50%;
-            border: 1px solid var(--border-color); }
-.pn-arrow:disabled { opacity: .3; }   /* дальше текущего периода данных нет */
-```
-
-На мобильном — 44px (минимальная цель для пальца).
-
-### Нижняя таб-панель (мобильный)
+### Нижняя таб-панель (мобильный)### Нижняя таб-панель (мобильный)
 
 ```css
 .bottom-tabs { position: fixed; bottom: 0; display: flex;

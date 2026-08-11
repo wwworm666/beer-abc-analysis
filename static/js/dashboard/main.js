@@ -18,6 +18,7 @@ import { revenueMetricsModule } from './modules/revenue_metrics.js';
 import { plansViewer } from './modules/plans.js';
 import { dailyPlansViewer } from './modules/daily_plans.js';
 import { periodControls } from './modules/period_controls.js';
+import { filterMenus } from './modules/filter_menus.js';
 
 class Dashboard {
     constructor() {
@@ -75,10 +76,11 @@ class Dashboard {
             dailyPlansViewer.init();
             console.log(' Модуль планов по дням инициализирован');
 
-            // Адаптивный период-контрол (Месяц/Год ↔ диапазон) — ДО setupTabs,
-            // чтобы первый tabButtons[0].click() уже видел проставленный месяц/год.
+            // Шапка фильтров (заведение + период) — ДО setupTabs, чтобы первый
+            // click по вкладке уже видел готовую шапку.
             periodControls.init();
-            console.log(' Адаптивный период-контрол инициализирован');
+            filterMenus.init();
+            console.log(' Шапка фильтров инициализирована');
 
             // 4. Настраиваем вкладки
             this.setupTabs();

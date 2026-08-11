@@ -90,164 +90,141 @@
         border-radius: 8px;
     }
 
-    /* ---- Шапка: бар + экспорт одной строкой, период отдельной ---- */
-    .dashboard-controls {
-        padding: var(--spacing-sm);
+    /* ---- Шапка фильтров: две строки (макет 6a) ----
+       Строка 1: заведение + иконка выгрузки.
+       Строка 2: период со стрелками во всю ширину.
+       Списки открываются снизу нижним листом. */
+    .filter-bar {
+        height: auto;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
         border-radius: var(--border-radius-sm);
         margin-bottom: var(--spacing-md);
     }
 
-    .controls-row {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--spacing-sm);
-    }
-
-    /* Подписи «Бар» / «Период» на телефоне избыточны — сами контролы себя объясняют. */
-    .controls-row .control-group > label {
-        display: none;
-    }
-
-    /* Селектор бара делит первую строку с кнопками экспорта.
-       flex-basis 0 (а не auto) — иначе за базу берётся длина названия точки
-       и строка переполняется. */
-    .controls-row .control-group-venue {
-        flex: 1 1 0;
-        min-width: 0;
-    }
-
-    /* Период — ВСЕГДА на всю ширину отдельной строкой. Раньше он делил строку
-       с экспортом, не влезал и кнопки наезжали на подпись с датой. */
-    .controls-row .control-group-period {
-        flex: 1 1 100%;
-        min-width: 0;
-        order: 2;
-    }
-
-    /* Экспорт — круглые иконки без подписей: второстепенное действие не должно
-       отжимать основной контрол. Подпись остаётся в title/aria-label. */
-    .controls-row .control-group-button {
-        flex: 0 0 auto;
-        margin-left: 0;
-    }
-
-    /* Селектор бара обязан УМЕТЬ СЖИМАТЬСЯ, иначе он занимает всю строку
-       (длинное «Все заведения (сводно)») и кнопки экспорта переносятся вниз,
-       растягиваясь на пол-экрана каждая. */
-    /* Шрифт мельче и отступы уже: рядом стоят две иконки экспорта, и на 348px
-       названию точки остаётся ~240px — «Культура - Кременчугская» иначе обрезается. */
-    .controls-row .control-group-venue .control-input {
-        width: 100%;
-        min-width: 0;
-        padding: 0 12px;
-        font-size: 0.82rem;
-    }
-
-    /* Круглые кнопки-иконки. flex: 0 0 auto обязателен: при flex-grow заданная
-       ширина игнорируется flex-раскладкой, и кнопка растягивалась на пол-строки
-       (ровно этим ломалось раньше). Два класса — чтобы перебить `.btn`. */
-    .export-btn-group .export-btn {
-        flex: 0 0 auto;
-        width: var(--control-h);
-        min-width: var(--control-h);
-        height: var(--control-h);
-        padding: 0;
-        gap: 0;
-    }
-
-    .export-btn-text {
-        display: none;
-    }
-
-    .export-btn svg {
-        width: 17px;
-        height: 17px;
-    }
-
-    .tab-controls {
-        flex-direction: column;
-        gap: var(--spacing-sm);
-    }
-
-    .control-group select,
-    .control-group input {
-        min-width: 100%;
-        width: 100%;
-    }
-
-    /* Якорь календаря не растягиваем на всю ширину — он невидимый. */
-    .control-group .period-picker-anchor {
-        min-width: 0;
-        width: 1px;
-    }
-
-    /* ---- Панель периода на телефоне ----
-       Две видимые строки, ничего не спрятано:
-         1) гранулярность на всю ширину
-         2) [<] подпись периода [>] и «Сегодня»
-       Раньше гранулярность и «Сегодня» открывались тапом по подписи — про этот
-       тап неоткуда было узнать, и сменить день/неделю/месяц/год было нельзя. */
-    .period-bar {
-        flex-wrap: wrap;
-        gap: var(--spacing-sm);
-    }
-
-    .period-granularity {
-        flex: 1 1 100%;
-        justify-content: space-between;
-    }
-
-    .pg-btn {
-        flex: 1 1 0;
-        min-width: 0;
-        text-align: center;
-        padding: 0 6px;
-    }
-
-    /* Стрелки с датой занимают строку целиком: дата — главное в панели, и при
-       попытке уместить рядом «Сегодня» она обрезалась многоточием.
-       «Сегодня» уходит строкой ниже и делит её с бейджем незавершённого периода. */
-    .period-nav {
-        flex: 1 1 100%;
-        min-width: 0;
-    }
-
-    /* Подпись периода — чип: видно, что по нему можно тапнуть (откроется календарь). */
-    .pn-current {
-        flex: 1 1 auto;
-        border-color: var(--border-color);
+    /* Внутри полосы контролы получают собственные рамки: на телефоне они стоят
+       в разных строках, и разделительные линии больше не работают. */
+    .fb-venue,
+    .fb-period,
+    .fb-export-mobile {
+        height: 44px;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
         background: var(--bg-primary);
     }
 
-    .pn-label {
-        font-size: 0.88rem;
+    .fb-venue {
+        order: 1;
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        padding: 0 13px;
+        gap: 8px;
     }
 
-    .pn-sub {
-        font-size: 0.68rem;
+    /* Два класса намеренно: правило .fb-arrow ниже задаёт 36px для стрелок
+       периода, а кнопка выгрузки — того же размера, что чип заведения (44px). */
+    .filter-bar .fb-export-mobile {
+        order: 2;
+        display: flex;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        flex: none;
     }
 
-    /* «Сегодня» и бейдж делят последнюю строку панели. */
-    .pn-today {
-        flex: 0 0 auto;
-        padding: 0 14px;
+    .fb-export-mobile svg {
+        width: 15px;
+        height: 15px;
     }
 
-    .period-warning {
+    .fb-period {
+        order: 3;
+        flex: 1 1 100%;
+        gap: 6px;
+        padding: 0 4px;
+    }
+
+    /* Стрелки остаются крупной целью для пальца. */
+    .fb-arrow {
+        width: 36px;
+        height: 36px;
+        border-radius: 9px;
+    }
+
+    .fb-arrow svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .fb-period-trigger {
         flex: 1 1 auto;
         justify-content: center;
+        min-width: 0;
+    }
+
+    /* Разделители и десктопный экспорт на телефоне не нужны. */
+    .fb-divider,
+    .fb-spacer,
+    .fb-export {
+        display: none;
+    }
+
+    /* ---- Списки как нижний лист ---- */
+    .fb-backdrop {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 110;
+        background: var(--backdrop);
+    }
+
+    .fb-menu {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 120;
+        width: auto;
+        padding: 10px 8px calc(14px + env(safe-area-inset-bottom, 0px));
+        border: none;
+        border-radius: 22px 22px 0 0;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .fb-grab {
+        display: block;
+        align-self: center;
+        width: 38px;
+        height: 4px;
+        margin: 2px 0 10px;
+        border-radius: 999px;
+        background: var(--border-color);
+        flex: none;
+    }
+
+    /* Пункты крупнее: палец, а не курсор. */
+    .fb-menu-item {
+        padding: 13px 12px;
+        border-radius: 11px;
+    }
+
+    .fb-menu-name {
+        font-size: 14px;
+    }
+
+    .fb-menu-hint {
+        font-size: 12px;
     }
 
     /* Между последним аккордеоном и заметками к собранию не нужен зазор
        во весь --spacing-xl: на телефоне он читался как обрыв страницы. */
     .metrics-grid {
         margin-bottom: var(--spacing-md);
-    }
-
-    /* Карточки в одну колонку */
-    .metrics-grid {
-        grid-template-columns: 1fr;
     }
 
     .metric-card {
