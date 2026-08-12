@@ -59,9 +59,28 @@ def _fail(user_message, log_message):
     return None
 
 
+# Имя файла эндпоинта. Вынесено из кода, потому что Orderia уже один раз его
+# сменила (never.php исчез 2026-08-12). Если сменит снова — правится .env, а не код.
+NEVER_FILE_DEFAULT = "never.php"
+
+
 def _base_url():
     raw = os.getenv("ORDERIA_BASE_URL") or BASE_URL_DEFAULT
     return raw.rstrip('/') + '/'
+
+
+def never_url():
+    """Полный URL выгрузки карт без покупок.
+
+    Приоритет: ORDERIA_NEVER_URL (весь URL целиком, включая хост и query) →
+    ORDERIA_BASE_URL + ORDERIA_NEVER_FILE. Так новый адрес от Orderia — любой,
+    вплоть до другого хоста или ?query — включается правкой .env без пересборки
+    образа: env читается контейнером при старте, код не трогается.
+    """
+    whole = os.getenv("ORDERIA_NEVER_URL")
+    if whole:
+        return whole.strip()
+    return _base_url() + (os.getenv("ORDERIA_NEVER_FILE") or NEVER_FILE_DEFAULT)
 
 
 def _credentials():
@@ -88,7 +107,7 @@ def fetch_never_cards():
                      "ORDERIA_LOGIN/ORDERIA_PASSWORD ne zadany — propusk")
 
     login, password = _credentials()
-    url = _base_url() + "never.php"
+    url = never_url()
     try:
         resp = requests.get(url, auth=(login, password), timeout=HTTP_TIMEOUT_S)
     except requests.RequestException as e:
@@ -99,9 +118,9 @@ def fetch_never_cards():
     if resp.status_code == 404:
         # Случилось 2026-08-12: эндпоинт перестал существовать за один день.
         return _fail(
-            f"Эндпоинт не найден (HTTP 404): {url}. Похоже, адрес изменился на "
-            "стороне Orderia — нужен актуальный путь (задаётся через "
-            "ORDERIA_BASE_URL без правок кода).",
+            f"Эндпоинт не найден (HTTP 404): {url}. Адрес изменился на стороне "
+            "Orderia — впишите актуальный в ORDERIA_NEVER_URL (правка .env, без "
+            "пересборки).",
             f"HTTP 404 na {url}")
     if resp.status_code in (401, 403):
         return _fail(

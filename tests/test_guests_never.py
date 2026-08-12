@@ -371,6 +371,32 @@ class TestClientErrorMessages(unittest.TestCase):
             else:
                 os.environ['ORDERIA_BASE_URL'] = old
 
+    def test_never_url_configurable_via_env(self):
+        """Новый адрес от Orderia включается через .env без правок кода."""
+        from core import orderia_client as oc
+        saved = {k: os.environ.get(k) for k in
+                 ('ORDERIA_NEVER_URL', 'ORDERIA_NEVER_FILE', 'ORDERIA_BASE_URL')}
+        try:
+            for k in saved:
+                os.environ.pop(k, None)
+            # По умолчанию — старый адрес.
+            self.assertEqual(oc.never_url(),
+                             'https://loyalty.orderia.ru/cashapi/never.php')
+            # Сменилось только имя файла.
+            os.environ['ORDERIA_NEVER_FILE'] = 'cards_never.php'
+            self.assertEqual(oc.never_url(),
+                             'https://loyalty.orderia.ru/cashapi/cards_never.php')
+            # Полный URL переопределяет всё, включая хост и query.
+            os.environ['ORDERIA_NEVER_URL'] = 'https://api.orderia.ru/v2/never?fmt=json'
+            self.assertEqual(oc.never_url(),
+                             'https://api.orderia.ru/v2/never?fmt=json')
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
     def test_404_reports_address_change_in_russian(self):
         from core import orderia_client as oc
 
@@ -387,7 +413,7 @@ class TestClientErrorMessages(unittest.TestCase):
             self.assertIsNone(oc.fetch_never_cards())
             msg = oc.last_error()
             self.assertIn('404', msg)
-            self.assertIn('ORDERIA_BASE_URL', msg)
+            self.assertIn('ORDERIA_NEVER_URL', msg)
         finally:
             oc.requests.get = old_get
             for key, val in (('ORDERIA_LOGIN', old_login),
