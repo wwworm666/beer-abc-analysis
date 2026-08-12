@@ -39,15 +39,19 @@ Guests.registerView('cohorts', function (pane) {
                 '<div class="gcard"><h3>Когорты жизненного цикла' + G.helpIcon('lifecycle_cohort') +
                 '</h3><div class="gtable-wrap"><table class="gtable"><thead><tr>' +
                 '<th>Когорта (месяц регистрации)</th><th class="num">Гостей</th>' +
-                '<th class="num">1-й заказ</th><th class="num">2-й заказ</th>' +
-                '<th class="num">5-й заказ</th><th class="num">Активны сейчас</th></tr></thead><tbody>';
+                '<th class="num">2-й заказ</th>' +
+                '<th class="num">5-й заказ</th><th class="num">Активны на срез</th></tr></thead><tbody>';
             d.cohorts.forEach(function (c) {
                 html += '<tr><td>' + G.fmtMonth(c.cohort) + '</td>' +
                     '<td class="num"><b>' + G.fmtNum(c.guests) + '</b></td>' +
-                    heatCell(c.order1_pct, 100) + heatCell(c.order2_pct, 100) +
+                    heatCell(c.order2_pct, 100) +
                     heatCell(c.order5_pct, 100) + heatCell(c.active_pct, 100) + '</tr>';
             });
-            html += '</tbody></table></div>' + basisNote + '</div>' +
+            html += '</tbody></table></div>' +
+                '<div class="note-line">Колонки «1-й заказ» здесь нет: в когорту попадают ' +
+                'только купившие, и доля всегда была бы 100%. Сколько человек ' +
+                'зарегистрировалось и не купило — на вкладке «Не купившие».</div>' +
+                basisNote + '</div>' +
                 G.howBlock(['lifecycle_cohort', 'order', 'activity_status']);
             pane.innerHTML = html;
             bindSwitcher();

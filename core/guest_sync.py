@@ -27,6 +27,7 @@ import threading
 import time
 from datetime import date, datetime
 
+from core import msk_time
 from core.venues_config import IIKO_NAME_TO_KEY
 
 BACKFILL_FROM_DEFAULT = "2017-12"
@@ -185,6 +186,94 @@ def transform_month(receipt_rows, item_rows, global_aliases):
     return receipts, items, aliases, guest_attrs
 
 
+def _phone_is_valid(raw):
+    """Похоже ли значение на телефон вообще.
+
+    Orderia не валидирует поле на входе: в живом срезе 2026-08-11 два значения
+    вообще не телефоны — '7om/catalog' и '7r_j\\x1d931CJp' (следы автоматического
+    сканирования формы регистрации). Правило: только цифры с необязательным
+    ведущим плюсом и не меньше 10 цифр. Зарубежные номера (Черногория, Ирак в
+    том же срезе) проходят — они настоящие.
+    """
+    s = str(raw or '').strip()
+    if not s:
+        return False
+    body = s[1:] if s.startswith('+') else s
+    return body.isdigit() and len(body) >= 10
+
+
+def transform_never_cards(rows):
+    """Ответ Orderia never.php -> строки для guest_store.replace_never_cards.
+
+    Ключ записи — source_id (поле id в Orderia). Именно id, а НЕ номер карты:
+    cardnum там не уникален (в срезе 2026-08-11 номер 2002639 выдан трём
+    записям подряд), см. docs/technical/ORDERIA_CASHAPI.md.
+
+    Дата регистрации берётся из last_date, а не из dated: у 51 записи dated —
+    одна и та же секунда (бэкфилл при миграции), ещё у 48 он опережает last_date
+    ровно на 3 часа (внутри Orderia поля пишутся в разных часовых поясах).
+
+    phone_canon считается тем же normalize_guest_id, что и guest_id в витрине —
+    иначе сшивка с таблицей guests не сработает.
+    """
+    out = {}
+    for r in rows or []:
+        source_id = str(r.get('id') or '').strip()
+        if not source_id:
+            continue
+        phone_raw = str(r.get('phone') or '').strip()
+        try:
+            balance = int(str(r.get('balance') or '0').strip() or 0)
+        except ValueError:
+            balance = None
+        out[source_id] = {
+            'source_id': source_id,
+            'card_number': str(r.get('cardnum') or '').strip(),
+            'name': str(r.get('name') or '').strip(),
+            'lastname': str(r.get('lastname') or '').strip(),
+            'phone_raw': phone_raw,
+            'phone_canon': normalize_guest_id(phone_raw),
+            'telegram': str(r.get('telegram') or '').strip(),
+            'balance': balance,
+            'registered_at': str(r.get('last_date') or '').strip()[:10],
+            'phone_valid': 1 if _phone_is_valid(phone_raw) else 0,
+        }
+    return list(out.values())
+
+
+def sync_never_cards():
+    """Обновить срез карт без покупок из Orderia. True — срез заменён.
+
+    Живёт рядом с ETL из iiko, но от него не зависит: это другой источник и
+    другая таблица. Ошибка Orderia не должна ронять синк чеков, поэтому
+    вызывается через _sync_never_cards_safe().
+    """
+    from core import orderia_client
+    from core.guest_store import get_store
+
+    if not orderia_client.is_configured():
+        return False
+    store = get_store()
+    rows = orderia_client.fetch_never_cards()
+    if rows is None:
+        # Данные не получены: сохранённый срез НЕ трогаем, иначе одна сетевая
+        # ошибка обнулила бы список «не купивших».
+        store.mark_never_sync_error('Orderia ne otvetila (sm. log [ORDERIA])')
+        return False
+    prepared = transform_never_cards(rows)
+    store.replace_never_cards(prepared)
+    print(f"[ORDERIA] kart bez pokupok: {len(prepared)}")
+    return True
+
+
+def _sync_never_cards_safe():
+    """sync_never_cards() с проглатыванием любой ошибки (см. докстринг выше)."""
+    try:
+        sync_never_cards()
+    except Exception as e:
+        print(f"[ORDERIA] sink kart bez pokupok upal: {type(e).__name__}: {e}")
+
+
 def sync_month(olap, store, ym, frozen):
     """Синхронизировать один месяц. Возвращает (receipts_count, items_count).
     Бросает RuntimeError, если iiko не ответил (месяц помечается error)."""
@@ -219,7 +308,7 @@ def _run_months(months, force):
     from core.guest_store import get_store
 
     store = get_store()
-    current_ym = date.today().strftime('%Y-%m')
+    current_ym = msk_time.today().strftime('%Y-%m')
     state = store.sync_state_map()
 
     todo = []
@@ -257,12 +346,16 @@ def _run_months(months, force):
 def backfill_months():
     """Все месяцы от GUESTS_BACKFILL_FROM до текущего включительно."""
     from_ym = os.environ.get('GUESTS_BACKFILL_FROM', BACKFILL_FROM_DEFAULT)
-    return iter_months(from_ym, date.today().strftime('%Y-%m'))
+    return iter_months(from_ym, msk_time.today().strftime('%Y-%m'))
 
 
 def nightly_months():
-    """Текущий месяц + предыдущий в первые 2 дня нового месяца (стык)."""
-    today = date.today()
+    """Текущий месяц + предыдущий в первые 2 дня нового месяца (стык).
+
+    Дата московская: в UTC-контейнере наивный date.today() с 00:00 до 03:00 МСК
+    отдаёт вчерашний день, и 1-го числа «текущим» месяцем оказался бы прошлый.
+    """
+    today = msk_time.today()
     months = []
     if today.day <= 2:
         prev = (date(today.year - 1, 12, 1) if today.month == 1
@@ -283,6 +376,9 @@ def run_sync(months, force=False, tag='manual'):
                            finished_at=None, done=0, total=0)
     started = time.time()
     try:
+        # Дёшево (полный ответ ~50 мс) и не зависит от iiko — делаем первым,
+        # чтобы недоступность iiko не оставила список «не купивших» протухшим.
+        _sync_never_cards_safe()
         n = _run_months(months, force=force)
         print(f"[GUEST-SYNC] {tag}: gotovo, mesyatsev {n}, "
               f"za {time.time() - started:.0f}s")

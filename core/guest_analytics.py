@@ -33,6 +33,7 @@ import calendar
 from bisect import bisect_left, bisect_right
 from datetime import date, datetime, timedelta
 
+from core import msk_time
 from core.guest_store import get_store
 from core.venues_config import PHYSICAL_VENUES, VENUES
 
@@ -92,7 +93,10 @@ def resolve_period(period_type='month', anchor=None):
     Возвращает dict: type, p_start, p_end (date), prev_start, prev_end
     (предыдущий период того же типа — для дельт §3), label (подпись в UI).
     """
-    a = _parse_date(anchor, date.today())
+    # Дата московская, а не системная: прод-контейнер живёт в UTC (см.
+    # core/msk_time.py), и с 00:00 до 03:00 МСК период по умолчанию уезжал бы
+    # на сутки назад — а бары в это время ещё работают.
+    a = _parse_date(anchor, msk_time.today())
     if period_type == 'week':
         p_start = a - timedelta(days=a.isoweekday() - 1)
         p_end = p_start + timedelta(days=6)
@@ -127,7 +131,7 @@ def resolve_period(period_type='month', anchor=None):
 def build_meta(store, period):
     """meta каждого ответа: границы срезов, покрытие витрины, режим регистраций."""
     cov = store.coverage()
-    today = date.today()
+    today = msk_time.today()
     p_end = period['p_end']
     asof = min(p_end, today)
     with store.conn() as conn:
@@ -290,7 +294,7 @@ def _activity_counts(guests, visits, asof_iso):
 
 def activity(store, period, meta):
     """Статусы базы на дату среза + сравнение с предыдущим периодом (ТЗ §3)."""
-    today = date.today()
+    today = msk_time.today()
     asof = min(period['p_end'], today).isoformat()
     prev_asof = min(period['prev_end'], today).isoformat()
     with store.conn() as conn:
@@ -354,9 +358,20 @@ def frequency(store, period, meta):
 def lifecycle_cohorts(store, period, meta, months_limit=24):
     """Когорты жизненного цикла (ТЗ §2): когорта = месяц регистрации.
 
-    Lifetime-воронка внутри когорты: % с 1-м / 2-м / 5-м заказом (по числу
-    чеков за всю жизнь), % активных на дату среза. В fallback-режиме базис
-    автоматически «первая покупка» (совпадает с §5) — помечено в meta.
+    Воронка внутри когорты — Lifetime: доля гостей с >= 2 и >= 5 чеками за всю
+    жизнь. Колонки «>= 1 чек» здесь НЕТ намеренно: гость попадает в витрину
+    только вместе с первой покупкой, а оставшиеся без чеков удаляются
+    (guest_store.replace_month), поэтому такая доля тождественно равна 100% и
+    не несёт информации. Сколько людей зарегистрировалось и не купило —
+    отдельный отчёт never_buyers() по данным Orderia.
+
+    «% активных» — НА ДАТУ СРЕЗА: последний визит не позже asof и не раньше
+    asof - 30 дней. Верхняя граница обязательна: без неё листание в прошлое
+    засчитывало в «активных» визиты, случившиеся ПОСЛЕ среза (в марте были бы
+    активны все, кто заходил вплоть до августа).
+
+    В fallback-режиме базис автоматически «первая покупка» (совпадает с §5) —
+    помечено в meta.
     """
     basis = _registration_basis(meta)
     asof = meta['asof']
@@ -364,6 +379,7 @@ def lifecycle_cohorts(store, period, meta, months_limit=24):
     with store.conn() as conn:
         guests = _load_guests(conn)
         totals = _load_guest_totals(conn)
+        visits = _load_visits(conn)
     cohorts = {}
     for g in guests:
         reg = _reg_date(g, basis)
@@ -371,24 +387,21 @@ def lifecycle_cohorts(store, period, meta, months_limit=24):
         if not reg or reg > asof:
             continue
         ym = reg[:7]
-        c = cohorts.setdefault(ym, {'n': 0, 'order1': 0, 'order2': 0,
-                                    'order5': 0, 'active': 0})
+        c = cohorts.setdefault(ym, {'n': 0, 'order2': 0, 'order5': 0, 'active': 0})
         c['n'] += 1
         orders = totals.get(g['guest_id'], {}).get('orders', 0)
-        if g['first_order_date']:
-            c['order1'] += 1
         if orders >= 2:
             c['order2'] += 1
         if orders >= 5:
             c['order5'] += 1
-        if g['last_visit_date'] and g['last_visit_date'] >= active_from:
+        last_visit = _last_visit_at(visits.get(g['guest_id'], []), asof)
+        if last_visit and last_visit >= active_from:
             c['active'] += 1
     rows = []
     for ym in sorted(cohorts.keys(), reverse=True)[:months_limit]:
         c = cohorts[ym]
         rows.append({
             'cohort': ym, 'guests': c['n'],
-            'order1_pct': _pct(c['order1'], c['n']),
             'order2_pct': _pct(c['order2'], c['n']),
             'order5_pct': _pct(c['order5'], c['n']),
             'active_pct': _pct(c['active'], c['n']),
@@ -630,7 +643,7 @@ def base_dynamics(store, period, meta, months=24):
     with store.conn() as conn:
         guests = _load_guests(conn)
         visits = _load_visits(conn)
-    end_anchor = min(period['p_end'], date.today())
+    end_anchor = min(period['p_end'], msk_time.today())
     ym_list = []
     y, m = end_anchor.year, end_anchor.month
     for _ in range(months):
@@ -1009,6 +1022,237 @@ def guest_card(store, guest_id, period, meta):
         'activity_status': status,
         'recent_receipts': recent,
     }
+
+
+# ------------------------------------------- §15 Зарегистрировались, не купили
+
+# Болванка от автоматического сканирования формы регистрации Orderia: имя
+# «Jane Doe» при пустом Telegram. В срезе 2026-08-11 таких 9 из 326.
+JUNK_NAME = ('jane', 'doe')
+
+
+def _is_junk_never_card(row):
+    """Мусорная запись: не телефон в поле телефона или болванка сканера."""
+    if not row['phone_valid']:
+        return True
+    return ((row['name'] or '').strip().lower() == JUNK_NAME[0]
+            and (row['lastname'] or '').strip().lower() == JUNK_NAME[1]
+            and not (row['telegram'] or '').strip())
+
+
+def _buyer_index(conn):
+    """Индексы витрины покупателей для сшивки с картами Orderia.
+
+    Возвращает (guest_ids, card_to_guest, totals):
+    - guest_ids   — множество guest_id (канонический телефон);
+    - card_to_guest — номер карты (в т.ч. псевдонимы) -> guest_id;
+    - totals      — guest_id -> {orders, revenue, first, last, card}.
+    """
+    guest_ids = set()
+    card_to_guest = {}
+    totals = {}
+    for r in conn.execute(
+            "SELECT guest_id, card_number, first_order_date, last_visit_date "
+            "FROM guests"):
+        guest_ids.add(r['guest_id'])
+        totals[r['guest_id']] = {
+            'orders': 0, 'revenue': 0.0, 'card': r['card_number'] or '',
+            'first': r['first_order_date'], 'last': r['last_visit_date']}
+        if r['card_number']:
+            card_to_guest.setdefault(r['card_number'], r['guest_id'])
+    for r in conn.execute("SELECT alias, guest_id FROM guest_aliases"):
+        card_to_guest.setdefault(r['alias'], r['guest_id'])
+    for r in conn.execute(
+            "SELECT guest_id, COUNT(*) o, SUM(revenue) rev FROM receipts "
+            "GROUP BY guest_id"):
+        if r['guest_id'] in totals:
+            totals[r['guest_id']]['orders'] = r['o']
+            totals[r['guest_id']]['revenue'] = r['rev'] or 0.0
+    return guest_ids, card_to_guest, totals
+
+
+def _classify_never_card(row, guest_ids, card_to_guest, totals, ambiguous_cards):
+    """Подтверждена ли карта как «не покупавшая», или это ложное срабатывание.
+
+    Orderia считает покупки сама, и её счётчик ошибается: в срезе 2026-08-11
+    20 карт из 326 нашлись среди покупателей iiko. Витрина здесь — арбитр,
+    потому что чек в iiko это факт продажи, а check_count в Orderia — счётчик.
+
+    Ключи сшивки по убыванию надёжности:
+    1. канонический телефон — он же guest_id витрины, совпадение однозначно;
+    2. номер карты — ТОЛЬКО если он уникален в срезе Orderia. Номер там не
+       первичный ключ: 2002639 выдан трём записям, причём разным людям. Привязка
+       по неуникальному номеру подтянула бы к одному гостю чужие карты и
+       посчитала бы его выручку несколько раз.
+
+    Возвращает (kind, guest_id): kind — 'confirmed' | 'same_card' | 'other_card'.
+    - same_card  — тот же номер карты, и по нему в iiko есть чеки: счётчик
+      Orderia врёт (чаще всего покупка в день регистрации его не увеличивает);
+    - other_card — телефон известен витрине, но покупки шли по ДРУГОЙ карте:
+      человек завёл вторую карту, старая работала.
+    """
+    phone = row['phone_canon'] or ''
+    card = row['card_number'] or ''
+    gid = None
+    if phone and phone in guest_ids:
+        gid = phone
+    elif card and card not in ambiguous_cards:
+        gid = card_to_guest.get(card)
+    if not gid:
+        return 'confirmed', None
+    return ('same_card' if totals.get(gid, {}).get('card') == card
+            else 'other_card'), gid
+
+
+def never_buyers(store, period, meta, months=24, include_list=False):
+    """Зарегистрировались и ни разу не купили (§15, источник — Orderia).
+
+    Закрывает дыру, о которой сказано в §1: OLAP iiko видит гостя только с
+    первой покупкой, поэтому слой «карта выдана, покупок нет» витрине не
+    виден в принципе. Orderia отдаёт его эндпоинтом never.php.
+
+    Каждая карта сверяется с витриной (см. _classify_never_card) — в отчёт как
+    «подтверждённые» идут только те, кого в чеках iiko действительно нет.
+
+    Конверсия периода считается честно, потому что теперь есть знаменатель:
+    зарегистрировались(P) = купившие с датой регистрации в P + подтверждённые
+    некупившие с датой регистрации в P. Считается только если период целиком
+    внутри покрытия Orderia — на более ранних периодах некупивших в источнике
+    нет, и конверсия ложно вышла бы 100%.
+    """
+    p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    src = store.never_sync_state()
+
+    with store.conn() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT source_id, card_number, name, lastname, phone_raw, "
+            "phone_canon, telegram, balance, registered_at, phone_valid "
+            "FROM never_cards")]
+        guest_ids, card_to_guest, totals = _buyer_index(conn)
+        bought_in_period = conn.execute(
+            "SELECT COUNT(*) n FROM guests WHERE registration_source='iiko' "
+            "AND registration_date >= ? AND registration_date <= ?",
+            (p_start, p_end)).fetchone()['n']
+
+    # Номера карт, встречающиеся в срезе Orderia больше одного раза: по ним
+    # нельзя привязываться к гостю (см. _classify_never_card).
+    card_counts = {}
+    for r in rows:
+        card = r['card_number'] or ''
+        if card:
+            card_counts[card] = card_counts.get(card, 0) + 1
+    ambiguous_cards = {c for c, n in card_counts.items() if n > 1}
+
+    confirmed, false_pos = [], []
+    fp_revenue_by_guest = {}
+    for r in rows:
+        kind, gid = _classify_never_card(r, guest_ids, card_to_guest, totals,
+                                         ambiguous_cards)
+        if kind == 'confirmed':
+            confirmed.append(r)
+        else:
+            t = totals.get(gid, {})
+            # Выручка копится по ГОСТЮ, а не по строке: на одного человека может
+            # указывать несколько карт Orderia, и суммирование по строкам
+            # посчитало бы его выручку дважды.
+            fp_revenue_by_guest[gid] = round(t.get('revenue', 0.0))
+            false_pos.append({
+                'card_number': r['card_number'],
+                'kind': kind,
+                'iiko_card': t.get('card') or '',
+                'orders': t.get('orders', 0),
+                'revenue': round(t.get('revenue', 0.0)),
+                'first_order_date': t.get('first'),
+                'last_visit_date': t.get('last'),
+                'registered_at': r['registered_at'],
+            })
+
+    junk = [r for r in confirmed if _is_junk_never_card(r)]
+    junk_ids = {r['source_id'] for r in junk}
+    real = [r for r in confirmed if r['source_id'] not in junk_ids]
+
+    reg_dates = [r['registered_at'] for r in rows if r['registered_at']]
+    cov_from = min(reg_dates) if reg_dates else None
+    cov_to = max(reg_dates) if reg_dates else None
+
+    # Помесячная динамика подтверждённых (без мусора), от свежих к старым.
+    by_month = {}
+    for r in real:
+        ym = (r['registered_at'] or '')[:7]
+        if ym:
+            by_month[ym] = by_month.get(ym, 0) + 1
+    months_rows = [{'month': ym, 'count': by_month[ym]}
+                   for ym in sorted(by_month.keys(), reverse=True)[:months]]
+    months_rows.reverse()
+
+    by_balance = {}
+    for r in real:
+        by_balance[r['balance']] = by_balance.get(r['balance'], 0) + 1
+
+    in_period = [r for r in real if p_start <= (r['registered_at'] or '') <= p_end]
+    registered_total = bought_in_period + len(in_period)
+
+    # Знаменатель корректен по построению: зарегистрировавшийся либо в итоге
+    # купил (и лежит в guests с датой регистрации), либо не купил и лежит в
+    # never_cards. Третьего не дано, поэтому сумма — это все регистрации периода.
+    #
+    # Но только внутри покрытия Orderia. Самая ранняя карта в списке —
+    # 2024-02-29 на проде, а регистрации в витрине начинаются с 2017 года: для
+    # старых периодов некупивших в источнике просто нет, и конверсия ложно
+    # вышла бы 100%. Порог берём по МЕСЯЦУ самой ранней карты: внутри месяца
+    # период стартует раньше конкретной даты, и посуточное сравнение отключало
+    # бы конверсию на первом же валидном месяце.
+    #
+    # Оговорка: сам порог эвристический. Список Orderia — снимок тех, кто НЕ
+    # купил до сих пор; по нему нельзя отличить «до 2024-02 система не вела
+    # карты» от «все, кто регистрировался раньше, в итоге что-то купили».
+    coverage_month_start = f"{cov_from[:7]}-01" if cov_from else None
+    conversion = (_pct(bought_in_period, registered_total)
+                  if coverage_month_start and p_start >= coverage_month_start
+                  and registered_total else None)
+
+    out = {
+        'source': {
+            'configured': src['status'] != 'never_run' or bool(rows),
+            'status': src['status'],
+            'fetched_at': src['fetched_at'],
+            'error': src['error'],
+            'reported': src['total'] if src['total'] is not None else len(rows),
+        },
+        'coverage': {'from': cov_from, 'to': cov_to},
+        'totals': {
+            'reported': len(rows),
+            'confirmed': len(real),
+            'junk': len(junk),
+            'false_positives': len(false_pos),
+            'fp_same_card': sum(1 for f in false_pos if f['kind'] == 'same_card'),
+            'fp_other_card': sum(1 for f in false_pos if f['kind'] == 'other_card'),
+            'fp_guests': len(fp_revenue_by_guest),
+            'fp_revenue': sum(fp_revenue_by_guest.values()),
+            'reachable_telegram': sum(1 for r in real if (r['telegram'] or '').strip()),
+        },
+        'period': {
+            'registered_total': registered_total,
+            'bought': bought_in_period,
+            'never': len(in_period),
+            'conversion_pct': conversion,
+            'conversion_available': conversion is not None,
+        },
+        'by_month': months_rows,
+        'by_balance': [{'balance': b, 'count': n}
+                       for b, n in sorted(by_balance.items(),
+                                          key=lambda kv: (kv[0] is None, kv[0]))],
+        'false_positives': sorted(false_pos, key=lambda f: -f['revenue'])[:20],
+    }
+    if include_list:
+        out['guests'] = sorted(
+            [{'card_number': r['card_number'],
+              'name': ' '.join(x for x in (r['name'], r['lastname']) if x).strip(),
+              'phone': r['phone_raw'], 'telegram': r['telegram'],
+              'registered_at': r['registered_at'], 'balance': r['balance']}
+             for r in real],
+            key=lambda g: g['registered_at'] or '', reverse=True)
+    return out
 
 
 # ---------------------------------------------------------------- §14 Сводка

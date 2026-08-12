@@ -232,6 +232,40 @@ def api_venues():
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
 
+@guests_bp.route('/api/guests/never')
+def api_never_buyers():
+    """Зарегистрировались и ни разу не купили (§15, источник — Orderia).
+
+    ?export=csv — список для реактивации: только подтверждённые витриной, без
+    мусорных записей. Ложные срабатывания Orderia в выгрузку не попадают —
+    иначе рассылка «вы у нас ещё не были» уйдёт постоянным гостям.
+    """
+    try:
+        store, period, meta = _ctx()
+        want_csv = request.args.get('export') == 'csv'
+        if want_csv:
+            data = ga.never_buyers(store, period, meta, include_list=True)
+            buf = io.StringIO()
+            w = csv.writer(buf, delimiter=';')
+            w.writerow(['Карта', 'Имя', 'Телефон', 'Telegram ID',
+                        'Дата регистрации', 'Бонусный баланс'])
+            for g in data['guests']:
+                w.writerow([g['card_number'], g['name'], g['phone'],
+                            g['telegram'], g['registered_at'], g['balance']])
+            out = buf.getvalue().encode('utf-8-sig')  # BOM для Excel
+            return Response(out, mimetype='text/csv; charset=utf-8', headers={
+                'Content-Disposition':
+                    f"attachment; filename=never_buyers_{meta['asof']}.csv"})
+        # Ключ кэша включает метку среза Orderia: после ночного обновления
+        # списка карт отчёт пересчитывается сам.
+        never_version = store.never_sync_state()['fetched_at'] or ''
+        data = cached_olap(_cache_key('never', meta, never_version),
+                           lambda: ga.never_buyers(store, period, meta))
+        return jsonify({'meta': meta, 'data': data})
+    except Exception as e:
+        return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
+
+
 @guests_bp.route('/api/guests/search')
 def api_search():
     """Поиск гостя по телефону/карте/имени (ТЗ §12). ?q="""
@@ -283,4 +317,5 @@ def api_guests_sync_status():
         'progress': guest_sync.get_sync_progress(),
         'coverage': store.coverage(),
         'months': store.sync_state_map(),
+        'never_cards': store.never_sync_state(),
     })

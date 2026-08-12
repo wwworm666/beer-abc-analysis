@@ -28,7 +28,7 @@ from datetime import datetime
 
 from core.venues_config import PHYSICAL_VENUES
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _default_db_path():
@@ -75,15 +75,50 @@ class GuestStore:
         finally:
             conn.close()
 
+    def _backup_before_migration(self, from_version):
+        """Копия файла БД перед миграцией схемы (SQLite backup API).
+
+        Паттерн core/shifts_manager.py (shifts.db.backup_v2/v3 на проде). Копия
+        делается один раз на версию: файл уже существует — значит миграция с
+        этой версии уже проходила, второй раз перетирать бэкап нельзя.
+        """
+        dest = f"{self.db_path}.backup_v{from_version}"
+        if os.path.exists(dest):
+            return
+        try:
+            src = sqlite3.connect(self.db_path)
+            try:
+                dst = sqlite3.connect(dest)
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+            finally:
+                src.close()
+            print(f"[GUEST-STORE] bekap pered migratsiey: {dest}")
+        except Exception as e:
+            # Бэкап — страховка, а не условие работы: миграция аддитивная
+            # (только CREATE TABLE), терять её из-за нехватки места не стоит.
+            print(f"[GUEST-STORE] bekap ne udalsya ({e}) — prodolzhayu migratsiyu")
+
     def _init_db(self):
         """Создание схемы + additive-миграции по PRAGMA user_version.
 
-        Паттерн core/shifts_manager.py: версия схемы в user_version; при будущих
-        миграциях (v2+) перед ALTER делается бэкап файла через SQLite backup API.
-        v1 — начальная схема.
+        Паттерн core/shifts_manager.py: версия схемы в user_version; перед
+        миграцией существующей базы делается бэкап файла через SQLite backup API.
+
+        v1 — чеки/позиции/гости программы лояльности (данные из iiko OLAP).
+        v2 — never_cards: карты из Orderia, зарегистрированные без покупок.
+             Отдельная таблица, а НЕ строки в guests: инвариант «гость в guests =
+             купивший» держит все 14 отчётов (LTV, когорты, активность считают по
+             нему). Подмешивание некупивших в guests сдвинуло бы всю историю.
         """
         with self._lock, self._conn() as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
+            if version >= SCHEMA_VERSION:
+                return
+            if version > 0:
+                self._backup_before_migration(version)
             if version < 1:
                 conn.executescript(
                     """
@@ -145,7 +180,40 @@ class GuestStore:
                     );
                     """
                 )
-                conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+                conn.execute("PRAGMA user_version = 1")
+                conn.commit()
+
+            if version < 2:
+                conn.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS never_cards (
+                        source_id     TEXT PRIMARY KEY,
+                        card_number   TEXT NOT NULL,
+                        name          TEXT,
+                        lastname      TEXT,
+                        phone_raw     TEXT,
+                        phone_canon   TEXT,
+                        telegram      TEXT,
+                        balance       INTEGER,
+                        registered_at TEXT,
+                        phone_valid   INTEGER NOT NULL DEFAULT 1,
+                        fetched_at    TEXT NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_never_phone
+                        ON never_cards(phone_canon);
+                    CREATE INDEX IF NOT EXISTS idx_never_reg
+                        ON never_cards(registered_at);
+
+                    CREATE TABLE IF NOT EXISTS never_sync (
+                        id         INTEGER PRIMARY KEY CHECK (id = 1),
+                        fetched_at TEXT,
+                        total      INTEGER,
+                        status     TEXT,
+                        error      TEXT
+                    );
+                    """
+                )
+                conn.execute("PRAGMA user_version = 2")
                 conn.commit()
 
     # ------------------------------------------------------------------ запись
@@ -391,6 +459,78 @@ class GuestStore:
                 (month_start, month_end_excl)).fetchone()['n']
             return {'receipts': row['receipts'], 'guests': row['guests'],
                     'revenue': row['revenue'], 'registrations': regs}
+
+    # -------------------------------------------- карты без покупок (Orderia)
+
+    def replace_never_cards(self, rows):
+        """Полная замена среза карт без покупок одной транзакцией.
+
+        rows: список dict с ключами source_id, card_number, name, lastname,
+        phone_raw, phone_canon, telegram, balance, registered_at, phone_valid.
+
+        Почему полная замена, а не upsert: Orderia отдаёт эндпоинт без
+        параметров — всегда весь список целиком, и карта ИСЧЕЗАЕТ из него, как
+        только гость совершил первую покупку. Upsert оставил бы такие карты
+        в витрине навсегда, и «не купившие» копились бы мусором.
+
+        Вызывать только с непустым результатом реального запроса: пустой список
+        от сломанного эндпоинта затрёт срез (см. orderia_client.fetch_never_cards,
+        который на ошибке возвращает None, а не []).
+        """
+        now = datetime.now().isoformat(timespec='seconds')
+        with self._lock, self._conn() as conn:
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("DELETE FROM never_cards")
+                conn.executemany(
+                    """
+                    INSERT INTO never_cards
+                        (source_id, card_number, name, lastname, phone_raw,
+                         phone_canon, telegram, balance, registered_at,
+                         phone_valid, fetched_at)
+                    VALUES (:source_id, :card_number, :name, :lastname, :phone_raw,
+                            :phone_canon, :telegram, :balance, :registered_at,
+                            :phone_valid, :fetched_at)
+                    """,
+                    [dict(r, fetched_at=now) for r in rows])
+                conn.execute(
+                    """
+                    INSERT INTO never_sync (id, fetched_at, total, status, error)
+                    VALUES (1, ?, ?, 'ok', NULL)
+                    ON CONFLICT(id) DO UPDATE SET
+                        fetched_at=excluded.fetched_at, total=excluded.total,
+                        status='ok', error=NULL
+                    """,
+                    (now, len(rows)),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    def mark_never_sync_error(self, error):
+        """Зафиксировать неудачную попытку, НЕ трогая сохранённый срез."""
+        now = datetime.now().isoformat(timespec='seconds')
+        with self._lock, self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO never_sync (id, fetched_at, total, status, error)
+                VALUES (1, NULL, NULL, 'error', ?)
+                ON CONFLICT(id) DO UPDATE SET status='error', error=excluded.error
+                """,
+                (str(error)[:500],),
+            )
+            conn.commit()
+
+    def never_sync_state(self):
+        """{fetched_at, total, status, error} последнего среза карт без покупок."""
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM never_sync WHERE id = 1").fetchone()
+        if not row:
+            return {'fetched_at': None, 'total': None,
+                    'status': 'never_run', 'error': None}
+        return {'fetched_at': row['fetched_at'], 'total': row['total'],
+                'status': row['status'], 'error': row['error']}
 
 
 # Синглтон процесса (как temperature_store.get_store()).
