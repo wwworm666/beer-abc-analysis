@@ -26,7 +26,17 @@ Guests.registerView('never', function (pane) {
         var fetched = d.source.fetched_at
             ? d.source.fetched_at.replace('T', ' ').slice(0, 16) : '—';
 
-        var html = '<div class="metric-grid">';
+        // Данные есть, но последняя попытка обновления не удалась — предупреждаем.
+        // Без этого срез выглядел бы свежим, хотя обновления не проходят: срез
+        // намеренно НЕ затирается при ошибке источника, и молчать об этом нельзя.
+        var staleWarning = d.source.status === 'error'
+            ? '<div class="gcard"><div class="note-line">Показан сохранённый срез от ' +
+              G.esc(fetched) + '. Последнее обновление не удалось: ' +
+              G.esc(d.source.error || 'причина неизвестна') +
+              ' Цифры не устареют молча — дата среза выше.</div></div>'
+            : '';
+
+        var html = staleWarning + '<div class="metric-grid">';
         html += G.metricCard('never_buyers', 'Не купили ни разу', G.fmtNum(t.confirmed),
             'подтверждено витриной');
         html += G.metricCard('never_false_positive', 'Ложных срабатываний',
