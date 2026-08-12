@@ -64,7 +64,10 @@ def api_summary():
     """Сводка (ТЗ §14)."""
     try:
         store, period, meta = _ctx()
-        data = cached_olap(_cache_key('summary', meta),
+        # В ключ входит метка среза Orderia: сводка теперь берёт из §15
+        # регистрации и конверсию, и должна пересчитаться после его обновления.
+        never_version = store.never_sync_state()['fetched_at'] or ''
+        data = cached_olap(_cache_key('summary', meta, never_version),
                            lambda: ga.summary(store, period, meta))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:

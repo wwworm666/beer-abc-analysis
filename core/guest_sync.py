@@ -257,8 +257,10 @@ def sync_never_cards():
     rows = orderia_client.fetch_never_cards()
     if rows is None:
         # Данные не получены: сохранённый срез НЕ трогаем, иначе одна сетевая
-        # ошибка обнулила бы список «не купивших».
-        store.mark_never_sync_error('Orderia ne otvetila (sm. log [ORDERIA])')
+        # ошибка обнулила бы список «не купивших». Причина уходит в БД по-русски —
+        # её показывает вкладка «Не купившие».
+        store.mark_never_sync_error(
+            orderia_client.last_error() or 'Orderia не ответила')
         return False
     prepared = transform_never_cards(rows)
     store.replace_never_cards(prepared)

@@ -4,17 +4,44 @@ Guests.registerView('summary', function (pane) {
     var G = Guests;
     return G.api('/api/guests/summary').then(function (resp) {
         var d = resp.data, meta = resp.meta;
-        var conv = d.conversion_pct === null ? '—' : G.fmtPct(d.conversion_pct);
+        var nv = d.never || {};
+
+        // Регистрации и конверсия: если срез Orderia есть, знаменатель полный —
+        // купившие плюс не купившие. Если нет, остаётся прежняя картина, где
+        // источник видит только купивших, и конверсия обречена быть ~100%.
+        var regsValue, regsSub, conv, convSub, neverValue, neverSub;
+        if (nv.available) {
+            regsValue = G.fmtNum(nv.registered_total);
+            regsSub = 'купили ' + G.fmtNum(nv.bought) + ' · не купили ' + G.fmtNum(nv.never_period);
+            conv = G.fmtPct(nv.conversion_pct);
+            convSub = G.fmtNum(nv.bought) + ' из ' + G.fmtNum(nv.registered_total) + ' зарегистрированных';
+            neverValue = G.fmtNum(nv.never_period);
+            neverSub = 'всего в базе ' + G.fmtNum(nv.never_total);
+        } else {
+            regsValue = G.fmtNum(d.registrations);
+            regsSub = 'только купившие · YTD: ' + G.fmtNum(d.registrations_ytd);
+            conv = d.conversion_pct === null ? '—' : G.fmtPct(d.conversion_pct);
+            convSub = d.conversion_pct === null
+                ? 'нет данных о регистрации'
+                : 'справочно: источник видит только купивших';
+            neverValue = '—';
+            neverSub = nv.source_status === 'error'
+                ? 'данные Orderia недоступны'
+                : (nv.source_status === 'never_run'
+                    ? 'интеграция с Orderia не настроена'
+                    : 'период старше данных Orderia');
+        }
+
         var html = '<div class="metric-grid">' +
             G.metricCard('base_size', 'База гостей', G.fmtNum(d.base_size), 'за всю историю') +
             G.metricCard('active_guests', 'Активные', G.fmtNum(d.active_guests),
                 'визит за 30 дней на ' + G.fmtDate(meta.asof)) +
-            G.metricCard('registrations', 'Новые регистрации', G.fmtNum(d.registrations),
-                'YTD: ' + G.fmtNum(d.registrations_ytd)) +
+            G.metricCard('registrations', 'Новые регистрации', regsValue, regsSub) +
             G.metricCard('first_orders', 'Первые заказы', G.fmtNum(d.first_orders),
                 'YTD: ' + G.fmtNum(d.first_orders_ytd)) +
-            G.metricCard('conversion', 'Конверсия в заказ', conv,
-                d.conversion_pct === null ? 'нет данных о регистрации' : 'справочно: источник видит только купивших') +
+            G.metricCard('never_buyers', 'Не купили ни разу', neverValue, neverSub) +
+            G.metricCard(nv.available ? 'never_conversion' : 'conversion',
+                'Конверсия в заказ', conv, convSub) +
             G.metricCard('avg_frequency', 'Средняя частота', String(d.avg_frequency).replace('.', ','),
                 'визитов на гостя за период') +
             G.metricCard('avg_check', 'Средний чек', G.fmtMoney(d.avg_check),
@@ -40,7 +67,8 @@ Guests.registerView('summary', function (pane) {
         html += '</tbody></table></div></div></div>';
 
         html += G.howBlock(['base_size', 'active_guests', 'registrations', 'first_orders',
-                            'conversion', 'avg_frequency', 'avg_check', 'ltv', 'revenue',
+                            'never_buyers', nv.available ? 'never_conversion' : 'conversion',
+                            'avg_frequency', 'avg_check', 'ltv', 'revenue',
                             'visit', 'order', 'coverage']);
         pane.innerHTML = html;
 

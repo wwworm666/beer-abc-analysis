@@ -41,8 +41,27 @@ HTTP_TIMEOUT_S = 20
 REQUIRED_FIELDS = ('id', 'cardnum', 'phone', 'last_date')
 
 
+# Причина последней неудачи, человеческим языком — она уезжает в БД и
+# показывается на вкладке «Не купившие». Логи остаются в транслите, как во всём
+# проекте, а пользователю нужен читаемый текст.
+_LAST_ERROR = None
+
+
+def last_error():
+    """Причина последней неудачной попытки (или None, если её не было)."""
+    return _LAST_ERROR
+
+
+def _fail(user_message, log_message):
+    global _LAST_ERROR
+    _LAST_ERROR = user_message
+    print(f"[ORDERIA] {log_message}")
+    return None
+
+
 def _base_url():
-    return os.getenv("ORDERIA_BASE_URL", BASE_URL_DEFAULT).rstrip('/') + '/'
+    raw = os.getenv("ORDERIA_BASE_URL") or BASE_URL_DEFAULT
+    return raw.rstrip('/') + '/'
 
 
 def _credentials():
@@ -63,39 +82,53 @@ def fetch_never_cards():
     и вызывающий обязан НЕ трогать уже сохранённый срез: пустой список от
     сломанного эндпоинта иначе затёр бы витрину нулём.
     """
+    global _LAST_ERROR
     if not is_configured():
-        print("[ORDERIA] ORDERIA_LOGIN/ORDERIA_PASSWORD ne zadany — propusk")
-        return None
+        return _fail("Не заданы ORDERIA_LOGIN и ORDERIA_PASSWORD в окружении.",
+                     "ORDERIA_LOGIN/ORDERIA_PASSWORD ne zadany — propusk")
 
     login, password = _credentials()
     url = _base_url() + "never.php"
     try:
         resp = requests.get(url, auth=(login, password), timeout=HTTP_TIMEOUT_S)
     except requests.RequestException as e:
-        print(f"[ORDERIA] zapros ne udalsya: {type(e).__name__}: {e}")
-        return None
+        return _fail(f"Запрос к Orderia не удался: {type(e).__name__}. "
+                     "Проверьте сеть; локально хост закрыт под VPN.",
+                     f"zapros ne udalsya: {type(e).__name__}: {e}")
 
+    if resp.status_code == 404:
+        # Случилось 2026-08-12: эндпоинт перестал существовать за один день.
+        return _fail(
+            f"Эндпоинт не найден (HTTP 404): {url}. Похоже, адрес изменился на "
+            "стороне Orderia — нужен актуальный путь (задаётся через "
+            "ORDERIA_BASE_URL без правок кода).",
+            f"HTTP 404 na {url}")
+    if resp.status_code in (401, 403):
+        return _fail(
+            f"Orderia отказала в доступе (HTTP {resp.status_code}) — вероятно, "
+            "сменились логин или пароль.",
+            f"HTTP {resp.status_code} na {url}")
     if resp.status_code != 200:
-        # 401 — самый вероятный: сменили пароль на стороне Orderia.
-        print(f"[ORDERIA] HTTP {resp.status_code} na {url}")
-        return None
+        return _fail(f"Orderia ответила HTTP {resp.status_code}.",
+                     f"HTTP {resp.status_code} na {url}")
 
     try:
         data = resp.json()
     except ValueError as e:
-        print(f"[ORDERIA] otvet ne JSON: {e}")
-        return None
+        return _fail("Ответ Orderia не является JSON.", f"otvet ne JSON: {e}")
 
     if not isinstance(data, list):
-        print(f"[ORDERIA] ozhidali massiv, prishlo {type(data).__name__}")
-        return None
+        return _fail(f"Ожидали массив карт, пришло {type(data).__name__}.",
+                     f"ozhidali massiv, prishlo {type(data).__name__}")
 
     # Страховка от «200 OK со страницей-заглушкой»: у первой записи должны быть
     # ожидаемые поля. Пустой массив — валидный ответ (все карты что-то купили).
     if data:
         first = data[0]
         if not isinstance(first, dict) or not all(f in first for f in REQUIRED_FIELDS):
-            print("[ORDERIA] struktura otveta ne pohozha na never.php — propusk")
-            return None
+            return _fail(
+                "Структура ответа не похожа на never.php — данные не приняты.",
+                "struktura otveta ne pohozha na never.php — propusk")
 
+    _LAST_ERROR = None
     return data

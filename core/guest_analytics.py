@@ -1258,12 +1258,19 @@ def never_buyers(store, period, meta, months=24, include_list=False):
 # ---------------------------------------------------------------- §14 Сводка
 
 def summary(store, period, meta):
-    """Дашборд маркетолога (ТЗ §14): сводные показатели из готовых функций."""
+    """Дашборд маркетолога (ТЗ §14): сводные показатели из готовых функций.
+
+    Регистрации и конверсия берутся из §15, если данные Orderia есть: только там
+    известен полный знаменатель. Без Orderia остаётся прежнее поведение — виден
+    лишь тот, кто купил, и конверсия обречена быть около 100% (показывается
+    справочно). Признак `never.available` говорит UI, какой из двух случаев.
+    """
     p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
     growth = base_growth(store, period, meta)
     act = activity(store, period, meta)
     freq = frequency(store, period, meta)
     ltv_block = ltv(store, period, meta)
+    never = never_buyers(store, period, meta)
     with store.conn() as conn:
         chk = conn.execute(
             "SELECT COUNT(*) orders, SUM(revenue) rev FROM receipts "
@@ -1303,4 +1310,14 @@ def summary(store, period, meta):
             {'store': r['store'],
              'store_name': VENUES.get(r['store'], {}).get('name', r['store']),
              'count': r['n']} for r in regs_by_store],
+        'never': {
+            # available = срез Orderia есть и период внутри его покрытия
+            'available': never['period']['conversion_available'],
+            'source_status': never['source']['status'],
+            'registered_total': never['period']['registered_total'],
+            'bought': never['period']['bought'],
+            'never_period': never['period']['never'],
+            'never_total': never['totals']['confirmed'],
+            'conversion_pct': never['period']['conversion_pct'],
+        },
     }

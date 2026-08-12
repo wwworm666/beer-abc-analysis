@@ -325,6 +325,97 @@ class TestCohortFixes(NeverCardsBase):
                          'последний визит на 31.03 — 10.01, это больше 30 дней')
 
 
+class TestSummaryIntegration(NeverCardsBase):
+    """Сводка (§14) должна брать регистрации и конверсию из §15, когда есть данные."""
+
+    def _summary(self, anchor='2026-05-15'):
+        period = ga.resolve_period('month', anchor)
+        return ga.summary(self.store, period, ga.build_meta(self.store, period))
+
+    def test_summary_uses_full_denominator_when_available(self):
+        self.add_buyer('79001110011', '2005001', '2026-05-10', '2026-05-10')
+        self.store.replace_never_cards(guest_sync.transform_never_cards([
+            orderia_row('1', '2005002', '79001110022', '2026-05-11'),
+            orderia_row('2', '2005003', '79001110033', '2026-05-12'),
+        ]))
+        s = self._summary()['never']
+        self.assertTrue(s['available'])
+        self.assertEqual(s['registered_total'], 3)
+        self.assertEqual(s['bought'], 1)
+        self.assertEqual(s['never_period'], 2)
+        self.assertAlmostEqual(s['conversion_pct'], 33.3, places=1)
+
+    def test_summary_degrades_without_orderia_data(self):
+        """Без среза Orderia сводка не врёт, а помечает данные недоступными."""
+        self.add_buyer('79001110011', '2005001', '2026-05-10', '2026-05-10')
+        self.store.mark_never_sync_error('Эндпоинт не найден (HTTP 404)')
+        s = self._summary()['never']
+        self.assertFalse(s['available'])
+        self.assertEqual(s['source_status'], 'error')
+        self.assertIsNone(s['conversion_pct'])
+
+
+class TestClientErrorMessages(unittest.TestCase):
+    """Причина неудачи должна быть читаемой: она попадает в интерфейс."""
+
+    def test_empty_base_url_falls_back_to_default(self):
+        """.env.example поставляет ORDERIA_BASE_URL= пустым — не должно ломать URL."""
+        from core import orderia_client as oc
+        old = os.environ.get('ORDERIA_BASE_URL')
+        os.environ['ORDERIA_BASE_URL'] = ''
+        try:
+            self.assertEqual(oc._base_url(), oc.BASE_URL_DEFAULT)
+        finally:
+            if old is None:
+                os.environ.pop('ORDERIA_BASE_URL', None)
+            else:
+                os.environ['ORDERIA_BASE_URL'] = old
+
+    def test_404_reports_address_change_in_russian(self):
+        from core import orderia_client as oc
+
+        class FakeResp:
+            status_code = 404
+
+        old_get = oc.requests.get
+        old_login = os.environ.get('ORDERIA_LOGIN')
+        old_pass = os.environ.get('ORDERIA_PASSWORD')
+        os.environ['ORDERIA_LOGIN'] = 'x'
+        os.environ['ORDERIA_PASSWORD'] = 'y'
+        oc.requests.get = lambda *a, **k: FakeResp()
+        try:
+            self.assertIsNone(oc.fetch_never_cards())
+            msg = oc.last_error()
+            self.assertIn('404', msg)
+            self.assertIn('ORDERIA_BASE_URL', msg)
+        finally:
+            oc.requests.get = old_get
+            for key, val in (('ORDERIA_LOGIN', old_login),
+                             ('ORDERIA_PASSWORD', old_pass)):
+                if val is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = val
+
+    def test_wrong_credentials_reported_separately(self):
+        from core import orderia_client as oc
+
+        class FakeResp:
+            status_code = 401
+
+        old_get = oc.requests.get
+        os.environ['ORDERIA_LOGIN'] = 'x'
+        os.environ['ORDERIA_PASSWORD'] = 'y'
+        oc.requests.get = lambda *a, **k: FakeResp()
+        try:
+            self.assertIsNone(oc.fetch_never_cards())
+            self.assertIn('логин', oc.last_error())
+        finally:
+            oc.requests.get = old_get
+            os.environ.pop('ORDERIA_LOGIN', None)
+            os.environ.pop('ORDERIA_PASSWORD', None)
+
+
 class TestMskBoundary(unittest.TestCase):
     def test_period_default_uses_moscow_date(self):
         """Период по умолчанию берётся от московской даты, а не от UTC."""
