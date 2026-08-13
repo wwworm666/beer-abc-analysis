@@ -1,29 +1,31 @@
 /**
- * Тесты отрисовки страницы проливов (/draft) после перехода на проводки iiko.
+ * ТЕКСТОВЫЕ проверки страницы «Анализ проливов» (/draft).
  *
  *     node tests/test_draft_render.mjs
  *
- * Браузера в проверке нет, поэтому вытаскиваем <script> из шаблона, подсовываем
- * заглушки document/fetch и прогоняем настоящие функции отрисовки на реальном
- * ответе /api/draft-kegs. Ловим то, что иначе видно только глазами:
- *   1. синтаксическую поломку в шаблонных строках;
- *   2. класс, который JS пишет в разметку, но которого нет в CSS;
- *   3. возврат к JSON в onclick — именно там ломался клик на «Gravity It's Mango»;
- *   4. подпись «% от выручки», под которой раньше стояла накопленная доля ABC.
+ * Здесь проверяется согласованность трёх файлов между собой: шаблон объявляет
+ * узлы, JS их ищет, CSS описывает классы, которые JS пишет в разметку. Такие
+ * расхождения не ловятся ни юнит-тестами расчёта, ни глазами на одном экране:
+ * страница просто молча не рисует блок.
+ *
+ * Исполнение видов — в tests/test_draft_runtime.mjs (тот же приём, что у пары
+ * test_marketing_render.mjs / test_marketing_runtime.mjs).
  */
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const template = fs.readFileSync(path.join(ROOT, 'templates/draft.html'), 'utf8');
+const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
+
+const html = read('templates/draft.html');
+const css = read('static/draft/draft.css');
+const js = read('static/js/draft/draft.js');
 
 let passed = 0;
 let failed = 0;
-
 function test(name, fn) {
     try {
         fn();
@@ -32,310 +34,102 @@ function test(name, fn) {
     } catch (e) {
         failed++;
         console.log(`FAIL  ${name}`);
-        console.log(`      ${e.message}`);
+        console.log(`      ${e && e.message}`);
     }
 }
 
-// --- выделяем инлайновый скрипт и CSS страницы ---
-const scriptBlocks = [...template.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-assert.equal(scriptBlocks.length, 1, 'ожидали один инлайновый <script> в шаблоне');
-const pageScript = scriptBlocks[0];
-const pageCss = [...template.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n');
-
-// --- окружение-заглушка ---
-function makeElement() {
-    const el = {
-        innerHTML: '',
-        textContent: '',
-        value: '',
-        className: '',
-        children: [],
-        classList: { add() {}, remove() {}, contains: () => false },
-        appendChild(child) { this.children.push(child); },
-        querySelector: () => makeElement(),
-    };
-    return el;
-}
-
-const created = [];
-const sandbox = {
-    console,
-    Intl,
-    Math,
-    Number,
-    Object,
-    String,
-    JSON,
-    Date,
-    document: {
-        getElementById: () => makeElement(),
-        createElement: () => { const el = makeElement(); created.push(el); return el; },
-        querySelectorAll: () => [],
-        addEventListener: () => {},
-        body: { insertAdjacentHTML(_pos, html) { sandbox.__lastModal = html; } },
-    },
-    window: {},
-    location: { hash: '' },
-    history: { replaceState: () => {} },
-    setInterval: () => {},
-    fetch: () => Promise.reject(new Error('сеть в тесте не используется')),
-    flatpickr: () => ({ selectedDates: [] }),
-};
-sandbox.window = sandbox;
-vm.createContext(sandbox);
-
-test('инлайновый JS страницы синтаксически корректен', () => {
-    new vm.Script(pageScript, { filename: 'draft.html<script>' }).runInContext(sandbox);
+test('шаблон подключает свои стили и скрипт с кэш-бастингом', () => {
+    assert.match(html, /static\/draft\/draft\.css\?v=\{\{ app_version \}\}/,
+        'draft.css без ?v — правки вёрстки не доедут до браузеров');
+    assert.match(html, /static\/js\/draft\/draft\.js\?v=\{\{ app_version \}\}/,
+        'draft.js без ?v');
+    assert.match(html, /body class="draft-page"/, 'нет класса страницы для токенов');
 });
 
-// --- фикстура: реальный ответ /api/draft-kegs (Лиговский, неделя 04-10.08.2026) ---
-const RESPONSE = {
-    'Лиговский': {
-        period: { from: '2026-08-04', to: '2026-08-10', days: 7, weeks: 1 },
-        total_liters: 167.15,
-        total_portions: 325,
-        total_revenue: 169775,
-        total_cost: 50156,
-        total_margin: 119619,
-        total_kegs: 2,
-        avg_price_per_liter: 1015.7,
-        avg_portion_liters: 0.5143,
-        markup_percent: 238.47,
-        xyz_buckets: 1,
-        xyz_available: false,
-        losses: {
-            invoice_in: 90, transfer_in: 0, sold: 167.15, writeoff: 0.5,
-            inventory_out: 0, inventory_in: 0, inventory_net: 0, transfer_out: 0,
-            balance: -77.65, writeoff_percent_of_sold: 0.2991,
-            inventory_percent_of_sold: 0,
-            by_keg: [{ KegName: 'КЕГ ФестХаус Хеллес', WriteoffLiters: 0.5,
-                       InventoryNetLiters: 0, SoldLiters: 56.2 }],
-        },
-        unmapped_dishes: [],
-        total_bartenders: 2,
-        bartenders: [
-            {
-                Bartender: 'Ковалёв Д.', TotalLiters: 100.15, TotalPortions: 195,
-                TotalRevenue: 101865, TotalCost: 30094, TotalMargin: 71771,
-                MarkupPercent: 238.49, PricePerLiter: 1017.12, AvgPortionLiters: 0.5136,
-                KegsCount: 2, LitersSharePercent: 59.92, RevenueSharePercent: 60.0,
-                kegs: [
-                    { KegName: 'КЕГ ФестХаус Хеллес', Liters: 56.2, Portions: 104,
-                      Revenue: 47142, SharePercent: 56.12 },
-                    { KegName: "КЕГ Gravity It's Mango <20 л>", Liters: 43.95,
-                      Portions: 91, Revenue: 54723, SharePercent: 43.88 },
-                ],
-            },
-            {
-                // Апостроф и угловые скобки в имени: проверяем экранирование, как у кегов
-                Bartender: "Д'Артаньян <смена 2>", TotalLiters: 67.0, TotalPortions: 130,
-                TotalRevenue: 67910, TotalCost: 20062, TotalMargin: 47848,
-                MarkupPercent: null, PricePerLiter: 1013.58, AvgPortionLiters: 0.5154,
-                KegsCount: 1, LitersSharePercent: 40.08, RevenueSharePercent: 40.0,
-                kegs: [
-                    { KegName: 'КЕГ ФестХаус Хеллес', Liters: 67.0, Portions: 130,
-                      Revenue: 67910, SharePercent: 100 },
-                ],
-            },
-        ],
-        bartender_notes: {
-            dishes_without_volume: [], kegs_scaled: 0,
-            max_factor_deviation_percent: 0.03, assigned_liters: 167.15,
-            unassigned_liters: 0,
-        },
-        kegs: [
-            {
-                KegId: 'k1', KegName: 'КЕГ ФестХаус Хеллес', Bar: 'Лиговский',
-                TotalLiters: 56.2, TotalPortions: 104, TotalRevenue: 47142,
-                TotalCost: 10678, TotalMargin: 36464, MarkupPercent: 341.49,
-                PricePerLiter: 838.83, AvgPortionLiters: 0.54, AvgLitersPerWeek: 56.2,
-                WeeksWithSales: 1, WeeksInPeriod: 1, WriteoffLiters: 0.5,
-                InventoryNetLiters: 0, LitersSharePercent: 33.62,
-                RevenueSharePercent: 27.77, RevenueCumulativePercent: 27.77,
-                ABC_Revenue: 'A', ABC_Markup: 'A', ABC_Margin: 'A', ABC_Combined: 'AAA',
-                XYZ_Category: null, CoefficientOfVariation: null,
-            },
-            {
-                // Апостроф в названии: именно на нём ломался старый обработчик клика
-                KegId: 'k2', KegName: "КЕГ Gravity It's Mango <20 л>", Bar: 'Лиговский',
-                TotalLiters: 11.05, TotalPortions: 22.33, TotalRevenue: 14653,
-                TotalCost: 4641, TotalMargin: 10012, MarkupPercent: null,
-                PricePerLiter: 1326, AvgPortionLiters: 0.49, AvgLitersPerWeek: 11.05,
-                WeeksWithSales: 1, WeeksInPeriod: 1, WriteoffLiters: 0,
-                InventoryNetLiters: -1.5, LitersSharePercent: 6.61,
-                RevenueSharePercent: 8.63, RevenueCumulativePercent: 100,
-                ABC_Revenue: 'C', ABC_Markup: 'C', ABC_Margin: 'B', ABC_Combined: 'CCB',
-                XYZ_Category: 'X', CoefficientOfVariation: 12.5,
-            },
-        ],
-    },
-};
-
-let markup = '';
-
-test('displayResults рисует разметку без исключений', () => {
-    created.length = 0;
-    sandbox.displayResults(RESPONSE);
-    assert.ok(created.length >= 1, 'секция бара не создана');
-    markup = created.map((el) => el.innerHTML + el.children.map((c) => c.innerHTML).join('')).join('');
-    assert.ok(markup.length > 500, `разметка подозрительно короткая: ${markup.length}`);
+test('все id, которые ищет JS, объявлены в шаблоне', () => {
+    const wanted = new Set();
+    for (const m of js.matchAll(/getElementById\('([^']+)'\)/g)) wanted.add(m[1]);
+    // sidebar-toggle приходит из общего shared/nav.html, а не из этого шаблона.
+    wanted.delete('sidebar-toggle');
+    // Поля «своего периода» JS сам же и рисует внутри меню.
+    wanted.delete('drFrom');
+    wanted.delete('drTo');
+    const missing = [...wanted].filter((id) => !html.includes(`id="${id}"`));
+    assert.deepEqual(missing, [], `нет узлов в шаблоне: ${missing.join(', ')}`);
 });
 
-test('литры взяты из ответа и подписаны как расход кегов', () => {
-    assert.match(markup, /167,15/, 'нет общего объёма 167,15');
-    assert.match(markup, /расход кегов со склада/i, 'нет пояснения источника литров');
+test('страница берёт данные из /api/draft-kegs и только оттуда', () => {
+    assert.match(js, /fetch\('\/api\/draft-kegs'/, 'нет запроса к новому эндпоинту');
+    assert.ok(!/draft-analyze|waiter-analyze/.test(js), 'остался вызов старого эндпоинта');
+    const fetches = [...js.matchAll(/fetch\(/g)].length;
+    assert.equal(fetches, 1, `запросов должно быть ровно один, найдено ${fetches}`);
 });
 
-test('дробные порции не обрезаются до целого', () => {
-    assert.match(markup, /22,33/, 'порции 22,33 округлились');
+test('список баров приходит из шаблона, а не захардкожен в JS', () => {
+    assert.match(html, /id="drBars"[^>]*>\{\{ bars \| tojson \}\}/,
+        'бары не отдаются страницей');
+    assert.ok(!/Лиговский|Варшавская|Кременчугская/.test(js),
+        'название бара захардкожено в JS');
 });
 
-test('наценка выводится как процент и допускает прочерк', () => {
-    assert.match(markup, /238,5%|238,47%/, 'нет наценки по разрезу');
-    assert.match(markup, /class="dash"/, 'нет прочерка для неизвестной наценки');
-});
-
-test('в onclick передаётся индекс, а не JSON', () => {
-    assert.match(markup, /onclick="showKegDetails\(\d+\)"/, 'клик по строке не по индексу');
-    assert.ok(!/onclick='showKegDetails\(\{/.test(markup), 'JSON вернулся в атрибут onclick');
-});
-
-test('название с апострофом и угловыми скобками экранировано', () => {
-    assert.match(markup, /It&#39;s Mango &lt;20 л&gt;/, 'название не экранировано');
-    assert.ok(!markup.includes("It's Mango <20"), 'сырое название попало в разметку');
-});
-
-test('блок баланса кегов на месте со всеми строками', () => {
-    for (const label of ['Приход по накладным', 'Продано через кассу', 'Списано актами',
-                         'Недостача по инвентаризациям', 'Изменение остатка кегов']) {
-        assert.ok(markup.includes(label), `нет строки баланса: ${label}`);
-    }
-    assert.match(markup, /−77,65|-77,65/, 'нет значения изменения остатка');
-});
-
-test('XYZ показывает прочерк с причиной, когда период короткий', () => {
-    assert.match(markup, /XYZ не рассчитан/, 'нет пояснения про нерассчитанный XYZ');
-    assert.match(markup, /меньше 3 полных недель|нужно минимум 3/, 'нет причины');
-});
-
-test('карточка позиции: доля в выручке своя, а накопленная подписана отдельно', () => {
-    sandbox.showKegDetails(0);
-    const modal = sandbox.__lastModal || '';
-    assert.ok(modal.includes('27,8% от выручки') || modal.includes('27,77% от выручки'),
-        'своя доля в выручке не выведена');
-    assert.match(modal, /накопленным итогом/, 'накопленный процент не подписан как накопленный');
-    assert.ok(!/100,0% от выручки/.test(modal), 'накопленная доля снова выводится как своя');
-});
-
-test('карточка позиции объясняет формулы наценки и CV', () => {
-    sandbox.showKegDetails(0);
-    const modal = sandbox.__lastModal || '';
-    assert.match(modal, /\(выручка - себестоимость\) \/ себестоимость/, 'нет формулы наценки');
-    assert.match(modal, /стандартное отклонение недельных литров/i, 'нет формулы CV');
-    assert.match(modal, /На кране/, 'не показано, сколько недель позиция была на кране');
-});
-
-test('все классы из JS описаны в CSS', () => {
-    sandbox.showKegDetails(1);
-    const all = markup + (sandbox.__lastModal || '');
+test('все классы, которые JS пишет в разметку, описаны в CSS', () => {
+    // Классы страницы всегда с префиксом dr-, состояния — is-. Разметка
+    // собирается конкатенацией, поэтому ищем литералы, а не целые атрибуты.
     const used = new Set();
-    for (const m of all.matchAll(/class="([^"]+)"/g)) {
-        for (const cls of m[1].trim().split(/\s+/)) {
-            if (cls) used.add(cls);
-        }
-    }
-    const known = new Set([...pageCss.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
-    // Классы из общих стилей дашборда и шаблона навигации в этот CSS не входят.
-    const external = new Set(['container', 'bar-section', 'bar-header', 'stats-grid',
-        'stat-card', 'label', 'value', 'unit', 'section-title', 'card', 'badge',
-        'modal', 'modal-content', 'modal-header', 'modal-close', 'detail-grid',
-        'detail-item', 'beer-row', 'v', 'pct', 'total', 'hint', 'dash',
-        'balance-grid', 'controls', 'form-group', 'btn', 'loading', 'spinner',
-        'results', 'error', 'api-status', 'api-status-text']);
-    const unknown = [...used].filter((c) => !known.has(c) && !external.has(c)
-        && !c.startsWith('abc-') && !c.startsWith('xyz-'));
-    assert.deepEqual(unknown, [], `классы без стилей: ${unknown.join(', ')}`);
+    for (const m of js.matchAll(/["'\s]((?:dr-|is-)[\w-]+)/g)) used.add(m[1]);
+    const known = new Set([...css.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]));
+    const missing = [...used].filter((c) => !known.has(c));
+    assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
 });
 
-// --- вкладка «По барменам» (страница /waiters слита сюда) ---
-
-test('вкладки объявлены в разметке и совпадают с id панелей', () => {
-    const tabs = [...template.matchAll(/data-tab="([\w-]+)"/g)].map((m) => m[1]);
-    const panes = [...template.matchAll(/id="pane-([\w-]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(tabs, ['kegs', 'bartenders'], 'ожидали две вкладки: кеги и бармены');
-    assert.deepEqual(panes, tabs, 'кнопки вкладок и панели разошлись');
+test('в CSS нет цветов мимо блока токенов', () => {
+    const body = css.slice(css.indexOf('/* Общий каркас'));
+    const strays = [...body.matchAll(/#[0-9A-Fa-f]{3,8}\b/g)].map((m) => m[0]);
+    // Аватар бармена — единственный именной цвет, как и на /me.
+    const allowed = new Set(['#D3B471', '#FFFFFF']);
+    const bad = strays.filter((hex) => !allowed.has(hex));
+    assert.deepEqual(bad, [], `HEX вне токенов: ${bad.join(', ')}`);
 });
 
-test('вкладка выбирается из hash: /draft#bartenders открывает барменов', () => {
-    sandbox.location.hash = '#bartenders';
-    assert.equal(sandbox.tabFromHash(), 'bartenders');
-    sandbox.location.hash = '#kegs';
-    assert.equal(sandbox.tabFromHash(), 'kegs');
-    sandbox.location.hash = '';
-    assert.equal(sandbox.tabFromHash(), 'kegs', 'без hash должны быть кеги');
-    sandbox.location.hash = '#chto-to-drugoe';
-    assert.equal(sandbox.tabFromHash(), 'kegs', 'мусорный hash не должен ломать вкладку');
-    sandbox.activateTab('bartenders');   // не должно бросать на заглушках
+test('тёмная тема переопределяет те же токены, что светлая', () => {
+    const light = css.slice(css.indexOf('body.draft-page {'), css.indexOf('[data-theme="dark"]'));
+    const dark = css.slice(css.indexOf('[data-theme="dark"]'),
+                           css.indexOf('/* Общий каркас'));
+    const names = (block) => new Set([...block.matchAll(/(--dr-[\w-]+):/g)].map((m) => m[1]));
+    const lightNames = names(light);
+    const darkNames = names(dark);
+    // Радиусы, шрифты и тени задаются один раз — их тема не меняет.
+    const skip = (n) => n.startsWith('--dr-r-') || n === '--dr-sans' || n === '--dr-mono';
+    const missing = [...lightNames].filter((n) => !skip(n) && !darkNames.has(n) &&
+        !n.startsWith('--dr-shadow'));
+    assert.deepEqual(missing, [], `в тёмной теме не заданы: ${missing.join(', ')}`);
 });
 
-test('таблица барменов нарисована с литрами и долями', () => {
-    assert.match(markup, /Бармены по объёму/, 'нет заголовка таблицы барменов');
-    assert.match(markup, /Ковалёв Д\./, 'нет первого бармена');
-    assert.match(markup, /100,15/, 'нет литров бармена');
-    assert.match(markup, /59,9%/, 'нет доли бармена по литрам');
-    assert.match(markup, /Авторизовал/, 'нет оговорки, что бармен — это «Авторизовал»');
+test('обработчики кликов не подставляют данные в атрибуты', () => {
+    // На апострофе в «Gravity It's Mango» ломался прежний onclick с JSON.
+    assert.ok(!/onclick=/.test(js), 'в разметке появился инлайновый onclick');
+    assert.match(js, /data-keg="' \+ esc\(/, 'идентификатор кега пишется без экранирования');
+    assert.match(js, /data-bt="' \+ esc\(/, 'имя бармена пишется без экранирования');
 });
 
-test('литры барменов складываются в тот же объём, что у кегов', () => {
-    const sum = RESPONSE['Лиговский'].bartenders
-        .reduce((acc, person) => acc + person.TotalLiters, 0);
-    assert.ok(Math.abs(sum - RESPONSE['Лиговский'].total_liters) < 1e-9,
-        `сумма по барменам ${sum} против итога ${RESPONSE['Лиговский'].total_liters}`);
+test('имена из данных экранируются везде, где попадают в разметку', () => {
+    const names = js.match(/\+ (esc\()?\w+\.(KegName|Bartender|DishName)/g) || [];
+    const bare = names.filter((s) => !s.includes('esc('));
+    assert.deepEqual(bare, [], `без экранирования: ${bare.join(', ')}`);
 });
 
-test('имя бармена с апострофом экранировано, клик — по индексу', () => {
-    assert.match(markup, /Д&#39;Артаньян &lt;смена 2&gt;/, 'имя бармена не экранировано');
-    assert.ok(!markup.includes("Д'Артаньян <смена"), 'сырое имя попало в разметку');
-    assert.match(markup, /onclick="showBartenderDetails\(\d+\)"/, 'клик по бармену не по индексу');
+test('вкладок больше нет: обе таблицы на одном экране', () => {
+    assert.ok(!/dtab-btn|data-tab=/.test(html), 'остались кнопки вкладок');
+    assert.match(html, /id="drKegs"/, 'нет таблицы кегов');
+    assert.match(html, /id="drBts"/, 'нет таблицы барменов');
+    assert.match(html, /id="drBalance"/, 'нет баланса');
+    assert.match(html, /id="drLosses"/, 'нет блока расхождений');
 });
 
-test('неизвестная наценка бармена показывается прочерком', () => {
-    const rowsHtml = markup.split('Бармены по объёму')[1] || '';
-    assert.match(rowsHtml, /class="dash"/, 'нет прочерка в строке без наценки');
-});
-
-test('карточка бармена показывает раскладку по кегам и формулу литров', () => {
-    sandbox.showBartenderDetails(0);
-    const modal = sandbox.__lastModal || '';
-    assert.match(modal, /Что наливал/, 'нет раскладки по кегам');
-    assert.match(modal, /объём порции из техкарты/, 'не объяснено, откуда литры');
-    assert.match(modal, /Поле «Авторизовал» в iiko/, 'нет оговорки про источник имени');
-    assert.match(modal, /It&#39;s Mango/, 'название кега в карточке не экранировано');
-    assert.match(modal, /56,12%|56,1%/, 'нет доли кега внутри бармена');
-});
-
-test('диагностика раскладки печатается только когда есть о чём говорить', () => {
-    assert.equal(sandbox.renderBartenderNotes(RESPONSE['Лиговский'].bartender_notes), '',
-        'при нулевых расхождениях подсказок быть не должно');
-    const noisy = sandbox.renderBartenderNotes({
-        unassigned_liters: 2.5,
-        dishes_without_volume: [{ DishName: 'Сидр разливной', Portions: 12 }],
-        kegs_scaled: 3,
-        max_factor_deviation_percent: 4.2,
-    });
-    assert.match(noisy, /Не отнесено ни к одному бармену/, 'не сказано про неотнесённые литры');
-    assert.match(noisy, /2,5 л/, 'нет объёма неотнесённых литров');
-    assert.match(noisy, /Сидр разливной/, 'нет блюда без нормы закладки');
-    assert.match(noisy, /4,2%/, 'нет максимального расхождения техкарты с фактом');
-});
-
-test('страница запрашивает новый эндпоинт проливов', () => {
-    assert.match(pageScript, /fetch\('\/api\/draft-kegs'/, 'страница не переключена на /api/draft-kegs');
-    assert.ok(!/\/api\/draft-analyze/.test(pageScript), 'остался вызов старого эндпоинта');
-});
-
-test('ошибка от сервера показывается пользователю', () => {
-    assert.match(pageScript, /data\.error/, 'текст ошибки от сервера не используется');
+test('на странице объяснено, что такое бармен и откуда литры', () => {
+    assert.match(html, /Авторизовал/, 'нет оговорки про AuthUser');
+    assert.match(html, /объём порции из техкарты/, 'не объяснено, откуда литры на человека');
+    assert.match(html, /расход кегов со склада/, 'не объяснено, откуда литры вообще');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

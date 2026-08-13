@@ -157,9 +157,16 @@ static/
 │   ├── dashboard/
 │   │   ├── core/        # state.js (singleton), api.js, utils.js
 │   │   └── modules/     # analytics, charts, trends, plans, comparison, ai_insights, ... (15+)
+│   ├── draft/           # draft.js — весь экран «Анализ проливов»
 │   ├── employee/
+│   ├── guests/
+│   ├── me/
+│   ├── schedule/
 │   ├── taps/
 │   └── stocks/
+├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
+├── me/                  # me.css — оформление /me по макету (токены --me-*)
+├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
 ├── css/
 └── pwa/                 # manifest.webmanifest, sw.js
 ```

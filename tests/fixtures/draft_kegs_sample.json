@@ -1,0 +1,3110 @@
+{
+ "Общая": {
+  "avg_portion_liters": 0.5008748934841576,
+  "avg_price_per_liter": 1063.5336164465398,
+  "bartender_notes": {
+   "assigned_liters": 770.0099999999998,
+   "dishes_without_volume": [],
+   "kegs_scaled": 0,
+   "max_factor_deviation_percent": 2.220446049250313e-14,
+   "unassigned_liters": 2.2737367544323206e-13
+  },
+  "bartenders": [
+   {
+    "AvgPortionLiters": 0.45088495575221244,
+    "Bartender": "Станислав Колганов",
+    "KegsCount": 24,
+    "LitersSharePercent": 19.850391553356452,
+    "MarkupPercent": 247.9046165007315,
+    "PricePerLiter": 1136.685639515865,
+    "RevenueSharePercent": 21.215742190506965,
+    "TotalCost": 49939.66499999999,
+    "TotalLiters": 152.85000000000002,
+    "TotalMargin": 123802.735,
+    "TotalPortions": 339.0,
+    "TotalRevenue": 173742.4,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 32.0,
+      "Portions": 67.0,
+      "Revenue": 30890.1,
+      "SharePercent": 20.935557736342815
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 12.55,
+      "Portions": 26.0,
+      "Revenue": 11822.83,
+      "SharePercent": 8.210664049721949
+     },
+     {
+      "KegId": "9687abfe-47a9-4856-b455-b3264c13930a",
+      "KegName": "КЕГ Gravity It's Mango",
+      "Liters": 9.800000000000002,
+      "Portions": 23.0,
+      "Revenue": 11870.0,
+      "SharePercent": 6.411514556754989
+     },
+     {
+      "KegId": "0aba5343-0495-490e-a1d8-69ddb4f03c4b",
+      "KegName": "КЕГ Rebel Apple Дикий Крест ",
+      "Liters": 9.0,
+      "Portions": 21.0,
+      "Revenue": 9715.3,
+      "SharePercent": 5.888125613346417
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 8.55,
+      "Portions": 18.0,
+      "Revenue": 10911.32,
+      "SharePercent": 5.593719332679097
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 8.3,
+      "Portions": 17.0,
+      "Revenue": 11530.0,
+      "SharePercent": 5.430160287863918
+     },
+     {
+      "KegId": "c47e9f3e-8ba7-4c59-b600-250eb365bc00",
+      "KegName": "КЕГ Plan B Static Cloud",
+      "Liters": 8.0,
+      "Portions": 17.0,
+      "Revenue": 9205.13,
+      "SharePercent": 5.233889434085704
+     },
+     {
+      "KegId": "2392342e-09d2-46c8-88fe-352a73d04327",
+      "KegName": "КЕГ Rewort Balkan Pearl (Mother T.)",
+      "Liters": 7.5,
+      "Portions": 18.0,
+      "Revenue": 7592.84,
+      "SharePercent": 4.906771344455348
+     },
+     {
+      "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+      "KegName": "КЕГ Brewlok IPA 20 л",
+      "Liters": 7.2,
+      "Portions": 16.0,
+      "Revenue": 6308.34,
+      "SharePercent": 4.710500490677134
+     },
+     {
+      "KegId": "75bfbed4-a555-4434-a56f-93aea3cf45b8",
+      "KegName": "КЕГ Atmosphere Brew Летний Вайб Черная Смородина",
+      "Liters": 6.5,
+      "Portions": 16.0,
+      "Revenue": 6940.0,
+      "SharePercent": 4.252535165194635
+     },
+     {
+      "KegId": "07d76d5f-38ff-4ff3-9453-b735fdd84fa2",
+      "KegName": "КЕГ Brewlok Stout",
+      "Liters": 5.8,
+      "Portions": 13.0,
+      "Revenue": 5476.02,
+      "SharePercent": 3.7945698397121355
+     },
+     {
+      "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+      "KegName": "КЕГ Коникс Черри Руби 20 л",
+      "Liters": 5.7,
+      "Portions": 14.0,
+      "Revenue": 6794.16,
+      "SharePercent": 3.7291462217860643
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 4.55,
+      "Portions": 11.0,
+      "Revenue": 6490.0,
+      "SharePercent": 2.976774615636244
+     },
+     {
+      "KegId": "05e208e1-742d-4707-bcfb-37f7bf11db62",
+      "KegName": "КЕГ Red Button Noisless",
+      "Liters": 3.85,
+      "Portions": 9.0,
+      "Revenue": 5285.610000000001,
+      "SharePercent": 2.518809290153745
+     },
+     {
+      "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+      "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+      "Liters": 3.799999999999999,
+      "Portions": 8.0,
+      "Revenue": 6237.0,
+      "SharePercent": 2.4860974811907086
+     },
+     {
+      "KegId": "efa9396b-5365-4b02-a836-5f48bcf034af",
+      "KegName": "КЕГ Red Button Kuts",
+      "Liters": 3.3,
+      "Portions": 7.0,
+      "Revenue": 3431.03,
+      "SharePercent": 2.158979391560353
+     },
+     {
+      "KegId": "2fce9b39-1ee6-48f3-b3f5-202e76787f39",
+      "KegName": "КЕГ Гулден Драк 708, 20 л",
+      "Liters": 3.25,
+      "Portions": 8.0,
+      "Revenue": 6491.42,
+      "SharePercent": 2.1262675825973174
+     },
+     {
+      "KegId": "2c26889d-e98d-4748-afd6-69c788534e04",
+      "KegName": "КЕГ Степь и Ветер Мёд и Абрикос",
+      "Liters": 2.9499999999999997,
+      "Portions": 7.0,
+      "Revenue": 2871.71,
+      "SharePercent": 1.9299967288191031
+     },
+     {
+      "KegId": "feee99ef-74fb-451b-87d1-95db1e97b884",
+      "KegName": "КЕГ План Б Тропикал Пэйнкиллер 20",
+      "Liters": 2.5,
+      "Portions": 5.0,
+      "Revenue": 2859.59,
+      "SharePercent": 1.6355904481517827
+     },
+     {
+      "KegId": "0573df01-cc01-46e5-81e7-44fe82d6495e",
+      "KegName": "КЕГ Ригеле Коммерциенрат Приват, светлое ",
+      "Liters": 2.45,
+      "Portions": 6.0,
+      "Revenue": 4020.0,
+      "SharePercent": 1.602878639188747
+     },
+     {
+      "KegId": "3d71ccf2-439a-45dc-8707-2aa56d5a11e3",
+      "KegName": "КЕГ Zavod Morning Manya",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 2050.0,
+      "SharePercent": 1.4720314033366042
+     },
+     {
+      "KegId": "69639867-b0d8-4e74-bc6f-78ac3c22328f",
+      "KegName": "КЕГ ЛеФорт Трипель, 20л",
+      "Liters": 1.65,
+      "Portions": 4.0,
+      "Revenue": 3420.0,
+      "SharePercent": 1.0794896957801765
+     },
+     {
+      "KegId": "66f434b5-8dd7-4013-8ff5-cfe1a836d0bc",
+      "KegName": "КЕГ Островица Гозе",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 980.0,
+      "SharePercent": 0.654236179260713
+     },
+     {
+      "KegId": "83468676-ae29-4625-9516-296e6c421e47",
+      "KegName": "КЕГ Gas Brew Pleiades",
+      "Liters": 0.4,
+      "Portions": 1.0,
+      "Revenue": 550.0,
+      "SharePercent": 0.2616944717042852
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.5609090909090909,
+    "Bartender": "Егор Верещагин",
+    "KegsCount": 11,
+    "LitersSharePercent": 15.224477604186959,
+    "MarkupPercent": 280.81056364326713,
+    "PricePerLiter": 1038.6146037703659,
+    "RevenueSharePercent": 14.867762081010142,
+    "TotalCost": 31973.06,
+    "TotalLiters": 117.23,
+    "TotalMargin": 89783.73,
+    "TotalPortions": 209.0,
+    "TotalRevenue": 121756.79,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 56.850000000000016,
+      "Portions": 101.0,
+      "Revenue": 51392.479999999996,
+      "SharePercent": 48.49441269299668
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 17.899999999999995,
+      "Portions": 29.0,
+      "Revenue": 21119.309999999998,
+      "SharePercent": 15.269129062526652
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 13.5,
+      "Portions": 21.0,
+      "Revenue": 12697.5,
+      "SharePercent": 11.515823594643008
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 8.75,
+      "Portions": 21.0,
+      "Revenue": 12040.0,
+      "SharePercent": 7.463959737268618
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 6.0,
+      "Portions": 11.0,
+      "Revenue": 8280.0,
+      "SharePercent": 5.118143819841337
+     },
+     {
+      "KegId": "b4cf62a0-c58d-448f-87a0-dde3f97359b1",
+      "KegName": "КЕГ Абанамат 30л ",
+      "Liters": 4.75,
+      "Portions": 9.0,
+      "Revenue": 4974.0,
+      "SharePercent": 4.051863857374392
+     },
+     {
+      "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+      "KegName": "КЕГ Коникс Черри Руби 20 л",
+      "Liters": 4.4,
+      "Portions": 7.0,
+      "Revenue": 5023.0,
+      "SharePercent": 3.7533054678836475
+     },
+     {
+      "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+      "KegName": "КЕГ Блек Шип",
+      "Liters": 2.5,
+      "Portions": 5.0,
+      "Revenue": 2350.0,
+      "SharePercent": 2.1325599249338905
+     },
+     {
+      "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+      "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+      "Liters": 1.75,
+      "Portions": 3.0,
+      "Revenue": 3040.0,
+      "SharePercent": 1.4927919474537235
+     },
+     {
+      "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+      "KegName": "КЕГ Brewlok IPA 20 л",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 90.0,
+      "SharePercent": 0.42651198498677817
+     },
+     {
+      "KegId": "7755e9f7-ed05-4b94-9c54-f2e0618c7033",
+      "KegName": "КЕГ Mantra Dessert Messiah",
+      "Liters": 0.33,
+      "Portions": 1.0,
+      "Revenue": 750.5,
+      "SharePercent": 0.28149791009127356
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.5074519230769231,
+    "Bartender": "Татьяна Макарова",
+    "KegsCount": 12,
+    "LitersSharePercent": 13.707614186828742,
+    "MarkupPercent": 233.29106877087864,
+    "PricePerLiter": 982.9579346281382,
+    "RevenueSharePercent": 12.669094724794569,
+    "TotalCost": 31129.309999999998,
+    "TotalLiters": 105.55,
+    "TotalMargin": 72621.9,
+    "TotalPortions": 208.0,
+    "TotalRevenue": 103751.20999999999,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 42.550000000000004,
+      "Portions": 81.0,
+      "Revenue": 35591.27,
+      "SharePercent": 40.31264803410706
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 24.6,
+      "Portions": 49.0,
+      "Revenue": 26151.190000000002,
+      "SharePercent": 23.306489815253435
+     },
+     {
+      "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+      "KegName": "КЕГ Блек Шип",
+      "Liters": 9.5,
+      "Portions": 20.0,
+      "Revenue": 8143.5599999999995,
+      "SharePercent": 9.000473709142586
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 7.899999999999999,
+      "Portions": 14.0,
+      "Revenue": 6611.990000000001,
+      "SharePercent": 7.4846044528659395
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 4.05,
+      "Portions": 9.0,
+      "Revenue": 5519.72,
+      "SharePercent": 3.83704405495026
+     },
+     {
+      "KegId": "432fc9e7-d190-41d9-96f7-94d0ea627b02",
+      "KegName": "КЕГ Барбе Руби 30 л",
+      "Liters": 3.4,
+      "Portions": 7.0,
+      "Revenue": 5944.88,
+      "SharePercent": 3.2212221695878727
+     },
+     {
+      "KegId": "b4cf62a0-c58d-448f-87a0-dde3f97359b1",
+      "KegName": "КЕГ Абанамат 30л ",
+      "Liters": 2.75,
+      "Portions": 5.0,
+      "Revenue": 2678.8599999999997,
+      "SharePercent": 2.6054002842254858
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 2.4,
+      "Portions": 5.0,
+      "Revenue": 2787.75,
+      "SharePercent": 2.2738038844149693
+     },
+     {
+      "KegId": "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+      "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
+      "Liters": 2.4,
+      "Portions": 5.0,
+      "Revenue": 3607.5,
+      "SharePercent": 2.2738038844149693
+     },
+     {
+      "KegId": "efa9396b-5365-4b02-a836-5f48bcf034af",
+      "KegName": "КЕГ Red Button Kuts",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 2480.0,
+      "SharePercent": 2.131691141639034
+     },
+     {
+      "KegId": "0b00a95c-44b7-4c94-98c6-60d3831e6f11",
+      "KegName": "КЕГ Коникс Кассис Руби 20 л",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 2813.49,
+      "SharePercent": 2.131691141639034
+     },
+     {
+      "KegId": "3cd79006-ccde-4759-941a-7179053b3909",
+      "KegName": "КЕГ План Б Ковбой Мальборо 20 л",
+      "Liters": 1.5,
+      "Portions": 3.0,
+      "Revenue": 1421.0,
+      "SharePercent": 1.421127427759356
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.46925000000000006,
+    "Bartender": "Егор Бобриков",
+    "KegsCount": 22,
+    "LitersSharePercent": 12.188153400605188,
+    "MarkupPercent": 251.66116861139915,
+    "PricePerLiter": 1133.4876931273309,
+    "RevenueSharePercent": 12.989830944594733,
+    "TotalCost": 30250.090000000004,
+    "TotalLiters": 93.85000000000001,
+    "TotalMargin": 76127.73000000001,
+    "TotalPortions": 200.0,
+    "TotalRevenue": 106377.82,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 11.95,
+      "Portions": 25.0,
+      "Revenue": 11485.24,
+      "SharePercent": 12.733084709643045
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 9.2,
+      "Portions": 20.0,
+      "Revenue": 8629.0,
+      "SharePercent": 9.802876931273307
+     },
+     {
+      "KegId": "07d76d5f-38ff-4ff3-9453-b735fdd84fa2",
+      "KegName": "КЕГ Brewlok Stout",
+      "Liters": 8.5,
+      "Portions": 17.0,
+      "Revenue": 8330.0,
+      "SharePercent": 9.057005860415556
+     },
+     {
+      "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+      "KegName": "КЕГ Brewlok IPA 20 л",
+      "Liters": 8.05,
+      "Portions": 17.0,
+      "Revenue": 7624.3,
+      "SharePercent": 8.577517314864144
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 7.5,
+      "Portions": 15.0,
+      "Revenue": 9675.22,
+      "SharePercent": 7.991475759190196
+     },
+     {
+      "KegId": "c47e9f3e-8ba7-4c59-b600-250eb365bc00",
+      "KegName": "КЕГ Plan B Static Cloud",
+      "Liters": 7.45,
+      "Portions": 16.0,
+      "Revenue": 9226.369999999999,
+      "SharePercent": 7.938199254128929
+     },
+     {
+      "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+      "KegName": "КЕГ Коникс Черри Руби 20 л",
+      "Liters": 5.65,
+      "Portions": 12.0,
+      "Revenue": 6412.0,
+      "SharePercent": 6.020245071923282
+     },
+     {
+      "KegId": "0aba5343-0495-490e-a1d8-69ddb4f03c4b",
+      "KegName": "КЕГ Rebel Apple Дикий Крест ",
+      "Liters": 5.3,
+      "Portions": 12.0,
+      "Revenue": 6479.0,
+      "SharePercent": 5.647309536494405
+     },
+     {
+      "KegId": "66f434b5-8dd7-4013-8ff5-cfe1a836d0bc",
+      "KegName": "КЕГ Островица Гозе",
+      "Liters": 4.05,
+      "Portions": 9.0,
+      "Revenue": 4010.0,
+      "SharePercent": 4.315396909962706
+     },
+     {
+      "KegId": "9687abfe-47a9-4856-b455-b3264c13930a",
+      "KegName": "КЕГ Gravity It's Mango",
+      "Liters": 3.850000000000001,
+      "Portions": 10.0,
+      "Revenue": 4750.0,
+      "SharePercent": 4.102290889717635
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 3.5,
+      "Portions": 7.0,
+      "Revenue": 4830.0,
+      "SharePercent": 3.7293553542887583
+     },
+     {
+      "KegId": "2c26889d-e98d-4748-afd6-69c788534e04",
+      "KegName": "КЕГ Степь и Ветер Мёд и Абрикос",
+      "Liters": 3.1499999999999995,
+      "Portions": 7.0,
+      "Revenue": 3130.0,
+      "SharePercent": 3.356419818859882
+     },
+     {
+      "KegId": "3d71ccf2-439a-45dc-8707-2aa56d5a11e3",
+      "KegName": "КЕГ Zavod Morning Manya",
+      "Liters": 3.0,
+      "Portions": 6.0,
+      "Revenue": 2940.0,
+      "SharePercent": 3.1965903036760785
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 3150.0,
+      "SharePercent": 2.397442727757059
+     },
+     {
+      "KegId": "75bfbed4-a555-4434-a56f-93aea3cf45b8",
+      "KegName": "КЕГ Atmosphere Brew Летний Вайб Черная Смородина",
+      "Liters": 2.0,
+      "Portions": 4.0,
+      "Revenue": 1826.69,
+      "SharePercent": 2.131060202450719
+     },
+     {
+      "KegId": "0573df01-cc01-46e5-81e7-44fe82d6495e",
+      "KegName": "КЕГ Ригеле Коммерциенрат Приват, светлое ",
+      "Liters": 1.9,
+      "Portions": 4.0,
+      "Revenue": 2980.0,
+      "SharePercent": 2.024507192328183
+     },
+     {
+      "KegId": "05e208e1-742d-4707-bcfb-37f7bf11db62",
+      "KegName": "КЕГ Red Button Noisless",
+      "Liters": 1.65,
+      "Portions": 4.0,
+      "Revenue": 2360.0,
+      "SharePercent": 1.7581246670218431
+     },
+     {
+      "KegId": "2fce9b39-1ee6-48f3-b3f5-202e76787f39",
+      "KegName": "КЕГ Гулден Драк 708, 20 л",
+      "Liters": 1.5,
+      "Portions": 3.0,
+      "Revenue": 2970.0,
+      "SharePercent": 1.5982951518380393
+     },
+     {
+      "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+      "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+      "Liters": 1.3999999999999997,
+      "Portions": 3.0,
+      "Revenue": 2450.0,
+      "SharePercent": 1.491742141715503
+     },
+     {
+      "KegId": "69639867-b0d8-4e74-bc6f-78ac3c22328f",
+      "KegName": "КЕГ ЛеФорт Трипель, 20л",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 1980.0,
+      "SharePercent": 1.0655301012253595
+     },
+     {
+      "KegId": "83468676-ae29-4625-9516-296e6c421e47",
+      "KegName": "КЕГ Gas Brew Pleiades",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 650.0,
+      "SharePercent": 0.5327650506126798
+     },
+     {
+      "KegId": "2392342e-09d2-46c8-88fe-352a73d04327",
+      "KegName": "КЕГ Rewort Balkan Pearl (Mother T.)",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 490.0,
+      "SharePercent": 0.5327650506126798
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.5091589633074349,
+    "Bartender": "Никита Васильев",
+    "KegsCount": 12,
+    "LitersSharePercent": 11.659588836508615,
+    "MarkupPercent": 260.57724926013924,
+    "PricePerLiter": 1080.922477166407,
+    "RevenueSharePercent": 11.850224057806445,
+    "TotalCost": 26913.850000000002,
+    "TotalLiters": 89.77999999999999,
+    "TotalMargin": 70131.37,
+    "TotalPortions": 176.32999999999998,
+    "TotalRevenue": 97045.22,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 29.08,
+      "Portions": 54.33,
+      "Revenue": 27032.66,
+      "SharePercent": 32.39028736912453
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 11.25,
+      "Portions": 21.0,
+      "Revenue": 13370.0,
+      "SharePercent": 12.530630429939855
+     },
+     {
+      "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+      "KegName": "КЕГ Блек Шип",
+      "Liters": 10.699999999999998,
+      "Portions": 22.0,
+      "Revenue": 9848.28,
+      "SharePercent": 11.918021831142793
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 9.0,
+      "Portions": 17.0,
+      "Revenue": 8254.91,
+      "SharePercent": 10.024504343951884
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 6.55,
+      "Portions": 15.0,
+      "Revenue": 8735.09,
+      "SharePercent": 7.295611494764982
+     },
+     {
+      "KegId": "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+      "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
+      "Liters": 6.4,
+      "Portions": 11.0,
+      "Revenue": 9646.68,
+      "SharePercent": 7.1285364223657846
+     },
+     {
+      "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+      "KegName": "КЕГ Brewlok IPA 20 л",
+      "Liters": 6.0,
+      "Portions": 9.0,
+      "Revenue": 5880.0,
+      "SharePercent": 6.683002895967922
+     },
+     {
+      "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+      "KegName": "КЕГ Коникс Черри Руби 20 л",
+      "Liters": 5.65,
+      "Portions": 14.0,
+      "Revenue": 7053.09,
+      "SharePercent": 6.293161060369794
+     },
+     {
+      "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+      "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 3748.75,
+      "SharePercent": 2.506126085987971
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 1.65,
+      "Portions": 4.0,
+      "Revenue": 2240.0,
+      "SharePercent": 1.8378257963911786
+     },
+     {
+      "KegId": "87881f2c-556d-447f-a474-fff0bc38c2f0",
+      "KegName": "КЕГ Бюльви Рустик полусухой  л",
+      "Liters": 1.0,
+      "Portions": 3.0,
+      "Revenue": 885.76,
+      "SharePercent": 1.1138338159946537
+     },
+     {
+      "KegId": "e08b4353-f66a-4d9d-b779-28f8a2ec743e",
+      "KegName": "КЕГ Островица Холи ДИПА 20 л",
+      "Liters": 0.25,
+      "Portions": 1.0,
+      "Revenue": 350.0,
+      "SharePercent": 0.2784584539986634
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.5201986754966887,
+    "Bartender": "Артем Новаев",
+    "KegsCount": 10,
+    "LitersSharePercent": 10.201166218620537,
+    "MarkupPercent": 263.2331780844329,
+    "PricePerLiter": 1091.057670273711,
+    "RevenueSharePercent": 10.465170518775489,
+    "TotalCost": 23594.37,
+    "TotalLiters": 78.55,
+    "TotalMargin": 62108.21000000001,
+    "TotalPortions": 151.0,
+    "TotalRevenue": 85702.58,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 34.85000000000001,
+      "Portions": 66.0,
+      "Revenue": 32816.8,
+      "SharePercent": 44.36664544875876
+     },
+     {
+      "KegId": "0573df01-cc01-46e5-81e7-44fe82d6495e",
+      "KegName": "КЕГ Ригеле Коммерциенрат Приват, светлое ",
+      "Liters": 10.8,
+      "Portions": 22.0,
+      "Revenue": 14530.78,
+      "SharePercent": 13.749204328453215
+     },
+     {
+      "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+      "KegName": "КЕГ Коникс Черри Руби 20 л",
+      "Liters": 6.5,
+      "Portions": 11.0,
+      "Revenue": 7670.0,
+      "SharePercent": 8.274984086569065
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 5.5,
+      "Portions": 9.0,
+      "Revenue": 5170.0,
+      "SharePercent": 7.001909611712286
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 5.3999999999999995,
+      "Portions": 9.0,
+      "Revenue": 6390.0,
+      "SharePercent": 6.874602164226607
+     },
+     {
+      "KegId": "b4cf62a0-c58d-448f-87a0-dde3f97359b1",
+      "KegName": "КЕГ Абанамат 30л ",
+      "Liters": 4.3,
+      "Portions": 10.0,
+      "Revenue": 4600.0,
+      "SharePercent": 5.47422024188415
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 4.3,
+      "Portions": 9.0,
+      "Revenue": 6010.0,
+      "SharePercent": 5.47422024188415
+     },
+     {
+      "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+      "KegName": "КЕГ Блек Шип",
+      "Liters": 3.4,
+      "Portions": 7.0,
+      "Revenue": 3190.0,
+      "SharePercent": 4.328453214513049
+     },
+     {
+      "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+      "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 3635.0,
+      "SharePercent": 2.8644175684277533
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 1.25,
+      "Portions": 3.0,
+      "Revenue": 1690.0,
+      "SharePercent": 1.5913430935709738
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.5184615384615385,
+    "Bartender": "Дамир Кизатов",
+    "KegsCount": 12,
+    "LitersSharePercent": 8.753133076193818,
+    "MarkupPercent": 240.11059833612524,
+    "PricePerLiter": 1040.179821958457,
+    "RevenueSharePercent": 8.560925826862789,
+    "TotalCost": 20613.33,
+    "TotalLiters": 67.4,
+    "TotalMargin": 49494.79000000001,
+    "TotalPortions": 130.0,
+    "TotalRevenue": 70108.12000000001,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 15.650000000000004,
+      "Portions": 28.0,
+      "Revenue": 13227.18,
+      "SharePercent": 23.219584569732945
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 13.399999999999997,
+      "Portions": 27.0,
+      "Revenue": 11869.47,
+      "SharePercent": 19.881305637982187
+     },
+     {
+      "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+      "KegName": "КЕГ Зубр 30 л",
+      "Liters": 11.5,
+      "Portions": 22.0,
+      "Revenue": 13583.08,
+      "SharePercent": 17.062314540059344
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 7.0,
+      "Portions": 13.0,
+      "Revenue": 9132.810000000001,
+      "SharePercent": 10.385756676557863
+     },
+     {
+      "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+      "KegName": "КЕГ Блек Шип",
+      "Liters": 6.95,
+      "Portions": 15.0,
+      "Revenue": 6080.81,
+      "SharePercent": 10.311572700296736
+     },
+     {
+      "KegId": "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+      "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
+      "Liters": 4.5,
+      "Portions": 9.0,
+      "Revenue": 6738.69,
+      "SharePercent": 6.676557863501483
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 2.5,
+      "Portions": 5.0,
+      "Revenue": 2622.69,
+      "SharePercent": 3.7091988130563793
+     },
+     {
+      "KegId": "efa9396b-5365-4b02-a836-5f48bcf034af",
+      "KegName": "КЕГ Red Button Kuts",
+      "Liters": 2.0,
+      "Portions": 4.0,
+      "Revenue": 2005.49,
+      "SharePercent": 2.9673590504451037
+     },
+     {
+      "KegId": "3cd79006-ccde-4759-941a-7179053b3909",
+      "KegName": "КЕГ План Б Ковбой Мальборо 20 л",
+      "Liters": 1.4,
+      "Portions": 3.0,
+      "Revenue": 1127.9,
+      "SharePercent": 2.077151335311572
+     },
+     {
+      "KegId": "0b00a95c-44b7-4c94-98c6-60d3831e6f11",
+      "KegName": "КЕГ Коникс Кассис Руби 20 л",
+      "Liters": 1.0,
+      "Portions": 1.0,
+      "Revenue": 1300.0,
+      "SharePercent": 1.4836795252225519
+     },
+     {
+      "KegId": "432fc9e7-d190-41d9-96f7-94d0ea627b02",
+      "KegName": "КЕГ Барбе Руби 30 л",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 1900.0,
+      "SharePercent": 1.4836795252225519
+     },
+     {
+      "KegId": "b4cf62a0-c58d-448f-87a0-dde3f97359b1",
+      "KegName": "КЕГ Абанамат 30л ",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 520.0,
+      "SharePercent": 0.7418397626112759
+     }
+    ]
+   },
+   {
+    "AvgPortionLiters": 0.5225806451612903,
+    "Bartender": "Дарья Коновцова",
+    "KegsCount": 10,
+    "LitersSharePercent": 8.415475123699693,
+    "MarkupPercent": 233.60506818880475,
+    "PricePerLiter": 932.829938271605,
+    "RevenueSharePercent": 7.381249655648863,
+    "TotalCost": 18119.44294736842,
+    "TotalLiters": 64.8,
+    "TotalMargin": 42327.937052631576,
+    "TotalPortions": 124.0,
+    "TotalRevenue": 60447.38,
+    "kegs": [
+     {
+      "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+      "KegName": "КЕГ ФестХаус Хеллес",
+      "Liters": 29.4,
+      "Portions": 58.0,
+      "Revenue": 24550.65,
+      "SharePercent": 45.370370370370374
+     },
+     {
+      "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+      "KegName": "КЕГ Блек Шип",
+      "Liters": 8.099999999999998,
+      "Portions": 17.0,
+      "Revenue": 5647.63,
+      "SharePercent": 12.499999999999996
+     },
+     {
+      "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+      "KegName": "КЕГ ФестХаус Вайцен",
+      "Liters": 6.0,
+      "Portions": 10.0,
+      "Revenue": 5338.42,
+      "SharePercent": 9.25925925925926
+     },
+     {
+      "KegId": "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+      "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
+      "Liters": 4.9,
+      "Portions": 8.0,
+      "Revenue": 6884.74,
+      "SharePercent": 7.561728395061729
+     },
+     {
+      "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+      "KegName": "КЕГ Brewlok IPA 20 л",
+      "Liters": 4.5,
+      "Portions": 7.0,
+      "Revenue": 3967.2400000000002,
+      "SharePercent": 6.944444444444445
+     },
+     {
+      "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+      "KegName": "КЕГ Коникс Черри Руби 20 л",
+      "Liters": 3.9,
+      "Portions": 8.0,
+      "Revenue": 3948.95,
+      "SharePercent": 6.018518518518519
+     },
+     {
+      "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+      "KegName": "КЕГ Палм 20 л",
+      "Liters": 3.75,
+      "Portions": 8.0,
+      "Revenue": 4374.9400000000005,
+      "SharePercent": 5.787037037037037
+     },
+     {
+      "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+      "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+      "Liters": 2.75,
+      "Portions": 5.0,
+      "Revenue": 3544.81,
+      "SharePercent": 4.243827160493828
+     },
+     {
+      "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+      "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 1700.0,
+      "SharePercent": 1.54320987654321
+     },
+     {
+      "KegId": "87881f2c-556d-447f-a474-fff0bc38c2f0",
+      "KegName": "КЕГ Бюльви Рустик полусухой  л",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 490.0,
+      "SharePercent": 0.771604938271605
+     }
+    ]
+   }
+  ],
+  "generated_at": "02:29",
+  "kegs": [
+   {
+    "ABC_Combined": "AAA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 252.32999999999998,
+    "AvgPortionLiters": 0.525326338142527,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 56.850000000000016,
+      "Portions": 101.0,
+      "Revenue": 51392.479999999996,
+      "SharePercent": 22.530020211627637
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 42.550000000000004,
+      "Portions": 81.0,
+      "Revenue": 35591.27,
+      "SharePercent": 16.862838346609603
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 34.85000000000001,
+      "Portions": 66.0,
+      "Revenue": 32816.8,
+      "SharePercent": 13.811278880830663
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 32.0,
+      "Portions": 67.0,
+      "Revenue": 30890.1,
+      "SharePercent": 12.681805572068324
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 29.4,
+      "Portions": 58.0,
+      "Revenue": 24550.65,
+      "SharePercent": 11.651408869337772
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 29.08,
+      "Portions": 54.33,
+      "Revenue": 27032.66,
+      "SharePercent": 11.524590813617088
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 15.650000000000004,
+      "Portions": 28.0,
+      "Revenue": 13227.18,
+      "SharePercent": 6.202195537589667
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 11.95,
+      "Portions": 25.0,
+      "Revenue": 11485.24,
+      "SharePercent": 4.735861768319265
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 36.21,
+    "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+    "KegName": "КЕГ ФестХаус Хеллес",
+    "LitersSharePercent": 32.76970428955468,
+    "MarkupPercent": 373.4527958724822,
+    "PricePerLiter": 899.5616058336307,
+    "RevenueCumulativePercent": 27.717382278801526,
+    "RevenueSharePercent": 27.717382278801526,
+    "TotalCost": 47942.76894736842,
+    "TotalLiters": 252.32999999999998,
+    "TotalMargin": 179043.61105263158,
+    "TotalPortions": 480.33,
+    "TotalRevenue": 226986.38,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 2.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ABA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 86.69999999999999,
+    "AvgPortionLiters": 0.5319018404907975,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 24.6,
+      "Portions": 49.0,
+      "Revenue": 26151.190000000002,
+      "SharePercent": 28.373702422145335
+     },
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 17.899999999999995,
+      "Portions": 29.0,
+      "Revenue": 21119.309999999998,
+      "SharePercent": 20.645905420991923
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 11.5,
+      "Portions": 22.0,
+      "Revenue": 13583.08,
+      "SharePercent": 13.2641291810842
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 11.25,
+      "Portions": 21.0,
+      "Revenue": 13370.0,
+      "SharePercent": 12.975778546712805
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 8.55,
+      "Portions": 18.0,
+      "Revenue": 10911.32,
+      "SharePercent": 9.861591695501733
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 7.5,
+      "Portions": 15.0,
+      "Revenue": 9675.22,
+      "SharePercent": 8.650519031141869
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 5.3999999999999995,
+      "Portions": 9.0,
+      "Revenue": 6390.0,
+      "SharePercent": 6.228373702422146
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 20.82,
+    "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+    "KegName": "КЕГ Зубр 30 л",
+    "LitersSharePercent": 11.259594031246346,
+    "MarkupPercent": 226.95160314325466,
+    "PricePerLiter": 1167.2447520184546,
+    "RevenueCumulativePercent": 40.07496255608772,
+    "RevenueSharePercent": 12.35758027728619,
+    "TotalCost": 30952.63,
+    "TotalLiters": 86.69999999999999,
+    "TotalMargin": 70247.48999999999,
+    "TotalPortions": 163.0,
+    "TotalRevenue": 101200.12,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "AAA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 77.05,
+    "AvgPortionLiters": 0.5350694444444444,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 13.5,
+      "Portions": 21.0,
+      "Revenue": 12697.5,
+      "SharePercent": 17.521090201168075
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 13.399999999999997,
+      "Portions": 27.0,
+      "Revenue": 11869.47,
+      "SharePercent": 17.391304347826082
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 12.55,
+      "Portions": 26.0,
+      "Revenue": 11822.83,
+      "SharePercent": 16.28812459441921
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 9.2,
+      "Portions": 20.0,
+      "Revenue": 8629.0,
+      "SharePercent": 11.940298507462686
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 9.0,
+      "Portions": 17.0,
+      "Revenue": 8254.91,
+      "SharePercent": 11.680726800778714
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 7.899999999999999,
+      "Portions": 14.0,
+      "Revenue": 6611.990000000001,
+      "SharePercent": 10.25308241401687
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 6.0,
+      "Portions": 10.0,
+      "Revenue": 5338.42,
+      "SharePercent": 7.787151200519143
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 5.5,
+      "Portions": 9.0,
+      "Revenue": 5170.0,
+      "SharePercent": 7.1382219338092145
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 23.1,
+    "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+    "KegName": "КЕГ ФестХаус Вайцен",
+    "LitersSharePercent": 10.006363553720082,
+    "MarkupPercent": 380.8034787944539,
+    "PricePerLiter": 913.6160934458144,
+    "RevenueCumulativePercent": 48.67081193797498,
+    "RevenueSharePercent": 8.595849381887266,
+    "TotalCost": 14640.934000000001,
+    "TotalLiters": 77.05,
+    "TotalMargin": 55753.185999999994,
+    "TotalPortions": 144.0,
+    "TotalRevenue": 70394.12,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 2.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ACA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 41.14999999999999,
+    "AvgPortionLiters": 0.47848837209302314,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 10.699999999999998,
+      "Portions": 22.0,
+      "Revenue": 9848.28,
+      "SharePercent": 26.00243013365735
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 9.5,
+      "Portions": 20.0,
+      "Revenue": 8143.5599999999995,
+      "SharePercent": 23.08626974483597
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 8.099999999999998,
+      "Portions": 17.0,
+      "Revenue": 5647.63,
+      "SharePercent": 19.68408262454435
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 6.95,
+      "Portions": 15.0,
+      "Revenue": 6080.81,
+      "SharePercent": 16.889428918590525
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 3.4,
+      "Portions": 7.0,
+      "Revenue": 3190.0,
+      "SharePercent": 8.262454434993927
+     },
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 2.5,
+      "Portions": 5.0,
+      "Revenue": 2350.0,
+      "SharePercent": 6.075334143377887
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": -0.05,
+    "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+    "KegName": "КЕГ Блек Шип",
+    "LitersSharePercent": 5.344086440435838,
+    "MarkupPercent": 159.65816119886594,
+    "PricePerLiter": 856.8719319562578,
+    "RevenueCumulativePercent": 68.83602550796921,
+    "RevenueSharePercent": 4.3056445061486945,
+    "TotalCost": 13579.5,
+    "TotalLiters": 41.14999999999999,
+    "TotalMargin": 21680.78,
+    "TotalPortions": 86.0,
+    "TotalRevenue": 35260.28,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.5,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ABA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 37.45,
+    "AvgPortionLiters": 0.48012820512820514,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 7.0,
+      "Portions": 13.0,
+      "Revenue": 9132.810000000001,
+      "SharePercent": 18.69158878504673
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 6.55,
+      "Portions": 15.0,
+      "Revenue": 8735.09,
+      "SharePercent": 17.489986648865152
+     },
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 6.0,
+      "Portions": 11.0,
+      "Revenue": 8280.0,
+      "SharePercent": 16.021361815754336
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 4.55,
+      "Portions": 11.0,
+      "Revenue": 6490.0,
+      "SharePercent": 12.149532710280372
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 4.3,
+      "Portions": 9.0,
+      "Revenue": 6010.0,
+      "SharePercent": 11.481975967957275
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 4.05,
+      "Portions": 9.0,
+      "Revenue": 5519.72,
+      "SharePercent": 10.814419225634179
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 2.75,
+      "Portions": 5.0,
+      "Revenue": 3544.81,
+      "SharePercent": 7.343124165554071
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 3150.0,
+      "SharePercent": 6.008010680907877
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 13.6,
+    "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+    "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+    "LitersSharePercent": 4.863573200348048,
+    "MarkupPercent": 223.3388513182771,
+    "PricePerLiter": 1358.142323097463,
+    "RevenueCumulativePercent": 54.88164016449141,
+    "RevenueSharePercent": 6.2108282265164245,
+    "TotalCost": 15730.380000000001,
+    "TotalLiters": 37.45,
+    "TotalMargin": 35132.05,
+    "TotalPortions": 78.0,
+    "TotalRevenue": 50862.43,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ACA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 32.1,
+    "AvgPortionLiters": 0.4585714285714286,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 8.75,
+      "Portions": 21.0,
+      "Revenue": 12040.0,
+      "SharePercent": 27.258566978193144
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 8.3,
+      "Portions": 17.0,
+      "Revenue": 11530.0,
+      "SharePercent": 25.856697819314643
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 3.75,
+      "Portions": 8.0,
+      "Revenue": 4374.9400000000005,
+      "SharePercent": 11.682242990654206
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 3.5,
+      "Portions": 7.0,
+      "Revenue": 4830.0,
+      "SharePercent": 10.903426791277258
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 2.5,
+      "Portions": 5.0,
+      "Revenue": 2622.69,
+      "SharePercent": 7.78816199376947
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 2.4,
+      "Portions": 5.0,
+      "Revenue": 2787.75,
+      "SharePercent": 7.476635514018691
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 1.65,
+      "Portions": 4.0,
+      "Revenue": 2240.0,
+      "SharePercent": 5.14018691588785
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 1.25,
+      "Portions": 3.0,
+      "Revenue": 1690.0,
+      "SharePercent": 3.894080996884735
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 8.17,
+    "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+    "KegName": "КЕГ Палм 20 л",
+    "LitersSharePercent": 4.168777028869755,
+    "MarkupPercent": 184.88117487819187,
+    "PricePerLiter": 1312.0056074766355,
+    "RevenueCumulativePercent": 60.02436320927054,
+    "RevenueSharePercent": 5.14272304477913,
+    "TotalCost": 14783.49,
+    "TotalLiters": 32.1,
+    "TotalMargin": 27331.890000000007,
+    "TotalPortions": 70.0,
+    "TotalRevenue": 42115.380000000005,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ACA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 31.800000000000004,
+    "AvgPortionLiters": 0.48181818181818187,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 6.5,
+      "Portions": 11.0,
+      "Revenue": 7670.0,
+      "SharePercent": 20.440251572327043
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 5.7,
+      "Portions": 14.0,
+      "Revenue": 6794.16,
+      "SharePercent": 17.92452830188679
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 5.65,
+      "Portions": 12.0,
+      "Revenue": 6412.0,
+      "SharePercent": 17.767295597484274
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 5.65,
+      "Portions": 14.0,
+      "Revenue": 7053.09,
+      "SharePercent": 17.767295597484274
+     },
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 4.4,
+      "Portions": 7.0,
+      "Revenue": 5023.0,
+      "SharePercent": 13.836477987421384
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 3.9,
+      "Portions": 8.0,
+      "Revenue": 3948.95,
+      "SharePercent": 12.264150943396226
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 12.9,
+    "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+    "KegName": "КЕГ Коникс Черри Руби 20 л",
+    "LitersSharePercent": 4.129816495889664,
+    "MarkupPercent": 197.54233188195448,
+    "PricePerLiter": 1160.4150943396223,
+    "RevenueCumulativePercent": 64.53038100182052,
+    "RevenueSharePercent": 4.506017792549979,
+    "TotalCost": 12402.0,
+    "TotalLiters": 31.800000000000004,
+    "TotalMargin": 24499.199999999997,
+    "TotalPortions": 66.0,
+    "TotalRevenue": 36901.2,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "AAA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 26.25,
+    "AvgPortionLiters": 0.525,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 8.05,
+      "Portions": 17.0,
+      "Revenue": 7624.3,
+      "SharePercent": 30.66666666666667
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 7.2,
+      "Portions": 16.0,
+      "Revenue": 6308.34,
+      "SharePercent": 27.42857142857143
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 6.0,
+      "Portions": 9.0,
+      "Revenue": 5880.0,
+      "SharePercent": 22.857142857142858
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 4.5,
+      "Portions": 7.0,
+      "Revenue": 3967.2400000000002,
+      "SharePercent": 17.142857142857142
+     },
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 90.0,
+      "SharePercent": 1.9047619047619049
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 39.9,
+    "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+    "KegName": "КЕГ Brewlok IPA 20 л",
+    "LitersSharePercent": 3.409046635757977,
+    "MarkupPercent": 235.9962613717781,
+    "PricePerLiter": 909.3287619047618,
+    "RevenueCumulativePercent": 75.03281837289643,
+    "RevenueSharePercent": 2.9147589776493152,
+    "TotalCost": 7104.210000000001,
+    "TotalLiters": 26.25,
+    "TotalMargin": 16765.67,
+    "TotalPortions": 50.0,
+    "TotalRevenue": 23869.879999999997,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ABA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 18.200000000000003,
+    "AvgPortionLiters": 0.5515151515151516,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 6.4,
+      "Portions": 11.0,
+      "Revenue": 9646.68,
+      "SharePercent": 35.16483516483516
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 4.9,
+      "Portions": 8.0,
+      "Revenue": 6884.74,
+      "SharePercent": 26.923076923076923
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 4.5,
+      "Portions": 9.0,
+      "Revenue": 6738.69,
+      "SharePercent": 24.72527472527472
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 2.4,
+      "Portions": 5.0,
+      "Revenue": 3607.5,
+      "SharePercent": 13.186813186813184
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 8.719999999999999,
+    "KegId": "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+    "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
+    "LitersSharePercent": 2.3636056674588644,
+    "MarkupPercent": 211.56052612971018,
+    "PricePerLiter": 1476.791758241758,
+    "RevenueCumulativePercent": 72.11805939524712,
+    "RevenueSharePercent": 3.2820338872779007,
+    "TotalCost": 8626.77,
+    "TotalLiters": 18.200000000000003,
+    "TotalMargin": 18250.84,
+    "TotalPortions": 33.0,
+    "TotalRevenue": 26877.61,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BAB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 15.45,
+    "AvgPortionLiters": 0.46818181818181814,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 8.0,
+      "Portions": 17.0,
+      "Revenue": 9205.13,
+      "SharePercent": 51.779935275080916
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 7.45,
+      "Portions": 16.0,
+      "Revenue": 9226.369999999999,
+      "SharePercent": 48.2200647249191
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 3.7,
+    "KegId": "c47e9f3e-8ba7-4c59-b600-250eb365bc00",
+    "KegName": "КЕГ Plan B Static Cloud",
+    "LitersSharePercent": 2.0064674484746954,
+    "MarkupPercent": 236.30564648267156,
+    "PricePerLiter": 1192.977346278317,
+    "RevenueCumulativePercent": 82.45383325824362,
+    "RevenueSharePercent": 2.25067658892895,
+    "TotalCost": 5480.58,
+    "TotalLiters": 15.45,
+    "TotalMargin": 12950.92,
+    "TotalPortions": 33.0,
+    "TotalRevenue": 18431.5,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "ABA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "A",
+    "AvgLitersPerWeek": 15.15,
+    "AvgPortionLiters": 0.4734375,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 10.8,
+      "Portions": 22.0,
+      "Revenue": 14530.78,
+      "SharePercent": 71.2871287128713
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 2.45,
+      "Portions": 6.0,
+      "Revenue": 4020.0,
+      "SharePercent": 16.171617161716174
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 1.9,
+      "Portions": 4.0,
+      "Revenue": 2980.0,
+      "SharePercent": 12.541254125412541
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 2.2,
+    "KegId": "0573df01-cc01-46e5-81e7-44fe82d6495e",
+    "KegName": "КЕГ Ригеле Коммерциенрат Приват, светлое ",
+    "LitersSharePercent": 1.967506915494604,
+    "MarkupPercent": 202.37736114036932,
+    "PricePerLiter": 1421.1735973597358,
+    "RevenueCumulativePercent": 77.66194907237177,
+    "RevenueSharePercent": 2.629130699475336,
+    "TotalCost": 7120.5,
+    "TotalLiters": 15.15,
+    "TotalMargin": 14410.279999999999,
+    "TotalPortions": 32.0,
+    "TotalRevenue": 21530.78,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BAB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 14.3,
+    "AvgPortionLiters": 0.4766666666666667,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 8.5,
+      "Portions": 17.0,
+      "Revenue": 8330.0,
+      "SharePercent": 59.44055944055944
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 5.8,
+      "Portions": 13.0,
+      "Revenue": 5476.02,
+      "SharePercent": 40.55944055944056
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": -11.5,
+    "KegId": "07d76d5f-38ff-4ff3-9453-b735fdd84fa2",
+    "KegName": "КЕГ Brewlok Stout",
+    "LitersSharePercent": 1.857118738717679,
+    "MarkupPercent": 290.47597498649486,
+    "PricePerLiter": 965.4559440559441,
+    "RevenueCumulativePercent": 88.1466560232045,
+    "RevenueSharePercent": 1.6858576892973907,
+    "TotalCost": 3535.69,
+    "TotalLiters": 14.3,
+    "TotalMargin": 10270.33,
+    "TotalPortions": 30.0,
+    "TotalRevenue": 13806.02,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BCB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 14.3,
+    "AvgPortionLiters": 0.43333333333333335,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 9.0,
+      "Portions": 21.0,
+      "Revenue": 9715.3,
+      "SharePercent": 62.93706293706294
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 5.3,
+      "Portions": 12.0,
+      "Revenue": 6479.0,
+      "SharePercent": 37.06293706293706
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 1.75,
+    "KegId": "0aba5343-0495-490e-a1d8-69ddb4f03c4b",
+    "KegName": "КЕГ Rebel Apple Дикий Крест ",
+    "LitersSharePercent": 1.857118738717679,
+    "MarkupPercent": 169.00919936611086,
+    "PricePerLiter": 1132.4685314685314,
+    "RevenueCumulativePercent": 86.46079833390709,
+    "RevenueSharePercent": 1.977491353611594,
+    "TotalCost": 6019.98,
+    "TotalLiters": 14.3,
+    "TotalMargin": 10174.32,
+    "TotalPortions": 33.0,
+    "TotalRevenue": 16194.3,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.5,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BBB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 13.65,
+    "AvgPortionLiters": 0.41363636363636364,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 9.800000000000002,
+      "Portions": 23.0,
+      "Revenue": 11870.0,
+      "SharePercent": 71.79487179487181
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 3.850000000000001,
+      "Portions": 10.0,
+      "Revenue": 4750.0,
+      "SharePercent": 28.20512820512821
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": -0.3,
+    "KegId": "9687abfe-47a9-4856-b455-b3264c13930a",
+    "KegName": "КЕГ Gravity It's Mango",
+    "LitersSharePercent": 1.7727042505941482,
+    "MarkupPercent": 218.34719956940765,
+    "PricePerLiter": 1217.5824175824175,
+    "RevenueCumulativePercent": 84.48330698029551,
+    "RevenueSharePercent": 2.0294737220518755,
+    "TotalCost": 5220.715,
+    "TotalLiters": 13.65,
+    "TotalMargin": 11399.285,
+    "TotalPortions": 33.0,
+    "TotalRevenue": 16620.0,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.5,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BCA",
+    "ABC_Margin": "A",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 12.45,
+    "AvgPortionLiters": 0.4788461538461538,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 3.799999999999999,
+      "Portions": 8.0,
+      "Revenue": 6237.0,
+      "SharePercent": 30.522088353413647
+     },
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 3748.75,
+      "SharePercent": 18.072289156626507
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 3635.0,
+      "SharePercent": 18.072289156626507
+     },
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 1.75,
+      "Portions": 3.0,
+      "Revenue": 3040.0,
+      "SharePercent": 14.056224899598394
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 1.3999999999999997,
+      "Portions": 3.0,
+      "Revenue": 2450.0,
+      "SharePercent": 11.244979919678713
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 1700.0,
+      "SharePercent": 8.032128514056225
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 3.95,
+    "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+    "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+    "LitersSharePercent": 1.6168621186737835,
+    "MarkupPercent": 183.31291266761963,
+    "PricePerLiter": 1671.5461847389558,
+    "RevenueCumulativePercent": 80.20315666931468,
+    "RevenueSharePercent": 2.5412075969429044,
+    "TotalCost": 7345.5,
+    "TotalLiters": 12.45,
+    "TotalMargin": 13465.25,
+    "TotalPortions": 26.0,
+    "TotalRevenue": 20810.75,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BCB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 12.3,
+    "AvgPortionLiters": 0.49200000000000005,
+    "Bar": "Кременчугская",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 4.75,
+      "Portions": 9.0,
+      "Revenue": 4974.0,
+      "SharePercent": 38.61788617886179
+     },
+     {
+      "Bartender": "Артем Новаев",
+      "Liters": 4.3,
+      "Portions": 10.0,
+      "Revenue": 4600.0,
+      "SharePercent": 34.95934959349593
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 2.75,
+      "Portions": 5.0,
+      "Revenue": 2678.8599999999997,
+      "SharePercent": 22.35772357723577
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 520.0,
+      "SharePercent": 4.0650406504065035
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "b4cf62a0-c58d-448f-87a0-dde3f97359b1",
+    "KegName": "КЕГ Абанамат 30л ",
+    "LitersSharePercent": 1.597381852183738,
+    "MarkupPercent": 188.53678867436074,
+    "PricePerLiter": 1038.4439024390244,
+    "RevenueCumulativePercent": 89.70635420163093,
+    "RevenueSharePercent": 1.5596981784264452,
+    "TotalCost": 4426.77,
+    "TotalLiters": 12.3,
+    "TotalMargin": 8346.09,
+    "TotalPortions": 25.0,
+    "TotalRevenue": 12772.86,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BAB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 8.5,
+    "AvgPortionLiters": 0.425,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 6.5,
+      "Portions": 16.0,
+      "Revenue": 6940.0,
+      "SharePercent": 76.47058823529412
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 2.0,
+      "Portions": 4.0,
+      "Revenue": 1826.69,
+      "SharePercent": 23.52941176470588
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": -0.2,
+    "KegId": "75bfbed4-a555-4434-a56f-93aea3cf45b8",
+    "KegName": "КЕГ Atmosphere Brew Летний Вайб Черная Смородина",
+    "LitersSharePercent": 1.1038817677692496,
+    "MarkupPercent": 233.18093196666175,
+    "PricePerLiter": 1031.3752941176472,
+    "RevenueCumulativePercent": 91.93219477008286,
+    "RevenueSharePercent": 1.070503428662753,
+    "TotalCost": 2631.21,
+    "TotalLiters": 8.5,
+    "TotalMargin": 6135.4800000000005,
+    "TotalPortions": 20.0,
+    "TotalRevenue": 8766.69,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BAB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 8.0,
+    "AvgPortionLiters": 0.42105263157894735,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 7.5,
+      "Portions": 18.0,
+      "Revenue": 7592.84,
+      "SharePercent": 93.75
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 490.0,
+      "SharePercent": 6.25
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "2392342e-09d2-46c8-88fe-352a73d04327",
+    "KegName": "КЕГ Rewort Balkan Pearl (Mother T.)",
+    "LitersSharePercent": 1.0389475461357645,
+    "MarkupPercent": 269.7683355292051,
+    "PricePerLiter": 1010.355,
+    "RevenueCumulativePercent": 92.91919304803412,
+    "RevenueSharePercent": 0.9869982779512504,
+    "TotalCost": 2185.92,
+    "TotalLiters": 8.0,
+    "TotalMargin": 5896.92,
+    "TotalPortions": 19.0,
+    "TotalRevenue": 8082.84,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BBB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 7.55,
+    "AvgPortionLiters": 0.471875,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 3.3,
+      "Portions": 7.0,
+      "Revenue": 3431.03,
+      "SharePercent": 43.70860927152318
+     },
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 2480.0,
+      "SharePercent": 29.80132450331126
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 2.0,
+      "Portions": 4.0,
+      "Revenue": 2005.49,
+      "SharePercent": 26.490066225165563
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "efa9396b-5365-4b02-a836-5f48bcf034af",
+    "KegName": "КЕГ Red Button Kuts",
+    "LitersSharePercent": 0.9805067466656276,
+    "MarkupPercent": 201.39341516157526,
+    "PricePerLiter": 1048.5456953642386,
+    "RevenueCumulativePercent": 93.88588193552498,
+    "RevenueSharePercent": 0.9666888874908612,
+    "TotalCost": 2626.64,
+    "TotalLiters": 7.55,
+    "TotalMargin": 5289.880000000001,
+    "TotalPortions": 16.0,
+    "TotalRevenue": 7916.52,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CBC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 6.1,
+    "AvgPortionLiters": 0.43571428571428567,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 3.1499999999999995,
+      "Portions": 7.0,
+      "Revenue": 3130.0,
+      "SharePercent": 51.639344262295076
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 2.9499999999999997,
+      "Portions": 7.0,
+      "Revenue": 2871.71,
+      "SharePercent": 48.36065573770492
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 1.5,
+    "KegId": "2c26889d-e98d-4748-afd6-69c788534e04",
+    "KegName": "КЕГ Степь и Ветер Мёд и Абрикос",
+    "LitersSharePercent": 0.7921975039285203,
+    "MarkupPercent": 230.0290342802468,
+    "PricePerLiter": 983.8868852459017,
+    "RevenueCumulativePercent": 96.51030161838196,
+    "RevenueSharePercent": 0.732870802188686,
+    "TotalCost": 1818.54,
+    "TotalLiters": 6.1,
+    "TotalMargin": 4183.17,
+    "TotalPortions": 14.0,
+    "TotalRevenue": 6001.71,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CBB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 5.5,
+    "AvgPortionLiters": 0.4230769230769231,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 3.85,
+      "Portions": 9.0,
+      "Revenue": 5285.610000000001,
+      "SharePercent": 70.0
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 1.65,
+      "Portions": 4.0,
+      "Revenue": 2360.0,
+      "SharePercent": 30.0
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 1.7,
+    "KegId": "05e208e1-742d-4707-bcfb-37f7bf11db62",
+    "KegName": "КЕГ Red Button Noisless",
+    "LitersSharePercent": 0.7142764379683381,
+    "MarkupPercent": 201.80436584691904,
+    "PricePerLiter": 1390.1109090909092,
+    "RevenueCumulativePercent": 95.77743081619327,
+    "RevenueSharePercent": 0.9336079773800867,
+    "TotalCost": 2533.3,
+    "TotalLiters": 5.5,
+    "TotalMargin": 5112.31,
+    "TotalPortions": 13.0,
+    "TotalRevenue": 7645.610000000001,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CCC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 5.25,
+    "AvgPortionLiters": 0.4772727272727273,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 3.0,
+      "Portions": 6.0,
+      "Revenue": 2940.0,
+      "SharePercent": 57.14285714285714
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 2050.0,
+      "SharePercent": 42.857142857142854
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 2.95,
+    "KegId": "3d71ccf2-439a-45dc-8707-2aa56d5a11e3",
+    "KegName": "КЕГ Zavod Morning Manya",
+    "LitersSharePercent": 0.6818093271515955,
+    "MarkupPercent": 197.02380952380955,
+    "PricePerLiter": 950.4761904761905,
+    "RevenueCumulativePercent": 97.77902797049501,
+    "RevenueSharePercent": 0.6093305579445764,
+    "TotalCost": 1680.0,
+    "TotalLiters": 5.25,
+    "TotalMargin": 3310.0,
+    "TotalPortions": 11.0,
+    "TotalRevenue": 4990.0,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CAC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 5.05,
+    "AvgPortionLiters": 0.45909090909090905,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 4.05,
+      "Portions": 9.0,
+      "Revenue": 4010.0,
+      "SharePercent": 80.19801980198021
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 980.0,
+      "SharePercent": 19.801980198019802
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 1.65,
+    "KegId": "66f434b5-8dd7-4013-8ff5-cfe1a836d0bc",
+    "KegName": "КЕГ Островица Гозе",
+    "LitersSharePercent": 0.6558356384982013,
+    "MarkupPercent": 257.4524172809261,
+    "PricePerLiter": 988.1188118811882,
+    "RevenueCumulativePercent": 98.3883585284396,
+    "RevenueSharePercent": 0.6093305579445764,
+    "TotalCost": 1395.99,
+    "TotalLiters": 5.05,
+    "TotalMargin": 3594.01,
+    "TotalPortions": 11.0,
+    "TotalRevenue": 4990.0,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BCB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 4.75,
+    "AvgPortionLiters": 0.4318181818181818,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 3.25,
+      "Portions": 8.0,
+      "Revenue": 6491.42,
+      "SharePercent": 68.42105263157895
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 1.5,
+      "Portions": 3.0,
+      "Revenue": 2970.0,
+      "SharePercent": 31.57894736842105
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 3.55,
+    "KegId": "2fce9b39-1ee6-48f3-b3f5-202e76787f39",
+    "KegName": "КЕГ Гулден Драк 708, 20 л",
+    "LitersSharePercent": 0.6168751055181102,
+    "MarkupPercent": 171.00379520229146,
+    "PricePerLiter": 1991.877894736842,
+    "RevenueCumulativePercent": 90.86169134142011,
+    "RevenueSharePercent": 1.1553371397891732,
+    "TotalCost": 3491.25,
+    "TotalLiters": 4.75,
+    "TotalMargin": 5970.17,
+    "TotalPortions": 11.0,
+    "TotalRevenue": 9461.42,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "BCB",
+    "ABC_Margin": "B",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "B",
+    "AvgLitersPerWeek": 4.4,
+    "AvgPortionLiters": 0.48888888888888893,
+    "Bar": "Лиговский",
+    "Bartenders": [
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 3.4,
+      "Portions": 7.0,
+      "Revenue": 5944.88,
+      "SharePercent": 77.27272727272727
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 1900.0,
+      "SharePercent": 22.727272727272727
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "432fc9e7-d190-41d9-96f7-94d0ea627b02",
+    "KegName": "КЕГ Барбе Руби 30 л",
+    "LitersSharePercent": 0.5714211503746706,
+    "MarkupPercent": 140.93611793611794,
+    "PricePerLiter": 1782.9272727272726,
+    "RevenueCumulativePercent": 94.8438228388132,
+    "RevenueSharePercent": 0.9579409032882261,
+    "TotalCost": 3256.0,
+    "TotalLiters": 4.4,
+    "TotalMargin": 4588.88,
+    "TotalPortions": 9.0,
+    "TotalRevenue": 7844.88,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CBC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 3.25,
+    "AvgPortionLiters": 0.5416666666666666,
+    "Bar": "Лиговский",
+    "Bartenders": [
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 2.25,
+      "Portions": 5.0,
+      "Revenue": 2813.49,
+      "SharePercent": 69.23076923076923
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 1.0,
+      "Portions": 1.0,
+      "Revenue": 1300.0,
+      "SharePercent": 30.76923076923077
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "0b00a95c-44b7-4c94-98c6-60d3831e6f11",
+    "KegName": "КЕГ Коникс Кассис Руби 20 л",
+    "LitersSharePercent": 0.4220724406176543,
+    "MarkupPercent": 201.35457875457874,
+    "PricePerLiter": 1265.6892307692308,
+    "RevenueCumulativePercent": 98.89065815906072,
+    "RevenueSharePercent": 0.5022996306211294,
+    "TotalCost": 1365.0,
+    "TotalLiters": 3.25,
+    "TotalMargin": 2748.49,
+    "TotalPortions": 6.0,
+    "TotalRevenue": 4113.49,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CCC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 2.9,
+    "AvgPortionLiters": 0.48333333333333334,
+    "Bar": "Лиговский",
+    "Bartenders": [
+     {
+      "Bartender": "Татьяна Макарова",
+      "Liters": 1.5,
+      "Portions": 3.0,
+      "Revenue": 1421.0,
+      "SharePercent": 51.724137931034484
+     },
+     {
+      "Bartender": "Дамир Кизатов",
+      "Liters": 1.4,
+      "Portions": 3.0,
+      "Revenue": 1127.9,
+      "SharePercent": 48.275862068965516
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "3cd79006-ccde-4759-941a-7179053b3909",
+    "KegName": "КЕГ План Б Ковбой Мальборо 20 л",
+    "LitersSharePercent": 0.3766184854742146,
+    "MarkupPercent": 171.63638301273514,
+    "PricePerLiter": 878.9310344827587,
+    "RevenueCumulativePercent": 99.55109066995004,
+    "RevenueSharePercent": 0.31124702588074765,
+    "TotalCost": 938.35,
+    "TotalLiters": 2.9,
+    "TotalMargin": 1610.5500000000002,
+    "TotalPortions": 6.0,
+    "TotalRevenue": 2548.9,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CBC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 2.65,
+    "AvgPortionLiters": 0.44166666666666665,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 1.65,
+      "Portions": 4.0,
+      "Revenue": 3420.0,
+      "SharePercent": 62.264150943396224
+     },
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 1.0,
+      "Portions": 2.0,
+      "Revenue": 1980.0,
+      "SharePercent": 37.735849056603776
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 3.8,
+    "KegId": "69639867-b0d8-4e74-bc6f-78ac3c22328f",
+    "KegName": "КЕГ ЛеФорт Трипель, 20л",
+    "LitersSharePercent": 0.344151374657472,
+    "MarkupPercent": 208.74785591766724,
+    "PricePerLiter": 2037.735849056604,
+    "RevenueCumulativePercent": 97.16969741255043,
+    "RevenueSharePercent": 0.6593957941684795,
+    "TotalCost": 1749.0,
+    "TotalLiters": 2.65,
+    "TotalMargin": 3651.0,
+    "TotalPortions": 6.0,
+    "TotalRevenue": 5400.0,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CBC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "B",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 2.5,
+    "AvgPortionLiters": 0.5,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 2.5,
+      "Portions": 5.0,
+      "Revenue": 2859.59,
+      "SharePercent": 100.0
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "feee99ef-74fb-451b-87d1-95db1e97b884",
+    "KegName": "КЕГ План Б Тропикал Пэйнкиллер 20",
+    "LitersSharePercent": 0.3246711081674264,
+    "MarkupPercent": 229.69274226090968,
+    "PricePerLiter": 1143.836,
+    "RevenueCumulativePercent": 99.23984364406928,
+    "RevenueSharePercent": 0.3491854850085634,
+    "TotalCost": 867.35,
+    "TotalLiters": 2.5,
+    "TotalMargin": 1992.2400000000002,
+    "TotalPortions": 5.0,
+    "TotalRevenue": 2859.59,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.5,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CCC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "C",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 1.5,
+    "AvgPortionLiters": 0.375,
+    "Bar": "Варшавская",
+    "Bartenders": [
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 1.0,
+      "Portions": 3.0,
+      "Revenue": 885.76,
+      "SharePercent": 66.66666666666666
+     },
+     {
+      "Bartender": "Дарья Коновцова",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 490.0,
+      "SharePercent": 33.33333333333333
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 3.82,
+    "KegId": "87881f2c-556d-447f-a474-fff0bc38c2f0",
+    "KegName": "КЕГ Бюльви Рустик полусухой  л",
+    "LitersSharePercent": 0.19480266490045584,
+    "MarkupPercent": 181.34151329243352,
+    "PricePerLiter": 917.1733333333333,
+    "RevenueCumulativePercent": 99.719085180651,
+    "RevenueSharePercent": 0.16799451070096802,
+    "TotalCost": 489.0,
+    "TotalLiters": 1.5,
+    "TotalMargin": 886.76,
+    "TotalPortions": 4.0,
+    "TotalRevenue": 1375.76,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CAC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 0.9,
+    "AvgPortionLiters": 0.45,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Бобриков",
+      "Liters": 0.5,
+      "Portions": 1.0,
+      "Revenue": 650.0,
+      "SharePercent": 55.55555555555556
+     },
+     {
+      "Bartender": "Станислав Колганов",
+      "Liters": 0.4,
+      "Portions": 1.0,
+      "Revenue": 550.0,
+      "SharePercent": 44.44444444444445
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.3,
+    "KegId": "83468676-ae29-4625-9516-296e6c421e47",
+    "KegName": "КЕГ Gas Brew Pleiades",
+    "LitersSharePercent": 0.1168815989402735,
+    "MarkupPercent": 281.49737720553173,
+    "PricePerLiter": 1333.3333333333333,
+    "RevenueCumulativePercent": 99.8656175793551,
+    "RevenueSharePercent": 0.14653239870410653,
+    "TotalCost": 314.55,
+    "TotalLiters": 0.9,
+    "TotalMargin": 885.45,
+    "TotalPortions": 2.0,
+    "TotalRevenue": 1200.0,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CAC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 0.33,
+    "AvgPortionLiters": 0.33,
+    "Bar": "Кременчугская",
+    "Bartenders": [
+     {
+      "Bartender": "Егор Верещагин",
+      "Liters": 0.33,
+      "Portions": 1.0,
+      "Revenue": 750.5,
+      "SharePercent": 100.0
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 0.0,
+    "KegId": "7755e9f7-ed05-4b94-9c54-f2e0618c7033",
+    "KegName": "КЕГ Mantra Dessert Messiah",
+    "LitersSharePercent": 0.04285658627810029,
+    "MarkupPercent": 272.2164360462233,
+    "PricePerLiter": 2274.242424242424,
+    "RevenueCumulativePercent": 99.9572613837113,
+    "RevenueSharePercent": 0.09164380435619329,
+    "TotalCost": 201.63,
+    "TotalLiters": 0.33,
+    "TotalMargin": 548.87,
+    "TotalPortions": 1.0,
+    "TotalRevenue": 750.5,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   },
+   {
+    "ABC_Combined": "CAC",
+    "ABC_Margin": "C",
+    "ABC_Markup": "A",
+    "ABC_Revenue": "C",
+    "AvgLitersPerWeek": 0.25,
+    "AvgPortionLiters": 0.25,
+    "Bar": "Большой пр. В.О",
+    "Bartenders": [
+     {
+      "Bartender": "Никита Васильев",
+      "Liters": 0.25,
+      "Portions": 1.0,
+      "Revenue": 350.0,
+      "SharePercent": 100.0
+     }
+    ],
+    "CoefficientOfVariation": null,
+    "InventoryNetLiters": 11.45,
+    "KegId": "e08b4353-f66a-4d9d-b779-28f8a2ec743e",
+    "KegName": "КЕГ Островица Холи ДИПА 20 л",
+    "LitersSharePercent": 0.03246711081674264,
+    "MarkupPercent": 354.7226192022866,
+    "PricePerLiter": 1400.0,
+    "RevenueCumulativePercent": 100.0,
+    "RevenueSharePercent": 0.04273861628869774,
+    "TotalCost": 76.97,
+    "TotalLiters": 0.25,
+    "TotalMargin": 273.03,
+    "TotalPortions": 1.0,
+    "TotalRevenue": 350.0,
+    "WeeksInPeriod": 1,
+    "WeeksWithSales": 1,
+    "WriteoffLiters": 0.0,
+    "XYZ_Category": null
+   }
+  ],
+  "losses": {
+   "balance": -366.6,
+   "by_keg": [
+    {
+     "InventoryNetLiters": 39.9,
+     "KegId": "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+     "KegName": "КЕГ Brewlok IPA 20 л",
+     "LossLiters": 39.9,
+     "SoldLiters": 26.25,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 36.21,
+     "KegId": "ba7ede81-1cf1-4155-a756-e100d51df438",
+     "KegName": "КЕГ ФестХаус Хеллес",
+     "LossLiters": 38.21,
+     "SoldLiters": 252.32999999999998,
+     "WriteoffLiters": 2.0
+    },
+    {
+     "InventoryNetLiters": 23.1,
+     "KegId": "187da644-32ed-4da6-9a03-ba8b7ed57988",
+     "KegName": "КЕГ ФестХаус Вайцен",
+     "LossLiters": 25.1,
+     "SoldLiters": 77.05,
+     "WriteoffLiters": 2.0
+    },
+    {
+     "InventoryNetLiters": 20.82,
+     "KegId": "d9eb2c76-3b8e-4f57-8205-7351d95f7cda",
+     "KegName": "КЕГ Зубр 30 л",
+     "LossLiters": 20.82,
+     "SoldLiters": 86.69999999999999,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 13.6,
+     "KegId": "cca6a13c-e37e-4c39-8a37-8aeca590e9af",
+     "KegName": "КЕГ Стинбрюгге Бланш 20 л",
+     "LossLiters": 13.6,
+     "SoldLiters": 37.45,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 12.9,
+     "KegId": "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+     "KegName": "КЕГ Коникс Черри Руби 20 л",
+     "LossLiters": 12.9,
+     "SoldLiters": 31.800000000000004,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": -11.5,
+     "KegId": "07d76d5f-38ff-4ff3-9453-b735fdd84fa2",
+     "KegName": "КЕГ Brewlok Stout",
+     "LossLiters": 0.0,
+     "SoldLiters": 14.3,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 11.45,
+     "KegId": "e08b4353-f66a-4d9d-b779-28f8a2ec743e",
+     "KegName": "КЕГ Островица Холи ДИПА 20 л",
+     "LossLiters": 11.45,
+     "SoldLiters": 0.25,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 8.719999999999999,
+     "KegId": "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+     "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
+     "LossLiters": 8.719999999999999,
+     "SoldLiters": 18.200000000000003,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 8.17,
+     "KegId": "252096ff-d05a-4932-a1a6-61d26c7734f2",
+     "KegName": "КЕГ Палм 20 л",
+     "LossLiters": 8.17,
+     "SoldLiters": 32.1,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 4.95,
+     "KegId": "8540d0d0-4aa5-4861-9d24-55d0f972b7d3",
+     "KegName": "КЕГ Степь и Ветер Мёд и Смородина 20л",
+     "LossLiters": 4.95,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 4.0,
+     "KegId": "5e485d56-b30a-4660-ba06-5de1e14b18bb",
+     "KegName": "КЕГ Монкс Кафе 20 л",
+     "LossLiters": 4.0,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 3.95,
+     "KegId": "cacc62b5-a12f-4479-9d3a-70546615159b",
+     "KegName": "КЕГ Роденбах Гранд Крю 20 л",
+     "LossLiters": 3.95,
+     "SoldLiters": 12.45,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 3.82,
+     "KegId": "87881f2c-556d-447f-a474-fff0bc38c2f0",
+     "KegName": "КЕГ Бюльви Рустик полусухой  л",
+     "LossLiters": 3.82,
+     "SoldLiters": 1.5,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 3.8,
+     "KegId": "69639867-b0d8-4e74-bc6f-78ac3c22328f",
+     "KegName": "КЕГ ЛеФорт Трипель, 20л",
+     "LossLiters": 3.8,
+     "SoldLiters": 2.65,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 3.7,
+     "KegId": "c47e9f3e-8ba7-4c59-b600-250eb365bc00",
+     "KegName": "КЕГ Plan B Static Cloud",
+     "LossLiters": 3.7,
+     "SoldLiters": 15.45,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 3.55,
+     "KegId": "2fce9b39-1ee6-48f3-b3f5-202e76787f39",
+     "KegName": "КЕГ Гулден Драк 708, 20 л",
+     "LossLiters": 3.55,
+     "SoldLiters": 4.75,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 3.35,
+     "KegId": "a9c8388d-2262-4458-99a4-2d56759bb958",
+     "KegName": "КЕГ Rewort  Nutty Nut 20 л",
+     "LossLiters": 3.35,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 2.95,
+     "KegId": "3d71ccf2-439a-45dc-8707-2aa56d5a11e3",
+     "KegName": "КЕГ Zavod Morning Manya",
+     "LossLiters": 2.95,
+     "SoldLiters": 5.25,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 2.35,
+     "KegId": "aa9dd52a-83a8-43b2-8898-70e78eecd1b5",
+     "KegName": "КЕГ Gravity Project Heartless Bitch 2.0",
+     "LossLiters": 2.35,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 1.75,
+     "KegId": "0aba5343-0495-490e-a1d8-69ddb4f03c4b",
+     "KegName": "КЕГ Rebel Apple Дикий Крест ",
+     "LossLiters": 2.25,
+     "SoldLiters": 14.3,
+     "WriteoffLiters": 0.5
+    },
+    {
+     "InventoryNetLiters": 2.2,
+     "KegId": "0573df01-cc01-46e5-81e7-44fe82d6495e",
+     "KegName": "КЕГ Ригеле Коммерциенрат Приват, светлое ",
+     "LossLiters": 2.2,
+     "SoldLiters": 15.15,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 1.85,
+     "KegId": "72ba4cd2-528d-4b4f-8737-dac03a679c82",
+     "KegName": "КЕГ Блэк Шип Паб Лагер",
+     "LossLiters": 1.85,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 1.7,
+     "KegId": "05e208e1-742d-4707-bcfb-37f7bf11db62",
+     "KegName": "КЕГ Red Button Noisless",
+     "LossLiters": 1.7,
+     "SoldLiters": 5.5,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 1.65,
+     "KegId": "66f434b5-8dd7-4013-8ff5-cfe1a836d0bc",
+     "KegName": "КЕГ Островица Гозе",
+     "LossLiters": 1.65,
+     "SoldLiters": 5.05,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 1.5,
+     "KegId": "2c26889d-e98d-4748-afd6-69c788534e04",
+     "KegName": "КЕГ Степь и Ветер Мёд и Абрикос",
+     "LossLiters": 1.5,
+     "SoldLiters": 6.1,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": -0.3,
+     "KegId": "9687abfe-47a9-4856-b455-b3264c13930a",
+     "KegName": "КЕГ Gravity It's Mango",
+     "LossLiters": 0.5,
+     "SoldLiters": 13.65,
+     "WriteoffLiters": 0.5
+    },
+    {
+     "InventoryNetLiters": 0.6,
+     "KegId": "e80944e6-0a1b-49aa-aae0-f49d4a7adfdc",
+     "KegName": "КЕГ Zavod Образец Мутный",
+     "LossLiters": 0.6,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": -0.05,
+     "KegId": "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+     "KegName": "КЕГ Блек Шип",
+     "LossLiters": 0.5,
+     "SoldLiters": 41.14999999999999,
+     "WriteoffLiters": 0.5
+    },
+    {
+     "InventoryNetLiters": 0.0,
+     "KegId": "feee99ef-74fb-451b-87d1-95db1e97b884",
+     "KegName": "КЕГ План Б Тропикал Пэйнкиллер 20",
+     "LossLiters": 0.5,
+     "SoldLiters": 2.5,
+     "WriteoffLiters": 0.5
+    },
+    {
+     "InventoryNetLiters": -0.4,
+     "KegId": "08bee936-aa03-47d4-b5b3-b8ef66d5b5f7",
+     "KegName": "КЕГ Femme Fatale Rouge",
+     "LossLiters": 0.0,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 0.3,
+     "KegId": "83468676-ae29-4625-9516-296e6c421e47",
+     "KegName": "КЕГ Gas Brew Pleiades",
+     "LossLiters": 0.3,
+     "SoldLiters": 0.9,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": -0.2,
+     "KegId": "75bfbed4-a555-4434-a56f-93aea3cf45b8",
+     "KegName": "КЕГ Atmosphere Brew Летний Вайб Черная Смородина",
+     "LossLiters": 0.0,
+     "SoldLiters": 8.5,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 0.15,
+     "KegId": "9dccb0d3-9ce6-4de5-bee3-79d7ee4daded",
+     "KegName": "КЕГ Polnochnyj Project Signal Fire",
+     "LossLiters": 0.15,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    },
+    {
+     "InventoryNetLiters": 0.05,
+     "KegId": "d80c4c23-ebc8-40e8-b715-69b0c951983d",
+     "KegName": "КЕГ Хен Кок Энд Пиджен Рок Ред Эль Нитро",
+     "LossLiters": 0.05,
+     "SoldLiters": 0.0,
+     "WriteoffLiters": 0.0
+    }
+   ],
+   "inventory_in": 16.75,
+   "inventory_net": 210.59,
+   "inventory_out": 227.34,
+   "inventory_percent_of_sold": 27.34899546759133,
+   "invoice_in": 620.0,
+   "sold": 770.01,
+   "transfer_in": 0.0,
+   "transfer_out": 0.0,
+   "writeoff": 6.0,
+   "writeoff_percent_of_sold": 0.7792106596018233
+  },
+  "markup_percent": 252.1784454743161,
+  "period": {
+   "days": 7,
+   "from": "2026-08-03",
+   "to": "2026-08-09",
+   "weeks": 1.0
+  },
+  "total_bartenders": 8,
+  "total_cost": 232533.11794736842,
+  "total_kegs": 33,
+  "total_liters": 770.01,
+  "total_margin": 586398.4020526316,
+  "total_portions": 1537.33,
+  "total_revenue": 818931.52,
+  "unmapped_dishes": [],
+  "xyz_available": false,
+  "xyz_buckets": 1
+ }
+}

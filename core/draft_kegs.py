@@ -35,7 +35,7 @@
     XYZ                     = X при CV <= 30%, Y при CV <= 60%, Z свыше; при меньше чем
                               3 активных неделях категория не присваивается
 
-Разрез по барменам (вкладка «По барменам» той же страницы)
+Разрез по барменам (та же страница, вторая таблица)
 ---------------------------------------------------------
 Автора в проводках нет, поэтому литры на человека раскладываются из продаж и нормируются
 на факт списания кега:
@@ -45,9 +45,9 @@
     factor(кег)          = литры кега по проводкам / сумма raw по этому кегу
     литры(строка)        = raw(строка) * factor(кег)
 
-Отсюда сумма литров по барменам равна сумме по кегам — две вкладки не могут показать
-разные литры за один период. Деньги делятся между кегами тем же _keg_shares, что и на
-вкладке кегов, поэтому выручка тоже сходится.
+Отсюда сумма литров по барменам равна сумме по кегам — две таблицы одного экрана не
+могут показать разные литры за один период. Деньги делятся между кегами тем же _keg_shares,
+что и в разрезе кегов, поэтому выручка тоже сходится.
 
 Что здесь сознательно иначе, чем в старом расчёте (дефекты аудита 2026-08-13)
 ----------------------------------------------------------------------------
@@ -68,7 +68,8 @@
 -----
 core/olap_reports.py — get_draft_writeoff_report (проводки), get_draft_sales_by_dish
 (продажи с DishId), get_dish_ingredient_map (техкарты, связка блюдо->кег по GUID).
-routes/analysis.py — эндпоинт /api/draft-kegs. templates/draft.html — страница.
+routes/analysis.py — эндпоинт /api/draft-kegs. Страница: templates/draft.html
+(каркас), static/draft/draft.css, static/js/draft/draft.js.
 """
 
 from datetime import date, datetime, timedelta
@@ -207,6 +208,7 @@ class DraftKegAnalysis:
         self.full_buckets = self.period_days // WEEK_DAYS
         self.unmapped_dishes = []   # блюда, которым не нашёлся кег: диагностика в ответе
         self.bartender_notes = {}   # как разложились литры по барменам: тоже диагностика
+        self.keg_bartenders = {}    # кег -> кто его наливал (для карточки кега)
         self._keg_names = {}        # product_id -> название кега из проводок
 
     # ---------- разбор проводок ----------
@@ -321,7 +323,7 @@ class DraftKegAnalysis:
         Один кег к одному блюду — доля 1. Несколько (следствие смены техкарты внутри
         периода) — пропорционально литрам этих кегов в том же баре, а если литров нет,
         поровну. Общий делитель для денег и для литров по барменам: иначе на двух
-        вкладках одна и та же продажа разошлась бы по кегам по-разному.
+        таблицах одна и та же продажа разошлась бы по кегам по-разному.
         """
         if len(targets) == 1:
             return [(targets[0], 1.0)]
@@ -426,7 +428,7 @@ class DraftKegAnalysis:
         Нормировка нужна потому, что техкарта и факт списания расходятся: в документе
         может стоять коэффициент списания, техкарта могла смениться внутри периода,
         iiko округляет. Без неё сумма по барменам не совпала бы с суммой по кегам, и
-        две вкладки одной страницы показывали бы разные литры за один период.
+        две таблицы одного экрана показывали бы разные литры за один период.
 
         Если ни у одного блюда кега нет нормы (например, у карты только строки размеров),
         литры кега делятся между барменами пропорционально порциям — это записывается
@@ -444,6 +446,9 @@ class DraftKegAnalysis:
         raw_by_keg = {}     # (bar, keg_id) -> сумма сырых литров
         portions_by_keg = {}
         no_volume = {}      # блюда, для которых нормы не нашлось
+        # Обратный разрез «кег -> кто наливал» для карточки кега. Считается здесь же,
+        # из тех же ячеек, поэтому по определению сходится со строкой таблицы.
+        self.keg_bartenders = {}
 
         for row in self.sales:
             bar = row.get('Store.Name')
@@ -514,12 +519,25 @@ class DraftKegAnalysis:
             keg_stat = entry['kegs'].get(keg_id)
             if keg_stat is None:
                 keg_stat = entry['kegs'][keg_id] = {
-                    'KegName': keg_name, 'Liters': 0.0, 'Portions': 0.0, 'Revenue': 0.0,
+                    # KegId нужен интерфейсу: из карточки бармена можно перейти в
+                    # карточку кега, и связывать их по названию было бы хрупко.
+                    'KegId': keg_id, 'KegName': keg_name,
+                    'Liters': 0.0, 'Portions': 0.0, 'Revenue': 0.0,
                 }
             keg_stat['Liters'] += liters
             keg_stat['Portions'] += cell['portions']
             keg_stat['Revenue'] += cell['revenue']
             assigned_liters += liters
+
+            people_of_keg = self.keg_bartenders.setdefault(keg_id, {})
+            person_stat = people_of_keg.get(person)
+            if person_stat is None:
+                person_stat = people_of_keg[person] = {
+                    'Bartender': person, 'Liters': 0.0, 'Portions': 0.0, 'Revenue': 0.0,
+                }
+            person_stat['Liters'] += liters
+            person_stat['Portions'] += cell['portions']
+            person_stat['Revenue'] += cell['revenue']
 
         for (bar, keg_id), raw_total in raw_by_keg.items():
             if raw_total <= 0:
@@ -691,8 +709,19 @@ class DraftKegAnalysis:
             'InventoryNetLiters': entry['inventory_out'] - entry['inventory_in'],
             'XYZ_Category': None,
             'CoefficientOfVariation': None,
+            # Кто наливал этот кег: карточка кега показывает разбивку по людям.
+            'Bartenders': self._keg_people(entry['keg_id'], liters),
             '_buckets': entry['buckets'],
         }
+
+    def _keg_people(self, keg_id, keg_liters):
+        """Кто наливал этот кег — строки для карточки, отсортированные по литрам."""
+        people = sorted(self.keg_bartenders.get(keg_id, {}).values(),
+                        key=lambda p: -p['Liters'])
+        for person in people:
+            person['SharePercent'] = (person['Liters'] / keg_liters * 100
+                                      if keg_liters > 0 else 0.0)
+        return people
 
     def _assign_xyz(self, rows):
         """XYZ по стабильности недельных проливов.
@@ -745,11 +774,15 @@ class DraftKegAnalysis:
         transfer_out = sum(e['transfer_out'] for e in merged.values())
         inventory_net = inventory_out - inventory_in
 
+        # Все кеги с расхождениями, без обрезки: страница показывает первые восемь,
+        # остальные прячет под «ещё N кегов» — но решает это интерфейс, а не расчёт.
         by_keg = [{
+            'KegId': e['keg_id'],
             'KegName': e['keg_name'],
             'WriteoffLiters': e['writeoff'],
             'InventoryNetLiters': e['inventory_out'] - e['inventory_in'],
             'SoldLiters': e['sold'],
+            'LossLiters': e['writeoff'] + max(e['inventory_out'] - e['inventory_in'], 0.0),
         } for e in merged.values()
             if e['writeoff'] > 0 or abs(e['inventory_out'] - e['inventory_in']) > 0]
         by_keg.sort(key=lambda k: -(k['WriteoffLiters'] + abs(k['InventoryNetLiters'])))
@@ -767,7 +800,7 @@ class DraftKegAnalysis:
                         - sold - writeoff - inventory_net - transfer_out),
             'writeoff_percent_of_sold': (writeoff / sold * 100) if sold > 0 else 0.0,
             'inventory_percent_of_sold': (inventory_net / sold * 100) if sold > 0 else 0.0,
-            'by_keg': by_keg[:15],
+            'by_keg': by_keg,
         }
 
 

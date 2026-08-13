@@ -838,6 +838,9 @@ def analyze_draft_kegs():
                 'transactions': transactions.get('data') or [],
                 'sales': sales.get('data') or [],
                 'dish_map': dish_map,
+                # Когда данные реально забраны из iiko. Лежит внутри кэша, поэтому
+                # «обновлено» на странице показывает возраст цифр, а не момент клика.
+                'fetched_at': datetime.now(ZoneInfo('Europe/Moscow')).strftime('%H:%M'),
             }
 
         raw = cached_olap(cache_key, fetch)
@@ -852,6 +855,7 @@ def analyze_draft_kegs():
             date_to=date_to,
         )
         block = strip_service_fields(analyzer.build(bar_name))
+        block['generated_at'] = raw.get('fetched_at')
 
         if not block['kegs'] and block['losses']['invoice_in'] == 0:
             return jsonify({'error': 'Нет данных за выбранный период'}), 404

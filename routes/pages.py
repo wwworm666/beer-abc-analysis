@@ -18,8 +18,12 @@ def packaging():
 
 @pages_bp.route('/draft')
 def draft():
-    """Страница разливного пива"""
-    return render_template('draft.html', bars=BARS)
+    """Анализ проливов: кеги, бармены и баланс склада на одном экране.
+
+    app_version нужен шаблону для кэш-бастинга своих draft.css и draft.js —
+    без него правки вёрстки не доезжают до браузеров (docs/lessons.md).
+    """
+    return render_template('draft.html', bars=BARS, app_version=APP_VERSION)
 
 
 @pages_bp.route('/waiters')

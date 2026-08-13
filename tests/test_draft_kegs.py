@@ -474,7 +474,7 @@ class TestBartenders:
     """Разрез по барменам: литры из техкарт, нормированные на факт списания.
 
     Главное свойство, которое здесь проверяется: сумма по барменам совпадает с суммой по
-    кегам. Иначе две вкладки одной страницы показали бы разные литры за один период.
+    кегам. Иначе две таблицы одного экрана показали бы разные литры за один период.
     """
 
     def _block(self, sales, transactions=None, dish_map=None, bar=None):
@@ -662,6 +662,64 @@ class TestBartenders:
         ]
         block = self._block(sales)
         assert [b['Bartender'] for b in block['bartenders']] == ['Петров', 'Иванов']
+
+    def test_keg_knows_who_poured_it(self):
+        """Обратный разрез для карточки кега: кег -> бармены."""
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 15, 7500.0, 1875.0, author='Иванов'),
+            sale('Лиговский', DISH_A_05, '2026-08-04', 5, 2500.0, 625.0, author='Петров'),
+        ]
+        keg = self._block(sales)['kegs'][0]
+        people = keg['Bartenders']
+        assert [p['Bartender'] for p in people] == ['Иванов', 'Петров']
+        assert abs(people[0]['Liters'] - 7.5) < 1e-9
+        assert abs(people[0]['SharePercent'] - 75.0) < 1e-9
+        # Сумма разбивки равна литрам кега — это та же ячейка, что и в таблице
+        assert abs(sum(p['Liters'] for p in people) - keg['TotalLiters']) < 1e-9
+
+    def test_bartender_keg_rows_carry_id_for_navigation(self):
+        sales = [sale('Лиговский', DISH_A_05, '2026-08-04', 20, 10000.0, 2500.0,
+                      author='Иванов')]
+        row = self._block(sales)['bartenders'][0]
+        assert row['kegs'][0]['KegId'] == KEG_A
+
+
+class TestLossesForUi:
+    """Блок расхождений: страница показывает первые восемь и прячет остальные."""
+
+    def test_by_keg_not_truncated(self):
+        rows = []
+        for index in range(20):
+            keg_id = f'keg-{index:02d}'
+            rows.append(trans('Лиговский', keg_id, '2026-08-04', 'SESSION_WRITEOFF', out=10.0))
+            rows.append(trans('Лиговский', keg_id, '2026-08-04', 'WRITEOFF', out=1.0))
+        losses = DraftKegAnalysis(rows, [], {}, '2026-08-04', '2026-08-10').build()['losses']
+        assert len(losses['by_keg']) == 20, len(losses['by_keg'])
+
+    def test_by_keg_row_has_everything_ui_needs(self):
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=100.0),
+            trans('Лиговский', KEG_A, '2026-08-04', 'WRITEOFF', out=3.0),
+            trans('Лиговский', KEG_A, '2026-08-04', 'INVENTORY_CORRECTION', out=9.0, inc=2.0),
+        ]
+        row = DraftKegAnalysis(rows, [], {}, '2026-08-04',
+                              '2026-08-10').build()['losses']['by_keg'][0]
+        assert row['KegId'] == KEG_A
+        assert row['SoldLiters'] == 100.0
+        assert row['WriteoffLiters'] == 3.0
+        assert row['InventoryNetLiters'] == 7.0
+        # Потери = акты + недостача; излишки в потери не идут
+        assert abs(row['LossLiters'] - 10.0) < 1e-9
+
+    def test_surplus_is_not_counted_as_loss(self):
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=50.0),
+            trans('Лиговский', KEG_A, '2026-08-04', 'INVENTORY_CORRECTION', out=0.0, inc=4.0),
+        ]
+        row = DraftKegAnalysis(rows, [], {}, '2026-08-04',
+                              '2026-08-10').build()['losses']['by_keg'][0]
+        assert row['InventoryNetLiters'] == -4.0
+        assert row['LossLiters'] == 0.0
 
 
 class TestEdgeCases:
