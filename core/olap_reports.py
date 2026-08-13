@@ -449,15 +449,25 @@ class OlapReports:
         return None
 
     def get_draft_sales_by_dish(self, date_from, date_to, bar_name=None):
-        """Продажи разливного с DishId — денежная половина страницы /draft.
+        """Продажи разливного с DishId и автором — денежная половина страницы /draft.
 
         Отличия от get_draft_sales_report (который трогать нельзя, на нём висят
         месячный отчёт и старый эндпоинт):
         - в группировке есть DishId, чтобы связывать блюдо с кегом по GUID;
+        - есть AuthUser — разрез «по барменам» на той же странице;
         - нет DishGroup.ThirdParent и DishForeignName — они на странице не нужны;
         - агрегаты только те, что реально используются (без UniqOrderId, DiscountSum,
           ProductCostBase.OneItem и MarkUp: наценка считается от сумм, а не средним
           по строкам, см. docs/draft.md).
+
+        AuthUser («Авторизовал», кто пробил позицию) — единый ключ сотрудника во всех
+        отчётах проекта (аудит OLAP #11). В отличие от get_draft_sales_by_waiter_report
+        здесь поле НЕ переименовывается в WaiterName: consumer у запроса один
+        (core/draft_kegs.py), и честное имя поля важнее совместимости.
+
+        OpenDate.Typed в группировке НЕТ намеренно: деньги нигде не разбиваются по дням
+        (недельные корзины XYZ приходят из проводок), а день умножал число строк на длину
+        периода. Фильтр периода при этом никуда не делся, суммы те же.
 
         Фильтр NOT_DELETED здесь правильный: у удалённых позиций нет выручки, а их
         литры приходят отдельно — актами списания в get_draft_writeoff_report.
@@ -468,14 +478,14 @@ class OlapReports:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
 
-        print(f"\n[OLAP] Zaprashivayu prodazhi razlivnogo s DishId...")
+        print(f"\n[OLAP] Zaprashivayu prodazhi razlivnogo s DishId i AuthUser...")
         print(f"   Period: {date_from} - {date_to} (to exclusive)")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
         request_body = {
             "reportType": "SALES",
             "buildSummary": "false",
-            "groupByRowFields": ["Store.Name", "DishId", "DishName", "OpenDate.Typed"],
+            "groupByRowFields": ["Store.Name", "AuthUser", "DishId", "DishName"],
             "groupByColFields": [],
             "aggregateFields": [
                 "DishAmountInt",
@@ -591,8 +601,11 @@ class OlapReports:
         деньги из отчёта по продажам (DishId) к литрам из проводок (Product.Id).
 
         Возвращает {dish_guid: [[ingredient_guid, amount], ...]} или None при сбое.
-        amount — норма закладки ингредиента на 1 единицу блюда (в его основных
-        единицах измерения), уже разложенная iiko до конечных ингредиентов.
+        amount — норма закладки ингредиента на 1 порцию блюда (в основных единицах
+        измерения ингредиента), уже разложенная iiko до конечных ингредиентов. Для кега
+        в литрах это и есть объём порции, поэтому число используется не только для
+        связки «блюдо -> кег», но и как объём при раскладке литров по барменам
+        (core/draft_kegs.py).
 
         ВАЖНО про фильтрацию ингредиентов: в карте лежат не только кеги, но и посуда
         (у литровых позиций «с собой» это «бутылка ПЭТ без пробки 1,0л», 1 шт).
@@ -602,11 +615,19 @@ class OlapReports:
         номенклатуру: она отдаётся только по товарам с операциями за 30 дней и на
         старых периодах неполна.
 
-        Строки карт складываются по всем ревизиям и размерам блюда: у 48 карт в базе
-        стратегия SPECIFIC (отдельная строка на каждый размер), и разрешать размер по
-        продажам нельзя — DishSize.* в этой базе не заполнен. Для СВЯЗКИ это неважно
-        (все размеры ведут в один кег), а литры берутся из проводок, где iiko уже
-        применил и размер, и подразделение, и нужную ревизию.
+        Из какой карты берётся норма, если их несколько:
+        - ревизий на блюдо может быть несколько (getAll отдаёт все карты, чей интервал
+          действия пересекает период) — берётся ПОСЛЕДНЯЯ по dateFrom. Складывать
+          ревизии нельзя: 0,5 л + 0,5 л дало бы литровую порцию. Раскладка литров при
+          этом нормируется на факт списания по проводкам, поэтому смена карты внутри
+          периода искажает только пропорцию между блюдами одного кега, а не итог;
+        - внутри одной карты строки с одинаковым productId складываются (так iiko
+          считает списание);
+        - строки с непустым productSizeSpecification («раздельные» карты по размерам,
+          в базе таких 48) пропускаются: разрешить размер нечем, DishSize.* в этой базе
+          не заполнен. Розлив разведён отдельными блюдами на каждый объём, поэтому на
+          его картах таких строк нет; если появятся — блюдо останется без объёма и
+          попадёт в диагностику страницы.
 
         Кэш на диске 24 ч: техкарты меняются редко, а ответ getAll тяжёлый (единицы МБ).
         """
@@ -650,30 +671,55 @@ class OlapReports:
             print(f"[ERROR] Tehkarty: ne razobran JSON: {e}")
             return self._fallback_assembly_cache()
 
-        mapping = {}
+        # Сначала собираем нормы по каждой карте отдельно, потом оставляем на блюдо
+        # только последнюю ревизию — иначе нормы разных ревизий сложатся.
+        best = {}   # dish_id -> (dateFrom, {product_id: amount})
+        skipped_sizes = 0
         for chart in payload.get('preparedCharts') or []:
             dish_id = chart.get('assembledProductId')
             if not dish_id:
                 continue
-            rows = mapping.setdefault(dish_id, [])
+            amounts = {}
             for item in chart.get('items') or []:
                 product_id = item.get('productId')
                 if not product_id:
+                    continue
+                if item.get('productSizeSpecification'):
+                    skipped_sizes += 1
                     continue
                 try:
                     amount = float(item.get('amount') or 0)
                 except (TypeError, ValueError):
                     continue
-                rows.append([product_id, amount])
+                amounts[product_id] = amounts.get(product_id, 0.0) + amount
+            if not amounts:
+                continue
+            # dateFrom отсутствует только у аномальных карт — такие проигрывают любой
+            # датированной, но лучше пустой строки для сравнения.
+            date_from_chart = chart.get('dateFrom') or ''
+            current = best.get(dish_id)
+            if current is None or date_from_chart >= current[0]:
+                best[dish_id] = (date_from_chart, amounts)
+
+        mapping = {dish_id: [[pid, amount] for pid, amount in amounts.items()]
+                   for dish_id, (_date, amounts) in best.items()}
 
         print(f"[OK] Tehkarty: {len(mapping)} blyud, {len(response.content)} bayt, "
               f"{time.time() - started:.1f} s")
+        if skipped_sizes:
+            print(f"   Propushcheno strok razdelnyh kart po razmeram: {skipped_sizes}")
         self._write_assembly_cache(cache_path, mapping)
         return mapping
 
     # --- дисковый кэш связки «блюдо -> ингредиенты» ---
 
     ASSEMBLY_CACHE_TTL = 86400  # 24 часа: техкарты меняются редко
+
+    # Префикс файлов кэша. v2 — потому что смысл amount изменился: раньше это была
+    # сумма норм по всем ревизиям и размерам (годилась только для связки «блюдо -> кег»),
+    # теперь норма последней ревизии, на которую умножают порции. Файл v1 дал бы
+    # завышенные объёмы, поэтому старые файлы просто перестают читаться.
+    ASSEMBLY_CACHE_PREFIX = 'assembly_map_v2_'
 
     def _assembly_cache_dir(self):
         """Каталог кэша. На проде это том /kultura (переживает редеплой), локально data/."""
@@ -688,7 +734,7 @@ class OlapReports:
 
     def _assembly_cache_path(self, date_from, date_to):
         return os.path.join(self._assembly_cache_dir(),
-                            f"assembly_map_{date_from}_{date_to}.json")
+                            f"{self.ASSEMBLY_CACHE_PREFIX}{date_from}_{date_to}.json")
 
     def _fallback_assembly_cache(self):
         """Аварийный источник связки: любой сохранённый ранее файл, даже протухший.
@@ -700,7 +746,7 @@ class OlapReports:
         try:
             directory = self._assembly_cache_dir()
             files = [os.path.join(directory, n) for n in os.listdir(directory)
-                     if n.startswith('assembly_map_') and n.endswith('.json')]
+                     if n.startswith(self.ASSEMBLY_CACHE_PREFIX) and n.endswith('.json')]
         except Exception:
             return None
         if not files:

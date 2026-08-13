@@ -38,7 +38,7 @@
 | `static/guests/guests.css` | Стили на переменных дизайн-системы |
 | `static/js/guests/*.js` | `common` (состояние/вкладки/`ownPeriod`/`post`), `formulas` (тексты формул), `charts` (Chart.js, включая `scatter`), `views-*` (вкладки) |
 | `static/js/guests/views-promo.js` | Вкладка «Акции» — живой OLAP, свой диапазон дат и фильтр точки, кнопка загрузки |
-| `routes/analysis.py` | `/api/discount-names`, `/api/discount-analyze` — единственные эндпоинты раздела, работающие по живому iiko (общий блюпринт с ABC/draft/waiters, трогать только скидочную часть) |
+| `routes/analysis.py` | `/api/discount-names`, `/api/discount-analyze` — единственные эндпоинты раздела, работающие по живому iiko (общий блюпринт с ABC и draft, трогать только скидочную часть) |
 | `tests/test_guests_marketing.py` | Фильтр точки в RFM, ключ чека, средний чек, сортировка, удалённый дубль RFM |
 | `tests/test_marketing_render.mjs` | Проверки ТЕКСТА без браузера: вкладка объявлена во всех трёх местах, классы покрыты CSS, ключи формул существуют, id канвасов уникальны |
 | `tests/test_marketing_runtime.mjs` | ЗАПУСК видов в Node с DOM-стабом: вкладка открывается без исключения, не ходит в iiko при открытии, кнопка отправляет POST и рисует отчёт. Статические проверки такое не ловят — ошибка времени выполнения один раз так и просочилась |

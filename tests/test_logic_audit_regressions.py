@@ -121,6 +121,30 @@ class OlapContractGuards(unittest.TestCase):
         self.assertNotIn("WaiterName", request["groupByRowFields"])
         self.assertNotIn("OrderWaiter.Name", request["groupByRowFields"])
 
+    def test_draft_sales_by_dish_groups_by_dish_id_and_author(self):
+        # Страница /draft берёт из этого запроса и деньги кегов, и разрез по барменам:
+        # DishId нужен для связки с кегом по GUID, AuthUser — ключ сотрудника (аудит #11).
+        # OpenDate.Typed в группировке быть НЕ должно: день никем не используется, а число
+        # строк умножал на длину периода.
+        olap = OlapReports()
+        olap.token = "test-token"
+        captured = {}
+
+        def capture(_self, request_body, tag):
+            captured.update(request_body)
+            return {"data": []}
+
+        with patch.object(OlapReports, "_post_olap_interactive", capture):
+            olap.get_draft_sales_by_dish("2026-03-01", "2026-04-01")
+
+        self.assertEqual("SALES", captured["reportType"])
+        self.assertIn("DishId", captured["groupByRowFields"])
+        self.assertIn("AuthUser", captured["groupByRowFields"])
+        self.assertNotIn("WaiterName", captured["groupByRowFields"])
+        self.assertNotIn("OrderWaiter.Name", captured["groupByRowFields"])
+        self.assertNotIn("OpenDate.Typed", captured["groupByRowFields"])
+        self.assertIn("OpenDate.Typed", captured["filters"])
+
 
 class AuditExpectedFailures(unittest.TestCase):
     @unittest.expectedFailure

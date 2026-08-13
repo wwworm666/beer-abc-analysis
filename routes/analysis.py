@@ -11,7 +11,6 @@ from core.category_analysis import CategoryAnalysis
 from core.abc_buckets import get_bucket_key
 from core.draft_analysis import DraftAnalysis
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
-from core.waiter_analysis import WaiterAnalysis
 from core.revenue_metrics import RevenueMetricsCalculator
 from extensions import BARS, cached_olap
 
@@ -858,7 +857,14 @@ def analyze_draft_kegs():
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
 
         print(f"   [OK] Kegov: {block['total_kegs']}, litrov: {block['total_liters']:.2f}, "
+              f"barmenov: {block['total_bartenders']}, "
               f"XYZ: {'da' if block['xyz_available'] else 'net (nuzhno 3 nedeli)'}")
+        notes = block['bartender_notes']
+        if abs(notes.get('unassigned_liters', 0.0)) > 0.01:
+            print(f"   [WARN] Litrov bez barmena: {notes['unassigned_liters']:.2f}")
+        if notes.get('dishes_without_volume'):
+            print(f"   [WARN] Blyud bez normy zakladki: {len(notes['dishes_without_volume'])} "
+                  f"(pervoe: {notes['dishes_without_volume'][0]['DishName']})")
         if block['unmapped_dishes']:
             print(f"   [WARN] Blyud bez kega: {len(block['unmapped_dishes'])} "
                   f"(pervoe: {block['unmapped_dishes'][0]['DishName']})")
@@ -872,96 +878,13 @@ def analyze_draft_kegs():
         return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
 
 
-@analysis_bp.route('/api/waiter-analyze', methods=['POST'])
-def analyze_waiters():
-    """API endpoint для анализа продаж разливного пива по официантам"""
-    try:
-        data = request.json
-        bar_name = data.get('bar')
-        days = int(data.get('days', 30))
-        date_from = data.get('date_from')
-        date_to = data.get('date_to')
-
-        print(f"\n[WAITER] Zapusk analiza po oficiantam...")
-        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
-
-        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем
-        if not date_from or not date_to:
-            date_to_obj = datetime.now()
-            date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
-            date_to = date_to_obj.strftime("%Y-%m-%d")
-            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
-        else:
-            print(f"   Period: {date_from} - {date_to}")
-
-        # OLAP to-дата exclusive → +1 день
-        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
-
-        # Подключаемся к iiko API
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        try:
-            # Запрашиваем данные разливного с официантами
-            report_data = olap.get_draft_sales_by_waiter_report(date_from, olap_date_to, bar_name)
-
-            if not report_data or not report_data.get('data'):
-                return jsonify({'error': 'Нет данных за выбранный период'}), 404
-        finally:
-            olap.disconnect()
-
-        # Преобразуем в DataFrame
-        df = pd.DataFrame(report_data['data'])
-        df['DishAmountInt'] = pd.to_numeric(df['DishAmountInt'], errors='coerce')
-        df['DishDiscountSumInt'] = pd.to_numeric(df['DishDiscountSumInt'], errors='coerce')
-        df['ProductCostBase.ProductCost'] = pd.to_numeric(df['ProductCostBase.ProductCost'], errors='coerce')
-        df['ProductCostBase.MarkUp'] = pd.to_numeric(df['ProductCostBase.MarkUp'], errors='coerce')
-
-        print(f"[INFO] Vsego zapisey: {len(df)}")
-
-        # Создаем анализатор по официантам
-        waiter_analyzer = WaiterAnalysis(df)
-
-        # Получаем сводку по официантам
-        summary = waiter_analyzer.get_waiter_summary(bar_name)
-
-        if summary.empty:
-            return jsonify({'error': 'Нет данных об официантах'}), 404
-
-        print(f"[INFO] Vsego oficiantov: {len(summary)}")
-
-        # Форматируем результат
-        waiters = waiter_analyzer.format_summary_for_display(summary)
-
-        # Для каждого официанта получаем детали о том, какое пиво он пролил
-        for waiter_record in waiters:
-            waiter_name = waiter_record['WaiterName']
-            # Передаём bar_name из запроса (None = все бары суммируются, иначе конкретный бар)
-            beer_details = waiter_analyzer.get_waiter_beer_details(waiter_name, bar_name)
-            if not beer_details.empty:
-                beer_details_formatted = waiter_analyzer.format_beer_details_for_display(beer_details)
-                waiter_record['beers'] = beer_details_formatted  # Все сорта
-            else:
-                waiter_record['beers'] = []
-
-        response_data = {
-            'total_waiters': len(summary),
-            'total_liters': float(summary['TotalLiters'].sum()),
-            'total_portions': int(summary['TotalPortions'].sum()),
-            'total_revenue': float(summary['TotalRevenue'].sum()) if 'TotalRevenue' in summary.columns else 0,
-            'total_margin': float(summary['TotalMargin'].sum()) if 'TotalMargin' in summary.columns else 0,
-            'waiters': waiters
-        }
-
-        return jsonify(response_data)
-
-    except Exception as e:
-        print(f"[ERROR] Oshibka v /api/waiter-analyze: {e}")
-        import traceback
-        traceback.print_exc()
-        error_detail = f"{type(e).__name__}: {str(e)}"
-        return jsonify({'error': error_detail}), 500
+# Эндпоинта /api/waiter-analyze больше нет: разрез по барменам считается в
+# /api/draft-kegs из тех же данных, что и разрез по кегам (core/draft_kegs.py,
+# collect_bartenders). Прежний расчёт брал объём порции регексом из названия блюда и
+# молча выбрасывал позиции, где объёма в названии не нашлось. Сверка перед удалением
+# (2026-08-13): по каждому бармену расхождение не больше 0,16% на 3,5 месяцах, при этом
+# новая сумма по барменам совпадает с суммой по кегам до 0,000000 л. Страница /waiters
+# отдаёт 301 на /draft#bartenders (routes/pages.py). Док: docs/draft.md.
 
 
 # ============= API для анализа скидок =============

@@ -33,7 +33,7 @@ Dlya ostanovki nazhmite Ctrl+C
 - **Управление кранами** (НОВОЕ!): http://localhost:5000/taps
 - Анализ фасовки: http://localhost:5000/
 - Анализ разливного: http://localhost:5000/draft
-- Анализ по официантам: http://localhost:5000/waiters
+- Анализ по барменам: http://localhost:5000/draft#bartenders
 
 ## 🎯 Основные функции
 

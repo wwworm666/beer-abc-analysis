@@ -23,9 +23,15 @@ def draft():
 
 
 @pages_bp.route('/waiters')
-def waiters():
-    """Страница анализа по официантам"""
-    return render_template('waiters.html', bars=BARS)
+def waiters_redirect():
+    """Анализ по барменам слит в «Анализ проливов» (/draft), вкладка «По барменам».
+
+    Обе страницы жили над одним отчётом iiko по розливу и считали одно и то же, только
+    литры по-разному: /draft берёт их из проводок, а /waiters перемножал порции на объём
+    из названия блюда. Теперь разрез по людям считается из тех же данных, что и по кегам.
+    301 для старых ссылок и закладок — тот же приём, что у /discounts и /schedule/edit.
+    """
+    return redirect('/draft#bartenders', code=301)
 
 
 @pages_bp.route('/discounts')

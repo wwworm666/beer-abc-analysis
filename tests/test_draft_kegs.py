@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from core.draft_kegs import (
     DraftKegAnalysis,
     MIN_XYZ_WEEKS,
+    UNKNOWN_BARTENDER,
     XYZ_X_MAX_CV,
     XYZ_Y_MAX_CV,
     _cv_percent,
@@ -46,17 +47,25 @@ def trans(bar, keg_id, day, kind, out=0.0, inc=0.0, cost=0.0, name=None, unit='�
     }
 
 
-def sale(bar, dish_id, day, portions, revenue, cost, name=None):
-    """Строка ответа get_draft_sales_by_dish()."""
-    return {
+def sale(bar, dish_id, day, portions, revenue, cost, name=None, author=None):
+    """Строка ответа get_draft_sales_by_dish().
+
+    Даты в ответе нет: группировка идёт без OpenDate.Typed (деньги нигде не разбиваются
+    по дням). Аргумент day оставлен, чтобы в фикстурах было видно, к какому дню относится
+    продажа. AuthUser отсутствует, если автор не задан — так iiko отдаёт строки без
+    авторизовавшего сотрудника.
+    """
+    row = {
         'Store.Name': bar,
         'DishId': dish_id,
         'DishName': name or dish_id,
-        'OpenDate.Typed': day,
         'DishAmountInt': portions,
         'DishDiscountSumInt': revenue,
         'ProductCostBase.ProductCost': cost,
     }
+    if author is not None:
+        row['AuthUser'] = author
+    return row
 
 
 # Техкарта: у литровой позиции кроме кега лежит ПЭТ-бутылка — она не кег и должна
@@ -459,6 +468,200 @@ class TestLosses:
         block = DraftKegAnalysis(rows, [], DISH_MAP, '2026-08-04', '2026-08-10').build()
         assert [k['KegId'] for k in block['kegs']] == [KEG_A]
         assert block['losses']['writeoff'] == 4.0
+
+
+class TestBartenders:
+    """Разрез по барменам: литры из техкарт, нормированные на факт списания.
+
+    Главное свойство, которое здесь проверяется: сумма по барменам совпадает с суммой по
+    кегам. Иначе две вкладки одной страницы показали бы разные литры за один период.
+    """
+
+    def _block(self, sales, transactions=None, dish_map=None, bar=None):
+        rows = transactions if transactions is not None else [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=10.0),
+        ]
+        return DraftKegAnalysis(rows, sales, dish_map or DISH_MAP,
+                                '2026-08-04', '2026-08-10').build(bar)
+
+    def test_liters_sum_equals_keg_liters(self):
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 12, 6000.0, 1500.0, author='Иванов'),
+            sale('Лиговский', DISH_A_10, '2026-08-04', 4, 4000.0, 1000.0, author='Петров'),
+        ]
+        block = self._block(sales)
+        total = sum(b['TotalLiters'] for b in block['bartenders'])
+        assert abs(total - block['total_liters']) < 1e-9, (total, block['total_liters'])
+        assert block['total_bartenders'] == 2
+
+    def test_volume_comes_from_tech_card_not_from_name(self):
+        """У блюд в названии объёма нет вообще — регекс дал бы ноль, техкарта не даёт."""
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 5000.0, 1250.0,
+                 name='Хеллес маленький', author='Иванов'),
+            sale('Лиговский', DISH_A_10, '2026-08-04', 5, 5000.0, 1250.0,
+                 name='Хеллес большой', author='Петров'),
+        ]
+        # Проводки ровно совпадают с техкартой: 10*0,5 + 5*1,0 = 10 л
+        block = self._block(sales)
+        by_name = {b['Bartender']: b for b in block['bartenders']}
+        assert abs(by_name['Иванов']['TotalLiters'] - 5.0) < 1e-9
+        assert abs(by_name['Петров']['TotalLiters'] - 5.0) < 1e-9
+        # Порции при этом разные — литры не пропорциональны порциям
+        assert by_name['Иванов']['TotalPortions'] == 10
+        assert by_name['Петров']['TotalPortions'] == 5
+        assert not block['bartender_notes']['dishes_without_volume']
+
+    def test_normalization_scales_to_writeoff_fact(self):
+        """Техкарта даёт 10 л, проводки — 11 л: разница разносится пропорционально."""
+        rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=11.0)]
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 5000.0, 1250.0, author='Иванов'),
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 5000.0, 1250.0, author='Петров'),
+        ]
+        block = self._block(sales, transactions=rows)
+        for row in block['bartenders']:
+            assert abs(row['TotalLiters'] - 5.5) < 1e-9, row
+        notes = block['bartender_notes']
+        assert notes['kegs_scaled'] == 1
+        assert abs(notes['max_factor_deviation_percent'] - 10.0) < 1e-9
+        assert abs(notes['unassigned_liters']) < 1e-9
+
+    def test_dish_without_volume_reported_and_total_kept(self):
+        """Норма закладки не нашлась — блюдо в диагностике, итог не потерян."""
+        dish_map = {DISH_A_05: [[KEG_A, 0.5]], DISH_A_10: [[KEG_A, 0.0]]}
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 16, 8000.0, 2000.0, author='Иванов'),
+            sale('Лиговский', DISH_A_10, '2026-08-04', 2, 2000.0, 500.0,
+                 name='Литр без нормы', author='Петров'),
+        ]
+        block = self._block(sales, dish_map=dish_map)
+        total = sum(b['TotalLiters'] for b in block['bartenders'])
+        assert abs(total - 10.0) < 1e-9, total
+        names = [d['DishName'] for d in block['bartender_notes']['dishes_without_volume']]
+        assert names == ['Литр без нормы']
+        by_name = {b['Bartender']: b for b in block['bartenders']}
+        # Литры ушли тому, у кого норма есть, но выручка у обоих своя
+        assert abs(by_name['Петров']['TotalLiters']) < 1e-9
+        assert by_name['Петров']['TotalRevenue'] == 2000.0
+
+    def test_keg_without_any_volumes_split_by_portions(self):
+        dish_map = {DISH_A_05: [[KEG_A, 0.0]]}
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 30, 9000.0, 2000.0, author='Иванов'),
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 3000.0, 700.0, author='Петров'),
+        ]
+        block = self._block(sales, dish_map=dish_map)
+        by_name = {b['Bartender']: b for b in block['bartenders']}
+        assert abs(by_name['Иванов']['TotalLiters'] - 7.5) < 1e-9
+        assert abs(by_name['Петров']['TotalLiters'] - 2.5) < 1e-9
+
+    def test_missing_author_labelled_not_dropped(self):
+        """Строку без автора выбрасывать нельзя — её литры есть в проводках."""
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 5000.0, 1250.0, author='Иванов'),
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 5000.0, 1250.0, author='  '),
+        ]
+        block = self._block(sales)
+        names = {b['Bartender'] for b in block['bartenders']}
+        assert names == {'Иванов', UNKNOWN_BARTENDER}
+        total = sum(b['TotalLiters'] for b in block['bartenders'])
+        assert abs(total - block['total_liters']) < 1e-9
+
+    def test_revenue_and_portions_match_keg_tab(self):
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 12, 6000.0, 1500.0, author='Иванов'),
+            sale('Лиговский', DISH_A_10, '2026-08-04', 4, 4000.0, 1000.0, author='Петров'),
+            sale('Лиговский', 'dish-unknown', '2026-08-04', 3, 900.0, 200.0, author='Иванов'),
+        ]
+        block = self._block(sales)
+        assert abs(sum(b['TotalRevenue'] for b in block['bartenders'])
+                   - block['total_revenue']) < 1e-9
+        assert abs(sum(b['TotalPortions'] for b in block['bartenders'])
+                   - block['total_portions']) < 1e-9
+
+    def test_bar_filter_applies_to_bartenders(self):
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=10.0),
+            trans('Варшавская', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=6.0),
+        ]
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 20, 10000.0, 2500.0, author='Иванов'),
+            sale('Варшавская', DISH_A_05, '2026-08-04', 12, 6000.0, 1500.0, author='Петров'),
+        ]
+        block = self._block(sales, transactions=rows, bar='Лиговский')
+        assert [b['Bartender'] for b in block['bartenders']] == ['Иванов']
+        assert abs(block['bartenders'][0]['TotalLiters'] - 10.0) < 1e-9
+
+    def test_same_bartender_across_bars_summed_once(self):
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=10.0),
+            trans('Варшавская', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=6.0),
+        ]
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 20, 10000.0, 2500.0, author='Иванов'),
+            sale('Варшавская', DISH_A_05, '2026-08-04', 12, 6000.0, 1500.0, author='Иванов'),
+        ]
+        block = self._block(sales, transactions=rows)
+        assert len(block['bartenders']) == 1
+        assert abs(block['bartenders'][0]['TotalLiters'] - 16.0) < 1e-9
+        assert block['bartenders'][0]['KegsCount'] == 1
+
+    def test_multi_keg_dish_keeps_totals(self):
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=30.0),
+            trans('Лиговский', KEG_B, '2026-08-04', 'SESSION_WRITEOFF', out=10.0),
+        ]
+        dish_map = {'dish-mixed': [[KEG_A, 0.5], [KEG_B, 0.5]]}
+        sales = [sale('Лиговский', 'dish-mixed', '2026-08-04', 80, 40000.0, 10000.0,
+                      author='Иванов')]
+        block = DraftKegAnalysis(rows, sales, dish_map,
+                                 '2026-08-04', '2026-08-10').build()
+        row = block['bartenders'][0]
+        assert abs(row['TotalLiters'] - 40.0) < 1e-9
+        assert row['KegsCount'] == 2
+        assert abs(sum(k['SharePercent'] for k in row['kegs']) - 100.0) < 1e-9
+
+    def test_keg_detail_per_bartender(self):
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=10.0,
+                  name='КЕГ Хеллес'),
+            trans('Лиговский', KEG_B, '2026-08-04', 'SESSION_WRITEOFF', out=5.0,
+                  name='КЕГ Стаут'),
+        ]
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 20, 10000.0, 2500.0, author='Иванов'),
+            sale('Лиговский', DISH_B_05, '2026-08-04', 10, 6000.0, 1500.0, author='Иванов'),
+        ]
+        block = self._block(sales, transactions=rows)
+        kegs = block['bartenders'][0]['kegs']
+        assert [k['KegName'] for k in kegs] == ['КЕГ Хеллес', 'КЕГ Стаут']
+        assert abs(kegs[0]['Liters'] - 10.0) < 1e-9
+        assert abs(kegs[0]['SharePercent'] - 66.66666666666667) < 1e-6
+
+    def test_money_metrics_from_sums(self):
+        sales = [sale('Лиговский', DISH_A_05, '2026-08-04', 20, 10000.0, 2500.0,
+                      author='Иванов')]
+        row = self._block(sales)['bartenders'][0]
+        assert abs(row['MarkupPercent'] - 300.0) < 1e-9
+        assert abs(row['PricePerLiter'] - 1000.0) < 1e-9
+        assert abs(row['AvgPortionLiters'] - 0.5) < 1e-9
+        assert abs(row['TotalMargin'] - 7500.0) < 1e-9
+        assert abs(row['LitersSharePercent'] - 100.0) < 1e-9
+
+    def test_sold_without_sales_rows_reported_as_unassigned(self):
+        """Кег продан по проводкам, а строки продаж под него нет: врать нельзя."""
+        block = self._block([])
+        assert block['bartenders'] == []
+        assert abs(block['bartender_notes']['unassigned_liters'] - 10.0) < 1e-9
+
+    def test_sorted_by_liters_desc(self):
+        sales = [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 4, 2000.0, 500.0, author='Иванов'),
+            sale('Лиговский', DISH_A_05, '2026-08-04', 16, 8000.0, 2000.0, author='Петров'),
+        ]
+        block = self._block(sales)
+        assert [b['Bartender'] for b in block['bartenders']] == ['Петров', 'Иванов']
 
 
 class TestEdgeCases:

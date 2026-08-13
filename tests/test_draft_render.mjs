@@ -70,10 +70,13 @@ const sandbox = {
     document: {
         getElementById: () => makeElement(),
         createElement: () => { const el = makeElement(); created.push(el); return el; },
+        querySelectorAll: () => [],
         addEventListener: () => {},
         body: { insertAdjacentHTML(_pos, html) { sandbox.__lastModal = html; } },
     },
     window: {},
+    location: { hash: '' },
+    history: { replaceState: () => {} },
     setInterval: () => {},
     fetch: () => Promise.reject(new Error('сеть в тесте не используется')),
     flatpickr: () => ({ selectedDates: [] }),
@@ -109,6 +112,37 @@ const RESPONSE = {
                        InventoryNetLiters: 0, SoldLiters: 56.2 }],
         },
         unmapped_dishes: [],
+        total_bartenders: 2,
+        bartenders: [
+            {
+                Bartender: 'Ковалёв Д.', TotalLiters: 100.15, TotalPortions: 195,
+                TotalRevenue: 101865, TotalCost: 30094, TotalMargin: 71771,
+                MarkupPercent: 238.49, PricePerLiter: 1017.12, AvgPortionLiters: 0.5136,
+                KegsCount: 2, LitersSharePercent: 59.92, RevenueSharePercent: 60.0,
+                kegs: [
+                    { KegName: 'КЕГ ФестХаус Хеллес', Liters: 56.2, Portions: 104,
+                      Revenue: 47142, SharePercent: 56.12 },
+                    { KegName: "КЕГ Gravity It's Mango <20 л>", Liters: 43.95,
+                      Portions: 91, Revenue: 54723, SharePercent: 43.88 },
+                ],
+            },
+            {
+                // Апостроф и угловые скобки в имени: проверяем экранирование, как у кегов
+                Bartender: "Д'Артаньян <смена 2>", TotalLiters: 67.0, TotalPortions: 130,
+                TotalRevenue: 67910, TotalCost: 20062, TotalMargin: 47848,
+                MarkupPercent: null, PricePerLiter: 1013.58, AvgPortionLiters: 0.5154,
+                KegsCount: 1, LitersSharePercent: 40.08, RevenueSharePercent: 40.0,
+                kegs: [
+                    { KegName: 'КЕГ ФестХаус Хеллес', Liters: 67.0, Portions: 130,
+                      Revenue: 67910, SharePercent: 100 },
+                ],
+            },
+        ],
+        bartender_notes: {
+            dishes_without_volume: [], kegs_scaled: 0,
+            max_factor_deviation_percent: 0.03, assigned_liters: 167.15,
+            unassigned_liters: 0,
+        },
         kegs: [
             {
                 KegId: 'k1', KegName: 'КЕГ ФестХаус Хеллес', Bar: 'Лиговский',
@@ -221,6 +255,78 @@ test('все классы из JS описаны в CSS', () => {
     const unknown = [...used].filter((c) => !known.has(c) && !external.has(c)
         && !c.startsWith('abc-') && !c.startsWith('xyz-'));
     assert.deepEqual(unknown, [], `классы без стилей: ${unknown.join(', ')}`);
+});
+
+// --- вкладка «По барменам» (страница /waiters слита сюда) ---
+
+test('вкладки объявлены в разметке и совпадают с id панелей', () => {
+    const tabs = [...template.matchAll(/data-tab="([\w-]+)"/g)].map((m) => m[1]);
+    const panes = [...template.matchAll(/id="pane-([\w-]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(tabs, ['kegs', 'bartenders'], 'ожидали две вкладки: кеги и бармены');
+    assert.deepEqual(panes, tabs, 'кнопки вкладок и панели разошлись');
+});
+
+test('вкладка выбирается из hash: /draft#bartenders открывает барменов', () => {
+    sandbox.location.hash = '#bartenders';
+    assert.equal(sandbox.tabFromHash(), 'bartenders');
+    sandbox.location.hash = '#kegs';
+    assert.equal(sandbox.tabFromHash(), 'kegs');
+    sandbox.location.hash = '';
+    assert.equal(sandbox.tabFromHash(), 'kegs', 'без hash должны быть кеги');
+    sandbox.location.hash = '#chto-to-drugoe';
+    assert.equal(sandbox.tabFromHash(), 'kegs', 'мусорный hash не должен ломать вкладку');
+    sandbox.activateTab('bartenders');   // не должно бросать на заглушках
+});
+
+test('таблица барменов нарисована с литрами и долями', () => {
+    assert.match(markup, /Бармены по объёму/, 'нет заголовка таблицы барменов');
+    assert.match(markup, /Ковалёв Д\./, 'нет первого бармена');
+    assert.match(markup, /100,15/, 'нет литров бармена');
+    assert.match(markup, /59,9%/, 'нет доли бармена по литрам');
+    assert.match(markup, /Авторизовал/, 'нет оговорки, что бармен — это «Авторизовал»');
+});
+
+test('литры барменов складываются в тот же объём, что у кегов', () => {
+    const sum = RESPONSE['Лиговский'].bartenders
+        .reduce((acc, person) => acc + person.TotalLiters, 0);
+    assert.ok(Math.abs(sum - RESPONSE['Лиговский'].total_liters) < 1e-9,
+        `сумма по барменам ${sum} против итога ${RESPONSE['Лиговский'].total_liters}`);
+});
+
+test('имя бармена с апострофом экранировано, клик — по индексу', () => {
+    assert.match(markup, /Д&#39;Артаньян &lt;смена 2&gt;/, 'имя бармена не экранировано');
+    assert.ok(!markup.includes("Д'Артаньян <смена"), 'сырое имя попало в разметку');
+    assert.match(markup, /onclick="showBartenderDetails\(\d+\)"/, 'клик по бармену не по индексу');
+});
+
+test('неизвестная наценка бармена показывается прочерком', () => {
+    const rowsHtml = markup.split('Бармены по объёму')[1] || '';
+    assert.match(rowsHtml, /class="dash"/, 'нет прочерка в строке без наценки');
+});
+
+test('карточка бармена показывает раскладку по кегам и формулу литров', () => {
+    sandbox.showBartenderDetails(0);
+    const modal = sandbox.__lastModal || '';
+    assert.match(modal, /Что наливал/, 'нет раскладки по кегам');
+    assert.match(modal, /объём порции из техкарты/, 'не объяснено, откуда литры');
+    assert.match(modal, /Поле «Авторизовал» в iiko/, 'нет оговорки про источник имени');
+    assert.match(modal, /It&#39;s Mango/, 'название кега в карточке не экранировано');
+    assert.match(modal, /56,12%|56,1%/, 'нет доли кега внутри бармена');
+});
+
+test('диагностика раскладки печатается только когда есть о чём говорить', () => {
+    assert.equal(sandbox.renderBartenderNotes(RESPONSE['Лиговский'].bartender_notes), '',
+        'при нулевых расхождениях подсказок быть не должно');
+    const noisy = sandbox.renderBartenderNotes({
+        unassigned_liters: 2.5,
+        dishes_without_volume: [{ DishName: 'Сидр разливной', Portions: 12 }],
+        kegs_scaled: 3,
+        max_factor_deviation_percent: 4.2,
+    });
+    assert.match(noisy, /Не отнесено ни к одному бармену/, 'не сказано про неотнесённые литры');
+    assert.match(noisy, /2,5 л/, 'нет объёма неотнесённых литров');
+    assert.match(noisy, /Сидр разливной/, 'нет блюда без нормы закладки');
+    assert.match(noisy, /4,2%/, 'нет максимального расхождения техкарты с фактом');
 });
 
 test('страница запрашивает новый эндпоинт проливов', () => {

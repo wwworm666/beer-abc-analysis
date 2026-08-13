@@ -35,6 +35,20 @@
     XYZ                     = X при CV <= 30%, Y при CV <= 60%, Z свыше; при меньше чем
                               3 активных неделях категория не присваивается
 
+Разрез по барменам (вкладка «По барменам» той же страницы)
+---------------------------------------------------------
+Автора в проводках нет, поэтому литры на человека раскладываются из продаж и нормируются
+на факт списания кега:
+
+    объём порции         = норма закладки кега на 1 порцию из техкарты iiko
+    raw(строка продажи)  = порций * объём порции
+    factor(кег)          = литры кега по проводкам / сумма raw по этому кегу
+    литры(строка)        = raw(строка) * factor(кег)
+
+Отсюда сумма литров по барменам равна сумме по кегам — две вкладки не могут показать
+разные литры за один период. Деньги делятся между кегами тем же _keg_shares, что и на
+вкладке кегов, поэтому выручка тоже сходится.
+
 Что здесь сознательно иначе, чем в старом расчёте (дефекты аудита 2026-08-13)
 ----------------------------------------------------------------------------
 1. XYZ не выдумывается. Корзины — 7-дневные окна ОТ НАЧАЛА ПЕРИОДА, а не календарные
@@ -70,6 +84,11 @@ TT_INVOICE = 'INVOICE'              # приход по накладным
 TT_TRANSFER = 'TRANSFER'            # перемещения между барами
 
 WEEK_DAYS = 7
+
+# Подпись строки, когда в продаже не указан автор (AuthUser пуст). Такие строки НЕ
+# выбрасываются: их литры есть в проводках, и без строки сумма по барменам разошлась бы
+# с суммой по кегам.
+UNKNOWN_BARTENDER = 'Не указан'
 
 # Минимум недель с продажами, при котором вообще имеет смысл говорить о стабильности.
 # На двух точках коэффициент вариации формально считается, но ничего не означает.
@@ -187,6 +206,7 @@ class DraftKegAnalysis:
         # Полных 7-дневных корзин в периоде — база для XYZ.
         self.full_buckets = self.period_days // WEEK_DAYS
         self.unmapped_dishes = []   # блюда, которым не нашёлся кег: диагностика в ответе
+        self.bartender_notes = {}   # как разложились литры по барменам: тоже диагностика
         self._keg_names = {}        # product_id -> название кега из проводок
 
     # ---------- разбор проводок ----------
@@ -295,6 +315,25 @@ class DraftKegAnalysis:
                 result[dish_id] = found
         return result
 
+    def _keg_shares(self, kegs, bar, targets):
+        """Как делить строку продажи между кегами: [(keg_id, доля), ...].
+
+        Один кег к одному блюду — доля 1. Несколько (следствие смены техкарты внутри
+        периода) — пропорционально литрам этих кегов в том же баре, а если литров нет,
+        поровну. Общий делитель для денег и для литров по барменам: иначе на двух
+        вкладках одна и та же продажа разошлась бы по кегам по-разному.
+        """
+        if len(targets) == 1:
+            return [(targets[0], 1.0)]
+        weights = [max(kegs.get((bar, keg_id), {}).get('sold', 0.0), 0.0)
+                   for keg_id in targets]
+        total_weight = sum(weights)
+        if total_weight > 0:
+            return [(keg_id, weight / total_weight)
+                    for keg_id, weight in zip(targets, weights) if weight > 0]
+        even = 1.0 / len(targets)
+        return [(keg_id, even) for keg_id in targets]
+
     def collect_money(self, kegs, bar_name=None):
         """Разложить выручку/себестоимость/порции продаж по кегам.
 
@@ -328,20 +367,7 @@ class DraftKegAnalysis:
                 stat['Portions'] += portions
                 continue
 
-            if len(targets) == 1:
-                shares = [(targets[0], 1.0)]
-            else:
-                weights = [max(kegs.get((bar, keg_id), {}).get('sold', 0.0), 0.0)
-                           for keg_id in targets]
-                total_weight = sum(weights)
-                if total_weight > 0:
-                    shares = [(keg_id, weight / total_weight)
-                              for keg_id, weight in zip(targets, weights) if weight > 0]
-                else:
-                    even = 1.0 / len(targets)
-                    shares = [(keg_id, even) for keg_id in targets]
-
-            for keg_id, share in shares:
+            for keg_id, share in self._keg_shares(kegs, bar, targets):
                 entry = kegs.get((bar, keg_id))
                 if entry is None:
                     # Продажи есть, а движения кега на этом складе нет — так бывает,
@@ -362,12 +388,201 @@ class DraftKegAnalysis:
                                       key=lambda s: -s['Revenue'])
         return kegs
 
+    # ---------- разрез по барменам ----------
+
+    def _dish_volumes(self, keg_ids):
+        """{(dish_guid, keg_guid): литров на порцию} из техкарт.
+
+        Норма закладки кега на одну порцию блюда — то самое число, которым iiko считает
+        списание. Берётся только для ингредиентов, которые реально кеги (keg_ids).
+        """
+        volumes = {}
+        for dish_id, items in self.dish_map.items():
+            for item in items or []:
+                if not item:
+                    continue
+                if isinstance(item, (list, tuple)):
+                    product_id = item[0]
+                    amount = _num(item[1]) if len(item) > 1 else 0.0
+                else:
+                    product_id = item.get('productId')
+                    amount = _num(item.get('amount'))
+                if product_id not in keg_ids or amount <= 0:
+                    continue
+                key = (dish_id, product_id)
+                volumes[key] = volumes.get(key, 0.0) + amount
+        return volumes
+
+    def collect_bartenders(self, kegs, bar_name=None):
+        """Литры, порции и деньги по барменам. Возвращает список строк, готовых в JSON.
+
+        Литры: в проводках автора нет (склад x кег x день x тип), поэтому объём порции
+        берётся из техкарты, а результат НОРМИРУЕТСЯ на факт списания кега:
+
+            raw(строка)   = порций * норма закладки кега на порцию
+            factor(кег)   = литры кега по проводкам / сумма raw по этому кегу
+            литры(строка) = raw(строка) * factor(кег)
+
+        Нормировка нужна потому, что техкарта и факт списания расходятся: в документе
+        может стоять коэффициент списания, техкарта могла смениться внутри периода,
+        iiko округляет. Без неё сумма по барменам не совпала бы с суммой по кегам, и
+        две вкладки одной страницы показывали бы разные литры за один период.
+
+        Если ни у одного блюда кега нет нормы (например, у карты только строки размеров),
+        литры кега делятся между барменами пропорционально порциям — это записывается
+        в диагностику, а не прячется.
+
+        Бармен — поле AuthUser («Авторизовал», кто пробил позицию). Пустое значение
+        становится строкой UNKNOWN_BARTENDER и НЕ выбрасывается: выброшенные строки
+        порвали бы тождество с литрами по кегам.
+        """
+        keg_ids = {keg_id for (_bar, keg_id) in kegs}
+        dish_to_kegs = self._dish_to_kegs(keg_ids)
+        volumes = self._dish_volumes(keg_ids)
+
+        cells = {}          # (bar, keg_id, бармен) -> сырые литры, порции, деньги
+        raw_by_keg = {}     # (bar, keg_id) -> сумма сырых литров
+        portions_by_keg = {}
+        no_volume = {}      # блюда, для которых нормы не нашлось
+
+        for row in self.sales:
+            bar = row.get('Store.Name')
+            if bar_name and bar != bar_name:
+                continue
+            dish_id = row.get('DishId')
+            targets = dish_to_kegs.get(dish_id)
+            if not targets:
+                # Блюдо без кега уже перечислено в unmapped_dishes (collect_money);
+                # литров у него в проводках тоже нет, относить нечего.
+                continue
+            person = (row.get('AuthUser') or '').strip() or UNKNOWN_BARTENDER
+            revenue = _num(row.get('DishDiscountSumInt'))
+            cost = _num(row.get('ProductCostBase.ProductCost'))
+            portions = _num(row.get('DishAmountInt'))
+
+            for keg_id, share in self._keg_shares(kegs, bar, targets):
+                volume = volumes.get((dish_id, keg_id), 0.0)
+                keg_portions = portions * share
+                raw = keg_portions * volume
+                cell = cells.get((bar, keg_id, person))
+                if cell is None:
+                    cell = cells[(bar, keg_id, person)] = {
+                        'raw': 0.0, 'portions': 0.0, 'revenue': 0.0, 'cost': 0.0,
+                    }
+                cell['raw'] += raw
+                cell['portions'] += keg_portions
+                cell['revenue'] += revenue * share
+                cell['cost'] += cost * share
+                raw_by_keg[(bar, keg_id)] = raw_by_keg.get((bar, keg_id), 0.0) + raw
+                portions_by_keg[(bar, keg_id)] = (
+                    portions_by_keg.get((bar, keg_id), 0.0) + keg_portions)
+                if volume <= 0 and keg_portions > 0:
+                    name = row.get('DishName') or dish_id
+                    stat = no_volume.setdefault(name, {'DishName': name, 'Portions': 0.0})
+                    stat['Portions'] += keg_portions
+
+        # Нормировка на факт списания и раскладка по людям.
+        people = {}
+        kegs_scaled = 0
+        max_deviation = 0.0
+        assigned_liters = 0.0
+        for (bar, keg_id, person), cell in cells.items():
+            keg_entry = kegs.get((bar, keg_id)) or {}
+            sold = _num(keg_entry.get('sold'))
+            raw_total = raw_by_keg.get((bar, keg_id), 0.0)
+            portions_total = portions_by_keg.get((bar, keg_id), 0.0)
+
+            if raw_total > 0:
+                liters = cell['raw'] * (sold / raw_total)
+            elif portions_total > 0:
+                # Норм нет ни у одного блюда кега: делим по порциям.
+                liters = sold * (cell['portions'] / portions_total)
+            else:
+                liters = 0.0
+
+            entry = people.get(person)
+            if entry is None:
+                entry = people[person] = {
+                    'name': person, 'liters': 0.0, 'portions': 0.0,
+                    'revenue': 0.0, 'cost': 0.0, 'kegs': {},
+                }
+            entry['liters'] += liters
+            entry['portions'] += cell['portions']
+            entry['revenue'] += cell['revenue']
+            entry['cost'] += cell['cost']
+            keg_name = keg_entry.get('keg_name') or self._keg_names.get(keg_id, keg_id)
+            keg_stat = entry['kegs'].get(keg_id)
+            if keg_stat is None:
+                keg_stat = entry['kegs'][keg_id] = {
+                    'KegName': keg_name, 'Liters': 0.0, 'Portions': 0.0, 'Revenue': 0.0,
+                }
+            keg_stat['Liters'] += liters
+            keg_stat['Portions'] += cell['portions']
+            keg_stat['Revenue'] += cell['revenue']
+            assigned_liters += liters
+
+        for (bar, keg_id), raw_total in raw_by_keg.items():
+            if raw_total <= 0:
+                continue
+            sold = _num((kegs.get((bar, keg_id)) or {}).get('sold'))
+            if sold <= 0:
+                continue
+            deviation = abs(sold / raw_total - 1) * 100
+            if deviation > 1.0:
+                kegs_scaled += 1
+            max_deviation = max(max_deviation, deviation)
+
+        rows = [self._format_bartender(entry) for entry in people.values()]
+        total_liters = sum(r['TotalLiters'] for r in rows)
+        total_revenue = sum(r['TotalRevenue'] for r in rows)
+        for row in rows:
+            row['LitersSharePercent'] = (row['TotalLiters'] / total_liters * 100
+                                         if total_liters > 0 else 0.0)
+            row['RevenueSharePercent'] = (row['TotalRevenue'] / total_revenue * 100
+                                          if total_revenue > 0 else 0.0)
+        rows.sort(key=lambda r: r['TotalLiters'], reverse=True)
+
+        self.bartender_notes = {
+            'dishes_without_volume': sorted(no_volume.values(),
+                                            key=lambda s: -s['Portions'])[:10],
+            'kegs_scaled': kegs_scaled,
+            'max_factor_deviation_percent': max_deviation,
+            'assigned_liters': assigned_liters,
+        }
+        return rows
+
+    def _format_bartender(self, entry):
+        """Одна строка таблицы барменов."""
+        liters = entry['liters']
+        revenue = entry['revenue']
+        cost = entry['cost']
+        portions = entry['portions']
+        kegs = sorted(entry['kegs'].values(), key=lambda k: -k['Liters'])
+        for keg in kegs:
+            keg['SharePercent'] = (keg['Liters'] / liters * 100) if liters > 0 else 0.0
+        return {
+            'Bartender': entry['name'],
+            'TotalLiters': liters,
+            'TotalPortions': portions,
+            'TotalRevenue': revenue,
+            'TotalCost': cost,
+            'TotalMargin': revenue - cost,
+            'MarkupPercent': ((revenue - cost) / cost * 100) if cost > 0 else None,
+            'PricePerLiter': revenue / liters if liters > 0 else 0.0,
+            'AvgPortionLiters': liters / portions if portions > 0 else 0.0,
+            'KegsCount': len(kegs),
+            'LitersSharePercent': 0.0,
+            'RevenueSharePercent': 0.0,
+            'kegs': kegs,
+        }
+
     # ---------- сборка ответа ----------
 
     def build(self, bar_name=None):
         """Готовый блок ответа для одного разреза (бар или «Общая»)."""
         kegs = self.collect_kegs(bar_name)
         kegs = self.collect_money(kegs, bar_name)
+        bartenders = self.collect_bartenders(kegs, bar_name)
 
         # Схлопываем бары, если разрез сводный: ключ строки — кег.
         merged = {}
@@ -434,6 +649,14 @@ class DraftKegAnalysis:
             'losses': self._build_losses(merged, total_liters),
             'unmapped_dishes': self.unmapped_dishes[:10],
             'kegs': rows,
+            'total_bartenders': len(bartenders),
+            'bartenders': bartenders,
+            # Литры, которые не удалось отнести ни к одному бармену: продажа кега есть в
+            # проводках, а строки продаж под неё нет (граница учётного дня). В норме ноль,
+            # поэтому показывается только когда не ноль.
+            'bartender_notes': dict(self.bartender_notes,
+                                    unassigned_liters=total_liters
+                                    - self.bartender_notes.get('assigned_liters', 0.0)),
         }
 
     def _format_keg(self, entry):

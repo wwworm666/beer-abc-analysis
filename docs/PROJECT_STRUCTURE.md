@@ -16,7 +16,7 @@ beer-abc-analysis/
 ├── telegram_webhook.py     # KULT Taplist бот (webhook режим)
 ├── README.md               # Главная документация
 │
-├── core/                   # Бизнес-логика (64 модуля)
+├── core/                   # Бизнес-логика (63 модуля)
 ├── routes/                 # Flask blueprints (11 файлов)
 ├── templates/              # Jinja2 HTML
 ├── static/                 # CSS, JS, PWA
@@ -41,7 +41,7 @@ beer-abc-analysis/
 
 ---
 
-## `core/` — Бизнес-логика (64 модуля)
+## `core/` — Бизнес-логика (63 модуля)
 
 ### iiko-интеграция и данные (4)
 | Файл | Что делает |
@@ -51,16 +51,15 @@ beer-abc-analysis/
 | `iiko_barcodes.py` | Парсер XML `/products` → `{gtin14: [iiko_pid]}` для стыковки с ЧЗ |
 | `data_processor.py` | Генерация недель ISO, бакетирование |
 
-### Аналитика (11)
+### Аналитика (10)
 | Файл | Что делает |
 |---|---|
 | `dashboard_analysis.py` | 15 метрик дашборда |
 | `abc_analysis.py` | ABC (Парето 80/15/5) |
 | `xyz_analysis.py` | XYZ (CV вариация) |
 | `category_analysis.py` | Анализ по категориям |
-| `draft_kegs.py` | **Проливы по кегам** для `/draft`: литры из проводок iiko, деньги из продаж, связка через техкарты |
+| `draft_kegs.py` | **Проливы** для `/draft`: литры из проводок iiko, деньги из продаж, связка и объём порции через техкарты, разрез по барменам |
 | `draft_analysis.py` | Разливное по названиям блюд (2-этапная нормализация) — месячный отчёт, меню, скрипты |
-| `waiter_analysis.py` | Анализ по официантам |
 | `trends_analyzer.py` | Тренды по неделям |
 | `comparison_calculator.py` | Сравнение периодов |
 | `revenue_metrics.py` | Единая точка чтения метрик выручки |
@@ -140,7 +139,7 @@ templates/
 ├── expiration.html      # Shelf-Life Cockpit
 ├── explorer.html        # Конструктор отчётов
 ├── schedule.html, salary.html, bonus.html
-├── packaging.html, draft.html, waiters.html
+├── packaging.html, draft.html   # draft.html: кеги + бармены (waiters.html удалён)
 ├── wiki.html            # Встроенная wiki с TOC
 ├── pwa-widget.html      # PWA виджет выручки
 ├── dashboard/           # Подшаблоны главного дашборда (plans_tab, comparison_tab, ...)
@@ -354,7 +353,7 @@ docker compose up -d
 | `/stocks` | Остатки + Сводный заказ |
 | `/expiration` | Shelf-Life Cockpit |
 | `/employee`, `/salary`, `/bonus`, `/schedule` | Сотрудники |
-| `/waiters` | Анализ |
+| `/waiters` | 301 на `/draft#bartenders` (страница слита в «Анализ проливов») |
 | `/wiki` | Встроенная wiki |
 | `/api/*` | JSON API |
 | `/telegram/*`, `/telegram/openbot/*` | Telegram webhooks |

@@ -132,6 +132,50 @@
             font-size: 0.9rem;
         }
 
+        /* Tabs: вид повторяет вкладки «Маркетинга» (static/guests/guests.css),
+           скопирован сюда, потому что draft.html не подключает guests.css */
+        .draft-tabs {
+            display: none;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin: 6px 0 18px;
+        }
+
+        .draft-tabs.active {
+            display: flex;
+        }
+
+        .dtab-btn {
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            cursor: pointer;
+            padding: 9px 16px;
+            border-radius: 999px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            transition: all 0.15s ease;
+        }
+
+        .dtab-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--text-tertiary);
+        }
+
+        .dtab-btn.active {
+            background: var(--text-primary);
+            border-color: var(--text-primary);
+            color: var(--bg-primary);
+        }
+
+        .dtab-pane {
+            display: none;
+        }
+
+        .dtab-pane.active {
+            display: block;
+        }
+
         /* Results */
         .results {
             display: none;
@@ -548,7 +592,15 @@
             <p>Это может занять несколько секунд</p>
         </div>
 
-        <div class="results" id="results"></div>
+        <div class="draft-tabs" id="draft-tabs">
+            <button class="dtab-btn active" data-tab="kegs">По кегам</button>
+            <button class="dtab-btn" data-tab="bartenders">По барменам</button>
+        </div>
+
+        <div class="results" id="results">
+            <div class="dtab-pane active" id="pane-kegs"></div>
+            <div class="dtab-pane" id="pane-bartenders"></div>
+        </div>
     </div>
 
     <script>
@@ -557,6 +609,10 @@
         // Раньше в onclick подставлялся JSON.stringify, и апостроф в названии
         // («Gravity It's Mango») закрывал атрибут и ломал обработчик.
         let currentRows = [];
+        let currentBartenders = [];
+        // Активная вкладка живёт в hash: /draft#bartenders открывается сразу на барменах
+        // (туда же ведёт 301 со старого /waiters).
+        let activeTab = 'kegs';
 
         // API Connection Status Check
         window.dashboardCheckApi = async function() {
@@ -591,7 +647,35 @@
             window.dashboardCheckApi();
             setInterval(window.dashboardCheckApi, 60000);
             initDatePicker();
+            initTabs();
         });
+
+        function initTabs() {
+            document.querySelectorAll('.dtab-btn').forEach(function(button) {
+                button.addEventListener('click', function() {
+                    activateTab(button.dataset.tab);
+                });
+            });
+            activateTab(tabFromHash());
+        }
+
+        function tabFromHash() {
+            const hash = (location.hash || '').replace('#', '');
+            return hash === 'bartenders' ? 'bartenders' : 'kegs';
+        }
+
+        function activateTab(tab) {
+            activeTab = tab === 'bartenders' ? 'bartenders' : 'kegs';
+            document.querySelectorAll('.dtab-btn').forEach(function(button) {
+                button.classList.toggle('active', button.dataset.tab === activeTab);
+            });
+            document.querySelectorAll('.dtab-pane').forEach(function(pane) {
+                pane.classList.toggle('active', pane.id === 'pane-' + activeTab);
+            });
+            // Ссылку на вкладку можно скинуть коллеге; запроса переключение не делает —
+            // обе картины приходят одним ответом.
+            if (history.replaceState) history.replaceState(null, '', '#' + activeTab);
+        }
 
         let datePicker = null;
 
@@ -674,9 +758,12 @@
         }
 
         function displayResults(data) {
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '';
+            const kegsPane = document.getElementById('pane-kegs');
+            const bartendersPane = document.getElementById('pane-bartenders');
+            kegsPane.innerHTML = '';
+            bartendersPane.innerHTML = '';
             currentRows = [];
+            currentBartenders = [];
 
             const entries = Object.entries(data || {});
             if (!entries.length) {
@@ -685,11 +772,13 @@
             }
 
             for (const [barName, barData] of entries) {
-                const section = createBarSection(barName, barData);
-                resultsDiv.appendChild(section);
+                kegsPane.appendChild(createBarSection(barName, barData));
+                bartendersPane.appendChild(createBartenderSection(barName, barData));
             }
 
-            resultsDiv.classList.add('active');
+            document.getElementById('draft-tabs').classList.add('active');
+            document.getElementById('results').classList.add('active');
+            activateTab(activeTab);
         }
 
         function createBarSection(barName, data) {
@@ -789,6 +878,210 @@
             return section;
         }
 
+        function createBartenderSection(barName, data) {
+            const section = document.createElement('div');
+            section.className = 'bar-section';
+
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const p = data.period || {};
+            const notes = data.bartender_notes || {};
+            const rows = data.bartenders || [];
+            const offset = currentBartenders.length;
+            currentBartenders = currentBartenders.concat(rows);
+
+            const header = `
+                <div class="bar-header">
+                    <h2>${escapeHtml(barName)}</h2>
+                    <p class="hint">Бармен — поле «Авторизовал» в iiko, то есть кто пробил
+                    позицию в кассе. Литры на человека: порции умножаются на объём порции из
+                    техкарты, затем результат по каждому кегу приводится к факту списания со
+                    склада. Поэтому сумма здесь совпадает с суммой на вкладке «По кегам».
+                    Период ${p.from} — ${p.to}, ${p.days} дн.</p>
+                </div>
+            `;
+
+            const stats = `
+                <div class="stats-grid">
+                    <div class="stat-card" title="Сотрудников с продажами разливного за период">
+                        <div class="label">Барменов</div>
+                        <div class="value">${data.total_bartenders}</div>
+                    </div>
+                    <div class="stat-card" title="Та же цифра, что на вкладке «По кегам»">
+                        <div class="label">Продано</div>
+                        <div class="value">${formatAmount(data.total_liters)}<span class="unit">л</span></div>
+                    </div>
+                    <div class="stat-card" title="Количество проданных порций из отчёта по продажам">
+                        <div class="label">Всего порций</div>
+                        <div class="value">${formatAmount(data.total_portions)}</div>
+                    </div>
+                    <div class="stat-card" title="Сумма со скидками">
+                        <div class="label">Выручка</div>
+                        <div class="value">${formatMoney(data.total_revenue)}</div>
+                    </div>
+                </div>
+            `;
+
+            const table = `
+                <h3 class="section-title">Бармены по объёму — нажмите строку для деталей</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Бармен</th>
+                            <th title="Порции x объём порции из техкарты, приведённые к факту списания кега">Литры</th>
+                            <th title="Литры бармена / литры всех барменов x 100">Доля, %</th>
+                            <th title="Проданных порций по отчёту продаж">Порции</th>
+                            <th title="Сколько разных кегов было в продажах этого бармена">Кегов</th>
+                            <th title="Сумма со скидками">Выручка</th>
+                            <th title="Выручка минус себестоимость">Маржа</th>
+                            <th title="(выручка - себестоимость) / себестоимость">Наценка</th>
+                            <th title="Выручка / литры">Цена/литр</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows.map((person, i) => `
+                            <tr class="beer-row" onclick="showBartenderDetails(${offset + i})">
+                                <td>${i + 1}</td>
+                                <td><strong>${escapeHtml(person.Bartender)}</strong></td>
+                                <td>${formatAmount(person.TotalLiters)}</td>
+                                <td>${formatPercent(person.LitersSharePercent, 1)}</td>
+                                <td>${formatAmount(person.TotalPortions)}</td>
+                                <td>${person.KegsCount}</td>
+                                <td>${formatMoney(person.TotalRevenue)}</td>
+                                <td>${formatMoney(person.TotalMargin)}</td>
+                                <td>${person.MarkupPercent === null ? '<span class="dash">—</span>' : formatPercent(person.MarkupPercent, 0)}</td>
+                                <td>${formatMoney(person.PricePerLiter)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                ${renderBartenderNotes(notes)}
+            `;
+
+            card.innerHTML = header + stats + table;
+            section.appendChild(card);
+            return section;
+        }
+
+        function renderBartenderNotes(notes) {
+            const parts = [];
+            // Литры, под которые не нашлось строки продаж: в норме ноль, поэтому молчим,
+            // пока ноль, и говорим прямо, когда нет.
+            if (Math.abs(notes.unassigned_liters || 0) > 0.01) {
+                parts.push(`Не отнесено ни к одному бармену:
+                    ${formatAmount(notes.unassigned_liters)} л — списание кега есть,
+                    а строки продаж под него нет (граница учётного дня).`);
+            }
+            if ((notes.dishes_without_volume || []).length) {
+                parts.push(`Позиции без нормы закладки в техкарте, их литры разошлись по
+                    остальным блюдам того же кега:
+                    ${notes.dishes_without_volume.map(d => escapeHtml(d.DishName) +
+                        ' (' + formatAmount(d.Portions) + ' порц.)').join(', ')}`);
+            }
+            if (notes.kegs_scaled) {
+                parts.push(`Кегов, где техкарта разошлась с фактом списания больше чем на 1%:
+                    ${notes.kegs_scaled}; максимальное расхождение
+                    ${formatPercent(notes.max_factor_deviation_percent, 1)} — на столько
+                    масштабировались литры этого кега.`);
+            }
+            return parts.map(text => `<p class="hint">${text}</p>`).join('');
+        }
+
+        function showBartenderDetails(index) {
+            const person = currentBartenders[index];
+            if (!person) return;
+
+            const kegs = person.kegs || [];
+            const kegsTable = kegs.length ? `
+                <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">Что наливал</h3>
+                <table style="font-size: 0.85rem;">
+                    <thead>
+                        <tr>
+                            <th>Кег</th>
+                            <th>Литры</th>
+                            <th>Порции</th>
+                            <th>Выручка</th>
+                            <th title="Литры кега / литры этого бармена x 100">Доля</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${kegs.map(keg => `
+                            <tr>
+                                <td><strong>${escapeHtml(keg.KegName)}</strong></td>
+                                <td>${formatAmount(keg.Liters)}</td>
+                                <td>${formatAmount(keg.Portions)}</td>
+                                <td>${formatMoney(keg.Revenue)}</td>
+                                <td>${formatPercent(keg.SharePercent, 1)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            ` : '';
+
+            const modalHTML = `
+                <div class="modal active" id="detail-modal" onclick="closeModalBackdrop(event)">
+                    <div class="modal-content" onclick="event.stopPropagation()">
+                        <div class="modal-header">
+                            <div>
+                                <h2>${escapeHtml(person.Bartender)}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 4px;">Поле «Авторизовал» в iiko</p>
+                            </div>
+                            <button class="modal-close" onclick="closeModal()">&times;</button>
+                        </div>
+
+                        <div class="detail-grid">
+                            <div class="detail-item" title="Порции x объём порции из техкарты, приведённые к факту списания кега">
+                                <div class="label">Пролито</div>
+                                <div class="value">${formatAmount(person.TotalLiters)} л</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="label">Порций</div>
+                                <div class="value">${formatAmount(person.TotalPortions)}</div>
+                            </div>
+                            <div class="detail-item" title="Литры бармена / литры всех барменов x 100">
+                                <div class="label">Доля по литрам</div>
+                                <div class="value">${formatPercent(person.LitersSharePercent, 1)}</div>
+                            </div>
+                            <div class="detail-item" title="Выручка бармена / выручка всех барменов x 100">
+                                <div class="label">Доля в выручке</div>
+                                <div class="value">${formatPercent(person.RevenueSharePercent, 1)}</div>
+                            </div>
+                            <div class="detail-item" title="Литры / порции">
+                                <div class="label">Средний объём порции</div>
+                                <div class="value">${person.AvgPortionLiters.toFixed(3)} л</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="label">Кегов в продажах</div>
+                                <div class="value">${person.KegsCount}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="label">Выручка</div>
+                                <div class="value">${formatMoney(person.TotalRevenue)}</div>
+                            </div>
+                            <div class="detail-item" title="Выручка минус себестоимость">
+                                <div class="label">Маржа</div>
+                                <div class="value">${formatMoney(person.TotalMargin)}</div>
+                            </div>
+                            <div class="detail-item" title="(выручка - себестоимость) / себестоимость">
+                                <div class="label">Наценка</div>
+                                <div class="value">${person.MarkupPercent === null ? '<span class="dash">—</span>' : formatPercent(person.MarkupPercent, 1)}</div>
+                            </div>
+                            <div class="detail-item" title="Выручка / литры">
+                                <div class="label">Цена за литр</div>
+                                <div class="value">${formatMoney(person.PricePerLiter)}</div>
+                            </div>
+                        </div>
+
+                        ${kegsTable}
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
         function renderLosses(data) {
             const L = data.losses || {};
             const sold = L.sold || 0;
@@ -860,7 +1153,7 @@
             if (!keg) return;
 
             const modalHTML = `
-                <div class="modal active" id="beer-modal" onclick="closeModalBackdrop(event)">
+                <div class="modal active" id="detail-modal" onclick="closeModalBackdrop(event)">
                     <div class="modal-content" onclick="event.stopPropagation()">
                         <div class="modal-header">
                             <div>
@@ -986,7 +1279,9 @@
         }
 
         function closeModal() {
-            const modal = document.getElementById('beer-modal');
+            // Одно окно на обе вкладки: карточка кега и карточка бармена рисуются
+            // одним и тем же id, поэтому закрытие и Escape общие.
+            const modal = document.getElementById('detail-modal');
             if (modal) {
                 modal.remove();
             }
