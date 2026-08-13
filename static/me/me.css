@@ -110,11 +110,13 @@ body.me-page {
                'Helvetica Neue', Arial, sans-serif;
     --me-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
+    /* На теле — ТОЛЬКО фон страницы. Типографика и цвет ссылок применяются
+       внутри .me-wrap: сайдбар (shared/nav.html) лежит в том же <body>, и
+       правило `body.me-page a` перебивало собственный цвет `.sidebar-link`
+       (специфичность 0,1,2 против 0,1,0) — всё меню становилось оранжевым,
+       вместе с иконками, у которых stroke="currentColor". Шрифт и цвет текста
+       утекали туда же. */
     background: var(--me-bg);
-    font-family: var(--me-sans);
-    color: var(--me-ink);
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
 }
 
 /* Тёмная тема: макет светлый, но переключатель в проекте есть, и страница
@@ -159,15 +161,20 @@ body.me-page[data-theme="dark"] {
    .bottom-tabs, под которые mobile.css оставляет 76px пустоты. */
 body.me-page .header-bar { display: none; }
 body.me-page .container { padding: 0; }
-body.me-page a { color: var(--me-accent); text-decoration: none; }
-body.me-page a:hover { color: var(--me-accent-h); text-decoration: underline; }
-body.me-page ::selection { background: color-mix(in srgb, var(--me-accent) 22%, transparent); }
 
+/* Типографика и ссылки — строго внутри содержимого страницы, не в сайдбаре. */
 .me-wrap {
     max-width: 1180px;
     margin: 0 auto;
     padding: 22px 20px calc(56px + env(safe-area-inset-bottom, 0px));
+    font-family: var(--me-sans);
+    color: var(--me-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
+.me-wrap a { color: var(--me-accent); text-decoration: none; }
+.me-wrap a:hover { color: var(--me-accent-h); text-decoration: underline; }
+.me-wrap ::selection { background: color-mix(in srgb, var(--me-accent) 22%, transparent); }
 
 /* ==================== Шапка страницы ==================== */
 
