@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import time
@@ -391,6 +392,364 @@ class OlapReports:
         except Exception as e:
             print(f"[ERROR] Oshibka: {e}")
             return None
+
+    # Бюджет интерактивного запроса: gunicorn --timeout 120 на всю страницу, внутри
+    # неё авторизация плюс два OLAP-запроса. connect 10 с, а не 5: до iiko
+    # периодически теряется связь и TLS-рукопожатие не успевает (замер 2026-08-13 —
+    # два рукопожатия по 90 мс, третье висит 30 с). Отсюда же вторая попытка:
+    # без неё страница падала бы примерно в каждом третьем заходе.
+    INTERACTIVE_OLAP_TIMEOUT = (10, 25)
+    INTERACTIVE_OLAP_ATTEMPTS = 2
+
+    def _post_olap_interactive(self, request_body, tag):
+        """POST /v2/reports/olap для запроса, которого ждёт пользователь.
+
+        Отличается от _post_olap_with_retries (тот для фонового синка, read 90 с):
+        здесь укладываемся в бюджет gunicorn, поэтому таймаут короче, а попыток две.
+        Возвращает разобранный JSON ответа целиком или None.
+        """
+        url = f"{self.api.base_url}/v2/reports/olap"
+        for attempt in range(1, self.INTERACTIVE_OLAP_ATTEMPTS + 1):
+            started = time.time()
+            try:
+                response = requests.post(
+                    url,
+                    params={"key": self.token},
+                    json=request_body,
+                    headers={"Content-Type": "application/json"},
+                    timeout=self.INTERACTIVE_OLAP_TIMEOUT
+                )
+            except (requests.exceptions.ReadTimeout,
+                    requests.exceptions.ConnectTimeout,
+                    requests.exceptions.ConnectionError) as e:
+                print(f"[WARN] {tag}: setevoy sboy (popitka {attempt}/"
+                      f"{self.INTERACTIVE_OLAP_ATTEMPTS}): {e}")
+                if attempt < self.INTERACTIVE_OLAP_ATTEMPTS:
+                    time.sleep(1.5)
+                    continue
+                print(f"[ERROR] {tag}: sboy posle {self.INTERACTIVE_OLAP_ATTEMPTS} popytok")
+                return None
+            except Exception as e:
+                print(f"[ERROR] {tag}: {e}")
+                return None
+
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                except Exception as e:
+                    print(f"[ERROR] {tag}: ne razobran JSON: {e}")
+                    return None
+                print(f"[OK] {tag}: {len(data.get('data', []))} strok za "
+                      f"{time.time() - started:.1f} s")
+                return data
+
+            # HTTP-ошибка не транзиентна (неверное поле, истёкший токен) — не ретраим.
+            print(f"[ERROR] {tag}: HTTP {response.status_code}: {response.text[:300]}")
+            return None
+        return None
+
+    def get_draft_sales_by_dish(self, date_from, date_to, bar_name=None):
+        """Продажи разливного с DishId — денежная половина страницы /draft.
+
+        Отличия от get_draft_sales_report (который трогать нельзя, на нём висят
+        месячный отчёт и старый эндпоинт):
+        - в группировке есть DishId, чтобы связывать блюдо с кегом по GUID;
+        - нет DishGroup.ThirdParent и DishForeignName — они на странице не нужны;
+        - агрегаты только те, что реально используются (без UniqOrderId, DiscountSum,
+          ProductCostBase.OneItem и MarkUp: наценка считается от сумм, а не средним
+          по строкам, см. docs/draft.md).
+
+        Фильтр NOT_DELETED здесь правильный: у удалённых позиций нет выручки, а их
+        литры приходят отдельно — актами списания в get_draft_writeoff_report.
+
+        date_to ЭКСКЛЮЗИВНО (конвенция OpenDate.Typed).
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu prodazhi razlivnogo s DishId...")
+        print(f"   Period: {date_from} - {date_to} (to exclusive)")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+
+        request_body = {
+            "reportType": "SALES",
+            "buildSummary": "false",
+            "groupByRowFields": ["Store.Name", "DishId", "DishName", "OpenDate.Typed"],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DishGroup.TopParent": {
+                    "filterType": "IncludeValues",
+                    "values": ["Напитки Розлив"]
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        if bar_name:
+            request_body["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return self._post_olap_interactive(request_body, 'Prodazhi razlivnogo')
+
+    def get_draft_writeoff_report(self, date_from, date_to, bar_name=None):
+        """Движение кегов разливного в ЛИТРАХ — OLAP по проводкам (TRANSACTIONS).
+
+        Это первичный источник литров для страницы /draft: iiko сам списывает кег по
+        техкарте при продаже, поэтому объём порции здесь уже применён — парсить «(0,5)»
+        из названия блюда не нужно. Сверено на живых данных 2026-08-13: неделя
+        04-10.08 дала 755,61 л и по проводкам, и по названиям, совпадение по каждому
+        бару; на 3,5 месяцах расхождение 0,019% (docs/draft.md).
+
+        Одна строка ответа = склад x кег x учётный день x тип проводки. Смысл типов:
+        - SESSION_WRITEOFF     — продано через кассу (то, что раньше считалось из названий);
+        - WRITEOFF             — акты списания (равно объёму позиций «удалено со списанием»);
+        - INVENTORY_CORRECTION — расхождения инвентаризаций (недостача в Out, излишки в In);
+        - INVOICE              — приход по накладным (в In);
+        - TRANSFER             — перемещения между барами (и в In, и в Out).
+
+        Склад берётся из Account.Name, а НЕ из Store: iiko прямо рекомендует Account.Name
+        как быстрое и однозначное поле, Store — «первый попавшийся склад проводки»
+        (docs/iiko-api/olap-otchety-v1.md, блок про StartBalanceOptimizable).
+
+        Product.Id в группировке нужен, чтобы связка «блюдо -> кег» шла по GUID через
+        техкарты (get_dish_ingredient_map), без сопоставления по названиям.
+
+        date_from: 'YYYY-MM-DD' включительно
+        date_to:   'YYYY-MM-DD' ЭКСКЛЮЗИВНО (та же конвенция, что у OpenDate.Typed:
+                   вызывающая сторона добавляет +1 день к последнему дню периода)
+        bar_name:  название бара или None для всех
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+
+        print(f"\n[OLAP] Zaprashivayu provodki po kegam razlivnogo...")
+        print(f"   Period: {date_from} - {date_to} (to exclusive)")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+
+        request_body = {
+            "reportType": "TRANSACTIONS",
+            "buildSummary": "false",
+            "groupByRowFields": [
+                "Account.Name",
+                "Product.Id",
+                "Product.Name",
+                "Product.MeasureUnit",
+                "DateTime.DateTyped",
+                "TransactionType",
+            ],
+            "groupByColFields": [],
+            "aggregateFields": ["Amount.Out", "Amount.In", "Sum.Outgoing"],
+            "filters": {
+                "DateTime.DateTyped": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "Product.TopParent": {
+                    "filterType": "IncludeValues",
+                    "values": ["Напитки Розлив"]
+                },
+            }
+        }
+
+        if bar_name:
+            request_body["filters"]["Account.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        return self._post_olap_interactive(request_body, 'Provodki po kegam')
+
+    def get_dish_ingredient_map(self, date_from, date_to, use_cache=True):
+        """Связка «блюдо -> ингредиенты» из технологических карт iiko.
+
+        Отвечает на вопрос «какой кег льётся в это блюдо» без сопоставления по
+        названиям: и блюдо, и ингредиент приходят как GUID. Нужна, чтобы прицепить
+        деньги из отчёта по продажам (DishId) к литрам из проводок (Product.Id).
+
+        Возвращает {dish_guid: [[ingredient_guid, amount], ...]} или None при сбое.
+        amount — норма закладки ингредиента на 1 единицу блюда (в его основных
+        единицах измерения), уже разложенная iiko до конечных ингредиентов.
+
+        ВАЖНО про фильтрацию ингредиентов: в карте лежат не только кеги, но и посуда
+        (у литровых позиций «с собой» это «бутылка ПЭТ без пробки 1,0л», 1 шт).
+        Что из этого кег — решает вызывающая сторона по множеству Product.Id из
+        проводок (там уже отфильтровано по группе «Напитки Розлив» и ЕИ «л»).
+        Единицы измерения здесь сознательно не запрашиваются, чтобы не тянуть
+        номенклатуру: она отдаётся только по товарам с операциями за 30 дней и на
+        старых периодах неполна.
+
+        Строки карт складываются по всем ревизиям и размерам блюда: у 48 карт в базе
+        стратегия SPECIFIC (отдельная строка на каждый размер), и разрешать размер по
+        продажам нельзя — DishSize.* в этой базе не заполнен. Для СВЯЗКИ это неважно
+        (все размеры ведут в один кег), а литры берутся из проводок, где iiko уже
+        применил и размер, и подразделение, и нужную ревизию.
+
+        Кэш на диске 24 ч: техкарты меняются редко, а ответ getAll тяжёлый (единицы МБ).
+        """
+        cache_path = self._assembly_cache_path(date_from, date_to)
+        if use_cache:
+            cached = self._read_assembly_cache(cache_path)
+            if cached is not None:
+                return cached
+
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return self._fallback_assembly_cache()
+
+        print(f"\n[CHARTS] Zaprashivayu tehkarty {date_from} - {date_to}...")
+        started = time.time()
+        try:
+            response = requests.get(
+                f"{self.api.base_url}/v2/assemblyCharts/getAll",
+                params={
+                    "key": self.token,
+                    "dateFrom": date_from,
+                    "dateTo": date_to,
+                    # Удалённые блюда нужны: позиция могла продаваться в периоде и быть
+                    # удалена позже — без неё литры остались бы без денег.
+                    "includeDeletedProducts": "true",
+                    "includePreparedCharts": "true",
+                },
+                timeout=(10, 60)
+            )
+        except Exception as e:
+            print(f"[ERROR] Tehkarty: {e}")
+            return self._fallback_assembly_cache()
+
+        if response.status_code != 200:
+            print(f"[ERROR] Tehkarty: HTTP {response.status_code}: {response.text[:300]}")
+            return self._fallback_assembly_cache()
+
+        try:
+            payload = response.json()
+        except Exception as e:
+            print(f"[ERROR] Tehkarty: ne razobran JSON: {e}")
+            return self._fallback_assembly_cache()
+
+        mapping = {}
+        for chart in payload.get('preparedCharts') or []:
+            dish_id = chart.get('assembledProductId')
+            if not dish_id:
+                continue
+            rows = mapping.setdefault(dish_id, [])
+            for item in chart.get('items') or []:
+                product_id = item.get('productId')
+                if not product_id:
+                    continue
+                try:
+                    amount = float(item.get('amount') or 0)
+                except (TypeError, ValueError):
+                    continue
+                rows.append([product_id, amount])
+
+        print(f"[OK] Tehkarty: {len(mapping)} blyud, {len(response.content)} bayt, "
+              f"{time.time() - started:.1f} s")
+        self._write_assembly_cache(cache_path, mapping)
+        return mapping
+
+    # --- дисковый кэш связки «блюдо -> ингредиенты» ---
+
+    ASSEMBLY_CACHE_TTL = 86400  # 24 часа: техкарты меняются редко
+
+    def _assembly_cache_dir(self):
+        """Каталог кэша. На проде это том /kultura (переживает редеплой), локально data/."""
+        base = '/kultura' if os.path.isdir('/kultura') else \
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        path = os.path.join(base, 'cache')
+        try:
+            os.makedirs(path, exist_ok=True)
+        except Exception as e:
+            print(f"[CHARTS CACHE] Ne udalos sozdat {path}: {e}")
+        return path
+
+    def _assembly_cache_path(self, date_from, date_to):
+        return os.path.join(self._assembly_cache_dir(),
+                            f"assembly_map_{date_from}_{date_to}.json")
+
+    def _fallback_assembly_cache(self):
+        """Аварийный источник связки: любой сохранённый ранее файл, даже протухший.
+
+        Техкарты разливного стабильны (0,5 л остаётся 0,5 л годами), а без связки
+        страница теряет деньги в таблице целиком. Поэтому при недоступности iiko
+        лучше отдать позавчерашнюю карту, чем ничего. Берём самый свежий файл.
+        """
+        try:
+            directory = self._assembly_cache_dir()
+            files = [os.path.join(directory, n) for n in os.listdir(directory)
+                     if n.startswith('assembly_map_') and n.endswith('.json')]
+        except Exception:
+            return None
+        if not files:
+            return None
+        newest = max(files, key=lambda p: os.path.getmtime(p))
+        try:
+            with open(newest, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            age_h = (time.time() - os.path.getmtime(newest)) / 3600
+            print(f"[CHARTS CACHE] Avariyno beru {os.path.basename(newest)} "
+                  f"({len(data)} blyud, {age_h:.1f} ch)")
+            return data
+        except Exception as e:
+            print(f"[CHARTS CACHE] Avariyny kesh ne prochitan: {e}")
+            return None
+
+    def _read_assembly_cache(self, path):
+        try:
+            age = time.time() - os.path.getmtime(path)
+        except OSError:
+            return None
+        if age > self.ASSEMBLY_CACHE_TTL:
+            print(f"[CHARTS CACHE] Kesh protuh ({age / 3600:.1f} ch)")
+            return None
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            print(f"[CHARTS CACHE] Iz kesha: {len(data)} blyud ({age / 60:.0f} min)")
+            return data
+        except Exception as e:
+            print(f"[CHARTS CACHE] Ne prochitan {path}: {e}")
+            return None
+
+    def _write_assembly_cache(self, path, mapping):
+        """Атомарная запись: два gunicorn-воркера могут писать одновременно
+        (docs/lessons.md про race-traps)."""
+        if not mapping:
+            return
+        tmp = f"{path}.tmp.{os.getpid()}"
+        try:
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(mapping, f, ensure_ascii=False)
+            os.replace(tmp, path)
+        except Exception as e:
+            print(f"[CHARTS CACHE] Ne zapisan {path}: {e}")
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
     def get_kitchen_sales_report(self, date_from, date_to, bar_name=None):
         """

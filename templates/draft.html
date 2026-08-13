@@ -13,7 +13,6 @@
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
     <style>
@@ -245,26 +244,6 @@
             display: block;
         }
 
-        /* Chart */
-        .chart-container {
-            margin: 20px 0;
-            padding: 24px;
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-        }
-
-        .chart-icon {
-            cursor: pointer;
-            font-size: 1.2rem;
-            transition: transform 0.2s ease;
-            display: inline-block;
-        }
-
-        .chart-icon:hover {
-            transform: scale(1.2);
-        }
-
         /* Badge для ABC */
         .badge {
             display: inline-block;
@@ -396,6 +375,55 @@
             color: var(--text-primary);
         }
 
+        /* Баланс кегов (блок потерь) */
+        .balance-grid {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 0;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px 20px;
+            font-size: 0.95rem;
+        }
+
+        .balance-grid > div {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .balance-grid .v {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+            padding-left: 24px;
+        }
+
+        .balance-grid .pct {
+            text-align: right;
+            padding-left: 16px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+            font-size: 0.85rem;
+        }
+
+        .balance-grid .total {
+            border-bottom: none;
+            font-weight: 700;
+        }
+
+        .balance-grid .total ~ div { border-bottom: none; }
+
+        .hint {
+            color: var(--text-tertiary);
+            font-size: 0.85rem;
+            margin: 8px 0 0 0;
+        }
+
+        .dash { color: var(--text-tertiary); }
+
+        th[title], td[title] { cursor: help; }
+
         input[readonly] { cursor: pointer; }
         .flatpickr-calendar { border-radius: 6px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
         [data-theme="dark"] .flatpickr-calendar { background: var(--bg-secondary); border-color: var(--border-color); }
@@ -525,7 +553,10 @@
 
     <script>
         let currentData = {};
-        let activeCharts = {};
+        // Строки текущей выдачи: клик по строке передаёт индекс, а не JSON в атрибуте.
+        // Раньше в onclick подставлялся JSON.stringify, и апостроф в названии
+        // («Gravity It's Mango») закрывал атрибут и ломал обработчик.
+        let currentRows = [];
 
         // API Connection Status Check
         window.dashboardCheckApi = async function() {
@@ -615,7 +646,7 @@
                     requestBody.date_to = dateTo;
                 }
 
-                const response = await fetch('/api/draft-analyze', {
+                const response = await fetch('/api/draft-kegs', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -623,17 +654,20 @@
                     body: JSON.stringify(requestBody)
                 });
 
+                const data = await response.json();
+
                 if (!response.ok) {
-                    throw new Error('Ошибка при получении данных');
+                    // Сервер присылает причину («Нет данных за выбранный период») —
+                    // показываем её, а не общее «ошибка при получении данных».
+                    throw new Error(data && data.error ? data.error : 'HTTP ' + response.status);
                 }
 
-                const data = await response.json();
                 currentData = data;
                 displayResults(data);
 
             } catch (error) {
                 console.error('Error:', error);
-                showError('Ошибка: ' + error.message);
+                showError(error.message);
             } finally {
                 document.getElementById('loading').classList.remove('active');
             }
@@ -642,8 +676,15 @@
         function displayResults(data) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
+            currentRows = [];
 
-            for (const [barName, barData] of Object.entries(data)) {
+            const entries = Object.entries(data || {});
+            if (!entries.length) {
+                showError('За выбранный период движения кегов не было');
+                return;
+            }
+
+            for (const [barName, barData] of entries) {
                 const section = createBarSection(barName, barData);
                 resultsDiv.appendChild(section);
             }
@@ -658,185 +699,279 @@
             const card = document.createElement('div');
             card.className = 'card';
 
+            const p = data.period || {};
             const header = `
                 <div class="bar-header">
-                    <h2>${barName}</h2>
+                    <h2>${escapeHtml(barName)}</h2>
+                    <p class="hint">Литры — расход кегов со склада по данным iiko
+                    (списание по техкарте при продаже), период ${p.from} — ${p.to},
+                    ${p.days} дн.</p>
                 </div>
             `;
 
-            // Расчёт дополнительных метрик
-            const avgPricePerLiter = data.total_revenue / data.total_liters || 0;
-            const totalPortions = data.total_portions || 0;
-            // Средний объем порции = общий объём / количество порций
-            // Пример: 0.5л + 0.5л + 1.0л = 2.0л / 3 порции = 0.67л средняя
-            const avgPortionVolume = totalPortions > 0 ? data.total_liters / totalPortions : 0;
+            const markup = data.markup_percent === null || data.markup_percent === undefined
+                ? '<span class="dash">—</span>'
+                : formatPercent(data.markup_percent, 1);
 
             const stats = `
                 <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="label">Общий объём</div>
-                        <div class="value">${data.total_liters.toFixed(1)}<span class="unit">L</span></div>
+                    <div class="stat-card" title="Сумма расхода кегов по проводкам списания при продаже">
+                        <div class="label">Продано</div>
+                        <div class="value">${formatAmount(data.total_liters)}<span class="unit">л</span></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" title="Выручка со скидками / литры">
                         <div class="label">Средняя цена за литр</div>
-                        <div class="value">${formatMoney(avgPricePerLiter)}</div>
+                        <div class="value">${formatMoney(data.avg_price_per_liter)}</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" title="Литры / порции">
                         <div class="label">Средний объём порции</div>
-                        <div class="value">${avgPortionVolume.toFixed(2)}<span class="unit">L</span></div>
+                        <div class="value">${data.avg_portion_liters.toFixed(3)}<span class="unit">л</span></div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card" title="Количество проданных порций из отчёта по продажам">
                         <div class="label">Всего порций</div>
-                        <div class="value">${formatNumber(totalPortions)}</div>
+                        <div class="value">${formatAmount(data.total_portions)}</div>
+                    </div>
+                    <div class="stat-card" title="(выручка - себестоимость) / себестоимость, от сумм за период">
+                        <div class="label">Наценка</div>
+                        <div class="value">${markup}</div>
                     </div>
                 </div>
             `;
 
-            const hasBarColumn = data.beers && data.beers[0] && data.beers[0].Bar;
+            const rows = data.kegs || [];
+            const offset = currentRows.length;
+            currentRows = currentRows.concat(rows);
 
-            const hasABC = data.beers && data.beers[0] && data.beers[0].ABC_Combined;
-            const hasXYZ = data.beers && data.beers[0] && data.beers[0].XYZ_Category;
-            const hasRevenue = data.beers && data.beers[0] && data.beers[0].TotalRevenue !== undefined;
-
-            const topTable = `
-                <h3 class="section-title">Все позиции по объёму (литры) - кликните для деталей</h3>
+            const table = `
+                <h3 class="section-title">Позиции по объёму — нажмите строку для деталей</h3>
                 <table>
                     <thead>
                         <tr>
                             <th>#</th>
-                            ${hasBarColumn ? '<th>Бар</th>' : ''}
-                            <th>Пиво</th>
-                            <th>Литры</th>
-                            <th>Порции</th>
-                            <th>Доля, %</th>
-                            ${hasRevenue ? '<th>Выручка</th>' : ''}
-                            ${hasRevenue ? '<th>Цена/литр</th>' : ''}
-                            ${hasABC ? '<th>ABC</th>' : ''}
-                            ${hasXYZ ? '<th>XYZ</th>' : ''}
+                            <th>Кег</th>
+                            <th title="Расход кега со склада за период">Литры</th>
+                            <th title="Проданных порций по отчёту продаж">Порции</th>
+                            <th title="Литры позиции / литры всех позиций x 100">Доля, %</th>
+                            <th title="Сумма со скидками">Выручка</th>
+                            <th title="Выручка / литры">Цена/литр</th>
+                            <th title="(выручка - себестоимость) / себестоимость">Наценка</th>
+                            <th title="Три буквы: выручка (порог 80/95%), наценка, маржа">ABC</th>
+                            <th title="Стабильность недельных проливов: X до 30% разброса, Y до 60%, Z свыше">XYZ</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${(data.beers || []).map((beer, i) => `
-                            <tr class="beer-row" onclick='showBeerDetails(${JSON.stringify(beer)})' style="cursor: pointer;">
+                        ${rows.map((keg, i) => `
+                            <tr class="beer-row" onclick="showKegDetails(${offset + i})">
                                 <td>${i + 1}</td>
-                                ${hasBarColumn ? `<td>${beer.Bar}</td>` : ''}
-                                <td><strong>${beer.BeerName}</strong></td>
-                                <td>${beer.TotalLiters.toFixed(1)} L</td>
-                                <td>${beer.TotalPortions}</td>
-                                <td>${beer.BeerSharePercent.toFixed(1)}%</td>
-                                ${hasRevenue ? `<td>${formatMoney(beer.TotalRevenue)}</td>` : ''}
-                                ${hasRevenue ? `<td>${formatMoney(beer.PricePerLiter)}</td>` : ''}
-                                ${beer.ABC_Combined ? `<td><span class="badge abc-${beer.ABC_Combined.substring(0,1).toLowerCase()}">${beer.ABC_Combined}</span></td>` : ''}
-                                ${beer.XYZ_Category ? `<td><span class="badge xyz-${beer.XYZ_Category.toLowerCase()}">${beer.XYZ_Category}</span></td>` : ''}
+                                <td><strong>${escapeHtml(keg.KegName)}</strong></td>
+                                <td>${formatAmount(keg.TotalLiters)}</td>
+                                <td>${formatAmount(keg.TotalPortions)}</td>
+                                <td>${formatPercent(keg.LitersSharePercent, 1)}</td>
+                                <td>${formatMoney(keg.TotalRevenue)}</td>
+                                <td>${formatMoney(keg.PricePerLiter)}</td>
+                                <td>${keg.MarkupPercent === null ? '<span class="dash">—</span>' : formatPercent(keg.MarkupPercent, 0)}</td>
+                                <td><span class="badge abc-${keg.ABC_Combined.substring(0,1).toLowerCase()}">${keg.ABC_Combined}</span></td>
+                                <td>${renderXyzBadge(keg, data)}</td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
+                ${data.xyz_available ? '' : `<p class="hint">XYZ не рассчитан: в периоде
+                    ${data.xyz_buckets} полных недель, для оценки стабильности нужно минимум 3.</p>`}
+                ${(data.unmapped_dishes || []).length ? `<p class="hint">Позиции без связки с кегом
+                    (нет техкарты или кег не двигался в периоде), их деньги в таблицу не попали:
+                    ${data.unmapped_dishes.map(d => escapeHtml(d.DishName) +
+                        ' (' + formatMoney(d.Revenue) + ')').join(', ')}</p>` : ''}
             `;
 
-            card.innerHTML = header + stats + topTable;
+            card.innerHTML = header + stats + renderLosses(data) + table;
             section.appendChild(card);
             return section;
         }
 
-        function showBeerDetails(beer) {
-            const hasRevenue = beer.TotalRevenue !== undefined;
+        function renderLosses(data) {
+            const L = data.losses || {};
+            const sold = L.sold || 0;
+            const row = (label, value, hint, percent, cls) => `
+                <div class="${cls || ''}" title="${hint || ''}">${label}</div>
+                <div class="v ${cls || ''}">${formatSigned(value)}</div>
+                <div class="pct ${cls || ''}">${percent || ''}</div>
+            `;
+            return `
+                <h3 class="section-title">Баланс кегов за период (литры)</h3>
+                <div class="balance-grid">
+                    ${row('Приход по накладным', L.invoice_in, 'Проводки INVOICE: сколько кегов пришло на склады')}
+                    ${L.transfer_in ? row('Перемещения между барами, приход', L.transfer_in, 'Проводки TRANSFER') : ''}
+                    ${row('Продано через кассу', -sold, 'Проводки SESSION_WRITEOFF: списание кега по техкарте')}
+                    ${row('Списано актами', -(L.writeoff || 0),
+                          'Проводки WRITEOFF. Совпадает с объёмом позиций, удалённых «со списанием»: пиво налито, позиция удалена',
+                          sold ? formatPercent(L.writeoff_percent_of_sold, 2) + ' от продаж' : '')}
+                    ${row('Недостача по инвентаризациям', -(L.inventory_net || 0),
+                          'Проводки INVENTORY_CORRECTION, расход минус излишки. Здесь и пена с промывкой линий, и недокрут остатка кега на кране при пересчёте',
+                          sold ? formatPercent(L.inventory_percent_of_sold, 2) + ' от продаж' : '')}
+                    ${L.transfer_out ? row('Перемещения между барами, расход', -(L.transfer_out || 0), 'Проводки TRANSFER') : ''}
+                    ${row('Изменение остатка кегов', L.balance,
+                          'Приход и перемещения минус все расходы. Отрицательное значение означает, что склад за период уменьшился',
+                          '', 'total')}
+                </div>
+                ${(L.by_keg || []).length ? `
+                    <h3 class="section-title">Где именно расхождения</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Кег</th>
+                                <th title="Проводки WRITEOFF">Списано актами</th>
+                                <th title="Расход минус излишки">Недостача инвент.</th>
+                                <th>Продано</th>
+                                <th title="(списано + недостача) / продано">Доля от продаж</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${L.by_keg.map(k => `
+                                <tr>
+                                    <td>${escapeHtml(k.KegName)}</td>
+                                    <td>${formatAmount(k.WriteoffLiters)}</td>
+                                    <td>${formatAmount(k.InventoryNetLiters)}</td>
+                                    <td>${formatAmount(k.SoldLiters)}</td>
+                                    <td>${k.SoldLiters > 0
+                                        ? formatPercent((k.WriteoffLiters + k.InventoryNetLiters) / k.SoldLiters * 100, 1)
+                                        : '<span class="dash">—</span>'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                ` : ''}
+            `;
+        }
+
+        function renderXyzBadge(keg, data) {
+            if (keg.XYZ_Category) {
+                return `<span class="badge xyz-${keg.XYZ_Category.toLowerCase()}"
+                    title="Коэффициент вариации ${formatPercent(keg.CoefficientOfVariation, 1)} по ${keg.WeeksWithSales} нед. с продажами">${keg.XYZ_Category}</span>`;
+            }
+            const reason = !data.xyz_available
+                ? 'в периоде меньше 3 полных недель'
+                : `позиция была на кране ${keg.WeeksWithSales} нед. из ${keg.WeeksInPeriod}, нужно минимум 3`;
+            return `<span class="dash" title="Категория не присвоена: ${reason}">—</span>`;
+        }
+
+        function showKegDetails(index) {
+            const keg = currentRows[index];
+            if (!keg) return;
 
             const modalHTML = `
                 <div class="modal active" id="beer-modal" onclick="closeModalBackdrop(event)">
                     <div class="modal-content" onclick="event.stopPropagation()">
                         <div class="modal-header">
                             <div>
-                                <h2>${beer.BeerName}</h2>
-                                <p style="color: var(--text-secondary); margin-top: 4px;">${beer.Bar}</p>
+                                <h2>${escapeHtml(keg.KegName)}</h2>
+                                <p style="color: var(--text-secondary); margin-top: 4px;">${escapeHtml(keg.Bar || '')}</p>
                             </div>
                             <button class="modal-close" onclick="closeModal()">&times;</button>
                         </div>
 
                         <div class="detail-grid">
-                            <div class="detail-item">
-                                <div class="label">Объём</div>
-                                <div class="value">${beer.TotalLiters.toFixed(1)} L</div>
+                            <div class="detail-item" title="Расход кега со склада по проводкам продажи">
+                                <div class="label">Продано</div>
+                                <div class="value">${formatAmount(keg.TotalLiters)} л</div>
                             </div>
                             <div class="detail-item">
                                 <div class="label">Порций</div>
-                                <div class="value">${formatNumber(beer.TotalPortions)}</div>
+                                <div class="value">${formatAmount(keg.TotalPortions)}</div>
+                            </div>
+                            <div class="detail-item" title="Литры позиции / литры всех позиций x 100">
+                                <div class="label">Доля по литрам</div>
+                                <div class="value">${formatPercent(keg.LitersSharePercent, 1)}</div>
+                            </div>
+                            <div class="detail-item" title="Выручка позиции / выручка всех позиций x 100">
+                                <div class="label">Доля в выручке</div>
+                                <div class="value">${formatPercent(keg.RevenueSharePercent, 1)}</div>
+                            </div>
+                            <div class="detail-item" title="Недель с продажами из полных недель периода">
+                                <div class="label">На кране</div>
+                                <div class="value">${keg.WeeksWithSales} из ${keg.WeeksInPeriod} нед.</div>
+                            </div>
+                            <div class="detail-item" title="Литры / (дней в периоде / 7)">
+                                <div class="label">Литров в неделю</div>
+                                <div class="value">${formatAmount(keg.AvgLitersPerWeek)}</div>
                             </div>
                             <div class="detail-item">
-                                <div class="label">Доля пива</div>
-                                <div class="value">${beer.BeerSharePercent.toFixed(1)}%</div>
+                                <div class="label">Выручка</div>
+                                <div class="value">${formatMoney(keg.TotalRevenue)}</div>
                             </div>
-                            <div class="detail-item">
-                                <div class="label">Недель продавалось</div>
-                                <div class="value">${beer.WeeksActive}</div>
+                            <div class="detail-item" title="(выручка - себестоимость) / себестоимость">
+                                <div class="label">Наценка</div>
+                                <div class="value">${keg.MarkupPercent === null ? '<span class="dash">—</span>' : formatPercent(keg.MarkupPercent, 1)}</div>
                             </div>
-                            ${hasRevenue ? `
-                                <div class="detail-item">
-                                    <div class="label">Выручка</div>
-                                    <div class="value">${formatMoney(beer.TotalRevenue)}</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Наценка</div>
-                                    <div class="value">${(beer.AvgMarkupPercent * 100).toFixed(1)}%</div>
-                                </div>
-                                <div class="detail-item">
-                                    <div class="label">Маржа</div>
-                                    <div class="value">${formatMoney(beer.TotalMargin)}</div>
-                                </div>
-                            ` : ''}
+                            <div class="detail-item" title="Выручка минус себестоимость">
+                                <div class="label">Маржа</div>
+                                <div class="value">${formatMoney(keg.TotalMargin)}</div>
+                            </div>
+                            <div class="detail-item" title="Проводки WRITEOFF по этому кегу">
+                                <div class="label">Списано актами</div>
+                                <div class="value">${formatAmount(keg.WriteoffLiters)} л</div>
+                            </div>
+                            <div class="detail-item" title="Инвентаризация: расход минус излишки">
+                                <div class="label">Недостача инвент.</div>
+                                <div class="value">${formatAmount(keg.InventoryNetLiters)} л</div>
+                            </div>
                         </div>
 
-                        ${hasRevenue && beer.ABC_Combined ? `
-                            <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">ABC Анализ</h3>
-                            <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 6px;">
-                                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-                                    <span class="badge abc-${beer.ABC_Combined.substring(0,1).toLowerCase()}" style="font-size: 1.5rem; padding: 8px 20px;">
-                                        ${beer.ABC_Combined}
-                                    </span>
-                                    <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                                        ${beer.RevenuePercent ? beer.RevenuePercent.toFixed(1) + '% от выручки' : ''}
-                                    </div>
-                                </div>
-                                <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                                    <div style="display: flex; gap: 12px;">
-                                        <span class="badge abc-${beer.ABC_Revenue ? beer.ABC_Revenue.toLowerCase() : 'c'}" style="width: 30px; text-align: center;">${beer.ABC_Revenue || '?'}</span>
-                                        <span>Выручка: ${beer.ABC_Revenue === 'A' ? 'Топ 80%' : beer.ABC_Revenue === 'B' ? 'Средние 15%' : 'Нижние 5%'}</span>
-                                    </div>
-                                    <div style="display: flex; gap: 12px;">
-                                        <span class="badge abc-${beer.ABC_Markup ? beer.ABC_Markup.toLowerCase() : 'c'}" style="width: 30px; text-align: center;">${beer.ABC_Markup || '?'}</span>
-                                        <span>Наценка: ${beer.ABC_Markup === 'A' ? 'Высокая' : beer.ABC_Markup === 'B' ? 'Средняя' : 'Низкая'} (${(beer.AvgMarkupPercent * 100).toFixed(1)}%)</span>
-                                    </div>
-                                    <div style="display: flex; gap: 12px;">
-                                        <span class="badge abc-${beer.ABC_Margin ? beer.ABC_Margin.toLowerCase() : 'c'}" style="width: 30px; text-align: center;">${beer.ABC_Margin || '?'}</span>
-                                        <span>Маржа: ${beer.ABC_Margin === 'A' ? 'Высокая' : beer.ABC_Margin === 'B' ? 'Средняя' : 'Низкая'} (${formatMoney(beer.TotalMargin)})</span>
-                                    </div>
+                        <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">ABC анализ</h3>
+                        <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 6px;">
+                            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+                                <span class="badge abc-${keg.ABC_Combined.substring(0,1).toLowerCase()}" style="font-size: 1.5rem; padding: 8px 20px;">
+                                    ${keg.ABC_Combined}
+                                </span>
+                                <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    ${formatPercent(keg.RevenueSharePercent, 1)} от выручки разреза,
+                                    накопленным итогом ${formatPercent(keg.RevenueCumulativePercent, 1)}
                                 </div>
                             </div>
-                        ` : ''}
+                            <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                                <div style="display: flex; gap: 12px;">
+                                    <span class="badge abc-${keg.ABC_Revenue.toLowerCase()}" style="width: 30px; text-align: center;">${keg.ABC_Revenue}</span>
+                                    <span>Выручка: ${keg.ABC_Revenue === 'A' ? 'входит в первые 80% накопленной выручки' : keg.ABC_Revenue === 'B' ? 'следующие 15%' : 'последние 5%'}</span>
+                                </div>
+                                <div style="display: flex; gap: 12px;">
+                                    <span class="badge abc-${keg.ABC_Markup.toLowerCase()}" style="width: 30px; text-align: center;">${keg.ABC_Markup}</span>
+                                    <span>Наценка: ${keg.ABC_Markup === 'A' ? 'верхняя треть' : keg.ABC_Markup === 'B' ? 'середина' : 'нижняя треть'}
+                                    ${keg.MarkupPercent === null ? '' : '(' + formatPercent(keg.MarkupPercent, 1) + ')'}</span>
+                                </div>
+                                <div style="display: flex; gap: 12px;">
+                                    <span class="badge abc-${keg.ABC_Margin.toLowerCase()}" style="width: 30px; text-align: center;">${keg.ABC_Margin}</span>
+                                    <span>Маржа: ${keg.ABC_Margin === 'A' ? 'верхняя треть' : keg.ABC_Margin === 'B' ? 'середина' : 'нижняя треть'} (${formatMoney(keg.TotalMargin)})</span>
+                                </div>
+                            </div>
+                        </div>
 
-                        ${beer.XYZ_Category ? `
-                            <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">XYZ Анализ (стабильность спроса)</h3>
-                            <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 6px;">
-                                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-                                    <span class="badge xyz-${beer.XYZ_Category.toLowerCase()}" style="font-size: 1.5rem; padding: 8px 20px;">
-                                        ${beer.XYZ_Category}
+                        <h3 style="margin: 24px 0 16px 0; font-size: 1.1rem; font-weight: 600;">XYZ анализ (стабильность спроса)</h3>
+                        <div style="background: var(--bg-tertiary); padding: 20px; border-radius: 6px;">
+                            ${keg.XYZ_Category ? `
+                                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 12px;">
+                                    <span class="badge xyz-${keg.XYZ_Category.toLowerCase()}" style="font-size: 1.5rem; padding: 8px 20px;">
+                                        ${keg.XYZ_Category}
                                     </span>
                                     <div style="font-size: 0.9rem; color: var(--text-secondary);">
-                                        Коэф. вариации: ${beer.CoefficientOfVariation ? beer.CoefficientOfVariation.toFixed(1) + '%' : '—'}
+                                        Коэффициент вариации ${formatPercent(keg.CoefficientOfVariation, 1)}
+                                        по ${keg.WeeksWithSales} нед. с продажами
                                     </div>
                                 </div>
-                                <div style="display: grid; gap: 8px; font-size: 0.9rem;">
-                                    <div style="display: flex; gap: 12px; align-items: center;">
-                                        <span class="badge xyz-${beer.XYZ_Category.toLowerCase()}" style="width: 30px; text-align: center;">${beer.XYZ_Category}</span>
-                                        <span>
-                                            ${beer.XYZ_Category === 'X' ? 'Стабильный спрос (топ 33% по стабильности)' :
-                                              beer.XYZ_Category === 'Y' ? 'Переменный спрос (средние 33%)' :
-                                              'Нестабильный спрос (нижние 33%)'}
-                                        </span>
-                                    </div>
+                                <div style="font-size: 0.9rem;">
+                                    ${keg.XYZ_Category === 'X' ? 'Недельный объём предсказуем: разброс до 30%.' :
+                                      keg.XYZ_Category === 'Y' ? 'Умеренный разброс: от 30% до 60% недельного объёма.' :
+                                      'Разброс свыше 60%: недельный объём может отличаться больше чем в полтора раза.'}
                                 </div>
-                            </div>
-                        ` : ''}
+                            ` : `
+                                <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    Категория не присвоена: ${keg.WeeksWithSales < 3
+                                        ? `позиция была на кране ${keg.WeeksWithSales} нед. из ${keg.WeeksInPeriod}, для оценки стабильности нужно минимум 3`
+                                        : 'в периоде меньше 3 полных недель'}.
+                                </div>
+                            `}
+                            <p class="hint">Считается по неделям, когда позиция стояла на кране:
+                            стандартное отклонение недельных литров делится на среднее.</p>
+                        </div>
                     </div>
                 </div>
             `;
@@ -868,11 +1003,46 @@
                 style: 'currency',
                 currency: 'RUB',
                 maximumFractionDigits: 0
-            }).format(value);
+            }).format(value || 0);
         }
 
         function formatNumber(value) {
-            return new Intl.NumberFormat('ru-RU').format(value);
+            return new Intl.NumberFormat('ru-RU').format(value || 0);
+        }
+
+        // Литры и порции бывают дробными (порция 0,33 в данных встречается),
+        // поэтому дробную часть не отрезаем, но и не рисуем нули у целых.
+        function formatAmount(value) {
+            const rounded = Math.round((value || 0) * 100) / 100;
+            return new Intl.NumberFormat('ru-RU', {
+                maximumFractionDigits: Number.isInteger(rounded) ? 0 : 2
+            }).format(rounded);
+        }
+
+        function formatPercent(value, digits) {
+            if (value === null || value === undefined) return '—';
+            return new Intl.NumberFormat('ru-RU', {
+                minimumFractionDigits: digits,
+                maximumFractionDigits: digits
+            }).format(value) + '%';
+        }
+
+        function formatSigned(value) {
+            const v = value || 0;
+            const text = formatAmount(Math.abs(v));
+            if (v > 0) return '+' + text;
+            if (v < 0) return '−' + text;
+            return text;
+        }
+
+        // Названия кегов приходят из iiko и могут содержать кавычки и угловые скобки.
+        function escapeHtml(text) {
+            return String(text === null || text === undefined ? '' : text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function showError(message) {

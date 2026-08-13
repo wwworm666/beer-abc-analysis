@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import pandas as pd
 import json
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from core.olap_reports import OlapReports
 from core.data_processor import BeerDataProcessor
 from core.abc_analysis import ABCAnalysis
@@ -9,9 +10,10 @@ from core.xyz_analysis import XYZAnalysis
 from core.category_analysis import CategoryAnalysis
 from core.abc_buckets import get_bucket_key
 from core.draft_analysis import DraftAnalysis
+from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.waiter_analysis import WaiterAnalysis
 from core.revenue_metrics import RevenueMetricsCalculator
-from extensions import BARS
+from extensions import BARS, cached_olap
 
 analysis_bp = Blueprint('analysis', __name__)
 
@@ -776,6 +778,99 @@ def analyze_draft():
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
+
+@analysis_bp.route('/api/draft-kegs', methods=['POST'])
+def analyze_draft_kegs():
+    """Проливы по кегам: литры из проводок iiko, деньги из отчёта по продажам.
+
+    Заменяет /api/draft-analyze как источник данных страницы /draft. Старый эндпоинт
+    оставлен рабочим: он считает литры из названий блюд и нужен для сверки двух
+    расчётов (tests/test_draft_kegs.py, docs/draft.md).
+
+    Тело запроса: {bar, date_from, date_to} либо {bar, days}. Даты — ВКЛЮЧИТЕЛЬНО,
+    к iiko уходит date_to + 1 день (правая граница DateRange эксклюзивная).
+    """
+    try:
+        data = request.json or {}
+        bar_name = data.get('bar') or None
+        days = int(data.get('days', 30))
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        print(f"\n[DRAFT KEGS] Zapusk analiza prolivov po kegam...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
+
+        if not date_from or not date_to:
+            # Тот же дефолт, что у остальных страниц: московский день, иначе на
+            # UTC-хосте после 21:00 «сегодня» уезжает на сутки назад.
+            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
+            date_to = today.strftime('%Y-%m-%d')
+            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
+            print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
+        else:
+            print(f"   Period: {date_from} - {date_to}")
+
+        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d')
+                        + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        cache_key = f"draft_kegs_{bar_name or 'ALL'}_{date_from}_{olap_date_to}"
+
+        def fetch():
+            olap = OlapReports()
+            if not olap.connect():
+                return None
+            try:
+                # Порядок важен: связь с iiko рвётся, и если упал первый запрос,
+                # остальные только жгут бюджет gunicorn --timeout впустую.
+                transactions = olap.get_draft_writeoff_report(
+                    date_from, olap_date_to, bar_name)
+                if transactions is None:
+                    return None
+                sales = olap.get_draft_sales_by_dish(date_from, olap_date_to, bar_name)
+                if sales is None:
+                    return None
+                dish_map = olap.get_dish_ingredient_map(date_from, olap_date_to)
+            finally:
+                olap.disconnect()
+
+            if dish_map is None:
+                return None
+            return {
+                'transactions': transactions.get('data') or [],
+                'sales': sales.get('data') or [],
+                'dish_map': dish_map,
+            }
+
+        raw = cached_olap(cache_key, fetch)
+        if not raw:
+            return jsonify({'error': 'Не удалось получить данные из iiko API'}), 502
+
+        analyzer = DraftKegAnalysis(
+            transactions=raw['transactions'],
+            sales=raw['sales'],
+            dish_map=raw['dish_map'],
+            date_from=date_from,
+            date_to=date_to,
+        )
+        block = strip_service_fields(analyzer.build(bar_name))
+
+        if not block['kegs'] and block['losses']['invoice_in'] == 0:
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        print(f"   [OK] Kegov: {block['total_kegs']}, litrov: {block['total_liters']:.2f}, "
+              f"XYZ: {'da' if block['xyz_available'] else 'net (nuzhno 3 nedeli)'}")
+        if block['unmapped_dishes']:
+            print(f"   [WARN] Blyud bez kega: {len(block['unmapped_dishes'])} "
+                  f"(pervoe: {block['unmapped_dishes'][0]['DishName']})")
+
+        return jsonify({bar_name or 'Общая': block})
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/draft-kegs: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
+
 
 @analysis_bp.route('/api/waiter-analyze', methods=['POST'])
 def analyze_waiters():
