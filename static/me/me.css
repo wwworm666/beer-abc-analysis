@@ -1,0 +1,468 @@
+/* Личная страница /me.
+
+   Только переменные дизайн-системы (static/dashboard/styles/variables.css) —
+   ни одного HEX и ни одной rgba() с числами, иначе ломается тёмная тема.
+   Без эмодзи (правило .claude/CLAUDE.md).
+
+   Радиусы: карточки 14px, кнопки внутри 9-10px, таблетки 999px.
+   Префикс me- свободен и ни с чем в проекте не пересекается.
+
+   Имена .metric-card / .metric-value / .stat-value ЗАПРЕЩЕНЫ на этой странице:
+   глобальный mobile.css перебивает их на <=480px до 1rem, и герой-число на
+   телефоне схлопнулось бы до 16px. Свои классы, свои размеры.
+   Классы .sc-mobile / .sc-desktop / .mv-* тоже запрещены: schedule.css
+   переключает их на 700px и притащил бы чужой брейкпоинт внутрь страницы. */
+
+/* ==================== Каркас ==================== */
+
+/* Глобальный mobile.css оставляет внизу место под .bottom-tabs (76px), которых
+   на этой странице нет. Два класса против одного — побеждаем без !important. */
+body.me-page .container { padding-bottom: var(--spacing-md); }
+
+.me-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 460px — родная ширина .ms-wrap (schedule.css). Колонка ровно такой ширины
+   означает ноль правок личного экрана смен: компонент работает в своей
+   геометрии, а переопределения — главный источник дефектов вёрстки. */
+.me-grid {
+    display: grid;
+    grid-template-columns: 460px minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+.me-col { min-width: 0; }
+
+/* ==================== Полоса свежести ====================
+   Левая колонка живая, правая — снимок, у каждой своя отметка времени.
+   Свежесть закодирована в геометрии страницы, а не только в подписи. */
+
+.me-band {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 14px;
+    min-height: 24px;
+}
+.me-band-t {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.me-band-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+}
+.me-band-r { flex: none; display: flex; align-items: center; gap: 8px; }
+.me-live-ts { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+
+/* ==================== Кнопка обновления ====================
+   Не .btn: глобальный mobile.css растягивает .btn на 100% ниже 768px, и кнопка
+   разорвала бы полосу. Контурная, без заливки — на странице нет ни одной новой
+   заливной кнопки, чтобы не заводить пару «фон + текст на нём». */
+
+.me-refresh {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: var(--border-radius-pill);
+    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    background: transparent;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+.me-refresh:hover { background: var(--accent-light); }
+.me-refresh.is-busy,
+.me-refresh.is-cool {
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+    background: transparent;
+    cursor: default;
+}
+.me-refresh.is-error {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+.me-refresh[disabled] { cursor: default; }
+.me-refresh .me-spin {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--text-secondary);
+    border-radius: 50%;
+    animation: me-spin 0.8s linear infinite;
+}
+@keyframes me-spin { to { transform: rotate(360deg); } }
+
+/* ==================== Карточки ==================== */
+
+.me-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+/* Штамп даты снимка — первая строка каждой карточки со снимочными числами.
+   Повторяется в каждой карточке осознанно: подпись должна быть в поле зрения
+   тогда, когда человек смотрит на конкретное число, а не 900px выше.
+   У живых блоков штампа нет вообще — его отсутствие и означает «живое». */
+.me-stamp {
+    padding: 6px 14px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-light);
+    font-size: 0.62rem;
+    color: var(--text-tertiary);
+    letter-spacing: .02em;
+}
+.me-stamp.is-stale {
+    background: var(--warning-bg);
+    color: var(--warning);
+}
+
+.me-card-body { padding: 14px; }
+
+.me-h {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 12px;
+}
+.me-h-sub {
+    margin-left: auto;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--text-tertiary);
+    white-space: nowrap;
+}
+.me-sub {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin: 22px 0 10px;
+}
+
+/* ==================== Пустые состояния и ошибки ====================
+   Пустоту показываем словами и причиной, никогда нулём: ноль означает
+   «посчитано и получилось ноль», а «нет данных» — «не посчитано». На странице
+   про деньги смешивать эти два смысла нельзя. */
+
+.me-empty,
+.me-error {
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    margin-bottom: 16px;
+}
+.me-empty {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+.me-error {
+    background: var(--danger-bg);
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+    color: var(--text-primary);
+}
+.me-empty.is-warn {
+    background: var(--warning-bg);
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+}
+.me-empty strong, .me-error strong { color: var(--text-primary); }
+.me-issue-act {
+    display: block;
+    margin-top: 8px;
+    font-size: 0.76rem;
+    color: var(--text-tertiary);
+}
+
+/* ==================== Деньги: квитанция ====================
+   Формула стоит под каждой строкой ВСЕГДА (принцип №1 проекта). Цветом помечен
+   только вычет: шесть зелёных сумм подряд — это «пёстрые цветные надписи» из
+   таблицы запретов дизайн-системы. */
+
+.me-total-v {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+.me-total-sub {
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+    margin: 2px 0 14px;
+}
+
+.me-rows { border-top: 1px solid var(--border-light); }
+.me-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 0 0;
+    font-size: 0.84rem;
+}
+.me-row-n { flex: 1; min-width: 0; color: var(--text-primary); }
+.me-row-v {
+    flex: none;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.me-row-v.is-minus { color: var(--danger); }
+.me-row-v.is-excluded {
+    color: var(--text-tertiary);
+    text-decoration: line-through;
+}
+.me-row-sub { padding: 2px 0 9px; border-bottom: 1px solid var(--border-light); }
+.me-row-f {
+    font-size: 0.7rem;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+    font-variant-numeric: tabular-nums;
+}
+.me-row-f.is-warn { color: var(--warning); }
+.me-row-f.is-jump { color: var(--accent); }
+.me-row.is-total {
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 2px solid var(--border-color);
+    font-size: 0.95rem;
+}
+.me-row.is-total .me-row-n,
+.me-row.is-total .me-row-v { font-weight: 700; }
+.me-note {
+    margin-top: 12px;
+    font-size: 0.7rem;
+    line-height: 1.6;
+    color: var(--text-tertiary);
+}
+
+/* ==================== KPI ==================== */
+
+.me-kpi-fund { font-size: 0.82rem; color: var(--text-primary); }
+.me-kpi-fund-sub {
+    font-size: 0.72rem;
+    color: var(--text-tertiary);
+    margin-top: 3px;
+    font-variant-numeric: tabular-nums;
+}
+.me-kpi-total {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-light);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.me-kpi-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.me-kpi-name { flex: 1; font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+.me-kpi-prem {
+    flex: none;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+.me-kpi-max { font-weight: 400; color: var(--text-tertiary); }
+
+.me-kpi-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.me-kpi-num {
+    background: var(--bg-tertiary);
+    border-radius: 9px;
+    padding: 7px 9px;
+    min-width: 0;
+}
+.me-kpi-num-l { font-size: 0.6rem; color: var(--text-tertiary); }
+.me-kpi-num-v {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Шкала множителя 0..maxRatio с риской на цели. Без риски шкала читалась бы
+   как «выполнил половину», хотя это ровно «выполнил цель». */
+.me-kpi-bar {
+    position: relative;
+    height: 8px;
+    margin: 12px 0 4px;
+    border-radius: var(--border-radius-pill);
+    background: var(--bg-tertiary);
+    overflow: hidden;
+}
+.me-kpi-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    border-radius: var(--border-radius-pill);
+    background: var(--accent);
+}
+.me-kpi-mark {
+    position: absolute;
+    top: -2px; bottom: -2px;
+    width: 2px;
+    background: var(--text-secondary);
+}
+.me-kpi-scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: var(--text-tertiary);
+}
+.me-kpi-scale span:nth-child(2) { transform: translateX(-50%); margin-left: 50%; }
+.me-kpi-calc {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==================== Показатели ==================== */
+
+.me-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.me-tile {
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    padding: 12px 14px;
+    min-width: 0;
+}
+.me-tile-l {
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.me-tile-v {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.me-folds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
+.me-folds .sc-fold { min-width: 0; }
+
+/* Кружок «?» — кнопка, а не span: на телефоне hover нет, и title не открыть
+   ничем. Клик разворачивает .me-formula под строкой. */
+.me-help {
+    flex: none;
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-tertiary);
+    font-family: inherit;
+    font-size: 0.6rem;
+    line-height: 1;
+    cursor: pointer;
+}
+.me-help:hover { color: var(--accent); border-color: var(--accent); }
+.me-help[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
+.me-formula {
+    margin: 4px 0 6px;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border-radius: 9px;
+    font-size: 0.7rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ==================== Ссылки и подвал ==================== */
+
+.me-link {
+    display: block;
+    text-align: center;
+    margin: 4px 0 20px;
+    padding: 11px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.me-link:hover { background: var(--bg-hover); }
+
+.me-foot {
+    margin-top: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-light);
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: var(--text-tertiary);
+}
+
+/* ==================== Адаптив ====================
+   Один брейкпоинт — 768px, тот же, на котором переключается всё окружение
+   страницы (.container padding + safe-area, .btn на всю ширину, утилиты
+   .desktop-only/.mobile-only). Ни одна строка JS страницы ширину не читает,
+   поэтому рассинхронизировать CSS и JS здесь нечем. */
+
+@media (max-width: 768px) {
+    .me-wrap { padding: 0 12px calc(24px + env(safe-area-inset-bottom, 0px)); }
+    .me-grid { grid-template-columns: 1fr; gap: 4px; }
+    /* Разделитель между живым и снимком: двойная линия — единственная на
+       странице, поэтому граница двух свежестей читается и без колонок. */
+    #meSnapCol > .me-band.is-snap {
+        margin-top: 22px;
+        padding: 12px 0;
+        border-top: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--border-color);
+    }
+    /* На узком экране личный экран смен занимает всю ширину. */
+    .me-col .ms-wrap { max-width: 100%; }
+    /* Первая плитка — герой на всю строку, две остальные парой. Эффект .m-hero
+       + .m-duo из cards.css без второй разметки. */
+    .me-tiles { grid-template-columns: repeat(2, 1fr); }
+    .me-tiles > .me-tile:first-child { grid-column: 1 / -1; }
+    .me-tiles > .me-tile:first-child .me-tile-v { font-size: 1.8rem; }
+    .me-folds { grid-template-columns: 1fr; }
+}
+
+/* Четыре числа KPI в ряд на узком экране не читаются: подписи «множитель» и
+   «минимум» обрезаются. Двумя рядами по два. */
+@media (max-width: 480px) {
+    .me-kpi-nums { grid-template-columns: repeat(2, 1fr); }
+    .me-total-v { font-size: 1.7rem; }
+}

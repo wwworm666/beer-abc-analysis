@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Я — Пивная культура</title>
+    <!-- Порядок важен: свой me.css последним, чтобы наши правила побеждали при
+         равной специфичности. schedule.css нужен целиком: личный экран смен
+         (.ms-*) и сворачиваемые блоки (.sc-fold*) живут там. -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/schedule/schedule.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/me/me.css?v={{ app_version }}">
+</head>
+<!-- data-emp-iiko — привязка аккаунта к сотруднику; renderMyShifts фильтрует по
+     ней свои смены. Тот же приём, что на /schedule. -->
+<body class="me-page" data-emp-iiko="{% if current_user and current_user.employee_iiko_id %}{{ current_user.employee_iiko_id }}{% endif %}">
+    <div class="container">
+        {% set page_title = "Я" %}
+        {% set page_subtitle = current_user.display_name if current_user else "" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <div class="me-wrap">
+      <div class="me-grid">
+
+        <!-- ЖИВОЕ: смены и часы прямо из графика. Обновляется само. -->
+        <section class="me-col">
+          <div class="me-band">
+            <span class="me-band-t">Сейчас</span>
+            <span class="me-band-line"></span>
+            <span class="me-band-r"><span class="me-live-ts" id="meLiveTs"></span></span>
+          </div>
+          <div id="meNotice"></div>
+          <div id="myShifts" class="ms-wrap"></div>
+          <a class="me-link" href="/schedule">Весь график по сотрудникам</a>
+        </section>
+
+        <!-- СНИМОК: показатели, KPI и деньги. Пересчитывается раз в сутки. -->
+        <section class="me-col" id="meSnapCol">
+          <div class="me-band is-snap">
+            <span class="me-band-t" id="meSnapTitle">Снимок</span>
+            <span class="me-band-line"></span>
+            <span class="me-band-r">
+              <button type="button" class="me-refresh" id="meRefresh" hidden>Обновить</button>
+            </span>
+          </div>
+          <div id="meSnapNotice"></div>
+          <div id="meMoney"></div>
+          <div id="meKpi"></div>
+          <div id="meMetrics"></div>
+        </section>
+
+      </div>
+      <div class="me-foot" id="meFoot"></div>
+    </div>
+
+    <div class="loading" id="loading" style="display: none;">
+      <div class="spinner"></div>
+      Загрузка...
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <!-- Модалка «часы + касса»: главное действие страницы. Разметка та же, что на
+         /schedule (общий модуль fact_modal.js ищет поля по этим id). Модалку
+         правки смены сюда НЕ копируем: с /me своё, чужие смены не редактируются. -->
+    <div class="modal-overlay" id="factModal">
+      <div class="modal">
+        <button type="button" class="modal-x" id="factClose" aria-label="Закрыть">&times;</button>
+        <h2 id="factModalTitle">Отработанные часы</h2>
+        <form id="factForm">
+          <div class="form-group cash-primary">
+            <label for="factInput">Сколько отработано</label>
+            <input type="text" id="factInput" inputmode="numeric"
+                   placeholder="10:30" autocomplete="off">
+            <div class="form-hint">Формат: 10:30 (часы:минуты) или 10.5</div>
+          </div>
+          <!-- Касса на конец смены — только дневная смена. Ручной пересчёт бармена. -->
+          <div class="cash-block" id="factCashBlock">
+            <div class="cash-locked" id="factCashLocked" hidden></div>
+            <div class="form-group cash-end-group cash-primary">
+              <label for="factCashEnd">Наличные в сейфе на конец смены, ₽</label>
+              <input type="text" id="factCashEnd" inputmode="decimal"
+                     placeholder="напр. 15340" autocomplete="off">
+            </div>
+            <div class="cash-optional">
+              <div class="cash-opt-h">Если было за смену:</div>
+              <label class="cash-toggle">
+                <input type="checkbox" id="factExpenseOn">
+                <span>Траты из кассы</span>
+              </label>
+              <div class="cash-sub" id="factExpenseSub" hidden>
+                <input type="text" id="factExpenseAmt" inputmode="decimal"
+                       placeholder="сумма, ₽" autocomplete="off">
+                <input type="text" id="factExpenseNote"
+                       placeholder="на что (обязательно)" autocomplete="off">
+              </div>
+              <label class="cash-toggle">
+                <input type="checkbox" id="factCollectionOn">
+                <span>Инкассация</span>
+              </label>
+              <div class="cash-sub" id="factCollectionSub" hidden>
+                <input type="text" id="factCollectionAmt" inputmode="decimal"
+                       placeholder="сумма, ₽" autocomplete="off">
+              </div>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="/static/js/schedule/common.js?v={{ app_version }}"></script>
+    <script src="/static/js/schedule/screens.js?v={{ app_version }}"></script>
+    <script src="/static/js/schedule/fact_modal.js?v={{ app_version }}"></script>
+    <script src="/static/js/me/snapshot.js?v={{ app_version }}"></script>
+    <script src="/static/js/me/view.js?v={{ app_version }}"></script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

@@ -83,6 +83,12 @@ start_guest_sync_scheduler()
 from core.salary_scheduler import start_scheduler as start_salary_sync_scheduler
 start_salary_sync_scheduler(app)
 
+# Запустить ночной пересчёт снимка личного кабинета /me (05:40 наивного времени
+# = 08:40 МСК, последним в ночной цепочке: те же кассовые смены и OLAP, что у
+# выгрузки ЗП). Молча не стартует без кредов iiko.
+from core.me_snapshot_scheduler import start_scheduler as start_me_snapshot_scheduler
+start_me_snapshot_scheduler(app)
+
 
 if __name__ == '__main__':
     # Под gunicorn эта ветка не исполняется — это только для локального запуска `python app.py`.

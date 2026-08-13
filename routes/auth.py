@@ -94,23 +94,57 @@ def logout():
 
 # --- Управление аккаунтами (только админ) ---
 
+def _schedule_employees():
+    """Реестр сотрудников графика, best-effort (пустой список, если БД недоступна)."""
+    try:
+        from core.shifts_manager import get_shifts_manager
+        return get_shifts_manager().get_schedule_employees(include_inactive=True)
+    except Exception:
+        return []
+
+
+def _norm_emp_name(name):
+    """Множество слов имени в нижнем регистре — для поиска тёзок в реестре."""
+    return ' '.join(sorted((name or '').lower().split()))
+
+
 @auth_bp.route('/admin/users')
 @admin_required
 def admin_users():
     mgr = get_auth_manager()
     # Реестр сотрудников графика: имена — для подсказки display_name, пары
     # {id, name} (только с устойчивым iiko_id) — для привязки аккаунта к сотруднику.
-    try:
-        from core.shifts_manager import get_shifts_manager
-        emps = get_shifts_manager().get_schedule_employees(include_inactive=True)
-    except Exception:
-        emps = []
+    emps = _schedule_employees()
     registry = [e['name'] for e in emps]
-    employees = [{'id': e['id'], 'name': e['name']} for e in emps if e.get('id')]
+
+    # Метка опции в списке привязки. Одно имя на двух карточках iiko —
+    # реальный случай (под него есть HandoverPenaltyConflict), а в списке из
+    # одних имён админ такие опции не различит и привяжет аккаунт не к тому
+    # человеку. Тёзкам дописываем хвост id; неактивных и отсутствующих в
+    # реестре помечаем словами. Шум добавляется только там, где без него
+    # ошибка неизбежна.
+    with_id = [e for e in emps if e.get('id')]
+    name_counts = {}
+    for e in with_id:
+        key = _norm_emp_name(e.get('name'))
+        name_counts[key] = name_counts.get(key, 0) + 1
+
+    employees = []
+    for e in with_id:
+        label = e['name']
+        if name_counts.get(_norm_emp_name(e.get('name')), 0) > 1:
+            label += f" · id ...{str(e['id'])[-6:]}"
+        if not e.get('in_registry', True):
+            label += ' (не в реестре)'
+        if not e.get('active', True):
+            label += ' (скрыт)'
+        employees.append({'id': e['id'], 'name': e['name'], 'label': label})
+
     return render_template('admin_users.html',
                            users=mgr.list_users(),
                            registry_names=registry,
-                           employees=employees)
+                           employees=employees,
+                           duplicate_links=mgr.find_duplicate_employee_links())
 
 
 @auth_bp.route('/api/auth/users', methods=['GET'])
@@ -155,10 +189,27 @@ def api_update_profile(user_id):
 @auth_bp.route('/api/auth/users/<int:user_id>/employee', methods=['POST'])
 @admin_required
 def api_set_employee(user_id):
-    """Привязать аккаунт к сотруднику графика по iiko_id (пусто = отвязать)."""
+    """Привязать аккаунт к сотруднику графика по iiko_id (пусто = отвязать).
+
+    Существование сотрудника проверяется ЗДЕСЬ, а не в AuthManager: менеджер
+    работает только с auth.db, и тащить в него shifts.db значило бы связать две
+    независимые базы. По этой привязке личная страница отдаёт человеку его
+    зарплату, поэтому id из ниоткуда принимать нельзя — список в форме
+    фильтрованный, но эндпоинт принимает что угодно.
+    Уникальность привязки (один сотрудник = один аккаунт) проверяет менеджер.
+
+    Реестр пуст (график недоступен) -> проверку пропускаем: недоступность
+    shifts.db не должна лишать админа возможности управлять аккаунтами.
+    """
     data = request.get_json() or {}
+    emp_id = (data.get('employee_iiko_id') or '').strip()
+    if emp_id:
+        known = {str(e['id']) for e in _schedule_employees() if e.get('id')}
+        if known and emp_id not in known:
+            return jsonify({'error': 'Сотрудник с таким идентификатором не найден '
+                                     'в реестре графика'}), 400
     try:
-        get_auth_manager().set_employee_link(user_id, data.get('employee_iiko_id'))
+        get_auth_manager().set_employee_link(user_id, emp_id)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     return jsonify({'ok': True})

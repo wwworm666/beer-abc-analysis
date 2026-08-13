@@ -19,6 +19,41 @@
     var FALLBACK = ['#6f93a6', '#c08f9b', '#c3a55f', '#7d9b6b'];
     var ACCENT = '#c0673a', AMBER = '#c98a32', RED = '#c0492f';
     var NORM_SHIFTS = 15, NORM_HOURS = 113; // месячная норма: смен / часов
+    // Норма — фоллбэк. Актуальные значения приходят с бэка
+    // (core/schedule_plans.py: SHIFT_NORM/HOURS_NORM) через opts.norms там, где
+    // страница их получает; хардкод остаётся только чтобы /schedule работал
+    // без нового запроса.
+
+    // Цвета статусов и прозрачности заливки — из CSS-токенов (schedule.css:
+    // --sh-ring-*, --sh-hairline, --sh-fill-*), а не из хардкода в JS: инлайновый
+    // стиль не переопределяется темой, и в тёмной теме кольца теряли контраст,
+    // а тусклая заливка «ждёт факт» исчезала совсем. Читаем один раз за рендер:
+    // getComputedStyle на каждый блок календаря — это десятки reflow.
+    function themeTokens() {
+        var t = { today: ACCENT, nofact: AMBER, conflict: RED,
+                  hairline: 'rgba(0,0,0,.08)', fillSoon: 0.5, fillDone: 0.92 };
+        try {
+            var cs = getComputedStyle(document.body);
+            var pick = function (name, fallback) {
+                var v = (cs.getPropertyValue(name) || '').trim();
+                return v || fallback;
+            };
+            t.today = pick('--sh-ring-today', t.today);
+            t.nofact = pick('--sh-ring-nofact', t.nofact);
+            t.conflict = pick('--sh-ring-conflict', t.conflict);
+            t.hairline = pick('--sh-hairline', t.hairline);
+            t.fillSoon = parseFloat(pick('--sh-fill-soon', t.fillSoon)) || t.fillSoon;
+            t.fillDone = parseFloat(pick('--sh-fill-done', t.fillDone)) || t.fillDone;
+        } catch (e) { /* нет DOM/темы — работаем на фоллбэках */ }
+        return t;
+    }
+    var TH = themeTokens();
+    // Переключение темы происходит без перезагрузки (dashboardSetTheme в
+    // shared/nav.html меняет data-theme), поэтому токены надо перечитывать.
+    if (typeof MutationObserver !== 'undefined') {
+        new MutationObserver(function () { TH = themeTokens(); })
+            .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    }
 
     function locColor(loc, idx) {
         return (loc && BAR_COLORS[loc.venue_key]) || FALLBACK[(idx || 0) % FALLBACK.length];
@@ -64,15 +99,19 @@
     // точки, в отличие от тонкой рамки. Сегодня — терракот, ждёт факт — янтарь,
     // конфликт — красный. Отработана/предстоит — без кольца (различаются яркостью).
     function statusRing(st) {
-        if (st === 'today') return '0 0 0 2px ' + ACCENT;
-        if (st === 'nofact') return '0 0 0 2px ' + AMBER;
-        if (st === 'conflict') return '0 0 0 2px ' + RED;
+        if (st === 'today') return '0 0 0 2px ' + TH.today;
+        if (st === 'nofact') return '0 0 0 2px ' + TH.nofact;
+        if (st === 'conflict') return '0 0 0 2px ' + TH.conflict;
         return '';
     }
     function blockStyle(col, op, eve, st) {
         var ring = statusRing(st);
         return 'height:' + (eve ? '56%' : '100%') + ';background:' + rgba(col, op)
-            + ';border:1px solid rgba(0,0,0,.08)' + (ring ? ';box-shadow:' + ring : '');
+            + ';border:1px solid ' + TH.hairline + (ring ? ';box-shadow:' + ring : '');
+    }
+    // Прозрачность заливки блока по статусу — из токенов темы.
+    function fillOpacity(st) {
+        return st === 'soon' ? TH.fillSoon : TH.fillDone;
     }
 
     function empKey(shiftOrEmp) {
@@ -126,7 +165,7 @@
                 var st = shiftStatus(s, today);
                 var col = colorById(s.location_id);
                 var eve = isEvening(s);
-                var op = st === 'soon' ? 0.5 : 0.92;
+                var op = fillOpacity(st);
                 var style = blockStyle(col, op, eve, st);
                 var loc = locById(s.location_id);
                 var title = emp.name + ' · ' + (loc ? loc.short_name || loc.name : '')
@@ -142,7 +181,7 @@
             mine.forEach(function (s) { if (s.fact_minutes != null) factMin += s.fact_minutes; });
             var factH = Math.round(factMin / 60);
             var over = month > NORM_SHIFTS, streak = maxRun >= 6;
-            var gColor = over ? AMBER : (streak ? ACCENT : '#5e8c4a');
+            var gColor = over ? TH.nofact : (streak ? TH.today : '#5e8c4a');
             var gPct = Math.min(100, Math.round(month / NORM_SHIFTS * 100));
             var flag = streak
                 ? '<span class="ln-flag" title="' + maxRun + ' смен подряд — переработка">!</span>' : '';
@@ -302,11 +341,15 @@
     // ширина — день/вечер, рамка-кольцо — статус (сегодня/ждёт факт/конфликт).
     function calBarStyle(col, st, eve) {
         // Яркость: предстоящее (soon) — ярко, отработанное (done) — приглушённо.
-        var bg = rgba(col, st === 'done' ? 0.45 : 0.9);
-        var bd = '1px solid rgba(0,0,0,.06)';
-        if (st === 'today') { bd = '2px solid ' + ACCENT; bg = rgba(col, 0.85); }
-        else if (st === 'nofact') { bd = '2px solid ' + AMBER; bg = rgba(col, 0.18); }
-        else if (st === 'conflict') { bd = '2px solid ' + RED; bg = rgba(col, 0.5); }
+        // В тёмной теме все прозрачности поднимаются множителем: 18% цвета на
+        // тёмном фоне не видно вовсе, а «ждёт факт» — статус, требующий действия.
+        var k = TH.fillDone > 0.95 ? 1.6 : 1;
+        var a = function (v) { return Math.min(1, v * k); };
+        var bg = rgba(col, a(st === 'done' ? 0.45 : 0.9));
+        var bd = '1px solid ' + TH.hairline;
+        if (st === 'today') { bd = '2px solid ' + TH.today; bg = rgba(col, a(0.85)); }
+        else if (st === 'nofact') { bd = '2px solid ' + TH.nofact; bg = rgba(col, a(0.18)); }
+        else if (st === 'conflict') { bd = '2px solid ' + TH.conflict; bg = rgba(col, a(0.5)); }
         return 'width:' + (eve ? '58%' : '100%') + ';height:' + (eve ? '9px' : '17px')
             + ';background:' + bg + ';border:' + bd;
     }
@@ -368,14 +411,18 @@
         var headHtml = '<div class="ms-top"><div class="ms-av">' + esc(S.employeeLabel(emp.name)) + '</div>'
             + '<div class="ms-tt"><div class="ms-t">Мои смены</div><div class="ms-sub">' + sub + '</div></div></div>';
 
-        var overShifts = monthCount > NORM_SHIFTS;
+        // Нормы месяца: с бэка (core/schedule_plans.py) через opts.norms, иначе
+        // фоллбэк-константы — чтобы одно и то же число не жило в двух местах.
+        var normShifts = (opts.norms && opts.norms.shift_norm) || NORM_SHIFTS;
+        var normHours = (opts.norms && opts.norms.hours_norm) || NORM_HOURS;
+        var overShifts = monthCount > normShifts;
         var chipsHtml = '<div class="ms-chips">'
-            + '<div class="ms-chip"><div class="ms-ck">смены</div><div class="ms-cv"' + (overShifts ? ' style="color:' + AMBER + '"' : '') + '>'
-            + monthCount + '<span class="ms-cn2">/' + NORM_SHIFTS + '</span></div></div>'
+            + '<div class="ms-chip"><div class="ms-ck">смены</div><div class="ms-cv"' + (overShifts ? ' style="color:' + TH.nofact + '"' : '') + '>'
+            + monthCount + '<span class="ms-cn2">/' + normShifts + '</span></div></div>'
             + '<div class="ms-chip"><div class="ms-ck">часы</div><div class="ms-cv">'
-            + factH + '<span class="ms-cn2">/' + NORM_HOURS + '</span></div></div>'
+            + factH + '<span class="ms-cn2">/' + normHours + '</span></div></div>'
             + '<div class="ms-chip' + (noFact ? ' ms-chip-warn' : '') + '"><div class="ms-ck">без факта</div>'
-            + '<div class="ms-cv"' + (noFact ? ' style="color:' + AMBER + '"' : '') + '>' + noFact + '</div></div>'
+            + '<div class="ms-cv"' + (noFact ? ' style="color:' + TH.nofact + '"' : '') + '>' + noFact + '</div></div>'
             + '</div>';
 
         // мини-легенда: точки сотрудника + смысл высоты/колец
@@ -386,8 +433,8 @@
         }).join('');
         var legendHtml = '<div class="ms-leg">' + legVenues
             + '<span class="ms-lgi">высота — день/вечер</span>'
-            + '<span class="ms-lgi" style="color:' + ACCENT + '">кольцо — сегодня</span>'
-            + '<span class="ms-lgi" style="color:' + AMBER + '">кольцо — ждёт факт</span>'
+            + '<span class="ms-lgi" style="color:' + TH.today + '">кольцо — сегодня</span>'
+            + '<span class="ms-lgi" style="color:' + TH.nofact + '">кольцо — ждёт факт</span>'
             + '<span class="ms-lgi"><span class="ms-lgoff"></span>выходной по заявке</span>'
             + '</div>';
 
@@ -438,22 +485,27 @@
         }
 
         // ---- карточка выбранного дня ----
+        // Подписи статусов; цвета пилюль — в CSS (.ms-pill.is-*), чтобы тёмная
+        // тема их видела. Раньше пары HEX подставлялись инлайном из JS.
         var PILL = {
-            done: ['отработана', '#4f7a3e', '#e4eedb'],
-            nofact: ['ждёт факт', '#a9772a', '#f7e6c6'],
-            soon: ['предстоит', '#6f7c9a', '#e7eaf1'],
-            today: ['идёт сейчас', ACCENT, '#f7e6d8'],
-            conflict: ['конфликт', RED, '#eec3b3']
+            done: 'отработана',
+            nofact: 'ждёт факт',
+            soon: 'предстоит',
+            today: 'идёт сейчас',
+            conflict: 'конфликт'
         };
         function detailHtml(sel) {
             var ds = S.dateStr(year, month, sel);
             var dow = new Date(year, month - 1, sel).getDay();
             var s = byDate[ds];
             var dateLbl = dows(dow) + ' · ' + pad2(sel) + '.' + pad2(month);
-            var out = '<div class="ms-lbl">ВЫБРАННЫЙ ДЕНЬ</div>';
+            // На личной странице выбранный день по умолчанию — сегодня, и
+            // заголовок «ВЫБРАННЫЙ ДЕНЬ» там читается канцелярски.
+            var lbl = ds === today ? 'МОЯ СМЕНА СЕГОДНЯ' : 'ВЫБРАННЫЙ ДЕНЬ';
+            var out = '<div class="ms-lbl">' + lbl + '</div>';
             if (s) {
                 var st = shiftStatus(s, today), eve = isEvening(s), col = colorById(s.location_id);
-                var pill = PILL[st] || ['', '#6f675c', '#eeeae2'];
+                var pillText = PILL[st] || '';
                 var role = eve ? 'вечер · второй бармен' : 'день · бармен';
                 var hours = st === 'done' ? 'факт ' + S.minutesToHhMm(s.fact_minutes)
                     : (st === 'nofact' ? 'часы не введены' : '');
@@ -468,7 +520,7 @@
                 else if (st === 'done') btn = '<div class="ms-dbtn" data-act="fact" data-shift-id="' + esc(s.id) + '">Факт ' + S.minutesToHhMm(s.fact_minutes) + ' · править</div>';
                 return out + '<div class="ms-card' + (st === 'today' ? ' ms-today' : '') + '">'
                     + '<div class="ms-drow"><span class="ms-dd">' + esc(dateLbl) + '</span>'
-                    + '<span class="ms-pill" style="color:' + pill[1] + ';background:' + pill[2] + '">' + esc(pill[0]) + '</span></div>'
+                    + '<span class="ms-pill is-' + st + '">' + esc(pillText) + '</span></div>'
                     + '<div class="ms-dwho"><span class="ms-dsq" style="background:' + col + '"></span>'
                     + '<span class="ms-dpt">' + esc(locName(s.location_id)) + '</span>'
                     + '<span class="ms-drole">' + role + '</span></div>'
@@ -480,7 +532,7 @@
             var off = offReqOn(ds);
             return out + '<div class="ms-card">'
                 + '<div class="ms-drow"><span class="ms-dd">' + esc(dateLbl) + '</span>'
-                + '<span class="ms-pill" style="color:#8a8073;background:#efe9de">' + (off ? 'выходной по заявке' : 'выходной') + '</span></div>'
+                + '<span class="ms-pill is-off">' + (off ? 'выходной по заявке' : 'выходной') + '</span></div>'
                 + '<div class="ms-doff">' + (off
                     ? 'Вы подали заявку на выходной — смена не назначена.'
                     : 'Смена не назначена. Можно подать пожелание выйти в этот день.') + '</div></div>';
@@ -488,8 +540,16 @@
 
         // ---- сборка + перерисовка по выбранному дню ----
         function paint() {
-            host.innerHTML = headHtml + chipsHtml + calendarHtml(selN) + legendHtml
-                + detailHtml(selN) + actsHtml(selN);
+            // opts.dayFirst — карточка дня и действия ПЕРЕД сводкой месяца.
+            // На /me бармен приходит с одним вопросом («во сколько начинаю» или
+            // «чем закрываю»), и главная кнопка обязана быть в первом экране без
+            // скролла: календарь занимает 5-6 строк по 44px. На /schedule флага
+            // нет, порядок там прежний.
+            host.innerHTML = opts.dayFirst
+                ? headHtml + detailHtml(selN) + actsHtml(selN) + chipsHtml
+                    + calendarHtml(selN) + legendHtml
+                : headHtml + chipsHtml + calendarHtml(selN) + legendHtml
+                    + detailHtml(selN) + actsHtml(selN);
             // выбор дня; если в этот день есть смена — сразу открыть окно
             // закрытия смены (часы + касса), не только через кнопку в карточке.
             host.querySelectorAll('.ms-cell[data-n]').forEach(function (el) {
@@ -548,9 +608,9 @@
         var sts = [
             { l: 'предстоит', s: 'ярко', r: '', o: 0.92 },
             { l: 'отработана', s: 'факт есть, приглушена', r: '', o: 0.5 },
-            { l: 'сегодня', s: 'идёт', r: '0 0 0 2px ' + ACCENT, o: 0.92 },
-            { l: 'ждёт факт', s: 'прошла без часов', r: '0 0 0 2px ' + AMBER, o: 0.5 },
-            { l: 'конфликт', s: 'просил выходной', r: '0 0 0 2px ' + RED, o: 0.92 }
+            { l: 'сегодня', s: 'идёт', r: '0 0 0 2px ' + TH.today, o: 0.92 },
+            { l: 'ждёт факт', s: 'прошла без часов', r: '0 0 0 2px ' + TH.nofact, o: 0.5 },
+            { l: 'конфликт', s: 'просил выходной', r: '0 0 0 2px ' + TH.conflict, o: 0.92 }
         ].map(function (x) {
             return '<div class="lg-item"><span class="lg-sq" style="background:' + rgba(SAMPLE, x.o)
                 + ';border:1px solid rgba(0,0,0,.08)' + (x.r ? ';box-shadow:' + x.r : '')
@@ -630,9 +690,9 @@
                 // ждёт факт: прошедшая смена без введённого факта часов (как в легенде)
                 var nofact = past && s.fact_minutes == null;
                 var bd = '1px solid rgba(0,0,0,.06)';
-                if (nofact) bd = '2px solid ' + AMBER;            // ждёт факт
-                if (x.ds === today) bd = '2px solid ' + ACCENT;   // сегодня
-                if (off) bd = '2px solid ' + RED;                 // конфликт с выходным
+                if (nofact) bd = '2px solid ' + TH.nofact;            // ждёт факт
+                if (x.ds === today) bd = '2px solid ' + TH.today;   // сегодня
+                if (off) bd = '2px solid ' + TH.conflict;                 // конфликт с выходным
                 var loc = locById(s.location_id);
                 var tip = (loc ? (loc.short_name || loc.name) : '') + ' · ' + (eve ? 'вечер' : 'день')
                     + (s.start_time ? ' · ' + s.start_time : '')
@@ -645,7 +705,7 @@
             }).join('');
 
             var hours = Math.round(factMin / 60);
-            var sColor = shifts > NORM_SHIFTS ? AMBER : (shifts < 10 ? '#a89e90' : '#5e8c4a');
+            var sColor = shifts > NORM_SHIFTS ? TH.nofact : (shifts < 10 ? '#a89e90' : '#5e8c4a');
             var flag = maxRun >= 6 ? '<span class="el-flag" title="' + maxRun + ' смен подряд">!</span>' : '';
             return '<div class="el-row"><div class="el-name"><span class="el-ini">' + esc(S.employeeLabel(emp.name))
                 + '</span><span class="el-nm">' + esc(S.employeeShortName(emp.name)) + '</span>' + flag + '</div>'
@@ -668,7 +728,7 @@
                 var ok = covered(x.ds, loc.id);
                 if (!ok) { miss.push(loc.short_name || loc.name); if (future) holeCount++; }
                 var st = ok ? 'background:' + locColor(loc, i) + ';border:none'
-                    : (future ? 'background:#fff;border:1.5px solid ' + RED : 'background:#ece4d6;border:none');
+                    : (future ? 'background:#fff;border:1.5px solid ' + TH.conflict : 'background:#ece4d6;border:none');
                 return '<span class="el-cdot" style="' + st + '"></span>';
             }).join('');
             var tip = (miss.length ? 'дыра: ' + miss.join(', ') : 'покрыто') + ' · ' + pad2(x.d) + '.' + pad2(month);

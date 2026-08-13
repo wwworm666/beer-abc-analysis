@@ -262,6 +262,13 @@ def match_iiko_hours(names: List[str], hours_by_iiko_name: Optional[Dict[str, fl
 # (koef = смены / норма; см. core/kpi_calculator). Единое место значения.
 SHIFT_NORM = 15
 
+# Норма часов в месяц — ориентир шкалы «часы N/113» на личной странице и в
+# полосах графика. Раньше жила ТОЛЬКО на фронте (static/js/schedule/screens.js,
+# NORM_HOURS), из-за чего на бэке её не было вовсе; поднята сюда рядом с нормой
+# смен, чтобы у /me не появился второй хардкод того же числа. Значение —
+# решение владельца (см. docs/schedule.md).
+HOURS_NORM = 113
+
 
 def _max_consecutive_days(date_strs) -> int:
     """Самая длинная серия смен ПОДРЯД (по календарным дням, дубли-дни не в счёт).

@@ -249,6 +249,116 @@ def test_admin_set_employee_endpoint():
                    json={'employee_iiko_id': 'x'}).status_code == 403
 
 
+# --- один сотрудник = один аккаунт (иначе кто-то видит чужую зарплату) ---
+
+def test_employee_link_rejects_duplicate():
+    """Второй аккаунт на того же сотрудника отклоняется, первый цел."""
+    mgr = _fresh_manager()
+    a = mgr.create_user('anna', 'Анна', 'passpass')
+    b = mgr.create_user('boris', 'Борис', 'passpass')
+    mgr.set_employee_link(a, 'guid-X')
+    try:
+        mgr.set_employee_link(b, 'guid-X')
+        assert False, 'дубль привязки должен отклоняться'
+    except ValueError as e:
+        assert 'anna' in str(e), str(e)
+    assert mgr.get_by_id(a)['employee_iiko_id'] == 'guid-X'
+    assert mgr.get_by_id(b)['employee_iiko_id'] is None
+
+
+def test_employee_link_relink_same_user_ok():
+    """Повторная привязка того же аккаунта к тому же сотруднику идемпотентна."""
+    mgr = _fresh_manager()
+    uid = mgr.create_user('anna', 'Анна', 'passpass')
+    mgr.set_employee_link(uid, 'guid-X')
+    mgr.set_employee_link(uid, 'guid-X')  # не должно падать на собственной привязке
+    assert mgr.get_by_id(uid)['employee_iiko_id'] == 'guid-X'
+
+
+def test_employee_unlink_always_allowed():
+    """Отвязка проверок не проходит — снять привязку можно всегда."""
+    mgr = _fresh_manager()
+    a = mgr.create_user('anna', 'Анна', 'passpass')
+    b = mgr.create_user('boris', 'Борис', 'passpass')
+    mgr.set_employee_link(a, 'guid-X')
+    mgr.set_employee_link(a, '')          # отвязали
+    mgr.set_employee_link(b, 'guid-X')    # теперь сотрудник свободен
+    assert mgr.get_by_id(a)['employee_iiko_id'] is None
+    assert mgr.get_by_id(b)['employee_iiko_id'] == 'guid-X'
+
+
+def test_list_users_by_employee_id():
+    mgr = _fresh_manager()
+    a = mgr.create_user('anna', 'Анна', 'passpass')
+    mgr.create_user('boris', 'Борис', 'passpass')
+    mgr.set_employee_link(a, 'guid-X')
+    found = mgr.list_users_by_employee_id('guid-X')
+    assert [u['login'] for u in found] == ['anna'], found
+    assert mgr.list_users_by_employee_id('guid-NONE') == []
+    assert mgr.list_users_by_employee_id('') == []
+    assert mgr.list_users_by_employee_id(None) == []
+
+
+def test_find_duplicate_employee_links():
+    """Дубль-наследие (вставлен напрямую SQL, минуя проверку) обнаруживается."""
+    import sqlite3 as _sq
+    mgr = _fresh_manager()
+    a = mgr.create_user('anna', 'Анна', 'passpass')
+    b = mgr.create_user('boris', 'Борис', 'passpass')
+    mgr.set_employee_link(a, 'guid-X')
+    assert mgr.find_duplicate_employee_links() == []
+    # как будто привязка появилась до появления проверки
+    conn = _sq.connect(mgr.db_path)
+    conn.execute("UPDATE users SET employee_iiko_id='guid-X' WHERE id=?", (b,))
+    conn.commit()
+    conn.close()
+    dups = mgr.find_duplicate_employee_links()
+    assert len(dups) == 1, dups
+    assert dups[0]['employee_iiko_id'] == 'guid-X'
+    assert sorted(dups[0]['logins']) == ['anna', 'boris'], dups
+    # и старт на такой БД не падает (диагностика в _init_database)
+    assert am.AuthManager(db_path=mgr.db_path).count_users() == 2
+
+
+def test_admin_set_employee_rejects_unknown_id():
+    """Эндпоинт не принимает id, которого нет в реестре графика."""
+    import routes.auth as ra
+    mgr = _fresh_manager()
+    mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
+    bob = mgr.create_user('bob', 'Боб', 'bobpass12')
+    app = _make_app()
+    c = app.test_client()
+    c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+
+    orig = ra._schedule_employees
+    ra._schedule_employees = lambda: [{'id': 'guid-known', 'name': 'Иван Петров',
+                                       'active': True, 'in_registry': True}]
+    try:
+        r = c.post('/api/auth/users/%d/employee' % bob, json={'employee_iiko_id': 'guid-ghost'})
+        assert r.status_code == 400, r.status_code
+        assert mgr.get_by_id(bob)['employee_iiko_id'] is None
+        r = c.post('/api/auth/users/%d/employee' % bob, json={'employee_iiko_id': 'guid-known'})
+        assert r.status_code == 200, r.get_json()
+        assert mgr.get_by_id(bob)['employee_iiko_id'] == 'guid-known'
+    finally:
+        ra._schedule_employees = orig
+
+
+def test_admin_set_employee_duplicate_returns_400():
+    """Дубль через эндпоинт — 400 с внятным текстом, а не 500."""
+    mgr = _fresh_manager()
+    mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
+    a = mgr.create_user('anna', 'Анна', 'passpass')
+    b = mgr.create_user('boris', 'Борис', 'passpass')
+    mgr.set_employee_link(a, 'guid-X')
+    app = _make_app()
+    c = app.test_client()
+    c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+    r = c.post('/api/auth/users/%d/employee' % b, json={'employee_iiko_id': 'guid-X'})
+    assert r.status_code == 400, r.status_code
+    assert 'anna' in (r.get_json() or {}).get('error', '')
+
+
 # --- гейт и потоки входа ---
 
 def test_gate_blocks_anonymous():

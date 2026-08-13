@@ -9,6 +9,51 @@
     --sch-radius-sm: 10px;                    /* мелкие элементы: чипы, инпуты */
 }
 
+/* ==================== Токены экранов графика ====================
+   Цвета статусов смены (кольцо вокруг блока, статус-пилюля дня) жили
+   ХАРДКОДОМ в static/js/schedule/screens.js и подставлялись инлайном, поэтому
+   тёмная тема их не касалась: кольца теряли контраст на тёмном фоне, а шесть
+   светлых пастельных пилюль превращались в световые пятна на тёмных карточках.
+   На /schedule это было почти не видно (личный экран показывался только на
+   узких экранах), на /me эти элементы видны всегда и на любой ширине.
+
+   Значения в светлой теме — РОВНО прежние хардкоды, чтобы /schedule выглядел
+   в точности как раньше; в тёмной подобраны светлее под тёмный фон.
+   :root, а не .schedule-page: JS читает их с document.body, а тело страницы
+   /me имеет свой класс. */
+:root {
+    --sh-ring-today: #c0673a;
+    --sh-ring-nofact: #c98a32;
+    --sh-ring-conflict: #c0492f;
+    --sh-hairline: rgba(0, 0, 0, .08);
+    /* Прозрачность заливки блока смены: предстоящая тусклее отработанной. */
+    --sh-fill-soon: .5;
+    --sh-fill-done: .92;
+}
+[data-theme="dark"] {
+    --sh-ring-today: #E89779;
+    --sh-ring-nofact: #F0B457;
+    --sh-ring-conflict: #F07A6A;
+    --sh-hairline: rgba(255, 255, 255, .14);
+    /* На тёмном фоне полупрозрачная заливка почти не видна — поднимаем обе. */
+    --sh-fill-soon: .62;
+    --sh-fill-done: 1;
+}
+
+/* Статус-пилюля дня: пары «текст + подложка» вместо инлайновых HEX из JS. */
+.ms-pill.is-done     { color: #4f7a3e; background: #e4eedb; }
+.ms-pill.is-nofact   { color: #a9772a; background: #f7e6c6; }
+.ms-pill.is-soon     { color: #6f7c9a; background: #e7eaf1; }
+.ms-pill.is-today    { color: #c0673a; background: #f7e6d8; }
+.ms-pill.is-conflict { color: #c0492f; background: #eec3b3; }
+.ms-pill.is-off      { color: #8a8073; background: #efe9de; }
+[data-theme="dark"] .ms-pill.is-done     { color: #9ED08A; background: #24361E; }
+[data-theme="dark"] .ms-pill.is-nofact   { color: #F0B457; background: #3D2E1F; }
+[data-theme="dark"] .ms-pill.is-soon     { color: #A9B6D4; background: #262B36; }
+[data-theme="dark"] .ms-pill.is-today    { color: #E89779; background: #3D2A23; }
+[data-theme="dark"] .ms-pill.is-conflict { color: #F07A6A; background: #3D1F1F; }
+[data-theme="dark"] .ms-pill.is-off      { color: #A8A29E; background: #333130; }
+
 /* ==================== Month nav ==================== */
 .month-nav {
     display: flex;
@@ -1303,14 +1348,19 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .ms-dh { color: var(--text-tertiary); }
 .ms-doff { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; }
 .ms-dbtn { text-align: center; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 9px; padding: 11px; cursor: pointer; }
-.ms-dbtn-warn { color: #fff; background: var(--warning); border-color: var(--warning); }
-.ms-dbtn-dark { color: #fff; background: var(--text-primary); border-color: var(--text-primary); }
+/* Заливные кнопки — через пару --solid-bg/--solid-fg и --on-warning
+   (static/dashboard/styles/variables.css). Было `color:#fff` поверх
+   var(--text-primary): в тёмной теме --text-primary почти белый, и кнопка
+   «Отметить конец смены» становилась белой по белому. На /schedule дефект не
+   бросался в глаза (блок только на узких экранах), на /me эта кнопка главная. */
+.ms-dbtn-warn { color: var(--on-warning); background: var(--warning); border-color: var(--warning); }
+.ms-dbtn-dark { color: var(--solid-fg); background: var(--solid-bg); border-color: var(--solid-bg); }
 
 /* действия */
 .ms-acts { display: flex; gap: 8px; margin-top: 14px; }
 .ms-act { flex: 1; text-align: center; font-size: 0.74rem; font-weight: 600; border-radius: 9px; padding: 11px 6px; text-decoration: none; }
 .ms-act-out { color: var(--accent); border: 1px solid rgba(217, 119, 87, 0.45); }
-.ms-act-ics { flex: none; color: #fff; background: var(--text-primary); padding: 11px 16px; }
+.ms-act-ics { flex: none; color: var(--solid-fg); background: var(--solid-bg); padding: 11px 16px; }
 .ms-note { padding: 24px 16px; text-align: center; font-size: 0.85rem; color: var(--text-tertiary); }
 
 /* заголовки/блоки экранов на странице */

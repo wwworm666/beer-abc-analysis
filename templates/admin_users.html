@@ -44,6 +44,13 @@
         .cell-actions { display: flex; flex-wrap: wrap; gap: 6px; }
         .muted { color: var(--text-muted, #6b7280); font-size: 12px; }
         .form-err { color: var(--danger, #dc2626); font-size: 13px; margin-top: 10px; min-height: 16px; }
+        /* Двойная привязка аккаунт-сотрудник: создать её больше нельзя, но
+           существующая могла остаться с прежних времён — показываем явно. */
+        .dup-warn { border-color: var(--warning, #d97706); background: var(--warning-bg, #fffbeb); }
+        .dup-warn h2 { color: var(--warning, #d97706); }
+        .dup-warn p { margin: 0 0 10px; font-size: 13px; line-height: 1.5; }
+        .dup-warn ul { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; }
+        .dup-warn code { font-size: 12px; }
     </style>
 </head>
 <body class="dashboard-page">
@@ -55,6 +62,22 @@
 
     <main class="main-content">
         <div class="users-wrap">
+
+            {% if duplicate_links %}
+            <div class="panel dup-warn">
+                <h2>Один сотрудник привязан к нескольким аккаунтам</h2>
+                <p>По привязке аккаунт-сотрудник человек видит на своей странице свои смены,
+                   показатели и зарплату. Пока привязка двойная, эти аккаунты деньги не увидят
+                   вовсе — иначе кто-то из них увидел бы чужие. Оставьте привязку одному
+                   аккаунту, у остальных выберите «не привязан».</p>
+                <ul>
+                {% for d in duplicate_links %}
+                    <li>Сотрудник <code>{{ d.employee_iiko_id }}</code> — аккаунты:
+                        <strong>{{ d.logins | join(', ') }}</strong></li>
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
 
             <div class="panel">
                 <h2>Новый аккаунт</h2>
@@ -107,7 +130,7 @@
                                 <select class="edit-emp" onchange="linkEmployee({{ u.id }}, this.value)" style="max-width:180px">
                                     <option value="">— не привязан —</option>
                                     {% for e in employees %}
-                                        <option value="{{ e.id }}" {% if e.id == u.employee_iiko_id %}selected{% endif %}>{{ e.name }}</option>
+                                        <option value="{{ e.id }}" title="{{ e.id }}" {% if e.id == u.employee_iiko_id %}selected{% endif %}>{{ e.label }}</option>
                                     {% endfor %}
                                 </select>
                             </td>

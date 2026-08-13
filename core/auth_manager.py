@@ -129,6 +129,21 @@ class AuthManager:
         # Опциональный bootstrap из окружения (для автоматизированного деплоя).
         # При отсутствии env первый владелец создаётся через first-run setup на /login.
         self._bootstrap_from_env()
+        self._warn_duplicate_links()
+
+    def _warn_duplicate_links(self):
+        """Печатает дубли привязок при старте. Диагностика вместо UNIQUE INDEX
+        (тот упал бы на старте при существующем дубле — см. set_employee_link).
+        Сбой диагностики не должен мешать приложению стартовать."""
+        try:
+            dups = self.find_duplicate_employee_links()
+        except Exception as e:
+            print(f"[AuthManager WARNING] proverka dubley privyazok ne udalas: {e}")
+            return
+        for d in dups:
+            print(f"[AuthManager WARNING] sotrudnik {d['employee_iiko_id']} privyazan k "
+                  f"{len(d['logins'])} akkauntam: {', '.join(d['logins'])} — "
+                  f"lichnaya stranica /me dlya nih otkazhetsya pokazyvat dengi")
 
     def _bootstrap_from_env(self):
         login = os.getenv('AUTH_BOOTSTRAP_LOGIN')
@@ -289,14 +304,79 @@ class AuthManager:
     def set_employee_link(self, user_id: int, employee_iiko_id: str):
         """Привязать аккаунт к сотруднику графика по стабильному iiko_id, или
         отвязать (пустое значение -> NULL). Имя сотрудника не дублируется —
-        резолвится из реестра графика по id."""
+        резолвится из реестра графика по id.
+
+        ОДИН СОТРУДНИК = ОДИН АККАУНТ. Привязка второго аккаунта к уже занятому
+        сотруднику отклоняется: по этому id личная страница /me выдаёт человеку
+        его смены, показатели и зарплату, и два аккаунта на одном id означают,
+        что кто-то видит чужие деньги — без всяких признаков ошибки.
+
+        Проверка и запись — в одной транзакции под BEGIN IMMEDIATE (`_write_txn`),
+        как инварианты «последний админ» и «первый владелец»: threading.Lock
+        сериализует только внутри процесса, а в проде gunicorn 2 воркера, и без
+        write-лока два одновременных запроса привязали бы двоих.
+
+        UNIQUE INDEX для этого НЕ используется сознательно: в проде уже могут
+        лежать дубли, а CREATE UNIQUE INDEX в `_init_database` упал бы на старте
+        и обрушил вход всем (DROP в проекте запрещён). Транзакционная проверка
+        существующие данные не ломает — старые дубли остаются жить, новые не
+        появляются; найти уже существующие — `find_duplicate_employee_links()`.
+
+        Отвязка (пустое значение) проверок не проходит: снять привязку можно всегда.
+        """
         val = (employee_iiko_id or '').strip() or None
         with self._lock:
-            with self._get_connection() as conn:
+            with self._write_txn() as conn:
                 if conn.execute("SELECT 1 FROM users WHERE id=?", (user_id,)).fetchone() is None:
                     raise ValueError('Пользователь не найден')
+                if val is not None:
+                    dup = conn.execute(
+                        "SELECT login FROM users WHERE employee_iiko_id=? AND id<>?",
+                        (val, user_id),
+                    ).fetchone()
+                    if dup:
+                        raise ValueError(
+                            f'Этот сотрудник уже привязан к аккаунту «{dup["login"]}». '
+                            f'Сначала отвяжите его там.')
                 conn.execute("UPDATE users SET employee_iiko_id=? WHERE id=?", (val, user_id))
-                conn.commit()
+
+    def list_users_by_employee_id(self, employee_iiko_id: str) -> List[Dict]:
+        """Все аккаунты, привязанные к этому сотруднику (обычно 0 или 1).
+
+        Нужен резолверу личности (`core/me_identity.py`): если аккаунтов больше
+        одного, /me отказывается показывать деньги (статус `ambiguous_link`) —
+        даже если дубль остался в БД с тех пор, когда `set_employee_link` его
+        ещё не запрещал.
+        """
+        val = (employee_iiko_id or '').strip()
+        if not val:
+            return []
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM users WHERE employee_iiko_id=? ORDER BY login COLLATE NOCASE",
+                (val,),
+            ).fetchall()
+            return [self._row_to_public(r) for r in rows]
+
+    def find_duplicate_employee_links(self) -> List[Dict]:
+        """Сотрудники, к которым привязано больше одного аккаунта (наследие прода).
+
+        Возвращает [{'employee_iiko_id': str, 'logins': [str, ...]}]. Пустой
+        список — норма. Печатается при старте и показывается баннером на
+        /admin/users: дубль, который нельзя создать заново, но который мог
+        появиться до этой проверки, должен быть видимым, а не тихим.
+        """
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """SELECT employee_iiko_id, GROUP_CONCAT(login, ', ') AS logins
+                   FROM users
+                   WHERE employee_iiko_id IS NOT NULL AND employee_iiko_id <> ''
+                   GROUP BY employee_iiko_id
+                   HAVING COUNT(*) > 1"""
+            ).fetchall()
+            return [{'employee_iiko_id': r['employee_iiko_id'],
+                     'logins': [s.strip() for s in (r['logins'] or '').split(',') if s.strip()]}
+                    for r in rows]
 
     def verify_credentials(self, login: str, password: str) -> Optional[Dict]:
         """Проверить логин+пароль. Возвращает публичный словарь юзера или None.

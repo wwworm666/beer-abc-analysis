@@ -20,6 +20,16 @@
 
     <!-- Navigation Links -->
     <div class="sidebar-nav">
+        {% if current_user %}
+        <div class="sidebar-section-label">Моё</div>
+        <a href="/me" class="sidebar-link">
+            <span class="sidebar-link-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            Я
+        </a>
+        {% endif %}
+
         <div class="sidebar-section-label">Аналитика</div>
         <a href="/" class="sidebar-link">
             <span class="sidebar-link-icon">

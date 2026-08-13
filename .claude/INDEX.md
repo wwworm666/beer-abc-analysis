@@ -24,6 +24,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ├── iiko ↔ Честный Знак          → chz-stock-integration.md
 ├── Open-check Telegram bot      → open-check-bot.md
 ├── Планы выручки (4 точки)      → venues-plans.md
+├── Личный кабинет (/me)          → me.md
 ├── График смен                  → schedule.md
 ├── Цели месяца (/goals)         → goals.md
 ├── Авторизация (вход/аккаунты)  → auth.md
@@ -61,6 +62,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/open-check-bot.md](../docs/open-check-bot.md) | Telegram-бот ежедневной проверки открытых смен 14:59 МСК | ✅ |
 | [docs/venues-plans.md](../docs/venues-plans.md) | 4 точки, планы выручки, weekend weighting, override весов дней, «Планы по дням» | ✅ |
 | [docs/schedule.md](../docs/schedule.md) | График смен: единая страница /schedule (просмотр + редактирование: кисть смен и выходных, планы/факт, пожелания, реестр, лента «кто что менял», касса на смене v7 без iiko); /schedule/edit → редирект. meeting notes | ✅ |
+| [docs/me.md](../docs/me.md) | **Личный кабинет `/me`** — всё про одного человека: смена, месяц, показатели, KPI, деньги. Живое из графика + ночной снимок на томе; деньги совпадают с `/salary` по построению; резолвер личности и три закрытых дефекта «чужая зарплата» | ✅ |
 | [docs/goals.md](../docs/goals.md) | Цели месяца `/goals` — памятка персоналу: план выручки по дням + KPI-цели месяца по каждой точке, разбивка Все/Крем/Варш/ВО/Лиг, печать/PDF. Сборка из готовых данных, без нового расчёта | ✅ |
 | [docs/auth.md](../docs/auth.md) | Авторизация: вход один раз (долгая сессия), глобальный гейт, личные аккаунты, /admin/users, стабильный SECRET_KEY | ✅ |
 | [docs/ai-agent-concept.md](../docs/ai-agent-concept.md) | Концепт ИИ-агента NL-вопрос -> детерминированный ответ из iiko: gap-матрица 15 вопросов, лимиты API, архитектура | Концепт |
