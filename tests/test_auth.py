@@ -231,22 +231,43 @@ def test_migration_adds_employee_link_to_v2_db():
     assert u is not None and u['employee_iiko_id'] is None
 
 
+def _fake_registry(pairs):
+    """Подменить реестр сотрудников графика на список (id, name).
+
+    Реестр подставляется ЯВНО, а не берётся из локальной shifts.db: иначе тест
+    зависит от содержимого чужой базы — при пустом реестре валидация эндпоинта
+    пропускает любой id, при непустом отклоняет выдуманный.
+    """
+    import routes.auth as ra
+    orig = ra._schedule_employees
+    ra._schedule_employees = lambda: [{'id': i, 'name': n, 'active': True,
+                                       'in_registry': True} for i, n in pairs]
+
+    def restore():
+        ra._schedule_employees = orig
+    return restore
+
+
 def test_admin_set_employee_endpoint():
     mgr = _fresh_manager()
     mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
     bob = mgr.create_user('bob', 'Боб', 'bobpass12')
     app = _make_app()
-    # админ привязывает сотрудника к аккаунту
-    c = app.test_client()
-    c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
-    r = c.post('/api/auth/users/%d/employee' % bob, json={'employee_iiko_id': 'guid-9'})
-    assert r.status_code == 200, r.status_code
-    assert mgr.get_by_id(bob)['employee_iiko_id'] == 'guid-9'
-    # обычному пользователю эндпоинт запрещён
-    c2 = app.test_client()
-    c2.post('/login', data={'login': 'bob', 'password': 'bobpass12'})
-    assert c2.post('/api/auth/users/%d/employee' % bob,
-                   json={'employee_iiko_id': 'x'}).status_code == 403
+    restore = _fake_registry([('guid-9', 'Иван Петров')])
+    try:
+        # админ привязывает сотрудника к аккаунту
+        c = app.test_client()
+        c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+        r = c.post('/api/auth/users/%d/employee' % bob, json={'employee_iiko_id': 'guid-9'})
+        assert r.status_code == 200, (r.status_code, r.get_json())
+        assert mgr.get_by_id(bob)['employee_iiko_id'] == 'guid-9'
+        # обычному пользователю эндпоинт запрещён
+        c2 = app.test_client()
+        c2.post('/login', data={'login': 'bob', 'password': 'bobpass12'})
+        assert c2.post('/api/auth/users/%d/employee' % bob,
+                       json={'employee_iiko_id': 'guid-9'}).status_code == 403
+    finally:
+        restore()
 
 
 # --- один сотрудник = один аккаунт (иначе кто-то видит чужую зарплату) ---
@@ -322,7 +343,6 @@ def test_find_duplicate_employee_links():
 
 def test_admin_set_employee_rejects_unknown_id():
     """Эндпоинт не принимает id, которого нет в реестре графика."""
-    import routes.auth as ra
     mgr = _fresh_manager()
     mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
     bob = mgr.create_user('bob', 'Боб', 'bobpass12')
@@ -330,9 +350,7 @@ def test_admin_set_employee_rejects_unknown_id():
     c = app.test_client()
     c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
 
-    orig = ra._schedule_employees
-    ra._schedule_employees = lambda: [{'id': 'guid-known', 'name': 'Иван Петров',
-                                       'active': True, 'in_registry': True}]
+    restore = _fake_registry([('guid-known', 'Иван Петров')])
     try:
         r = c.post('/api/auth/users/%d/employee' % bob, json={'employee_iiko_id': 'guid-ghost'})
         assert r.status_code == 400, r.status_code
@@ -341,7 +359,7 @@ def test_admin_set_employee_rejects_unknown_id():
         assert r.status_code == 200, r.get_json()
         assert mgr.get_by_id(bob)['employee_iiko_id'] == 'guid-known'
     finally:
-        ra._schedule_employees = orig
+        restore()
 
 
 def test_admin_set_employee_duplicate_returns_400():
@@ -352,11 +370,15 @@ def test_admin_set_employee_duplicate_returns_400():
     b = mgr.create_user('boris', 'Борис', 'passpass')
     mgr.set_employee_link(a, 'guid-X')
     app = _make_app()
-    c = app.test_client()
-    c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
-    r = c.post('/api/auth/users/%d/employee' % b, json={'employee_iiko_id': 'guid-X'})
-    assert r.status_code == 400, r.status_code
-    assert 'anna' in (r.get_json() or {}).get('error', '')
+    restore = _fake_registry([('guid-X', 'Иван Петров')])
+    try:
+        c = app.test_client()
+        c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+        r = c.post('/api/auth/users/%d/employee' % b, json={'employee_iiko_id': 'guid-X'})
+        assert r.status_code == 400, r.status_code
+        assert 'anna' in (r.get_json() or {}).get('error', '')
+    finally:
+        restore()
 
 
 # --- гейт и потоки входа ---

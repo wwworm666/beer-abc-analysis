@@ -339,7 +339,15 @@
 
     // Блок-смена внутри ячейки календаря (px, не %): высота — день/вечер,
     // ширина — день/вечер, рамка-кольцо — статус (сегодня/ждёт факт/конфликт).
-    function calBarStyle(col, st, eve) {
+    function calBarStyle(col, st, eve, flat) {
+        // flat — вид личной страницы /me: плотная плашка цвета точки без рамки и
+        // без полупрозрачности (макет владельца). Статус там читается кольцом
+        // ячейки, а не оттенком плашки, поэтому оттенки здесь не нужны.
+        if (flat) {
+            return 'width:100%;height:' + (eve ? '9px' : '17px')
+                + ';border-radius:5px;background:' + col
+                + (st === 'soon' ? ';opacity:.55' : '');
+        }
         // Яркость: предстоящее (soon) — ярко, отработанное (done) — приглушённо.
         // В тёмной теме все прозрачности поднимаются множителем: 18% цвета на
         // тёмном фоне не видно вовсе, а «ждёт факт» — статус, требующий действия.
@@ -408,8 +416,21 @@
         // ---- статические части (шапка, сводка, легенда, действия) ----
         var venues = venueIdx.map(function (i) { return S.state.locations[i].short_name || S.state.locations[i].name; });
         var sub = esc(emp.name) + (venues.length ? ' · ' + esc(venues.join(' · ')) : '');
-        var headHtml = '<div class="ms-top"><div class="ms-av">' + esc(S.employeeLabel(emp.name)) + '</div>'
-            + '<div class="ms-tt"><div class="ms-t">Мои смены</div><div class="ms-sub">' + sub + '</div></div></div>';
+        // Шапка блока. По умолчанию — аватар с именем («мои смены» внутри
+        // /schedule). opts.monthTitle — вид личной страницы: имя и точки уже
+        // стоят в шапке страницы, поэтому здесь только месяц и счётчик смен.
+        var headHtml;
+        if (opts.monthTitle) {
+            headHtml = '<div class="ms-month"><span class="ms-month-n">'
+                + esc(S.MONTH_NAMES[month - 1] + ' ' + year) + '</span>'
+                + '<span class="ms-month-sp"></span>'
+                + '<span class="ms-month-c">' + monthCount + ' '
+                + (monthCount === 1 ? 'смена' : (monthCount > 1 && monthCount < 5 ? 'смены' : 'смен'))
+                + '</span></div>';
+        } else {
+            headHtml = '<div class="ms-top"><div class="ms-av">' + esc(S.employeeLabel(emp.name)) + '</div>'
+                + '<div class="ms-tt"><div class="ms-t">Мои смены</div><div class="ms-sub">' + sub + '</div></div></div>';
+        }
 
         // Нормы месяца: с бэка (core/schedule_plans.py) через opts.norms, иначе
         // фоллбэк-константы — чтобы одно и то же число не жило в двух местах.
@@ -471,7 +492,7 @@
                 var inner;
                 if (s) {
                     var st = shiftStatus(s, today), col = colorById(s.location_id), eve = isEvening(s);
-                    inner = '<span class="ms-cbar" style="' + calBarStyle(col, st, eve) + '"></span>';
+                    inner = '<span class="ms-cbar" style="' + calBarStyle(col, st, eve, opts.flatBars) + '"></span>';
                 } else if (off) {
                     inner = '<span class="ms-coff"></span>';
                 } else {
@@ -545,10 +566,13 @@
             // «чем закрываю»), и главная кнопка обязана быть в первом экране без
             // скролла: календарь занимает 5-6 строк по 44px. На /schedule флага
             // нет, порядок там прежний.
+            // opts.chips === false — сводку месяца рисует страница (плитки
+            // СМЕНЫ/ЧАСЫ/БЕЗ ФАКТА в макете /me), чтобы числа не дублировались.
+            var chips = opts.chips === false ? '' : chipsHtml;
             host.innerHTML = opts.dayFirst
-                ? headHtml + detailHtml(selN) + actsHtml(selN) + chipsHtml
+                ? headHtml + detailHtml(selN) + actsHtml(selN) + chips
                     + calendarHtml(selN) + legendHtml
-                : headHtml + chipsHtml + calendarHtml(selN) + legendHtml
+                : headHtml + chips + calendarHtml(selN) + legendHtml
                     + detailHtml(selN) + actsHtml(selN);
             // выбор дня; если в этот день есть смена — сразу открыть окно
             // закрытия смены (часы + касса), не только через кнопку в карточке.
@@ -579,6 +603,18 @@
             }
         }
         paint();
+
+        // Сводка наружу: страница строит из неё свои плитки и подпись в шапке.
+        // Второй раз считать те же числа нельзя — разъедутся.
+        return {
+            employee: emp, name: emp.name, label: S.employeeLabel(emp.name),
+            shifts: monthCount, hours: factH, noFact: noFact,
+            shiftNorm: normShifts, hoursNorm: normHours,
+            venues: venueIdx.map(function (i) {
+                var l = S.state.locations[i];
+                return { name: l.short_name || l.name, color: locColor(l, i) };
+            })
+        };
     }
 
     // ============================================================

@@ -1,42 +1,72 @@
 /* Контроллер личной страницы /me.
 
    Две независимые загрузки, и это принципиально:
-     - ЖИВОЕ (смены, часы, календарь) — через window.Schedule, теми же
-       запросами и тем же рендером (renderMyShifts), что мобильный экран
-       /schedule. Второй реализации нет: два независимых расчёта «смены 8/15»
-       разъехались бы, а правило дизайн-системы требует, чтобы обе версии
-       строились из одних данных.
-     - СНИМОК (показатели, KPI, деньги) — GET /api/me. Сбой одной загрузки не
-       гасит другую: источники разные (shifts.db против ночного расчёта), и
-       страница обязана оставаться полезной, когда iiko недоступен.
+     - ЖИВОЕ (смены, часы, календарь) — через window.Schedule, теми же запросами
+       и тем же рендером (renderMyShifts), что мобильный экран /schedule. Второй
+       реализации нет: два независимых расчёта «смены 8/15» разъехались бы.
+     - СНИМОК (показатели, KPI, деньги) — GET /api/me.
+   Сбой одной загрузки не гасит другую: источники разные (shifts.db против
+   ночного расчёта), и страница обязана оставаться полезной, когда iiko лежит.
 
-   Ширину экрана этот файл НЕ читает нигде — вся адаптивность в me.css. Иначе
-   JS и CSS пришлось бы держать на одном брейкпоинте руками.
+   Оформление — по макету владельца; раскрытия формул сделаны нативными
+   <details>, поэтому JS для них не нужен вовсе.
 
-   Подключать ПОСЛЕ common.js, screens.js, fact_modal.js. */
+   Ширину экрана этот файл НЕ читает нигде — вся адаптивность в me.css.
+
+   Подключать ПОСЛЕ common.js, screens.js, fact_modal.js, snapshot.js. */
 (function () {
     'use strict';
     var S = window.Schedule;
     if (!S) return;
 
     var EMP_IIKO = (document.body.dataset.empIiko || '').trim();
-    var me = null;          // последний ответ /api/me
+    var me = null;            // последний ответ /api/me
+    var summary = null;       // сводка месяца из renderMyShifts
     var loadingLive = false;
 
     // ==================== Живая часть ====================
 
     function renderLive() {
         var host = document.getElementById('myShifts');
-        S.renderMyShifts(host, {
+        summary = S.renderMyShifts(host, {
             employeeIikoId: EMP_IIKO || null,
             icsHref: EMP_IIKO ? '/schedule/cal.ics' : null,
             onDayOffToggle: onDayOffToggle,
-            // Карточка дня и действия — ПЕРЕД сводкой месяца: главная кнопка
-            // должна быть в первом экране без скролла.
+            // Карточка дня и действия — ПЕРЕД календарём: главная кнопка должна
+            // быть в первом экране без скролла.
             dayFirst: true,
+            // Оформление макета: строка месяца вместо аватара (аватар в шапке),
+            // сводка месяца отдельными плитками, плоские плашки смен.
+            monthTitle: true,
+            chips: false,
+            flatBars: true,
             norms: me && me.norms ? me.norms : null
         });
+        var Snap = (window.Me || {}).snapshot;
+        if (Snap && summary) {
+            Snap.renderMonthTiles(document.getElementById('meMonthTiles'), summary,
+                                  me && me.norms);
+        }
+        fillHeader();
         setLiveStamp();
+    }
+
+    // Подпись в шапке: роль и точки, где человек работает в этом месяце.
+    function fillHeader() {
+        var sub = document.getElementById('meWhoSub');
+        if (!sub) return;
+        var venues = (summary && summary.venues) || [];
+        sub.textContent = venues.length
+            ? 'бармен · ' + venues.map(function (v) { return v.name; }).join(' · ')
+            : 'бармен';
+        var ava = document.getElementById('meAva');
+        if (ava && !ava.textContent.trim() && summary && summary.label) {
+            ava.textContent = summary.label;
+        }
+        // Кружок аватара красим цветом первой точки — тот же язык, что у смен.
+        if (ava && venues.length) {
+            ava.style.setProperty('--me-ava-bg', venues[0].color);
+        }
     }
 
     function setLiveStamp() {
@@ -53,8 +83,7 @@
         return S.loadMonthData()
             .then(function () { renderLive(); })
             .catch(function (err) {
-                showBlockError('meNotice', 'Не удалось загрузить график смен.',
-                               reloadLive, err);
+                showBlockError('meNotice', 'Не удалось загрузить график смен.', reloadLive, err);
             })
             .then(function () { loadingLive = false; });
     }
@@ -93,8 +122,7 @@
                 renderLive();      // нормы приходят вместе со снимком
             })
             .catch(function (err) {
-                showBlockError('meSnapNotice',
-                               'Не удалось загрузить личные показатели.',
+                showBlockError('meSnapNotice', 'Не удалось загрузить личные показатели.',
                                loadSnapshot, err);
             });
     }
@@ -102,7 +130,7 @@
     function renderSnapshot() {
         var col = document.getElementById('meSnapCol');
         var notice = document.getElementById('meSnapNotice');
-        var title = document.getElementById('meSnapTitle');
+        var ts = document.getElementById('meSnapTs');
         var btn = document.getElementById('meRefresh');
         notice.innerHTML = '';
         ['meMoney', 'meKpi', 'meMetrics'].forEach(function (id) {
@@ -113,9 +141,11 @@
 
         var ident = me.identity || {};
         var snap = me.snapshot || {};
+        var Snap = (window.Me || {}).snapshot;
 
-        // Аккаунт не привязан: снимочную колонку прячем целиком. Нулевые деньги
-        // у непривязанного аккаунта читались бы как «мне ничего не начислили».
+        // Аккаунт не привязан либо привязка спорная: снимочную колонку прячем
+        // целиком. Нулевые деньги у непривязанного читались бы как «мне ничего
+        // не начислили».
         if (ident.status === 'not_linked' || ident.status === 'unknown_employee'
                 || ident.status === 'ambiguous_link') {
             col.hidden = true;
@@ -123,23 +153,21 @@
         }
         col.hidden = false;
 
-        title.textContent = snap.refreshed_at
-            ? 'Снимок ' + fmtStamp(snap.refreshed_at)
-            : 'Снимок за ' + (me.month_label || me.month) + ' ещё не собран';
+        ts.textContent = snap.refreshed_at
+            ? 'данные на ' + (Snap ? Snap.fmtStamp(snap.refreshed_at) : '')
+            : 'за ' + (me.month_label || me.month) + ' ещё не собран';
         renderRefreshBtn(btn, me.refresh || {});
 
         if (snap.status !== 'ok' || !me.money) {
-            notice.innerHTML = emptyBox(ident.message
-                || 'Показатели за этот месяц пока не посчитаны.');
+            notice.innerHTML = '<div class="me-empty">'
+                + esc(ident.message || 'Показатели за этот месяц пока не посчитаны.')
+                + '</div>';
             return;
         }
-
-        var Snap = (window.Me || {}).snapshot;
         if (!Snap) return;
         Snap.renderMoney(document.getElementById('meMoney'), me);
         Snap.renderKpi(document.getElementById('meKpi'), me);
         Snap.renderMetrics(document.getElementById('meMetrics'), me);
-        Snap.bindDisclosures(col);
     }
 
     // ==================== Кнопка «Обновить» ====================
@@ -153,27 +181,23 @@
         btn.hidden = false;
         btn.className = 'me-refresh';
         btn.disabled = false;
-        if (!info.can_refresh) {
-            // iiko не настроен — прогон бесполезен, честно говорим об этом.
-            btn.hidden = true;
-            return;
-        }
+        if (!info.can_refresh) { btn.hidden = true; return; }
         if (info.running) {
-            setBusy(btn, 'Считается… обычно 1-2 минуты');
+            setBusy(btn, 'считается…');
             startPolling();
         } else if (info.cooldown_left_sec > 0) {
             btn.classList.add('is-cool');
             btn.disabled = true;
-            btn.textContent = 'Обновить можно через ' + Math.ceil(info.cooldown_left_sec / 60)
-                + ' мин';
+            btn.textContent = 'обновить можно через '
+                + Math.ceil(info.cooldown_left_sec / 60) + ' мин';
             btn.title = 'Пересчёт общий для всех и запускается раз в '
                 + (info.cooldown_min || 30) + ' минут';
         } else if (info.last_error) {
             btn.classList.add('is-error');
-            btn.textContent = 'Не обновилось. Повторить';
+            btn.textContent = 'не обновилось, повторить';
             btn.title = String(info.last_error);
         } else {
-            btn.textContent = 'Обновить';
+            btn.textContent = 'обновить';
             btn.title = 'Пересчитать показатели, KPI и деньги. Занимает 1-2 минуты';
         }
     }
@@ -186,7 +210,7 @@
 
     function onRefreshClick() {
         var btn = document.getElementById('meRefresh');
-        setBusy(btn, 'Обновляю…');
+        setBusy(btn, 'обновляю…');
         // Штампы не меняем, но приглушаем: числа под ними уже неактуальны, а
         // новых ещё нет. Время в штампе меняется только при успешном пересчёте.
         document.querySelectorAll('.me-stamp').forEach(function (el) {
@@ -195,7 +219,6 @@
         S.api('/api/me/refresh', { method: 'POST' })
             .then(function () { startPolling(); })
             .catch(function (err) {
-                // 409 (идёт/кулдаун) — не ошибка: перечитываем состояние.
                 if (/уже идёт|раз в/.test(err.message || '')) {
                     S.showToast(err.message);
                     startPolling();
@@ -203,7 +226,7 @@
                 }
                 btn.className = 'me-refresh is-error';
                 btn.disabled = false;
-                btn.textContent = 'Не обновилось. Повторить';
+                btn.textContent = 'не обновилось, повторить';
                 S.showToast('Не обновилось: ' + err.message, true);
             });
     }
@@ -216,13 +239,11 @@
                     var p = st.progress || {};
                     var btn = document.getElementById('meRefresh');
                     if (p.running) {
-                        setBusy(btn, p.current_month
-                            ? 'Считаю ' + p.current_month + '…'
-                            : 'Обновляю…');
+                        setBusy(btn, p.current_month ? 'считаю ' + p.current_month + '…' : 'обновляю…');
                         return;
                     }
                     stopPolling();
-                    loadSnapshot();       // перечитываем снимок целиком
+                    loadSnapshot();
                 })
                 .catch(function () { stopPolling(); });
         }, 3000);
@@ -232,13 +253,15 @@
         if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     }
 
-    // Предупреждения резолвера: расщеплённые часы, недостоверная привязка и т.п.
+    // ==================== Сообщения и подвал ====================
+
+    // Предупреждения резолвера: расщеплённые часы, спорная привязка и т.п.
     function renderPersonalNotice() {
         var host = document.getElementById('meNotice');
         var ident = (me && me.identity) || {};
         var html = '';
         if (ident.status && ident.status !== 'ok' && ident.message) {
-            html += emptyBox(ident.message);
+            html += '<div class="me-empty">' + esc(ident.message) + '</div>';
         }
         (ident.issues || []).forEach(function (i) {
             html += i.severity === 'error'
@@ -251,20 +274,12 @@
     function renderFoot() {
         var el = document.getElementById('meFoot');
         var notes = (me && me.notes) || {};
-        var parts = [];
-        if (notes.live_vs_snapshot) parts.push(esc(notes.live_vs_snapshot));
-        if (notes.accrued_to_date) parts.push(esc(notes.accrued_to_date));
-        if (notes.excel) parts.push(esc(notes.excel));
-        el.innerHTML = parts.join('<br>');
+        var parts = [notes.live_vs_snapshot, notes.accrued_to_date, notes.excel]
+            .filter(Boolean).map(esc);
+        el.innerHTML = parts.length ? '<p>' + parts.join('<br>') + '</p>' : '';
     }
-
-    // ==================== Вспомогательное ====================
 
     function esc(s) { return S.escapeHtml(s == null ? '' : String(s)); }
-
-    function emptyBox(text) {
-        return '<div class="me-empty">' + esc(text) + '</div>';
-    }
 
     // Ошибка показывается НА МЕСТЕ блока, а не тостом: тост живёт 2,5 секунды,
     // и бармен на телефоне его не поймает.
@@ -273,39 +288,41 @@
         if (!host) return;
         console.error('[ME]', text, err);
         host.innerHTML = '<div class="me-error">' + esc(text)
-            + ' <button type="button" class="me-refresh" data-retry>Повторить</button></div>';
+            + ' <button type="button" class="me-refresh" data-retry>повторить</button></div>';
         var btn = host.querySelector('[data-retry]');
         if (btn) btn.addEventListener('click', function () { host.innerHTML = ''; retry(); });
-    }
-
-    // '2026-08-13T07:42:11+03:00' -> '13.08, 07:42'
-    function fmtStamp(iso) {
-        if (!iso || iso.length < 16) return '';
-        return iso.slice(8, 10) + '.' + iso.slice(5, 7) + ', ' + iso.slice(11, 16);
     }
 
     // ==================== Старт ====================
 
     document.addEventListener('DOMContentLoaded', function () {
         S.factModal.init({ onSaved: reloadLive });
+
         var refreshBtn = document.getElementById('meRefresh');
         if (refreshBtn) refreshBtn.addEventListener('click', onRefreshClick);
+
+        // Гамбургер шапки открывает общий сайдбар: пробрасываем клик на скрытую
+        // кнопку из shared/nav.html, чтобы не дублировать её обработчик.
+        var burger = document.getElementById('meBurger');
+        var navToggle = document.getElementById('sidebar-toggle');
+        if (burger && navToggle) {
+            burger.addEventListener('click', function () { navToggle.click(); });
+        }
 
         S.showLoading(true);
         S.loadDictionaries()
             .then(function () { return S.loadMonthData(); })
             .then(function () { renderLive(); })
             .catch(function (err) {
-                showBlockError('meNotice', 'Не удалось загрузить график смен.',
-                               reloadLive, err);
+                showBlockError('meNotice', 'Не удалось загрузить график смен.', reloadLive, err);
             })
             .then(function () { S.showLoading(false); });
 
         // Независимо от живой части: сбой одной не гасит другую.
         loadSnapshot();
 
-        // Вернулся в таб — тихо перечитываем живое (смену мог закрыть кто-то
-        // другой, а часы вводит бармен в конце смены).
+        // Вернулся в таб — тихо перечитываем живое (часы вводит бармен в конце
+        // смены, а смену мог закрыть кто-то другой).
         document.addEventListener('visibilitychange', function () {
             if (!document.hidden) reloadLive();
         });

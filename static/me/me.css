@@ -1,468 +1,885 @@
-/* Личная страница /me.
+/* Личная страница /me — оформление по макету владельца (Claude Design,
+   «Личный кабинет», 2026-08-14).
 
-   Только переменные дизайн-системы (static/dashboard/styles/variables.css) —
-   ни одного HEX и ни одной rgba() с числами, иначе ломается тёмная тема.
-   Без эмодзи (правило .claude/CLAUDE.md).
+   Палитра макета теплее и светлее общей: фон #F7F5F1, карточки на белом с
+   границей #EAE6DF и почти невидимой тенью, текст #1D1A16. Числа — IBM Plex
+   Mono, подписи и текст — IBM Plex Sans (в общем дизайн-системе весь текст был
+   Mono). Поэтому у страницы СВОЙ набор токенов `--me-*`, а не переопределение
+   глобальных: /me отличается от остальных страниц осознанно, и глобальную
+   палитру трогать нельзя.
 
-   Радиусы: карточки 14px, кнопки внутри 9-10px, таблетки 999px.
-   Префикс me- свободен и ни с чем в проекте не пересекается.
+   Токены живут на `body.me-page`, поэтому тёмная тема остаётся рабочей: макет
+   светлый, но переключатель темы в проекте есть, и страница обязана читаться в
+   обеих (иначе у части людей она станет белым по белому).
 
-   Имена .metric-card / .metric-value / .stat-value ЗАПРЕЩЕНЫ на этой странице:
-   глобальный mobile.css перебивает их на <=480px до 1rem, и герой-число на
-   телефоне схлопнулось бы до 16px. Свои классы, свои размеры.
-   Классы .sc-mobile / .sc-desktop / .mv-* тоже запрещены: schedule.css
-   переключает их на 700px и притащил бы чужой брейкпоинт внутрь страницы. */
+   Правила: ни одного HEX вне блока токенов, без эмодзи, префикс `me-`.
+   Имена `.metric-card` / `.metric-value` / `.stat-value` НЕ использовать —
+   глобальный mobile.css перебивает их на <=480px. */
 
-/* ==================== Каркас ==================== */
+/* ==================== IBM Plex Sans ====================
+   Извлечён из макета (4 субсета, вес 400). Веса 500/600/700 браузер
+   синтезирует: настоящих файлов для них в макете не было. Объявлен здесь, а не
+   в общем fonts.css, потому что этот файл отдаётся с ?v={{ app_version }} и
+   переживает кэш-бастинг, а общие стили — нет (docs/lessons.md). */
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-cyrillic.woff2') format('woff2');
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-cyrillic-ext.woff2') format('woff2');
+    unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+                   U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+                   U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+                   U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
+                   U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
-/* Глобальный mobile.css оставляет внизу место под .bottom-tabs (76px), которых
-   на этой странице нет. Два класса против одного — побеждаем без !important. */
-body.me-page .container { padding-bottom: var(--spacing-md); }
+/* ==================== Токены страницы ==================== */
+
+body.me-page {
+    /* поверхности */
+    --me-bg: #F7F5F1;
+    --me-card: #FFFFFF;
+    --me-line: #EAE6DF;          /* граница карточки */
+    --me-hair: #F1EDE6;          /* разделители внутри карточки */
+    --me-rule: #E7E2D9;          /* линия в полосе-заголовке */
+    --me-dot: #D8D2C6;           /* точечный лидер до суммы */
+    --me-soft: #FBFAF7;          /* ячейка календаря */
+    --me-soft2: #FAF8F4;         /* плитка числа в KPI */
+    --me-soft3: #F7F4EE;         /* блок формулы */
+    --me-soft4: #FCFBF9;         /* плашка-таблетка */
+    --me-track: #EFEBE3;         /* подложка шкалы */
+
+    /* текст */
+    --me-ink: #1D1A16;
+    --me-ink2: #6B665C;
+    --me-ink3: #8A8578;
+    --me-ink4: #9C968A;
+    --me-ink5: #B3ADA1;
+    --me-faint: #C4BFB4;         /* день без смены */
+
+    /* акцент и статусы */
+    --me-accent: #D97757;
+    --me-accent-h: #C2664A;
+    /* Текст на акцентной заливке. Пара, а не `color:#fff` на месте: в тёмной
+       теме акцент становится светлым (#E89779), и белым по нему не прочитать —
+       именно так терялась главная кнопка «Отметить конец смены». */
+    --me-on-accent: #FFFFFF;
+    --me-ok: #059669;
+    --me-warn: #B45309;
+    --me-bad: #DC2626;
+    --me-today: #57524A;         /* рамка «сегодня» в календаре */
+    --me-off: #D8D3CA;           /* выходной по заявке */
+    --me-wknd: #C0937B;          /* сб/вс в шапке календаря */
+    --me-bar2: #E0B183;          /* вторая и далее полосы в топе сортов */
+
+    --me-shadow: 0 1px 2px rgba(28, 25, 23, .04);
+
+    /* радиусы: шапка 18, карточка 16, кнопка 14, вложенное 10, ячейка 9 */
+    --me-r-head: 18px;
+    --me-r-card: 16px;
+    --me-r-btn: 14px;
+    --me-r-in: 10px;
+    --me-r-cell: 9px;
+
+    --me-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, sans-serif;
+    --me-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+    background: var(--me-bg);
+    font-family: var(--me-sans);
+    color: var(--me-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Тёмная тема: макет светлый, но переключатель в проекте есть, и страница
+   обязана читаться в обеих. Меняем только значения токенов. */
+[data-theme="dark"] body.me-page,
+body.me-page[data-theme="dark"] {
+    --me-bg: #1C1917;
+    --me-card: #24211F;
+    --me-line: #37332F;
+    --me-hair: #302C29;
+    --me-rule: #37332F;
+    --me-dot: #453F3A;
+    --me-soft: #201D1B;
+    --me-soft2: #2A2624;
+    --me-soft3: #2A2521;
+    --me-soft4: #221F1D;
+    --me-track: #37332F;
+
+    --me-ink: #F5F2ED;
+    --me-ink2: #B6AFA5;
+    --me-ink3: #9A9388;
+    --me-ink4: #8A837A;
+    --me-ink5: #756E66;
+    --me-faint: #5E5850;
+
+    --me-accent: #E89779;
+    --me-accent-h: #F0AB91;
+    --me-on-accent: #241F1C;
+    --me-ok: #34D399;
+    --me-warn: #FBBF24;
+    --me-bad: #F87171;
+    --me-today: #B6AFA5;
+    --me-off: #4A443E;
+    --me-wknd: #C79A78;
+    --me-bar2: #A9754F;
+
+    --me-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+}
+
+/* Общий каркас приложения на этой странице не нужен: своя шапка вместо
+   .header-bar (сайдбар остаётся, гамбургер в шапке его открывает), и внизу нет
+   .bottom-tabs, под которые mobile.css оставляет 76px пустоты. */
+body.me-page .header-bar { display: none; }
+body.me-page .container { padding: 0; }
+body.me-page a { color: var(--me-accent); text-decoration: none; }
+body.me-page a:hover { color: var(--me-accent-h); text-decoration: underline; }
+body.me-page ::selection { background: color-mix(in srgb, var(--me-accent) 22%, transparent); }
 
 .me-wrap {
-    max-width: 1200px;
+    max-width: 1180px;
     margin: 0 auto;
-    padding: 0 20px calc(24px + env(safe-area-inset-bottom, 0px));
+    padding: 22px 20px calc(56px + env(safe-area-inset-bottom, 0px));
 }
 
-/* 460px — родная ширина .ms-wrap (schedule.css). Колонка ровно такой ширины
-   означает ноль правок личного экрана смен: компонент работает в своей
-   геометрии, а переопределения — главный источник дефектов вёрстки. */
-.me-grid {
-    display: grid;
-    grid-template-columns: 460px minmax(0, 1fr);
-    gap: 24px;
-    align-items: start;
-}
-.me-col { min-width: 0; }
+/* ==================== Шапка страницы ==================== */
 
-/* ==================== Полоса свежести ====================
-   Левая колонка живая, правая — снимок, у каждой своя отметка времени.
-   Свежесть закодирована в геометрии страницы, а не только в подписи. */
+.me-head {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-head);
+    box-shadow: var(--me-shadow);
+    padding: 11px 18px 11px 12px;
+}
+.me-burger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3.5px;
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: 13px;
+    background: var(--me-accent);
+    cursor: pointer;
+    flex: none;
+    transition: background .15s ease;
+}
+.me-burger:hover { background: var(--me-accent-h); }
+.me-burger span {
+    width: 16px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--me-on-accent);
+}
+.me-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
+.me-ava {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--me-ava-bg, #D3B471);
+    color: #FFFFFF;
+    font: 700 13px/1 var(--me-mono);
+    flex: none;
+}
+.me-who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.me-who-n {
+    font: 600 15px/1.2 var(--me-sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.me-who-s {
+    font: 400 12px/1.2 var(--me-sans);
+    color: var(--me-ink3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.me-logo {
+    font: 600 15px/1 var(--me-mono);
+    letter-spacing: .4px;
+    white-space: nowrap;
+    flex: none;
+    color: var(--me-ink);
+}
+.me-logo .me-logo-a { color: var(--me-accent); }
+.me-logo .me-logo-c { color: var(--me-accent); animation: meBlink .9s step-end infinite; }
+@keyframes meBlink { 0%, 100% { opacity: 1 } 50% { opacity: 0 } }
+
+/* ==================== Колонки ==================== */
+
+.me-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 26px;
+    align-items: flex-start;
+}
+/* Левая — живое (смены и часы), правая — снимок. Разделение колонок = разделение
+   свежести данных, у каждой своя полоса с отметкой времени. */
+.me-col-now { flex: 1 1 300px; min-width: 0; }
+.me-col-snap { flex: 2.6 1 520px; min-width: 0; }
+@media (min-width: 960px) {
+    .me-col-now { position: sticky; top: 16px; }
+}
+
+/* ==================== Полоса-заголовок ==================== */
 
 .me-band {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
-    margin: 0 0 14px;
+    gap: 10px 12px;
     min-height: 24px;
+    margin: 26px 2px 12px;
 }
 .me-band-t {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    white-space: nowrap;
+    font: 600 11px/1 var(--me-mono);
+    letter-spacing: .16em;
+    color: var(--me-ink3);
 }
-.me-band-line {
-    flex: 1;
-    height: 1px;
-    background: var(--border-color);
-}
-.me-band-r { flex: none; display: flex; align-items: center; gap: 8px; }
-.me-live-ts { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+.me-band-line { flex: 1; min-width: 40px; height: 1px; background: var(--me-rule); }
+.me-band-ts { font: 500 11px/1 var(--me-mono); color: var(--me-ink4); }
 
-/* ==================== Кнопка обновления ====================
-   Не .btn: глобальный mobile.css растягивает .btn на 100% ниже 768px, и кнопка
-   разорвала бы полосу. Контурная, без заливки — на странице нет ни одной новой
-   заливной кнопки, чтобы не заводить пару «фон + текст на нём». */
-
+/* Кнопка обновления — таблетка. Не .btn: глобальный mobile.css растягивает
+   .btn на 100% ниже 768px и разорвал бы полосу. */
 .me-refresh {
-    height: 32px;
-    padding: 0 14px;
-    border-radius: var(--border-radius-pill);
-    border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-    background: transparent;
-    color: var(--accent);
-    font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 600;
-    cursor: pointer;
+    font: 500 11px/1 var(--me-mono);
+    color: var(--me-accent);
+    border: 1px solid color-mix(in srgb, var(--me-accent) 40%, transparent);
+    border-radius: 999px;
+    padding: 5px 11px;
+    background: var(--me-soft4);
     white-space: nowrap;
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 6px;
+    transition: background .15s ease, border-color .15s ease;
 }
-.me-refresh:hover { background: var(--accent-light); }
-.me-refresh.is-busy,
-.me-refresh.is-cool {
-    color: var(--text-secondary);
-    border-color: var(--border-color);
-    background: transparent;
+.me-refresh:hover { background: color-mix(in srgb, var(--me-accent) 10%, var(--me-soft4)); }
+.me-refresh.is-busy, .me-refresh.is-cool {
+    color: var(--me-ink5);
+    border-color: var(--me-line);
     cursor: default;
 }
 .me-refresh.is-error {
-    color: var(--danger);
-    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    color: var(--me-bad);
+    border-color: color-mix(in srgb, var(--me-bad) 45%, transparent);
 }
 .me-refresh[disabled] { cursor: default; }
-.me-refresh .me-spin {
-    width: 12px;
-    height: 12px;
-    border: 2px solid var(--border-color);
-    border-top-color: var(--text-secondary);
+.me-spin {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid var(--me-line);
+    border-top-color: var(--me-ink4);
     border-radius: 50%;
-    animation: me-spin 0.8s linear infinite;
+    animation: meSpin .8s linear infinite;
 }
-@keyframes me-spin { to { transform: rotate(360deg); } }
+@keyframes meSpin { to { transform: rotate(360deg) } }
 
-/* ==================== Карточки ==================== */
+/* ==================== Карточка ==================== */
 
 .me-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    border-radius: 14px;
-    box-shadow: var(--shadow-sm);
-    overflow: hidden;
-    margin-bottom: 16px;
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-card);
+    box-shadow: var(--me-shadow);
+    padding: 20px 20px 14px;
 }
+.me-card + .me-card { margin-top: 12px; }
+.me-card-h {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+}
+.me-card-t { font: 600 16px/1.2 var(--me-sans); }
+.me-card-sp { flex: 1; min-width: 8px; }
+.me-card-note { font: 500 11px/1 var(--me-mono); color: var(--me-ink4); white-space: nowrap; }
 
-/* Штамп даты снимка — первая строка каждой карточки со снимочными числами.
-   Повторяется в каждой карточке осознанно: подпись должна быть в поле зрения
-   тогда, когда человек смотрит на конкретное число, а не 900px выше.
-   У живых блоков штампа нет вообще — его отсутствие и означает «живое». */
+/* Дату снимка несёт полоса-заголовок «Снимок» (одна на колонку), поэтому в
+   карточках её нет: раньше штамп дублировал ту же дату и наезжал на заголовок
+   «Мои деньги». Класс оставлен для состояния «давно не обновлялось». */
 .me-stamp {
-    padding: 6px 14px;
-    background: var(--bg-tertiary);
-    border-bottom: 1px solid var(--border-light);
-    font-size: 0.62rem;
-    color: var(--text-tertiary);
-    letter-spacing: .02em;
+    margin: 0 0 10px;
+    font: 500 10.5px/1 var(--me-mono);
+    color: var(--me-ink5);
 }
-.me-stamp.is-stale {
-    background: var(--warning-bg);
-    color: var(--warning);
-}
+.me-stamp.is-stale { color: var(--me-warn); }
 
-.me-card-body { padding: 14px; }
+/* ==================== Деньги ==================== */
 
-.me-h {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0 0 12px;
+.me-total {
+    margin: 12px 0 4px;
+    font: 700 44px/1 var(--me-mono);
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
 }
-.me-h-sub {
-    margin-left: auto;
-    font-size: 0.7rem;
-    font-weight: 400;
-    color: var(--text-tertiary);
-    white-space: nowrap;
+.me-total-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.me-total-sub-t { font: 400 13px/1.4 var(--me-sans); color: var(--me-ink2); }
+.me-mini-bar {
+    width: 120px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--me-track);
+    overflow: hidden;
 }
-.me-sub {
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
-    margin: 22px 0 10px;
-}
-
-/* ==================== Пустые состояния и ошибки ====================
-   Пустоту показываем словами и причиной, никогда нулём: ноль означает
-   «посчитано и получилось ноль», а «нет данных» — «не посчитано». На странице
-   про деньги смешивать эти два смысла нельзя. */
-
-.me-empty,
-.me-error {
-    border-radius: 14px;
-    padding: 16px;
-    font-size: 0.82rem;
-    line-height: 1.55;
-    margin-bottom: 16px;
-}
-.me-empty {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
-}
-.me-error {
-    background: var(--danger-bg);
-    border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
-    color: var(--text-primary);
-}
-.me-empty.is-warn {
-    background: var(--warning-bg);
-    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
-}
-.me-empty strong, .me-error strong { color: var(--text-primary); }
-.me-issue-act {
+.me-mini-bar > span {
     display: block;
-    margin-top: 8px;
-    font-size: 0.76rem;
-    color: var(--text-tertiary);
+    height: 100%;
+    border-radius: 999px;
+    background: var(--me-accent);
 }
 
-/* ==================== Деньги: квитанция ====================
-   Формула стоит под каждой строкой ВСЕГДА (принцип №1 проекта). Цветом помечен
-   только вычет: шесть зелёных сумм подряд — это «пёстрые цветные надписи» из
-   таблицы запретов дизайн-системы. */
+.me-rows { margin-top: 16px; }
 
-.me-total-v {
-    font-size: 2rem;
-    font-weight: 700;
-    line-height: 1.1;
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
-}
-.me-total-sub {
-    font-size: 0.74rem;
-    color: var(--text-tertiary);
-    margin: 2px 0 14px;
-}
-
-.me-rows { border-top: 1px solid var(--border-light); }
-.me-row {
+/* Строка суммы: название — точечный лидер — сумма — шеврон. Раскрывается в
+   формулу (принцип №1 проекта: показывать, как посчитано). Это <details>, то
+   есть работает тапом — на телефоне hover недоступен. */
+.me-row { border-top: 1px solid var(--me-hair); }
+.me-row > summary {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 10px;
-    padding: 9px 0 0;
-    font-size: 0.84rem;
+    padding: 12px 0;
+    cursor: pointer;
+    list-style: none;
 }
-.me-row-n { flex: 1; min-width: 0; color: var(--text-primary); }
+.me-row > summary::-webkit-details-marker { display: none; }
+.me-row-n { font: 500 14px/1.4 var(--me-sans); }
+.me-row-lead {
+    flex: 1;
+    min-width: 20px;
+    border-bottom: 1px dotted var(--me-dot);
+    transform: translateY(3px);
+}
 .me-row-v {
-    flex: none;
-    font-weight: 600;
-    color: var(--text-primary);
+    font: 600 14.5px/1 var(--me-mono);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
-.me-row-v.is-minus { color: var(--danger); }
-.me-row-v.is-excluded {
-    color: var(--text-tertiary);
-    text-decoration: line-through;
+.me-row-v.is-zero { color: var(--me-ink4); }
+.me-row-v.is-minus { color: var(--me-bad); }
+.me-row-v.is-excluded { color: var(--me-ink5); text-decoration: line-through; }
+
+.me-chv { flex: none; transition: transform .18s ease; }
+details[open] > summary .me-chv { transform: rotate(180deg); }
+
+/* Блок формулы */
+.me-box {
+    margin: 2px 0 14px;
+    padding: 12px 14px;
+    background: var(--me-soft3);
+    border-radius: var(--me-r-in);
+    font: 400 12px/1.7 var(--me-mono);
+    color: var(--me-ink2);
 }
-.me-row-sub { padding: 2px 0 9px; border-bottom: 1px solid var(--border-light); }
-.me-row-f {
-    font-size: 0.7rem;
-    line-height: 1.5;
-    color: var(--text-tertiary);
+details[open] > .me-box { animation: meIn .22s cubic-bezier(.2, .7, .3, 1); }
+@keyframes meIn {
+    from { opacity: 0; transform: translateY(-3px) }
+    to { opacity: 1; transform: none }
+}
+.me-box-sub { margin-top: 5px; color: var(--me-ink4); }
+.me-box-warn { margin-top: 5px; color: var(--me-warn); }
+.me-box-row {
+    display: flex;
+    gap: 10px;
+    border-top: 1px dotted var(--me-dot);
+    margin-top: 9px;
+    padding-top: 9px;
+}
+.me-box-row > .sp { flex: 1; }
+
+.me-sum {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-top: 2px solid var(--me-ink);
+    padding: 14px 0 6px;
+}
+.me-sum-n { font: 700 15px/1.2 var(--me-sans); }
+.me-sum-v {
+    font: 700 17px/1 var(--me-mono);
     font-variant-numeric: tabular-nums;
 }
-.me-row-f.is-warn { color: var(--warning); }
-.me-row-f.is-jump { color: var(--accent); }
-.me-row.is-total {
-    margin-top: 10px;
-    padding-top: 12px;
-    border-top: 2px solid var(--border-color);
-    font-size: 0.95rem;
-}
-.me-row.is-total .me-row-n,
-.me-row.is-total .me-row-v { font-weight: 700; }
-.me-note {
-    margin-top: 12px;
-    font-size: 0.7rem;
-    line-height: 1.6;
-    color: var(--text-tertiary);
+.me-fine {
+    margin: 8px 0 4px;
+    font: 400 12px/1.6 var(--me-sans);
+    color: var(--me-ink4);
+    text-wrap: pretty;
 }
 
 /* ==================== KPI ==================== */
 
-.me-kpi-fund { font-size: 0.82rem; color: var(--text-primary); }
-.me-kpi-fund-sub {
-    font-size: 0.72rem;
-    color: var(--text-tertiary);
-    margin-top: 3px;
-    font-variant-numeric: tabular-nums;
-}
-.me-kpi-total {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-light);
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
-}
+.me-kpi-total { padding: 4px 20px; }
+.me-kpi-total .me-row { border-top: none; }
+.me-kpi-total .me-row > summary { padding: 15px 0; }
+.me-kpi-total .me-row-n { font: 700 14.5px/1.2 var(--me-sans); }
+.me-kpi-total .me-row-v { font-size: 16px; font-weight: 700; }
+.me-kpi-total .me-box { margin: 0 0 15px; }
 
-.me-kpi-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-.me-kpi-name { flex: 1; font-size: 0.88rem; font-weight: 600; color: var(--text-primary); }
+.me-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+.me-kpi-card { min-width: 0; padding: 18px 20px 14px; }
+.me-kpi-name { font: 600 15px/1.3 var(--me-sans); }
 .me-kpi-prem {
-    flex: none;
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: var(--text-primary);
+    white-space: nowrap;
+    font: 700 15px/1 var(--me-mono);
     font-variant-numeric: tabular-nums;
 }
-.me-kpi-max { font-weight: 400; color: var(--text-tertiary); }
+.me-kpi-prem.is-zero { color: var(--me-ink4); }
+.me-kpi-max { font: 500 12px/1 var(--me-mono); color: var(--me-ink5); }
 
-.me-kpi-nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.me-kpi-nums {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin: 14px 0 16px;
+}
 .me-kpi-num {
-    background: var(--bg-tertiary);
-    border-radius: 9px;
-    padding: 7px 9px;
+    background: var(--me-soft2);
+    border: 1px solid var(--me-hair);
+    border-radius: var(--me-r-in);
+    padding: 9px 12px;
     min-width: 0;
 }
-.me-kpi-num-l { font-size: 0.6rem; color: var(--text-tertiary); }
+.me-kpi-num-l {
+    font: 600 10px/1 var(--me-mono);
+    letter-spacing: .1em;
+    color: var(--me-ink4);
+}
 .me-kpi-num-v {
-    font-size: 0.86rem;
-    font-weight: 600;
-    color: var(--text-primary);
+    margin-top: 5px;
+    font: 600 16px/1 var(--me-mono);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.me-kpi-num-v.is-ok { color: var(--me-ok); }
+.me-kpi-num-v.is-bad { color: var(--me-bad); }
 
-/* Шкала множителя 0..maxRatio с риской на цели. Без риски шкала читалась бы
-   как «выполнил половину», хотя это ровно «выполнил цель». */
-.me-kpi-bar {
+/* Шкала множителя 0..max с риской на цели: без риски шкала читается как
+   «выполнил половину», хотя это ровно «выполнил цель». */
+.me-scale {
     position: relative;
     height: 8px;
-    margin: 12px 0 4px;
-    border-radius: var(--border-radius-pill);
-    background: var(--bg-tertiary);
-    overflow: hidden;
+    border-radius: 999px;
+    background: var(--me-track);
 }
-.me-kpi-fill {
+.me-scale-fill {
     position: absolute;
     left: 0; top: 0; bottom: 0;
-    border-radius: var(--border-radius-pill);
-    background: var(--accent);
+    border-radius: 999px;
+    background: var(--me-accent);
 }
-.me-kpi-mark {
+.me-scale-mark {
     position: absolute;
-    top: -2px; bottom: -2px;
+    top: -3px; bottom: -3px;
     width: 2px;
-    background: var(--text-secondary);
+    border-radius: 2px;
+    background: var(--me-ink);
+    opacity: .55;
 }
-.me-kpi-scale {
+.me-scale-legend {
     display: flex;
     justify-content: space-between;
-    font-size: 0.6rem;
-    color: var(--text-tertiary);
+    margin-top: 6px;
+    font: 500 10.5px/1 var(--me-mono);
+    color: var(--me-ink4);
 }
-.me-kpi-scale span:nth-child(2) { transform: translateX(-50%); margin-left: 50%; }
-.me-kpi-calc {
-    margin-top: 10px;
-    font-size: 0.72rem;
-    line-height: 1.6;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
+.me-verdict { margin-top: 12px; font: 400 12.5px/1.5 var(--me-sans); }
+.me-verdict.is-ok { color: var(--me-ok); }
+.me-verdict.is-warn { color: var(--me-warn); }
+.me-verdict.is-plain { color: var(--me-ink2); }
+
+/* «КАК ПОСЧИТАНО» — вложенное раскрытие внутри карточки KPI */
+.me-how { border-top: 1px solid var(--me-hair); margin-top: 10px; }
+.me-how > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    cursor: pointer;
+    list-style: none;
+    font: 600 11px/1 var(--me-mono);
+    letter-spacing: .08em;
+    color: var(--me-ink3);
 }
+.me-how > summary::-webkit-details-marker { display: none; }
+.me-how .me-box { margin: 0 0 10px; }
 
 /* ==================== Показатели ==================== */
 
-.me-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.me-tile {
-    background: var(--bg-tertiary);
-    border-radius: 12px;
+.me-tiles-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.me-tile-s {
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-btn);
     padding: 12px 14px;
     min-width: 0;
 }
-.me-tile-l {
-    font-size: 0.62rem;
-    font-weight: 600;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
+.me-tile-s-l {
+    font: 600 10.5px/1 var(--me-mono);
+    letter-spacing: .1em;
+    color: var(--me-ink4);
+}
+.me-tile-s-v {
+    margin-top: 7px;
+    font: 700 19px/1 var(--me-mono);
+    font-variant-numeric: tabular-nums;
+}
+.me-tile-s-v .den { font-weight: 500; font-size: 13px; color: var(--me-ink5); }
+.me-tile-s-v.is-warn { color: var(--me-warn); }
+
+.me-tiles-big {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+.me-tile-b { min-width: 0; padding: 16px 20px 14px; }
+.me-tile-b > summary { cursor: pointer; list-style: none; }
+.me-tile-b > summary::-webkit-details-marker { display: none; }
+.me-tile-b-top { display: flex; align-items: center; gap: 8px; }
+.me-tile-b-l {
+    font: 600 10.5px/1 var(--me-mono);
+    letter-spacing: .12em;
+    color: var(--me-ink4);
+}
+.me-tile-b-v {
+    display: block;
+    margin-top: 8px;
+    font: 700 23px/1 var(--me-mono);
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+}
+.me-tile-b .me-box { margin: 11px 0 0; padding: 10px 12px; font-size: 11.5px; line-height: 1.65; }
+
+.me-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+.me-group { padding: 16px 20px 8px; }
+.me-group-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.me-group-t { font: 600 15px/1.3 var(--me-sans); }
+
+/* Сложенная полоса структуры продаж */
+.me-stack {
     display: flex;
-    align-items: center;
-    gap: 5px;
-}
-.me-tile-v {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    font-variant-numeric: tabular-nums;
-    margin-top: 4px;
-    white-space: nowrap;
+    height: 8px;
+    border-radius: 999px;
     overflow: hidden;
-    text-overflow: ellipsis;
+    background: var(--me-track);
+    margin-bottom: 6px;
+}
+.me-swatch { width: 8px; height: 8px; border-radius: 3px; flex: none; }
+
+.me-group .me-row > summary { padding: 10px 0; }
+.me-group .me-row-n { font: 500 13.5px/1.4 var(--me-sans); }
+.me-group .me-row-v { font-size: 14px; }
+.me-group .me-box {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+    line-height: 1.65;
 }
 
-.me-folds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 14px; }
-.me-folds .sc-fold { min-width: 0; }
-
-/* Кружок «?» — кнопка, а не span: на телефоне hover нет, и title не открыть
-   ничем. Клик разворачивает .me-formula под строкой. */
-.me-help {
-    flex: none;
-    width: 15px;
-    height: 15px;
-    padding: 0;
-    border-radius: 50%;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-tertiary);
-    font-family: inherit;
-    font-size: 0.6rem;
-    line-height: 1;
-    cursor: pointer;
-}
-.me-help:hover { color: var(--accent); border-color: var(--accent); }
-.me-help[aria-expanded="true"] { color: var(--accent); border-color: var(--accent); }
-.me-formula {
-    margin: 4px 0 6px;
-    padding: 8px 10px;
-    background: var(--bg-tertiary);
-    border-radius: 9px;
-    font-size: 0.7rem;
-    line-height: 1.55;
-    color: var(--text-secondary);
+/* Топ сортов: строка + полоса доли по выручке */
+.me-beer { margin-bottom: 9px; }
+.me-beer-top { display: flex; align-items: center; gap: 10px; }
+.me-beer-n { font: 500 13px/1.4 var(--me-sans); }
+.me-beer-v {
+    font: 600 13.5px/1 var(--me-mono);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
+.me-beer-bar {
+    height: 4px;
+    border-radius: 999px;
+    background: var(--me-hair);
+    margin-top: 6px;
+    overflow: hidden;
+}
+.me-beer-bar > span { display: block; height: 100%; border-radius: 999px; background: var(--me-bar2); }
+.me-beer:first-child .me-beer-bar > span { background: var(--me-accent); }
 
-/* ==================== Ссылки и подвал ==================== */
+/* ==================== Кнопка «весь график», пустые состояния, подвал ==================== */
 
 .me-link {
-    display: block;
-    text-align: center;
-    margin: 4px 0 20px;
-    padding: 11px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
-    text-decoration: none;
-    font-size: 0.8rem;
-    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 46px;
+    margin-top: 12px;
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-btn);
+    font: 600 13.5px/1 var(--me-sans);
+    color: var(--me-ink2);
+    transition: border-color .15s ease, color .15s ease;
 }
-.me-link:hover { background: var(--bg-hover); }
+.me-link:hover { border-color: var(--me-accent); color: var(--me-accent-h); text-decoration: none; }
+.me-link .arr { font-family: var(--me-mono); }
 
-.me-foot {
-    margin-top: 8px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border-light);
-    font-size: 0.72rem;
-    line-height: 1.6;
-    color: var(--text-tertiary);
+/* Пустоту показываем словами и причиной, никогда нулём: ноль значит
+   «посчитано и получилось ноль», а «нет данных» — «не посчитано». */
+.me-empty, .me-error {
+    border-radius: var(--me-r-card);
+    padding: 16px;
+    font: 400 13px/1.55 var(--me-sans);
+    margin-bottom: 12px;
+}
+.me-empty {
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    color: var(--me-ink2);
+}
+.me-empty.is-warn {
+    background: color-mix(in srgb, var(--me-warn) 8%, var(--me-card));
+    border-color: color-mix(in srgb, var(--me-warn) 35%, transparent);
+}
+.me-error {
+    background: color-mix(in srgb, var(--me-bad) 7%, var(--me-card));
+    border: 1px solid color-mix(in srgb, var(--me-bad) 35%, transparent);
+    color: var(--me-ink);
+}
+
+.me-foot { max-width: 720px; margin: 40px auto 0; text-align: center; }
+.me-foot p {
+    margin: 0;
+    font: 400 12.5px/1.75 var(--me-sans);
+    color: var(--me-ink4);
+    text-wrap: pretty;
+}
+
+/* ==================== Календарь смен (переопределение ms-* макетом) ====================
+   Разметку календаря и карточки дня рисует общий renderMyShifts
+   (static/js/schedule/screens.js) — тот же код, что на /schedule. Здесь только
+   оформление под макет, строго внутри body.me-page, чтобы /schedule не поехал. */
+
+body.me-page .ms-wrap { max-width: 100%; }
+body.me-page .ms-top { display: none; }   /* имя и точки теперь в шапке страницы */
+
+body.me-page .ms-month {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+body.me-page .ms-month-n { font: 600 14.5px/1 var(--me-sans); text-transform: capitalize; }
+body.me-page .ms-month-sp { flex: 1; }
+body.me-page .ms-month-c { font: 500 11px/1 var(--me-mono); color: var(--me-ink4); }
+
+body.me-page .ms-cal {
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-card);
+    box-shadow: var(--me-shadow);
+    padding: 16px 20px 14px;
+    gap: 5px;
+    row-gap: 5px;
+}
+body.me-page .ms-wd {
+    font: 600 10px/1 var(--me-mono);
+    color: var(--me-ink4);
+    padding-bottom: 3px;
+}
+body.me-page .ms-wd.is-wknd { color: var(--me-wknd); }
+body.me-page .ms-cell {
+    min-height: 46px;
+    height: auto;
+    border-radius: var(--me-r-cell);
+    background: var(--me-soft);
+    border: 1px solid var(--me-hair);
+    padding: 5px 6px 6px;
+    justify-content: space-between;
+}
+body.me-page .ms-cell.is-today {
+    background: var(--me-card);
+    border: 1.5px solid var(--me-today);
+}
+body.me-page .ms-cell.is-sel {
+    background: color-mix(in srgb, var(--me-accent) 9%, var(--me-card));
+    border-color: var(--me-accent);
+}
+body.me-page .ms-blank { background: none; border: none; min-height: 46px; }
+body.me-page .ms-cnum { font: 500 10.5px/1 var(--me-mono); color: var(--me-faint); }
+body.me-page .ms-cell.is-today .ms-cnum { font-weight: 700; color: var(--me-ink); }
+body.me-page .ms-cnum.is-wknd { color: var(--me-wknd); }
+/* День со сменой: номер темнее — плашка ниже сама скажет остальное. */
+body.me-page .ms-cell:has(.ms-cbar) .ms-cnum { color: var(--me-ink2); }
+body.me-page .ms-cwrap { padding: 0; align-items: flex-end; }
+body.me-page .ms-coff {
+    width: 100%;
+    height: 9px;
+    border-radius: 5px;
+    background: var(--me-off);
+}
+
+body.me-page .ms-leg {
+    gap: 7px 14px;
+    margin: 12px 0 0;
+    padding-top: 11px;
+    border-top: 1px solid var(--me-hair);
+    font: 500 10.5px/1 var(--me-mono);
+    color: var(--me-ink4);
+}
+body.me-page .ms-lgi { gap: 5px; }
+body.me-page .ms-lgsq { width: 10px; height: 10px; border-radius: 3px; }
+body.me-page .ms-lgoff {
+    width: 10px; height: 10px; border-radius: 3px;
+    background: var(--me-off);
+}
+
+/* Карточка выбранного дня и действия */
+body.me-page .ms-lbl {
+    font: 600 11px/1 var(--me-mono);
+    letter-spacing: .16em;
+    color: var(--me-ink3);
+    margin: 0 2px 12px;
+}
+body.me-page .ms-card {
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-card);
+    box-shadow: var(--me-shadow);
+    padding: 16px 20px;
+    margin-bottom: 12px;
+}
+body.me-page .ms-today { border-color: color-mix(in srgb, var(--me-accent) 55%, transparent); }
+body.me-page .ms-dd { font: 700 15px/1 var(--me-sans); color: var(--me-ink); }
+body.me-page .ms-pill {
+    font: 600 10.5px/1 var(--me-mono);
+    border-radius: 999px;
+    padding: 4px 9px;
+}
+body.me-page .ms-dpt { font: 700 14px/1 var(--me-sans); }
+body.me-page .ms-drole { font: 400 12px/1 var(--me-sans); color: var(--me-ink2); }
+body.me-page .ms-dmeta { font: 500 12px/1 var(--me-mono); color: var(--me-ink2); }
+body.me-page .ms-dh { color: var(--me-ink4); }
+body.me-page .ms-doff { font: 400 13px/1.5 var(--me-sans); color: var(--me-ink2); }
+body.me-page .ms-dsq { width: 11px; height: 11px; border-radius: 3px; }
+body.me-page .ms-cashwarn {
+    border-radius: var(--me-r-in);
+    background: color-mix(in srgb, var(--me-warn) 12%, var(--me-card));
+    color: var(--me-warn);
+    font: 600 12.5px/1.3 var(--me-sans);
+    padding: 9px 12px;
+}
+/* Главная кнопка страницы: закрыть смену. */
+body.me-page .ms-dbtn {
+    border-radius: var(--me-r-btn);
+    font: 600 13.5px/1 var(--me-sans);
+    padding: 14px;
+    background: var(--me-soft2);
+    border: 1px solid var(--me-line);
+    color: var(--me-ink2);
+}
+body.me-page .ms-dbtn-warn {
+    background: var(--me-warn);
+    border-color: var(--me-warn);
+    color: var(--me-on-warn, #FFFFFF);
+}
+body.me-page .ms-dbtn-dark {
+    background: var(--me-accent);
+    border-color: var(--me-accent);
+    color: var(--me-on-accent);
+}
+body.me-page .ms-acts { gap: 10px; margin-top: 12px; }
+body.me-page .ms-act {
+    border-radius: var(--me-r-btn);
+    font: 600 13px/1 var(--me-sans);
+    padding: 13px 10px;
+}
+body.me-page .ms-act-out {
+    color: var(--me-accent);
+    border: 1px solid color-mix(in srgb, var(--me-accent) 45%, transparent);
+    background: var(--me-card);
+}
+body.me-page .ms-act-ics {
+    background: var(--me-ink);
+    color: var(--me-card);
+    border: 1px solid var(--me-ink);
+    padding: 13px 16px;
+}
+body.me-page .ms-note {
+    font: 400 13px/1.55 var(--me-sans);
+    color: var(--me-ink3);
+    padding: 20px 16px;
 }
 
 /* ==================== Адаптив ====================
-   Один брейкпоинт — 768px, тот же, на котором переключается всё окружение
-   страницы (.container padding + safe-area, .btn на всю ширину, утилиты
-   .desktop-only/.mobile-only). Ни одна строка JS страницы ширину не читает,
-   поэтому рассинхронизировать CSS и JS здесь нечем. */
+   Один брейкпоинт 768px, тот же, на котором переключается окружение страницы.
+   JS ширину не читает нигде. */
 
 @media (max-width: 768px) {
-    .me-wrap { padding: 0 12px calc(24px + env(safe-area-inset-bottom, 0px)); }
-    .me-grid { grid-template-columns: 1fr; gap: 4px; }
-    /* Разделитель между живым и снимком: двойная линия — единственная на
-       странице, поэтому граница двух свежестей читается и без колонок. */
-    #meSnapCol > .me-band.is-snap {
-        margin-top: 22px;
-        padding: 12px 0;
-        border-top: 1px solid var(--border-color);
-        border-bottom: 1px solid var(--border-color);
-    }
-    /* На узком экране личный экран смен занимает всю ширину. */
-    .me-col .ms-wrap { max-width: 100%; }
-    /* Первая плитка — герой на всю строку, две остальные парой. Эффект .m-hero
-       + .m-duo из cards.css без второй разметки. */
-    .me-tiles { grid-template-columns: repeat(2, 1fr); }
-    .me-tiles > .me-tile:first-child { grid-column: 1 / -1; }
-    .me-tiles > .me-tile:first-child .me-tile-v { font-size: 1.8rem; }
-    .me-folds { grid-template-columns: 1fr; }
+    .me-wrap { padding: 14px 12px calc(40px + env(safe-area-inset-bottom, 0px)); }
+    .me-cols { gap: 6px; }
+    .me-head { padding: 9px 14px 9px 10px; gap: 10px; }
+    .me-logo { display: none; }          /* в шапке телефона важнее имя, чем логотип */
+    .me-band { margin: 22px 2px 10px; }
+    .me-total { font-size: 34px; }
+    .me-card { padding: 16px 16px 12px; }
+    .me-kpi-card, .me-group, .me-tile-b { padding: 15px 16px 12px; }
+    .me-kpi-total { padding: 2px 16px; }
+    .me-tiles-big { grid-template-columns: repeat(2, 1fr); }
+    .me-tiles-big > .me-tile-b:first-child { grid-column: 1 / -1; }
+    .me-groups { grid-template-columns: 1fr; }
+    body.me-page .ms-cal { padding: 14px 14px 12px; }
+    body.me-page .ms-card { padding: 14px 16px; }
 }
 
-/* Четыре числа KPI в ряд на узком экране не читаются: подписи «множитель» и
-   «минимум» обрезаются. Двумя рядами по два. */
 @media (max-width: 480px) {
+    .me-total { font-size: 30px; }
     .me-kpi-nums { grid-template-columns: repeat(2, 1fr); }
-    .me-total-v { font-size: 1.7rem; }
+    .me-tiles-3 { gap: 8px; }
+    .me-tile-s { padding: 10px 11px; }
+    .me-tile-s-v { font-size: 17px; }
 }

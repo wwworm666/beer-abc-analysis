@@ -27,28 +27,49 @@
     </div>
 
     <div class="me-wrap">
-      <div class="me-grid">
 
-        <!-- ЖИВОЕ: смены и часы прямо из графика. Обновляется само. -->
-        <section class="me-col">
+      <!-- Шапка страницы вместо общей .header-bar (та скрыта на .me-page).
+           Гамбургер открывает тот же сайдбар: пробрасываем клик на скрытую
+           кнопку #sidebar-toggle из shared/nav.html, чтобы не дублировать её
+           обработчик. -->
+      <header class="me-head">
+        <button type="button" class="me-burger" id="meBurger" aria-label="Меню">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="me-ava" id="meAva">{{ current_user.short_label if current_user else '' }}</span>
+        <span class="me-who">
+          <span class="me-who-n">{{ current_user.display_name if current_user else '' }}</span>
+          <span class="me-who-s" id="meWhoSub">бармен</span>
+        </span>
+        <span class="me-logo"><span class="me-logo-a">&gt;&nbsp;</span>k<span
+              class="me-logo-tail">ultura.os</span><span class="me-logo-c">_</span></span>
+      </header>
+
+      <div class="me-cols">
+
+        <!-- ЖИВОЕ: смены и часы прямо из графика, обновляется само. -->
+        <section class="me-col-now">
           <div class="me-band">
             <span class="me-band-t">Сейчас</span>
             <span class="me-band-line"></span>
-            <span class="me-band-r"><span class="me-live-ts" id="meLiveTs"></span></span>
+            <span class="me-band-ts" id="meLiveTs"></span>
           </div>
           <div id="meNotice"></div>
+          <!-- Плитки месяца: живые числа, поэтому стоят в живой колонке, а не
+               под «Снимком». -->
+          <div class="me-tiles-3" id="meMonthTiles"></div>
           <div id="myShifts" class="ms-wrap"></div>
-          <a class="me-link" href="/schedule">Весь график по сотрудникам</a>
+          <a class="me-link" href="/schedule">Весь график по сотрудникам
+            <span class="arr">&rarr;</span></a>
         </section>
 
-        <!-- СНИМОК: показатели, KPI и деньги. Пересчитывается раз в сутки. -->
-        <section class="me-col" id="meSnapCol">
-          <div class="me-band is-snap">
-            <span class="me-band-t" id="meSnapTitle">Снимок</span>
+        <!-- СНИМОК: показатели, KPI и деньги, пересчёт раз в сутки. -->
+        <section class="me-col-snap" id="meSnapCol">
+          <div class="me-band">
+            <span class="me-band-t">Снимок</span>
             <span class="me-band-line"></span>
-            <span class="me-band-r">
-              <button type="button" class="me-refresh" id="meRefresh" hidden>Обновить</button>
-            </span>
+            <span class="me-band-ts" id="meSnapTs"></span>
+            <button type="button" class="me-refresh" id="meRefresh" hidden>Обновить</button>
           </div>
           <div id="meSnapNotice"></div>
           <div id="meMoney"></div>
@@ -57,7 +78,8 @@
         </section>
 
       </div>
-      <div class="me-foot" id="meFoot"></div>
+
+      <footer class="me-foot" id="meFoot"></footer>
     </div>
 
     <div class="loading" id="loading" style="display: none;">
