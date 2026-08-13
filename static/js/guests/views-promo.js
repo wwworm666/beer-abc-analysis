@@ -130,13 +130,12 @@ Guests.registerView('promo', function (pane) {
     }
 
     // --------------------------------------------------------- загрузка
-    function loadNames(p) {
-        // Список акций за ТОТ ЖЕ диапазон, что и отчёт: иначе в выпадающем
-        // списке висят акции, которых в выбранном периоде нет.
-        return G.api('/api/discount-names', { date_from: p.from, date_to: p.to })
-            .then(function (j) { S.names = j.names || []; return S.names; })
-            .catch(function () { S.names = S.names || []; return S.names; });
-    }
+    // Отдельного запроса за списком акций нет намеренно. Во-первых, отчёт
+    // /api/discount-analyze сам возвращает discount_names за запрошенный
+    // диапазон и точку. Во-вторых, фильтр акции работает по УЖЕ загруженному
+    // ответу (в запрос акция не передаётся вообще), поэтому выбирать её до
+    // загрузки бессмысленно — а лишний вызов лез бы в iiko при открытии вкладки,
+    // ровно то, чего эта вкладка обязана не делать.
 
     // Поколение запроса: побеждает последний нажатый «Анализировать», а не
     // последний ответивший. Без этого два клика подряд могли показать данные
@@ -150,14 +149,10 @@ Guests.registerView('promo', function (pane) {
             '<div class="gcard"><div class="pane-loading">Запрашиваю iiko за ' +
             G.fmtDate(p.from) + ' — ' + G.fmtDate(p.to) + '…</div></div>';
         bind();
-        return Promise.all([
-            G.post('/api/discount-analyze',
-                   { bar: p.bar || null, date_from: p.from, date_to: p.to }),
-            loadNames(p)
-        ])
-            .then(function (res) {
+        return G.post('/api/discount-analyze',
+                      { bar: p.bar || null, date_from: p.from, date_to: p.to })
+            .then(function (j) {
                 if (my !== gen) return;            // ответ устаревшего запроса
-                var j = res[0];
                 S.data = j;
                 S.params = { from: p.from, to: p.to, bar: p.bar };
                 if (j.discount_names) S.names = j.discount_names;
@@ -279,7 +274,9 @@ Guests.registerView('promo', function (pane) {
         if (!S.data) {
             html += '<div class="gcard"><div class="note-line">Выберите диапазон ' +
                 'и нажмите «Анализировать». Данные приходят из iiko по запросу, ' +
-                'поэтому вкладка не грузит их сама при открытии.</div></div>';
+                'поэтому вкладка не грузит их сама при открытии. Список акций ' +
+                'заполнится после анализа — теми, что реально были в этом ' +
+                'диапазоне.</div></div>';
             pane.innerHTML = html; bind(); return;
         }
 
@@ -531,6 +528,7 @@ Guests.registerView('promo', function (pane) {
     }
 
     // --------------------------------------------------------- вход
-    // Список акций тянем один раз (он дешёвый), сам отчёт — только по кнопке.
-    return loadNames().then(function () { render(); });
+    // Никаких запросов при открытии вкладки: рисуем контролы и подсказку.
+    // Данные приходят только по кнопке «Анализировать».
+    render();
 }, { ownPeriod: true });

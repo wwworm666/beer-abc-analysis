@@ -878,57 +878,6 @@ def analyze_waiters():
 ALL_BUCKET = '__all__'
 
 
-@analysis_bp.route('/api/discount-names', methods=['GET'])
-def get_discount_names():
-    """Лёгкий API — список названий скидок.
-
-    ?date_from=&date_to=  (YYYY-MM-DD, правая граница включительная) — окно, за
-    которое искать акции. Без параметров — последний год от сегодня.
-
-    Раньше окно было жёстко зашито, а вкладка всё равно передавала параметры
-    периода: они молча игнорировались, и в списке висели акции, которых в
-    выбранном диапазоне нет.
-    """
-    try:
-        arg_from = (request.args.get('date_from') or '').strip()
-        arg_to = (request.args.get('date_to') or '').strip()
-        try:
-            date_to = (datetime.strptime(arg_to, '%Y-%m-%d') if arg_to
-                       else datetime.now())
-            date_from = (datetime.strptime(arg_from, '%Y-%m-%d') if arg_from
-                         else date_to - timedelta(days=365))
-        except ValueError:
-            return jsonify({'error': 'Даты нужны в формате YYYY-MM-DD'}), 400
-        if date_from > date_to:
-            return jsonify({'error': 'Начало периода позже конца'}), 400
-        # OLAP-граница справа эксклюзивная — сдвигаем на день, как в остальных
-        # запросах проекта.
-        olap_date_to = (date_to + timedelta(days=1)).strftime('%Y-%m-%d')
-        date_from_str = date_from.strftime('%Y-%m-%d')
-
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        try:
-            result = olap.get_discount_names(date_from_str, olap_date_to)
-        finally:
-            olap.disconnect()
-
-        if not result or not result.get('data'):
-            return jsonify({'names': []})
-
-        names = sorted(set(
-            r.get('ItemSaleEventDiscountType', '') for r in result['data']
-            if r.get('ItemSaleEventDiscountType')
-        ))
-
-        return jsonify({'names': names})
-
-    except Exception as e:
-        print(f"[ERROR] Oshibka v /api/discount-names: {e}")
-        return jsonify({'error': str(e)}), 500
-
 @analysis_bp.route('/api/discount-analyze', methods=['POST'])
 def analyze_discounts():
     """API endpoint для анализа скидок — один OLAP, агрегация в Python"""

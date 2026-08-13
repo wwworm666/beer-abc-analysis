@@ -265,8 +265,15 @@ test('повторный клик по «Анализировать» защищ
 test('вкладка «Акции» не грузит iiko при открытии', () => {
     assert.ok(promo.includes('Анализировать'), 'нет кнопки явной загрузки');
     // Запрос отчёта должен идти только из load(), вызываемого по кнопке/drill-down.
-    const calls = (promo.match(/discount-analyze/g) || []).length;
-    assert.equal(calls, 1, 'обращение к discount-analyze должно быть ровно одно (в load)');
+    // Считаем именно ВЫЗОВЫ, а не упоминания в комментариях.
+    const calls = (promo.match(/G\.post\('\/api\/discount-analyze'/g) || []).length;
+    assert.equal(calls, 1, 'вызов discount-analyze должен быть ровно один (в load)');
+    // Ни одного другого обращения к iiko: список акций приходит вместе с отчётом.
+    assert.ok(!promo.includes('discount-names'),
+        'вернулся отдельный запрос за списком акций — он лезет в iiko при открытии');
+    // Точка входа вида не должна ничего запрашивать.
+    const entry = promo.slice(promo.lastIndexOf('--------- вход'));
+    assert.ok(!/G\.(api|post)\(/.test(entry), 'точка входа делает запрос');
 });
 
 console.log(`\n${passed} ok, ${failed} failed`);

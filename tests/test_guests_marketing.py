@@ -232,41 +232,24 @@ class TestDiscountAnalyzeFixes(unittest.TestCase):
         self.assertEqual(payload['discounts']['__all__'][0]['dishes'], [])
         self.assertEqual(len(payload['discounts']['Часы'][0]['dishes']), 1)
 
-    def test_discount_names_respects_requested_range(self):
-        """Раньше окно было зашито на 365 дней, а параметры молча игнорировались."""
-        from unittest.mock import patch
-        seen = {}
+    def test_discount_names_come_with_the_report(self):
+        """Список акций приходит вместе с отчётом — отдельный запрос не нужен.
 
-        class FakeOlap:
-            def connect(self_inner):
-                return True
+        Вкладка не может выбрать акцию до загрузки (в запрос акция не передаётся,
+        фильтр работает по готовому ответу), поэтому лишний вызов только лез бы
+        в iiko при открытии вкладки.
+        """
+        payload = self._analyze([
+            self.row('2026-03-01', '1', promo='Часы'),
+            self.row('2026-03-02', '2', promo='Гостю'),
+        ])
+        self.assertEqual(payload['discount_names'], ['Гостю', 'Часы'])
 
-            def disconnect(self_inner):
-                return None
-
-            def get_discount_names(self_inner, date_from, date_to):
-                seen['from'] = date_from
-                seen['to'] = date_to
-                return {'data': [{'ItemSaleEventDiscountType': 'Акция'}]}
-
-        with patch('routes.analysis.OlapReports', FakeOlap):
-            resp = self.client.get(
-                '/api/discount-names?date_from=2026-05-01&date_to=2026-05-31')
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(seen['from'], '2026-05-01')
-        # Правая граница OLAP эксклюзивная — сдвиг на день.
-        self.assertEqual(seen['to'], '2026-06-01')
-        self.assertEqual(resp.get_json()['names'], ['Акция'])
-
-    def test_discount_names_rejects_broken_dates(self):
-        resp = self.client.get('/api/discount-names?date_from=не-дата')
-        self.assertEqual(resp.status_code, 400)
-
-    def test_rfm_analyze_endpoint_is_gone(self):
-        """Дубль RFM удалён: каноничный живёт в /api/guests/rfm."""
-        resp = self.client.post('/api/rfm-analyze', json={
-            'date_from': '2026-03-01', 'date_to': '2026-03-31'})
-        self.assertEqual(resp.status_code, 404)
+    def test_dead_endpoints_are_gone(self):
+        """Оба дубля удалены: RFM живёт в /api/guests/rfm, список акций — в отчёте."""
+        self.assertEqual(404, self.client.post('/api/rfm-analyze', json={
+            'date_from': '2026-03-01', 'date_to': '2026-03-31'}).status_code)
+        self.assertEqual(404, self.client.get('/api/discount-names').status_code)
 
 
 if __name__ == '__main__':
