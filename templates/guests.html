@@ -4,7 +4,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Гости — Пивная культура</title>
+    <title>Маркетинг — Пивная культура</title>
     <!-- Shared CSS -->
     <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
     <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
@@ -16,8 +16,8 @@
 </head>
 <body class="guests-page">
     <div class="container">
-        {% set page_title = "Гости" %}
-        {% set page_subtitle = "Аналитика гостей и программы лояльности" %}
+        {% set page_title = "Маркетинг" %}
+        {% set page_subtitle = "Гости, программа лояльности и эффективность акций" %}
         {% include 'shared/nav.html' %}
     </div>
 
@@ -49,6 +49,7 @@
             <button class="gtab-btn" data-tab="cohorts">Когорты</button>
             <button class="gtab-btn" data-tab="rfm">RFM</button>
             <button class="gtab-btn" data-tab="ltv">LTV</button>
+            <button class="gtab-btn" data-tab="promo">Акции</button>
             <button class="gtab-btn" data-tab="products">Товары</button>
             <button class="gtab-btn" data-tab="venues">Точки</button>
             <button class="gtab-btn" data-tab="never">Не купившие</button>
@@ -62,6 +63,7 @@
             <div class="gtab-pane" id="pane-cohorts"></div>
             <div class="gtab-pane" id="pane-rfm"></div>
             <div class="gtab-pane" id="pane-ltv"></div>
+            <div class="gtab-pane" id="pane-promo"></div>
             <div class="gtab-pane" id="pane-products"></div>
             <div class="gtab-pane" id="pane-venues"></div>
             <div class="gtab-pane" id="pane-never"></div>
@@ -70,6 +72,12 @@
     </div>
 
     <script src="/static/libs/chart.umd.min.js"></script>
+    <script>
+        /* Имена точек из iiko — для живого OLAP на вкладке «Акции».
+           Ключи витрины сюда НЕ дублируются: витринные отчёты получают их
+           вместе с данными (см. routes/guests.py). */
+        window.GUESTS_CONFIG = { bars: {{ bars | tojson }} };
+    </script>
     <script src="/static/js/guests/formulas.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/common.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/charts.js?v={{ app_version }}"></script>
@@ -79,6 +87,7 @@
     <script src="/static/js/guests/views-cohorts.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-rfm.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-ltv.js?v={{ app_version }}"></script>
+    <script src="/static/js/guests/views-promo.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-products.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-venues.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-never.js?v={{ app_version }}"></script>

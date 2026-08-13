@@ -137,7 +137,6 @@ class AuditExpectedFailures(unittest.TestCase):
         # Desired behavior: current fact revenue must include draft, bottles and kitchen.
         self.assertEqual(600.0, actual_revenue)
 
-    @unittest.expectedFailure
     @patch("routes.analysis.OlapReports", FakeDiscountOlap)
     def test_discount_store_summary_should_not_collapse_same_order_number_on_different_days(self):
         app = Flask(__name__)

@@ -74,6 +74,41 @@ window.GCharts = (function () {
         Object.assign(opts, extraOpts || {});
         return make(canvasId, { type: 'line', data: { labels: labels, datasets: datasets }, options: opts });
     }
+    // Точечная диаграмма. Нужна RFM: X — частота визитов, Y — давность,
+    // радиус точки — средний чек. datasets — массив {label, data:[{x,y,r}],
+    // backgroundColor}. axes — {xTitle, yTitle} для подписей осей: без них
+    // «частота против давности» читается как случайное облако.
+    function scatter(canvasId, datasets, axes) {
+        var p = palette();
+        var a = axes || {};
+        var font = { family: 'IBM Plex Mono', size: 10 };
+        var opts = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { labels: { color: p.text, font: { family: 'IBM Plex Mono' }, boxWidth: 12 } },
+                tooltip: {
+                    titleFont: { family: 'IBM Plex Mono' },
+                    bodyFont: { family: 'IBM Plex Mono' },
+                    callbacks: a.tooltip ? { label: a.tooltip } : {}
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: !!a.xTitle, text: a.xTitle || '', color: p.text, font: font },
+                    ticks: { color: p.text, font: font }, grid: { color: p.grid },
+                    beginAtZero: true
+                },
+                y: {
+                    title: { display: !!a.yTitle, text: a.yTitle || '', color: p.text, font: font },
+                    ticks: { color: p.text, font: font }, grid: { color: p.grid },
+                    beginAtZero: true
+                }
+            }
+        };
+        return make(canvasId, { type: 'bubble', data: { datasets: datasets }, options: opts });
+    }
+
     function doughnut(canvasId, labels, values, colors) {
         var p = palette();
         var opts = {
@@ -88,5 +123,6 @@ window.GCharts = (function () {
         });
     }
 
-    return { palette: palette, bar: bar, hbar: hbar, line: line, doughnut: doughnut };
+    return { palette: palette, bar: bar, hbar: hbar, line: line,
+             doughnut: doughnut, scatter: scatter };
 })();

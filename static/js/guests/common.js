@@ -11,7 +11,13 @@ window.Guests = (function () {
         meta: null                   // meta последнего успешного ответа
     };
     var views = {};                  // tab -> render(pane)
-    var rendered = {};               // tab -> ключ периода, на котором отрисован
+    var viewOpts = {};               // tab -> { ownPeriod: bool }
+    var rendered = {};               // tab -> ключ, на котором отрисован
+
+    // Имена точек из iiko (Store.Name) — нужны вкладке «Акции» для фильтра
+    // живого OLAP. Ключи витрины сюда не кладём: витринные отчёты получают их
+    // вместе с данными, и второй список разъезжался бы с первым.
+    var config = window.GUESTS_CONFIG || { bars: [] };
 
     // ---------------- форматирование ----------------
     function fmtNum(n) {
@@ -51,6 +57,15 @@ window.Guests = (function () {
     function periodKey() {
         return state.periodType + ':' + anchorISO();
     }
+    // Ключ кэша отрисовки вкладки. Вкладка со своим периодом (например «Акции»,
+    // где произвольный диапазон дат) не должна считаться устаревшей при сдвиге
+    // глобального периода — иначе повторное открытие заново дёрнет iiko.
+    function viewKey(tab) {
+        return (viewOpts[tab] && viewOpts[tab].ownPeriod) ? 'own' : periodKey();
+    }
+    function ownsPeriod(tab) {
+        return !!(viewOpts[tab] && viewOpts[tab].ownPeriod);
+    }
     function shiftPeriod(dir) {
         var d = new Date(state.anchor);
         if (state.periodType === 'week') d.setDate(d.getDate() + 7 * dir);
@@ -69,7 +84,11 @@ window.Guests = (function () {
         onPeriodChanged();
     }
     function onPeriodChanged() {
-        rendered = {};   // все вкладки устарели
+        // Устарели только вкладки, которые живут по глобальному периоду.
+        // Вкладка со своим диапазоном сохраняет загруженные данные.
+        Object.keys(rendered).forEach(function (tab) {
+            if (!ownsPeriod(tab)) delete rendered[tab];
+        });
         renderActive();
     }
 
@@ -89,6 +108,24 @@ window.Guests = (function () {
                 if (j.meta) { state.meta = j.meta; updatePeriodHeader(j.meta); }
                 return j;
             });
+    }
+
+    // POST с JSON-телом. Нужен вкладке «Акции»: её данные приходят живым
+    // запросом в iiko через POST /api/discount-analyze, а api() умеет только GET
+    // и подставляет период, которого у произвольного диапазона нет.
+    // Шапку периода намеренно НЕ трогаем: у этих ответов нет meta, и подпись
+    // глобального периода к ним не относится.
+    function post(path, body) {
+        return fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {})
+        }).then(function (r) {
+            return r.json().then(function (j) {
+                if (!r.ok || j.error) throw new Error(j.error || ('HTTP ' + r.status));
+                return j;
+            });
+        });
     }
 
     function updatePeriodHeader(meta) {
@@ -125,14 +162,20 @@ window.Guests = (function () {
     }
 
     // ---------------- вкладки ----------------
-    function registerView(tab, renderFn) { views[tab] = renderFn; }
+    // opts.ownPeriod — вкладка сама управляет своим периодом (свои поля дат,
+    // свой фильтр, своя кнопка загрузки). Глобальная панель периода на ней
+    // скрывается, а сдвиг периода её не инвалидирует.
+    function registerView(tab, renderFn, opts) {
+        views[tab] = renderFn;
+        viewOpts[tab] = opts || {};
+    }
 
     function renderActive() {
         var tab = state.activeTab;
         var pane = document.getElementById('pane-' + tab);
         if (!pane || !views[tab]) return;
-        if (rendered[tab] === periodKey()) return;   // уже актуально
-        rendered[tab] = periodKey();
+        if (rendered[tab] === viewKey(tab)) return;   // уже актуально
+        rendered[tab] = viewKey(tab);
         pane.innerHTML = '<div class="pane-loading">Загрузка…</div>';
         Promise.resolve(views[tab](pane)).catch(function (e) {
             pane.innerHTML = '<div class="pane-error">Ошибка: ' + esc(e.message) + '</div>';
@@ -148,6 +191,10 @@ window.Guests = (function () {
         document.querySelectorAll('.gtab-pane').forEach(function (p) {
             p.classList.toggle('active', p.id === 'pane-' + tab);
         });
+        // Панель глобального периода к вкладке со своим диапазоном не относится:
+        // оставить её висеть над чужими данными — прямой путь к «фильтр не работает».
+        var controls = document.querySelector('.guests-controls');
+        if (controls) controls.classList.toggle('own-period', ownsPeriod(tab));
         if (history.replaceState) history.replaceState(null, '', '#' + tab);
         renderActive();
     }
@@ -176,7 +223,11 @@ window.Guests = (function () {
                 } else {
                     btn.disabled = false;
                     btn.textContent = 'Обновить данные';
-                    rendered = {};
+                    // Синк обновил витрину. Вкладку «Акции» это не касается —
+                    // она берёт данные живым запросом в iiko, а не из витрины.
+                    Object.keys(rendered).forEach(function (tab) {
+                        if (!ownsPeriod(tab)) delete rendered[tab];
+                    });
                     renderActive();
                 }
             });
@@ -201,7 +252,10 @@ window.Guests = (function () {
 
     return {
         state: state,
+        config: config,
         api: api,
+        post: post,
+        activateTab: activateTab,
         registerView: registerView,
         fmtNum: fmtNum, fmtMoney: fmtMoney, fmtPct: fmtPct,
         fmtDate: fmtDate, fmtMonth: fmtMonth, esc: esc,

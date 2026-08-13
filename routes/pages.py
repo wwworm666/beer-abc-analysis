@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect
+from flask import Blueprint, redirect, render_template, request
 from extensions import BARS, APP_VERSION
 
 pages_bp = Blueprint('pages', __name__)
@@ -29,9 +29,16 @@ def waiters():
 
 
 @pages_bp.route('/discounts')
-def discounts():
-    """Страница анализа скидок"""
-    return render_template('discounts.html', bars=BARS)
+def discounts_redirect():
+    """Анализ акций слит в «Маркетинг» (/guests), вкладка «Акции».
+
+    Оставляем 301 для старых ссылок и закладок — тот же приём, что у
+    /schedule/edit. Прежний режим RFM жил по ?mode=rfm; RFM-сегментация теперь
+    одна и живёт на вкладке #rfm, поэтому старый режим ведём прямо на неё.
+    """
+    if request.args.get('mode') == 'rfm':
+        return redirect('/guests#rfm', code=301)
+    return redirect('/guests#promo', code=301)
 
 
 @pages_bp.route('/taps')

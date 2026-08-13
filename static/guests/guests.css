@@ -139,10 +139,60 @@
 .note-line { font-size: 0.75rem; color: var(--text-tertiary); margin: 8px 0 0;
     line-height: 1.45; }
 
+/* --- Вкладка «Акции»: свой период вместо глобального ---
+   Вкладка объявлена ownPeriod, и common.js вешает .own-period на панель
+   управления. Глобальный переключатель периода к живому OLAP за произвольный
+   диапазон не относится, а подпись покрытия витрины над ним прямо врала бы.
+   Кнопка синка остаётся: она про витрину и доступна с любой вкладки. */
+.guests-controls.own-period .period-types,
+.guests-controls.own-period .period-nav,
+.guests-controls.own-period .coverage-banner { display: none; }
+/* Распорку, прижимавшую кнопку синка вправо, несёт .coverage-banner
+   (margin-left: auto). Скрыли её — переносим распорку на саму кнопку, иначе на
+   этой вкладке кнопка прыгает к левому краю. */
+.guests-controls.own-period .sync-btn { margin-left: auto; }
+
+/* Карточки сегментов RFM кликабельны — фильтруют таблицу гостей по сегменту. */
+.rfm-seg-pick { cursor: pointer; }
+.rfm-seg-pick .gmetric { transition: border-color .15s ease; }
+.rfm-seg-pick:hover .gmetric { border-color: var(--accent); }
+
+.promo-panel { margin-bottom: 16px; }
+.promo-controls { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.promo-field { display: flex; flex-direction: column; gap: 5px; font-size: 0.75rem;
+    color: var(--text-tertiary); }
+.promo-field > span { text-transform: uppercase; letter-spacing: 0.04em; }
+/* Высота полей совпадает с --control-h, чтобы строка не «ступенькой» */
+.promo-field input, .promo-field select {
+    height: 38px; padding: 0 12px; border: 1px solid var(--border-color);
+    border-radius: 10px; font-family: inherit; font-size: 0.85rem;
+    background: var(--bg-secondary); color: var(--text-primary); min-width: 150px; }
+.promo-field input:focus, .promo-field select:focus {
+    outline: none; border-color: var(--accent); }
+.promo-controls .sync-btn { height: 38px; }
+
+.promo-profile { margin-bottom: 14px; }
+
+/* Кнопки внутри таблиц: drill-down по точке и раскрытие позиций.
+   Именно кнопки, а не ссылки — действие на странице, не переход. */
+.promo-drill, .promo-details {
+    border: none; background: transparent; cursor: pointer; padding: 0;
+    font-family: inherit; font-size: inherit; color: var(--accent);
+    border-bottom: 1px dashed var(--accent); }
+.promo-drill:hover, .promo-details:hover { color: var(--accent-hover);
+    border-bottom-color: var(--accent-hover); }
+.promo-details { font-size: 0.78rem; }
+.promo-detail-row > td { background: var(--bg-tertiary); padding: 0; }
+.promo-dishes { padding: 10px 14px; }
+.promo-dishes .gtable { font-size: 0.78rem; }
+
 @media (max-width: 700px) {
     .guests-controls { gap: 10px; }
     .coverage-banner { margin-left: 0; text-align: left; width: 100%; }
     .period-label { min-width: 0; }
     .metric-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     .chart-box { height: 240px; }
+    .promo-controls { gap: 10px; }
+    .promo-field { flex: 1 1 140px; }
+    .promo-field input, .promo-field select { min-width: 0; width: 100%; }
 }

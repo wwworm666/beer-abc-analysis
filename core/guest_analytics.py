@@ -532,24 +532,35 @@ def _rfm_segment(r_code, f_code, visits_in_window):
     return 'LOYAL'
 
 
-def rfm(store, period, meta, include_guests=True):
+def rfm(store, period, meta, include_guests=True, venue=None):
     """RFM-сегментация (ТЗ §7) на дату среза, окно 12 месяцев (365 дней).
 
     Население: гости с >=1 визитом в окне (p_end-364 .. p_end включительно).
     R = дней с последнего визита; F = визитов в окне; M = выручка окна.
+
+    venue — ключ точки из PHYSICAL_VENUES или None (вся сеть). При фильтре по
+    точке R/F/M считаются ТОЛЬКО по чекам этой точки: это ответ на вопрос «как
+    гость ведёт себя в этом баре», а не «как он ведёт себя вообще, но был здесь».
+    Поэтому сумма гостей по четырём барам БОЛЬШЕ сетевого числа — гость, ходящий
+    в два бара, попадает в оба среза. Так же считал прежний RFM на /discounts,
+    где фильтр по бару шёл в OLAP-запрос.
     """
     asof = meta['asof']
     win_start = (_parse_date(asof) - timedelta(days=RFM_WINDOW_DAYS - 1)).isoformat()
+    venue = venue if venue in PHYSICAL_VENUES else None
+    venue_sql = " AND r.store = ?" if venue else ""
+    params = [win_start, asof] + ([venue] if venue else [])
     with store.conn() as conn:
         rows = conn.execute(
-            """
+            f"""
             SELECT r.guest_id, COUNT(DISTINCT r.open_date) f,
+                   COUNT(*) orders,
                    MAX(r.open_date) last_visit, SUM(r.revenue) m,
                    g.name, g.phone, g.card_number
             FROM receipts r JOIN guests g ON g.guest_id = r.guest_id
-            WHERE r.open_date >= ? AND r.open_date <= ?
+            WHERE r.open_date >= ? AND r.open_date <= ?{venue_sql}
             GROUP BY r.guest_id
-            """, (win_start, asof)).fetchall()
+            """, params).fetchall()
     seg_agg = {}
     guest_rows = []
     for r in rows:
@@ -564,7 +575,13 @@ def rfm(store, period, meta, include_guests=True):
             guest_rows.append({
                 'guest_id': r['guest_id'], 'name': r['name'],
                 'phone': r['phone'], 'card_number': r['card_number'],
+                'last_visit': r['last_visit'],
                 'recency_days': rec_days, 'frequency': r['f'],
+                'orders': r['orders'],
+                # Средний чек — выручка / ЧЕКИ, единое определение проекта
+                # (GUEST_FORMULAS.avg_check, docs/guests.md).
+                'avg_check': (round((r['m'] or 0) / r['orders'])
+                              if r['orders'] else 0),
                 'monetary': round(r['m'] or 0),
                 'r': r_code, 'f': f_code, 'segment': seg,
             })
@@ -576,6 +593,10 @@ def rfm(store, period, meta, include_guests=True):
     guest_rows.sort(key=lambda g: -g['monetary'])
     out = {'asof': asof, 'window_start': win_start, 'window_days': RFM_WINDOW_DAYS,
            'total_guests': total, 'segments': segments,
+           'venue': venue,
+           'venue_name': VENUES.get(venue, {}).get('name') if venue else None,
+           'venues': [{'key': k, 'name': VENUES.get(k, {}).get('name', k)}
+                      for k in PHYSICAL_VENUES],
            'r_thresholds': list(RFM_R_THRESHOLDS),
            'f_thresholds': list(RFM_F_THRESHOLDS)}
     if include_guests:

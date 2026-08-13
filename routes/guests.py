@@ -28,7 +28,8 @@ from core import guest_analytics as ga
 from core import guest_sync
 from core.auth_guard import admin_required
 from core.guest_store import get_store
-from extensions import APP_VERSION, cached_olap
+from core.venues_config import PHYSICAL_VENUES, VENUES
+from extensions import APP_VERSION, BARS, cached_olap
 
 guests_bp = Blueprint('guests', __name__)
 
@@ -54,7 +55,18 @@ def _cache_key(name, meta, *extra):
 
 @guests_bp.route('/guests')
 def guests_page():
-    return render_template('guests.html', app_version=APP_VERSION)
+    """Страница «Маркетинг»: витринные отчёты о гостях + живой анализ акций.
+
+    В контекст уходит только `bars` — названия точек из iiko (Store.Name), ими
+    фильтруется живой OLAP на вкладке «Акции». Историческая ловушка «Большой пр
+    В.О.» против «Большой пр. В.О» — поэтому имена берутся из единственного
+    источника extensions.BARS, а не собираются вручную.
+
+    Ключи витрины (bolshoy/ligovskiy/...) в контекст НЕ передаются: витринные
+    отчёты получают их вместе с данными (например `venues` в ответе
+    /api/guests/rfm), и второй список в шаблоне разъезжался бы с первым.
+    """
+    return render_template('guests.html', app_version=APP_VERSION, bars=BARS)
 
 
 # ------------------------------------------------------------------ отчёты
@@ -161,23 +173,32 @@ def api_cohorts_revenue():
 
 @guests_bp.route('/api/guests/rfm')
 def api_rfm():
-    """RFM-сегментация на дату среза, окно 12 мес (ТЗ §7). ?export=csv"""
+    """RFM-сегментация на дату среза, окно 12 мес (ТЗ §7).
+
+    ?store=<ключ точки> — считать только по чекам этой точки (вся сеть по умолчанию);
+    ?export=csv — выгрузка (учитывает тот же фильтр точки).
+    """
     try:
         store, period, meta = _ctx()
-        data = ga.rfm(store, period, meta, include_guests=True)
+        venue = request.args.get('store') or None
+        data = ga.rfm(store, period, meta, include_guests=True, venue=venue)
         if request.args.get('export') == 'csv':
             buf = io.StringIO()
             w = csv.writer(buf, delimiter=';')
-            w.writerow(['Телефон', 'Карта', 'Имя', 'Дней с визита',
-                        'Визитов за 12 мес', 'Выручка за 12 мес', 'Сегмент'])
+            w.writerow(['Телефон', 'Карта', 'Имя', 'Последний визит',
+                        'Дней с визита', 'Визитов за 12 мес', 'Чеков за 12 мес',
+                        'Средний чек', 'Выручка за 12 мес', 'Сегмент'])
             for g in data['guests']:
                 w.writerow([g['phone'], g['card_number'], g['name'],
-                            g['recency_days'], g['frequency'], g['monetary'],
+                            g['last_visit'], g['recency_days'], g['frequency'],
+                            g['orders'], g['avg_check'], g['monetary'],
                             g['segment']])
             out = buf.getvalue().encode('utf-8-sig')  # BOM для Excel
+            # Точка в имени файла: иначе две выгрузки по разным барам не отличить.
+            suffix = f"_{data['venue']}" if data.get('venue') else ''
             return Response(out, mimetype='text/csv; charset=utf-8', headers={
                 'Content-Disposition':
-                    f"attachment; filename=rfm_{meta['asof']}.csv"})
+                    f"attachment; filename=rfm_{meta['asof']}{suffix}.csv"})
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500

@@ -37,8 +37,8 @@
 
 | Blueprint | URL-префикс | Что отдаёт | Файл |
 |---|---|---|---|
-| `pages_bp` | `/` | HTML-страницы (/, /packaging, /draft, /waiters, /discounts, /explorer, /taps/<bar>, /schedule, /goals, /employee, /salary, /bonus, /expiration) | [routes/pages.py](../routes/pages.py) |
-| `analysis_bp` | `/api` | ABC/XYZ, draft, waiters, discounts (RFM) | [routes/analysis.py](../routes/analysis.py) |
+| `pages_bp` | `/` | HTML-страницы (/, /packaging, /draft, /waiters, /explorer, /taps/<bar>, /schedule, /goals, /employee, /salary, /bonus, /expiration). `/discounts` — 301 на `/guests#promo` (страница слита в «Маркетинг») | [routes/pages.py](../routes/pages.py) |
+| `analysis_bp` | `/api` | ABC/XYZ, draft, waiters, акции (`/api/discount-*`; дубль RFM удалён — канон в `guests_bp`) | [routes/analysis.py](../routes/analysis.py) |
 | `dashboard_bp` | `/api` | dashboard-analytics, venues, weeks, plans CRUD, export xlsx | [routes/dashboard.py](../routes/dashboard.py) |
 | `employee_bp` | `/api` | employee KPI, salary, bonus | [routes/employee.py](../routes/employee.py) |
 | `taps_bp` | `/api` | краны START/STOP/REPLACE, taplist export CSV | [routes/taps.py](../routes/taps.py) |
@@ -103,7 +103,7 @@ templates/                  # Jinja2 HTML
 ├── stocks.html             # 4 вкладки: Сводный заказ, Таплист, Фасовка, Сроки годности
 ├── expiration.html         # Shelf-Life Cockpit (отдельная страница)
 ├── explorer.html           # Конструктор отчётов
-├── schedule.html, salary.html, bonus.html, packaging.html, draft.html, discounts.html, waiters.html
+├── schedule.html, salary.html, bonus.html, packaging.html, draft.html, waiters.html
 ├── wiki.html               # встроенная wiki с TOC
 ├── pwa-widget.html         # PWA виджет выручки
 └── shared/
@@ -232,7 +232,7 @@ data/
 | Dashboard | `/api/plans/export` | GET (xlsx) | [venues-plans.md](venues-plans.md) |
 | Dashboard | `/api/venues`, `/api/weeks` | GET | overview |
 | Employee | `/api/employee-analytics`, `/api/bonus-calculate`, `/api/kpi-calculate` | POST | [employee.md](employee.md) |
-| Analysis | `/api/analyze`, `/api/draft-analyze`, `/api/discount-analyze` | POST | [abc-xyz-analysis.md](abc-xyz-analysis.md), [discounts.md](discounts.md) |
+| Analysis | `/api/analyze`, `/api/draft-analyze`, `/api/discount-analyze` | POST | [abc-xyz-analysis.md](abc-xyz-analysis.md), [guests.md](guests.md) (§16 Акции) |
 | Taps | `/api/taps/<bar>`, `/api/taps/<bar>/start|stop|replace` | GET/POST | [taps.md](taps.md) |
 | Stocks | `/api/stocks/taplist|kitchen|bottles|order-board|expiry` | GET | [stocks.md](stocks.md) |
 | Stocks | `/api/chz/stock|refresh|refresh/status` | GET/POST | [chz-stock-integration.md](chz-stock-integration.md) |

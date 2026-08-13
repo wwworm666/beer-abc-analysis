@@ -871,12 +871,38 @@ def analyze_waiters():
 
 # ============= API для анализа скидок =============
 
+# Служебное имя ведра «все акции вместе» в ответе /api/discount-analyze.
+# Нужно потому, что тип скидки — измерение ПОЗИЦИИ чека: один чек может лежать в
+# множествах двух акций сразу, и сложить их количества на клиенте нельзя.
+# В discount_names не попадает (список собирается из значений строк OLAP).
+ALL_BUCKET = '__all__'
+
+
 @analysis_bp.route('/api/discount-names', methods=['GET'])
 def get_discount_names():
-    """Лёгкий API — список названий скидок за последний год"""
+    """Лёгкий API — список названий скидок.
+
+    ?date_from=&date_to=  (YYYY-MM-DD, правая граница включительная) — окно, за
+    которое искать акции. Без параметров — последний год от сегодня.
+
+    Раньше окно было жёстко зашито, а вкладка всё равно передавала параметры
+    периода: они молча игнорировались, и в списке висели акции, которых в
+    выбранном диапазоне нет.
+    """
     try:
-        date_to = datetime.now()
-        date_from = date_to - timedelta(days=365)
+        arg_from = (request.args.get('date_from') or '').strip()
+        arg_to = (request.args.get('date_to') or '').strip()
+        try:
+            date_to = (datetime.strptime(arg_to, '%Y-%m-%d') if arg_to
+                       else datetime.now())
+            date_from = (datetime.strptime(arg_from, '%Y-%m-%d') if arg_from
+                         else date_to - timedelta(days=365))
+        except ValueError:
+            return jsonify({'error': 'Даты нужны в формате YYYY-MM-DD'}), 400
+        if date_from > date_to:
+            return jsonify({'error': 'Начало периода позже конца'}), 400
+        # OLAP-граница справа эксклюзивная — сдвигаем на день, как в остальных
+        # запросах проекта.
         olap_date_to = (date_to + timedelta(days=1)).strftime('%Y-%m-%d')
         date_from_str = date_from.strftime('%Y-%m-%d')
 
@@ -961,40 +987,50 @@ def analyze_discounts():
             sum_with_discount = float(row.get('DishDiscountSumInt', 0) or 0)
             discount_sum = float(row.get('DiscountSum', 0) or 0)
 
-            if discount_name not in discounts_data:
-                discounts_data[discount_name] = {}
-
-            guests = discounts_data[discount_name]
-            if card_number not in guests:
-                guests[card_number] = {
-                    'card_number': card_number,
-                    'customer_name': customer_name,
-                    'orders': set(),
-                    'visit_dates': set(),  # Уникальные даты визитов
-                    'sum_with_discount': 0,
-                    'discount_sum': 0,
-                    'dishes': [],
-                    'stores': set()
-                }
-
-            guest = guests[card_number]
-            if order_num:
-                guest['orders'].add(order_num)
-            if visit_date:
-                guest['visit_dates'].add(visit_date)
-            guest['sum_with_discount'] += sum_with_discount
-            guest['discount_sum'] += discount_sum
-            if dish_name:
-                guest['dishes'].append({
-                    'name': dish_name,
-                    'sum_with_discount': sum_with_discount,
-                    'discount_sum': discount_sum,
-                    'store': store_name,
-                    'order_num': order_num,
-                    'date': visit_date
-                })
-            if store_name:
-                guest['stores'].add(store_name)
+            # Каждая строка идёт в ДВА ведра: своей акции и сводное ALL_BUCKET.
+            # Сводное нельзя собрать на клиенте сложением: тип скидки — измерение
+            # ПОЗИЦИИ, поэтому один чек, где пиво по одной акции, а еда по другой,
+            # лежит в множествах обеих акций. Сложение len(set) дало бы два чека
+            # вместо одного — завышенный счётчик чеков и заниженный средний чек.
+            for bucket in (discount_name, ALL_BUCKET):
+                guests = discounts_data.setdefault(bucket, {})
+                guest = guests.get(card_number)
+                if guest is None:
+                    guest = guests[card_number] = {
+                        'card_number': card_number,
+                        'customer_name': customer_name,
+                        'orders': set(),
+                        'visit_dates': set(),   # уникальные даты визитов
+                        'sum_with_discount': 0,
+                        'discount_sum': 0,
+                        'dishes': [],
+                        'stores': set()
+                    }
+                if order_num:
+                    # Ключ чека — «дата + бар + номер», как во всём проекте
+                    # (docs/guests.md). Раньше ключом был один OrderNum:
+                    # одинаковый номер в разные дни склеивался в один чек, число
+                    # чеков занижалось, а средний чек завышался (регресс
+                    # зафиксирован в tests/test_logic_audit_regressions).
+                    guest['orders'].add((visit_date, store_name, order_num))
+                if visit_date:
+                    guest['visit_dates'].add(visit_date)
+                guest['sum_with_discount'] += sum_with_discount
+                guest['discount_sum'] += discount_sum
+                # Позиции — только в ведре конкретной акции. В сводном они не
+                # нужны (клиент склеивает их сам, там дублей нет: у строки ровно
+                # один тип скидки), а дублировать их значит удвоить размер ответа.
+                if dish_name and bucket != ALL_BUCKET:
+                    guest['dishes'].append({
+                        'name': dish_name,
+                        'sum_with_discount': sum_with_discount,
+                        'discount_sum': discount_sum,
+                        'store': store_name,
+                        'order_num': order_num,
+                        'date': visit_date
+                    })
+                if store_name:
+                    guest['stores'].add(store_name)
 
         # Агрегируем сводку по барам для каждой скидки
         stores_summary = {}
@@ -1008,23 +1044,27 @@ def analyze_discounts():
             sum_with_discount = float(row.get('DishDiscountSumInt', 0) or 0)
             discount_sum = float(row.get('DiscountSum', 0) or 0)
 
-            if discount_name not in stores_summary:
-                stores_summary[discount_name] = {}
-            if store_name not in stores_summary[discount_name]:
-                stores_summary[discount_name][store_name] = {
-                    'orders': set(),
-                    'cards': set(),
-                    'sum_with_discount': 0,
-                    'discount_sum': 0
-                }
-
-            s = stores_summary[discount_name][store_name]
-            if order_num:
-                s['orders'].add(order_num)
-            if card_number:
-                s['cards'].add(card_number)
-            s['sum_with_discount'] += sum_with_discount
-            s['discount_sum'] += discount_sum
+            # Оба ведра, по той же причине, что у гостей: множества чеков и карт
+            # разных акций пересекаются, складывать их len() нельзя.
+            for bucket in (discount_name, ALL_BUCKET):
+                per_store = stores_summary.setdefault(bucket, {})
+                s = per_store.get(store_name)
+                if s is None:
+                    s = per_store[store_name] = {
+                        'orders': set(),
+                        'cards': set(),
+                        'sum_with_discount': 0,
+                        'discount_sum': 0
+                    }
+                if order_num:
+                    # Тот же ключ чека, что у гостя: дата + бар + номер. Бар здесь
+                    # один (группировка по нему), но дата обязательна — без неё
+                    # одинаковый номер чека в разные дни давал один чек.
+                    s['orders'].add((row.get('OpenDate.Typed', ''), store_name, order_num))
+                if card_number:
+                    s['cards'].add(card_number)
+                s['sum_with_discount'] += sum_with_discount
+                s['discount_sum'] += discount_sum
 
         # Преобразуем сводку по барам в сериализуемый формат
         stores_result = {}
@@ -1076,13 +1116,19 @@ def analyze_discounts():
                     last_dt = dt.strptime(last_visit, '%Y-%m-%d')
                     active_days = (last_dt - first_dt).days + 1
 
-                # Средний чек
-                avg_check = round(g['sum_with_discount'] / total_visits, 0) if total_visits > 0 else 0
+                # Средний чек = выручка / ЧЕКИ (единое определение проекта,
+                # docs/guests.md и GUEST_FORMULAS.avg_check). Раньше делилось на
+                # число визитов, из-за чего два чека за один вечер давали
+                # завышенный «средний чек».
+                orders_count = len(g['orders'])
+                avg_check = (round(g['sum_with_discount'] / orders_count, 0)
+                             if orders_count > 0 else 0)
 
                 guest_list.append({
                     'card_number': g['card_number'],
                     'customer_name': g['customer_name'],
                     'visits': total_visits,
+                    'orders': orders_count,
                     'visit_dates': visit_dates,  # Список дат для timeline
                     'last_visit': last_visit,
                     'first_visit': first_visit,
@@ -1096,8 +1142,12 @@ def analyze_discounts():
                     'dishes': g['dishes']
                 })
 
-            # Сортировка по recency (сначала самые "свежие")
-            guest_list.sort(key=lambda x: (x['recency_days'] is None, x['recency_days'] or 999))
+            # Сортировка по recency (сначала самые «свежие»). Нельзя писать
+            # `x['recency_days'] or 999`: ноль тоже falsy, и гость, купивший в
+            # последний день периода, уезжал В КОНЕЦ списка вместо начала.
+            guest_list.sort(key=lambda x: (x['recency_days'] is None,
+                                           x['recency_days']
+                                           if x['recency_days'] is not None else 0))
             result[disc_name] = guest_list
 
         return jsonify({
@@ -1114,220 +1164,3 @@ def analyze_discounts():
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
 
-
-@analysis_bp.route('/api/rfm-analyze', methods=['POST'])
-def analyze_rfm():
-    """RFM-сегментация всей базы гостей"""
-    try:
-        data = request.json
-        bar_name = data.get('bar')
-        date_from = data.get('date_from')
-        date_to = data.get('date_to')
-
-        if not date_from or not date_to:
-            return jsonify({'error': 'Укажите период'}), 400
-
-        print(f"\n[RFM] Zapusk RFM-segmentatsii...")
-        print(f"   Bar: {bar_name if bar_name else 'VSE'}")
-        print(f"   Period: {date_from} - {date_to}")
-
-        # OLAP to-дата exclusive → +1 день
-        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
-
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        try:
-            report_data = olap.get_rfm_report(date_from, olap_date_to, bar_name)
-
-            if not report_data or not report_data.get('data'):
-                return jsonify({'error': 'Нет данных за выбранный период'}), 404
-        finally:
-            olap.disconnect()
-
-        rows = report_data['data']
-        print(f"[INFO] Vsego zapisey: {len(rows)}")
-
-        # Агрегируем данные по каждому гостю
-        guests_data = {}
-
-        for row in rows:
-            card_number = row.get('Delivery.CustomerCardNumber', '') or 'Без карты'
-            customer_name = row.get('Delivery.CustomerName', '') or ''
-            order_num = row.get('OrderNum', '')
-            store_name = row.get('Store.Name', '') or 'Неизвестно'
-            visit_date = row.get('OpenDate.Typed', '')
-            sum_with_discount = float(row.get('DishDiscountSumInt', 0) or 0)
-            discount_sum = float(row.get('DiscountSum', 0) or 0)
-
-            if card_number not in guests_data:
-                guests_data[card_number] = {
-                    'card_number': card_number,
-                    'customer_name': customer_name,
-                    'orders': set(),
-                    'visit_dates': set(),
-                    'sum_with_discount': 0,
-                    'discount_sum': 0,
-                    'stores': set()
-                }
-
-            guest = guests_data[card_number]
-            if order_num:
-                guest['orders'].add(order_num)
-            if visit_date:
-                guest['visit_dates'].add(visit_date)
-            guest['sum_with_discount'] += sum_with_discount
-            guest['discount_sum'] += discount_sum
-            if store_name:
-                guest['stores'].add(store_name)
-
-        # Преобразуем гостей с RFM-метриками
-        from datetime import datetime as dt
-        period_end = dt.strptime(date_to, '%Y-%m-%d')
-        period_start = dt.strptime(date_from, '%Y-%m-%d')
-        period_days = (period_end - period_start).days + 1
-
-        guest_list = []
-        for card, g in guests_data.items():
-            visit_dates = sorted(g['visit_dates']) if g['visit_dates'] else []
-            total_visits = len(visit_dates)
-
-            last_visit = visit_dates[-1] if visit_dates else None
-            first_visit = visit_dates[0] if visit_dates else None
-
-            recency_days = None
-            if last_visit:
-                last_visit_dt = dt.strptime(last_visit, '%Y-%m-%d')
-                recency_days = (period_end - last_visit_dt).days
-
-            frequency_per_week = None
-            if total_visits > 0 and period_days > 0:
-                frequency_per_week = round(total_visits / period_days * 7, 2)
-
-            active_days = None
-            if first_visit and last_visit and first_visit != last_visit:
-                first_dt = dt.strptime(first_visit, '%Y-%m-%d')
-                last_dt = dt.strptime(last_visit, '%Y-%m-%d')
-                active_days = (last_dt - first_dt).days + 1
-
-            avg_check = round(g['sum_with_discount'] / total_visits, 0) if total_visits > 0 else 0
-
-            guest_list.append({
-                'card_number': g['card_number'],
-                'customer_name': g['customer_name'],
-                'visits': total_visits,
-                'visit_dates': visit_dates,
-                'last_visit': last_visit,
-                'first_visit': first_visit,
-                'recency_days': recency_days,
-                'frequency_per_week': frequency_per_week,
-                'active_days': active_days,
-                'avg_check': int(avg_check),
-                'sum_with_discount': round(g['sum_with_discount'], 2),
-                'discount_sum': round(g['discount_sum'], 2),
-                'stores': sorted(g['stores'])
-            })
-
-        # Сортировка по recency (сначала самые "свежие")
-        guest_list.sort(key=lambda x: (x['recency_days'] is None, x['recency_days'] or 999))
-
-        # Агрегация по сегментам
-        segments = {
-            'CHAMPIONS': {'count': 0, 'revenue': 0, 'percent': 0},
-            'LOYAL': {'count': 0, 'revenue': 0, 'percent': 0},
-            'AT_RISK': {'count': 0, 'revenue': 0, 'percent': 0},
-            'CHURNED': {'count': 0, 'revenue': 0, 'percent': 0},
-            'NEW': {'count': 0, 'revenue': 0, 'percent': 0},
-            'POTENTIAL': {'count': 0, 'revenue': 0, 'percent': 0}
-        }
-
-        total_guests = len(guest_list)
-        for g in guest_list:
-            seg = get_rfm_segment(g)
-            segments[seg]['count'] += 1
-            segments[seg]['revenue'] += g['sum_with_discount']
-
-        for seg in segments:
-            segments[seg]['revenue'] = round(segments[seg]['revenue'], 2)
-            segments[seg]['percent'] = round(segments[seg]['count'] / total_guests * 100, 1) if total_guests > 0 else 0
-
-        # Общие метрики
-        guests_with_recency = [g for g in guest_list if g['recency_days'] is not None]
-        active_guests = len([g for g in guest_list if g['recency_days'] is not None and g['recency_days'] <= 30])
-        churned_guests = len([g for g in guest_list if g['recency_days'] is not None and g['recency_days'] > 60])
-        avg_recency = round(sum(g['recency_days'] for g in guests_with_recency) / len(guests_with_recency), 1) if guests_with_recency else 0
-        avg_frequency = round(sum(g['frequency_per_week'] or 0 for g in guest_list) / len(guest_list), 2) if guest_list else 0
-        total_revenue = round(sum(g['sum_with_discount'] for g in guest_list), 2)
-        total_discount = round(sum(g['discount_sum'] for g in guest_list), 2)
-
-        return jsonify({
-            'guests': guest_list,
-            'segments': segments,
-            'metrics': {
-                'total_guests': total_guests,
-                'active_guests': active_guests,
-                'churned_guests': churned_guests,
-                'avg_recency': avg_recency,
-                'avg_frequency': avg_frequency,
-                'total_revenue': total_revenue,
-                'total_discount': total_discount
-            }
-        })
-
-    except Exception as e:
-        print(f"[ERROR] Oshibka v /api/rfm-analyze: {e}")
-        import traceback
-        traceback.print_exc()
-        error_detail = f"{type(e).__name__}: {str(e)}"
-        return jsonify({'error': error_detail}), 500
-
-
-def get_rfm_segment(guest):
-    """Определяет RFM-сегмент гостя"""
-    recency_days = guest.get('recency_days')
-    frequency_per_week = guest.get('frequency_per_week')
-    visits = guest.get('visits', 0)
-
-    if recency_days is None or frequency_per_week is None:
-        return 'POTENTIAL'
-
-    # Recency-сегменты
-    if recency_days <= 7:
-        r_code = 'R5'
-    elif recency_days <= 14:
-        r_code = 'R4'
-    elif recency_days <= 30:
-        r_code = 'R3'
-    elif recency_days <= 60:
-        r_code = 'R2'
-    else:
-        r_code = 'R1'
-
-    # Frequency-сегменты
-    if frequency_per_week >= 3:
-        f_code = 'F5'
-    elif frequency_per_week >= 2:
-        f_code = 'F4'
-    elif frequency_per_week >= 0.8:
-        f_code = 'F3'
-    elif frequency_per_week >= 0.3:
-        f_code = 'F2'
-    else:
-        f_code = 'F1'
-
-    # Комбинированные сегменты
-    if r_code == 'R5' and (f_code == 'F4' or f_code == 'F5'):
-        return 'CHAMPIONS'
-    if r_code == 'R1' and (f_code == 'F3' or f_code == 'F4' or f_code == 'F5'):
-        return 'CHURNED'
-    if (r_code == 'R2' or r_code == 'R3') and (f_code == 'F3' or f_code == 'F4' or f_code == 'F5'):
-        return 'AT_RISK'
-    if r_code == 'R5' and visits == 1:
-        return 'NEW'
-    if r_code in ('R4', 'R5'):
-        return 'LOYAL'
-    if f_code in ('F1', 'F2'):
-        return 'POTENTIAL'
-
-    return 'LOYAL'

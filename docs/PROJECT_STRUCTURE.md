@@ -139,7 +139,7 @@ templates/
 ├── expiration.html      # Shelf-Life Cockpit
 ├── explorer.html        # Конструктор отчётов
 ├── schedule.html, salary.html, bonus.html
-├── packaging.html, draft.html, discounts.html, waiters.html
+├── packaging.html, draft.html, waiters.html
 ├── wiki.html            # Встроенная wiki с TOC
 ├── pwa-widget.html      # PWA виджет выручки
 ├── dashboard/           # Подшаблоны главного дашборда (plans_tab, comparison_tab, ...)
@@ -353,7 +353,7 @@ docker compose up -d
 | `/stocks` | Остатки + Сводный заказ |
 | `/expiration` | Shelf-Life Cockpit |
 | `/employee`, `/salary`, `/bonus`, `/schedule` | Сотрудники |
-| `/discounts`, `/waiters` | Анализ |
+| `/waiters` | Анализ |
 | `/wiki` | Встроенная wiki |
 | `/api/*` | JSON API |
 | `/telegram/*`, `/telegram/openbot/*` | Telegram webhooks |
