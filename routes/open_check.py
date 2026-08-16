@@ -35,7 +35,11 @@ def open_check_run_now():
     if request.headers.get('X-Remote-Pass') != expected:
         return jsonify({'error': 'forbidden'}), 403
     try:
-        result = run_check()
+        # queue_failures=False: ручной прогон — тест; его провалы НЕ ставим в
+        # очередь досылки, иначе тревога «ЗАКРЫТЫ все» из прогона в 10:00 (бары
+        # ещё не открылись) разошлась бы всем после восстановления Telegram.
+        # Кому не дошло — видно в report.failed в ответе.
+        result = run_check(queue_failures=False)
         return jsonify(result)
     except Exception as e:
         return jsonify({'error': str(e)}), 500

@@ -27,6 +27,7 @@ import html
 import json
 import logging
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Callable, List, Optional
 
@@ -319,11 +320,75 @@ def _alarm_recipients() -> List[str]:
     return _dedupe(_env_chat_ids('TELEGRAM_ALARM_CHAT_IDS') + subs.get_recipients())
 
 
-def send_report(state: dict, check_dt: datetime) -> dict:
+# Повторные проходы отправки в момент рассылки. 2026-08-16 блокировка ТСПУ
+# «мигала»: IP, дважды давший таймаут, заработал через несколько секунд —
+# одного повторного прохода с паузой хватило бы. Проходов всего 2 (пауза 10с),
+# а не больше: длинный хвост забирает очередь досылки (open_check_pending +
+# resend-поток каждые 5 минут). Худший случай по времени: Telegram «висит» на
+# чтении (connect проходит, read — таймаут) — каждый провальный send_message
+# стоит до ~45с (primary 5+8с, 2 запасных IP по 5+8с, DoH), 4 чата x 2 прохода
+# ~= 5 минут. Ручной /run-now это переживает ТОЛЬКО потому, что gunicorn идёт
+# с --worker-class gthread (его --timeout 180 — liveness-проверка, in-flight
+# запросы не убиваются) и у Caddy нет proxy-таймаута. При переходе на sync-
+# воркеры или добавлении таймаута прокси сюда нужен дедлайн на суммарное время.
+SEND_PASSES = 2
+SEND_RETRY_PAUSE_SEC = 10
+
+
+def _send_with_retries(recipients: List[str], text: str,
+                       passes: int = SEND_PASSES,
+                       pause_sec: float = SEND_RETRY_PAUSE_SEC,
+                       sleep_fn: Optional[Callable[[float], None]] = None) -> dict:
+    """Разослать text по чатам: до `passes` проходов, между проходами пауза.
+
+    Возвращает {'sent': int, 'failed': [chat_id, ...]} — failed в исходном
+    порядке. Каждый провал логируется с chat_id (2026-08-16 из лога было не
+    понять, КОМУ не дошло — вычисляли по порядку рассылки).
+    """
+    from core.open_check_telegram import send_message
+    if sleep_fn is None:
+        sleep_fn = time.sleep  # в момент вызова, не определения (тестируемость)
+    sent = 0
+    pending = list(recipients)
+    for attempt in range(1, passes + 1):
+        failed = []
+        for chat_id in pending:
+            # html=True: шаблоны тревоги/ошибки содержат <b>; динамика экранирована
+            if send_message(chat_id, text, html=True):
+                sent += 1
+            else:
+                failed.append(chat_id)
+                log.warning("не доставлено chat_id=%s (проход %d/%d)",
+                            chat_id, attempt, passes)
+        pending = failed
+        if not pending:
+            break
+        if attempt < passes:
+            sleep_fn(pause_sec)
+    if pending:
+        log.error("после %d проходов НЕ доставлено %d чатам: %s",
+                  passes, len(pending), pending)
+    return {'sent': sent, 'failed': pending}
+
+
+def send_report(state: dict, check_dt: datetime, note: Optional[str] = None,
+                queue_failures: bool = True) -> dict:
     """Отправить отчёт по матрице (синхронно, через Telegram HTTP API).
 
+    Доставка «до победы»: до SEND_PASSES проходов сразу, недоставленное — в
+    очередь досылки (core/open_check_pending.py), которую resend-поток
+    планировщика опустошает до конца дня.
+
+    note: доп. строка в конце сообщения (например, честная пометка catch-up
+    «проверка выполнена после перезапуска»). Без HTML-спецсимволов.
+
+    queue_failures=False — не ставить провалы в очередь досылки. Нужен ручному
+    /run-now: тестовый прогон в 10:00 при лежащем Telegram иначе поставил бы в
+    очередь тревогу «ЗАКРЫТЫ все» (бары ещё не открылись), и после
+    восстановления связи она разошлась бы всем как настоящая.
+
     DRY-RUN режим (env OPEN_CHECK_DRY_RUN=1): сообщение уходит только первому
-    получателю (тревог, иначе позитива) с префиксом [DRY-RUN].
+    получателю (тревог, иначе позитива) с префиксом [DRY-RUN], без очереди.
     """
     token = os.environ.get('TELEGRAM_OPEN_CHECK_BOT_TOKEN')
     if not token:
@@ -345,6 +410,9 @@ def send_report(state: dict, check_dt: datetime) -> dict:
         recipients = _alarm_recipients()
         target = 'alarm'
 
+    if note:
+        text = f"{text}\n\n{note}"
+
     if dry_run:
         text = '[DRY-RUN] ' + text
         first = recipients[:1] or _alarm_recipients()[:1] or _positive_recipients()[:1]
@@ -356,18 +424,25 @@ def send_report(state: dict, check_dt: datetime) -> dict:
         return {'sent': 0, 'skipped': True, 'reason': 'no_recipients',
                 'target': target, 'text': text}
 
-    from core.open_check_telegram import send_message
-    sent = 0
-    for chat_id in recipients:
-        # html=True: шаблоны тревоги/ошибки содержат <b>; динамика экранирована
-        if send_message(chat_id, text, html=True):
-            sent += 1
+    result = _send_with_retries(recipients, text)
+    sent, failed = result['sent'], result['failed']
 
-    log.info("send_report target=%s dry_run=%s sent=%d/%d text=%r",
-             target, dry_run, sent, len(recipients), text)
+    if failed and not dry_run and queue_failures:
+        from core import open_check_pending
+        open_check_pending.add(
+            date_str=check_dt.strftime('%Y-%m-%d'),
+            text=text,
+            chats=failed,
+            target=target,
+            first_try=_fmt_time(check_dt),
+        )
+
+    log.info("send_report target=%s dry_run=%s sent=%d/%d failed=%s text=%r",
+             target, dry_run, sent, len(recipients), failed, text)
     return {
         'sent': sent,
         'recipients': len(recipients),
+        'failed': failed,
         'skipped': False,
         'target': target,
         'dry_run': dry_run,
@@ -375,11 +450,49 @@ def send_report(state: dict, check_dt: datetime) -> dict:
     }
 
 
-def run_check(check_dt: Optional[datetime] = None) -> dict:
+def send_crash_alarm(check_dt: datetime, err_text: str) -> dict:
+    """Тревога «сама проверка упала» — для except-ветки планировщика.
+
+    Раньше исключение из run_check только печаталось в лог: lock за день уже
+    взят, сообщение не ушло — день терялся молча. Заголовок отличается от
+    «iiko недоступен»: тут сломан наш код/окружение, а не iiko.
+    Доставка та же, что у send_report: ретраи + очередь досылки.
+    """
+    text = (
+        "<b>!!! ОШИБКА: проверка баров упала !!!</b>\n"
+        f"Проверка {_fmt_time(check_dt)} МСК не выполнена\n"
+        f"Причина: {html.escape(err_text)}"
+    )
+    recipients = _alarm_recipients()
+    if _is_dry_run():
+        # Как в send_report: тестовый трафик помечен и идёт одному получателю.
+        text = '[DRY-RUN] ' + text
+        recipients = recipients[:1]
+    if not recipients:
+        log.error("send_crash_alarm: нет получателей — текст: %s", text)
+        return {'sent': 0, 'skipped': True, 'reason': 'no_recipients'}
+    result = _send_with_retries(recipients, text)
+    if result['failed'] and not _is_dry_run():
+        from core import open_check_pending
+        open_check_pending.add(
+            date_str=check_dt.strftime('%Y-%m-%d'),
+            text=text,
+            chats=result['failed'],
+            target='alarm',
+            first_try=_fmt_time(check_dt),
+        )
+    return {'sent': result['sent'], 'failed': result['failed'], 'skipped': False}
+
+
+def run_check(check_dt: Optional[datetime] = None, note: Optional[str] = None,
+              queue_failures: bool = True) -> dict:
     """Sync-обёртка для шедулера и admin-endpoint.
 
     Не делает lock — это ответственность шедулера. Admin-endpoint с force=1
     всегда хочет запуск, и lock-логика к нему не применяется.
+
+    note: доп. строка в конце сообщения (catch-up-пометка планировщика).
+    queue_failures: см. send_report; ручной /run-now передаёт False.
     """
     if check_dt is None:
         check_dt = now_msk()
@@ -390,7 +503,7 @@ def run_check(check_dt: Optional[datetime] = None) -> dict:
     if state['unknown_pos']:
         log.info("unknown_pos в iiko (не маппятся): %s", state['unknown_pos'])
 
-    report = send_report(state, check_dt)
+    report = send_report(state, check_dt, note=note, queue_failures=queue_failures)
 
     return {
         'check_dt': check_dt.isoformat(),
