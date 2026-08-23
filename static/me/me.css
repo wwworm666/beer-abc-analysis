@@ -770,15 +770,25 @@ body.me-page .ms-coff {
     background: var(--me-off);
 }
 
+/* Легенда под календарём.
+
+   Расстояние МЕЖДУ пунктами обязано быть заметно больше, чем пробелы ВНУТРИ
+   пункта. Было 14px при пунктах вида «кольцо — сегодня»: пробелы вокруг тире в
+   моноширинном 10.5px читались почти так же, и строка сливалась в кашу —
+   «высота — день/вечер кольцо — сегодня» выглядело одной фразой. 26px
+   разводит пункты однозначно.
+
+   nowrap — чтобы пункт не разрывался посередине при переносе: «кольцо —» в
+   конце строки и «сегодня» в начале следующей это уже не легенда. */
 body.me-page .ms-leg {
-    gap: 7px 14px;
+    gap: 9px 26px;
     margin: 12px 0 0;
     padding-top: 11px;
     border-top: 1px solid var(--me-hair);
     font: 500 10.5px/1 var(--me-mono);
     color: var(--me-ink4);
 }
-body.me-page .ms-lgi { gap: 5px; }
+body.me-page .ms-lgi { gap: 5px; white-space: nowrap; }
 body.me-page .ms-lgsq { width: 10px; height: 10px; border-radius: 3px; }
 body.me-page .ms-lgoff {
     width: 10px; height: 10px; border-radius: 3px;
@@ -867,86 +877,111 @@ body.me-page .ms-note {
    Стоит первым блоком живой колонки: открытие раньше закрытия, и вопрос обязан
    попадать в первый экран без скролла.
 
-   Три кнопки — одного размера и одной высоты. Ответ «Плохо» НЕ красный по фону
-   и не крупнее других: если честный ответ выглядит страшнее удобного, через
-   месяц все ответы будут «Чисто». Цвет появляется только ПОСЛЕ ответа — в
-   плашке статуса, где он уже не влияет на выбор. */
+   Блок НЕ заводит собственный визуальный язык: заголовок, карточка, кнопки и
+   поля повторяют рецепты соседних блоков страницы (`.ms-lbl`, `.ms-card`,
+   `.ms-dbtn`, `.ms-act` выше в этом файле) — вплоть до шрифта, высоты и
+   радиуса. Первая версия была собрана на своих значениях и читалась как чужой
+   виджет: кнопки выглядели полями ввода, а заголовок был единственной
+   sans-подписью среди моноширинных.
+
+   Три ответа — одного размера, одного веса и одного цвета. «Плохо» не красный и
+   не крупнее: если честный ответ выглядит страшнее удобного, через месяц все
+   ответы будут «Чисто». Акцент появляется только на ВЫБРАННОМ ответе (это уже
+   не подсказка, а подтверждение выбора) и в статусе после отправки. */
 
 .me-acc { margin: 0 0 14px; }
 .me-acc.is-busy { opacity: .6; pointer-events: none; }
+
+/* = body.me-page .ms-lbl («МОЯ СМЕНА СЕГОДНЯ») */
 .me-acc-lbl {
-    font: 600 0.62rem/1 var(--me-sans);
-    letter-spacing: .06em;
-    color: var(--me-ink4);
-    margin: 0 0 7px;
+    font: 600 11px/1 var(--me-mono);
+    letter-spacing: .16em;
+    color: var(--me-ink3);
+    margin: 0 2px 12px;
 }
+/* = body.me-page .ms-card */
 .me-acc-card {
     background: var(--me-card);
     border: 1px solid var(--me-line);
     border-radius: var(--me-r-card);
     box-shadow: var(--me-shadow);
-    padding: 16px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
 }
+/* = .ms-dd (заголовок карточки дня) */
 .me-acc-q {
-    font: 600 16px/1.3 var(--me-sans);
+    font: 700 15px/1.3 var(--me-sans);
     color: var(--me-ink);
-    margin: 0 0 3px;
+    margin: 0 0 4px;
 }
+/* = .ms-dmeta (строка «старт 10:00» в карточке дня) */
 .me-acc-meta {
-    font: 400 12.5px/1.4 var(--me-sans);
-    color: var(--me-ink3);
-    margin: 0 0 13px;
+    font: 500 12px/1.3 var(--me-mono);
+    color: var(--me-ink2);
+    margin: 0 0 14px;
 }
 
 .me-acc-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+/* = body.me-page .ms-act-out («Запросить выходной») — идиом кликабельного на
+   этой странице: белый фон, акцентная обводка, акцентный текст. Тем же выглядит
+   и «Весь график по сотрудникам». Нейтральный кремовый `.ms-dbtn` здесь не
+   годится: на светлом фоне страницы он читается как выключенная кнопка, а это
+   единственное действие блока. */
 .me-acc-b {
-    font: 600 13.5px/1 var(--me-sans);
-    color: var(--me-ink);
-    background: var(--me-soft);
-    border: 1px solid var(--me-line);
     border-radius: var(--me-r-btn);
+    font: 600 13.5px/1 var(--me-sans);
     padding: 14px 6px;
+    background: var(--me-card);
+    border: 1px solid color-mix(in srgb, var(--me-accent) 45%, transparent);
+    color: var(--me-accent);
     cursor: pointer;
-    transition: border-color .15s ease, background .15s ease;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
-.me-acc-b:hover { border-color: var(--me-ink5); }
-/* Выбранный ответ — рамкой и фоном, а не заливкой в цвет статуса: пока ответ не
-   отправлен, это ещё не факт, а намерение. */
-.me-acc-b.is-on { border-color: var(--me-ink); background: var(--me-soft3); }
+.me-acc-b:hover { border-color: var(--me-accent); background: var(--me-soft3); }
+/* Выбранный ответ = .ms-dbtn-dark (главная кнопка страницы). */
+.me-acc-b.is-on {
+    background: var(--me-accent);
+    border-color: var(--me-accent);
+    color: var(--me-on-accent);
+}
+.me-acc-b.is-on:hover { color: var(--me-on-accent); border-color: var(--me-accent); }
 
 .me-acc-form { margin-top: 12px; }
 .me-acc-flbl {
     display: block;
-    font: 600 12px/1.3 var(--me-sans);
-    color: var(--me-ink2);
-    margin: 0 0 6px;
+    font: 600 11px/1 var(--me-mono);
+    letter-spacing: .1em;
+    color: var(--me-ink3);
+    margin: 0 0 8px;
 }
 .me-acc-note {
     width: 100%;
     box-sizing: border-box;
     font: 400 14px/1.4 var(--me-sans);
     color: var(--me-ink);
-    background: var(--me-soft);
+    background: var(--me-soft2);
     border: 1px solid var(--me-line);
-    border-radius: var(--me-r-in);
-    padding: 12px 13px;
+    border-radius: var(--me-r-btn);
+    padding: 13px 14px;
 }
 .me-acc-note:focus { outline: none; border-color: var(--me-accent); }
 .me-acc-note::placeholder { color: var(--me-ink5); }
 
 .me-acc-photo { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .me-acc-file { cursor: pointer; }
+/* = body.me-page .ms-act-out: у «Плохо» фото обязательно, и эта кнопка —
+   действие, а не подпись. Кремовая заливка читалась бы как выключенная. */
 .me-acc-file-t {
     display: inline-block;
-    font: 600 13px/1 var(--me-sans);
-    color: var(--me-ink);
-    background: var(--me-card);
-    border: 1px solid var(--me-ink5);
     border-radius: var(--me-r-btn);
-    padding: 11px 15px;
+    font: 600 13px/1 var(--me-sans);
+    padding: 13px 16px;
+    background: var(--me-card);
+    border: 1px solid color-mix(in srgb, var(--me-accent) 45%, transparent);
+    color: var(--me-accent);
 }
-.me-acc-file-t:hover { border-color: var(--me-ink); }
-.me-acc-photo-h { font: 400 12px/1.4 var(--me-sans); color: var(--me-ink4); }
+.me-acc-file-t:hover { border-color: var(--me-accent); background: var(--me-soft3); }
+.me-acc-photo-h { font: 500 11.5px/1.4 var(--me-mono); color: var(--me-ink4); }
 
 .me-acc-preview { margin-top: 10px; }
 .me-acc-preview img {
@@ -956,56 +991,58 @@ body.me-page .ms-note {
     border-radius: var(--me-r-in);
     border: 1px solid var(--me-line);
 }
-.me-acc-prev-t { font: 400 12.5px/1.4 var(--me-sans); color: var(--me-ink3); }
+.me-acc-prev-t { font: 500 12px/1.4 var(--me-mono); color: var(--me-ink3); }
 
+/* = .ms-cashwarn («Касса не сдана»), но в опасном цвете */
 .me-acc-err {
     margin-top: 10px;
-    font: 400 12.5px/1.5 var(--me-sans);
-    color: var(--me-ink);
-    background: color-mix(in srgb, var(--me-bad) 7%, var(--me-card));
-    border: 1px solid color-mix(in srgb, var(--me-bad) 35%, transparent);
     border-radius: var(--me-r-in);
-    padding: 10px 12px;
+    background: color-mix(in srgb, var(--me-bad) 12%, var(--me-card));
+    color: var(--me-bad);
+    font: 600 12.5px/1.3 var(--me-sans);
+    padding: 9px 12px;
 }
 
-.me-acc-acts { display: flex; gap: 8px; margin-top: 12px; }
+.me-acc-acts { display: flex; gap: 10px; margin-top: 12px; }
+/* = .ms-dbtn-dark / .ms-dbtn */
 .me-acc-send {
     flex: 1;
+    border-radius: var(--me-r-btn);
     font: 600 13.5px/1 var(--me-sans);
-    color: var(--me-on-accent);
+    padding: 14px;
     background: var(--me-accent);
     border: 1px solid var(--me-accent);
-    border-radius: var(--me-r-btn);
-    padding: 14px;
+    color: var(--me-on-accent);
     cursor: pointer;
 }
 .me-acc-send:hover:not(:disabled) { background: var(--me-accent-h); border-color: var(--me-accent-h); }
 .me-acc-send:disabled { cursor: default; opacity: .7; }
 .me-acc-cancel {
-    font: 600 13.5px/1 var(--me-sans);
-    color: var(--me-ink2);
-    background: transparent;
-    border: 1px solid var(--me-line);
     border-radius: var(--me-r-btn);
+    font: 600 13.5px/1 var(--me-sans);
     padding: 14px 16px;
+    background: var(--me-soft2);
+    border: 1px solid var(--me-line);
+    color: var(--me-ink2);
     cursor: pointer;
 }
 .me-acc-cancel:hover { border-color: var(--me-ink5); color: var(--me-ink); }
 
 /* Уже отвечено. Остаётся на экране весь день: и подтверждение «я отметил», и
-   вход в правку. Левая полоса — цвет статуса, единственное цветное место. */
-.me-acc-card.is-done { border-left: 3px solid var(--me-line); }
-.me-acc-card.is-done.is-clean { border-left-color: var(--me-ok); }
-.me-acc-card.is-done.is-issues { border-left-color: var(--me-warn); }
-.me-acc-card.is-done.is-bad { border-left-color: var(--me-bad); }
+   вход в правку. Статус показан подкрашенной РАМКОЙ — тем же приёмом, которым
+   страница метит сегодняшний день (`.ms-today`), а не полосой сбоку: полосы в
+   этом макете нет нигде. */
+.me-acc-card.is-done.is-clean { border-color: color-mix(in srgb, var(--me-ok) 55%, transparent); }
+.me-acc-card.is-done.is-issues { border-color: color-mix(in srgb, var(--me-warn) 55%, transparent); }
+.me-acc-card.is-done.is-bad { border-color: color-mix(in srgb, var(--me-bad) 55%, transparent); }
 .me-acc-done-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.me-acc-st { font: 600 15px/1.3 var(--me-sans); color: var(--me-ink); }
+.me-acc-st { font: 700 15px/1 var(--me-sans); color: var(--me-ink); }
 .me-acc-st.is-clean { color: var(--me-ok); }
 .me-acc-st.is-issues { color: var(--me-warn); }
 .me-acc-st.is-bad { color: var(--me-bad); }
-.me-acc-when { font: 400 12px/1.4 var(--me-sans); color: var(--me-ink4); }
+.me-acc-when { font: 500 12px/1.3 var(--me-mono); color: var(--me-ink4); }
 .me-acc-note-txt {
-    margin-top: 7px;
+    margin-top: 8px;
     font: 400 13.5px/1.5 var(--me-sans);
     color: var(--me-ink2);
     text-wrap: pretty;
@@ -1018,14 +1055,15 @@ body.me-page .ms-note {
     border-radius: var(--me-r-in);
     border: 1px solid var(--me-line);
 }
+/* = .ms-act, но мельче: это вторичное действие под уже данным ответом. */
 .me-acc-edit {
-    margin-top: 11px;
-    font: 600 12.5px/1 var(--me-sans);
-    color: var(--me-ink3);
-    background: transparent;
-    border: 1px solid var(--me-line);
+    margin-top: 12px;
     border-radius: var(--me-r-btn);
-    padding: 9px 13px;
+    font: 600 12.5px/1 var(--me-sans);
+    padding: 11px 15px;
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    color: var(--me-ink3);
     cursor: pointer;
 }
 .me-acc-edit:hover { border-color: var(--me-ink5); color: var(--me-ink); }
@@ -1049,6 +1087,7 @@ body.me-page .ms-note {
     .me-groups { grid-template-columns: 1fr; }
     body.me-page .ms-cal { padding: 14px 14px 12px; }
     body.me-page .ms-card { padding: 14px 16px; }
+    .me-acc-card { padding: 14px 16px; }   /* та же карточка, что .ms-card */
 }
 
 @media (max-width: 480px) {

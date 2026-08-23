@@ -1327,8 +1327,12 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
     background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
 
 /* мини-легенда */
-.ms-leg { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-bottom: 13px; font-size: 0.6rem; color: var(--text-tertiary); }
-.ms-lgi { display: inline-flex; align-items: center; gap: 4px; }
+/* Расстояние МЕЖДУ пунктами больше, чем пробелы ВНУТРИ пункта («кольцо —
+   сегодня»), иначе строка сливается в одну фразу; nowrap не даёт пункту
+   разорваться посередине при переносе. Та же правка продублирована в me.css с
+   отступами того макета. */
+.ms-leg { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-bottom: 13px; font-size: 0.6rem; color: var(--text-tertiary); }
+.ms-lgi { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ms-lgsq { width: 9px; height: 9px; border-radius: 2px; }
 .ms-lgoff { width: 12px; height: 8px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, .06);
     background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
