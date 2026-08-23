@@ -101,6 +101,62 @@ def test_answer_window_is_the_shift_day_only():
     assert can_answer(None, TODAY)[0] is False
 
 
+# ==================== Рабочие сутки бара ====================
+# Бар закрывается в 03:00-04:00: календарная полночь режет смену пополам.
+
+def _at(hh, mm=0, day=24):
+    """Подменить msk_time.now() на 2026-08-{day} {hh}:{mm} МСК."""
+    from datetime import datetime
+    from core import msk_time
+    return lambda: datetime(2026, 8, day, hh, mm, tzinfo=msk_time.MOSCOW_TZ)
+
+
+# Рабочие сутки «2026-08-24» идут с 24-го 06:00 до 25-го 05:59 МСК.
+@pytest.mark.parametrize('day,hh,mm,expect', [
+    (24, 6, 0, '2026-08-24'),    # рубеж: сутки начались
+    (24, 10, 0, '2026-08-24'),   # день смены
+    (24, 23, 59, '2026-08-24'),  # ещё до полуночи
+    (25, 0, 50, '2026-08-24'),   # бармен НА СМЕНЕ, бар закроется в 03-04
+    (25, 3, 30, '2026-08-24'),   # закрытие бара
+    (25, 5, 59, '2026-08-24'),   # последняя минута рабочих суток
+    (25, 6, 0, '2026-08-25'),    # рубеж: следующие сутки
+    (25, 9, 0, '2026-08-25'),
+])
+def test_business_day_rolls_over_at_six(monkeypatch, day, hh, mm, expect):
+    from core import msk_time
+    monkeypatch.setattr(msk_time, 'now', _at(hh, mm, day=day))
+    assert msk_time.business_today().isoformat() == expect
+
+
+def test_business_day_differs_from_calendar_day_after_midnight(monkeypatch):
+    """Суть бага: в 00:50 календарь уже показывал следующий день."""
+    from core import msk_time
+    monkeypatch.setattr(msk_time, 'now', _at(0, 50, day=25))
+    assert msk_time.today().isoformat() == '2026-08-25'           # календарь
+    assert msk_time.business_today().isoformat() == '2026-08-24'  # рабочие сутки
+
+
+def test_shift_still_answerable_after_midnight(monkeypatch):
+    """Бармен открыл бар 24-го в 10:00; в 00:50 он ещё на смене и должен мочь
+    поправить свою приёмку. По календарным суткам окно уже захлопнулось бы."""
+    from core import msk_time
+    monkeypatch.setattr(msk_time, 'now', _at(0, 50, day=25))
+    today = msk_time.business_today().isoformat()
+    assert can_answer('2026-08-24', today)[0] is True
+    assert can_answer('2026-08-25', today)[0] is False   # следующая смена — рано
+
+
+def test_journal_does_not_flag_a_shift_still_running(monkeypatch):
+    """В 00:50 смена 24-го ещё идёт — «не отмечено» ей ставить нельзя."""
+    from core import msk_time
+    monkeypatch.setattr(msk_time, 'now', _at(0, 50, day=25))
+    today = msk_time.business_today().isoformat()
+    shifts = [_shift(1, '2026-08-24', 1, 'Я', ID_ME, '10:00')]
+    j = build_journal(shifts, [], today=today, rule_from=RULE_FROM)
+    assert j['rows'][0]['problems'] == []
+    assert j['totals'][PROBLEM_NOT_MARKED] == 0
+
+
 # ==================== Кто открывающий ====================
 
 def _shift(sid, date, loc, name, emp_id, start, role='бармен'):

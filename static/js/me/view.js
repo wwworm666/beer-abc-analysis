@@ -298,6 +298,15 @@
     document.addEventListener('DOMContentLoaded', function () {
         S.factModal.init({ onSaved: reloadLive });
 
+        // БЕЗ этой строки главная кнопка страницы мертва. Кнопки карточки дня
+        // («Отметить конец смены», «Закрыть смену — часы и касса», «Факт …
+        // править») и клик по дню календаря живут в screens.js и все стоят под
+        // `if (S._onScreenShiftClick)` — обработчик ставится только здесь.
+        // factModal.init() его НЕ ставит: он привязывает саму модалку (поля,
+        // сабмит, закрытие), а не то, что её открывает. На /schedule такая
+        // строка есть (view.js), на /me её забыли при постройке страницы.
+        S.setScreenShiftClick(function (shift) { S.factModal.open(shift); });
+
         var refreshBtn = document.getElementById('meRefresh');
         if (refreshBtn) refreshBtn.addEventListener('click', onRefreshClick);
 

@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, Response
 from datetime import datetime, timedelta, date
 from extensions import shifts_mgr, notes_manager
 from core.auth_guard import current_user, admin_required
+from core import msk_time
 from core.iiko_api import IikoAPI
 from core.shifts_manager import HandoverPenaltyConflict
 from core.daily_plans_generator import DailyPlansGenerator
@@ -56,9 +57,19 @@ def _valid_date_str(date_str):
 
 
 def _today_iso():
-    """Сегодня в ISO — дата для журнала у изменений без собственной даты
-    (ставка, реестр): так запись попадает в историю текущего месяца."""
-    return date.today().isoformat()
+    """Текущий РАБОЧИЙ день бара в ISO.
+
+    Два исправления против прежнего `date.today()`:
+      * оно было НАИВНЫМ, а в прод-образе нет tzdata — с 00:00 до 03:00 МСК дата
+        отставала на календарный день (см. core/msk_time);
+      * сутки бара кончаются не в полночь, а в 06:00 (`business_today`): иначе
+        кассовый регистр в 00:30 объявлял «касса не сдана» за смену, которая
+        прямо сейчас идёт и кассу ещё не считала.
+
+    Используется как дата журнала у изменений без собственной даты (ставка,
+    реестр) и как «сегодня» кассового регистра.
+    """
+    return msk_time.business_today().isoformat()
 
 
 def _fmt_rate(v):

@@ -49,9 +49,33 @@
         return year + '-' + pad2(month) + '-' + pad2(day);
     }
 
+    /* «Сегодня» в графике — РАБОЧИЙ день бара, а не календарный.
+
+       Бар закрывается в 03:00-04:00. В 00:50 бармен ещё на смене, которая
+       началась вчера, — а календарное «сегодня» уже переключилось, и страница
+       показывала ему следующую смену как текущую, требовала закрыть ещё не
+       законченную и отмечала кассу несданной. Рубеж суток — 06:00 МСК: бар
+       закрыт, касса пересчитана, до открытия далеко.
+
+       Считаем от МОСКОВСКОГО времени, а не от часов устройства: сервер живёт по
+       Москве (core/msk_time.business_today, тот же рубеж), и разъехавшиеся
+       «сегодня» на клиенте и сервере дали бы вопрос приёмки на экране, который
+       сервер отказывается принять.
+
+       Приём: сдвигаем метку на (3 - рубеж) часов и читаем UTC-поля. Локальные
+       геттеры тут нельзя — они заново применят часовой пояс устройства. */
+    var DAY_ROLLOVER_HOUR = 6;   // = msk_time.DAY_ROLLOVER_HOUR
+
     function todayStr() {
-        var t = new Date();
-        return dateStr(t.getFullYear(), t.getMonth() + 1, t.getDate());
+        var t = new Date(Date.now() + (3 - DAY_ROLLOVER_HOUR) * 3600000);
+        return dateStr(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+    }
+
+    /* Календарная дата по Москве — там, где нужен реальный день, а не рабочий
+       (штамп «обновлено в», выбор месяца по умолчанию). */
+    function calendarTodayStr() {
+        var t = new Date(Date.now() + 3 * 3600000);
+        return dateStr(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
     }
 
     function formatDateHuman(ds) {
@@ -707,6 +731,8 @@
         DAY_NAMES: DAY_NAMES,
         dateStr: dateStr,
         todayStr: todayStr,
+        calendarTodayStr: calendarTodayStr,
+        DAY_ROLLOVER_HOUR: DAY_ROLLOVER_HOUR,
         formatDateHuman: formatDateHuman,
         formatMoney: formatMoney,
         minutesToHhMm: minutesToHhMm,
