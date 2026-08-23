@@ -164,7 +164,14 @@ def test_me_page_renders_for_unlinked_account():
     d = c.get('/api/me').get_json()
     assert d['identity']['status'] == 'not_linked'
     assert d['money'] is None and d['kpi'] is None and d['metrics'] is None
-    assert 'Аккаунты' in d['identity']['message']
+    # Порядок в тексте важен: /me — главная, поэтому этот отказ каждый день
+    # читают владелец, управляющий и бухгалтер, у которых привязки нет и не
+    # должно быть. Сначала снимаем тревогу, и только потом даём выход бармену,
+    # которого забыли привязать. Обе половины обязаны быть на месте.
+    msg = d['identity']['message']
+    assert 'не выходите в смены' in msg, msg
+    assert 'Аккаунты' in msg, msg
+    assert msg.index('не выходите в смены') < msg.index('Аккаунты'), msg
 
 
 # --- чужие данные получить нельзя ---

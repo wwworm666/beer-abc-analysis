@@ -52,13 +52,18 @@
     }
 
     // Подпись в шапке: роль и точки, где человек работает в этом месяце.
+    // У непривязанного аккаунта роли нет — писать ему «бармен» значит спорить
+    // с текстом на этой же странице, где сказано «скорее всего, вы не бармен».
     function fillHeader() {
         var sub = document.getElementById('meWhoSub');
         if (!sub) return;
         var venues = (summary && summary.venues) || [];
-        sub.textContent = venues.length
-            ? 'бармен · ' + venues.map(function (v) { return v.name; }).join(' · ')
-            : 'бармен';
+        var unlinked = me && me.identity && me.identity.status === 'not_linked';
+        sub.textContent = unlinked
+            ? ''
+            : (venues.length
+                ? 'бармен · ' + venues.map(function (v) { return v.name; }).join(' · ')
+                : 'бармен');
         var ava = document.getElementById('meAva');
         if (ava && !ava.textContent.trim() && summary && summary.label) {
             ava.textContent = summary.label;
@@ -72,6 +77,12 @@
     function setLiveStamp() {
         var el = document.getElementById('meLiveTs');
         if (!el) return;
+        // Непривязанному аккаунту показывать нечего, и «обновлено 02:25» над
+        // единственным сообщением означало бы, что что-то обновилось.
+        if (me && me.identity && me.identity.status === 'not_linked') {
+            el.textContent = '';
+            return;
+        }
         var d = new Date();
         var p = function (n) { return n < 10 ? '0' + n : '' + n; };
         el.textContent = 'обновлено ' + p(d.getHours()) + ':' + p(d.getMinutes());
@@ -140,6 +151,12 @@
         renderFoot();
 
         var ident = me.identity || {};
+        // Аккаунт не привязан к сотруднику: смен у него нет по определению, и
+        // renderMyShifts напишет об этом второй раз своими словами. Прячем всю
+        // секцию — на странице должно остаться одно объяснение, а не два.
+        var sched = document.getElementById('meSched');
+        if (sched) sched.hidden = ident.status === 'not_linked';
+        fillHeader();
         var snap = me.snapshot || {};
         var Snap = (window.Me || {}).snapshot;
 
@@ -261,7 +278,15 @@
         var ident = (me && me.identity) || {};
         var html = '';
         if (ident.status && ident.status !== 'ok' && ident.message) {
-            html += '<div class="me-empty">' + esc(ident.message) + '</div>';
+            // «Не привязан» — чаще всего НЕ поломка: у владельца, управляющего,
+            // бухгалтера привязки нет и не должно быть. Даём им прямой выход на
+            // дашборд, чтобы страница не была тупиком; текст самого отказа
+            // живёт на сервере (core/me_identity.py).
+            var out = ident.status === 'not_linked'
+                ? '<a class="me-link" href="/dashboard">Открыть дашборд'
+                    + '<span class="arr">&rarr;</span></a>'
+                : '';
+            html += '<div class="me-empty">' + esc(ident.message) + '</div>' + out;
         }
         (ident.issues || []).forEach(function (i) {
             html += i.severity === 'error'
@@ -271,10 +296,15 @@
         host.innerHTML = html;
     }
 
+    // Подвал объясняет, чем живое отличается от снимка и что входит в суммы.
+    // Непривязанному аккаунту нечего объяснять: ни живого, ни снимка на
+    // странице нет — три строки оговорок про отсутствующие цифры только
+    // сбивают с толку.
     function renderFoot() {
         var el = document.getElementById('meFoot');
         var notes = (me && me.notes) || {};
-        var parts = [notes.live_vs_snapshot, notes.accrued_to_date, notes.excel]
+        var unlinked = me && me.identity && me.identity.status === 'not_linked';
+        var parts = unlinked ? [] : [notes.live_vs_snapshot, notes.accrued_to_date, notes.excel]
             .filter(Boolean).map(esc);
         el.innerHTML = parts.length ? '<p>' + parts.join('<br>') + '</p>' : '';
     }
