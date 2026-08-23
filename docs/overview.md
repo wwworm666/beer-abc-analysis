@@ -97,7 +97,7 @@
 
 ```
 templates/                  # Jinja2 HTML
-├── dashboard.html          # главная: 4 точки + Общая, 15 метрик, AI-анализ
+├── dashboard.html          # дашборд /dashboard: 4 точки + Общая, 15 метрик, AI-анализ
 ├── employee.html           # дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html           # управление кранами одного бара (/taps/<bar_id>)
 ├── stocks.html             # 4 вкладки: Сводный заказ, Таплист, Фасовка, Сроки годности

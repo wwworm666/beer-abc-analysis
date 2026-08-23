@@ -11,14 +11,14 @@
  * кэши (включая залипший JS) на следующей активации воркера.
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `beer-abc-${CACHE_VERSION}`;
 const STATIC_CACHE = `beer-abc-static-${CACHE_VERSION}`;
 const API_CACHE = `beer-abc-api-${CACHE_VERSION}`;
 
 // Ресурсы для предварительного кэширования
 const STATIC_ASSETS = [
-    '/',
+    '/me',
     '/dashboard/widget',
     '/static/manifest.json',
     '/static/js/widget/revenue_widget.js',
@@ -27,7 +27,7 @@ const STATIC_ASSETS = [
     '/static/dashboard/styles/base.css',
     '/static/fonts/IBMPlexMono/IBMPlexMono-Regular.woff2',
     '/static/fonts/IBMPlexMono/IBMPlexMono-Bold.woff2',
-    '/logo.jpg'
+    '/static/logo.jpg'
 ];
 
 // Установка Service Worker
@@ -140,10 +140,18 @@ async function networkFirstStrategy(request, cacheName) {
             return cachedResponse;
         }
 
-        // Fallback для офлайн режима
+        // Fallback для офлайн режима. Адрес именно '/me', а не '/': главная
+        // отдаёт 302, а редирект в кэш не попадает вовсе (навигационный fetch
+        // идёт с redirect:'manual' и возвращает opaqueredirect, ok === false).
+        // Проверка на промах обязательна: caches.match отдаёт undefined, а
+        // respondWith(undefined) браузер считает сетевой ошибкой — вместо
+        // запасной страницы человек увидел бы «нет соединения».
         if (request.headers.get('accept')?.includes('text/html')) {
-            console.log('[SW] Returning offline fallback');
-            return caches.match('/');
+            const offlineFallback = await caches.match('/me');
+            if (offlineFallback) {
+                console.log('[SW] Returning offline fallback');
+                return offlineFallback;
+            }
         }
 
         return new Response('Offline', { status: 503 });

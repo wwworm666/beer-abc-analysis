@@ -31,7 +31,7 @@ Dlya ostanovki nazhmite Ctrl+C
 Перейдите на одну из страниц:
 
 - **Управление кранами** (НОВОЕ!): http://localhost:5000/taps
-- Анализ фасовки: http://localhost:5000/
+- Анализ фасовки: http://localhost:5000/packaging
 - Анализ разливного: http://localhost:5000/draft
 - Анализ по барменам: http://localhost:5000/draft#bartenders
 

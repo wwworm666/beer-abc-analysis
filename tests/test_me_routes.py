@@ -146,8 +146,9 @@ def test_root_leads_to_me_page():
     r = c.get('/')
     assert r.status_code == 302, r.status_code
     assert r.headers['Location'].endswith('/me'), r.headers['Location']
-    rules = {str(rule.rule) for rule in app.url_map.iter_rules()}
-    assert '/dashboard' in rules
+    # Дашборд проверяем рендером, а не наличием строки в url_map: правило может
+    # быть на месте, а страница отдавать 500 — и тогда «дашборд остался» неправда.
+    assert c.get('/dashboard').status_code == 200
 
 
 def test_me_page_renders_for_unlinked_account():
