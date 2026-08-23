@@ -1,10 +1,8 @@
 /* Адаптивная верстка для мобильных устройств */
 
-/* Нижняя таб-панель (мобильный редизайн) — вне медиазапросов, чтобы правило
-   скрытия на десктопе не зависело от порядка блоков ниже. */
-.bottom-tabs {
-    display: none;
-}
+/* Нижняя таб-панель и шапка фильтров переехали в base.css (блок
+   «МОБИЛЬНЫЙ КАРКАС»): управление страницей не должно зависеть от того,
+   доехал ли этот файл. Здесь остаётся только адаптив контента. */
 
 /* Tablet (768px - 1024px) */
 @media (max-width: 1024px) {
@@ -27,199 +25,12 @@
 
 /* Mobile (< 768px) */
 @media (max-width: 768px) {
-    .container {
-        padding: 20px 12px;
-        /* Место под нижнюю таб-панель, чтобы она не накрывала контент. */
-        padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
-    }
 
     .header-with-sidebar {
         gap: 12px;
     }
 
-    /* Верхние вкладки на телефоне заменены нижней таб-панелью (макет 1a).
-       Разметка остаётся в DOM: main.js держит оба набора кнопок в синхроне,
-       и «Месячный отчёт» (ссылка) переезжает в боковое меню. */
-    .tabs-nav {
-        display: none;
-    }
-
-    /* ---- Нижняя таб-панель ---- */
-    .bottom-tabs {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 90;
-        display: flex;
-        padding: 8px 6px calc(14px + env(safe-area-inset-bottom, 0px));
-        background: var(--bg-secondary);
-        border-top: 1px solid var(--border-color);
-    }
-
-    .bt-item {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 5px;
-        min-width: 0;
-        padding: 2px 0;
-        border: none;
-        background: transparent;
-        font-family: var(--font-family);
-        font-size: 9.5px;
-        font-weight: 500;
-        color: var(--text-tertiary);
-        cursor: pointer;
-    }
-
-    .bt-item svg {
-        width: 19px;
-        height: 19px;
-    }
-
-    .bt-item.active {
-        color: var(--accent);
-        font-weight: 600;
-    }
-
-    .bt-item:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: -2px;
-        border-radius: 8px;
-    }
-
-    /* ---- Шапка фильтров: две строки (макет 6a) ----
-       Строка 1: заведение + иконка выгрузки.
-       Строка 2: период со стрелками во всю ширину.
-       Списки открываются снизу нижним листом. */
-    .filter-bar {
-        height: auto;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        padding: 12px;
-        border-radius: var(--border-radius-sm);
-        margin-bottom: var(--spacing-md);
-    }
-
-    /* Внутри полосы контролы получают собственные рамки: на телефоне они стоят
-       в разных строках, и разделительные линии больше не работают. */
-    .fb-venue,
-    .fb-period,
-    .fb-export-mobile {
-        height: 44px;
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        background: var(--bg-primary);
-    }
-
-    .fb-venue {
-        order: 1;
-        flex: 1 1 0;
-        min-width: 0;
-        max-width: none;
-        padding: 0 13px;
-        gap: 8px;
-    }
-
-    /* Два класса намеренно: правило .fb-arrow ниже задаёт 36px для стрелок
-       периода, а кнопка выгрузки — того же размера, что чип заведения (44px). */
-    .filter-bar .fb-export-mobile {
-        order: 2;
-        display: flex;
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        flex: none;
-    }
-
-    .fb-export-mobile svg {
-        width: 15px;
-        height: 15px;
-    }
-
-    .fb-period {
-        order: 3;
-        flex: 1 1 100%;
-        gap: 6px;
-        padding: 0 4px;
-    }
-
-    /* Стрелки остаются крупной целью для пальца. */
-    .fb-arrow {
-        width: 36px;
-        height: 36px;
-        border-radius: 9px;
-    }
-
-    .fb-arrow svg {
-        width: 14px;
-        height: 14px;
-    }
-
-    .fb-period-trigger {
-        flex: 1 1 auto;
-        justify-content: center;
-        min-width: 0;
-    }
-
-    /* Разделители и десктопный экспорт на телефоне не нужны. */
-    .fb-divider,
-    .fb-spacer,
-    .fb-export {
-        display: none;
-    }
-
-    /* ---- Списки как нижний лист ---- */
-    .fb-backdrop {
-        display: block;
-        position: fixed;
-        inset: 0;
-        z-index: 110;
-        background: var(--backdrop);
-    }
-
-    .fb-menu {
-        position: fixed;
-        top: auto;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 120;
-        width: auto;
-        padding: 10px 8px calc(14px + env(safe-area-inset-bottom, 0px));
-        border: none;
-        border-radius: 22px 22px 0 0;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-
-    .fb-grab {
-        display: block;
-        align-self: center;
-        width: 38px;
-        height: 4px;
-        margin: 2px 0 10px;
-        border-radius: 999px;
-        background: var(--border-color);
-        flex: none;
-    }
-
-    /* Пункты крупнее: палец, а не курсор. */
-    .fb-menu-item {
-        padding: 13px 12px;
-        border-radius: 11px;
-    }
-
-    .fb-menu-name {
-        font-size: 14px;
-    }
-
-    .fb-menu-hint {
-        font-size: 12px;
-    }
+    /* Верхние вкладки, нижняя таб-панель и шапка фильтров — в base.css. */
 
     /* Между последним аккордеоном и заметками к собранию не нужен зазор
        во весь --spacing-xl: на телефоне он читался как обрыв страницы. */

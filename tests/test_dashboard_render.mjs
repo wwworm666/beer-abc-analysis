@@ -163,6 +163,23 @@ test('шкала предыдущего периода имеет свой то�
     assert.equal(decls.length, 2, 'ожидались объявления для светлой и тёмной темы');
 });
 
+test('мобильный каркас лежит в base.css, а не в mobile.css', () => {
+    // Управление страницей (шапка фильтров, нижняя таб-панель) обязано ехать
+    // вместе с разметкой. Пока эти правила жили в отдельном mobile.css,
+    // недоехавший файл отдавал телефону десктопную полосу: одна строка 56px,
+    // из которой контролы вылетают за край на ~140px и наезжают друг на друга.
+    const base = read('static/dashboard/styles/base.css');
+    const mobile = read('static/dashboard/styles/mobile.css');
+    for (const sel of ['.fb-export-mobile', '.bottom-tabs', '.bt-item', '.fb-menu']) {
+        assert.ok(base.includes(sel), `${sel} пропал из base.css`);
+        assert.ok(!mobile.includes(sel), `${sel} снова уехал в mobile.css`);
+    }
+    const bar = base.match(/\.filter-bar\s*\{[^}]*\}/);
+    assert.ok(bar, 'нет правила .filter-bar');
+    assert.ok(/min-height/.test(bar[0]), '.filter-bar снова с жёсткой height');
+    assert.ok(/flex-wrap:\s*wrap/.test(bar[0]), '.filter-bar без flex-wrap: полоса не свернётся');
+});
+
 console.log('\n--- разметка ---');
 
 test('нижняя таб-панель повторяет вкладки и содержит «Ещё»', () => {

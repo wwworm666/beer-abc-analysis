@@ -33,11 +33,11 @@ JavaScript модули дашборда и других страниц: state m
 
 ### Стили
 - [`static/dashboard/styles/variables.css`](../../static/dashboard/styles/variables.css) — CSS переменные
-- [`static/dashboard/styles/base.css`](../../static/dashboard/styles/base.css) — базовые стили
+- [`static/dashboard/styles/base.css`](../../static/dashboard/styles/base.css) — базовые стили + мобильный каркас дашборда (шапка фильтров и нижняя таб-панель на `≤768px`)
 - [`static/dashboard/styles/tabs.css`](../../static/dashboard/styles/tabs.css) — табы
 - [`static/dashboard/styles/cards.css`](../../static/dashboard/styles/cards.css) — карточки
 - [`static/dashboard/styles/charts.css`](../../static/dashboard/styles/charts.css) — графики
-- [`static/dashboard/styles/mobile.css`](../../static/dashboard/styles/mobile.css) — мобильная версия
+- [`static/dashboard/styles/mobile.css`](../../static/dashboard/styles/mobile.css) — адаптив контента (карточки, таблицы, графики); каркас страницы сюда не кладём, см. [dashboard.md](dashboard.md)
 
 ---
 
