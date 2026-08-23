@@ -143,11 +143,11 @@
 
     // Уже отвечено: компактная строка. Она остаётся на экране весь день —
     // и как подтверждение «я отметил», и как вход в правку.
-    // Шапка карточки — те же классы, что у «Моих денег» в правой колонке
-    // (.me-card-h / .me-card-t / .me-card-note): заголовок слева, мелкая
-    // моноширинная приписка справа. Отдельной подписи «ПРИЁМКА БАРА» над
-    // карточкой больше нет — она сдвигала левую колонку вниз относительно
-    // правой, и первые карточки двух колонок переставали лежать на одной линии.
+    // Шапка карточки — те же классы, что у карточек справа (.me-card-h /
+    // .me-card-t / .me-card-note): заголовок слева, мелкая моноширинная
+    // приписка справа. Название секции здесь НЕ повторяем: его несёт полоса
+    // «Приёмка бара» над карточкой, а в шапке стоит сам вопрос — в обоих
+    // состояниях один и тот же, чтобы ответ читался как ответ на него.
     function cardHead(title, note) {
         return '<div class="me-card-h"><span class="me-card-t">' + esc(title) + '</span>'
             + '<span class="me-card-sp"></span>'
@@ -166,7 +166,7 @@
             + (fmtTime(acc.answered_at) ? ' · ' + fmtTime(acc.answered_at) : '')
             + (acc.edited ? ' · изменено' : '');
         return '<div class="me-card me-acc-card is-done is-' + esc(acc.status) + '">'
-            + cardHead('Приёмка бара', note)
+            + cardHead('Как принял бар?', note)
             + '<div class="me-acc-st is-' + esc(acc.status) + '">' + esc(acc.status_label) + '</div>'
             + (acc.note ? '<div class="me-acc-note-txt">' + esc(acc.note) + '</div>' : '')
             + photo
@@ -219,6 +219,13 @@
 
     function host() { return document.getElementById(HOST_ID); }
 
+    // Полоса-заголовок секции рисуется ВМЕСТЕ с содержимым, а не в шаблоне:
+    // блок пуст в дни без моей открывающей смены, и подпись без содержимого
+    // осталась бы висеть. Тот же приём, что у «Моих KPI» в snapshot.js.
+    var BAND = '<div class="me-band me-band-sub">'
+        + '<span class="me-band-t">Приёмка бара</span>'
+        + '<span class="me-band-line"></span></div>';
+
     function render() {
         var el = host();
         if (!el) return;
@@ -226,7 +233,7 @@
             el.innerHTML = '';
             return;
         }
-        var html = '<div class="me-acc">';
+        var html = BAND + '<div class="me-acc">';
         data.items.forEach(function (item) {
             html += item.acceptance ? answeredHtml(item) : questionHtml(item);
         });

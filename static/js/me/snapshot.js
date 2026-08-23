@@ -130,11 +130,17 @@
         var done = m.shifts_count || 0;
         var progress = norm ? Math.min(100, Math.round(done / norm * 100)) : 0;
 
-        host.innerHTML = '<div class="me-card">'
-            + '<div class="me-card-h"><span class="me-card-t">Мои деньги</span>'
-            + '<span class="me-card-sp"></span>'
-            + '<span class="me-card-note">начислено на ' + esc(fmtDay(data.today))
+        // Заголовок секции — полоса, как у KPI и показателей ниже. В шапке
+        // карточки он был единственным на всю колонку и не давал левой колонке
+        // завести свою полосу «Приёмка бара», не сбив первые карточки с одной
+        // линии. Дата начисления встала в тот же слот, где у «Снимка» стоит
+        // время: справа, мелким моноширинным.
+        host.innerHTML = '<div class="me-band me-band-sub">'
+            + '<span class="me-band-t">Мои деньги</span>'
+            + '<span class="me-band-line"></span>'
+            + '<span class="me-band-ts">начислено на ' + esc(fmtDay(data.today))
             + '</span></div>'
+            + '<div class="me-card">'
             + staleHtml(data)
             + '<div class="me-total">' + money(m.total) + '</div>'
             + '<div class="me-total-sub"><span class="me-total-sub-t">за ' + shifts(done)
@@ -162,7 +168,7 @@
     function renderKpi(host, data) {
         var kpi = data.kpi;
         if (!kpi) { host.innerHTML = ''; return; }
-        var band = '<div class="me-band" id="meKpi"><span class="me-band-t">Мои KPI</span>'
+        var band = '<div class="me-band me-band-sub"><span class="me-band-t">Мои KPI</span>'
             + '<span class="me-band-line"></span></div>';
 
         if (kpi.status !== 'ok' || !(kpi.items || []).length) {
@@ -319,7 +325,7 @@
 
     function renderMetrics(host, data) {
         var m = data.metrics;
-        var band = '<div class="me-band"><span class="me-band-t">Мои показатели</span>'
+        var band = '<div class="me-band me-band-sub"><span class="me-band-t">Мои показатели</span>'
             + '<span class="me-band-line"></span></div>';
         if (!m) { host.innerHTML = ''; return; }
         if (m.status !== 'ok') {

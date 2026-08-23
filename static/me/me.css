@@ -282,6 +282,15 @@ body.me-page .container { padding: 0; }
 .me-band-line { flex: 1; min-width: 40px; height: 1px; background: var(--me-rule); }
 .me-band-ts { font: 500 11px/1 var(--me-mono); color: var(--me-ink4); }
 
+/* Подполоса — заголовок СЕКЦИИ внутри колонки: «Приёмка бара», «Мой график»,
+   «Мои деньги», «Мои KPI», «Мои показатели». Верхние полосы («Сейчас»,
+   «Снимок») делят страницу по свежести данных, подполосы — по смыслу.
+
+   Типографика у них общая намеренно: обе колонки начинаются с подполосы, и
+   одинаковая высота держит первые карточки левой и правой колонки на одной
+   линии. Отличается только отступ сверху. */
+.me-band-sub { margin: 24px 2px 10px; }
+
 /* Кнопка обновления — таблетка. Не .btn: глобальный mobile.css растягивает
    .btn на 100% ниже 768px и разорвал бы полосу. */
 .me-refresh {
@@ -350,6 +359,12 @@ body.me-page .container { padding: 0; }
 .me-stamp.is-stale { color: var(--me-warn); }
 
 /* ==================== Деньги ==================== */
+
+/* Заголовок «Мои деньги» вынесен в полосу над карточкой (как у KPI и
+   показателей), поэтому первым в карточке стоит само число. Верхний отступ ему
+   уже не нужен — его даёт padding карточки. Если сверху есть штамп «давно не
+   обновлялось», :first-child не совпадёт и отступ вернётся, как и было. */
+.me-card > .me-total:first-child { margin-top: 0; }
 
 .me-total {
     margin: 12px 0 4px;
@@ -1064,10 +1079,25 @@ body.me-page .ms-note {
 
 @media (max-width: 768px) {
     .me-wrap { padding: 14px 12px calc(40px + env(safe-area-inset-bottom, 0px)); }
-    .me-cols { gap: 6px; }
+    .me-cols { gap: 10px; }
     .me-head { padding: 9px 14px 9px 10px; gap: 10px; }
     .me-logo { display: none; }          /* в шапке телефона важнее имя, чем логотип */
-    .me-band { margin: 22px 2px 10px; }
+    /* Колонки схлопнулись в одну — без разреза блоки читаются одной простынёй.
+       Поэтому на телефоне полоса-заголовок несёт ещё и линию во всю ширину:
+       видно, где кончилась предыдущая секция. Правило идёт ПОСЛЕ .me-band-sub,
+       поэтому подполосы получают тот же разрез. */
+    .me-band {
+        margin: 30px 0 12px;
+        padding-top: 16px;
+        border-top: 1px solid var(--me-rule);
+    }
+    .me-band-t { font-size: 12px; color: var(--me-ink2); }
+    /* Самая первая полоса страницы стоит сразу под шапкой — резать нечего. */
+    .me-col-now > .me-band:first-child {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 20px;
+    }
     .me-total { font-size: 34px; }
     .me-card { padding: 16px 16px 12px; }
     .me-kpi-card, .me-group, .me-tile-b { padding: 15px 16px 12px; }
