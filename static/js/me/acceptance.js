@@ -143,6 +143,17 @@
 
     // Уже отвечено: компактная строка. Она остаётся на экране весь день —
     // и как подтверждение «я отметил», и как вход в правку.
+    // Шапка карточки — те же классы, что у «Моих денег» в правой колонке
+    // (.me-card-h / .me-card-t / .me-card-note): заголовок слева, мелкая
+    // моноширинная приписка справа. Отдельной подписи «ПРИЁМКА БАРА» над
+    // карточкой больше нет — она сдвигала левую колонку вниз относительно
+    // правой, и первые карточки двух колонок переставали лежать на одной линии.
+    function cardHead(title, note) {
+        return '<div class="me-card-h"><span class="me-card-t">' + esc(title) + '</span>'
+            + '<span class="me-card-sp"></span>'
+            + '<span class="me-card-note">' + esc(note) + '</span></div>';
+    }
+
     function answeredHtml(item) {
         var acc = item.acceptance;
         var shift = item.shift;
@@ -151,13 +162,12 @@
                 + '" target="_blank" rel="noopener">'
                 + '<img src="/api/cleanliness/photo/' + esc(acc.photo) + '" alt="Фото приёмки"></a>'
             : '';
-        return '<div class="me-acc-card is-done is-' + esc(acc.status) + '">'
-            + '<div class="me-acc-done-row">'
-            + '<span class="me-acc-st is-' + esc(acc.status) + '">' + esc(acc.status_label) + '</span>'
-            + '<span class="me-acc-when">' + esc(shiftMeta(shift))
-            + (fmtTime(acc.answered_at) ? ' · ' + esc(fmtTime(acc.answered_at)) : '')
-            + (acc.edited ? ' · изменено' : '') + '</span>'
-            + '</div>'
+        var note = shiftMeta(shift)
+            + (fmtTime(acc.answered_at) ? ' · ' + fmtTime(acc.answered_at) : '')
+            + (acc.edited ? ' · изменено' : '');
+        return '<div class="me-card me-acc-card is-done is-' + esc(acc.status) + '">'
+            + cardHead('Приёмка бара', note)
+            + '<div class="me-acc-st is-' + esc(acc.status) + '">' + esc(acc.status_label) + '</div>'
             + (acc.note ? '<div class="me-acc-note-txt">' + esc(acc.note) + '</div>' : '')
             + photo
             + '<button type="button" class="me-acc-edit" data-edit="' + esc(shift.id) + '">изменить</button>'
@@ -168,9 +178,8 @@
     // раскрывают форму.
     function questionHtml(item) {
         var shift = item.shift;
-        return '<div class="me-acc-card">'
-            + '<div class="me-acc-q">Как принял бар?</div>'
-            + '<div class="me-acc-meta">' + esc(shiftMeta(shift)) + '</div>'
+        return '<div class="me-card me-acc-card">'
+            + cardHead('Как принял бар?', shiftMeta(shift))
             + '<div class="me-acc-btns" data-shift="' + esc(shift.id) + '">'
             + '<button type="button" class="me-acc-b is-clean" data-st="clean">Чисто</button>'
             + '<button type="button" class="me-acc-b is-issues" data-st="issues">Замечания</button>'
@@ -217,8 +226,7 @@
             el.innerHTML = '';
             return;
         }
-        var html = '<div class="me-acc">'
-            + '<div class="me-acc-lbl">ПРИЁМКА БАРА</div>';
+        var html = '<div class="me-acc">';
         data.items.forEach(function (item) {
             html += item.acceptance ? answeredHtml(item) : questionHtml(item);
         });
