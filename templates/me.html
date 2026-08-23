@@ -55,6 +55,11 @@
             <span class="me-band-ts" id="meLiveTs"></span>
           </div>
           <div id="meNotice"></div>
+          <!-- Приёмка бара: вопрос «Как принял бар?» на открытии смены. Стоит
+               ПЕРВЫМ в живой колонке — открытие раньше закрытия, и вопрос не
+               должен требовать скролла. Пуст (и невидим), когда сегодня нет моей
+               открывающей смены. Рисует static/js/me/acceptance.js. -->
+          <div id="meAcceptance"></div>
           <!-- Плитки месяца: живые числа, поэтому стоят в живой колонке, а не
                под «Снимком». -->
           <div class="me-tiles-3" id="meMonthTiles"></div>
@@ -143,6 +148,7 @@
     <script src="/static/js/schedule/screens.js?v={{ app_version }}"></script>
     <script src="/static/js/schedule/fact_modal.js?v={{ app_version }}"></script>
     <script src="/static/js/me/snapshot.js?v={{ app_version }}"></script>
+    <script src="/static/js/me/acceptance.js?v={{ app_version }}"></script>
     <script src="/static/js/me/view.js?v={{ app_version }}"></script>
     <script src="/static/logo.js"></script>
 </body>

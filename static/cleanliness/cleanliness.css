@@ -1,0 +1,238 @@
+/* Страница «Чистота» — журнал приёмок бара за месяц.
+
+   Оформление — общая дизайн-система (variables.css, IBM Plex Mono). Ни одного
+   HEX вне статусных цветов, которые тоже берутся переменными; без эмодзи;
+   префикс `cl-`.
+
+   Цвет здесь работает ровно в одном месте — в плашке ответа. Строка «Плохо» НЕ
+   красится целиком: журнал читают глазами сверху вниз, и красная простыня
+   строк перестаёт что-либо выделять уже на третьем экране. */
+
+.cl-wrap { max-width: 1200px; margin: 0 auto; padding: 8px 0 64px; }
+
+/* ==================== Шапка: месяц ==================== */
+
+.cl-head {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.cl-month { display: flex; align-items: center; gap: 6px; }
+.cl-month-t {
+    min-width: 190px; text-align: center;
+    font-size: 1.05rem; font-weight: 700; color: var(--text-primary);
+}
+.cl-nav {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: inherit; font-size: 1.2rem; line-height: 1;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.cl-nav:hover { border-color: var(--accent); color: var(--accent); }
+.cl-rule { font-size: 0.78rem; color: var(--text-tertiary); }
+
+/* ==================== Итоги ==================== */
+
+.cl-tiles {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+}
+.cl-tile {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 14px 16px;
+}
+.cl-tile-k {
+    font-size: 0.7rem; font-weight: 600; letter-spacing: .05em;
+    color: var(--text-tertiary); margin-bottom: 6px;
+}
+.cl-tile-v {
+    font-size: 1.7rem; font-weight: 700; line-height: 1;
+    color: var(--text-primary); font-variant-numeric: tabular-nums;
+}
+.cl-tile.is-clean .cl-tile-v { color: var(--success); }
+.cl-tile.is-issues .cl-tile-v { color: var(--warning); }
+.cl-tile.is-bad .cl-tile-v { color: var(--danger); }
+/* Пробел — единственная плитка с рамкой: он важнее любого ответа. */
+.cl-tile.is-gap { border-color: var(--text-tertiary); }
+.cl-tile.is-gap.has-gap { border-color: var(--danger); }
+.cl-tile.is-gap.has-gap .cl-tile-v { color: var(--danger); }
+
+/* ==================== Фильтры ==================== */
+
+.cl-filters {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+.cl-sel, .cl-search {
+    height: var(--control-h);
+    font-family: inherit; font-size: 0.85rem;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 0 12px;
+}
+.cl-search { flex: 1; min-width: 200px; }
+.cl-sel:focus, .cl-search:focus { outline: none; border-color: var(--accent); }
+.cl-count { font-size: 0.78rem; color: var(--text-tertiary); }
+
+/* ==================== Таблица ==================== */
+
+.cl-table-wrap {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    overflow-x: auto;
+}
+.cl-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.cl-table th {
+    text-align: left; white-space: nowrap;
+    font-size: 0.7rem; font-weight: 600; letter-spacing: .05em;
+    color: var(--text-tertiary);
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+.cl-table td {
+    padding: 11px 14px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+}
+.cl-table tr:last-child td { border-bottom: none; }
+.cl-table tr:hover td { background: var(--bg-tertiary); }
+.cl-td-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cl-td-date .cl-dow { color: var(--text-tertiary); }
+.cl-td-note { color: var(--text-secondary); max-width: 420px; }
+.cl-td-who { white-space: nowrap; }
+
+/* Строка сегодняшнего дня без ответа — не пробел: смена ещё может ответить. */
+.cl-pend { font-size: 0.78rem; color: var(--text-tertiary); }
+
+.cl-badge {
+    display: inline-block; white-space: nowrap;
+    font-size: 0.72rem; font-weight: 700;
+    padding: 3px 10px;
+    border-radius: var(--border-radius-pill);
+    border: 1px solid transparent;
+}
+.cl-badge.is-clean { color: var(--success); background: var(--success-bg); }
+.cl-badge.is-issues { color: var(--warning); background: var(--warning-bg); }
+.cl-badge.is-bad { color: var(--danger); background: var(--danger-bg); }
+.cl-badge.is-gap { color: var(--danger); border-color: var(--danger); background: transparent; }
+.cl-edited { margin-left: 6px; font-size: 0.7rem; color: var(--text-tertiary); font-weight: 400; }
+
+.cl-thumb {
+    display: block; width: 44px; height: 44px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    cursor: zoom-in;
+}
+.cl-nophoto { color: var(--text-tertiary); }
+
+.cl-empty {
+    padding: 28px 16px; text-align: center;
+    font-size: 0.85rem; color: var(--text-secondary);
+}
+.cl-error {
+    margin-bottom: 14px; padding: 14px 16px;
+    font-size: 0.85rem; color: var(--text-primary);
+    background: var(--danger-bg);
+    border: 1px solid var(--danger);
+    border-radius: var(--border-radius-sm);
+}
+.cl-error button {
+    margin-left: 10px; font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    color: var(--text-primary); background: transparent;
+    border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);
+    padding: 6px 12px; cursor: pointer;
+}
+
+.cl-note {
+    margin: 18px 0 0; text-align: center;
+    font-size: 0.78rem; line-height: 1.7; color: var(--text-tertiary);
+    text-wrap: pretty;
+}
+
+/* ==================== Просмотр фото ==================== */
+
+.cl-lightbox {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; padding: 24px;
+    background: var(--backdrop);
+    backdrop-filter: blur(6px);
+}
+.cl-lightbox[hidden] { display: none; }
+.cl-lightbox img {
+    max-width: min(100%, 1100px); max-height: 80vh;
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-secondary);
+}
+/* Подпись — плашкой цвета карточки, а не светлым текстом по подложке: подложка
+   тёмная в обеих темах, а `--bg-secondary` в тёмной сам тёмный, и текст по нему
+   исчез бы. Так же оформлена кнопка закрытия. */
+.cl-lb-cap {
+    font-size: 0.82rem; color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 8px 14px;
+    text-align: center; text-wrap: pretty;
+}
+.cl-lb-x {
+    position: absolute; top: 16px; right: 20px;
+    width: 40px; height: 40px;
+    font-family: inherit; font-size: 1.5rem; line-height: 1;
+    color: var(--text-primary); background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);
+    cursor: pointer;
+}
+
+/* ==================== Адаптив ==================== */
+
+@media (max-width: 768px) {
+    .cl-wrap { padding: 8px 0 40px; }
+    .cl-tiles { grid-template-columns: repeat(2, 1fr); }
+    .cl-month-t { min-width: 150px; font-size: 0.95rem; }
+
+    /* Строка таблицы -> карточка. Шесть колонок в 390 px не помещаются: при
+       горизонтальной прокрутке «Что не так» и фото уезжают за экран, а строка
+       всё равно вырастает под их высоту — получаются пустые провалы между
+       датами. А читают этот журнал именно с телефона. */
+    .cl-table-wrap { overflow-x: visible; background: transparent; border: none; }
+    .cl-table { font-size: 0.82rem; }
+    .cl-table thead { display: none; }
+    .cl-table tbody, .cl-table tr, .cl-table td { display: block; }
+    .cl-table tr {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 3px 10px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-sm);
+    }
+    .cl-table tr:hover td { background: transparent; }
+    .cl-table td { padding: 0; border: none; }
+    .cl-td-date { grid-column: 1; grid-row: 1; font-weight: 600; }
+    .cl-td-st { grid-column: 2; grid-row: 1; justify-self: end; }
+    .cl-td-venue { grid-column: 1; grid-row: 2; color: var(--text-secondary); }
+    .cl-td-who { grid-column: 2; grid-row: 2; justify-self: end; color: var(--text-secondary); }
+    .cl-td-note { grid-column: 1 / -1; max-width: none; margin-top: 4px; }
+    .cl-td-note:empty { display: none; }
+    .cl-td-photo { grid-column: 1 / -1; margin-top: 6px; }
+    /* Прочерк «фото нет» нужен только в таблице: в карточке пустая строка с
+       тире — это шум, а не информация. */
+    .cl-td-photo.is-empty { display: none; }
+    .cl-thumb { width: 72px; height: 72px; }
+    .cl-empty { background: var(--bg-secondary); border: 1px solid var(--border-color);
+                border-radius: var(--border-radius-sm); }
+}

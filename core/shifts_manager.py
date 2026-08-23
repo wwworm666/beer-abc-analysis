@@ -11,6 +11,8 @@ from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional
 from contextlib import contextmanager
 
+from core import msk_time
+
 
 # Маппинг точек на ключи заведений в data/daily_plans.json / plansdashboard.json.
 # Единственное место связи locations <-> venue_key.
@@ -70,7 +72,12 @@ class ShiftsManager:
     #     ищет их по имени). Существующие строки получают id по имени из реестра.
     #     UNIQUE(date, employee_name) не меняется (DROP/rebuild запрещён) —
     #     совпадение строки ищется по id ИЛИ имени, см. set_handover_penalty().
-    SCHEMA_VERSION = 10
+    # v11: bar_acceptance — приёмка бара на открытии («Как принял бар?»):
+    #     чисто / замечания / плохо, строка «что не так» и фото. Одна строка на
+    #     смену (UNIQUE shift_id), отвечает открывающая дневная смена. Отдельная
+    #     таблица, а не колонки в shifts: это про чистоту, а не про график, и
+    #     сюда же лягут чек-листы. См. core/bar_acceptance.py, docs/cleanliness.md.
+    SCHEMA_VERSION = 11
 
     def __init__(self, db_path: str = None):
         self.db_path = db_path or self._get_default_path()
@@ -355,6 +362,36 @@ class ShiftsManager:
                     WHERE employee_id IS NULL
                 ''')
 
+                # v11: приёмка бара на открытии смены («Как принял бар?»).
+                # UNIQUE(shift_id) — одна приёмка на смену: вопрос задаётся один
+                # раз, повторный ответ в тот же день ПЕРЕЗАПИСЫВАЕТ строку (правка
+                # опечатки), а created_at остаётся первым — по расхождению
+                # created_at/updated_at журнал показывает «изменено».
+                # ON DELETE CASCADE: смена удалена — приёмка теряет смысл (журнал
+                # строится JOIN'ом по сменам, осиротевшая строка была бы невидима).
+                # Файл фото при этом остаётся на диске — см. docs/cleanliness.md.
+                # status: 'clean' | 'issues' | 'bad' (core/bar_acceptance.py).
+                # photo — только ИМЯ файла в каталоге фото, не путь: путь зависит
+                # от окружения (/kultura против data/), а имя переносимо.
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS bar_acceptance (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        shift_id INTEGER NOT NULL UNIQUE
+                            REFERENCES shifts(id) ON DELETE CASCADE,
+                        date TEXT NOT NULL,
+                        location_id INTEGER,
+                        employee_id TEXT,
+                        employee_name TEXT,
+                        status TEXT NOT NULL,
+                        note TEXT,
+                        photo TEXT,
+                        author_login TEXT,
+                        author_name TEXT,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                ''')
+
                 # Индексы
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_date ON shifts(date)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_shifts_employee ON shifts(employee_name)')
@@ -369,6 +406,7 @@ class ShiftsManager:
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_id ON schedule_audit(id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_salary_adj_month ON salary_adjustments(month)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_handover_pen_date ON handover_cash_penalties(date)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_bar_acc_date ON bar_acceptance(date)')
 
                 cursor.execute(f"PRAGMA user_version = {self.SCHEMA_VERSION}")
                 conn.commit()
@@ -743,6 +781,86 @@ class ShiftsManager:
                     ) WHERE rn = 1
                 ''')
                 return {row['location_id']: dict(row) for row in cur.fetchall()}
+
+    # ==================== BAR ACCEPTANCE (v11) ====================
+    # Приёмка бара на открытии смены: «Как принял бар?» -> чисто / замечания /
+    # плохо. Правила (кто отвечает, что обязательно, когда можно) живут в
+    # core/bar_acceptance.py; здесь только хранение.
+
+    def get_bar_acceptance(self, shift_id: int) -> Optional[Dict]:
+        """Приёмка одной смены или None, если на неё не отвечали."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT * FROM bar_acceptance WHERE shift_id = ?',
+                               (shift_id,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+
+    def get_bar_acceptances_for_period(self, date_from: str, date_to: str) -> List[Dict]:
+        """Приёмки за диапазон дат включительно (журнал «Чистота» за месяц)."""
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'SELECT * FROM bar_acceptance WHERE date >= ? AND date <= ? '
+                    'ORDER BY date, id', (date_from, date_to))
+                return [dict(row) for row in cursor.fetchall()]
+
+    def set_bar_acceptance(self, shift_id: int, *, date: str, location_id,
+                           employee_id, employee_name, status: str,
+                           note: Optional[str], photo: Optional[str],
+                           author_login: Optional[str],
+                           author_name: Optional[str]) -> Dict:
+        """Записать приёмку смены (создать или перезаписать). Возвращает строку.
+
+        `created_at` при перезаписи СОХРАНЯЕТСЯ (берётся из существующей строки),
+        меняется только `updated_at`: по их расхождению журнал показывает
+        «изменено», а первый ответ остаётся датированным своим временем.
+
+        Возвращает и прежнее имя файла фото под ключом `prev_photo` — вызывающий
+        удаляет осиротевший файл сам (модуль хранения фото ничего не знает о БД).
+
+        Время — МОСКОВСКОЕ (`core.msk_time`), в отличие от `updated_at` смены:
+        эта отметка ПОКАЗЫВАЕТСЯ («принял в 09:12»), а в прод-образе нет
+        системного tzdata, и наивный `datetime.now()` там отдаёт UTC — приёмка
+        в 09:12 читалась бы как 06:12. См. docs/lessons.md.
+        """
+        now = msk_time.now().isoformat()
+        with self._lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT created_at, photo FROM bar_acceptance '
+                               'WHERE shift_id = ?', (shift_id,))
+                prev = cursor.fetchone()
+                created_at = prev['created_at'] if prev else now
+                prev_photo = prev['photo'] if prev else None
+                cursor.execute('''
+                    INSERT INTO bar_acceptance
+                        (shift_id, date, location_id, employee_id, employee_name,
+                         status, note, photo, author_login, author_name,
+                         created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(shift_id) DO UPDATE SET
+                        date = excluded.date,
+                        location_id = excluded.location_id,
+                        employee_id = excluded.employee_id,
+                        employee_name = excluded.employee_name,
+                        status = excluded.status,
+                        note = excluded.note,
+                        photo = excluded.photo,
+                        author_login = excluded.author_login,
+                        author_name = excluded.author_name,
+                        updated_at = excluded.updated_at
+                ''', (shift_id, date, location_id, employee_id, employee_name,
+                      status, note, photo, author_login, author_name,
+                      created_at, now))
+                conn.commit()
+                cursor.execute('SELECT * FROM bar_acceptance WHERE shift_id = ?',
+                               (shift_id,))
+                row = dict(cursor.fetchone())
+        row['prev_photo'] = prev_photo
+        return row
 
     def update_shift(self, shift_id: int, **kwargs) -> bool:
         """Обновить смену. Факт часов сюда НЕ входит — он меняется только через

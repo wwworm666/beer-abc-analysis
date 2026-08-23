@@ -862,6 +862,174 @@ body.me-page .ms-note {
     padding: 20px 16px;
 }
 
+/* ==================== Приёмка бара ====================
+   Вопрос «Как принял бар?» на открытии смены (static/js/me/acceptance.js).
+   Стоит первым блоком живой колонки: открытие раньше закрытия, и вопрос обязан
+   попадать в первый экран без скролла.
+
+   Три кнопки — одного размера и одной высоты. Ответ «Плохо» НЕ красный по фону
+   и не крупнее других: если честный ответ выглядит страшнее удобного, через
+   месяц все ответы будут «Чисто». Цвет появляется только ПОСЛЕ ответа — в
+   плашке статуса, где он уже не влияет на выбор. */
+
+.me-acc { margin: 0 0 14px; }
+.me-acc.is-busy { opacity: .6; pointer-events: none; }
+.me-acc-lbl {
+    font: 600 0.62rem/1 var(--me-sans);
+    letter-spacing: .06em;
+    color: var(--me-ink4);
+    margin: 0 0 7px;
+}
+.me-acc-card {
+    background: var(--me-card);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-card);
+    box-shadow: var(--me-shadow);
+    padding: 16px;
+}
+.me-acc-q {
+    font: 600 16px/1.3 var(--me-sans);
+    color: var(--me-ink);
+    margin: 0 0 3px;
+}
+.me-acc-meta {
+    font: 400 12.5px/1.4 var(--me-sans);
+    color: var(--me-ink3);
+    margin: 0 0 13px;
+}
+
+.me-acc-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.me-acc-b {
+    font: 600 13.5px/1 var(--me-sans);
+    color: var(--me-ink);
+    background: var(--me-soft);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-btn);
+    padding: 14px 6px;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+}
+.me-acc-b:hover { border-color: var(--me-ink5); }
+/* Выбранный ответ — рамкой и фоном, а не заливкой в цвет статуса: пока ответ не
+   отправлен, это ещё не факт, а намерение. */
+.me-acc-b.is-on { border-color: var(--me-ink); background: var(--me-soft3); }
+
+.me-acc-form { margin-top: 12px; }
+.me-acc-flbl {
+    display: block;
+    font: 600 12px/1.3 var(--me-sans);
+    color: var(--me-ink2);
+    margin: 0 0 6px;
+}
+.me-acc-note {
+    width: 100%;
+    box-sizing: border-box;
+    font: 400 14px/1.4 var(--me-sans);
+    color: var(--me-ink);
+    background: var(--me-soft);
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-in);
+    padding: 12px 13px;
+}
+.me-acc-note:focus { outline: none; border-color: var(--me-accent); }
+.me-acc-note::placeholder { color: var(--me-ink5); }
+
+.me-acc-photo { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.me-acc-file { cursor: pointer; }
+.me-acc-file-t {
+    display: inline-block;
+    font: 600 13px/1 var(--me-sans);
+    color: var(--me-ink);
+    background: var(--me-card);
+    border: 1px solid var(--me-ink5);
+    border-radius: var(--me-r-btn);
+    padding: 11px 15px;
+}
+.me-acc-file-t:hover { border-color: var(--me-ink); }
+.me-acc-photo-h { font: 400 12px/1.4 var(--me-sans); color: var(--me-ink4); }
+
+.me-acc-preview { margin-top: 10px; }
+.me-acc-preview img {
+    display: block;
+    max-width: 100%;
+    max-height: 220px;
+    border-radius: var(--me-r-in);
+    border: 1px solid var(--me-line);
+}
+.me-acc-prev-t { font: 400 12.5px/1.4 var(--me-sans); color: var(--me-ink3); }
+
+.me-acc-err {
+    margin-top: 10px;
+    font: 400 12.5px/1.5 var(--me-sans);
+    color: var(--me-ink);
+    background: color-mix(in srgb, var(--me-bad) 7%, var(--me-card));
+    border: 1px solid color-mix(in srgb, var(--me-bad) 35%, transparent);
+    border-radius: var(--me-r-in);
+    padding: 10px 12px;
+}
+
+.me-acc-acts { display: flex; gap: 8px; margin-top: 12px; }
+.me-acc-send {
+    flex: 1;
+    font: 600 13.5px/1 var(--me-sans);
+    color: var(--me-on-accent);
+    background: var(--me-accent);
+    border: 1px solid var(--me-accent);
+    border-radius: var(--me-r-btn);
+    padding: 14px;
+    cursor: pointer;
+}
+.me-acc-send:hover:not(:disabled) { background: var(--me-accent-h); border-color: var(--me-accent-h); }
+.me-acc-send:disabled { cursor: default; opacity: .7; }
+.me-acc-cancel {
+    font: 600 13.5px/1 var(--me-sans);
+    color: var(--me-ink2);
+    background: transparent;
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-btn);
+    padding: 14px 16px;
+    cursor: pointer;
+}
+.me-acc-cancel:hover { border-color: var(--me-ink5); color: var(--me-ink); }
+
+/* Уже отвечено. Остаётся на экране весь день: и подтверждение «я отметил», и
+   вход в правку. Левая полоса — цвет статуса, единственное цветное место. */
+.me-acc-card.is-done { border-left: 3px solid var(--me-line); }
+.me-acc-card.is-done.is-clean { border-left-color: var(--me-ok); }
+.me-acc-card.is-done.is-issues { border-left-color: var(--me-warn); }
+.me-acc-card.is-done.is-bad { border-left-color: var(--me-bad); }
+.me-acc-done-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.me-acc-st { font: 600 15px/1.3 var(--me-sans); color: var(--me-ink); }
+.me-acc-st.is-clean { color: var(--me-ok); }
+.me-acc-st.is-issues { color: var(--me-warn); }
+.me-acc-st.is-bad { color: var(--me-bad); }
+.me-acc-when { font: 400 12px/1.4 var(--me-sans); color: var(--me-ink4); }
+.me-acc-note-txt {
+    margin-top: 7px;
+    font: 400 13.5px/1.5 var(--me-sans);
+    color: var(--me-ink2);
+    text-wrap: pretty;
+}
+.me-acc-thumb { display: block; margin-top: 10px; }
+.me-acc-thumb img {
+    display: block;
+    max-width: 100%;
+    max-height: 160px;
+    border-radius: var(--me-r-in);
+    border: 1px solid var(--me-line);
+}
+.me-acc-edit {
+    margin-top: 11px;
+    font: 600 12.5px/1 var(--me-sans);
+    color: var(--me-ink3);
+    background: transparent;
+    border: 1px solid var(--me-line);
+    border-radius: var(--me-r-btn);
+    padding: 9px 13px;
+    cursor: pointer;
+}
+.me-acc-edit:hover { border-color: var(--me-ink5); color: var(--me-ink); }
+
 /* ==================== Адаптив ====================
    Один брейкпоинт 768px, тот же, на котором переключается окружение страницы.
    JS ширину не читает нигде. */
@@ -885,6 +1053,11 @@ body.me-page .ms-note {
 
 @media (max-width: 480px) {
     .me-total { font-size: 30px; }
+    /* Три ответа в строку на узком экране сжимают «Замечания» до переноса.
+       Ставим в столбик: кнопка во всю ширину — это ещё и больший тап-таргет
+       для человека, который отвечает одной рукой, стоя за баром. */
+    .me-acc-btns { grid-template-columns: 1fr; }
+    .me-acc-b { padding: 15px 10px; }
     .me-kpi-nums { grid-template-columns: repeat(2, 1fr); }
     .me-tiles-3 { gap: 8px; }
     .me-tile-s { padding: 10px 11px; }

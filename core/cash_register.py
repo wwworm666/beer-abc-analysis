@@ -122,6 +122,31 @@ def is_evening(role_name, start_time) -> bool:
     return bool(start_time and str(start_time) >= '18:00')
 
 
+def opening_shifts(shifts) -> Dict[Tuple, int]:
+    """{(location_id, date): id ОТКРЫВАЮЩЕЙ смены} — первая дневная смена дня.
+
+    «Первая» = минимальная по (start_time, id): время старта, а при равном
+    времени — порядок создания. Вечерние смены не участвуют.
+
+    Одна функция на два правила, потому что открывающая смена — это один и тот
+    же человек в обоих: он сдаёт кассу (пробел `no_cash` показывается только на
+    ней, иначе день с двумя дневными барменами дал бы два одинаковых
+    предупреждения) и он же принимает бар утром (`core/bar_acceptance.py`).
+    Две копии этого выбора разъехались бы, и «кто отвечает за день» стало бы
+    зависеть от того, какую страницу открыли.
+    """
+    ranked = {}
+    for s in shifts or []:
+        if is_evening(s.get('role_name'), s.get('start_time')):
+            continue
+        key = (s.get('location_id'), s.get('date'))
+        rank = (s.get('start_time') or '', s.get('id') or 0)
+        cur = ranked.get(key)
+        if cur is None or rank < cur[0]:
+            ranked[key] = (rank, s.get('id'))
+    return {key: val[1] for key, val in ranked.items()}
+
+
 def index_penalties(penalties) -> Tuple[Dict, Dict]:
     """Ручные штрафы кассы -> ({id: {дата: note}}, {имя_lower: {дата: note}}).
 
@@ -227,18 +252,8 @@ def build_register(shifts, penalties, today, rule_from) -> Dict:
     closed = {(s.get('location_id'), s.get('date'))
               for s in shifts if s.get('cash_end_kop') is not None}
 
-    # Ответственная за кассу смена дня: первая дневная (по времени старта, затем
-    # по id — порядок создания). Пробел показываем только на ней, иначе день с
-    # двумя дневными барменами дал бы два одинаковых предупреждения.
-    responsible = {}
-    for s in shifts:
-        if is_evening(s.get('role_name'), s.get('start_time')):
-            continue
-        key = (s.get('location_id'), s.get('date'))
-        cur = responsible.get(key)
-        rank = (s.get('start_time') or '', s.get('id') or 0)
-        if cur is None or rank < cur[0]:
-            responsible[key] = (rank, s.get('id'))
+    # Ответственная за кассу смена дня — открывающая (см. opening_shifts).
+    responsible = opening_shifts(shifts)
 
     for s in shifts:
         date_str = s.get('date') or ''
@@ -248,7 +263,7 @@ def build_register(shifts, penalties, today, rule_from) -> Dict:
         note = (s.get('cash_expense_note') or '').strip()
         has_cash = any(s.get(f) is not None for f in
                        ('cash_expense_kop', 'cash_collection_kop', 'cash_end_kop'))
-        is_responsible = responsible.get(loc_key, (None, None))[1] == s.get('id')
+        is_responsible = responsible.get(loc_key) == s.get('id')
 
         problems = []
         # Пробел кассы: дата прошла, правило уже действует, точка за день не

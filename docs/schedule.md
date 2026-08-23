@@ -34,10 +34,11 @@
 | `tests/test_schedule_cash.py` | касса на смене (v7): миграция, set/clear, границы, независимость от часов |
 | `tests/test_schedule_audit.py` | журнал изменений: схема v4, log/get_audit, get_shift |
 | `tests/test_calendar_ics.py` | генератор .ics: структура, день/вечер, факт/план, экранирование |
+| `tests/test_bar_acceptance.py` | приёмка бара (v11): открывающая смена, окно ответа, права, фото |
 
 ## Как работает
 
-### Схема БД (v7)
+### Схема БД (v11)
 
 SQLite `shifts.db`, WAL + busy_timeout (gunicorn 2 workers). Миграции **только
 additive** (`PRAGMA table_info` -> `ALTER TABLE ADD COLUMN`, `CREATE TABLE IF NOT
@@ -64,6 +65,16 @@ backup API в `shifts.db.backup_v{старая_версия}`. DROP таблиц
 - `schedule_audit` (v4) — журнал изменений графика (append-only): `ts`,
   `actor_login`, `actor_name`, `action`, `entity_date`, `employee_name`,
   `summary`. См. раздел «Журнал изменений».
+- `salary_adjustments` (v8) — ручные корректировки ЗП; UI убран 2026-07-31,
+  таблица оставлена (миграции additive-only).
+- `handover_cash_penalties` (v9, `employee_id` — v10) — ручной штраф за кассовую
+  смену. См. «Кассовая дисциплина».
+- `bar_acceptance` (v11) — приёмка бара на открытии смены («Как принял бар?»):
+  `shift_id` UNIQUE + `ON DELETE CASCADE`, `status` (`clean`/`issues`/`bad`),
+  `note`, `photo` (имя файла), автор и московские отметки времени. К графику
+  относится только тем, что живёт в той же БД и привязана к смене; вся логика —
+  в [cleanliness.md](cleanliness.md). Отвечает **открывающая** смена дня —
+  та же `opening_shifts()`, что выбирает ответственного за кассу.
 
 ### Идентичность сотрудника — стабильный id из iiko (v6)
 

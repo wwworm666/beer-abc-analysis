@@ -78,7 +78,9 @@ beer-abc-analysis/
 | `salary_layout.py` | Раскладка листа ЗП: строки, формулы, порядок колонок |
 | `salary_export.py` | Рендерер раскладки в .xlsx (openpyxl) |
 | `salary_gsheet.py` | Рендерер раскладки в Google Таблицу (Sheets API) |
-| `cash_register.py` | Регистр «Касса за месяц»: строки, пробелы кассы, ₽ -> копейки |
+| `cash_register.py` | Регистр «Касса за месяц»: строки, пробелы кассы, ₽ -> копейки, `opening_shifts()` — кто открывающая смена дня |
+| `bar_acceptance.py` | **Приёмка бара** «Как принял бар?»: правила ответа, окно, сборка журнала месяца |
+| `bar_photo_store.py` | Фото приёмки на диске: имя, проверка сигнатуры JPEG, атомарная запись |
 
 ### Краны и остатки (2)
 | Файл | Что делает |
@@ -123,6 +125,8 @@ beer-abc-analysis/
 | `expiration_bp` | `/api` | `expiration.py` |
 | `explorer_bp` | `/`, `/api` | `explorer.py` |
 | `open_check_bp` | `/api`, `/telegram/openbot` | `open_check.py` |
+| `me_bp` | `/me`, `/api/me` | `me.py` |
+| `cleanliness_bp` | `/cleanliness`, `/api/cleanliness` | `cleanliness.py` |
 
 `menu_bp` вынесен в [menu_tool/](../menu_tool/) как отдельное локальное приложение на порту 5050 — в прод не регистрируется.
 
