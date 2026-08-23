@@ -37,7 +37,7 @@
 
 | Blueprint | URL-префикс | Что отдаёт | Файл |
 |---|---|---|---|
-| `pages_bp` | `/` | HTML-страницы (/, /packaging, /draft, /explorer, /taps/<bar>, /schedule, /goals, /employee, /salary, /bonus, /expiration). Слитые страницы отдают 301: `/discounts` — на `/guests#promo`, `/waiters` — на `/draft#bartenders` | [routes/pages.py](../routes/pages.py) |
+| `pages_bp` | `/` | HTML-страницы (/dashboard, /packaging, /draft, /explorer, /taps/<bar>, /schedule, /goals, /employee, /salary, /bonus, /expiration). **Главная `/` — редирект 302 на `/me`** (личная страница «Я»); дашборд живёт на `/dashboard`. Слитые страницы отдают 301: `/discounts` — на `/guests#promo`, `/waiters` — на `/draft#bartenders` | [routes/pages.py](../routes/pages.py) |
 | `analysis_bp` | `/api` | ABC/XYZ, draft (кеги + бармены одним ответом), акции (`/api/discount-*`; дубль RFM удалён — канон в `guests_bp`) | [routes/analysis.py](../routes/analysis.py) |
 | `dashboard_bp` | `/api` | dashboard-analytics, venues, weeks, plans CRUD, export xlsx | [routes/dashboard.py](../routes/dashboard.py) |
 | `employee_bp` | `/api` | employee KPI, salary, bonus | [routes/employee.py](../routes/employee.py) |

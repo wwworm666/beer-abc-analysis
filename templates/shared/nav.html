@@ -31,7 +31,7 @@
         {% endif %}
 
         <div class="sidebar-section-label">Аналитика</div>
-        <a href="/" class="sidebar-link">
+        <a href="/dashboard" class="sidebar-link">
             <span class="sidebar-link-icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             </span>
@@ -236,8 +236,7 @@
     var currentPath = window.location.pathname;
     document.querySelectorAll('.sidebar-link').forEach(function(link) {
         link.classList.remove('active');
-        if (link.getAttribute('href') === currentPath ||
-            (currentPath === '/' && link.getAttribute('href') === '/')) {
+        if (link.getAttribute('href') === currentPath) {
             link.classList.add('active');
         }
     });

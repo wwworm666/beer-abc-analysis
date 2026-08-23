@@ -131,6 +131,25 @@ def test_api_me_month_validation():
     assert c.get('/api/me').status_code == 200
 
 
+def test_root_leads_to_me_page():
+    """«Я» — главная: `/` ведёт на `/me`, дашборд остаётся на `/dashboard`.
+
+    Код именно 302: 301 браузеры кэшируют бессрочно, и вернуть главную назад
+    было бы нельзя без чистки кэша у каждого.
+    """
+    from routes.pages import pages_bp
+    mgr = _fresh_manager()
+    mgr.create_user('usr', 'U', 'passpass')
+    app = _make_app()
+    app.register_blueprint(pages_bp)
+    c = _login(app, 'usr', 'passpass')
+    r = c.get('/')
+    assert r.status_code == 302, r.status_code
+    assert r.headers['Location'].endswith('/me'), r.headers['Location']
+    rules = {str(rule.rule) for rule in app.url_map.iter_rules()}
+    assert '/dashboard' in rules
+
+
 def test_me_page_renders_for_unlinked_account():
     """Страница обязана открываться и без привязки: объяснение, а не 500."""
     mgr = _fresh_manager()
