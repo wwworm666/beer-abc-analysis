@@ -37,7 +37,7 @@ def _emp(iiko_id, name, active=True, in_registry=True):
             'active': active, 'sort_order': 0, 'in_registry': in_registry}
 
 
-def _row(iiko_id, name, *, hours_trust='id', total=1000.0, excluded=None,
+def _row(iiko_id, name, *, hours_trust='id', total=1000.0, untrusted=None,
          metrics_status='ok', kpi_status='ok'):
     return {
         'employee_id': iiko_id,
@@ -46,7 +46,7 @@ def _row(iiko_id, name, *, hours_trust='id', total=1000.0, excluded=None,
         'kpi': {'status': kpi_status, 'total_premium': 500.0},
         'hours': {'trust': hours_trust, 'total_hours': 97.0, 'total_pay': 29100.0,
                   'employee_name': name},
-        'money': {'total': total, 'excluded_components': excluded or []},
+        'money': {'total': total, 'untrusted_components': untrusted or []},
     }
 
 
@@ -185,15 +185,17 @@ def test_hours_matched_by_name_is_warned_not_hidden():
     assert [i['severity'] for i in r['issues'] if i['code'] == 'hours_matched_by_name'] == ['warn']
 
 
-def test_unsafe_hours_are_error_with_excluded_components():
+def test_unsafe_hours_are_error_but_money_is_included():
     row = _row(ID_A, 'Юреня Роман', hours_trust='unsafe',
-               excluded=['hours_pay', 'taxi'])
+               untrusted=['hours_pay', 'taxi'])
     r = resolve_me(_user(ID_A), _snap([row]), month='2026-08',
                    registry=[_emp(ID_A, 'Юреня Роман')])
     issue = [i for i in r['issues'] if i['code'] == 'hours_attribution_unsafe'][0]
     assert issue['severity'] == 'error'
-    assert issue['detail']['excluded_components'] == ['hours_pay', 'taxi']
-    assert 'НЕ включены' in issue['message']
+    assert issue['detail']['untrusted_components'] == ['hours_pay', 'taxi']
+    # текст обязан говорить, что деньги В итоге: обратное расходилось с /salary
+    assert 'в итог включены' in issue['message']
+    assert 'НЕ включены' not in issue['message']
 
 
 def test_split_hours_reports_missing_amount():

@@ -169,9 +169,10 @@ ISSUE_MSG = {
         'проверьте по календарю.'
     ),
     'hours_attribution_unsafe': (
-        'Часы за {month} не удалось надёжно связать с вашим идентификатором, '
-        'поэтому оплата часов и такси в итог НЕ включены. Это не значит, что их '
-        'не начислят — это значит, что приложение не готово поручиться за цифру. '
+        'Часы за {month} не удалось надёжно связать с вашим идентификатором. '
+        'Оплата часов и такси в итог включены — ровно так же, как в расчёте '
+        'зарплаты, по которому платят. Но поручиться, что это именно ваши '
+        'смены, приложение не может: проверьте их по календарю. '
         'Администратору: запустить «Синхронизировать сотрудников» на странице '
         'графика.'
     ),
@@ -322,10 +323,13 @@ def collect_issues(row: Dict, snapshot: Dict, *, name: str, month: str,
                              ISSUE_MSG['hours_matched_by_name'].format(month=month_label),
                              {'employee_name': hours.get('employee_name')}))
     elif trust == 'unsafe':
-        excluded = (row.get('money') or {}).get('excluded_components') or []
+        # severity 'error', хотя деньги в итоге есть: сама привязка смен
+        # сломана и чинится только синхронизацией реестра — это сильнее, чем
+        # 'warn' у совпадения по имени.
+        untrusted = (row.get('money') or {}).get('untrusted_components') or []
         issues.append(_issue('hours_attribution_unsafe', 'error',
                              ISSUE_MSG['hours_attribution_unsafe'].format(month=month_label),
-                             {'excluded_components': excluded}))
+                             {'untrusted_components': untrusted}))
 
     # Осиротевшие часы: строка графика с тем же полным именем, но без
     # employee_id. Причина — GROUP BY COALESCE(employee_id, employee_name) в

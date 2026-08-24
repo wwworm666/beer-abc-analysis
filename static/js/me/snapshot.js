@@ -66,7 +66,9 @@
 
         // Часы по ролям: у каждой роли своя ставка, поэтому своя строка формулы.
         var byRole = ((data.hours || {}).by_role) || [];
-        var hoursExcluded = (m.excluded_components || []).indexOf('hours_pay') !== -1;
+        // Ненадёжная привязка смен к человеку — предупреждение, а не вычет:
+        // сумма в итоге есть, как и на странице ЗП (core/me_snapshot.py).
+        var hoursUntrusted = (m.untrusted_components || []).indexOf('hours_pay') !== -1;
         rows.push(row('Часы по ставке', money(m.hours_pay),
             (byRole.length
                 ? byRole.map(function (r) {
@@ -75,9 +77,9 @@
                 }).join('<br>')
                 : 'часы — из факта, который вы вводите в конце смены')
             + boxSub('часы берутся из факта смены, а не из кассовых смен iiko')
-            + (hoursExcluded ? boxWarn('В итог не включено: не удалось надёжно связать '
-                + 'смены с вашим идентификатором') : ''),
-            { cls: hoursExcluded ? ' is-excluded' : zero(m.hours_pay) }));
+            + (hoursUntrusted ? boxWarn('Смены не удалось надёжно связать с вашим '
+                + 'идентификатором — сумма в итоге учтена, но сверьте её по календарю') : ''),
+            { cls: zero(m.hours_pay) }));
 
         var h = m.handover || {};
         rows.push(row('Приемка-передача смены', money(h.sum),
@@ -107,14 +109,14 @@
             { cls: zero(k.sum) }));
 
         var t = m.taxi || {};
-        var taxiExcluded = (m.excluded_components || []).indexOf('taxi') !== -1;
+        var taxiUntrusted = (m.untrusted_components || []).indexOf('taxi') !== -1;
         rows.push(row('Такси', money(t.sum),
             money(t.rate) + ' x ' + (t.day_shifts || 0) + ' '
             + plural(t.day_shifts || 0, 'полная дневная смена', 'полные дневные смены',
                      'полных дневных смен')
-            + (taxiExcluded ? boxWarn('В итог не включено: смены не связаны с вашим '
-                + 'идентификатором') : ''),
-            { cls: taxiExcluded ? ' is-excluded' : zero(t.sum) }));
+            + (taxiUntrusted ? boxWarn('Смены не связаны с вашим идентификатором — '
+                + 'сумма в итоге учтена, но сверьте число дневных смен') : ''),
+            { cls: zero(t.sum) }));
 
         var l = m.late || {};
         if (l.count) {

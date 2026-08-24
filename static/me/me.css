@@ -417,7 +417,8 @@ body.me-page .container { padding: 0; }
 }
 .me-row-v.is-zero { color: var(--me-ink4); }
 .me-row-v.is-minus { color: var(--me-bad); }
-.me-row-v.is-excluded { color: var(--me-ink5); text-decoration: line-through; }
+/* .me-row-v.is-excluded удалён 24.08.2026: зачёркнутых сумм на странице больше
+   нет — часы и такси входят в итог всегда, как на странице ЗП. */
 
 .me-chv { flex: none; transition: transform .18s ease; }
 details[open] > summary .me-chv { transform: rotate(180deg); }

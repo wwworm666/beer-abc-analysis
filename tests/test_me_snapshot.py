@@ -257,15 +257,93 @@ def test_hours_trust_verdicts():
     assert ms.hours_trust(None, ID_A, ['Юреня Роман'], **kw) == 'unsafe'
 
 
-def test_unsafe_hours_excluded_from_total():
-    """Недостоверные часы: оплата часов и такси не входят в итог."""
+def _salary_page_total(bonus_row, kpi_row, hours_row):
+    """Формула страницы ЗП — `recalcEmployeeTotals` в templates/bonus.html.
+
+    Переписана здесь дословно и НЕ через `_money_for`: тест обязан ловить
+    расхождение кабинета с тем, по чему реально платят, а не сверять кабинет
+    сам с собой. При правке bonus.html правится и эта функция.
+    """
+    b, k, h = bonus_row or {}, kpi_row or {}, hours_row or {}
+    hours_pay = h.get('total_pay') or 0
+    taxi_pay = (h.get('day_shifts') or 0) * ms.TAXI_RATE_PER_SHIFT
+    base = ((b.get('bonus') or 0) + (b.get('shift_handover_bonus') or 0)
+            - (b.get('penalty') or 0) + (k.get('total_premium') or 0))
+    return base + hours_pay + taxi_pay
+
+
+def test_me_total_matches_salary_page_formula():
+    """ИНВАРИАНТ: итог /me равен итогу /salary за тот же период.
+
+    Проверяется на КАЖДОМ вердикте привязки часов: вердикт влияет только на
+    предупреждение, но не на деньги. До 24.08.2026 при 'unsafe' кабинет
+    показывал на 37 500 руб. меньше (29 100 часов + 8 400 такси).
+    """
+    b = _bonus_row(ID_A, 'Юреня Роман')
+    k = _kpi_row(ID_A, 'Юреня Роман')
+    h = _hours_row(None, 'Юреня')
+    expected = _salary_page_total(b, k, h)
+    # 17420 + 6000 - 750 + 13120 + 29100 + 12 x 700
+    assert expected == 73290.0, expected
+    for trust in ('id', 'name_strict', 'unsafe'):
+        assert ms._money_for(b, k, h, trust)['total'] == expected, trust
+
+
+def test_unsafe_hours_are_flagged_but_still_paid():
+    """Недостоверная привязка — предупреждение, а не вычет из итога."""
     money = ms._money_for(_bonus_row(ID_A, 'Юреня Роман'),
                           _kpi_row(ID_A, 'Юреня Роман'),
                           _hours_row(None, 'Юреня'), 'unsafe')
-    assert money['excluded_components'] == ['hours_pay', 'taxi']
-    # 6000 + 17420 + 13120 - 750, без 29100 и без 8400
-    assert money['total'] == 35790.0, money['total']
-    assert money['hours_pay'] == 29100.0, 'сумма показана, но в итог не входит'
+    assert money['untrusted_components'] == ['hours_pay', 'taxi']
+    assert 'excluded_components' not in money, 'старое поле-ловушка вернулось'
+    assert money['hours_pay'] == 29100.0
+    assert money['taxi']['sum'] == 8400.0
+    # обе суммы внутри итога, а не рядом с ним
+    assert money['total'] == 73290.0, money['total']
+
+
+def test_trusted_hours_have_no_warning():
+    money = ms._money_for(_bonus_row(ID_A, 'Юреня Роман'),
+                          _kpi_row(ID_A, 'Юреня Роман'),
+                          _hours_row(ID_A, 'Юреня Роман'), 'id')
+    assert money['untrusted_components'] == []
+
+
+def test_legacy_snapshot_total_is_healed_on_read():
+    """Снимок замороженного месяца чинится при чтении, а не пересчётом.
+
+    Файл июля после 7 августа уже не пересобрать (`months_to_build`), поэтому
+    вычтенные часы и такси возвращаются в итог на лету.
+    """
+    legacy = {
+        '_schema': 1,
+        'employees': {
+            ID_A: {'money': {'total': 35790.0, 'hours_pay': 29100.0,
+                             'taxi': {'sum': 8400.0, 'day_shifts': 12},
+                             'excluded_components': ['hours_pay', 'taxi']}},
+            ID_B: {'money': {'total': 73290.0, 'hours_pay': 29100.0,
+                             'taxi': {'sum': 8400.0, 'day_shifts': 12},
+                             'excluded_components': []}},
+        },
+    }
+    healed = ms._heal_legacy_money(legacy)
+    a = healed['employees'][ID_A]['money']
+    assert a['total'] == 73290.0, a['total']
+    assert a['untrusted_components'] == ['hours_pay', 'taxi']
+    assert 'excluded_components' not in a
+    # у доверенной строки итог не трогаем — вычета там и не было
+    b = healed['employees'][ID_B]['money']
+    assert b['total'] == 73290.0
+    assert b['untrusted_components'] == []
+
+
+def test_heal_is_idempotent_on_new_snapshots():
+    """Новый снимок через чинилку проходит без изменений."""
+    money = ms._money_for(_bonus_row(ID_A, 'Юреня Роман'),
+                          _kpi_row(ID_A, 'Юреня Роман'),
+                          _hours_row(None, 'Юреня'), 'unsafe')
+    snap = {'employees': {ID_A: {'money': dict(money)}}}
+    assert ms._heal_legacy_money(snap)['employees'][ID_A]['money'] == money
 
 
 # ==================== сопоставление имени с OLAP ====================

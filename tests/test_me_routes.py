@@ -101,7 +101,7 @@ def _row(emp_id, name, total):
         'metrics': {'status': 'ok', 'total_revenue': total * 10},
         'kpi': {'status': 'ok', 'total_premium': 500.0},
         'hours': {'trust': 'id', 'total_hours': 97.0, 'total_pay': 29100.0},
-        'money': {'total': total, 'excluded_components': []},
+        'money': {'total': total, 'untrusted_components': []},
     }
 
 

@@ -105,12 +105,45 @@ def refresh_state_path() -> str:
     return os.path.join(snapshot_dir(), REFRESH_STATE_FILE)
 
 
+def _heal_legacy_money(snapshot: Dict) -> Dict:
+    """Вернуть в итог часы и такси у снимков, собранных до 24.08.2026.
+
+    Старый `_money_for` при trust='unsafe' вычитал оплату часов и такси из
+    `total` и складывал их имена в `excluded_components` — кабинет показывал
+    меньше, чем страница ЗП. Просто пересобрать такие файлы нельзя: закрытый
+    месяц замораживается 7-го числа следующего (`months_to_build`), и, скажем,
+    июль после 7 августа уже никогда не пересчитается. Поэтому чиним при
+    чтении — одинаково для всех потребителей снимка.
+
+    Правка ровно обратна старой формуле: возвращаем в `total` вычтенное и
+    переименовываем признак в `untrusted_components`. Ненадёжной остаётся
+    только привязка смен к человеку, деньги — как в расчёте ЗП.
+    """
+    for row in (snapshot.get('employees') or {}).values():
+        money = row.get('money') if isinstance(row, dict) else None
+        if not isinstance(money, dict) or 'excluded_components' not in money:
+            continue
+        legacy = money.pop('excluded_components') or []
+        money['untrusted_components'] = legacy
+        total = money.get('total') or 0
+        if 'hours_pay' in legacy:
+            total += money.get('hours_pay') or 0
+        if 'taxi' in legacy:
+            total += (money.get('taxi') or {}).get('sum') or 0
+        money['total'] = round(total, 2)
+    return snapshot
+
+
 def read_month(month: str) -> Dict:
     """Снимок месяца с диска или {}.
 
     Никогда не бросает: отсутствие и порча файла — штатные состояния, которые
     страница показывает словами. Отдельно ловим не-словарь на верхнем уровне:
     полуобрезанный или подменённый файл не должен дойти до резолвера как список.
+
+    Итоги старых снимков чинятся на лету (`_heal_legacy_money`) — файл на диске
+    при этом не переписывается: чтение остаётся чтением, а следующий ночной
+    прогон и так запишет уже правильную структуру.
     """
     if not valid_month(month):
         return {}
@@ -120,7 +153,7 @@ def read_month(month: str) -> Dict:
             return {}
         with open(path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else {}
+        return _heal_legacy_money(data) if isinstance(data, dict) else {}
     except Exception as e:
         print(f"[ME-SNAPSHOT WARNING] ne udalos prochitat {path}: {e}")
         return {}
@@ -696,8 +729,18 @@ def _money_for(bonus_row, kpi_row, hours_row, trust) -> Dict:
     входят по построению — приложение их просто не знает, и на странице это
     сказано словами.
 
-    При недостоверной привязке часов (trust='unsafe') оплата часов и такси
-    исключаются из итога и перечисляются в `excluded_components`.
+    Слагаемые складываются БЕЗУСЛОВНО — в том числе при недостоверной привязке
+    часов (trust='unsafe'). До 24.08.2026 такие часы и такси из итога
+    вычитались, и кабинет показывал меньше, чем платят: страница ЗП понятия
+    `trust` не знает и складывает часы с такси всегда
+    (`emp.totalSalary = emp.baseSalary + emp.hoursPay + emp.taxiPay`). На
+    полной ставке расхождение доходило до 53 600 ₽ (160 ч x 300 + 8 x 700), и
+    разложение на самой странице не сходилось с её же итогом.
+
+    Сомнение в привязке — повод ПРЕДУПРЕДИТЬ человека, а не назвать другое
+    число: компоненты с ненадёжной привязкой перечисляются в
+    `untrusted_components`, откуда core/me_identity.py делает видимое
+    предупреждение. Деньги при этом те же, что в расчёте, по которому платят.
     """
     b, k, h = bonus_row or {}, kpi_row or {}, hours_row or {}
     hours_pay = h.get('total_pay') or 0
@@ -708,15 +751,11 @@ def _money_for(bonus_row, kpi_row, hours_row, trust) -> Dict:
     late = b.get('penalty') or 0
     kpi_sum = k.get('total_premium') or 0
 
-    excluded = []
-    if trust == 'unsafe':
-        excluded = ['hours_pay', 'taxi']
+    # Часы и такси в итоге есть, но поручиться, что смены именно этого
+    # человека, приложение не может — об этом говорит предупреждение.
+    untrusted = ['hours_pay', 'taxi'] if trust == 'unsafe' else []
 
-    total = handover + day_plan + kpi_sum - late
-    if 'hours_pay' not in excluded:
-        total += hours_pay
-    if 'taxi' not in excluded:
-        total += taxi_sum
+    total = handover + day_plan + kpi_sum - late + hours_pay + taxi_sum
 
     late_count = b.get('late_count') or 0
     return {
@@ -738,7 +777,7 @@ def _money_for(bonus_row, kpi_row, hours_row, trust) -> Dict:
                  'sum': round(late, 2), 'dates': _late_dates(b)},
         'shifts_count': b.get('shifts_count') or 0,
         'total': round(total, 2),
-        'excluded_components': excluded,
+        'untrusted_components': untrusted,
     }
 
 
