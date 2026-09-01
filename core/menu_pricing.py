@@ -25,7 +25,9 @@ import requests
 from core.iiko_api import IikoAPI
 from core.draft_analysis import DraftAnalysis
 
-PORTION_FIELD = {0.25: "p025", 0.4: "p04", 0.5: "p05"}  # один вариант разлива
+# Объём порции iiko -> поле цены карточки. Какие из них показывать на карточке,
+# решает поле vols карточки (routes/menu_editor.py) — здесь только заполнение цен.
+PORTION_FIELD = {0.25: "p025", 0.33: "p033", 0.4: "p04", 0.5: "p05"}
 
 # --- транслитерация для сопоставления имён (кириллица/латиница, варианты написания) ---
 _TR = {

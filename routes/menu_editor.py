@@ -4,7 +4,8 @@
 постоянном диске (/kultura через core.storage_paths), правки идут через дашборд.
 
 Отличия от прежнего menu_tool:
-  - один вариант разлива (0,25 / 0,4 / 0,5) — переключателя A/B больше нет;
+  - объёмы разлива выбираются на карточке (vols: подмножество 0,25/0,33/0,4/0,5,
+    до 3 колонок; без vols — легаси-вид 0,25/0,4/0,5), переключателя A/B нет;
   - единый каталог menu_cards.json (библиотека + краны, поле tap = № крана);
   - кнопка «Обновить цены» тянет актуальные цены из iiko (core.menu_pricing);
   - рендер PDF/PNG через Playwright (Chromium есть в прод-образе).
@@ -39,12 +40,36 @@ menu_editor_bp = Blueprint("menu_editor", __name__, url_prefix="/menu")
 
 DATA_FILE = "menu_cards.json"
 
-# Канонический набор полей карточки (один вариант разлива; p03 убран).
+# Канонический набор полей карточки (p03 убран; p033 и vols добавлены 2026-09-01).
 ITEM_FIELDS = [
     "n", "tap", "name", "latin", "brewery", "country", "style", "abv",
-    "tags", "ratings", "p025", "p04", "p05",
+    "tags", "ratings", "vols", "p025", "p033", "p04", "p05",
 ]
-PRICE_FIELDS = ("p025", "p04", "p05")
+PRICE_FIELDS = ("p025", "p033", "p04", "p05")
+
+# Реестр объёмов: (ключ, подпись на карточке, поле цены). Порядок кортежа =
+# порядок колонок на карточке (по возрастанию объёма) — vols карточки всегда
+# нормализуется к нему, порядок из UI/API значения не имеет.
+VOLUMES = (
+    ("025", "0,25", "p025"),
+    ("033", "0,33", "p033"),
+    ("04",  "0,4",  "p04"),
+    ("05",  "0,5",  "p05"),
+)
+DEFAULT_VOLS = ["025", "04", "05"]  # вид карточки до появления 0,33 (легаси)
+MAX_VOLS = 3  # макет A4 (шрифты/сетка .prices) рассчитан максимум на 3 колонки
+
+
+def _normalize_vols(vols):
+    """Выбор объёмов карточки: только известные ключи, канонический порядок,
+    максимум MAX_VOLS. Не список / пусто / мусор -> DEFAULT_VOLS (легаси-вид)."""
+    if not isinstance(vols, list):
+        return list(DEFAULT_VOLS)
+    have = {str(v) for v in vols}
+    picked = [key for key, _, _ in VOLUMES if key in have]
+    if not picked:
+        return list(DEFAULT_VOLS)
+    return picked[:MAX_VOLS]
 
 
 # ---------------------------------------------------------------------------
@@ -136,8 +161,12 @@ def _decorate(item):
         "plot": _clamp_rating(r.get("plot", 0)),
         "cvet": _clamp_rating(r.get("cvet", 0)),
     }
-    for k in PRICE_FIELDS:
-        d[f"{k}_fmt"] = _fmt_num(d.get(k))
+    # Колонки цен на карточке: выбранные объёмы в каноническом порядке.
+    d["vols"] = _normalize_vols(d.get("vols"))
+    d["servings"] = [
+        {"vol": label, "price": _fmt_num(d.get(field))}
+        for key, label, field in VOLUMES if key in d["vols"]
+    ]
     return d
 
 
@@ -155,6 +184,7 @@ def _sanitize(data, base=None):
     out.setdefault("tags", [])
     out.setdefault("ratings", {"gor": 0, "plot": 0, "cvet": 0})
     out.setdefault("tap", None)
+    out["vols"] = _normalize_vols(out.get("vols"))
     for k in PRICE_FIELDS:
         out.setdefault(k, None)
     # tap -> int|None

@@ -52,6 +52,15 @@
       .me-dot.on{ background: var(--accent); border-color: var(--accent); }
       .me-dot:hover{ border-color: var(--accent); }
 
+      .me-vol{ display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+      .me-vol-pick{ display: flex; align-items: center; gap: 8px; flex: 0 0 96px;
+        font-size: 13px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+      .me-vol-pick input{ width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; margin: 0; }
+      .me-vol-pick input:disabled{ cursor: default; }
+      .me-vol-pick input:disabled + span{ opacity: .45; }
+      .me-vol .me-in{ flex: 1; }
+      .me-hint{ font-size: 11px; color: var(--text-tertiary); margin-top: 8px; }
+
       .me-actions{ display: flex; gap: 8px; flex-wrap: wrap; }
       .m-btn{ border: 1px solid var(--accent); background: var(--accent); color: #fff;
         border-radius: var(--border-radius-pill); padding: 10px 16px; font-size: 13px; font-weight: 600;
@@ -139,12 +148,12 @@
         </div>
 
         <div class="me-sec">
-          <h3>Цены (0,25 / 0,4 / 0,5)</h3>
-          <div class="me-row">
-            <div class="me-field"><label>0,25 л</label><input class="me-in" id="f-p025" type="number" min="0" oninput="paint()"></div>
-            <div class="me-field"><label>0,4 л</label><input class="me-in" id="f-p04" type="number" min="0" oninput="paint()"></div>
-            <div class="me-field"><label>0,5 л</label><input class="me-in" id="f-p05" type="number" min="0" oninput="paint()"></div>
-          </div>
+          <h3>Объёмы и цены</h3>
+          <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-025" onchange="onVolToggle(this)"><span>0,25 л</span></label><input class="me-in" id="f-p025" type="number" min="0" placeholder="цена" oninput="paint()"></div>
+          <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-033" onchange="onVolToggle(this)"><span>0,33 л</span></label><input class="me-in" id="f-p033" type="number" min="0" placeholder="цена" oninput="paint()"></div>
+          <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-04" onchange="onVolToggle(this)"><span>0,4 л</span></label><input class="me-in" id="f-p04" type="number" min="0" placeholder="цена" oninput="paint()"></div>
+          <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-05" onchange="onVolToggle(this)"><span>0,5 л</span></label><input class="me-in" id="f-p05" type="number" min="0" placeholder="цена" oninput="paint()"></div>
+          <div class="me-hint">Галка = объём на карточке (1–3 колонки, макет рассчитан на 3). Цена хранится и без галки.</div>
         </div>
 
         <div class="me-sec">
@@ -174,6 +183,33 @@ const nameClass = n => { const l=(n||"").length; if(l>22)return"len-xl"; if(l>16
 
 let items = [], editingId = null, ratings = { gor:0, plot:0, cvet:0 };
 
+/* Реестр объёмов — зеркало VOLUMES в routes/menu_editor.py (ключ, подпись, поле цены).
+   Порядок = порядок колонок на карточке. */
+const VOLUMES = [
+  { key:"025", label:"0,25", field:"p025" },
+  { key:"033", label:"0,33", field:"p033" },
+  { key:"04",  label:"0,4",  field:"p04"  },
+  { key:"05",  label:"0,5",  field:"p05"  },
+];
+const DEFAULT_VOLS = ["025","04","05"], MAX_VOLS = 3;
+
+function volsFromForm(){ return VOLUMES.filter(v=>$("v-"+v.key).checked).map(v=>v.key); }
+function setVols(vols){
+  const set = new Set((Array.isArray(vols)&&vols.length?vols:DEFAULT_VOLS).map(String));
+  VOLUMES.forEach(v=>{ $("v-"+v.key).checked = set.has(v.key); });
+  syncVolLimit();
+}
+/* Макет рассчитан на 1-3 колонки: при 3 отмеченных остальные блокируются,
+   последнюю галку снять нельзя. */
+function syncVolLimit(){
+  const n = volsFromForm().length;
+  VOLUMES.forEach(v=>{ const cb=$("v-"+v.key); cb.disabled = !cb.checked && n>=MAX_VOLS; });
+}
+function onVolToggle(cb){
+  if(!cb.checked && volsFromForm().length===0){ cb.checked = true; return; }
+  syncVolLimit(); paint();
+}
+
 function urlId(){ const n = parseInt(new URLSearchParams(location.search).get("id"),10); return Number.isFinite(n)?n:null; }
 function setUrlId(id){ const u=new URL(location.href); if(id)u.searchParams.set("id",id); else u.searchParams.delete("id"); history.replaceState({},"",u.toString()); }
 
@@ -187,7 +223,8 @@ function getForm(){
     country: $("f-country").value.trim(), brewery: $("f-brewery").value.trim(),
     style: styleValue(), abv: $("f-abv").value.trim(),
     tags, ratings: {...ratings},
-    p025: num("f-p025"), p04: num("f-p04"), p05: num("f-p05"),
+    vols: volsFromForm(),
+    p025: num("f-p025"), p033: num("f-p033"), p04: num("f-p04"), p05: num("f-p05"),
   };
 }
 
@@ -262,6 +299,9 @@ function cardInner(it){
   const tags=(it.tags||[]).filter(Boolean).map((t,i)=>`${i?'<span class="dot">·</span>':""}<span>${esc(t)}</span>`).join("");
   const r=it.ratings||{}; const num=it.tap||it.n||0;
   const dots=n=>{let h="";for(let i=1;i<=5;i++)h+=`<span class="d${i<=(n||0)?" on":""}"></span>`;return h;};
+  const vset=new Set((it.vols&&it.vols.length?it.vols:DEFAULT_VOLS).map(String));
+  const servings=VOLUMES.filter(v=>vset.has(v.key));
+  const prices=servings.map(v=>`<div class="price"><span class="vol">${v.label}</span><span class="num">${fmt(it[v.field])}</span></div>`).join("");
   return `<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
     <header class="eyebrow"><span class="num">№ ${pad2(num)}</span></header>
     <section class="hero">${trans}<h1 class="name ${nameClass(it.name)}">${esc(it.name)}</h1><div class="origin">${op.join(" · ")}</div></section>
@@ -271,10 +311,7 @@ function cardInner(it){
       <div class="meter"><span class="k">горечь</span><div class="scale">${dots(r.gor)}</div></div>
       <div class="meter"><span class="k">плотность</span><div class="scale">${dots(r.plot)}</div></div>
       <div class="meter"><span class="k">цвет</span><div class="scale">${dots(r.cvet)}</div></div></section>
-    <section class="prices">
-      <div class="price"><span class="vol">0,25</span><span class="num">${fmt(it.p025)}</span></div>
-      <div class="price"><span class="vol">0,4</span><span class="num">${fmt(it.p04)}</span></div>
-      <div class="price"><span class="vol">0,5</span><span class="num">${fmt(it.p05)}</span></div></section>`;
+    <section class="prices n${servings.length}">${prices}</section>`;
 }
 function fitName(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollHeight>140&&s>36){s-=1;el.style.fontSize=s+"px";} }
 function fitTags(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollWidth>el.clientWidth+1&&s>12){s-=1;el.style.fontSize=s+"px";} }
@@ -300,7 +337,8 @@ function fill(it){
   $("f-style-custom").style.display="none"; $("f-style-custom").value="";
   ensureStyleOption(it.style||""); $("f-style").value=it.style||""; $("f-abv").value=it.abv||"";
   const t=it.tags||[]; $("f-tag1").value=t[0]||""; $("f-tag2").value=t[1]||""; $("f-tag3").value=t[2]||"";
-  $("f-p025").value=it.p025??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??"";
+  $("f-p025").value=it.p025??""; $("f-p033").value=it.p033??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??"";
+  setVols(it.vols);
   const r=it.ratings||{}; ratings={ gor:+r.gor||0, plot:+r.plot||0, cvet:+r.cvet||0 };
   renderDots(); renderChips(); paint();
 }
@@ -310,7 +348,7 @@ function meta(){ const el=$("meta");
 
 function newItem(){
   editingId=null; const used=new Set(items.map(i=>i.n||0)); let n=1; while(used.has(n))n++;
-  fill({ n, tap:null, name:"", latin:"", country:"", brewery:"", style:"", abv:"", tags:[], ratings:{gor:0,plot:0,cvet:0}, p025:null, p04:null, p05:null });
+  fill({ n, tap:null, name:"", latin:"", country:"", brewery:"", style:"", abv:"", tags:[], ratings:{gor:0,plot:0,cvet:0}, vols:[...DEFAULT_VOLS], p025:null, p033:null, p04:null, p05:null });
   $("btn-del").style.display="none"; setUrlId(null); meta();
 }
 

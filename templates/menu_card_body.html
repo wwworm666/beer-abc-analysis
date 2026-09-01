@@ -41,9 +41,11 @@
     </div></div>
   </section>
 
-  <section class="prices">
-    <div class="price"><span class="vol">0,25</span><span class="num">{{ item.p025_fmt }}</span></div>
-    <div class="price"><span class="vol">0,4</span><span class="num">{{ item.p04_fmt }}</span></div>
-    <div class="price"><span class="vol">0,5</span><span class="num">{{ item.p05_fmt }}</span></div>
+  {# Колонки цен = item.servings (выбранные vols в каноническом порядке, 1-3 шт).
+     Класс nN задаёт число колонок сетки в menu_card.css. #}
+  <section class="prices n{{ item.servings|length }}">
+    {%- for s in item.servings %}
+    <div class="price"><span class="vol">{{ s.vol }}</span><span class="num">{{ s.price }}</span></div>
+    {%- endfor %}
   </section>
 </article>
