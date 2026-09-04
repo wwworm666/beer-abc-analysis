@@ -54,7 +54,7 @@ beer-abc-analysis/
 ### Аналитика (10)
 | Файл | Что делает |
 |---|---|
-| `dashboard_analysis.py` | 15 метрик дашборда |
+| `dashboard_analysis.py` | 19 из 20 метрик дашборда (в т.ч. чеки с картой лояльности / без карты; активность кранов — в routes/dashboard.py) |
 | `abc_analysis.py` | ABC (Парето 80/15/5) |
 | `xyz_analysis.py` | XYZ (CV вариация) |
 | `category_analysis.py` | Анализ по категориям |
@@ -136,7 +136,7 @@ beer-abc-analysis/
 
 ```
 templates/
-├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 15 метрик, AI
+├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 20 метрик, AI
 ├── employee.html        # Дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html        # Краны одного бара
 ├── stocks.html          # 4 вкладки: Сводный заказ / Таплист / Фасовка / Сроки

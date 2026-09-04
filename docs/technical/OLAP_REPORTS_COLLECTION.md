@@ -234,12 +234,13 @@
 ### 4. Комплексные продажи (все категории за один запрос)
 
 - ID: `all_sales_olap_request`
-- Источник: `core/olap_reports.py:756-793` — builder `_build_all_sales_olap_request`
+- Источник: `core/olap_reports.py:1180` — builder `_build_all_sales_olap_request`
 - Endpoint: `/v2/reports/olap` · reportType: `SALES` · статус: **PRODUCTION**
 - Потребители:
-  - `core/olap_reports.py:get_all_sales_report (L425)`
-- Динамика: Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. НЕ фильтрует по DishGroup.TopParent — получает всё (розлив + фасовка + кухня). Включает UniqOrderId.Id в groupByRowFields для подсчёта чеков.
-- Заметка: Builder; публичный геттер get_all_sales_report (L425).
+  - `core/olap_reports.py:get_all_sales_report (L847)`
+- Динамика: Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. НЕ фильтрует по DishGroup.TopParent — получает всё (розлив + фасовка + кухня). Включает UniqOrderId.Id в groupByRowFields для подсчёта чеков. С 2026-09-04 в groupByRowFields также `Delivery.CustomerCardNumber` — карта лояльности на чеке, питает метрики «чеки с картой / без карты» на дашборде. Поле уровня заказа (одно значение на все строки чека), поэтому строки НЕ размножаются — замер по всем барам до/после: неделя 1 779 -> 1 779 строк, месяц 7 744 -> 7 744, выручка и число чеков без изменений, JSON +8–9%.
+- Динамика (2026-09-04): в groupByRowFields также `AuthUser` («Авторизовал», кто пробил чек) — питает разбивку карточек дашборда по сотрудникам: `/api/employee-metrics-breakdown` считает `calculate_metrics` по строкам каждого AuthUser из этого же кэшированного ответа. Замер по всем барам до/после: неделя 1 779 -> 1 779 строк, месяц 7 744 -> 7 744, выручка и чеки без изменений, JSON ещё +8–9%, время то же; чеков с двумя AuthUser — 0, строк с пустым — 0.
+- Заметка: Builder; публичный геттер get_all_sales_report (L847). Единственная точка входа для экрана «Аналитика» — `routes/dashboard.py:load_dashboard_sales` (кэш 10 мин): карточки, вкладка «Выручка» и разбивка по сотрудникам.
 
 ```json
 {
@@ -250,7 +251,9 @@
     "DishGroup.TopParent",
     "DishForeignName",
     "OpenDate.Typed",
-    "UniqOrderId.Id"
+    "UniqOrderId.Id",
+    "Delivery.CustomerCardNumber",
+    "AuthUser"
   ],
   "groupByColFields": [],
   "aggregateFields": [
@@ -499,7 +502,7 @@
 - Потребители:
   - `routes/employee.py:80`
   - `routes/employee.py:245`
-  - `routes/employee.py:965`
+  - (до 2026-09-04 ещё `/api/employee-metrics-breakdown` — теперь он считает разбивку из отчёта #4 через кэш дашборда)
 - Динамика: Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. Группировка по AuthUser ("Авторизовал" — кто пробил чек).
 - Заметка: Inline тело прямо в публичном методе (def L1202). Результат — dict по именам сотрудников (ключ AuthUser). Вызывается через ThreadPoolExecutor в routes/employee.py.
 
@@ -1382,7 +1385,6 @@
 - `routes/employee.py:31 — report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to, None)`
 - `routes/employee.py:81 — executor.submit(olap.get_draft_sales_by_waiter_report, ...): 'draft'`
 - `routes/employee.py:246 — executor.submit(olap.get_draft_sales_by_waiter_report, ...): 'draft'`
-- `routes/employee.py:966 — executor.submit(olap.get_draft_sales_by_waiter_report, ...): 'draft'`
 - `routes/analysis.py:812 — report_data = olap.get_draft_sales_by_waiter_report(date_from, olap_date_to, bar_name)`
 - `knowledge_graph/etl/sales_loader.py:69 — draft_data = self.olap.get_draft_sales_by_waiter_report(...)`
 - `scripts/analysis/calculate_real_consumption.py:25 — report_data = olap.get_draft_sales_by_waiter_report(date_from, date_to)`
@@ -1396,6 +1398,7 @@
 - `routes/dashboard.py:559 — all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)`
 - `routes/dashboard.py:602 — data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)`
 - `routes/dashboard.py:747 — all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, None) (all bars)`
+- `routes/dashboard.py — load_dashboard_sales(venue_key, date_from, date_to)`: общий загрузчик с кэшем; через него `/api/dashboard-analytics`, `/api/revenue-metrics` и `/api/employee-metrics-breakdown` (`routes/employee.py`, с 2026-09-04)
 
 ### `get_explorer_sales`
 - `core/explorer.py:75 — data = olap.get_explorer_sales(date_from, date_to_inclusive, bar_name)`
@@ -1406,12 +1409,10 @@
 ### `get_bottles_sales_by_waiter_report`
 - `routes/employee.py:82 — executor.submit(olap.get_bottles_sales_by_waiter_report, ...): 'bottles'`
 - `routes/employee.py:247 — executor.submit(olap.get_bottles_sales_by_waiter_report, ...): 'bottles'`
-- `routes/employee.py:967 — executor.submit(olap.get_bottles_sales_by_waiter_report, ...): 'bottles'`
 
 ### `get_kitchen_sales_by_waiter_report`
 - `routes/employee.py:83 — executor.submit(olap.get_kitchen_sales_by_waiter_report, ...): 'kitchen'`
 - `routes/employee.py:248 — executor.submit(olap.get_kitchen_sales_by_waiter_report, ...): 'kitchen'`
-- `routes/employee.py:968 — executor.submit(olap.get_kitchen_sales_by_waiter_report, ...): 'kitchen'`
 
 ### `get_cancelled_orders_by_waiter`
 - `routes/employee.py:84 — executor.submit(olap.get_cancelled_orders_by_waiter, ...): 'cancelled'`
@@ -1421,7 +1422,7 @@
 ### `get_employee_aggregated_metrics`
 - `routes/employee.py:80 — executor.submit(olap.get_employee_aggregated_metrics, ...): 'aggregated'`
 - `routes/employee.py:245 — executor.submit(olap.get_employee_aggregated_metrics, ...): 'aggregated'`
-- `routes/employee.py:965 — executor.submit(olap.get_employee_aggregated_metrics, ...): 'aggregated'`
+- (`/api/employee-metrics-breakdown` с 2026-09-04 этот отчёт не вызывает — см. `get_all_sales_report`)
 
 ### `get_kpi_olap_data`
 - `routes/employee.py:773 — future_kpi = olap_executor.submit(olap.get_kpi_olap_data, date_from, olap_date_to)`
@@ -1459,6 +1460,9 @@
 
 ## Changelog
 
+- 2026-09-04 — Отчёт #4 (`_build_all_sales_olap_request`): в `groupByRowFields` добавлено
+  `Delivery.CustomerCardNumber` — чеки с картой лояльности / без карты на дашборде
+  (см. `docs/dashboard.md`). Тело обновлено по исходнику; `aggregateFields` без изменений.
 - 2026-05-31 — Документ создан. Собраны 24 дословные копии OLAP-запросов из `core/olap_reports.py`,
   `core/explorer.py`, `scripts/import_export/export_draft_sales.py`, `tests/debug/`, `tests/`.
   Каждое тело перепроверено повторным чтением исходника (multi-agent workflow: discover + verify).

@@ -67,7 +67,8 @@ for bar_key, bar_name in BARS:
         'revenueDraft', 'revenuePackaged', 'revenueKitchen',
         'markupPercent', 'profit',
         'markupDraft', 'markupPackaged', 'markupKitchen',
-        'loyaltyWriteoffs'
+        'loyaltyWriteoffs',
+        'cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue', 'nocardRevenue'
     ]
 
     missing_fields = [field for field in required_fields if field not in data]

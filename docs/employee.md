@@ -1003,6 +1003,17 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 
 ## Changelog
 
+### 2026-09-04 — Разбивка карточек дашборда по сотрудникам считается из запроса дашборда
+
+`/api/employee-metrics-breakdown` больше не ходит в iiko сам: берёт единый
+OLAP-запрос «Аналитики» из общего кэша (`load_dashboard_sales`, `routes/dashboard.py`)
+и раскладывает строки по `AuthUser` (`DashboardMetrics.calculate_metrics_by_employee`).
+Четыре отдельных запроса (`get_employee_aggregated_metrics` + розлив/фасовка/кухня
+по официантам) для этого эндпоинта убраны; `/api/employee-analytics` и
+`/api/employee-compare` используют их как раньше. В ответе появилось поле `total`
+(= карточка дашборда). Подробно — [dashboard.md](dashboard.md), раздел «Разбивка
+карточки по сотрудникам». Тест: `tests/test_dashboard_employee_breakdown.py`.
+
 ### 2026-08-07 — Правка кассы задним числом: раздел на графике, не здесь
 
 - Запрос владельца был про блок **«Касса за месяц» на странице графика** —

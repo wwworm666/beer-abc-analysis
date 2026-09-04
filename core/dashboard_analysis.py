@@ -98,6 +98,16 @@ class DashboardMetrics:
         # Списания баллов (сумма скидок из DiscountSum)
         loyalty_points = self._sum_discounts(all_records)
 
+        # Лояльность: чеки и выручка с картой / без карты.
+        # Те же данные, что блок «Выручка карты/без карт» месячного отчёта
+        # (monthly_report -> revenue_card_split по RFM-отчёту): на неделе
+        # 2026-08-24..30 оба пути дали 506/337 чеков и 834 790/373 597 руб.
+        card_split = self._card_checks_split(all_records)
+        card_checks = card_split['card']
+        nocard_checks = card_split['nocard']
+        card_checks_share = (card_checks / total_checks * 100) if total_checks > 0 else 0
+        card_revenue_split = self.revenue_card_split(all_records)
+
         # Формируем результат.
         # Наценки округляются до 4 знаков: это дробь (2.2448),
         # после ×100 на фронте получается 224.48% — как в iiko.
@@ -124,7 +134,16 @@ class DashboardMetrics:
             'kitchen_markup': round(kitchen_markup, 4),
             'other_markup': round(other_markup, 4),
 
-            'loyalty_points_written_off': loyalty_points
+            'loyalty_points_written_off': loyalty_points,
+
+            # Лояльность. Инварианты:
+            #   card_checks + nocard_checks == total_checks
+            #   card_revenue + nocard_revenue == total_revenue (с точностью округления)
+            'card_checks': card_checks,
+            'nocard_checks': nocard_checks,
+            'card_checks_share': round(card_checks_share, 2),
+            'card_revenue': card_revenue_split['card'],
+            'nocard_revenue': card_revenue_split['nocard']
         }
 
         return metrics
@@ -159,7 +178,12 @@ class DashboardMetrics:
             {'metric': 'Наценка фасовка', 'value': metrics['bottles_markup'], 'unit': '%', 'format': 'percent'},
             {'metric': 'Наценка кухня', 'value': metrics['kitchen_markup'], 'unit': '%', 'format': 'percent'},
 
-            {'metric': 'Списания баллов', 'value': metrics['loyalty_points_written_off'], 'unit': 'баллов', 'format': 'number'}
+            {'metric': 'Списания баллов', 'value': metrics['loyalty_points_written_off'], 'unit': 'баллов', 'format': 'number'},
+
+            {'metric': 'Чеки с картой', 'value': metrics['card_checks'], 'unit': 'шт', 'format': 'number'},
+            {'metric': 'Чеки без карты', 'value': metrics['nocard_checks'], 'unit': 'шт', 'format': 'number'},
+            {'metric': 'Доля чеков с картой', 'value': metrics['card_checks_share'], 'unit': '%', 'format': 'percent'},
+            {'metric': 'Выручка по картам', 'value': metrics['card_revenue'], 'unit': '₽', 'format': 'money'}
         ]
 
         return table
@@ -290,6 +314,88 @@ class DashboardMetrics:
                 unique_order_ids.add(str(order_id))
         return len(unique_order_ids)
 
+    # Поле OLAP «Авторизовал» - сотрудник, пробивший чек. Единый ключ личности
+    # сотрудника во всех отчётах проекта (аудит OLAP #11). На живых данных у чека
+    # ровно один AuthUser (замер 2026-09-04 по всем барам: 0 чеков с двумя),
+    # поэтому поле в groupByRowFields не размножает строки единого запроса.
+    EMPLOYEE_FIELD = 'AuthUser'
+
+    def calculate_metrics_by_employee(self, all_sales_data):
+        """
+        Те же метрики, что calculate_metrics, отдельно по каждому сотруднику.
+
+        Строки единого OLAP-запроса раскладываются по значению AuthUser, и для
+        каждого сотрудника вызывается calculate_metrics на его строках. Формулы
+        общие по построению, поэтому сумма выручки, чеков, прибыли и списаний
+        по сотрудникам равна карточке дашборда, а не «почти равна». До
+        2026-09-04 разбивка шла четырьмя отдельными OLAP-запросами без кэша.
+
+        Строки с пустым AuthUser сотрудника не дают, но в итог по всем строкам
+        (calculate_metrics) входят: на живых данных таких строк 0. Чек с двумя
+        AuthUser (не встречается) попал бы в чеки обоих, и сумма чеков по
+        сотрудникам превысила бы итог на такие чеки.
+
+        Args:
+            all_sales_data: dict - сырой ответ get_all_sales_report
+
+        Returns:
+            dict - {имя сотрудника: метрики как у calculate_metrics}
+        """
+        records = all_sales_data.get('data', []) if all_sales_data else []
+        by_employee = {}
+        for record in records:
+            name = str(record.get(self.EMPLOYEE_FIELD) or '').strip()
+            if not name:
+                continue
+            by_employee.setdefault(name, []).append(record)
+        return {
+            name: self.calculate_metrics({'data': rows})
+            for name, rows in by_employee.items()
+        }
+
+    # Поле OLAP с картой лояльности гостя. Атрибут заказа: одинаков во всех
+    # строках одного чека, поэтому не размножает строки единого запроса дашборда.
+    CARD_FIELD = 'Delivery.CustomerCardNumber'
+
+    def _card_checks_split(self, all_records):
+        """
+        Разбить чеки на «с картой лояльности» и «без карты».
+
+        Признак карты - непустое (после strip) поле Delivery.CustomerCardNumber
+        в строке чека. Пустая строка, одни пробелы или отсутствующий ключ = без карты.
+
+        Формулы:
+            card_checks   = число уникальных UniqOrderId.Id, у которых карта
+                            непуста хотя бы в одной строке (правило «любая строка»)
+            nocard_checks = total_checks - card_checks
+
+        Правило «любая строка» нужно только для детерминированности: на живых
+        данных «смешанных» чеков (пусто в одной строке, карта в другой) не бывает
+        (замер 2026-09-04 по всем барам: 0 случаев), т.к. карта - атрибут заказа.
+
+        Чеки считаются по тем же UniqOrderId.Id, что и _count_unique_orders,
+        поэтому card_checks + nocard_checks == total_checks всегда.
+
+        Args:
+            all_records: list - все записи OLAP (get_all_sales_report -> data)
+
+        Returns:
+            dict - {'card': int, 'nocard': int}
+        """
+        all_order_ids = set()
+        card_order_ids = set()
+        for record in all_records:
+            order_id = record.get('UniqOrderId.Id')
+            if not order_id:
+                continue
+            order_id = str(order_id)
+            all_order_ids.add(order_id)
+            if str(record.get(self.CARD_FIELD) or '').strip():
+                card_order_ids.add(order_id)
+
+        card = len(card_order_ids)
+        return {'card': card, 'nocard': len(all_order_ids) - card}
+
     # ========== ДОПОЛНИТЕЛЬНЫЕ РАЗРЕЗЫ (для месячного отчёта) ==========
 
     # Россия = локальное производство; любая другая страна (или пусто) = импорт.
@@ -355,18 +461,21 @@ class DashboardMetrics:
         Разбить выручку на «по картам лояльности» и «без карты».
 
         Признак карты — непустое поле Delivery.CustomerCardNumber в строках
-        RFM-отчёта (get_rfm_report).
+        RFM-отчёта (get_rfm_report). С 2026-09-04 то же поле есть и в едином
+        запросе дашборда (get_all_sales_report), поэтому хелпер используется
+        и там: card_revenue / nocard_revenue в calculate_metrics.
 
         Args:
             rfm_rows: list - строки get_rfm_report -> data
+                      (или get_all_sales_report -> data)
 
         Returns:
-            dict - {'card': ₽, 'nocard': ₽}
+            dict - {'card': ₽, 'nocard': ₽}, каждое округлено до 2 знаков
         """
         card_sum = 0.0
         nocard_sum = 0.0
         for row in rfm_rows:
-            card = (row.get('Delivery.CustomerCardNumber') or '').strip()
+            card = str(row.get(self.CARD_FIELD) or '').strip()
             revenue = row.get('DishDiscountSumInt', 0)
             try:
                 revenue = float(revenue) if revenue else 0.0

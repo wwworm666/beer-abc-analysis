@@ -307,9 +307,11 @@ class ComparisonModule {
      * Получить конфигурацию метрик
      */
     getMetricsConfig() {
+        // Штучные показатели (чеки) — целое число с разделителями тысяч.
+        const formatCount = (v) => Math.round(v).toLocaleString('ru-RU');
         return [
             { key: 'revenue', altKey: 'total_revenue', label: 'Выручка', formatter: formatMoney },
-            { key: 'checks', altKey: 'total_checks', label: 'Чеки', formatter: (v) => Math.round(v).toLocaleString('ru-RU') },
+            { key: 'checks', altKey: 'total_checks', label: 'Чеки', formatter: formatCount },
             { key: 'averageCheck', altKey: 'avg_check', label: 'Средний чек', formatter: formatMoney },
             { key: 'draftShare', altKey: 'draft_share', label: 'Доля розлива', formatter: formatPercent },
             { key: 'packagedShare', altKey: 'bottles_share', label: 'Доля фасовки', formatter: formatPercent },
@@ -323,6 +325,11 @@ class ComparisonModule {
             { key: 'markupPackaged', altKey: 'bottles_markup', label: 'Наценка фасовка', formatter: formatPercent },
             { key: 'markupKitchen', altKey: 'kitchen_markup', label: 'Наценка кухня', formatter: formatPercent },
             { key: 'loyaltyWriteoffs', altKey: 'loyalty_points_written_off', label: 'Списания баллов', formatter: formatMoney },
+            // Лояльность (2026-09-04): чек «с картой» — непустое Delivery.CustomerCardNumber в OLAP.
+            { key: 'cardChecks', altKey: 'card_checks', label: 'Чеки с картой', formatter: formatCount },
+            { key: 'nocardChecks', altKey: 'nocard_checks', label: 'Чеки без карты', formatter: formatCount },
+            { key: 'cardChecksShare', altKey: 'card_checks_share', label: 'Доля чеков с картой', formatter: formatPercent },
+            { key: 'cardRevenue', altKey: 'card_revenue', label: 'Выручка по картам', formatter: formatMoney },
             { key: 'tapActivity', altKey: 'tap_activity', label: 'Активность кранов', formatter: formatPercent }
         ];
     }

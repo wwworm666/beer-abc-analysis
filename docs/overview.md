@@ -5,7 +5,7 @@
 **Beer ABC Analysis** — Flask веб-приложение для аналитики 4 баров сети «КУЛЬТУРА ПИВА» (Санкт-Петербург, ИНВЕСТАГРО ООО). Интегрируется с **iiko API** (продажи, кассовые смены), **Честным Знаком** (маркировка/сроки годности), **Telegram** (operations-боты).
 
 Покрывает:
-- Дашборд План/Факт (15 метрик × 4 точки + общая)
+- Дашборд План/Факт (20 метрик × 4 точки + общая)
 - ABC/XYZ-анализ ассортимента пива, разливного и кухни
 - Конструктор отчётов с pivot-агрегацией OLAP-данных
 - Управление 60 разливными кранами (START/STOP/REPLACE)
@@ -58,7 +58,7 @@
 - [data_processor.py](../core/data_processor.py) — генерация недель (ISO), бакетирование
 
 #### Аналитика
-- [dashboard_analysis.py](../core/dashboard_analysis.py) — 15 метрик дашборда (выручка, доли, чеки, средний чек, наценка, прибыль, баллы)
+- [dashboard_analysis.py](../core/dashboard_analysis.py) — 19 из 20 метрик дашборда (выручка, доли, чеки, средний чек, наценка, прибыль, баллы, чеки с картой лояльности / без карты; активность кранов считается в routes/dashboard.py)
 - [abc_analysis.py](../core/abc_analysis.py), [xyz_analysis.py](../core/xyz_analysis.py) — ABC (Парето 80/15/5) + XYZ (CV)
 - [category_analysis.py](../core/category_analysis.py) — анализ по категориям
 - [draft_analysis.py](../core/draft_analysis.py) — разливное: 2-этапная нормализация имён, корректный BeerSharePercent
@@ -97,7 +97,7 @@
 
 ```
 templates/                  # Jinja2 HTML
-├── dashboard.html          # дашборд /dashboard: 4 точки + Общая, 15 метрик, AI-анализ
+├── dashboard.html          # дашборд /dashboard: 4 точки + Общая, 20 метрик, AI-анализ
 ├── employee.html           # дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html           # управление кранами одного бара (/taps/<bar_id>)
 ├── stocks.html             # 4 вкладки: Сводный заказ, Таплист, Фасовка, Сроки годности

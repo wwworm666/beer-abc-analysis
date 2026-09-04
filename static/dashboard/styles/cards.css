@@ -878,6 +878,37 @@
     font-size: 0.85rem;
 }
 
+/* Строка «Остальные (N)» — сотрудники за пределами топа, свёрнутые в одну строку. */
+.breakdown-rest .breakdown-rank {
+    background: var(--text-tertiary);
+}
+
+/* Строка «Итого» — сумма строк выше (складываемые метрики) или итог периода
+   (отношения: средний чек, наценка, доля). Равна значению карточки. */
+.breakdown-total {
+    background: transparent;
+    border-top: 1px solid var(--border-color);
+    border-radius: 0;
+    font-weight: 600;
+}
+
+.breakdown-total .breakdown-rank {
+    background: var(--text-secondary);
+}
+
+.breakdown-total .breakdown-value {
+    color: var(--text-primary);
+}
+
+/* Число чеков рядом с именем у метрик-отношений: высокая наценка при одном
+   чеке ничего не значит, и это должно быть видно. */
+.breakdown-sub {
+    margin-left: var(--spacing-xs);
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
 /* ============================================
    DARK THEME OVERRIDES
    ============================================ */

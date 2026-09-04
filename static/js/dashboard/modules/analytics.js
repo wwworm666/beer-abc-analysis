@@ -25,6 +25,27 @@ const EXPANDABLE_METRICS = [
     'loyaltyWriteoffs'
 ];
 
+/**
+ * Метрики, которые складываются по сотрудникам: у них в разбивке есть строка
+ * «Остальные (N)» и «Итого» = сумме строк = карточке. Остальные раскрываемые
+ * метрики — отношения (средний чек, наценки, доли): их складывать нельзя, и
+ * «Итого» у них — итог периода с карточки, а не среднее строк.
+ */
+const ADDITIVE_METRICS = [
+    'revenue', 'checks', 'revenueDraft', 'revenuePackaged', 'revenueKitchen',
+    'profit', 'loyaltyWriteoffs'
+];
+
+/** Сколько сотрудников показывать строками; остальные сворачиваются в одну строку. */
+const BREAKDOWN_TOP = 5;
+
+/** Имя сотрудника приходит из iiko — экранируем перед вставкой в разметку. */
+function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+}
+
 /** Шеврон для строк-аккордеонов и заголовков групп. */
 const CHEVRON_SVG = '<svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"'
     + ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
@@ -35,6 +56,16 @@ function barWidth(percent) {
     return Math.max(0, Math.min(percent, 100));
 }
 
+/**
+ * Атрибут title с подсказкой-формулой метрики (config.js, поле hint):
+ * ' title="..."' или пустая строка, если подсказки нет. Двойные кавычки
+ * экранируются, чтобы текст не разорвал атрибут.
+ */
+function hintAttr(metric) {
+    if (typeof metric.hint !== 'string' || metric.hint === '') return '';
+    return ` title="${metric.hint.replace(/"/g, '&quot;')}"`;
+}
+
 class Analytics {
     constructor() {
         this.metricsGrid = document.getElementById('metrics-grid');
@@ -43,7 +74,8 @@ class Analytics {
         this.loadingState = document.getElementById('loading-state');
 
         this.initialized = false;
-        this.employeeData = null;  // Кэш данных по сотрудникам
+        this.employeeData = null;  // Кэш данных по сотрудникам (текущий бар + период)
+        this.employeeTotal = null; // Итог периода из того же ответа — числа карточки
         this.expandedCard = null;  // Текущая раскрытая карточка
         this.isProcessing = false; // Флаг для предотвращения множественных кликов
         this._inflightKey = null;     // Ключ выполняющегося запроса (дедупликация)
@@ -110,7 +142,7 @@ class Analytics {
     }
 
     async _loadAnalyticsImpl() {
-        this.employeeData = null;  // Сбрасываем кэш сотрудников при смене бара/периода
+        this.resetEmployeeData();  // Сбрасываем кэш сотрудников при смене бара/периода
         console.log('[Analytics] loadAnalytics вызван. state.currentPeriod:', state.currentPeriod);
 
         // Номер запроса: ответ более раннего запроса, пришедший позже, игнорируется.
@@ -307,7 +339,7 @@ class Analytics {
         if (!hasPlan) {
             card.innerHTML = `
                 <div class="mc-head">
-                    <span class="metric-name">${metric.name.toUpperCase()}</span>
+                    <span class="metric-name"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
                     ${caret}
                 </div>
                 <div class="metric-value">${formattedActual}</div>
@@ -321,7 +353,7 @@ class Analytics {
             // (макет 7a): плюс зелёный, минус красный.
             card.innerHTML = `
                 <div class="mc-head">
-                    <span class="metric-name">${metric.name.toUpperCase()}</span>
+                    <span class="metric-name"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
                     ${caret}
                 </div>
                 <div class="metric-value">${formattedActual}</div>
@@ -448,7 +480,7 @@ class Analytics {
 
     /**
      * Мобильный экран (макет 1a): сверху один ответ на вопрос «как идёт период»,
-     * ниже три главные метрики крупно, остальные 13 свёрнуты в группы.
+     * ниже три главные метрики крупно, остальные 17 свёрнуты в группы.
      */
     renderMobile(stats) {
         const root = document.createElement('div');
@@ -557,7 +589,7 @@ class Analytics {
         el.setAttribute('data-metric-id', metric.id);
         el.innerHTML = `
             <div class="m-card-top">
-                <span class="m-card-label">${metric.name.toUpperCase()}</span>
+                <span class="m-card-label"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
                 <span class="m-dot ${status}"></span>
             </div>
             <div class="m-hero-row">
@@ -587,7 +619,7 @@ class Analytics {
         el.setAttribute('data-metric-id', metric.id);
         el.innerHTML = `
             <div class="m-card-top">
-                <span class="m-card-label">${metric.name.toUpperCase()}</span>
+                <span class="m-card-label"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
                 <span class="m-dot ${status}"></span>
             </div>
             <div class="m-compact-value">${formatValue(actualValue, metric.format)}</div>
@@ -661,7 +693,7 @@ class Analytics {
         el.setAttribute('data-metric-id', metric.id);
         el.innerHTML = `
             <div class="m-row-top">
-                <span class="m-row-name">${metric.name.toUpperCase()}</span>
+                <span class="m-row-name"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
                 <span class="m-row-value">${formatValue(actualValue, metric.format)}</span>
             </div>
             ${hasPlan ? `
@@ -756,23 +788,50 @@ class Analytics {
         this.noPlanState?.classList.add('hidden');
     }
 
+    /** Ключ «бар + период», под который загружены данные по сотрудникам. */
+    employeeDataKey() {
+        const period = state.currentPeriod || {};
+        return `${state.currentVenue}|${period.start}|${period.end}`;
+    }
+
+    /** Забыть данные по сотрудникам: следующий клик по карточке загрузит их заново. */
+    resetEmployeeData() {
+        this.employeeData = null;
+        this.employeeTotal = null;
+    }
+
     /**
-     * Загрузить данные по сотрудникам для раскрытия карточек
+     * Загрузить данные по сотрудникам для раскрытия карточек.
+     *
+     * Ответ принимается, только если бар и период не изменились, пока он шёл:
+     * без этой проверки быстрое листание стрелкой оставляло в кэше людей
+     * прошлого периода, и они показывались под карточкой нового (карточки
+     * рисуются из серверного кэша за доли секунды, разбивка идёт дольше).
+     * При ошибке кэш остаётся пустым, чтобы следующий клик повторил запрос.
      */
     async loadEmployeeData() {
         if (!state.currentVenue || !state.currentPeriod) return;
 
+        const requestKey = this.employeeDataKey();
         try {
             const data = await getEmployeeBreakdown(
                 state.currentVenue,
                 state.currentPeriod.start,
                 state.currentPeriod.end
             );
+            if (this.employeeDataKey() !== requestKey) {
+                console.log('[Analytics] Ответ по сотрудникам устарел, период уже другой — пропускаем');
+                return;
+            }
             this.employeeData = data.employees || [];
+            this.employeeTotal = data.total || null;
             console.log('[Analytics] Employee data loaded:', this.employeeData.length, 'employees');
         } catch (error) {
             console.error('[Analytics] Failed to load employee data:', error);
-            this.employeeData = [];
+            if (this.employeeDataKey() === requestKey) {
+                this.resetEmployeeData();
+                state.addMessage('error', 'Не удалось загрузить разбивку по сотрудникам');
+            }
         }
     }
 
@@ -783,16 +842,7 @@ class Analytics {
         // Защита от множественных кликов
         if (this.isProcessing) return;
 
-        // Метрики для которых показываем разбивку по сотрудникам
-        const expandableMetrics = [
-            'revenue', 'checks', 'averageCheck',
-            'draftShare', 'packagedShare', 'kitchenShare',
-            'revenueDraft', 'revenuePackaged', 'revenueKitchen',
-            'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-            'loyaltyWriteoffs'
-        ];
-
-        if (!expandableMetrics.includes(metric.id)) return;
+        if (!EXPANDABLE_METRICS.includes(metric.id)) return;
 
         // Если эта карточка уже раскрыта — закрываем
         if (this.expandedCard === card) {
@@ -816,6 +866,9 @@ class Analytics {
                 card.classList.remove('loading');
             }
 
+            // Ошибка загрузки или период сменился, пока ждали — раскрывать нечего.
+            if (!this.employeeData) return;
+
             // Раскрываем карточку
             this.expandCard(card, metric);
         } finally {
@@ -830,7 +883,9 @@ class Analytics {
      * Раскрыть карточку с данными по сотрудникам
      */
     expandCard(card, metric) {
-        if (!this.employeeData || this.employeeData.length === 0) {
+        // Пустой список (период без продаж) раскрывается с «Нет данных»: карточка
+        // не должна молча игнорировать клик.
+        if (!this.employeeData) {
             return;
         }
 
@@ -876,62 +931,94 @@ class Analytics {
     }
 
     /**
-     * Отрисовать список сотрудников для метрики
+     * Отрисовать список сотрудников для метрики.
+     *
+     * Топ BREAKDOWN_TOP по значению метрики, затем:
+     * - складываемые метрики: строка «Остальные (N)» = итог минус показанные и
+     *   строка «Итого» = итог периода. Строки сходятся с «Итого» по построению,
+     *   а «Итого» равно карточке — оно приходит с сервера из того же ответа iiko;
+     * - отношения (средний чек, наценки, доли): у каждого сотрудника личное
+     *   значение и число его чеков, внизу «Итого» периода с подсказкой, что это
+     *   не среднее строк.
+     * Ключи в данных сотрудника совпадают с id метрик (routes/employee.py, _breakdown_row).
      */
     renderEmployeeList(metric) {
-        const employees = this.employeeData;
+        const key = metric.id;
+        if (!EXPANDABLE_METRICS.includes(key)) return '<div class="breakdown-empty">Нет данных</div>';
 
-        // Маппинг метрик на ключи в данных сотрудников
-        const keyMap = {
-            'revenue': 'revenue',
-            'checks': 'checks',
-            'averageCheck': 'averageCheck',
-            'draftShare': 'draftShare',
-            'packagedShare': 'packagedShare',
-            'kitchenShare': 'kitchenShare',
-            'revenueDraft': 'revenueDraft',
-            'revenuePackaged': 'revenuePackaged',
-            'revenueKitchen': 'revenueKitchen',
-            'profit': 'profit',
-            'markupPercent': 'markupPercent',
-            'markupDraft': 'markupDraft',
-            'markupPackaged': 'markupPackaged',
-            'markupKitchen': 'markupKitchen',
-            'loyaltyWriteoffs': 'loyaltyWriteoffs'
-        };
-
-        const key = keyMap[metric.id];
-        if (!key) return '<div class="breakdown-empty">Нет данных</div>';
-
-        // Сортируем по значению метрики
+        const employees = this.employeeData || [];
         const sorted = [...employees].sort((a, b) => (b[key] || 0) - (a[key] || 0));
-
-        // Берём топ-5
-        const top5 = sorted.slice(0, 5);
-
-        if (top5.length === 0) {
+        const top = sorted.slice(0, BREAKDOWN_TOP);
+        if (top.length === 0) {
             return '<div class="breakdown-empty">Нет данных</div>';
         }
 
-        return top5.map((emp, i) => {
-            const value = emp[key] || 0;
-            const formattedValue = formatValue(value, metric.format);
+        const additive = ADDITIVE_METRICS.includes(key);
+        const total = this.employeeTotal;
 
+        const rows = top.map((emp, i) => {
+            // У отношений рядом с именем — число чеков: видно, что высокая наценка
+            // при одном чеке ничего не значит.
+            const sub = additive
+                ? ''
+                : `<span class="breakdown-sub">${formatNumber(emp.checks || 0)} чек.</span>`;
             return `
                 <div class="breakdown-item">
                     <span class="breakdown-rank">${i + 1}</span>
-                    <span class="breakdown-name">${emp.name}</span>
-                    <span class="breakdown-value">${formattedValue}</span>
+                    <span class="breakdown-name">${escapeHtml(emp.name)}${sub}</span>
+                    <span class="breakdown-value">${formatValue(emp[key] || 0, metric.format)}</span>
                 </div>
             `;
-        }).join('');
+        });
+
+        if (additive) {
+            const shownSum = top.reduce((acc, emp) => acc + (emp[key] || 0), 0);
+            const totalValue = total
+                ? (total[key] || 0)
+                : sorted.reduce((acc, emp) => acc + (emp[key] || 0), 0);
+            // «Остальные» = итог минус показанные, а не сумма скрытых: так строки
+            // сходятся с «Итого» и тогда, когда часть выручки ни к кому не привязана.
+            const rest = totalValue - shownSum;
+            const hidden = sorted.length - top.length;
+            // Каждая строка округлена сервером до целого, поэтому без скрытых
+            // сотрудников остаток в пределах «единица на строку» — это округление.
+            const roundingDrift = top.length;
+            if (hidden > 0 || Math.abs(rest) > roundingDrift) {
+                const label = hidden > 0 ? `Остальные (${hidden})` : 'Без сотрудника';
+                rows.push(`
+                    <div class="breakdown-item breakdown-rest">
+                        <span class="breakdown-rank">+</span>
+                        <span class="breakdown-name">${label}</span>
+                        <span class="breakdown-value">${formatValue(rest, metric.format)}</span>
+                    </div>
+                `);
+            }
+            rows.push(this.renderBreakdownTotal(totalValue, metric, 'Сумма строк выше. Равна значению карточки'));
+        } else if (total) {
+            rows.push(this.renderBreakdownTotal(total[key] || 0, metric,
+                'Итог по всем чекам периода, как на карточке. Это не среднее строк выше: '
+                + 'каждый сотрудник входит с весом своей выручки'));
+        }
+
+        return rows.join('');
+    }
+
+    /** Строка «Итого» разбивки; hint — подсказка в title. */
+    renderBreakdownTotal(value, metric, hint) {
+        return `
+            <div class="breakdown-item breakdown-total" title="${hint}">
+                <span class="breakdown-rank">=</span>
+                <span class="breakdown-name">Итого</span>
+                <span class="breakdown-value">${formatValue(value, metric.format)}</span>
+            </div>
+        `;
     }
 
     /**
      * Обновить данные
      */
     refresh() {
-        this.employeeData = null;  // Сбрасываем кэш
+        this.resetEmployeeData();
         this.loadAnalytics();
     }
 }

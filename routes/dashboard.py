@@ -17,6 +17,55 @@ from extensions import (
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
+def load_dashboard_sales(venue_key, date_from, date_to):
+    """
+    Единый OLAP-запрос «Аналитики» из общего кэша (10 мин, single-flight).
+
+    Один вход для всех, кто показывает цифры этого экрана: карточки
+    (/api/dashboard-analytics), вкладка «Выручка» (/api/revenue-metrics) и
+    разбивка карточки по сотрудникам (/api/employee-metrics-breakdown в
+    routes/employee.py). Ключ кэша один, поэтому карточка и её разбивка
+    считаются из одного и того же ответа iiko. До 2026-09-04 разбивка ходила
+    в iiko отдельно и без кэша, и на открытом периоде обгоняла карточку.
+
+    Args:
+        venue_key: ключ заведения; '' и None равны 'all'
+        date_from, date_to: 'YYYY-MM-DD', обе даты инклюзивно (как на экране);
+                            сдвиг +1 день для iiko (exclusive end) делается здесь
+
+    Returns:
+        dict {'data': [...]} - пустой период даёт {'data': []} и кэшируется;
+        None - сбой iiko, не кэшируется.
+    """
+    venue_key = venue_key or 'all'
+    bar_name = venues_manager.get_iiko_name(venue_key) if venue_key != 'all' else None
+    date_to_inclusive = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+    cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
+
+    def _fetch_all_sales():
+        olap = OlapReports()
+        if not olap.connect():
+            print("   [ERROR] Не удалось подключиться к iiko API")
+            return None
+        try:
+            print(f"   [OLAP] Комплексный запрос: {bar_name or 'ВСЕ'}, {date_from} - {date_to_inclusive}")
+            start_time = time.time()
+            data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
+            if data is None:
+                # Сбой iiko: наверх идёт None, такой результат НЕ кэшируется.
+                return None
+            print(f"   [OK] Комплексный запрос выполнен за {time.time() - start_time:.2f}s")
+            # Пустой период (закрытый день, будущая дата) — это ВАЛИДНЫЙ ответ:
+            # возвращаем {'data': []}, чтобы он попал в кэш и метрики стали нулями.
+            # Раньше пустой ответ приравнивался к ошибке -> 500 и повторный поход
+            # в iiko на каждое нажатие стрелки. См. docs/lessons.md.
+            return data if data.get('data') else {'data': []}
+        finally:
+            olap.disconnect()
+
+    return cached_olap(cache_key, _fetch_all_sales)
+
+
 @dashboard_bp.route('/api/dashboard-analytics', methods=['POST'])
 def dashboard_analytics():
     """API endpoint для получения всех метрик дашборда из сырых OLAP данных"""
@@ -29,46 +78,13 @@ def dashboard_analytics():
         if not date_from or not date_to:
             return jsonify({'error': 'Требуются параметры date_from и date_to'}), 400
 
-        # Преобразуем venue_key в название для iiko API
-        bar_name = venues_manager.get_iiko_name(venue_key) if venue_key and venue_key != 'all' else None
-
-        # iiko API: date_to не включается (exclusive end)
-        # Чтобы получить данные за 10.11-16.11 включительно, нужно запросить до 17.11
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
-        date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
-
         print(f"\n[DASHBOARD] Запуск анализа дашборда...")
         print(f"   Venue key: {venue_key}")
-        print(f"   Bar name (iiko): {bar_name if bar_name else 'ВСЕ'}")
         print(f"   Period (requested): {date_from} - {date_to}")
-        print(f"   Period (iiko API): {date_from} - {date_to_inclusive}")
 
-        # OLAP-данные через общий кэш + single-flight (защита от стампеда внутри воркера).
-        cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
-
-        def _fetch_all_sales():
-            olap = OlapReports()
-            if not olap.connect():
-                print("   [ERROR] Не удалось подключиться к iiko API")
-                return None
-            try:
-                # 1. Получаем ВСЕ данные ОДНИМ запросом (оптимизация: 1 запрос вместо 3)
-                print("   [1/5] Запуск комплексного OLAP запроса...")
-                start_time = time.time()
-                data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
-                if data is None:
-                    # Сбой iiko: наверх идёт None, такой результат НЕ кэшируется.
-                    return None
-                print(f"   [OK] Комплексный запрос выполнен за {time.time() - start_time:.2f}s")
-                # Пустой период (закрытый день, будущая дата) — это ВАЛИДНЫЙ ответ:
-                # возвращаем {'data': []}, чтобы он попал в кэш и метрики стали нулями.
-                # Раньше пустой ответ приравнивался к ошибке -> 500 и повторный поход
-                # в iiko на каждое нажатие стрелки. См. docs/lessons.md.
-                return data if data.get('data') else {'data': []}
-            finally:
-                olap.disconnect()
-
-        all_sales_data = cached_olap(cache_key, _fetch_all_sales)
+        # 1. ВСЕ данные ОДНИМ запросом из общего кэша (single-flight внутри воркера).
+        # Тот же загрузчик кормит вкладку «Выручка» и разбивку карточек по сотрудникам.
+        all_sales_data = load_dashboard_sales(venue_key, date_from, date_to)
 
         if all_sales_data is None:
             return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
@@ -121,7 +137,13 @@ def dashboard_analytics():
             'bottles_markup': 'markupPackaged',
             'tap_activity': 'tapActivity',
             'kitchen_markup': 'markupKitchen',
-            'loyalty_points_written_off': 'loyaltyWriteoffs'
+            'loyalty_points_written_off': 'loyaltyWriteoffs',
+            # Лояльность: чеки с картой / без карты (группа «Лояльность» на дашборде)
+            'card_checks': 'cardChecks',
+            'nocard_checks': 'nocardChecks',
+            'card_checks_share': 'cardChecksShare',
+            'card_revenue': 'cardRevenue',
+            'nocard_revenue': 'nocardRevenue'
         }
 
         # Применяем маппинг
@@ -849,32 +871,9 @@ def revenue_metrics():
         print(f"   Bar: {venue_key if venue_key else 'OBSSHAYA'}")
         print(f"   Period: {date_from} - {date_to}")
 
-        # Получаем данные так же как dashboard_analytics (вся выручка, не только напитки)
-        bar_name = venues_manager.get_iiko_name(venue_key) if venue_key and venue_key != 'all' else None
-        date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
-        date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
-
-        cache_key = f"{venue_key}_{date_from}_{date_to_inclusive}"
-
-        def _fetch_all_sales():
-            olap = OlapReports()
-            if not olap.connect():
-                print("   [ERROR] Не удалось подключиться к iiko API")
-                return None
-            try:
-                print("   [DEBUG] Calling get_all_sales_report...")
-                data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
-                print(f"   [DEBUG] Got {len(data.get('data', [])) if data else 0} records")
-                if data is None:
-                    return None
-                # Пустой период — валидный ответ (нули), а не ошибка. См. dashboard_analytics.
-                return data if data.get('data') else {'data': []}
-            finally:
-                olap.disconnect()
-
-        # Общий кэш + single-flight (тот же, что у dashboard-analytics). Кэш теперь
-        # шарится между вкладками, а не обнуляется отладочным .clear() на каждом запросе.
-        all_sales_data = cached_olap(cache_key, _fetch_all_sales)
+        # Те же данные, что у dashboard_analytics (вся выручка, не только напитки),
+        # из общего кэша: вкладки делят один ответ iiko, а не ходят за ним по разу.
+        all_sales_data = load_dashboard_sales(venue_key, date_from, date_to)
 
         if all_sales_data is None:
             return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
@@ -900,7 +899,13 @@ def revenue_metrics():
             'bottles_markup': 'markupPackaged',
             'kitchen_markup': 'markupKitchen',
             'tap_activity': 'tapActivity',
-            'loyalty_points_written_off': 'loyaltyWriteoffs'
+            'loyalty_points_written_off': 'loyaltyWriteoffs',
+            # Лояльность: чеки с картой / без карты (тот же набор, что в dashboard_analytics)
+            'card_checks': 'cardChecks',
+            'nocard_checks': 'nocardChecks',
+            'card_checks_share': 'cardChecksShare',
+            'card_revenue': 'cardRevenue',
+            'nocard_revenue': 'nocardRevenue'
         }
 
         mapped = {}
@@ -1246,7 +1251,7 @@ def export_excel():
                 cell.font = Font(bold=True)
                 cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
 
-            # Данные метрик (все 16 показателей)
+            # Данные метрик (все 20 показателей: 16 базовых + 4 лояльности)
             metrics = [
                 ('Выручка (₽)', 'revenue', 'total_revenue'),
                 ('Чеки (шт)', 'checks', 'total_checks'),
@@ -1263,6 +1268,10 @@ def export_excel():
                 ('Наценка фасовка (%)', 'markupPackaged', 'bottles_markup'),
                 ('Наценка кухня (%)', 'markupKitchen', 'kitchen_markup'),
                 ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
+                ('Чеки с картой (шт)', 'cardChecks', 'card_checks'),
+                ('Чеки без карты (шт)', 'nocardChecks', 'nocard_checks'),
+                ('Доля чеков с картой (%)', 'cardChecksShare', 'card_checks_share'),
+                ('Выручка по картам (₽)', 'cardRevenue', 'card_revenue'),
                 ('Активность кранов (%)', 'tapActivity', 'tap_activity'),
             ]
 
@@ -1302,6 +1311,10 @@ def export_excel():
                 ('Чеки (шт)', 'checks', 'total_checks'),
                 ('Средний чек (₽)', 'averageCheck', 'avg_check'),
                 ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
+                ('Чеки с картой (шт)', 'cardChecks', 'card_checks'),
+                ('Чеки без карты (шт)', 'nocardChecks', 'nocard_checks'),
+                ('Доля чеков с картой (%)', 'cardChecksShare', 'card_checks_share'),
+                ('Выручка по картам (₽)', 'cardRevenue', 'card_revenue'),
                 ('Прибыль (₽)', 'profit', 'total_margin'),
                 ('% наценки', 'markupPercent', 'avg_markup'),
                 ('Доля розлива (%)', 'draftShare', 'draft_share'),
@@ -1381,7 +1394,7 @@ def export_pdf():
             elements.append(subtitle)
             elements.append(Spacer(1, 20))
 
-            # Таблица метрик (все 16 показателей)
+            # Таблица метрик (все 20 показателей: 16 базовых + 4 лояльности)
             data_table = [['Метрика', 'План', 'Факт', '% плана', 'Разница']]
 
             metrics = [
@@ -1400,6 +1413,10 @@ def export_pdf():
                 ('Наценка фасовка', 'markupPackaged', 'bottles_markup', '%'),
                 ('Наценка кухня', 'markupKitchen', 'kitchen_markup', '%'),
                 ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
+                ('Чеки с картой', 'cardChecks', 'card_checks', 'шт'),
+                ('Чеки без карты', 'nocardChecks', 'nocard_checks', 'шт'),
+                ('Доля чеков с картой', 'cardChecksShare', 'card_checks_share', '%'),
+                ('Выручка по картам', 'cardRevenue', 'card_revenue', '₽'),
                 ('Активность кранов', 'tapActivity', 'tap_activity', '%'),
             ]
 
@@ -1407,14 +1424,17 @@ def export_pdf():
                 plan_value = plan_data.get(plan_key, 0) or 0
                 actual_value = actual_data.get(actual_key, 0) or 0
 
-                percent = (actual_value / plan_value * 100) if plan_value > 0 else 0
+                # Метрика без плана (например, группа «Лояльность») — «—» вместо
+                # нулевого плана и 0.0%: как «План не задан» на экране.
+                has_plan = plan_value > 0
+                percent = (actual_value / plan_value * 100) if has_plan else 0
                 diff = actual_value - plan_value
                 data_table.append([
                     f"{metric_name} ({unit})",
-                    f"{plan_value:,.2f}",
+                    f"{plan_value:,.2f}" if has_plan else "—",
                     f"{actual_value:,.2f}",
-                    f"{percent:.1f}%",
-                    f"{diff:,.2f}"
+                    f"{percent:.1f}%" if has_plan else "—",
+                    f"{diff:,.2f}" if has_plan else "—"
                 ])
 
             table = Table(data_table)
@@ -1460,6 +1480,10 @@ def export_pdf():
                 ('Наценка фасовка', 'markupPackaged', 'bottles_markup', '%'),
                 ('Наценка кухня', 'markupKitchen', 'kitchen_markup', '%'),
                 ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
+                ('Чеки с картой', 'cardChecks', 'card_checks', 'шт'),
+                ('Чеки без карты', 'nocardChecks', 'nocard_checks', 'шт'),
+                ('Доля чеков с картой', 'cardChecksShare', 'card_checks_share', '%'),
+                ('Выручка по картам', 'cardRevenue', 'card_revenue', '₽'),
                 ('Активность кранов', 'tapActivity', 'tap_activity', '%'),
             ]
 
@@ -1468,10 +1492,17 @@ def export_pdf():
                 plan_val = plan_data.get(plan_key, 0) or 0
                 actual_val = actual_data.get(actual_key, 0) or 0
 
-                percent = (actual_val / plan_val * 100) if plan_val > 0 else 0
+                # Метрика без плана (например, группа «Лояльность») — «не задан»
+                # и нейтральный цвет вместо нулевого плана и красного 0.0%.
+                has_plan = plan_val > 0
+                percent = (actual_val / plan_val * 100) if has_plan else 0
                 diff = actual_val - plan_val
+                plan_text = f"{plan_val:,.2f} {unit}" if has_plan else "не задан"
+                percent_text = f"{percent:.1f}%" if has_plan else "—"
 
-                if percent >= 100:
+                if not has_plan:
+                    color = '#9E9E9E'
+                elif percent >= 100:
                     color = '#4CAF50'
                 elif percent >= 90:
                     color = '#FFC107'
@@ -1484,7 +1515,7 @@ def export_pdf():
                     <div class="metric-values">
                         <div class="value-row">
                             <span class="label">План:</span>
-                            <span class="value">{plan_val:,.2f} {unit}</span>
+                            <span class="value">{plan_text}</span>
                         </div>
                         <div class="value-row">
                             <span class="label">Факт:</span>
@@ -1494,7 +1525,7 @@ def export_pdf():
                             <span class="label">Выполнение:</span>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: {min(percent, 100)}%; background: {color};"></div>
-                                <span class="progress-text">{percent:.1f}%</span>
+                                <span class="progress-text">{percent_text}</span>
                             </div>
                         </div>
                     </div>

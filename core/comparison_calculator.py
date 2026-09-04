@@ -38,7 +38,9 @@ class ComparisonCalculator:
                 'draft_revenue', 'bottles_revenue', 'kitchen_revenue',
                 'avg_markup', 'total_margin',
                 'draft_markup', 'bottles_markup', 'kitchen_markup',
-                'loyalty_points_written_off'
+                'loyalty_points_written_off',
+                # Лояльность (чеки с картой / без карты)
+                'card_checks', 'nocard_checks', 'card_checks_share', 'card_revenue'
             ]
 
         comparison = {}

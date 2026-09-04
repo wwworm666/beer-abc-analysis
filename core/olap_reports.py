@@ -861,6 +861,8 @@ class OlapReports:
             - "Напитки Фасовка" - фасованное пиво
             - "ЕДА" - кухня
             - прочие (НАБОРЫ, Чай/Кофе, Газ и Пэт, ...) - категория «Прочее»
+            Также в каждой записи есть 'Delivery.CustomerCardNumber' - карта лояльности
+            на чеке (пусто, если карта не проведена); нужна для чеков с картой/без карты.
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
@@ -1179,6 +1181,15 @@ class OlapReports:
         """
         Построить JSON запрос для комплексного OLAP отчета (все категории за один запрос).
         НЕ фильтрует по DishGroup.TopParent - получаем всё: розлив + фасовку + кухню.
+
+        Поля группировки строк (groupByRowFields) и что от них зависит:
+            Store.Name, DishName, DishForeignName, OpenDate.Typed - разрезы отчёта;
+            DishGroup.TopParent      - разделение категорий (розлив/фасовка/кухня/прочее);
+            UniqOrderId.Id           - подсчёт чеков (total_checks);
+            Delivery.CustomerCardNumber - карта лояльности на чеке
+                                       (card_checks / nocard_checks на дашборде);
+            AuthUser                 - сотрудник, пробивший чек («Авторизовал»):
+                                       разбивка карточек дашборда по сотрудникам.
         """
 
         request = {
@@ -1189,7 +1200,20 @@ class OlapReports:
                 "DishGroup.TopParent",  # ВАЖНО: нужно для разделения категорий
                 "DishForeignName",
                 "OpenDate.Typed",
-                "UniqOrderId.Id"  # КЛЮЧЕВОЕ: уникальный ID заказа для подсчета чеков
+                "UniqOrderId.Id",  # КЛЮЧЕВОЕ: уникальный ID заказа для подсчета чеков
+                # Карта лояльности на чеке. Атрибут ЗАКАЗА, а не строки, поэтому строки
+                # не размножаются (замер 2026-09-04, все бары: неделя 1779 -> 1779 строк,
+                # месяц 7744 -> 7744, выручка и число чеков без изменений; JSON +8%).
+                # Питает метрики card_checks / nocard_checks дашборда. Если поле убрать,
+                # эти метрики молча обнулятся - см. tests/test_dashboard_loyalty_checks.py.
+                "Delivery.CustomerCardNumber",
+                # Сотрудник, пробивший чек. Единый ключ личности сотрудника (аудит #11).
+                # У чека один AuthUser, поэтому строки не размножаются (замер 2026-09-04,
+                # все бары: неделя 1779 -> 1779 строк, месяц 7744 -> 7744, выручка и чеки
+                # без изменений, JSON +8-9%, время то же; чеков с двумя AuthUser - 0).
+                # Питает разбивку карточек по сотрудникам (/api/employee-metrics-breakdown):
+                # без поля она молча опустеет - см. tests/test_dashboard_employee_breakdown.py.
+                "AuthUser"
             ],
             "groupByColFields": [],
             "aggregateFields": [

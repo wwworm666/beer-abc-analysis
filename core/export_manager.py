@@ -53,7 +53,12 @@ class ExportManager:
             'markupDraft': 'Наценка розлив (%)',
             'markupPackaged': 'Наценка фасовка (%)',
             'markupKitchen': 'Наценка кухня (%)',
-            'loyaltyWriteoffs': 'Списания баллов (₽)'
+            'loyaltyWriteoffs': 'Списания баллов (₽)',
+            # Лояльность (чеки с картой / без карты)
+            'cardChecks': 'Чеки с картой (шт)',
+            'nocardChecks': 'Чеки без карты (шт)',
+            'cardChecksShare': 'Доля чеков с картой (%)',
+            'cardRevenue': 'Выручка по картам (₽)'
         }
 
         for metric_key, metric_name in metric_names.items():

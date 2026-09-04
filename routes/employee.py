@@ -8,7 +8,9 @@ from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from
 from core.employee_plans import get_employee_plan_by_shifts
 from core.daily_plans_generator import get_daily_plan_for_date, regenerate_daily_plans
 from core.kpi_calculator import KpiCalculator, KpiTargetsReader, clear_kpi_cache, AVAILABLE_METRICS
+from core.dashboard_analysis import DashboardMetrics
 from extensions import EMPLOYEES_CACHE, EMPLOYEES_CACHE_TTL
+from routes.dashboard import load_dashboard_sales
 
 employee_bp = Blueprint('employee', __name__)
 
@@ -1127,11 +1129,55 @@ def kpi_targets_save():
         return jsonify({'error': str(e)}), 500
 
 
+def _breakdown_row(name, m):
+    """
+    Строка разбивки карточки: метрики DashboardMetrics.calculate_metrics в ключах
+    фронта (camelCase, те же имена, что id метрик в config.js) с округлением для показа.
+
+    Наценки у калькулятора - дробь (2.2448); дашборд умножает их на 100 в роуте,
+    здесь то же самое, чтобы строка сотрудника и карточка были в одних единицах.
+    Деньги и чеки - до рубля/штуки, доли и наценки - до 0,1%.
+    """
+    def pct(fraction):
+        return round(fraction * 100, 1)
+
+    return {
+        'name': name,
+        'revenue': round(m['total_revenue'], 0),
+        'checks': m['total_checks'],
+        'averageCheck': round(m['avg_check'], 0),
+        'draftShare': round(m['draft_share'], 1),
+        'packagedShare': round(m['bottles_share'], 1),
+        'kitchenShare': round(m['kitchen_share'], 1),
+        'otherShare': round(m['other_share'], 1),
+        'revenueDraft': round(m['draft_revenue'], 0),
+        'revenuePackaged': round(m['bottles_revenue'], 0),
+        'revenueKitchen': round(m['kitchen_revenue'], 0),
+        'revenueOther': round(m['other_revenue'], 0),
+        'profit': round(m['total_margin'], 0),
+        'markupPercent': pct(m['avg_markup']),
+        'markupDraft': pct(m['draft_markup']),
+        'markupPackaged': pct(m['bottles_markup']),
+        'markupKitchen': pct(m['kitchen_markup']),
+        'markupOther': pct(m['other_markup']),
+        'loyaltyWriteoffs': round(m['loyalty_points_written_off'], 0)
+    }
+
+
 @employee_bp.route('/api/employee-metrics-breakdown', methods=['POST'])
 def employee_metrics_breakdown():
     """
-    API endpoint для получения разбивки метрик по сотрудникам.
-    Используется для раскрытия карточек на дашборде.
+    Разбивка метрик карточки дашборда по сотрудникам (раскрытие карточки).
+
+    Данные - те же, что у самой карточки: единый OLAP-запрос «Аналитики» из
+    общего кэша (routes/dashboard.py, load_dashboard_sales), разложенный по
+    AuthUser (DashboardMetrics.calculate_metrics_by_employee). Одни формулы и
+    один ответ iiko, поэтому сумма по сотрудникам равна карточке по построению,
+    а 'total' в ответе - буквально её числа.
+
+    До 2026-09-04 здесь было четыре отдельных OLAP-запроса без кэша: на открытом
+    периоде список обгонял карточку на 10 минут кэша, а сбой одного из запросов
+    молча обнулял категорию (доли 0%, прибыль = выручке).
     """
     try:
         data = request.json
@@ -1145,140 +1191,15 @@ def employee_metrics_breakdown():
         print(f"\n[BREAKDOWN] Razbiyka metrik po sotrudnikam")
         print(f"   Venue: {venue_key}, Period: {date_from} - {date_to}")
 
-        # Маппинг venue_key -> bar_name для iiko
-        venue_to_bar = {
-            'bolshoy': 'Большой пр. В.О',
-            'ligovskiy': 'Лиговский',
-            'kremenchugskaya': 'Кременчугская',
-            'varshavskaya': 'Варшавская',
-            'all': None
-        }
-        bar_name = venue_to_bar.get(venue_key)
+        all_sales_data = load_dashboard_sales(venue_key, date_from, date_to)
+        if all_sales_data is None:
+            return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
-        # Загружаем данные OLAP для всех сотрудников
-        # OLAP to-дата exclusive → +1 день
-        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+        calculator = DashboardMetrics()
+        total = calculator.calculate_metrics(all_sales_data)
+        by_employee = calculator.calculate_metrics_by_employee(all_sales_data)
 
-        olap = OlapReports()
-        if not olap.connect():
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
-
-        try:
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                futures = {
-                    executor.submit(olap.get_employee_aggregated_metrics, date_from, olap_date_to, bar_name): 'aggregated',
-                    executor.submit(olap.get_draft_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'draft',
-                    executor.submit(olap.get_bottles_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'bottles',
-                    executor.submit(olap.get_kitchen_sales_by_waiter_report, date_from, olap_date_to, bar_name): 'kitchen',
-                }
-
-                all_data = {}
-                for future in as_completed(futures):
-                    key = futures[future]
-                    try:
-                        all_data[key] = future.result()
-                    except Exception as e:
-                        print(f"   [ERROR] OLAP {key}: {e}")
-                        all_data[key] = None
-        finally:
-            olap.disconnect()
-
-        # Собираем метрики по сотрудникам
-        # aggregated - это dict {name: {metrics}}, draft/bottles/kitchen - OLAP ответы {'data': [...]}
-        aggregated = all_data.get('aggregated') or {}
-        draft_raw = all_data.get('draft') or {}
-        bottles_raw = all_data.get('bottles') or {}
-        kitchen_raw = all_data.get('kitchen') or {}
-        draft = draft_raw.get('data', []) if isinstance(draft_raw, dict) else []
-        bottles = bottles_raw.get('data', []) if isinstance(bottles_raw, dict) else []
-        kitchen = kitchen_raw.get('data', []) if isinstance(kitchen_raw, dict) else []
-
-        # Строим breakdown для каждой метрики
-        employees_data = {}
-
-        # Из aggregated получаем выручку, чеки (это dict с ключами = имена)
-        if isinstance(aggregated, dict):
-            for name, metrics in aggregated.items():
-                if not name or name == 'Итого':
-                    continue
-                employees_data[name] = {
-                    'name': name,
-                    'revenue': float(metrics.get('DishDiscountSumInt', 0) or 0),
-                    'checks': int(metrics.get('UniqOrderId.OrdersCount', 0) or 0),
-                    'loyaltyWriteoffs': float(metrics.get('DiscountSum', 0) or 0),
-                    'draft_revenue': 0, 'draft_cost': 0,
-                    'bottles_revenue': 0, 'bottles_cost': 0,
-                    'kitchen_revenue': 0, 'kitchen_cost': 0,
-                    'other_revenue': 0, 'other_cost': 0
-                }
-
-        # Добавляем выручку и себестоимость по категориям из OLAP данных.
-        # kitchen-отчёт содержит всё кроме напитков: кухня = строго группа «ЕДА»,
-        # остальное (НАБОРЫ, Чай/Кофе, Газ и Пэт) — скрытая категория «Прочее»
-        def _kitchen_bucket(row):
-            return 'kitchen' if row.get('DishGroup.TopParent', '') == 'ЕДА' else 'other'
-
-        for category, cat_key in [
-            (draft, 'draft'),
-            (bottles, 'bottles'),
-            (kitchen, None)  # None -> бакет по группе (kitchen/other)
-        ]:
-            for row in category:
-                if isinstance(row, dict):
-                    name = row.get('WaiterName') or row.get('Waiter') or row.get('waiter')
-                    if name and name != 'Итого' and name in employees_data:
-                        bucket = cat_key or _kitchen_bucket(row)
-                        employees_data[name][f'{bucket}_revenue'] += float(row.get('DishDiscountSumInt', 0) or 0)
-                        employees_data[name][f'{bucket}_cost'] += float(row.get('ProductCostBase.ProductCost', 0) or 0)
-
-        # Рассчитываем производные метрики
-        result = []
-        for name, data in employees_data.items():
-            total_revenue = data['revenue']
-            checks = data['checks']
-
-            # Средний чек
-            avg_check = total_revenue / checks if checks > 0 else 0
-
-            # Доли
-            draft_share = (data['draft_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
-            bottles_share = (data['bottles_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
-            kitchen_share = (data['kitchen_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
-            other_share = (data['other_revenue'] / total_revenue * 100) if total_revenue > 0 else 0
-
-            # Себестоимость и прибыль (включая «Прочее»)
-            total_cost = data['draft_cost'] + data['bottles_cost'] + data['kitchen_cost'] + data['other_cost']
-            profit = total_revenue - total_cost
-
-            # Наценки по категориям: (выручка / себестоимость - 1) * 100
-            markup_draft = ((data['draft_revenue'] / data['draft_cost'] - 1) * 100) if data['draft_cost'] > 0 else 0
-            markup_packaged = ((data['bottles_revenue'] / data['bottles_cost'] - 1) * 100) if data['bottles_cost'] > 0 else 0
-            markup_kitchen = ((data['kitchen_revenue'] / data['kitchen_cost'] - 1) * 100) if data['kitchen_cost'] > 0 else 0
-            markup_other = ((data['other_revenue'] / data['other_cost'] - 1) * 100) if data['other_cost'] > 0 else 0
-            markup_percent = ((total_revenue / total_cost - 1) * 100) if total_cost > 0 else 0
-
-            result.append({
-                'name': name,
-                'revenue': round(total_revenue, 0),
-                'checks': checks,
-                'averageCheck': round(avg_check, 0),
-                'draftShare': round(draft_share, 1),
-                'packagedShare': round(bottles_share, 1),
-                'kitchenShare': round(kitchen_share, 1),
-                'otherShare': round(other_share, 1),
-                'revenueDraft': round(data['draft_revenue'], 0),
-                'revenuePackaged': round(data['bottles_revenue'], 0),
-                'revenueKitchen': round(data['kitchen_revenue'], 0),
-                'revenueOther': round(data['other_revenue'], 0),
-                'profit': round(profit, 0),
-                'markupPercent': round(markup_percent, 1),
-                'markupDraft': round(markup_draft, 1),
-                'markupPackaged': round(markup_packaged, 1),
-                'markupKitchen': round(markup_kitchen, 1),
-                'markupOther': round(markup_other, 1),
-                'loyaltyWriteoffs': round(data['loyaltyWriteoffs'], 0)
-            })
-
+        result = [_breakdown_row(name, metrics) for name, metrics in by_employee.items()]
         # Сортируем по выручке
         result.sort(key=lambda x: x['revenue'], reverse=True)
 
@@ -1286,6 +1207,8 @@ def employee_metrics_breakdown():
 
         return jsonify({
             'employees': result,
+            # Итог по всем строкам периода - те же числа, что на карточке.
+            'total': _breakdown_row('Итого', total),
             'period': {'from': date_from, 'to': date_to},
             'venue': venue_key
         })
