@@ -46,6 +46,16 @@ function escapeHtml(text) {
     }[ch]));
 }
 
+/**
+ * Каретка раскрытия для мобильных карточек и строк — внутри подписи метрики,
+ * чтобы не ломать раскладку «подпись слева, точка статуса справа». Пустая
+ * строка у метрик без разбивки.
+ */
+function mobileCaret(metric) {
+    return EXPANDABLE_METRICS.includes(metric.id)
+        ? '<span class="m-caret" aria-hidden="true">&#9662;</span>' : '';
+}
+
 /** Шеврон для строк-аккордеонов и заголовков групп. */
 const CHEVRON_SVG = '<svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"'
     + ' stroke="currentColor" stroke-width="2.5" stroke-linecap="round">'
@@ -374,7 +384,12 @@ class Analytics {
         return card;
     }
 
-    /** Клик по карточке: краны ведут на свою страницу, остальные раскрывают сотрудников. */
+    /**
+     * Клик по карточке: краны ведут на свою страницу, остальные раскрывают сотрудников.
+     * Общий для десктопной карточки и мобильных элементов (m-hero, m-compact, m-row):
+     * до 2026-09-04 мобильные рисовались без обработчика, и карточки на телефоне
+     * не раскрывались.
+     */
     attachCardBehaviour(card, metric) {
         if (metric.id === 'tapActivity') {
             card.classList.add('clickable');
@@ -589,7 +604,7 @@ class Analytics {
         el.setAttribute('data-metric-id', metric.id);
         el.innerHTML = `
             <div class="m-card-top">
-                <span class="m-card-label"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
+                <span class="m-card-label"${hintAttr(metric)}>${metric.name.toUpperCase()}${mobileCaret(metric)}</span>
                 <span class="m-dot ${status}"></span>
             </div>
             <div class="m-hero-row">
@@ -607,6 +622,7 @@ class Analytics {
                 </div>
             ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
         `;
+        this.attachCardBehaviour(el, metric);
         return el;
     }
 
@@ -619,7 +635,7 @@ class Analytics {
         el.setAttribute('data-metric-id', metric.id);
         el.innerHTML = `
             <div class="m-card-top">
-                <span class="m-card-label"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
+                <span class="m-card-label"${hintAttr(metric)}>${metric.name.toUpperCase()}${mobileCaret(metric)}</span>
                 <span class="m-dot ${status}"></span>
             </div>
             <div class="m-compact-value">${formatValue(actualValue, metric.format)}</div>
@@ -631,6 +647,7 @@ class Analytics {
                 </div>
             ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
         `;
+        this.attachCardBehaviour(el, metric);
         return el;
     }
 
@@ -693,7 +710,7 @@ class Analytics {
         el.setAttribute('data-metric-id', metric.id);
         el.innerHTML = `
             <div class="m-row-top">
-                <span class="m-row-name"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
+                <span class="m-row-name"${hintAttr(metric)}>${metric.name.toUpperCase()}${mobileCaret(metric)}</span>
                 <span class="m-row-value">${formatValue(actualValue, metric.format)}</span>
             </div>
             ${hasPlan ? `
@@ -705,6 +722,7 @@ class Analytics {
                 </div>
             ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
         `;
+        this.attachCardBehaviour(el, metric);
         return el;
     }
 

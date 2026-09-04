@@ -235,6 +235,19 @@ test('разбивка рисует «Остальные», «Итого» и ч
     for (const id of ['averageCheck', 'draftShare', 'markupPercent']) assert.ok(!additive.includes(id), `${id} нельзя складывать`);
 });
 
+test('мобильные карточки и строки раскрываются тем же обработчиком, что десктопные', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    // Десктопная карточка + m-hero + m-compact + m-row.
+    assert.equal(js.split('this.attachCardBehaviour(').length - 1, 4, 'не все элементы получают обработчик клика');
+    for (const label of ['m-card-label', 'm-row-name']) {
+        assert.ok(js.includes(`${label}"${'$'}{hintAttr(metric)}>${'$'}{metric.name.toUpperCase()}${'$'}{mobileCaret(metric)}`),
+            `${label}: нет каретки раскрытия`);
+    }
+    for (const cls of ['m-caret', 'm-compact.expanded', 'm-row .metric-breakdown']) {
+        assert.ok(CSS.includes(`.${cls}`), `нет правил для .${cls}`);
+    }
+});
+
 test('ответ по сотрудникам принимается только для текущего бара и периода', () => {
     const js = read('static/js/dashboard/modules/analytics.js');
     assert.ok(js.includes('employeeDataKey()'), 'нет ключа «бар + период» у данных сотрудников');

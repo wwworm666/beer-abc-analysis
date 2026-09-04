@@ -775,6 +775,39 @@
     transform: rotate(180deg);
 }
 
+/* Мобильные карточки и строки раскрываются тем же attachCardBehaviour:
+   каретка стоит внутри подписи метрики, разбивка пришивается к низу элемента. */
+.m-hero.expandable, .m-compact.expandable, .m-row.expandable,
+.m-hero.clickable, .m-compact.clickable, .m-row.clickable {
+    cursor: pointer;
+}
+
+.m-caret {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 9px;
+    line-height: 1;
+    color: var(--caret-color);
+    transition: transform 0.2s ease;
+}
+
+.m-hero.expanded .m-caret,
+.m-compact.expanded .m-caret,
+.m-row.expanded .m-caret {
+    transform: rotate(180deg);
+}
+
+/* В паре «чеки / средний чек» раскрытая карточка занимает всю ширину:
+   в половине экрана телефона имена сотрудников не помещаются. */
+.m-duo .m-compact.expanded {
+    grid-column: 1 / -1;
+}
+
+.m-row .metric-breakdown {
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
 .metric-card.loading::after {
     content: '⟳';
     animation: spin 1s linear infinite;
