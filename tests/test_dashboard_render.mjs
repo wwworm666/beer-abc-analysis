@@ -254,6 +254,91 @@ test('ответ по сотрудникам принимается только
     assert.ok(js.includes('this.employeeDataKey() !== requestKey'), 'нет проверки устаревшего ответа');
 });
 
+console.log('\n--- детали внутри карточки (2026-09-04) ---');
+
+test('классы деталей карточки описаны в CSS', () => {
+    const classes = [
+        'breakdown-tabs', 'breakdown-tab', 'breakdown-heading', 'breakdown-formula',
+        'breakdown-note', 'breakdown-link', 'breakdown-loading'
+    ];
+    const missing = classes.filter(cls => !CSS.includes(`.${cls}`));
+    assert.deepEqual(missing, [], `нет правил для: ${missing.join(', ')}`);
+    assert.ok(CSS.includes('.breakdown-tab.active'), 'нет стиля активной вкладки');
+});
+
+test('раскрываются все 20 карточек; «Сотрудники» — у всех, кроме кранов', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    const list = (name) => js.match(new RegExp(`const ${name} = \\[([^\\]]+)\\]`))[1]
+        .match(/'([^']+)'/g).map(s => s.slice(1, -1));
+    const expandable = list('EXPANDABLE_METRICS');
+    assert.deepEqual([...expandable].sort(), METRICS.map(m => m.id).sort());
+    const employee = list('EMPLOYEE_METRICS');
+    assert.ok(!employee.includes('tapActivity'), 'у кранов нет сотрудников');
+    for (const id of employee) assert.ok(expandable.includes(id), `${id} не раскрывается`);
+    for (const id of LOYALTY_IDS) assert.ok(employee.includes(id), `${id}: нет вкладки «Сотрудники»`);
+    const additive = list('ADDITIVE_METRICS');
+    for (const id of ['cardChecks', 'nocardChecks', 'cardRevenue']) assert.ok(additive.includes(id), `${id} складывается`);
+    assert.ok(!additive.includes('cardChecksShare'), 'доля чеков с картой не складывается');
+});
+
+test('клик по вкладке не схлопывает карточку, краны раскрываются вместо перехода', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    const idx = js.indexOf('this.switchTab(card, metric, btn.dataset.section)');
+    assert.ok(idx > 0, 'нет обработчика вкладки');
+    assert.ok(js.slice(idx - 200, idx).includes('e.stopPropagation()'), 'клик по вкладке всплывает на карточку');
+    assert.ok(js.includes("breakdown.addEventListener('click', (e) => e.stopPropagation())"), 'клики внутри раскрытия всплывают');
+    assert.ok(!js.includes('window.location.href'), 'карточка кранов всё ещё уводит на /taps');
+    assert.ok(js.includes("DEFAULT_TAB = { draftShare: 'draft_liters', tapActivity: 'taps' }"), 'у розлива первой должна быть вкладка «Литры»');
+});
+
+test('детали принимаются только для текущего бара, периода и раскрытой карточки', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(js.includes('async loadCardDetails(card, metric)'), 'нет загрузки деталей');
+    assert.ok(js.includes('if (this.expandedCard !== card) return;'), 'детали рисуются в чужую карточку');
+    // Сброс вместе с сотрудниками при смене бара/периода (конструктор + resetEmployeeData).
+    assert.equal(js.split('this.cardDetails = {};').length - 1, 2, 'детали не сбрасываются при смене периода');
+    assert.ok(js.includes('breakdown-formula'), 'формула секции не показывается текстом');
+    // Один запрос на метрику и на ленивую секцию: повторное раскрытие ждёт тот же промис.
+    assert.ok(js.includes('this._detailsInflight[metric.id] = promise'), 'детали без дедупликации запросов');
+    assert.ok(js.includes('await this._detailsInflight[metric.id]'), 'повторное раскрытие не ждёт идущий запрос');
+    assert.ok(js.includes('async fetchLazySection(metric, section)'), 'нет отдельного запроса ленивой секции');
+    assert.ok(js.includes('await this._lazyInflight[section.id]'), 'вторая карточка не ждёт запрос ленивой секции');
+    // Ошибки не запоминаются как данные.
+    assert.ok(!js.includes("this.lazySections[section.id] = { ...section, lazy: false, rows: [], error"), 'ошибка ленивой секции кэшируется');
+    assert.ok(js.includes('Детали карточки не загрузились'), 'ошибка деталей невидима под списком сотрудников');
+    // Перерисовка сетки забывает раскрытую карточку; клик по отсоединённому узлу не раскрывает его.
+    assert.ok(js.includes('if (!card.isConnected) return;'), 'раскрытие отсоединённого узла');
+});
+
+test('мобильный перенос названий стоит после базовых правил и не перекрыт ими', () => {
+    const cards = read('static/dashboard/styles/cards.css').replace(/\r\n/g, '\n');
+    const base = cards.indexOf('\n.breakdown-name {');
+    const mobile = cards.indexOf('@media (max-width: 768px) {\n    .breakdown-name {');
+    assert.ok(base > 0 && mobile > 0, 'нет правил .breakdown-name');
+    assert.ok(mobile > base, 'медиа-правило переноса стоит выше базового и проигрывает ему');
+    assert.ok(!/\.breakdown-tab\.active \{[^}]*\bwhite\b/.test(cards), 'цвет активной вкладки не через токен');
+    const vars = read('static/dashboard/styles/variables.css');
+    assert.equal([...vars.matchAll(/--text-on-accent:/g)].length, 2, 'токен --text-on-accent нужен обеим темам');
+});
+
+test('api.js и config.js знают эндпоинты разбивки и деталей', () => {
+    const api = read('static/js/dashboard/core/api.js');
+    const cfg = read('static/js/dashboard/core/config.js');
+    assert.ok(cfg.includes("CARD_DETAILS: '/api/dashboard-card-details'"), 'нет API.CARD_DETAILS');
+    assert.ok(cfg.includes("EMPLOYEE_BREAKDOWN: '/api/employee-metrics-breakdown'"), 'нет API.EMPLOYEE_BREAKDOWN');
+    assert.ok(api.includes('fetchAPI(API.CARD_DETAILS'), 'getCardDetails не через config');
+    assert.ok(api.includes('fetchAPI(API.EMPLOYEE_BREAKDOWN'), 'getEmployeeBreakdown не через config');
+    assert.ok(!api.includes("'/api/employee-metrics-breakdown'"), 'URL разбивки захардкожен строкой');
+    const utils = read('static/js/dashboard/core/utils.js');
+    assert.ok(utils.includes("case 'liters'"), 'formatValue не знает литров');
+    assert.ok(utils.includes('export function formatLiters'), 'нет formatLiters');
+});
+
+test('анимация раскрытия не ограничивает высоту списка', () => {
+    const cards = read('static/dashboard/styles/cards.css');
+    assert.ok(!/@keyframes slideDown[\s\S]{0,300}max-height/.test(cards), 'slideDown снова с max-height');
+});
+
 test('статусные модификаторы покрыты для процентов и точек', () => {
     for (const base of ['mc-pct', 'm-pct', 'm-dot', 'm-group-pct']) {
         for (const st of ['success', 'warning', 'danger']) {

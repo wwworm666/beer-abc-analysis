@@ -248,13 +248,32 @@ export async function saveComment(venueKey, periodKey, comment) {
  * Используется для раскрытия карточек на дашборде
  */
 export async function getEmployeeBreakdown(venueKey, dateFrom, dateTo) {
-    return await fetchAPI('/api/employee-metrics-breakdown', {
+    return await fetchAPI(API.EMPLOYEE_BREAKDOWN, {
         method: 'POST',
         body: JSON.stringify({
             venue_key: venueKey || 'all',
             date_from: dateFrom,
             date_to: dateTo
         })
+    });
+}
+
+/**
+ * Детали одной карточки дашборда: секции-вкладки внутри раскрытия.
+ * Без sectionId — все секции метрики из кэша дашборда; с sectionId — одна
+ * ленивая секция (draft_liters, taps) из своего источника.
+ */
+export async function getCardDetails(venueKey, dateFrom, dateTo, metricId, sectionId = null) {
+    const body = {
+        venue_key: venueKey || 'all',
+        date_from: dateFrom,
+        date_to: dateTo,
+        metric: metricId
+    };
+    if (sectionId) body.section = sectionId;
+    return await fetchAPI(API.CARD_DETAILS, {
+        method: 'POST',
+        body: JSON.stringify(body)
     });
 }
 

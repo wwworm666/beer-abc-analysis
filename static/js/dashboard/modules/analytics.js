@@ -4,25 +4,43 @@
  */
 
 import { state } from '../core/state.js';
-import { calculatePlan, getAnalytics, getEmployeeBreakdown } from '../core/api.js';
+import { calculatePlan, getAnalytics, getEmployeeBreakdown, getCardDetails } from '../core/api.js';
 import { METRICS, METRIC_GROUPS, HEADLINE_METRIC_IDS } from '../core/config.js';
 import { shiftPeriod } from '../core/period_model.js';
 import {
     formatValue,
     formatMoney,
     formatNumber,
+    formatPercent,
     calculatePercent,
     calculateDiff,
     getStatus
 } from '../core/utils.js';
 
-/** Метрики, у которых есть разбивка по сотрудникам (раскрытие карточки). */
+/**
+ * Метрики, у которых карточка раскрывается (с 2026-09-04 — все 20, см. config.js).
+ * Внутри — вкладки: «Сотрудники» и секции метрики с сервера (/api/dashboard-card-details).
+ */
 const EXPANDABLE_METRICS = [
+    'revenue', 'checks', 'averageCheck', 'markupPercent',
+    'draftShare', 'revenueDraft', 'markupDraft',
+    'packagedShare', 'revenuePackaged', 'markupPackaged',
+    'kitchenShare', 'revenueKitchen', 'markupKitchen',
+    'profit', 'loyaltyWriteoffs', 'tapActivity',
+    'cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue'
+];
+
+/**
+ * Метрики с вкладкой «Сотрудники» — ключи строк /api/employee-metrics-breakdown.
+ * У активности кранов сотрудников нет: её источник — краны, а не чеки.
+ */
+const EMPLOYEE_METRICS = [
     'revenue', 'checks', 'averageCheck',
     'draftShare', 'packagedShare', 'kitchenShare',
     'revenueDraft', 'revenuePackaged', 'revenueKitchen',
     'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-    'loyaltyWriteoffs'
+    'loyaltyWriteoffs',
+    'cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue'
 ];
 
 /**
@@ -33,8 +51,19 @@ const EXPANDABLE_METRICS = [
  */
 const ADDITIVE_METRICS = [
     'revenue', 'checks', 'revenueDraft', 'revenuePackaged', 'revenueKitchen',
-    'profit', 'loyaltyWriteoffs'
+    'profit', 'loyaltyWriteoffs', 'cardChecks', 'nocardChecks', 'cardRevenue'
 ];
+
+/**
+ * Вкладка, которая открывается первой. По умолчанию — «Сотрудники»; у доли
+ * розлива — литры (просьба владельца: «топ сортов по проливам в литрах»), у
+ * кранов — сами краны.
+ */
+const DEFAULT_TAB = { draftShare: 'draft_liters', tapActivity: 'taps' };
+
+/** Формула вкладки «Сотрудники» — показывается текстом, как у серверных секций. */
+const EMPLOYEE_FORMULA = 'Строки чеков разложены по полю «Авторизовал» (кто пробил чек); '
+    + 'у складываемых метрик сумма строк равна карточке, у отношений «Итого» — итог периода';
 
 /** Сколько сотрудников показывать строками; остальные сворачиваются в одну строку. */
 const BREAKDOWN_TOP = 5;
@@ -86,6 +115,11 @@ class Analytics {
         this.initialized = false;
         this.employeeData = null;  // Кэш данных по сотрудникам (текущий бар + период)
         this.employeeTotal = null; // Итог периода из того же ответа — числа карточки
+        this.cardDetails = {};     // {metricId: секции метрики} для текущего бара + периода
+        this.lazySections = {};    // {sectionId: секция} — литры и краны, грузятся по клику на вкладку
+        this._lazyInflight = {};   // {sectionId: промис} — ленивые секции, за которыми уже пошёл запрос
+        this._detailsInflight = {}; // {metricId: промис} — секции метрики, за которыми уже пошёл запрос
+        this.activeTab = {};       // {metricId: id вкладки} — выбор живёт на время сессии
         this.expandedCard = null;  // Текущая раскрытая карточка
         this.isProcessing = false; // Флаг для предотвращения множественных кликов
         this._inflightKey = null;     // Ключ выполняющегося запроса (дедупликация)
@@ -276,6 +310,8 @@ class Analytics {
         this.currentStats = stats;
 
         this.metricsGrid.innerHTML = '';
+        // Старые карточки удалены из DOM: раскрытой карточки больше нет.
+        this.expandedCard = null;
         this.metricsGrid.appendChild(this.renderDesktop(stats));
         this.metricsGrid.appendChild(this.renderMobile(stats));
 
@@ -385,27 +421,13 @@ class Analytics {
     }
 
     /**
-     * Клик по карточке: краны ведут на свою страницу, остальные раскрывают сотрудников.
-     * Общий для десктопной карточки и мобильных элементов (m-hero, m-compact, m-row):
-     * до 2026-09-04 мобильные рисовались без обработчика, и карточки на телефоне
-     * не раскрывались.
+     * Клик по карточке раскрывает её. Общий для десктопной карточки и мобильных
+     * элементов (m-hero, m-compact, m-row): до 2026-09-04 мобильные рисовались без
+     * обработчика, и карточки на телефоне не раскрывались. Краны до 2026-09-04
+     * уводили на /taps; теперь они раскрываются, как остальные, а переход на
+     * страницу кранов — ссылка внутри секции «Краны».
      */
     attachCardBehaviour(card, metric) {
-        if (metric.id === 'tapActivity') {
-            card.classList.add('clickable');
-            card.addEventListener('click', () => {
-                const venueToBarMapping = {
-                    'bolshoy': 'bar1',
-                    'ligovskiy': 'bar2',
-                    'kremenchugskaya': 'bar3',
-                    'varshavskaya': 'bar4'
-                };
-                const barId = venueToBarMapping[state.currentVenue];
-                window.location.href = barId ? `/taps/${barId}` : '/taps';
-            });
-            return;
-        }
-
         if (EXPANDABLE_METRICS.includes(metric.id)) {
             card.classList.add('expandable');
             card.addEventListener('click', (e) => {
@@ -812,10 +834,18 @@ class Analytics {
         return `${state.currentVenue}|${period.start}|${period.end}`;
     }
 
-    /** Забыть данные по сотрудникам: следующий клик по карточке загрузит их заново. */
+    /**
+     * Забыть данные раскрытия (сотрудники, секции метрик, ленивые секции):
+     * следующий клик по карточке загрузит их заново. Вызывается при смене бара
+     * или периода и при обновлении.
+     */
     resetEmployeeData() {
         this.employeeData = null;
         this.employeeTotal = null;
+        this.cardDetails = {};
+        this.lazySections = {};
+        this._lazyInflight = {};
+        this._detailsInflight = {};
     }
 
     /**
@@ -877,17 +907,23 @@ class Analytics {
                 this.collapseCard(this.expandedCard);
             }
 
-            // Загружаем данные если ещё не загружены
-            if (!this.employeeData) {
-                card.classList.add('loading');
-                await this.loadEmployeeData();
-                card.classList.remove('loading');
+            // Сотрудники грузятся один раз на бар + период; у кранов этой вкладки нет.
+            if (EMPLOYEE_METRICS.includes(metric.id)) {
+                if (!this.employeeData) {
+                    card.classList.add('loading');
+                    await this.loadEmployeeData();
+                    card.classList.remove('loading');
+                }
+
+                // Ошибка загрузки или период сменился, пока ждали — раскрывать нечего.
+                if (!this.employeeData) return;
             }
 
-            // Ошибка загрузки или период сменился, пока ждали — раскрывать нечего.
-            if (!this.employeeData) return;
+            // Пока ждали, сетка могла перерисоваться (листание туда-обратно):
+            // раскрывать отсоединённый узел бессмысленно.
+            if (!card.isConnected) return;
 
-            // Раскрываем карточку
+            // Раскрываем карточку; секции метрики догружаются в неё
             this.expandCard(card, metric);
         } finally {
             // Снимаем флаг после небольшой задержки
@@ -898,40 +934,40 @@ class Analytics {
     }
 
     /**
-     * Раскрыть карточку с данными по сотрудникам
+     * Раскрыть карточку: вкладки «Сотрудники» и секции метрики.
+     *
+     * Сотрудники рисуются сразу из клиентского кэша (пустой список периода без
+     * продаж даёт «Нет данных», клик не игнорируется), секции метрики
+     * догружаются в уже раскрытую карточку (loadCardDetails). Клики внутри
+     * раскрытия не всплывают на карточку: обработчик раскрытия висит на ней
+     * самой, и вкладка или ссылка иначе схлопывали бы её.
      */
     expandCard(card, metric) {
-        // Пустой список (период без продаж) раскрывается с «Нет данных»: карточка
-        // не должна молча игнорировать клик.
-        if (!this.employeeData) {
-            return;
-        }
-
         this.expandedCard = card;
         card.classList.add('expanded');
 
-        // Создаём секцию с данными
         const breakdown = document.createElement('div');
         breakdown.className = 'metric-breakdown';
-
-        // Заголовок
         breakdown.innerHTML = `
             <div class="breakdown-header">
-                <span>По сотрудникам</span>
+                <span class="breakdown-heading">По сотрудникам</span>
                 <span class="breakdown-close" onclick="event.stopPropagation()">✕</span>
             </div>
-            <div class="breakdown-list">
-                ${this.renderEmployeeList(metric)}
-            </div>
+            <div class="breakdown-tabs hidden" role="tablist"></div>
+            <div class="breakdown-formula hidden"></div>
+            <div class="breakdown-list"></div>
+            <div class="breakdown-note hidden"></div>
         `;
-
-        // Обработчик закрытия
+        breakdown.addEventListener('click', (e) => e.stopPropagation());
         breakdown.querySelector('.breakdown-close').addEventListener('click', (e) => {
             e.stopPropagation();
             this.collapseCard(card);
         });
-
         card.appendChild(breakdown);
+
+        this.renderTabs(card, metric);
+        this.showTab(card, metric, this.currentTab(metric));
+        this.loadCardDetails(card, metric);
     }
 
     /**
@@ -962,7 +998,7 @@ class Analytics {
      */
     renderEmployeeList(metric) {
         const key = metric.id;
-        if (!EXPANDABLE_METRICS.includes(key)) return '<div class="breakdown-empty">Нет данных</div>';
+        if (!EMPLOYEE_METRICS.includes(key)) return '<div class="breakdown-empty">Нет данных</div>';
 
         const employees = this.employeeData || [];
         const sorted = [...employees].sort((a, b) => (b[key] || 0) - (a[key] || 0));
@@ -1021,15 +1057,284 @@ class Analytics {
         return rows.join('');
     }
 
-    /** Строка «Итого» разбивки; hint — подсказка в title. */
-    renderBreakdownTotal(value, metric, hint) {
+    /** Строка «Итого» разбивки; hint — подсказка в title, name — подпись строки. */
+    renderBreakdownTotal(value, metric, hint, name = 'Итого') {
         return `
-            <div class="breakdown-item breakdown-total" title="${hint}">
+            <div class="breakdown-item breakdown-total" title="${escapeHtml(hint || '')}">
                 <span class="breakdown-rank">=</span>
-                <span class="breakdown-name">Итого</span>
+                <span class="breakdown-name">${escapeHtml(name)}</span>
                 <span class="breakdown-value">${formatValue(value, metric.format)}</span>
             </div>
         `;
+    }
+
+    // ============================================================
+    // ДЕТАЛИ КАРТОЧКИ: вкладки-секции (2026-09-04)
+    // ============================================================
+
+    /** Вкладки раскрытой карточки: «Сотрудники» (если есть) и секции метрики с сервера. */
+    tabsFor(metric) {
+        const tabs = [];
+        if (EMPLOYEE_METRICS.includes(metric.id)) {
+            tabs.push({ id: 'employees', title: 'Сотрудники' });
+        }
+        const sections = this.cardDetails[metric.id];
+        if (Array.isArray(sections)) {
+            sections.forEach(s => tabs.push({ id: s.id, title: s.title || s.id }));
+        }
+        return tabs;
+    }
+
+    /** Вкладка по умолчанию: из DEFAULT_TAB, если она уже есть, иначе первая. */
+    defaultTab(metric) {
+        const tabs = this.tabsFor(metric);
+        const preferred = DEFAULT_TAB[metric.id];
+        if (preferred && tabs.some(t => t.id === preferred)) return preferred;
+        return tabs.length ? tabs[0].id : null;
+    }
+
+    /**
+     * Выбранная вкладка метрики (живёт на сессию) или вкладка по умолчанию.
+     * Пока секции не пришли, карточка с вкладкой по умолчанию (литры, краны)
+     * показывает «Загрузка…» (null), а не сотрудников, которых тут же заменят.
+     */
+    currentTab(metric) {
+        const chosen = this.activeTab[metric.id];
+        if (chosen && this.tabsFor(metric).some(t => t.id === chosen)) return chosen;
+        if (DEFAULT_TAB[metric.id] && this.cardDetails[metric.id] === undefined) return null;
+        return this.defaultTab(metric);
+    }
+
+    /** Секция метрики по id из ответа /api/dashboard-card-details. */
+    findSection(metric, sectionId) {
+        const sections = this.cardDetails[metric.id];
+        if (!Array.isArray(sections)) return null;
+        return sections.find(s => s.id === sectionId) || null;
+    }
+
+    /**
+     * Полоса вкладок. Клик по вкладке останавливает всплытие: обработчик
+     * раскрытия висит на самой карточке, и иначе первый клик схлопнул бы её.
+     * Полоса скрыта, пока вкладка одна.
+     */
+    renderTabs(card, metric) {
+        const tabsEl = card.querySelector('.breakdown-tabs');
+        if (!tabsEl) return;
+        const tabs = this.tabsFor(metric);
+        const active = this.currentTab(metric);
+        const scrollLeft = tabsEl.scrollLeft;
+        tabsEl.innerHTML = tabs.map(t => `
+            <button type="button" class="breakdown-tab${t.id === active ? ' active' : ''}"
+                    role="tab" aria-selected="${t.id === active}"
+                    data-section="${escapeHtml(t.id)}">${escapeHtml(t.title)}</button>
+        `).join('');
+        tabsEl.classList.toggle('hidden', tabs.length < 2);
+        tabsEl.querySelectorAll('.breakdown-tab').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.switchTab(card, metric, btn.dataset.section);
+            });
+        });
+        tabsEl.scrollLeft = scrollLeft;
+    }
+
+    /** Переключить активный чип без пересборки полосы: прокрутка и фокус остаются. */
+    markActiveTab(card, sectionId) {
+        card.querySelectorAll('.breakdown-tab').forEach(btn => {
+            const active = btn.dataset.section === sectionId;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+    }
+
+    switchTab(card, metric, sectionId) {
+        this.activeTab[metric.id] = sectionId;
+        this.markActiveTab(card, sectionId);
+        this.showTab(card, metric, sectionId);
+    }
+
+    /** Показать вкладку: заголовок, формула, список и заметка секции. */
+    showTab(card, metric, sectionId) {
+        const heading = card.querySelector('.breakdown-heading');
+        const formulaEl = card.querySelector('.breakdown-formula');
+        const list = card.querySelector('.breakdown-list');
+        const noteEl = card.querySelector('.breakdown-note');
+        if (!heading || !list) return;
+        const setFormula = (text) => {
+            formulaEl.textContent = text || '';
+            formulaEl.classList.toggle('hidden', !text);
+        };
+        const setNote = (html) => {
+            noteEl.innerHTML = html || '';
+            noteEl.classList.toggle('hidden', !html);
+        };
+
+        if (sectionId === 'employees') {
+            heading.textContent = 'По сотрудникам';
+            setFormula(EMPLOYEE_FORMULA);
+            list.innerHTML = this.renderEmployeeList(metric);
+            // Секции метрики не загрузились — сказать об этом здесь, иначе
+            // пользователь и не узнает, что вкладки «Дни/Бары/...» существуют.
+            const details = this.cardDetails[metric.id];
+            setNote(details && details.error
+                ? 'Детали карточки не загрузились. Закройте и раскройте карточку заново'
+                : '');
+            return;
+        }
+
+        const section = sectionId ? this.findSection(metric, sectionId) : null;
+        if (!section) {
+            const details = this.cardDetails[metric.id];
+            heading.textContent = 'Детали';
+            setFormula('');
+            list.innerHTML = details && details.error
+                ? '<div class="breakdown-empty">Не удалось загрузить детали</div>'
+                : '<div class="breakdown-loading">Загрузка…</div>';
+            setNote('');
+            return;
+        }
+
+        if (section.lazy) {
+            const loaded = this.lazySections[section.id];
+            if (loaded) {
+                this.renderSectionInto(card, loaded);
+                return;
+            }
+            heading.textContent = section.title;
+            setFormula('');
+            list.innerHTML = '<div class="breakdown-loading">Загрузка…</div>';
+            setNote('');
+            this.loadLazySection(card, metric, section);
+            return;
+        }
+
+        this.renderSectionInto(card, section);
+    }
+
+    /** Заголовок, формула, строки и заметка секции — в разметку раскрытия. */
+    renderSectionInto(card, section) {
+        const heading = card.querySelector('.breakdown-heading');
+        const formulaEl = card.querySelector('.breakdown-formula');
+        const list = card.querySelector('.breakdown-list');
+        const noteEl = card.querySelector('.breakdown-note');
+        heading.textContent = section.heading || section.title || 'Детали';
+        formulaEl.textContent = section.formula || '';
+        formulaEl.classList.toggle('hidden', !section.formula);
+        list.innerHTML = this.renderSection(section);
+        const parts = [];
+        if (section.note) parts.push(escapeHtml(section.note));
+        if (section.link && section.link.href) {
+            parts.push(`<a class="breakdown-link" href="${escapeHtml(section.link.href)}">`
+                + `${escapeHtml(section.link.label || section.link.href)}</a>`);
+        }
+        noteEl.innerHTML = parts.join(' · ');
+        noteEl.classList.toggle('hidden', parts.length === 0);
+    }
+
+    /**
+     * Строки секции: та же разметка, что у сотрудников (ранг, имя, значение);
+     * доля и подпись — в .breakdown-sub; затем «Остальные» и «Итого», которые
+     * сервер посчитал из того же ответа, что и карточка.
+     */
+    renderSection(section) {
+        if (section.error) return `<div class="breakdown-empty">${escapeHtml(section.error)}</div>`;
+        const rows = section.rows || [];
+        if (rows.length === 0) return '<div class="breakdown-empty">Нет данных</div>';
+        const fmt = section.format || 'number';
+        const out = rows.map((row, i) => this.renderSectionRow(row, i + 1, fmt, ''));
+        if (section.rest) out.push(this.renderSectionRow(section.rest, '+', fmt, 'breakdown-rest'));
+        if (section.total) {
+            out.push(this.renderBreakdownTotal(section.total.value, { format: fmt },
+                section.total.hint || '', section.total.name || 'Итого'));
+        }
+        return out.join('');
+    }
+
+    renderSectionRow(row, rank, fmt, extraClass) {
+        const subParts = [];
+        if (row.share !== undefined && row.share !== null) subParts.push(formatPercent(row.share));
+        if (row.sub) subParts.push(row.sub);
+        const sub = subParts.length
+            ? `<span class="breakdown-sub">${escapeHtml(subParts.join(' · '))}</span>` : '';
+        return `
+            <div class="breakdown-item ${extraClass}">
+                <span class="breakdown-rank">${rank}</span>
+                <span class="breakdown-name">${escapeHtml(row.name)}${sub}</span>
+                <span class="breakdown-value">${formatValue(row.value, fmt)}</span>
+            </div>
+        `;
+    }
+
+    /**
+     * Догрузить секции метрики в уже раскрытую карточку. Один запрос на метрику:
+     * повторное раскрытие, пока ответ идёт, ждёт тот же промис (иначе щёлканье по
+     * карточке на холодном кэше слало дубликаты на второй воркер — стампед из
+     * lessons.md). Ответ принимается, только если бар и период не сменились, а
+     * рисуется, только если раскрыта всё ещё эта карточка. Ошибка показывается
+     * внутри карточки без глобального сообщения и не запоминается как данные —
+     * следующее раскрытие повторит запрос.
+     */
+    async loadCardDetails(card, metric) {
+        if (Array.isArray(this.cardDetails[metric.id])) return;
+        if (!this._detailsInflight[metric.id]) {
+            const requestKey = this.employeeDataKey();
+            const promise = getCardDetails(
+                state.currentVenue, state.currentPeriod.start, state.currentPeriod.end, metric.id
+            ).then((data) => {
+                if (this.employeeDataKey() === requestKey) this.cardDetails[metric.id] = data.sections || [];
+            }).catch((error) => {
+                console.error('[Analytics] Failed to load card details:', error);
+                if (this.employeeDataKey() === requestKey) this.cardDetails[metric.id] = { error: true };
+            }).finally(() => {
+                // Снимаем только свой маркер: после смены периода тут может лежать новый запрос.
+                if (this._detailsInflight[metric.id] === promise) delete this._detailsInflight[metric.id];
+            });
+            this._detailsInflight[metric.id] = promise;
+        }
+        await this._detailsInflight[metric.id];
+        if (this.expandedCard !== card) return;
+        this.renderTabs(card, metric);
+        this.showTab(card, metric, this.currentTab(metric));
+    }
+
+    /**
+     * Ленивая секция (литры как на /draft, краны): отдельный запрос по клику
+     * на вкладку. Одна секция на несколько карточек — литры у карточек розлива
+     * грузятся один раз, а каждая раскрытая карточка ждёт тот же промис и
+     * рисует результат у себя. Ошибка не запоминается: следующее раскрытие или
+     * клик по вкладке пробует снова.
+     */
+    async loadLazySection(card, metric, section) {
+        if (!this._lazyInflight[section.id]) {
+            const promise = this.fetchLazySection(metric, section).finally(() => {
+                if (this._lazyInflight[section.id] === promise) delete this._lazyInflight[section.id];
+            });
+            this._lazyInflight[section.id] = promise;
+        }
+        const failed = await this._lazyInflight[section.id];
+        if (this.expandedCard !== card || this.currentTab(metric) !== section.id) return;
+        if (failed) {
+            this.renderSectionInto(card, { ...section, lazy: false, rows: [], error: 'Не удалось загрузить' });
+            return;
+        }
+        this.showTab(card, metric, section.id);
+    }
+
+    /** Сам запрос ленивой секции: результат в lazySections; возвращает true при ошибке. */
+    async fetchLazySection(metric, section) {
+        const requestKey = this.employeeDataKey();
+        try {
+            const data = await getCardDetails(
+                state.currentVenue, state.currentPeriod.start, state.currentPeriod.end,
+                metric.id, section.id
+            );
+            if (this.employeeDataKey() !== requestKey) return true;
+            this.lazySections[section.id] = data.section || { ...section, lazy: false, rows: [] };
+            return false;
+        } catch (error) {
+            console.error('[Analytics] Failed to load lazy section:', error);
+            return true;
+        }
     }
 
     /**

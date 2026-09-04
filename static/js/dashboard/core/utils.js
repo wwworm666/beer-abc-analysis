@@ -36,6 +36,18 @@ export function formatPercent(value) {
 }
 
 /**
+ * Форматировать литры (412.5 → 412,5 л) — вкладка «Литры» в карточках розлива
+ */
+export function formatLiters(value) {
+    if (value == null) return '0 л';
+    return new Intl.NumberFormat('ru-RU', {
+        style: 'decimal',
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+    }).format(value) + ' л';
+}
+
+/**
  * Форматировать значение согласно типу
  */
 export function formatValue(value, format) {
@@ -46,6 +58,8 @@ export function formatValue(value, format) {
             return formatNumber(value);
         case 'percent':
             return formatPercent(value);
+        case 'liters':
+            return formatLiters(value);
         default:
             return value;
     }

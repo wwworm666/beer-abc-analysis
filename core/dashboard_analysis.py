@@ -129,6 +129,14 @@ class DashboardMetrics:
             'avg_markup': round(avg_markup, 4),
             'total_margin': round(total_margin, 2),
 
+            # Маржа по категориям (2026-09-04): сумма четырёх == total_margin.
+            # Питает секцию «Прибыль по категориям» внутри карточки «Прибыль»
+            # (core/dashboard_details.py); frontend_mapping лишние ключи игнорирует.
+            'draft_margin': round(draft_margin, 2),
+            'bottles_margin': round(bottles_margin, 2),
+            'kitchen_margin': round(kitchen_margin, 2),
+            'other_margin': round(other_margin, 2),
+
             'draft_markup': round(draft_markup, 4),
             'bottles_markup': round(bottles_markup, 4),
             'kitchen_markup': round(kitchen_markup, 4),

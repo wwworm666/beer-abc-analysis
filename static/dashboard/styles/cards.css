@@ -829,14 +829,16 @@
     animation: slideDown 0.2s ease;
 }
 
+/* Появление раскрытия: без max-height — список с вкладками, формулой и
+   строками выше 300px, и ограничение высоты давало рывок в конце анимации. */
 @keyframes slideDown {
     from {
         opacity: 0;
-        max-height: 0;
+        transform: translateY(-4px);
     }
     to {
         opacity: 1;
-        max-height: 300px;
+        transform: translateY(0);
     }
 }
 
@@ -844,10 +846,102 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
     font-size: 0.8rem;
     color: var(--text-secondary);
     font-weight: 600;
+}
+
+.breakdown-heading {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================
+   ДЕТАЛИ КАРТОЧКИ — вкладки-секции (2026-09-04)
+   ============================================ */
+
+/* Полоса вкладок-чипсов: на телефоне прокручивается горизонтально;
+   скрыта, пока вкладка одна (класс hidden ставит JS). */
+.breakdown-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: 2px;
+}
+
+.breakdown-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.breakdown-tab {
+    flex: 0 0 auto;
+    min-height: 28px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.breakdown-tab:hover {
+    color: var(--text-primary);
+}
+
+.breakdown-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
+}
+
+.breakdown-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Формула секции — видимым текстом: подсказка в title на телефоне не работает. */
+.breakdown-formula {
+    margin-bottom: var(--spacing-sm);
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--text-tertiary);
+}
+
+.breakdown-note {
+    margin-top: var(--spacing-sm);
+    font-size: 0.72rem;
+    line-height: 1.3;
+    color: var(--text-tertiary);
+}
+
+.breakdown-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.breakdown-link:hover {
+    text-decoration: underline;
+}
+
+.breakdown-loading {
+    padding: var(--spacing-sm);
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
 }
 
 .breakdown-close {
@@ -940,6 +1034,23 @@
     color: var(--text-tertiary);
     font-size: 0.75rem;
     font-weight: 400;
+}
+
+/* Телефон: длинные названия (кеги, блюда) переносятся, доля и подпись уходят
+   на вторую строку — иначе в 350px от подписи остаётся «33.8% …». Блок стоит
+   ПОСЛЕ базовых правил .breakdown-name/.breakdown-sub: медиа-запрос не повышает
+   специфичность, побеждает более позднее правило. */
+@media (max-width: 768px) {
+    .breakdown-name {
+        white-space: normal;
+        overflow: visible;
+        line-height: 1.25;
+    }
+
+    .breakdown-name .breakdown-sub {
+        display: block;
+        margin-left: 0;
+    }
 }
 
 /* ============================================

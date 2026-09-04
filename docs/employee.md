@@ -1003,6 +1003,15 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 
 ## Changelog
 
+### 2026-09-04 (2) — Строка сотрудника несёт ключи лояльности
+
+`_breakdown_row` (`routes/employee.py`) дополнена ключами `cardChecks`,
+`nocardChecks`, `cardChecksShare`, `cardRevenue`, `nocardRevenue` — значения уже
+считались в `calculate_metrics` по сотруднику, поэтому вкладка «Сотрудники»
+появилась у четырёх карточек группы «Лояльность» без новых данных; прежние 19
+ключей не изменились. Сама разбивка стала одной из вкладок раскрытой карточки
+(см. [dashboard.md](dashboard.md) «Детали внутри карточки»).
+
 ### 2026-09-04 — Разбивка карточек дашборда по сотрудникам считается из запроса дашборда
 
 `/api/employee-metrics-breakdown` больше не ходит в iiko сам: берёт единый

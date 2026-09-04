@@ -11,6 +11,7 @@ from core.category_analysis import CategoryAnalysis
 from core.abc_buckets import get_bucket_key
 from core.draft_analysis import DraftAnalysis
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
+from core.draft_loader import load_draft_kegs
 from core.revenue_metrics import RevenueMetricsCalculator
 from extensions import BARS, cached_olap
 
@@ -809,41 +810,10 @@ def analyze_draft_kegs():
         else:
             print(f"   Period: {date_from} - {date_to}")
 
-        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d')
-                        + timedelta(days=1)).strftime('%Y-%m-%d')
-
-        cache_key = f"draft_kegs_{bar_name or 'ALL'}_{date_from}_{olap_date_to}"
-
-        def fetch():
-            olap = OlapReports()
-            if not olap.connect():
-                return None
-            try:
-                # Порядок важен: связь с iiko рвётся, и если упал первый запрос,
-                # остальные только жгут бюджет gunicorn --timeout впустую.
-                transactions = olap.get_draft_writeoff_report(
-                    date_from, olap_date_to, bar_name)
-                if transactions is None:
-                    return None
-                sales = olap.get_draft_sales_by_dish(date_from, olap_date_to, bar_name)
-                if sales is None:
-                    return None
-                dish_map = olap.get_dish_ingredient_map(date_from, olap_date_to)
-            finally:
-                olap.disconnect()
-
-            if dish_map is None:
-                return None
-            return {
-                'transactions': transactions.get('data') or [],
-                'sales': sales.get('data') or [],
-                'dish_map': dish_map,
-                # Когда данные реально забраны из iiko. Лежит внутри кэша, поэтому
-                # «обновлено» на странице показывает возраст цифр, а не момент клика.
-                'fetched_at': datetime.now(ZoneInfo('Europe/Moscow')).strftime('%H:%M'),
-            }
-
-        raw = cached_olap(cache_key, fetch)
+        # Три запроса к iiko и ключ кэша живут в core/draft_loader.py (с 2026-09-04):
+        # тот же загрузчик кормит вкладку «Литры» в карточках розлива дашборда, и при
+        # совпадении бара и периода оба экрана читают одну запись кэша.
+        raw = load_draft_kegs(bar_name, date_from, date_to)
         if not raw:
             return jsonify({'error': 'Не удалось получить данные из iiko API'}), 502
 

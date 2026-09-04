@@ -189,42 +189,37 @@ def start_tap(self, ...):
 Процент: (70 / (24 × 7)) × 100 = 41.67%
 ```
 
-#### Реализация
+#### Реализация (с 2026-09-04 — с разбивкой по кранам)
 
 ```python
-# core/taps_manager.py:431-551
-def calculate_tap_activity_for_period(self, bar_id, date_from, date_to):
-    # 1. Генерируем список дней в периоде
-    days = []
-    current_day = period_start
-    while current_day <= period_end:
-        days.append(current_day)
-        current_day += timedelta(days=1)
+# core/taps_manager.py
+def tap_activity_by_tap(self, bar_id, date_from, date_to) -> dict:
+    # 1. Дни периода включительно и срез на 23:59:59 каждого дня
+    # 2. Для каждого крана время событий разбирается один раз; для каждого дня
+    #    берётся последнее событие (в порядке истории) с временем <= конца дня;
+    #    кран активен, если это 'start' или 'replace' -> active_days += 1
+    # 3. percent = Σ active_days всех кранов / (кранов × дней) × 100, 0.0 при нуле
+    return {'days', 'total_taps', 'active_tap_days', 'percent',
+            'taps': [{'bar_id', 'bar_name', 'tap_number', 'active_days', 'current_beer'}]}
 
-    # 2. Для каждого дня считаем активные краны
-    for day in days:
-        day_end = day.replace(hour=23, minute=59, second=59)
-        active_taps_today = 0
-
-        for tap_num, tap in bar.taps.items():
-            # Находим последнее событие до конца дня
-            last_action = None
-            for event in tap.history:
-                event_time = datetime.fromisoformat(event['timestamp'])
-                if event_time <= day_end:
-                    last_action = event.get('action')
-
-            # Кран активен если последнее действие = START или REPLACE
-            if last_action in ['start', 'replace']:
-                active_taps_today += 1
-
-        total_tap_days += active_taps_today
-
-    # 3. Рассчитываем процент
-    max_tap_days = total_taps * len(days)
-    result = (total_tap_days / max_tap_days) * 100
-    return result
+def calculate_tap_activity_for_period(self, bar_id, date_from, date_to) -> float:
+    # Число карточки «Активность кранов» на дашборде - обёртка:
+    return self.tap_activity_by_tap(bar_id, date_from, date_to)['percent']
 ```
+
+Одна арифметика питает и число карточки, и секцию «Краны» внутри раскрытой
+карточки на дашборде (`/api/dashboard-card-details` с `section=taps`, см.
+[dashboard.md](dashboard.md) «Детали внутри карточки»): «Простаивали весь период:
+K из M кранов», пять кранов с наименьшим числом активных дней, ссылка «Открыть
+краны». Клик по карточке с 2026-09-04 раскрывает её, а не уводит на `/taps`.
+Тест `tests/test_dashboard_card_details.py` закрепляет равенство обёртки и
+разбивки: сумма `active_days` по кранам равна `active_tap_days`.
+
+Ограничение: история крана обрезана до `MAX_TAP_HISTORY = 200` событий, поэтому на
+длинных периодах ранние дни могут остаться без события, и кран будет считаться
+пустым — это действует и на карточку, и на секцию. «Последнее событие» — последнее
+подходящее в порядке списка `history` (история хронологическая), не максимум по
+времени.
 
 ---
 

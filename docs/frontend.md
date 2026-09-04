@@ -169,39 +169,30 @@ export const config = {
 
 ### Analytics Module
 
-```javascript
-// static/js/dashboard/modules/analytics.js
-import { api } from '../core/api.js';
-import { state } from '../core/state.js';
-import { config } from '../core/config.js';
+`static/js/dashboard/modules/analytics.js` — класс `Analytics` (синглтон
+`analytics`), актуально на 2026-09-04:
 
-export async function loadAnalytics() {
-    const { dateFrom, dateTo, currentVenue } = state.getState();
+- `loadAnalytics()` -> `_loadAnalyticsImpl()`: план (`calculatePlan`) и факт
+  (`getAnalytics`, `/api/dashboard-analytics`) параллельно, дедупликация
+  одинаковых запросов, отсечение устаревших ответов по `_requestSeq`, затем
+  `displayComparison` рисует обе разметки (`renderDesktop`, `renderMobile`) и
+  догружает предыдущий период (`loadPreviousPeriod`).
+- Раскрытие карточки: `attachCardBehaviour` вешает клик на десктопную карточку
+  и мобильные `m-hero`/`m-compact`/`m-row`; `handleCardClick` грузит сотрудников
+  (`getEmployeeBreakdown`, один раз на бар + период), `expandCard` строит
+  `.metric-breakdown` с полосой вкладок `.breakdown-tabs`, формулой
+  `.breakdown-formula`, списком и заметкой; `loadCardDetails` догружает секции
+  метрики (`getCardDetails`, `/api/dashboard-card-details`), `loadLazySection` —
+  ленивые «Литры» и «Краны». Клики внутри раскрытия не всплывают на карточку.
+  Списки метрик: `EXPANDABLE_METRICS` (все 20), `EMPLOYEE_METRICS` (без кранов),
+  `ADDITIVE_METRICS`, `DEFAULT_TAB`. Подробно — [dashboard.md](dashboard.md),
+  разделы «Разбивка карточки по сотрудникам» и «Детали внутри карточки».
+- Кэш раскрытия (`employeeData`, `employeeTotal`, `cardDetails`, `lazySections`)
+  сбрасывается в `resetEmployeeData()` при смене бара/периода и по «Обновить».
 
-    if (!dateFrom || !dateTo) {
-        return;
-    }
-
-    state.setState({ isLoading: true });
-
-    try {
-        const data = await api.post(config.API_ENDPOINTS.DASHBOARD_ANALYTICS, {
-            venue: currentVenue || '',
-            dateFrom,
-            dateTo
-        });
-
-        state.setState({
-            metrics: data.metrics,
-            plan: data.plan,
-            comparison: data.comparison,
-            isLoading: false
-        });
-    } catch (error) {
-        state.setState({ error: error.message, isLoading: false });
-    }
-}
-```
+Пути API — только через объект `API` в `core/config.js` (`ANALYTICS`,
+`EMPLOYEE_BREAKDOWN`, `CARD_DETAILS`, ...), запросы — через `fetchAPI` в
+`core/api.js`.
 
 ---
 

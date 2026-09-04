@@ -173,7 +173,8 @@ export const METRICS = [
         planKey: 'loyaltyWriteoffs',
         actualKey: 'loyaltyWriteoffs',  // ИСПРАВЛЕНО: было loyalty_points_written_off
         unit: '₽',
-        format: 'money'
+        format: 'money',
+        hint: 'Сумма DiscountSum по строкам чеков: все скидки чека, не только баллы лояльности'
     },
     {
         id: 'tapActivity',
@@ -182,7 +183,8 @@ export const METRICS = [
         planKey: 'tapActivity',
         actualKey: 'tapActivity',
         unit: '%',
-        format: 'percent'
+        format: 'percent',
+        hint: 'Активность = сумма активных кран-дней / (кранов × дней) × 100; кран активен в день, если последнее событие до конца дня — подключение или замена кеги'
     },
     {
         // Лояльность: чек «с картой», если хотя бы у одной его строки в OLAP
@@ -261,6 +263,9 @@ export const API = {
     DAILY_BREAKDOWN: (venueKey, year, month) => `/api/plans/daily/${venueKey || 'all'}/${year}/${month}`,
     DAILY_WEIGHT_RESET: (venueKey, year, month, dateStr) => `/api/plans/daily/${venueKey || 'all'}/${year}/${month}/${dateStr}`,
     ANALYTICS: '/api/dashboard-analytics',  // ИСПРАВЛЕНО: было dashboard-analytics-multi
+    // Раскрытие карточки: вкладка «Сотрудники» и секции метрики (2026-09-04)
+    EMPLOYEE_BREAKDOWN: '/api/employee-metrics-breakdown',
+    CARD_DETAILS: '/api/dashboard-card-details',
     COMPARISON_PERIODS: '/api/comparison/periods',
     COMPARISON_VENUES: '/api/comparison/venues',
     TRENDS: (venueKey, metric, weeks) => `/api/trends/${venueKey}/${metric}/${weeks}`,

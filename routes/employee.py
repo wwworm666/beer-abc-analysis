@@ -1160,7 +1160,15 @@ def _breakdown_row(name, m):
         'markupPackaged': pct(m['bottles_markup']),
         'markupKitchen': pct(m['kitchen_markup']),
         'markupOther': pct(m['other_markup']),
-        'loyaltyWriteoffs': round(m['loyalty_points_written_off'], 0)
+        'loyaltyWriteoffs': round(m['loyalty_points_written_off'], 0),
+        # Лояльность (2026-09-04): ключи уже есть в calculate_metrics по сотруднику,
+        # поэтому вкладка «Сотрудники» у четырёх карточек группы «Лояльность»
+        # появляется без новых данных. card + nocard == checks по построению.
+        'cardChecks': m['card_checks'],
+        'nocardChecks': m['nocard_checks'],
+        'cardChecksShare': round(m['card_checks_share'], 1),
+        'cardRevenue': round(m['card_revenue'], 0),
+        'nocardRevenue': round(m['nocard_revenue'], 0)
     }
 
 

@@ -25,7 +25,8 @@
 | [templates/draft.html](../templates/draft.html) | Каркас страницы: шапка, фильтры, пустые узлы секций. Разметку внутри рисует JS |
 | [static/draft/draft.css](../static/draft/draft.css) | Оформление по макету: токены `--dr-*`, тёмная тема, телефон |
 | [static/js/draft/draft.js](../static/js/draft/draft.js) | Сборка экрана: фильтры, таблицы, сортировка, поиск, карточки |
-| [routes/analysis.py](../routes/analysis.py) | Эндпоинт `/api/draft-kegs` (кэш `cached_olap`, 10 мин) — весь экран одним ответом |
+| [routes/analysis.py](../routes/analysis.py) | Эндпоинт `/api/draft-kegs` — весь экран одним ответом |
+| [core/draft_loader.py](../core/draft_loader.py) | `load_draft_kegs(bar_name, date_from, date_to)` — три запроса к iiko и кэш `cached_olap` (10 мин, ключ `draft_kegs_{бар\|ALL}_{from}_{to+1}`). С 2026-09-04 общий для `/api/draft-kegs` и вкладки «Литры» карточек розлива дашборда ([dashboard.md](dashboard.md), «Детали внутри карточки»): при совпадении бара и периода оба экрана читают одну запись кэша, и цифры у них равны по построению |
 | [routes/pages.py](../routes/pages.py) | `/draft`, а также `/waiters` -> 301 на `/draft` |
 | [core/draft_kegs.py](../core/draft_kegs.py) | Расчёт: `DraftKegAnalysis`, все формулы |
 | [core/olap_reports.py](../core/olap_reports.py) | Три запроса к iiko: `get_draft_writeoff_report`, `get_draft_sales_by_dish`, `get_dish_ingredient_map` |
@@ -382,6 +383,16 @@ Playwright по фикстуре `tests/fixtures/draft_kegs_sample.json` (см. 
 
 ## Changelog
 
+- **2026-09-04** — Загрузчик сырья (три запроса к iiko + кэш) вынесен из вьюхи
+  `/api/draft-kegs` в `core/draft_loader.py::load_draft_kegs`; ключ кэша не менялся.
+  Его же читает вкладка «Литры» в карточках «Доля розлива» и «Выручка розлив» на
+  дашборде: топ-5 кегов по литрам и доле (`kegs[:5]`, `total_liters`), сверка за
+  неделю 24–30.08 — до десятой литра с этой страницей. На дашборде вкладка «Литры»
+  показывает КЕГ (`Product.Name`), а соседняя «Сорта» — сорт по названию блюда:
+  два написания одной позиции, склеивать их не пытаемся. Парсер названия
+  (`extract_beer_info`, `clean_beer_name`, `estimate_volume`) вынесен в модульные
+  функции `core/draft_analysis.py`, методы класса делегируют; докстринг больше не
+  обещает 0.0 для нераспознанного объёма (код возвращает оценку, по умолчанию 0,5 л).
 - **2026-08-14** — Страница пересобрана по макету владельца: один экран без вкладок,
   своя шапка с гамбургером, семь плиток сводки, сортируемые таблицы с итогами и поиском,
   баланс склада со шкалами, блок «где именно расхождения» с раскрывашкой и выдвижные

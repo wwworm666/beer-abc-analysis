@@ -10,6 +10,124 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 
+def clean_beer_name(name: str) -> str:
+    """
+    Очистка названия пива от лишних символов и слов.
+
+    Удаляет «с собой», «to go», «take away», лишние пробелы и дефисы по краям.
+    Модульная функция (2026-09-04): нужна деталям карточек дашборда без
+    DataFrame, метод DraftAnalysis._clean_beer_name делегирует сюда.
+    """
+    name = name.strip()
+    # Удаляем "с собой" и аналоги
+    name = re.sub(r'\s*(с\s+собой|to\s+go|take\s+away)\s*$', '', name, flags=re.IGNORECASE)
+    # Удаляем лишние пробелы
+    name = re.sub(r'\s+', ' ', name)
+    # Удаляем дефисы в начале/конце
+    name = name.strip('- ')
+    return name
+
+
+def estimate_volume(dish_name: str) -> float:
+    """
+    Эвристика объёма порции, если объём не распарсился из названия.
+
+    Логика:
+    - Если в названии есть "0.5" или "0,5" -> 0.5 л
+    - Если есть "1.0" или "1,0" или "1л" -> 1.0 л
+    - Если есть "500" (без мл) -> 0.5 л
+    - Если есть "1000" -> 1.0 л
+    - Иначе -> 0.5 л (стандартная порция)
+    """
+    name_lower = dish_name.lower()
+
+    if re.search(r'0[,\.]5', name_lower):
+        return 0.5
+    if re.search(r'1[,\.]0', name_lower) or re.search(r'\b1л\b', name_lower):
+        return 1.0
+    if re.search(r'\b500\b', name_lower):
+        return 0.5
+    if re.search(r'\b1000\b', name_lower):
+        return 1.0
+
+    return 0.5
+
+
+def extract_beer_info(dish_name: str) -> tuple[str, float]:
+    """
+    Извлекает название пива и объём порции из DishName.
+
+    Поддерживаемые форматы:
+    - "ФестХаус Хеллес (0,5)" -> ("ФестХаус Хеллес", 0.5)
+    - "Блек Шип (0,25)" -> ("Блек Шип", 0.25)
+    - "ХБ Октоберфест (1,0) с собой" -> ("ХБ Октоберфест", 1.0)
+    - "Пиво (2)" -> ("Пиво", 2.0)
+    - "Пиво (500мл)" -> ("Пиво", 0.5)
+    - "Пиво 0.5л" -> ("Пиво", 0.5) [без скобок]
+    - "ФестХаус 500мл с собой" -> ("ФестХаус", 0.5)
+    - "Пиво 0,5 л" -> ("Пиво", 0.5) [пробел перед единицей]
+
+    Регистр названия сохраняется как в iiko. Если объём не распознан, он
+    ОЦЕНИВАЕТСЯ эвристикой estimate_volume (по умолчанию 0,5 л), а не
+    возвращается нулём: ноль как признак «не распознано» здесь не работает.
+
+    Возвращает (название_пива, объём_в_литрах).
+    """
+    original = dish_name.strip()
+
+    # Паттерн 1: дробные числа в скобках (0,5 или 0.5)
+    pattern_liters = r'\((\d+[,\.]\d+)\s*(?:л|l)?\)'
+    match = re.search(pattern_liters, original, re.IGNORECASE)
+
+    if match:
+        volume_str = match.group(1).replace(',', '.')
+        volume = float(volume_str)
+        beer_name = original[:match.start()].strip()
+        return clean_beer_name(beer_name), volume
+
+    # Паттерн 2: целые числа в скобках (2)
+    pattern_whole_liters = r'\((\d+)\s*(?:л|l)?\)'
+    match = re.search(pattern_whole_liters, original, re.IGNORECASE)
+
+    if match:
+        volume = float(match.group(1))
+        beer_name = original[:match.start()].strip()
+        return clean_beer_name(beer_name), volume
+
+    # Паттерн 3: миллилитры в скобках (500мл, 500ml)
+    pattern_ml = r'\((\d+)\s*(?:мл|ml)\)'
+    match = re.search(pattern_ml, original, re.IGNORECASE)
+
+    if match:
+        volume_ml = float(match.group(1))
+        volume = volume_ml / 1000  # Конвертируем в литры
+        beer_name = original[:match.start()].strip()
+        return clean_beer_name(beer_name), volume
+
+    # Паттерн 4: дробные литры без скобок (Пиво 0.5л)
+    pattern_liters_no_brackets = r'(\d+[,\.]\d+)\s*(?:л|l)(?:\s|$|с)'
+    match = re.search(pattern_liters_no_brackets, original, re.IGNORECASE)
+
+    if match:
+        volume_str = match.group(1).replace(',', '.')
+        volume = float(volume_str)
+        beer_name = original[:match.start()].strip()
+        return clean_beer_name(beer_name), volume
+
+    # Паттерн 5: миллилитры без скобок (Пиво 500мл)
+    pattern_ml_no_brackets = r'(\d+)\s*(?:мл|ml)(?:\s|$|с)'
+    match = re.search(pattern_ml_no_brackets, original, re.IGNORECASE)
+
+    if match:
+        volume_ml = float(match.group(1))
+        volume = volume_ml / 1000  # Конвертируем в литры
+        beer_name = original[:match.start()].strip()
+        return clean_beer_name(beer_name), volume
+
+    # НЕ РАСПОЗНАНО: эвристика вместо нуля, чтобы не потерять данные
+    return clean_beer_name(original), estimate_volume(original)
+
+
 class DraftAnalysis:
     """Класс для анализа продаж разливного пива"""
 
@@ -26,122 +144,16 @@ class DraftAnalysis:
         self.df = df.copy()
 
     def _clean_beer_name(self, name: str) -> str:
-        """
-        Очистка названия пива от лишних символов и слов
-
-        Удаляет:
-        - "с собой", "to go", "take away"
-        - Лишние пробелы, дефисы в начале/конце
-        """
-        name = name.strip()
-        # Удаляем "с собой" и аналоги
-        name = re.sub(r'\s*(с\s+собой|to\s+go|take\s+away)\s*$', '', name, flags=re.IGNORECASE)
-        # Удаляем лишние пробелы
-        name = re.sub(r'\s+', ' ', name)
-        # Удаляем дефисы в начале/конце
-        name = name.strip('- ')
-        return name
+        """Делегирует модульной clean_beer_name (см. выше)."""
+        return clean_beer_name(name)
 
     def _estimate_volume(self, dish_name: str) -> float:
-        """
-        Эвристика для оценки объема порции если не удалось распарсить
-
-        Логика:
-        - Если в названии есть "0.5" или "0,5" → 0.5л
-        - Если есть "1.0" или "1,0" → 1.0л
-        - Если есть "500" (без мл) → 0.5л
-        - Если есть "1000" или "1л" → 1.0л
-        - Иначе → 0.5л (стандартная порция)
-        """
-        name_lower = dish_name.lower()
-
-        # Ищем явные указания объема в тексте
-        if re.search(r'0[,\.]5', name_lower):
-            return 0.5
-        if re.search(r'1[,\.]0', name_lower) or re.search(r'\b1л\b', name_lower):
-            return 1.0
-        if re.search(r'\b500\b', name_lower):
-            return 0.5
-        if re.search(r'\b1000\b', name_lower):
-            return 1.0
-
-        # Стандартная порция по умолчанию
-        return 0.5
+        """Делегирует модульной estimate_volume (см. выше)."""
+        return estimate_volume(dish_name)
 
     def extract_beer_info(self, dish_name: str) -> tuple[str, float]:
-        """
-        Извлекает название пива и объем порции из DishName
-
-        Поддерживаемые форматы:
-        - "ФестХаус Хеллес (0,5)" → ("фестхаус хеллес", 0.5)
-        - "Блек Шип (0,25)" → ("блек шип", 0.25)
-        - "ФестХаус Вайцен (1,0)" → ("фестхаус вайцен", 1.0)
-        - "ХБ Октоберфест (1,0) с собой" → ("хб октоберфест", 1.0)
-        - "Пиво (2)" → ("пиво", 2.0)
-        - "Пиво (500мл)" → ("пиво", 0.5)
-        - "Пиво 0.5л" → ("пиво", 0.5) [НОВЫЙ: без скобок]
-        - "ФестХаус 500мл с собой" → ("фестхаус", 0.5) [НОВЫЙ]
-        - "Пиво 0,5 л" → ("пиво", 0.5) [НОВЫЙ: пробел перед единицей]
-
-        Возвращает:
-        - (название_пива, объем_в_литрах)
-        - Если не распознано → (очищенное_название, 0.0)
-        """
-        original = dish_name.strip()
-
-        # Паттерн 1: дробные числа в скобках (0,5 или 0.5)
-        pattern_liters = r'\((\d+[,\.]\d+)\s*(?:л|l)?\)'
-        match = re.search(pattern_liters, original, re.IGNORECASE)
-
-        if match:
-            volume_str = match.group(1).replace(',', '.')
-            volume = float(volume_str)
-            beer_name = original[:match.start()].strip()
-            return self._clean_beer_name(beer_name), volume
-
-        # Паттерн 2: целые числа в скобках (2)
-        pattern_whole_liters = r'\((\d+)\s*(?:л|l)?\)'
-        match = re.search(pattern_whole_liters, original, re.IGNORECASE)
-
-        if match:
-            volume = float(match.group(1))
-            beer_name = original[:match.start()].strip()
-            return self._clean_beer_name(beer_name), volume
-
-        # Паттерн 3: миллилитры в скобках (500мл, 500ml)
-        pattern_ml = r'\((\d+)\s*(?:мл|ml)\)'
-        match = re.search(pattern_ml, original, re.IGNORECASE)
-
-        if match:
-            volume_ml = float(match.group(1))
-            volume = volume_ml / 1000  # Конвертируем в литры
-            beer_name = original[:match.start()].strip()
-            return self._clean_beer_name(beer_name), volume
-
-        # ПАТТЕРН 4: НОВЫЙ - дробные литры без скобок (Пиво 0.5л)
-        pattern_liters_no_brackets = r'(\d+[,\.]\d+)\s*(?:л|l)(?:\s|$|с)'
-        match = re.search(pattern_liters_no_brackets, original, re.IGNORECASE)
-
-        if match:
-            volume_str = match.group(1).replace(',', '.')
-            volume = float(volume_str)
-            beer_name = original[:match.start()].strip()
-            return self._clean_beer_name(beer_name), volume
-
-        # ПАТТЕРН 5: НОВЫЙ - миллилитры без скобок (Пиво 500мл)
-        pattern_ml_no_brackets = r'(\d+)\s*(?:мл|ml)(?:\s|$|с)'
-        match = re.search(pattern_ml_no_brackets, original, re.IGNORECASE)
-
-        if match:
-            volume_ml = float(match.group(1))
-            volume = volume_ml / 1000  # Конвертируем в литры
-            beer_name = original[:match.start()].strip()
-            return self._clean_beer_name(beer_name), volume
-
-        # НЕ РАСПОЗНАНО: применяем эвристику вместо возврата 0.0
-        # Это предотвращает потерю данных
-        estimated_volume = self._estimate_volume(original)
-        return self._clean_beer_name(original), estimated_volume
+        """Делегирует модульной extract_beer_info (см. выше): (название, объём в литрах)."""
+        return extract_beer_info(dish_name)
 
     def prepare_draft_data(self, preserve_original_for_mapping=True):
         """

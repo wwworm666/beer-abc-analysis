@@ -240,7 +240,7 @@
   - `core/olap_reports.py:get_all_sales_report (L847)`
 - Динамика: Если bar_name задан, добавляется filters["Store.Name"] = {filterType: IncludeValues, values: [{bar_name}]}. НЕ фильтрует по DishGroup.TopParent — получает всё (розлив + фасовка + кухня). Включает UniqOrderId.Id в groupByRowFields для подсчёта чеков. С 2026-09-04 в groupByRowFields также `Delivery.CustomerCardNumber` — карта лояльности на чеке, питает метрики «чеки с картой / без карты» на дашборде. Поле уровня заказа (одно значение на все строки чека), поэтому строки НЕ размножаются — замер по всем барам до/после: неделя 1 779 -> 1 779 строк, месяц 7 744 -> 7 744, выручка и число чеков без изменений, JSON +8–9%.
 - Динамика (2026-09-04): в groupByRowFields также `AuthUser` («Авторизовал», кто пробил чек) — питает разбивку карточек дашборда по сотрудникам: `/api/employee-metrics-breakdown` считает `calculate_metrics` по строкам каждого AuthUser из этого же кэшированного ответа. Замер по всем барам до/после: неделя 1 779 -> 1 779 строк, месяц 7 744 -> 7 744, выручка и чеки без изменений, JSON ещё +8–9%, время то же; чеков с двумя AuthUser — 0, строк с пустым — 0.
-- Заметка: Builder; публичный геттер get_all_sales_report (L847). Единственная точка входа для экрана «Аналитика» — `routes/dashboard.py:load_dashboard_sales` (кэш 10 мин): карточки, вкладка «Выручка» и разбивка по сотрудникам.
+- Заметка: Builder; публичный геттер get_all_sales_report (L847). Единственная точка входа для экрана «Аналитика» — `routes/dashboard.py:load_dashboard_sales` (кэш 10 мин): карточки, вкладка «Выручка», разбивка по сотрудникам и с 2026-09-04 детали внутри карточки (`/api/dashboard-card-details`, `core/dashboard_details.py`: дни, бары, категории, топ позиций/сортов/блюд, локал/импорт, гости по карте — всё из этих же строк, новых полей не добавлено). **Контракт:** `UniqOrderId.Id` в `groupByRowFields` — на нём держатся чеки, чеки с картой, гости и правило «атрибут заказа в группировке = +0 строк» (`docs/lessons.md`); аудит 2026-06-02 предлагал поле убрать — теперь этого делать нельзя без переписывания всех этих расчётов.
 
 ```json
 {
@@ -1398,7 +1398,10 @@
 - `routes/dashboard.py:559 — all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)`
 - `routes/dashboard.py:602 — data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)`
 - `routes/dashboard.py:747 — all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, None) (all bars)`
-- `routes/dashboard.py — load_dashboard_sales(venue_key, date_from, date_to)`: общий загрузчик с кэшем; через него `/api/dashboard-analytics`, `/api/revenue-metrics` и `/api/employee-metrics-breakdown` (`routes/employee.py`, с 2026-09-04)
+- `routes/dashboard.py — load_dashboard_sales(venue_key, date_from, date_to)`: общий загрузчик с кэшем; через него `/api/dashboard-analytics`, `/api/revenue-metrics`, `/api/employee-metrics-breakdown` (`routes/employee.py`, с 2026-09-04) и `/api/dashboard-card-details` (детали внутри карточки, `core/dashboard_details.py`, с 2026-09-04)
+
+### `get_draft_writeoff_report` + `get_draft_sales_by_dish` + `get_dish_ingredient_map` (страница /draft)
+- `core/draft_loader.py:load_draft_kegs(bar_name, date_from, date_to)` — единственный вызывающий с 2026-09-04: три запроса под одним ключом кэша `draft_kegs_{бар|ALL}_{from}_{to+1}`; потребители — `routes/analysis.py:/api/draft-kegs` и `routes/dashboard.py:/api/dashboard-card-details?section=draft_liters` (вкладка «Литры» карточек розлива)
 
 ### `get_explorer_sales`
 - `core/explorer.py:75 — data = olap.get_explorer_sales(date_from, date_to_inclusive, bar_name)`
@@ -1460,6 +1463,10 @@
 
 ## Changelog
 
+- 2026-09-04 (2) — Отчёт #4: новый потребитель `/api/dashboard-card-details` (детали внутри
+  карточки дашборда) — из тех же строк, без новых полей; `UniqOrderId.Id` в группировке
+  зафиксирован как контракт. Запросы `/draft` (проводки кегов, продажи с `DishId`, техкарты)
+  собраны в `core/draft_loader.py::load_draft_kegs`, второй потребитель — вкладка «Литры».
 - 2026-09-04 — Отчёт #4 (`_build_all_sales_olap_request`): в `groupByRowFields` добавлено
   `Delivery.CustomerCardNumber` — чеки с картой лояльности / без карты на дашборде
   (см. `docs/dashboard.md`). Тело обновлено по исходнику; `aggregateFields` без изменений.

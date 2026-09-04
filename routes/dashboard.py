@@ -5,6 +5,13 @@ import os
 from datetime import datetime, timedelta
 from core.olap_reports import OlapReports
 from core.dashboard_analysis import DashboardMetrics
+from core.dashboard_details import (
+    build_card_details, section_draft_liters, section_taps,
+    METRIC_IDS, LAZY_SECTIONS, LAZY_ONLY_METRICS
+)
+from core.draft_loader import load_draft_kegs
+from core.draft_kegs import DraftKegAnalysis, strip_service_fields
+from core.daily_plans_generator import DailyPlansGenerator
 from core.weeks_generator import WeeksGenerator
 from core import monthly_report
 from extensions import (
@@ -15,6 +22,27 @@ from extensions import (
 )
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+# venue_key дашборда -> id бара в TapsManager. Константа уровня модуля: нужна и
+# карточке «Активность кранов», и секции «Краны» в деталях карточки. Та же
+# таблица продублирована во фронте (analytics.js, ссылка «Открыть краны»).
+VENUE_TO_BAR_MAPPING = {
+    'bolshoy': 'bar1',
+    'ligovskiy': 'bar2',
+    'kremenchugskaya': 'bar3',
+    'varshavskaya': 'bar4',
+    'all': None  # все бары
+}
+
+
+def _taps_bar_names():
+    """{bar_id: название бара для экрана} - краны в TapsManager зовутся «Бар 1»."""
+    names = {}
+    for venue_key, bar_id in VENUE_TO_BAR_MAPPING.items():
+        venue = venues_manager.get_venue(venue_key) if bar_id else None
+        if venue:
+            names[bar_id] = venue.get('name') or bar_id
+    return names
 
 
 def load_dashboard_sales(venue_key, date_from, date_to):
@@ -102,16 +130,7 @@ def dashboard_analytics():
         # 3. Добавляем метрику активности кранов за период
         print("   [3/5] Расчет активности кранов...")
 
-        # Маппинг venue_key -> bar_id для TapsManager
-        VENUE_TO_BAR_MAPPING = {
-            'bolshoy': 'bar1',
-            'ligovskiy': 'bar2',
-            'kremenchugskaya': 'bar3',
-            'varshavskaya': 'bar4',
-            'all': None  # Для "all" передаем None чтобы считать все бары
-        }
-
-        # Преобразуем venue_key в bar_id для TapsManager
+        # Преобразуем venue_key в bar_id для TapsManager (константа уровня модуля)
         bar_id_for_taps = VENUE_TO_BAR_MAPPING.get(venue_key)
         print(f"   [DEBUG] venue_key={venue_key} -> bar_id_for_taps={bar_id_for_taps}")
 
@@ -173,6 +192,88 @@ def dashboard_analytics():
         traceback.print_exc()
         error_detail = f"{type(e).__name__}: {str(e)}"
         return jsonify({'error': error_detail}), 500
+
+
+@dashboard_bp.route('/api/dashboard-card-details', methods=['POST'])
+def dashboard_card_details():
+    """
+    Детали одной карточки дашборда: секции-вкладки раскрытой карточки (2026-09-04).
+
+    Тело: {venue_key, date_from, date_to, metric, section?}. Даты включительно,
+    как у /api/employee-metrics-breakdown; venue_key '' и None = 'all'.
+
+    Без section - все секции метрики из строк единого OLAP-запроса, взятого из
+    того же кэша, что и карточка (load_dashboard_sales, TTL 10 мин): новых
+    обращений к iiko нет, итог каждой секции равен карточке по построению
+    (core/dashboard_details.py). Ленивые секции приходят заглушкой lazy=true.
+
+    С section='draft_liters' - топ кегов по литрам из тех же данных, что
+    страница /draft (core/draft_loader.py, общий ключ кэша draft_kegs_*);
+    с section='taps' - краны с простоем из data/taps_data.json.
+
+    Коды: 400 без дат / при неизвестной метрике или секции; 500 при сбое iiko
+    (как у соседей, не кэшируется); 502 если не удалось загрузить данные /draft.
+    Пустой период - 200 с пустыми rows.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        venue_key = data.get('venue_key') or 'all'
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+        metric = data.get('metric')
+        section_id = data.get('section')
+
+        if not date_from or not date_to:
+            return jsonify({'error': 'Требуются параметры: date_from, date_to'}), 400
+        if metric not in METRIC_IDS:
+            return jsonify({'error': f'Неизвестная метрика: {metric}'}), 400
+        period = {'from': date_from, 'to': date_to}
+
+        if section_id:
+            if section_id not in LAZY_SECTIONS:
+                return jsonify({'error': f'Неизвестная секция: {section_id}'}), 400
+            print(f"\n[CARD DETAILS] Lenivaya sekciya {section_id}: {venue_key}, {date_from} - {date_to}")
+            if section_id == 'draft_liters':
+                bar_name = venues_manager.get_iiko_name(venue_key) if venue_key != 'all' else None
+                raw = load_draft_kegs(bar_name, date_from, date_to)
+                if not raw:
+                    return jsonify({'error': 'Не удалось получить данные проливов из iiko'}), 502
+                analyzer = DraftKegAnalysis(
+                    transactions=raw['transactions'], sales=raw['sales'],
+                    dish_map=raw['dish_map'], date_from=date_from, date_to=date_to,
+                )
+                block = strip_service_fields(analyzer.build(bar_name))
+                block['generated_at'] = raw.get('fetched_at')
+                section = section_draft_liters(block)
+            else:
+                bar_id = VENUE_TO_BAR_MAPPING.get(venue_key)
+                detail = taps_manager.tap_activity_by_tap(bar_id, date_from, date_to)
+                section = section_taps(detail, bar_names=_taps_bar_names(),
+                                       link_href=f'/taps/{bar_id}' if bar_id else '/taps')
+            return jsonify({'metric': metric, 'venue': venue_key, 'period': period, 'section': section})
+
+        print(f"\n[CARD DETAILS] Detali kartochki {metric}: {venue_key}, {date_from} - {date_to}")
+        if metric in LAZY_ONLY_METRICS:
+            # У кранов все секции ленивые: заглушкам строки не нужны, в iiko не ходим -
+            # иначе недоступный iiko прятал бы локальные данные кранов.
+            all_sales_data = {'data': []}
+        else:
+            all_sales_data = load_dashboard_sales(venue_key, date_from, date_to)
+            if all_sales_data is None:
+                return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
+
+        # План по дням нужен только выручке; файл читается один раз на запрос.
+        daily_plans = DailyPlansGenerator().load_daily_plans() if metric == 'revenue' else None
+        sections = build_card_details(metric, all_sales_data, venue_key, date_from, date_to, daily_plans)
+        errors = sum(1 for s in sections if s.get('error'))
+        print(f"[OK] Detali {metric}: {len(sections)} sekciy" + (f", oshibok: {errors}" if errors else ''))
+        return jsonify({'metric': metric, 'venue': venue_key, 'period': period, 'sections': sections})
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/dashboard-card-details: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
 
 
 # ============================================================================
