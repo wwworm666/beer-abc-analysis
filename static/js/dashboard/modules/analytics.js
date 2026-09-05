@@ -14,7 +14,8 @@ import {
     formatPercent,
     calculatePercent,
     calculateDiff,
-    getStatus
+    getStatus,
+    scorePercent
 } from '../core/utils.js';
 
 /**
@@ -27,7 +28,7 @@ const EXPANDABLE_METRICS = [
     'packagedShare', 'revenuePackaged', 'markupPackaged',
     'kitchenShare', 'revenueKitchen', 'markupKitchen',
     'profit', 'loyaltyWriteoffs', 'tapActivity',
-    'cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue'
+    'cardChecksShare'
 ];
 
 /**
@@ -40,7 +41,7 @@ const EMPLOYEE_METRICS = [
     'revenueDraft', 'revenuePackaged', 'revenueKitchen',
     'profit', 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
     'loyaltyWriteoffs',
-    'cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue'
+    'cardChecksShare'
 ];
 
 /**
@@ -51,7 +52,7 @@ const EMPLOYEE_METRICS = [
  */
 const ADDITIVE_METRICS = [
     'revenue', 'checks', 'revenueDraft', 'revenuePackaged', 'revenueKitchen',
-    'profit', 'loyaltyWriteoffs', 'cardChecks', 'nocardChecks', 'cardRevenue'
+    'profit', 'loyaltyWriteoffs'
 ];
 
 /**
@@ -93,6 +94,15 @@ const CHEVRON_SVG = '<svg class="chevron" width="12" height="12" viewBox="0 0 24
 /** Ширина шкалы: план перевыполнен — шкала всё равно полная. */
 function barWidth(percent) {
     return Math.max(0, Math.min(percent, 100));
+}
+
+/**
+ * Слово «план»/«бюджет» для подписей карточки: у бюджетной метрики (config.js
+ * `budget: true`) план — потолок. gen = родительный падеж («97% плана»).
+ */
+function planWord(metric, gen = false) {
+    if (metric.budget) return gen ? 'бюджета' : 'бюджет';
+    return gen ? 'плана' : 'план';
 }
 
 /**
@@ -283,15 +293,22 @@ class Analytics {
             const hasPlan = planValue !== null && planValue !== undefined && planValue !== 0;
             const percent = hasPlan ? calculatePercent(actualValue, planValue) : 0;
             const diff = hasPlan ? calculateDiff(actualValue, planValue) : 0;
+            // Бюджетная метрика: план — потолок. score — процент «в сторону
+            // хорошего» для светофора и средних, good — знак отклонения
+            // «хорошо/плохо» (перерасход бюджета — плохо, недобор плана — плохо).
+            const budget = metric.budget === true;
 
             return {
                 metric,
                 planValue: hasPlan ? planValue : null,
                 actualValue,
                 percent,
+                score: hasPlan ? scorePercent(percent, budget) : 0,
                 diff,
+                good: budget ? diff <= 0 : diff >= 0,
                 hasPlan,
-                status: hasPlan ? getStatus(percent) : 'neutral'
+                budget,
+                status: hasPlan ? getStatus(percent, budget) : 'neutral'
             };
         });
     }
@@ -315,11 +332,13 @@ class Analytics {
         this.metricsGrid.appendChild(this.renderDesktop(stats));
         this.metricsGrid.appendChild(this.renderMobile(stats));
 
+        // Среднее и «выполнено» — по score, чтобы перерасход бюджета списаний
+        // не поднимал общий процент.
         const withPlan = stats.filter(s => s.hasPlan);
         const avgPercent = withPlan.length
-            ? withPlan.reduce((sum, s) => sum + s.percent, 0) / withPlan.length
+            ? withPlan.reduce((sum, s) => sum + s.score, 0) / withPlan.length
             : 0;
-        this.updateStats(stats.length, withPlan.filter(s => s.percent >= 100).length, avgPercent);
+        this.updateStats(stats.length, withPlan.filter(s => s.score >= 100).length, avgPercent);
     }
 
     // ============================================================
@@ -370,7 +389,7 @@ class Analytics {
      * второго OLAP-запроса.
      */
     createMetricCard(stat) {
-        const { metric, planValue, actualValue, percent, diff, status, hasPlan } = stat;
+        const { metric, planValue, actualValue, percent, diff, good, status, hasPlan } = stat;
 
         const card = document.createElement('div');
         card.className = 'metric-card';
@@ -395,8 +414,12 @@ class Analytics {
             `;
         } else {
             const formattedDiff = formatValue(Math.abs(diff), metric.format);
-            // Процент выполнения окрашен по статусу плана, отклонение — по знаку
-            // (макет 7a): плюс зелёный, минус красный.
+            // Процент выполнения окрашен по статусу плана, отклонение — по смыслу
+            // знака (макет 7a): у обычной метрики плюс зелёный, минус красный;
+            // у бюджетной наоборот — перерасход красный, экономия зелёная.
+            const barTitle = metric.budget
+                ? 'Использование бюджета за выбранный период'
+                : 'Выполнение плана за выбранный период';
             card.innerHTML = `
                 <div class="mc-head">
                     <span class="metric-name"${hintAttr(metric)}>${metric.name.toUpperCase()}</span>
@@ -404,14 +427,14 @@ class Analytics {
                 </div>
                 <div class="metric-value">${formattedActual}</div>
                 <div class="mc-bars">
-                    <div class="mc-bar-row" title="Выполнение плана за выбранный период">
+                    <div class="mc-bar-row" title="${barTitle}">
                         <span class="mc-track"><span class="mc-fill" style="width:${barWidth(percent)}%"></span></span>
                         <span class="mc-pct ${status}">${percent.toFixed(0)}%</span>
                     </div>
                 </div>
                 <div class="mc-footer">
-                    <span class="mc-delta ${diff >= 0 ? 'positive' : 'negative'}">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
-                    <span class="mc-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
+                    <span class="mc-delta ${good ? 'positive' : 'negative'}">${diff >= 0 ? '+' : '−'}${formattedDiff}</span>
+                    <span class="mc-plan">${planWord(metric)} ${this.formatPlanShort(planValue, metric.format)}</span>
                 </div>
             `;
         }
@@ -580,7 +603,7 @@ class Analytics {
     renderMobileSummary(stats) {
         const withPlan = stats.filter(s => s.hasPlan);
         const avg = withPlan.length
-            ? withPlan.reduce((sum, s) => sum + s.percent, 0) / withPlan.length
+            ? withPlan.reduce((sum, s) => sum + s.score, 0) / withPlan.length
             : 0;
 
         const counts = { danger: 0, warning: 0, success: 0 };
@@ -638,9 +661,9 @@ class Analytics {
             ${hasPlan ? `
                 <div class="m-track"><span class="m-fill" style="width:${barWidth(percent)}%"></span></div>
                 <div class="m-card-foot">
-                    <span class="m-pct">${percent.toFixed(0)}% плана</span>
+                    <span class="m-pct">${percent.toFixed(0)}% ${planWord(metric, true)}</span>
                     <span class="m-prev hidden"></span>
-                    <span class="m-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
+                    <span class="m-plan">${planWord(metric)} ${this.formatPlanShort(planValue, metric.format)}</span>
                 </div>
             ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
         `;
@@ -680,7 +703,7 @@ class Analytics {
     renderMobileGroup(group, groupStats) {
         const withPlan = groupStats.filter(s => s.hasPlan);
         const avg = withPlan.length
-            ? withPlan.reduce((sum, s) => sum + s.percent, 0) / withPlan.length
+            ? withPlan.reduce((sum, s) => sum + s.score, 0) / withPlan.length
             : 0;
         const status = withPlan.length ? getStatus(avg) : 'neutral';
 
@@ -740,7 +763,7 @@ class Analytics {
                 <div class="m-card-foot">
                     <span class="m-pct ${status}">${percent.toFixed(0)}%</span>
                     <span class="m-prev hidden"></span>
-                    <span class="m-plan">план ${this.formatPlanShort(planValue, metric.format)}</span>
+                    <span class="m-plan">${planWord(metric)} ${this.formatPlanShort(planValue, metric.format)}</span>
                 </div>
             ` : '<div class="m-card-foot"><span class="m-plan">План не задан</span></div>'}
         `;

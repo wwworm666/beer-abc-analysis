@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { METRICS, METRIC_GROUPS, HEADLINE_METRIC_IDS } from '../static/js/dashboard/core/config.js';
+import { getStatus, scorePercent } from '../static/js/dashboard/core/utils.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -37,8 +38,10 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 console.log('\n--- группировка метрик ---');
 
-test('все 20 метрик на месте', () => {
-    assert.equal(METRICS.length, 20);
+test('все 17 карточек на месте', () => {
+    // 16 базовых + «Доля чеков с картой» (с 2026-09-05 четыре карточки лояльности
+    // свёрнуты в одну; их числа остались в API, сравнении и экспорте).
+    assert.equal(METRICS.length, 17);
 });
 
 test('у каждой метрики есть существующая группа', () => {
@@ -56,10 +59,10 @@ test('в каждой группе есть метрики', () => {
     }
 });
 
-test('ровно 5 групп по 4 метрики — 4-колоночная сетка заполняется целиком', () => {
+test('четыре группы по 4 метрики заполняют ряд целиком, «Лояльность» — одна карточка', () => {
     assert.equal(METRIC_GROUPS.length, 5);
     const counts = METRIC_GROUPS.map(g => METRICS.filter(m => m.group === g.id).length);
-    assert.deepEqual(counts, [4, 4, 4, 4, 4]);
+    assert.deepEqual(counts, [4, 4, 4, 4, 1]);
 });
 
 test('итог группы идёт первым', () => {
@@ -102,17 +105,25 @@ test('planKey и actualKey каждой метрики совпадают с id'
 
 console.log('\n--- лояльность (2026-09-04) ---');
 
-/** Метрики группы «Лояльность» в порядке показа. */
-const LOYALTY_IDS = ['cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue'];
+/** Карточки группы «Лояльность»: с 2026-09-05 одна — «Доля чеков с картой». */
+const LOYALTY_IDS = ['cardChecksShare'];
+/** Бывшие карточки лояльности — теперь вкладки внутри «Доли чеков с картой». */
+const FOLDED_LOYALTY_IDS = ['cardChecks', 'nocardChecks', 'cardRevenue'];
 
-test('группа «Лояльность» последняя и содержит ровно 4 метрики в заданном порядке', () => {
+test('группа «Лояльность» последняя, в ней одна карточка «Доля чеков с картой»', () => {
     const last = METRIC_GROUPS[METRIC_GROUPS.length - 1];
     assert.equal(last.id, 'loyalty');
     assert.equal(last.name, 'Лояльность');
     const ids = METRICS.filter(m => m.group === 'loyalty').map(m => m.id);
     assert.deepEqual(ids, LOYALTY_IDS);
-    // Новые метрики дописаны в конец массива — прежние 16 не сдвинуты.
-    assert.deepEqual(METRICS.slice(-LOYALTY_IDS.length).map(m => m.id), LOYALTY_IDS);
+    // Карточка дописана в конец массива — прежние 16 не сдвинуты.
+    assert.deepEqual(METRICS.slice(-1).map(m => m.id), LOYALTY_IDS);
+    for (const id of FOLDED_LOYALTY_IDS) {
+        assert.ok(!METRICS.some(m => m.id === id), `${id}: карточка должна быть свёрнута во вкладку`);
+    }
+    const m = METRICS.find(x => x.id === 'cardChecksShare');
+    assert.equal(m.planKey, 'cardChecksShare', 'план карточки — cardChecksShare');
+    assert.ok(m.hint.includes('70%'), 'подсказка не говорит про план по умолчанию 70%');
 });
 
 test('у метрик лояльности есть подсказка-формула; у остальных она не обязательна', () => {
@@ -266,7 +277,7 @@ test('классы деталей карточки описаны в CSS', () =>
     assert.ok(CSS.includes('.breakdown-tab.active'), 'нет стиля активной вкладки');
 });
 
-test('раскрываются все 20 карточек; «Сотрудники» — у всех, кроме кранов', () => {
+test('раскрываются все 17 карточек; «Сотрудники» — у всех, кроме кранов', () => {
     const js = read('static/js/dashboard/modules/analytics.js');
     const list = (name) => js.match(new RegExp(`const ${name} = \\[([^\\]]+)\\]`))[1]
         .match(/'([^']+)'/g).map(s => s.slice(1, -1));
@@ -277,8 +288,13 @@ test('раскрываются все 20 карточек; «Сотрудник�
     for (const id of employee) assert.ok(expandable.includes(id), `${id} не раскрывается`);
     for (const id of LOYALTY_IDS) assert.ok(employee.includes(id), `${id}: нет вкладки «Сотрудники»`);
     const additive = list('ADDITIVE_METRICS');
-    for (const id of ['cardChecks', 'nocardChecks', 'cardRevenue']) assert.ok(additive.includes(id), `${id} складывается`);
     assert.ok(!additive.includes('cardChecksShare'), 'доля чеков с картой не складывается');
+    // Свёрнутые карточки лояльности ушли из всех списков analytics.js.
+    for (const id of FOLDED_LOYALTY_IDS) {
+        for (const name of ['EXPANDABLE_METRICS', 'EMPLOYEE_METRICS', 'ADDITIVE_METRICS']) {
+            assert.ok(!list(name).includes(id), `${id} остался в ${name}`);
+        }
+    }
 });
 
 test('клик по вкладке не схлопывает карточку, краны раскрываются вместо перехода', () => {
@@ -376,6 +392,53 @@ test('мобильный каркас лежит в base.css, а не в mobile.
     assert.ok(bar, 'нет правила .filter-bar');
     assert.ok(/min-height/.test(bar[0]), '.filter-bar снова с жёсткой height');
     assert.ok(/flex-wrap:\s*wrap/.test(bar[0]), '.filter-bar без flex-wrap: полоса не свернётся');
+});
+
+console.log('\n--- бюджетные метрики (2026-09-05) ---');
+
+test('scorePercent/getStatus: у бюджетной метрики план — потолок', () => {
+    // Обычная метрика — как есть; бюджетная — зеркало 200 − p, не ниже нуля.
+    assert.equal(scorePercent(103), 103);
+    assert.equal(scorePercent(103, true), 97);
+    assert.equal(scorePercent(95, true), 105);
+    assert.equal(scorePercent(250, true), 0);
+    assert.equal(getStatus(103), 'success');
+    assert.equal(getStatus(95, true), 'success');
+    assert.equal(getStatus(100, true), 'success');
+    assert.equal(getStatus(103, true), 'warning');
+    assert.equal(getStatus(110, true), 'warning');
+    assert.equal(getStatus(111, true), 'danger');
+    // Python-зеркало формулы (HTML-экспорт) — та же арифметика и тот же список.
+    const py = read('core/plans_manager.py');
+    assert.ok(py.includes('return max(0.0, 200.0 - percent)'), 'plan_score в Python отличается');
+    assert.ok(py.includes("BUDGET_METRICS = frozenset({'loyaltyWriteoffs'})"), 'BUDGET_METRICS не совпадает с config.js');
+});
+
+test('config.js: бюджетная метрика — только списания баллов, подсказка объясняет пороги', () => {
+    assert.deepEqual(METRICS.filter(m => m.budget === true).map(m => m.id), ['loyaltyWriteoffs']);
+    const m = METRICS.find(m => m.id === 'loyaltyWriteoffs');
+    assert.ok(m.hint.includes('бюджет'), 'подсказка не объясняет светофор бюджета');
+});
+
+test('analytics.js: средние и «выполнено» по score, отклонение по good, подпись «бюджет»', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(js.includes('scorePercent(percent, budget)'), 'buildStats не считает score');
+    assert.ok(js.includes('good: budget ? diff <= 0 : diff >= 0'), 'нет знака good');
+    // Три средних (шапка, мобильная сводка, группа) — по score, не по percent.
+    assert.equal((js.match(/sum \+ s\.score, 0\) \/ withPlan\.length/g) || []).length, 3, 'среднее не по score');
+    assert.ok(!js.includes('sum + s.percent, 0)'), 'осталось среднее по percent');
+    assert.ok(js.includes('s.score >= 100'), '«выполнено» не по score');
+    assert.ok(js.includes("mc-delta ${good ? 'positive' : 'negative'}"), 'цвет отклонения не по good');
+    assert.ok(!js.includes("diff >= 0 ? 'positive'"), 'цвет отклонения по знаку diff');
+    assert.ok(js.includes('function planWord('), 'нет planWord');
+    assert.ok(!js.includes('план ${this.formatPlanShort'), 'подпись «план» зашита в разметку');
+});
+
+test('comparison.js: рост списаний красится как ухудшение', () => {
+    const js = read('static/js/dashboard/modules/comparison.js');
+    assert.ok(/key: 'loyaltyWriteoffs'[^\n]*budget: true/.test(js), 'списания без budget: true');
+    assert.ok(js.includes('change.budget ? !grew : grew'), 'топ изменений не зеркалит бюджет');
+    assert.ok(js.includes('metric.budget ? diff < 0 : diff > 0'), 'таблица не зеркалит бюджет');
 });
 
 console.log('\n--- разметка ---');

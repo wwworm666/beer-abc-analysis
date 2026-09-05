@@ -15,7 +15,8 @@
       "markupKitchen": 150.0,
       "revenueDraft": 900000.0,
       "revenuePackaged": 375000.0,
-      "revenueKitchen": 225000.0
+      "revenueKitchen": 225000.0,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2025-09": {
       "revenue": 1836000.0,
@@ -32,7 +33,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 1101600.0,
       "revenuePackaged": 459000.0,
-      "revenueKitchen": 275400.0
+      "revenueKitchen": 275400.0,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2025-09": {
       "revenue": 1000800.0,
@@ -49,7 +51,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 600480.0,
       "revenuePackaged": 250200.0,
-      "revenueKitchen": 150120.0
+      "revenueKitchen": 150120.0,
+      "cardChecksShare": 70.0
     },
     "all_2025-09": {
       "revenue": 4336800.0,
@@ -66,10 +69,12 @@
       "markupKitchen": 163.33333333333334,
       "revenueDraft": 2602080.0,
       "revenuePackaged": 1084200.0,
-      "revenueKitchen": 650520.0
+      "revenueKitchen": 650520.0,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2025-09": {
-      "loyaltyWriteoffs": 0.0
+      "loyaltyWriteoffs": 0.0,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2025-10": {
       "revenue": 1201750.0,
@@ -86,7 +91,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 721050.0,
       "revenuePackaged": 300437.5,
-      "revenueKitchen": 180262.5
+      "revenueKitchen": 180262.5,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2025-10": {
       "revenue": 655500.0,
@@ -103,7 +109,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 393300.0,
       "revenuePackaged": 196650.0,
-      "revenueKitchen": 65550.0
+      "revenueKitchen": 65550.0,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2025-10": {
       "revenue": 1608900.0,
@@ -120,7 +127,8 @@
       "markupKitchen": 170.0,
       "revenueDraft": 965340.0,
       "revenuePackaged": 402225.0,
-      "revenueKitchen": 241335.0
+      "revenueKitchen": 241335.0,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2025-10": {
       "revenue": 962050.0,
@@ -137,7 +145,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 577230.0,
       "revenuePackaged": 240512.5,
-      "revenueKitchen": 144307.5
+      "revenueKitchen": 144307.5,
+      "cardChecksShare": 70.0
     },
     "all_2025-10": {
       "revenue": 4428200.0,
@@ -154,7 +163,8 @@
       "markupKitchen": 167.5,
       "revenueDraft": 2656920.0,
       "revenuePackaged": 1162402.5,
-      "revenueKitchen": 608877.5
+      "revenueKitchen": 608877.5,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2025-11": {
       "revenue": 1000500.0,
@@ -171,7 +181,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 600300.0,
       "revenuePackaged": 250125.0,
-      "revenueKitchen": 150075.0
+      "revenueKitchen": 150075.0,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2025-11": {
       "revenue": 825000.0,
@@ -188,7 +199,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 495000.0,
       "revenuePackaged": 247500.0,
-      "revenueKitchen": 82500.0
+      "revenueKitchen": 82500.0,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2025-11": {
       "revenue": 1400000.0,
@@ -205,7 +217,8 @@
       "markupKitchen": 170.0,
       "revenueDraft": 840000.0,
       "revenuePackaged": 350000.0,
-      "revenueKitchen": 210000.0
+      "revenueKitchen": 210000.0,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2025-11": {
       "revenue": 951750.0,
@@ -222,7 +235,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 571050.0,
       "revenuePackaged": 228420.0,
-      "revenueKitchen": 152280.0
+      "revenueKitchen": 152280.0,
+      "cardChecksShare": 70.0
     },
     "all_2025-11": {
       "revenue": 4177250.0,
@@ -239,7 +253,8 @@
       "markupKitchen": 167.5,
       "revenueDraft": 2506350.0,
       "revenuePackaged": 1086085.0,
-      "revenueKitchen": 584815.0
+      "revenueKitchen": 584815.0,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2025-12": {
       "revenue": 1006200.0,
@@ -256,7 +271,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 603720.0,
       "revenuePackaged": 251550.0,
-      "revenueKitchen": 150930.0
+      "revenueKitchen": 150930.0,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2025-12": {
       "revenue": 1006400.0,
@@ -273,7 +289,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 603840.0,
       "revenuePackaged": 251600.0,
-      "revenueKitchen": 150960.0
+      "revenueKitchen": 150960.0,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2025-12": {
       "revenue": 1502550.0,
@@ -290,7 +307,8 @@
       "markupKitchen": 170.0,
       "revenueDraft": 901530.0,
       "revenuePackaged": 375637.5,
-      "revenueKitchen": 225382.5
+      "revenueKitchen": 225382.5,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2025-12": {
       "revenue": 1000500.0,
@@ -307,7 +325,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 600300.0,
       "revenuePackaged": 230115.0,
-      "revenueKitchen": 170085.0
+      "revenueKitchen": 170085.0,
+      "cardChecksShare": 70.0
     },
     "all_2025-12": {
       "revenue": 4515650.0,
@@ -324,7 +343,8 @@
       "markupKitchen": 167.5,
       "revenueDraft": 2709390.0,
       "revenuePackaged": 1106334.25,
-      "revenueKitchen": 699925.75
+      "revenueKitchen": 699925.75,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2026-01": {
       "revenue": 910800.0,
@@ -341,7 +361,8 @@
       "markupKitchen": 160.0,
       "revenueDraft": 546480.0,
       "revenuePackaged": 227700.0,
-      "revenueKitchen": 136620.0
+      "revenueKitchen": 136620.0,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2026-01": {
       "revenue": 910800.0,
@@ -358,7 +379,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 546480.0,
       "revenuePackaged": 227700.0,
-      "revenueKitchen": 136620.0
+      "revenueKitchen": 136620.0,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2026-01": {
       "revenue": 1302400.0,
@@ -375,7 +397,8 @@
       "markupKitchen": 170.0,
       "revenueDraft": 781440.0,
       "revenuePackaged": 325600.0,
-      "revenueKitchen": 195360.0
+      "revenueKitchen": 195360.0,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2026-01": {
       "revenue": 910800.0,
@@ -392,7 +415,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 546480.0,
       "revenuePackaged": 209484.0,
-      "revenueKitchen": 154836.0
+      "revenueKitchen": 154836.0,
+      "cardChecksShare": 70.0
     },
     "all_2026-01": {
       "revenue": 4034800.0,
@@ -409,7 +433,8 @@
       "markupKitchen": 172.5,
       "revenueDraft": 2420880.0,
       "revenuePackaged": 988526.0,
-      "revenueKitchen": 625394.0
+      "revenueKitchen": 625394.0,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2026-02": {
       "revenue": 889952.0,
@@ -426,7 +451,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 533971.2,
       "revenuePackaged": 195789.44,
-      "revenueKitchen": 160191.36
+      "revenueKitchen": 160191.36,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2026-02": {
       "revenue": 889952.0,
@@ -443,7 +469,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 533971.2,
       "revenuePackaged": 195789.44,
-      "revenueKitchen": 160191.36
+      "revenueKitchen": 160191.36,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2026-02": {
       "revenue": 1249812.0,
@@ -460,7 +487,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 749887.2,
       "revenuePackaged": 274958.64,
-      "revenueKitchen": 224966.16
+      "revenueKitchen": 224966.16,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2026-02": {
       "revenue": 869968.0,
@@ -477,7 +505,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 521980.8,
       "revenuePackaged": 191392.96,
-      "revenueKitchen": 156594.24
+      "revenueKitchen": 156594.24,
+      "cardChecksShare": 70.0
     },
     "all_2026-02": {
       "revenue": 3899684.0,
@@ -494,7 +523,8 @@
       "markupKitchen": 180.0,
       "revenueDraft": 2339810.4,
       "revenuePackaged": 857930.48,
-      "revenueKitchen": 701943.12
+      "revenueKitchen": 701943.12,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2026-03": {
       "revenue": 842536.0,
@@ -511,7 +541,8 @@
       "loyaltyWriteoffs": 42126.8,
       "revenueDraft": 505521.6,
       "revenuePackaged": 210634.0,
-      "revenueKitchen": 126380.4
+      "revenueKitchen": 126380.4,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2026-03": {
       "revenue": 955776.0,
@@ -528,7 +559,8 @@
       "loyaltyWriteoffs": 47788.8,
       "revenueDraft": 573465.6,
       "revenuePackaged": 238944.0,
-      "revenueKitchen": 143366.4
+      "revenueKitchen": 143366.4,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2026-03": {
       "revenue": 895440.0,
@@ -545,7 +577,8 @@
       "loyaltyWriteoffs": 44772.0,
       "revenueDraft": 537264.0,
       "revenuePackaged": 223860.0,
-      "revenueKitchen": 134316.0
+      "revenueKitchen": 134316.0,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2026-03": {
       "revenue": 1200000.0,
@@ -562,7 +595,8 @@
       "loyaltyWriteoffs": 60000.0,
       "revenueDraft": 708000.0,
       "revenuePackaged": 276000.0,
-      "revenueKitchen": 216000.0
+      "revenueKitchen": 216000.0,
+      "cardChecksShare": 70.0
     },
     "all_2026-03": {
       "revenue": 3893752.0,
@@ -579,7 +613,8 @@
       "markupPercent": 187.69,
       "markupDraft": 238.75,
       "markupPackaged": 120.0,
-      "markupKitchen": 167.5
+      "markupKitchen": 167.5,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2026-04": {
       "revenue": 1160341.2,
@@ -596,7 +631,8 @@
       "loyaltyWriteoffs": 58017.06,
       "revenueDraft": 707808.13,
       "revenuePackaged": 243671.65,
-      "revenueKitchen": 208861.42
+      "revenueKitchen": 208861.42,
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2026-04": {
       "revenue": 950000.0,
@@ -613,7 +649,8 @@
       "loyaltyWriteoffs": 47500.0,
       "revenueDraft": 579500.0,
       "revenuePackaged": 199500.0,
-      "revenueKitchen": 171000.0
+      "revenueKitchen": 171000.0,
+      "cardChecksShare": 70.0
     },
     "bolshoy_2026-04": {
       "revenue": 1203271.2,
@@ -630,7 +667,8 @@
       "loyaltyWriteoffs": 60163.56,
       "revenueDraft": 733995.43,
       "revenuePackaged": 252686.95,
-      "revenueKitchen": 216588.82
+      "revenueKitchen": 216588.82,
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2026-04": {
       "revenue": 1452500.0,
@@ -647,7 +685,8 @@
       "loyaltyWriteoffs": 72625.0,
       "revenueDraft": 886025.0,
       "revenuePackaged": 305025.0,
-      "revenueKitchen": 261450.0
+      "revenueKitchen": 261450.0,
+      "cardChecksShare": 70.0
     },
     "all_2026-04": {
       "revenue": 4713064.4,
@@ -664,7 +703,8 @@
       "loyaltyWriteoffs": 235653.22,
       "revenueDraft": 2874969.28,
       "revenuePackaged": 989743.52,
-      "revenueKitchen": 848351.6
+      "revenueKitchen": 848351.6,
+      "cardChecksShare": 70.0
     },
     "ligovskiy_2026-05": {
       "revenue": 1300000.0,
@@ -684,7 +724,8 @@
       "revenueKitchen": 234000.0,
       "tapActivity": 100.0,
       "createdAt": "2026-05-13T13:06:09.714921",
-      "updatedAt": "2026-05-13T13:06:09.714921"
+      "updatedAt": "2026-05-13T13:06:09.714921",
+      "cardChecksShare": 70.0
     },
     "varshavskaya_2026-05": {
       "revenue": 1000000.0,
@@ -704,7 +745,8 @@
       "revenueKitchen": 180000.0,
       "tapActivity": 100.0,
       "createdAt": "2026-05-13T13:06:09.714921",
-      "updatedAt": "2026-05-13T13:06:09.714921"
+      "updatedAt": "2026-05-13T13:06:09.714921",
+      "cardChecksShare": 70.0
     },
     "bolshoy_2026-05": {
       "revenue": 1600000.0,
@@ -724,7 +766,8 @@
       "revenueKitchen": 288000.0,
       "tapActivity": 100.0,
       "createdAt": "2026-05-13T13:06:09.714921",
-      "updatedAt": "2026-05-13T13:06:09.714921"
+      "updatedAt": "2026-05-13T13:06:09.714921",
+      "cardChecksShare": 70.0
     },
     "kremenchugskaya_2026-05": {
       "revenue": 1630000.0,
@@ -744,7 +787,8 @@
       "revenueKitchen": 288021.0,
       "tapActivity": 100.0,
       "createdAt": "2026-05-13T13:06:09.714921",
-      "updatedAt": "2026-05-13T13:06:09.714921"
+      "updatedAt": "2026-05-13T13:06:09.714921",
+      "cardChecksShare": 70.0
     },
     "all_2026-05": {
       "revenue": 5530000.0,
@@ -764,11 +808,12 @@
       "revenueKitchen": 990021.0,
       "tapActivity": 100.0,
       "createdAt": "2026-05-13T13:06:09.714921",
-      "updatedAt": "2026-05-13T13:06:09.714921"
+      "updatedAt": "2026-05-13T13:06:09.714921",
+      "cardChecksShare": 70.0
     }
   },
   "metadata": {
-    "lastUpdate": "2026-05-13T13:06:09.714921",
+    "lastUpdate": "2026-09-05T04:45:52.212607",
     "version": "1.0",
     "source": "Excel import from планы_2025_2026.xlsx"
   }

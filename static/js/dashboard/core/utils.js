@@ -82,11 +82,28 @@ export function calculateDiff(actual, plan) {
 }
 
 /**
- * Определить статус выполнения (success/warning/danger)
+ * Процент выполнения «в сторону хорошего».
+ *
+ * Обычная метрика: как есть (факт / план × 100). Бюджетная (config.js
+ * `budget: true`, план — потолок): зеркало 200 − p, не ниже 0 — перерасход
+ * 103% бюджета равносилен выполнению 97%, экономия 95% — выполнению 105%.
+ * По нему считаются светофор и средние проценты, чтобы перерасход тянул
+ * среднее вниз, а не вверх. Та же формула в core/plans_manager.py plan_score.
  */
-export function getStatus(percent) {
-    if (percent >= 100) return 'success';
-    if (percent >= 90) return 'warning';
+export function scorePercent(percent, budget = false) {
+    if (!budget) return percent;
+    return Math.max(0, 200 - percent);
+}
+
+/**
+ * Определить статус выполнения (success/warning/danger).
+ * Пороги одни (≥ 100 / ≥ 90), у бюджетной метрики они применяются к зеркальному
+ * проценту: ≤ 100% бюджета зелёный, 100–110% жёлтый, > 110% красный.
+ */
+export function getStatus(percent, budget = false) {
+    const p = scorePercent(percent, budget);
+    if (p >= 100) return 'success';
+    if (p >= 90) return 'warning';
     return 'danger';
 }
 

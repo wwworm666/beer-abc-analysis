@@ -48,6 +48,7 @@ from core.dashboard_details import (  # noqa: E402
 )
 from core.taps_manager import TapsManager  # noqa: E402
 from extensions import DASHBOARD_OLAP_CACHE  # noqa: E402
+from core.plans_manager import BUDGET_METRICS, plan_score  # noqa: E402
 from routes.analysis import analysis_bp  # noqa: E402
 from routes.dashboard import dashboard_bp  # noqa: E402
 from routes.employee import employee_bp  # noqa: E402
@@ -129,6 +130,12 @@ class RegistryAndInvariants(unittest.TestCase):
         self.assertEqual(ids, METRIC_IDS)
         self.assertEqual(set(ids), set(CARD_SECTIONS))
 
+    def test_share_cards_have_no_structure_tab(self):
+        """Доли розлива/фасовки/кухни без «Структуры» (2026-09-05): доля и есть структура."""
+        for metric in ("draftShare", "packagedShare", "kitchenShare"):
+            self.assertNotIn("categories", [s["id"] for s in build(metric)], metric)
+        self.assertEqual(["draft_liters"], [s["id"] for s in build("draftShare")])
+
     # (метрика, секция) -> чем должен быть «Итого»: ключ calculate_metrics и формат.
     # 'markup' = дробь x100 до 0,1; 'units:<категория>' = category_units по категории.
     CARD_TOTALS = {
@@ -140,14 +147,13 @@ class RegistryAndInvariants(unittest.TestCase):
         ("averageCheck", "days"): ("avg_check", "money"),
         ("markupPercent", "categories"): ("avg_markup", "markup"), ("markupPercent", "top_margin"): ("total_margin", "money"),
         ("markupPercent", "low_markup"): ("avg_markup", "markup"),
-        ("draftShare", "categories"): ("total_revenue", "money"),
         ("revenueDraft", "top_revenue"): ("draft_revenue", "money"), ("revenueDraft", "local_import"): ("draft_revenue", "money"),
         ("markupDraft", "top_margin"): ("draft_margin", "money"), ("markupDraft", "low_markup"): ("draft_markup", "markup"),
         ("packagedShare", "top_units"): ("units:" + BOTTLES, "number"),
-        ("packagedShare", "local_import"): ("bottles_revenue", "money"), ("packagedShare", "categories"): ("total_revenue", "money"),
+        ("packagedShare", "local_import"): ("bottles_revenue", "money"),
         ("revenuePackaged", "top_revenue"): ("bottles_revenue", "money"), ("revenuePackaged", "local_import"): ("bottles_revenue", "money"),
         ("markupPackaged", "top_margin"): ("bottles_margin", "money"), ("markupPackaged", "low_markup"): ("bottles_markup", "markup"),
-        ("kitchenShare", "top_units"): ("units:" + KITCHEN, "number"), ("kitchenShare", "categories"): ("total_revenue", "money"),
+        ("kitchenShare", "top_units"): ("units:" + KITCHEN, "number"),
         ("revenueKitchen", "top_revenue"): ("kitchen_revenue", "money"), ("revenueKitchen", "days"): ("kitchen_revenue", "money"),
         ("markupKitchen", "top_margin"): ("kitchen_margin", "money"), ("markupKitchen", "low_markup"): ("kitchen_markup", "markup"),
         ("profit", "categories"): ("total_margin", "money"), ("profit", "top_margin"): ("total_margin", "money"),
@@ -155,12 +161,12 @@ class RegistryAndInvariants(unittest.TestCase):
         ("loyaltyWriteoffs", "categories"): ("loyalty_points_written_off", "money"),
         ("loyaltyWriteoffs", "top_discount"): ("loyalty_points_written_off", "money"),
         ("loyaltyWriteoffs", "days"): ("loyalty_points_written_off", "money"),
-        ("cardChecks", "guests"): ("card_checks", "number"), ("cardChecks", "days"): ("card_checks", "number"),
-        ("cardChecks", "stores"): ("card_checks", "number"),
-        ("nocardChecks", "days"): ("nocard_checks", "number"), ("nocardChecks", "stores"): ("nocard_checks", "number"),
+        # Лояльность (с 2026-09-05 одна карточка): вкладки «Чеки» и «Выручка» складываются
+        # в итог всех чеков / всей выручки, «Гости» - в чеки с картой.
+        ("cardChecksShare", "checks_split"): ("total_checks", "number"),
+        ("cardChecksShare", "revenue_split"): ("total_revenue", "money"),
+        ("cardChecksShare", "guests"): ("card_checks", "number"),
         ("cardChecksShare", "stores"): ("card_checks_share", "percent"), ("cardChecksShare", "days"): ("card_checks_share", "percent"),
-        ("cardRevenue", "guests"): ("card_revenue", "money"), ("cardRevenue", "card_split"): ("total_revenue", "money"),
-        ("cardRevenue", "stores"): ("card_revenue", "money"),
     }
 
     def test_sections_sum_to_total_and_total_equals_card(self):
@@ -340,13 +346,29 @@ class Formulas(unittest.TestCase):
         self.assertEqual(50, discount["total"]["value"])
 
     def test_guests_by_card_number_without_mask(self):
-        sec = section("cardRevenue", "guests")
-        self.assertEqual([(CARD_1, 1650), (CARD_2, 950)], [(r["name"], r["value"]) for r in sec["rows"]])
-        self.assertEqual("2 чек. · 2 визит.", sec["rows"][0]["sub"])
-        self.assertEqual(2600, sec["total"]["value"])
-        checks = section("cardChecks", "guests")
-        self.assertEqual(2, checks["rows"][0]["value"])
-        self.assertEqual(3, checks["total"]["value"])
+        sec = section("cardChecksShare", "guests")
+        self.assertEqual([(CARD_1, 2), (CARD_2, 1)], [(r["name"], r["value"]) for r in sec["rows"]])
+        self.assertIn("2 визит.", sec["rows"][0]["sub"])
+        self.assertEqual(3, sec["total"]["value"])  # чеки с картой, как бывшая карточка
+
+    def test_card_share_card_folds_three_former_cards(self):
+        """«Доля чеков с картой» (2026-09-05): бывшие карточки лояльности - её вкладки."""
+        self.assertEqual(["checks_split", "revenue_split", "guests", "stores", "days"],
+                         [s["id"] for s in build("cardChecksShare")])
+        for gone in ("cardChecks", "nocardChecks", "cardRevenue"):
+            self.assertNotIn(gone, METRIC_IDS)
+            self.assertNotIn(gone, CARD_SECTIONS)
+        checks = section("cardChecksShare", "checks_split")
+        self.assertEqual(["С картой лояльности", "Без карты"], [r["name"] for r in checks["rows"]])
+        self.assertEqual([3, 2], [r["value"] for r in checks["rows"]])
+        self.assertEqual(5, checks["total"]["value"])  # все чеки периода
+        self.assertEqual("Чеки", checks["title"])
+        revenue = section("cardChecksShare", "revenue_split")
+        self.assertEqual([2600, 1500], [r["value"] for r in revenue["rows"]])
+        self.assertEqual(4100, revenue["total"]["value"])  # вся выручка периода
+        self.assertEqual("Выручка", revenue["title"])
+        # Средний чек по-прежнему пользуется срезом под прежним id.
+        self.assertEqual("card_split", section("averageCheck", "card_split")["id"])
 
     def test_card_split_average_check(self):
         sec = section("averageCheck", "card_split")
@@ -540,6 +562,11 @@ class DetailsEndpoint(unittest.TestCase):
         self.assertEqual(["taps"], [s["id"] for s in sections])
         self.assertTrue(sections[0]["lazy"])
         self.assertEqual(0, FixtureOlap.calls)
+        # Доля розлива с 2026-09-05 тоже только ленивая («Литры») - OLAP не нужен.
+        response = client.post("/api/dashboard-card-details", json={"metric": "draftShare", **PERIOD})
+        self.assertEqual(200, response.status_code, response.get_data(as_text=True))
+        self.assertEqual(["draft_liters"], [s["id"] for s in response.get_json()["sections"]])
+        self.assertEqual(0, FixtureOlap.calls)
 
     @patch("routes.dashboard.DailyPlansGenerator")
     @patch("routes.dashboard.taps_manager.calculate_tap_activity_for_period", return_value=0)
@@ -632,6 +659,39 @@ class DraftLoaderSharesCache(unittest.TestCase):
             # сырьё взято из той же записи кэша, что положил load_draft_kegs.
             self.assertEqual(404, response.status_code)
         self.assertEqual(1, FixtureOlap.calls)
+
+
+
+class BudgetMetrics(unittest.TestCase):
+    """Списания баллов — бюджетная метрика (2026-09-05): план — потолок, меньше лучше."""
+
+    def test_plan_score_mirror(self):
+        # Обычная метрика - как есть; бюджетная - зеркало 200 - p, не ниже нуля.
+        self.assertEqual(103, plan_score(103))
+        self.assertEqual(97, plan_score(103, budget=True))
+        self.assertEqual(105, plan_score(95, budget=True))
+        self.assertEqual(100, plan_score(100, budget=True))
+        self.assertEqual(0, plan_score(250, budget=True))
+        # Светофор экспорта: до 100% бюджета зелёный (score >= 100), 100-110% жёлтый
+        # (score >= 90), дальше красный.
+        self.assertGreaterEqual(plan_score(110, budget=True), 90)
+        self.assertLess(plan_score(110.5, budget=True), 90)
+
+    def test_budget_metrics_mirror_frontend(self):
+        """BUDGET_METRICS = метрики с `budget: true` в config.js и в comparison.js."""
+        js_dir = os.path.join(REPO_ROOT, "static", "js", "dashboard")
+        with open(os.path.join(js_dir, "core", "config.js"), encoding="utf-8") as f:
+            config = f.read()
+        ids = [(m.start(), m.group(1)) for m in re.finditer(r"id: '([A-Za-z]+)'", config)]
+        config_budget = set()
+        for m in re.finditer(r"budget: true", config):
+            config_budget.add([i for pos, i in ids if pos < m.start()][-1])
+        self.assertEqual(set(BUDGET_METRICS), config_budget)
+
+        with open(os.path.join(js_dir, "modules", "comparison.js"), encoding="utf-8") as f:
+            comparison = f.read()
+        comparison_budget = set(re.findall(r"key: '([A-Za-z]+)'[^\n]*budget: true", comparison))
+        self.assertEqual(set(BUDGET_METRICS), comparison_budget)
 
 
 if __name__ == "__main__":

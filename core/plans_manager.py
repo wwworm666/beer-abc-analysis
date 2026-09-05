@@ -13,6 +13,7 @@
 
 import json
 import os
+import re
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
 from calendar import monthrange
@@ -23,6 +24,27 @@ import shutil
 import portalocker
 from core.storage_paths import get_data_path
 from core.day_weights import weighted_days
+
+
+# Бюджетные метрики: план — потолок, а не цель, меньше плана хорошо.
+# Списания баллов планируются как 5% выручки (plans.js LOYALTY_WRITEOFF_RATE),
+# и перерасход бюджета — минус для бизнеса. Зеркало `budget: true` в
+# static/js/dashboard/core/config.js; правило одно на экран и на экспорт.
+BUDGET_METRICS = frozenset({'loyaltyWriteoffs'})
+
+
+def plan_score(percent, budget=False):
+    """Процент выполнения «в сторону хорошего» для светофора и средних.
+
+    Обычная метрика: score = percent (факт / план × 100).
+    Бюджетная: score = 200 − percent, не ниже 0 — перерасход 103% бюджета
+    равносилен выполнению 97%, экономия 95% — выполнению 105%.
+    Пороги общие: ≥ 100 зелёный, 90–99 жёлтый, < 90 красный; для бюджета это
+    ≤ 100% зелёный, 100–110% жёлтый, > 110% красный.
+    """
+    if not budget:
+        return percent
+    return max(0.0, 200.0 - percent)
 
 
 class PlansManager:
@@ -45,8 +67,22 @@ class PlansManager:
         'markupPackaged': (float, int),
         'markupKitchen': (float, int),
         'loyaltyWriteoffs': (float, int),
-        'tapActivity': (float, int)
+        'tapActivity': (float, int),
+        'cardChecksShare': (float, int)
     }
+
+    # Необязательные поля схемы и их значения по умолчанию.
+    # cardChecksShare - план карточки «Доля чеков с картой» (чеки с картой лояльности
+    # / все чеки x 100), %. Поле появилось 2026-09-05, план по умолчанию 70% за любой
+    # месяц (решение владельца), поэтому оно необязательное: старые месяцы в файле и
+    # старые клиенты/скрипты без поля получают дефолт на чтении (with_defaults) и при
+    # сохранении (save_plan). Фронт-зеркало - константа в
+    # static/js/dashboard/modules/plans.js.
+    PLAN_DEFAULTS = {'cardChecksShare': 70.0}
+
+    # Ключ месячного плана: <venue>_<YYYY-MM> (bolshoy_2026-05, легаси all_2025-09).
+    # Прочие ключи (недельные вида 2025-11-17_2025-11-23) миграция дефолтов пропускает.
+    MONTH_KEY_RE = re.compile(r'[a-z]+_\d{4}-\d{2}')
 
     def __init__(self, data_file: str = None):
         """
@@ -243,9 +279,13 @@ class PlansManager:
         Raises:
             ValueError: Если данные некорректны
         """
-        # Проверяем наличие всех обязательных полей
+        # Проверяем наличие всех обязательных полей.
+        # Поля из PLAN_DEFAULTS необязательные: если их нет - пропускаем
+        # (save_plan подставляет дефолт до валидации, чтение - через with_defaults).
         for field, expected_types in self.PLAN_SCHEMA.items():
             if field not in plan_data:
+                if field in self.PLAN_DEFAULTS:
+                    continue
                 raise ValueError(f"Missing required field: {field}")
 
             value = plan_data[field]
@@ -261,6 +301,13 @@ class PlansManager:
             if value < 0:
                 raise ValueError(f"Field '{field}' cannot be negative: {value}")
 
+            # Доля чеков с картой - процент от всех чеков: не больше 100
+            # (отрицательное отсечено выше)
+            if field == 'cardChecksShare' and value > 100:
+                raise ValueError(
+                    f"Field 'cardChecksShare' is a percent and must be within 0..100, got {value}"
+                )
+
         # Проверяем что сумма долей примерно равна 100%
         shares_sum = (
             plan_data['draftShare'] +
@@ -275,6 +322,31 @@ class PlansManager:
             )
 
         return True
+
+    def _missing_defaults(self, plan: Dict) -> List[str]:
+        """Поля из PLAN_DEFAULTS, которых в плане нет (или они null)."""
+        return [field for field in self.PLAN_DEFAULTS if plan.get(field) is None]
+
+    def with_defaults(self, plan: Optional[Dict]) -> Optional[Dict]:
+        """
+        Копия плана с недостающими необязательными полями из PLAN_DEFAULTS
+
+        Старые месяцы (до 2026-09-05) и старые клиенты без cardChecksShare получают
+        70 на чтении и при сохранении; сам файл на чтении не меняется
+        (миграция файла - fill_missing_defaults). Исходный словарь не изменяется.
+
+        Args:
+            plan: Данные плана; None или не-словарь возвращаются как есть
+
+        Returns:
+            Optional[Dict]: Новый словарь с заполненными дефолтами
+        """
+        if not isinstance(plan, dict):
+            return plan
+        filled = dict(plan)
+        for field in self._missing_defaults(filled):
+            filled[field] = self.PLAN_DEFAULTS[field]
+        return filled
 
     def get_plan(self, period_key: str) -> Optional[Dict]:
         """
@@ -292,7 +364,9 @@ class PlansManager:
                 plans = data.get('plans', {})
 
                 if period_key in plans:
-                    plan = plans[period_key]
+                    # Дефолты необязательных полей подставляются на чтении,
+                    # файл не меняется
+                    plan = self.with_defaults(plans[period_key])
                     print(f"[PLANS] План найден для периода: {period_key}")
                     return plan
                 else:
@@ -319,6 +393,10 @@ class PlansManager:
         """
         with self._lock, self._file_lock():
             try:
+                # Недостающие необязательные поля - дефолтом, чтобы в файл всегда
+                # попадало значение (старые клиенты могут прислать план без него)
+                plan_data = self.with_defaults(plan_data)
+
                 # Валидация данных
                 self._validate_plan_data(plan_data)
 
@@ -406,7 +484,9 @@ class PlansManager:
         with self._lock:
             try:
                 data = self._read_file()
-                plans = data.get('plans', {})
+                # Дефолты необязательных полей - на чтении, как в get_plan
+                plans = {key: self.with_defaults(plan)
+                         for key, plan in data.get('plans', {}).items()}
                 print(f"[PLANS] Загружено планов: {len(plans)}")
                 return plans
             except Exception as e:
@@ -439,6 +519,65 @@ class PlansManager:
             except Exception as e:
                 print(f"[PLANS ERROR] Ошибка при удалении плана: {e}")
                 return False
+
+    def fill_missing_defaults(self, dry_run: bool = False) -> Dict:
+        """
+        Дописать в файл планов недостающие поля из PLAN_DEFAULTS
+
+        Разовая миграция после появления нового необязательного поля
+        (CLI: scripts/fill_plan_defaults.py). На чтении дефолт и так подставляет
+        with_defaults, но явное значение в файле видно в бэкапах и при правке руками.
+
+        Правила:
+        - обрабатываются только ключи вида <venue>_<YYYY-MM> (MONTH_KEY_RE)
+          со словарём внутри; прочие (напр. недельный 2025-11-17_2025-11-23)
+          пропускаются и перечисляются в skipped;
+        - существующие значения и таймстампы createdAt/updatedAt не трогаются;
+        - запись (с бэкапом .backup внутри _write_file) только если что-то
+          изменилось и не dry_run.
+
+        Идемпотентен: повторный запуск возвращает updated == [].
+
+        Args:
+            dry_run: Только собрать отчёт, файл не менять
+
+        Returns:
+            Dict: {'updated': [ключи с дописанными полями],
+                   'unchanged': [ключи, где всё уже было],
+                   'skipped': [ключи не месячного формата],
+                   'dry_run': bool, 'file': путь к файлу планов}
+        """
+        with self._lock, self._file_lock():
+            data = self._read_file()
+            plans = data.get('plans', {})
+
+            updated, unchanged, skipped = [], [], []
+            for key, plan in plans.items():
+                if not (self.MONTH_KEY_RE.fullmatch(key) and isinstance(plan, dict)):
+                    skipped.append(key)
+                    continue
+                missing = self._missing_defaults(plan)
+                if not missing:
+                    unchanged.append(key)
+                    continue
+                for field in missing:
+                    plan[field] = self.PLAN_DEFAULTS[field]
+                updated.append(key)
+
+            if updated and not dry_run:
+                self._write_file(data)
+                print(f"[PLANS] Дефолты дописаны в {len(updated)} планов")
+            else:
+                print(f"[PLANS] Дефолты{' (dry-run)' if dry_run else ''}: "
+                      f"нужно дописать в {len(updated)} планов, файл не изменён")
+
+            return {
+                'updated': updated,
+                'unchanged': unchanged,
+                'skipped': skipped,
+                'dry_run': dry_run,
+                'file': self.data_file,
+            }
 
     def get_periods_with_plans(self) -> List[str]:
         """
@@ -543,7 +682,8 @@ class PlansManager:
         - Находим все месяцы, попадающие в период
         - Для каждого месяца берём пропорциональную долю (дни_периода / дни_месяца)
         - Суммируем абсолютные метрики (выручка, прибыль, чеки)
-        - Усредняем относительные метрики (доли, наценки, средний чек)
+        - Усредняем относительные метрики (доли, наценки, средний чек,
+          доля чеков с картой)
 
         Args:
             venue_key: Ключ заведения или '' для общей
@@ -567,11 +707,13 @@ class PlansManager:
                 'revenueDraft', 'revenuePackaged', 'revenueKitchen'
             ]
 
-            # Относительные метрики (усредняются с весом)
+            # Относительные метрики (усредняются с весом).
+            # cardChecksShare у месяца без поля = PLAN_DEFAULTS (get_plan -> with_defaults),
+            # поэтому такой месяц не пропускается и среднее не размывается.
             relative_metrics = [
                 'averageCheck', 'draftShare', 'packagedShare', 'kitchenShare',
                 'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-                'tapActivity'
+                'tapActivity', 'cardChecksShare'
             ]
 
             # Инициализация результата

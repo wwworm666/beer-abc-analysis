@@ -81,7 +81,7 @@ METRIC_IDS = [
     'revenue', 'checks', 'averageCheck', 'markupPercent', 'draftShare', 'revenueDraft',
     'markupDraft', 'packagedShare', 'revenuePackaged', 'markupPackaged', 'kitchenShare',
     'revenueKitchen', 'markupKitchen', 'profit', 'loyaltyWriteoffs', 'tapActivity',
-    'cardChecks', 'nocardChecks', 'cardChecksShare', 'cardRevenue',
+    'cardChecksShare',
 ]
 
 # Ленивые секции: в bulk-ответе метрики отдаются заглушкой, грузятся по клику.
@@ -89,7 +89,8 @@ LAZY_SECTIONS = ('draft_liters', 'taps')
 
 # Метрики, у которых ВСЕ секции ленивые: их bulk-ответ - только заглушки, строки
 # единого OLAP-запроса не нужны, и роут в iiko не ходит (тест сверяет с реестром).
-LAZY_ONLY_METRICS = frozenset({'tapActivity'})
+# draftShare здесь с 2026-09-05: после отказа от «Структуры» у неё одни «Литры».
+LAZY_ONLY_METRICS = frozenset({'tapActivity', 'draftShare'})
 
 WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
 
@@ -662,8 +663,12 @@ def sec_local_import(ctx, category):
 
 # ---------- лояльность ----------
 
-def sec_card_split(ctx, value='avg_check'):
-    """С картой лояльности / без карты: средний чек, чеки или выручка."""
+def sec_card_split(ctx, value='avg_check', sid='card_split', title='Карта'):
+    """С картой лояльности / без карты: средний чек, чеки или выручка.
+
+    sid/title переопределяются, когда в одной карточке два таких среза
+    (у «Доли чеков с картой» - вкладки «Чеки» и «Выручка»).
+    """
     m = ctx.metrics
     card_avg = m['card_revenue'] / m['card_checks'] if m['card_checks'] else 0.0
     nocard_avg = m['nocard_revenue'] / m['nocard_checks'] if m['nocard_checks'] else 0.0
@@ -676,7 +681,7 @@ def sec_card_split(ctx, value='avg_check'):
         ] if m['total_checks'] else []
         total = {'name': 'Итого', 'value': _round(m['avg_check'], 'money'),
                  'hint': 'Средний чек по всем чекам периода, как на карточке'}
-        return _section('card_split', 'Карта', 'С картой и без',
+        return _section(sid, title, 'С картой и без',
                         'Средний чек = выручка / чеки в каждой группе; чек с картой = непустой номер карты '
                         'лояльности хотя бы в одной его строке', 'money', rows, additive=False, total=total)
     if value == 'checks':
@@ -686,7 +691,7 @@ def sec_card_split(ctx, value='avg_check'):
             {'name': 'Без карты', 'value': float(m['nocard_checks']),
              'sub': f"средний чек {_fmt_money(nocard_avg)}"},
         ]
-        return _top_section('card_split', 'Карта', 'Чеки с картой и без',
+        return _top_section(sid, title, 'Чеки с картой и без',
                             'Чек с картой = непустой номер карты лояльности хотя бы в одной строке чека; '
                             'без карты = все чеки - с картой', 'number', items, 'value',
                             float(m['total_checks']), sub_fn=lambda it: it['sub'], top_n=2,
@@ -697,7 +702,7 @@ def sec_card_split(ctx, value='avg_check'):
         {'name': 'Без карты', 'value': m['nocard_revenue'],
          'sub': f"{_fmt_int(m['nocard_checks'])} чек."},
     ]
-    return _top_section('card_split', 'Карта', 'Выручка с картой и без',
+    return _top_section(sid, title, 'Выручка с картой и без',
                         'Выручка по картам = Σ DishDiscountSumInt строк с непустым номером карты; '
                         'без карты = вся выручка - по картам', 'money', items, 'value',
                         m['total_revenue'], sub_fn=lambda it: it['sub'], top_n=2,
@@ -792,22 +797,22 @@ CARD_SECTIONS = {
                      partial(sec_days, value='avg_check')],
     'markupPercent': [partial(sec_categories, value='markup'), partial(sec_top_dishes, value='margin'),
                       sec_low_markup],
-    'draftShare': [lambda ctx: lazy_stub('draft_liters'),
-                   partial(sec_categories, value='revenue', title='Структура')],
+    # У карточек долей (розлив/фасовка/кухня) нет вкладки «Структура»: доля
+    # и есть структура, а рубли и наценка категорий стоят на соседних карточках
+    # (убрано 2026-09-05 по замечанию владельца).
+    'draftShare': [lambda ctx: lazy_stub('draft_liters')],
     'revenueDraft': [partial(sec_top_dishes, category='draft', key='sort', title='Сорта'),
                      partial(sec_local_import, category='draft'),
                      lambda ctx: lazy_stub('draft_liters')],
     'markupDraft': [partial(sec_top_dishes, category='draft', value='margin', key='sort'),
                     partial(sec_low_markup, category='draft', key='sort')],
     'packagedShare': [partial(sec_top_dishes, category='bottles', value='units'),
-                      partial(sec_local_import, category='bottles'),
-                      partial(sec_categories, value='revenue', title='Структура')],
+                      partial(sec_local_import, category='bottles')],
     'revenuePackaged': [partial(sec_top_dishes, category='bottles'),
                         partial(sec_local_import, category='bottles')],
     'markupPackaged': [partial(sec_top_dishes, category='bottles', value='margin'),
                        partial(sec_low_markup, category='bottles')],
-    'kitchenShare': [partial(sec_top_dishes, category='kitchen', value='units', title='По порциям'),
-                     partial(sec_categories, value='revenue', title='Структура')],
+    'kitchenShare': [partial(sec_top_dishes, category='kitchen', value='units', title='По порциям')],
     'revenueKitchen': [partial(sec_top_dishes, category='kitchen', title='Блюда'),
                        partial(sec_days, value='kitchen_revenue')],
     'markupKitchen': [partial(sec_top_dishes, category='kitchen', value='margin'),
@@ -817,12 +822,15 @@ CARD_SECTIONS = {
     'loyaltyWriteoffs': [partial(sec_categories, value='discount'), partial(sec_top_dishes, value='discount'),
                          partial(sec_days, value='discount')],
     'tapActivity': [lambda ctx: lazy_stub('taps')],
-    'cardChecks': [partial(sec_top_guests, value='checks'), partial(sec_days, value='card_checks'),
-                   partial(sec_stores, value='card_checks')],
-    'nocardChecks': [partial(sec_days, value='nocard_checks'), partial(sec_stores, value='nocard_checks')],
-    'cardChecksShare': [partial(sec_stores, value='card_share'), partial(sec_days, value='card_share', order='asc')],
-    'cardRevenue': [partial(sec_top_guests, value='revenue'), partial(sec_card_split, value='revenue'),
-                    partial(sec_stores, value='card_revenue')],
+    # Лояльность с 2026-09-05 - одна карточка «Доля чеков с картой» (решение
+    # владельца): бывшие карточки «Чеки с картой», «Чеки без карты» и «Выручка
+    # по картам» стали её вкладками «Чеки» (с картой / без, итого все чеки),
+    # «Выручка» (по картам / без карт, итого вся выручка) и «Гости».
+    'cardChecksShare': [partial(sec_card_split, value='checks', sid='checks_split', title='Чеки'),
+                        partial(sec_card_split, value='revenue', sid='revenue_split', title='Выручка'),
+                        partial(sec_top_guests, value='checks'),
+                        partial(sec_stores, value='card_share'),
+                        partial(sec_days, value='card_share', order='asc')],
 }
 
 

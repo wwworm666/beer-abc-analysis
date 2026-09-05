@@ -324,7 +324,9 @@ class ComparisonModule {
             { key: 'markupDraft', altKey: 'draft_markup', label: 'Наценка розлив', formatter: formatPercent },
             { key: 'markupPackaged', altKey: 'bottles_markup', label: 'Наценка фасовка', formatter: formatPercent },
             { key: 'markupKitchen', altKey: 'kitchen_markup', label: 'Наценка кухня', formatter: formatPercent },
-            { key: 'loyaltyWriteoffs', altKey: 'loyalty_points_written_off', label: 'Списания баллов', formatter: formatMoney },
+            // budget: рост списаний — минус для бизнеса, цвет изменения зеркальный
+            // (как у карточки дашборда, config.js budget: true).
+            { key: 'loyaltyWriteoffs', altKey: 'loyalty_points_written_off', label: 'Списания баллов', formatter: formatMoney, budget: true },
             // Лояльность (2026-09-04): чек «с картой» — непустое Delivery.CustomerCardNumber в OLAP.
             { key: 'cardChecks', altKey: 'card_checks', label: 'Чеки с картой', formatter: formatCount },
             { key: 'nocardChecks', altKey: 'nocard_checks', label: 'Чеки без карты', formatter: formatCount },
@@ -363,8 +365,10 @@ class ComparisonModule {
         }
 
         container.innerHTML = topChanges.map(change => {
-            const changeClass = change.percentChange > 0 ? 'positive' : 'negative';
-            const changeIcon = change.percentChange > 0 ? '↗' : '↘';
+            // Цвет — по смыслу: рост хорош, кроме бюджетных метрик (списания).
+            const grew = change.percentChange > 0;
+            const changeClass = (change.budget ? !grew : grew) ? 'positive' : 'negative';
+            const changeIcon = grew ? '↗' : '↘';
 
             return `
                 <div class="comparison-top-change-item ${changeClass}">
@@ -404,6 +408,7 @@ class ComparisonModule {
 
             changes.push({
                 label: metric.label,
+                budget: metric.budget === true,
                 val1: val1,
                 val2: val2,
                 diff: diff,
@@ -436,7 +441,10 @@ class ComparisonModule {
             const diffPercent = val2 !== 0 ? ((diff / val2) * 100) : 0;
 
             // Семантический цвет — только в колонке Δ%; абсолютная Δ нейтральна.
-            const diffClass = diff > 0 ? 'value-positive' : diff < 0 ? 'value-negative' : '';
+            // У бюджетных метрик (списания) рост — минус, цвет зеркальный.
+            const up = metric.budget ? diff < 0 : diff > 0;
+            const down = metric.budget ? diff > 0 : diff < 0;
+            const diffClass = up ? 'value-positive' : down ? 'value-negative' : '';
             const trendArrow = diff > 0 ? '↗' : diff < 0 ? '↘' : '→';
 
             // Для процентных метрик показываем разницу в п.п., для остальных - через formatter

@@ -22,6 +22,11 @@ const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель
 // Плановое списание баллов лояльности — фиксированная доля выручки (5%)
 const LOYALTY_WRITEOFF_RATE = 0.05;
 
+// План доли чеков с картой по умолчанию, % (решение владельца 2026-09-05):
+// подставляется в новый план и в планы, сохранённые до появления поля.
+// Зеркало core/plans_manager.py PlansManager.PLAN_DEFAULTS.
+const CARD_CHECKS_SHARE_DEFAULT = 70;
+
 class PlansViewer {
     constructor() {
         this.loadingState = document.getElementById('plans-loading');
@@ -66,6 +71,7 @@ class PlansViewer {
             markupPackaged: document.getElementById('plan-markupPackaged'),
             markupKitchen: document.getElementById('plan-markupKitchen'),
             loyaltyWriteoffs: document.getElementById('plan-loyaltyWriteoffs'),
+            cardChecksShare: document.getElementById('plan-cardChecksShare'),
             tapActivity: document.getElementById('plan-tapActivity')
         };
 
@@ -395,7 +401,7 @@ class PlansViewer {
             },
             {
                 name: 'Прочее',
-                metrics: ['loyaltyWriteoffs', 'tapActivity']
+                metrics: ['loyaltyWriteoffs', 'cardChecksShare', 'tapActivity']
             }
         ];
 
@@ -419,6 +425,14 @@ class PlansViewer {
                 // Для активности кранов план всегда 100% (если не задан вручную)
                 if (metric.id === 'tapActivity' && !planValue) {
                     planValue = 100;
+                }
+
+                // Доля чеков с картой: в планах, сохранённых до 2026-09-05, поля нет —
+                // показываем дефолт (бэкенд в get_plan подставляет тот же PLAN_DEFAULTS).
+                // Проверяем null/undefined, а не !planValue: 0% — допустимое значение.
+                if (metric.id === 'cardChecksShare' && plan
+                    && (planValue === null || planValue === undefined)) {
+                    planValue = CARD_CHECKS_SHARE_DEFAULT;
                 }
 
                 const row = this.createMetricRow(metric, planValue);
@@ -578,6 +592,23 @@ class PlansViewer {
     fillPlanForm(planData) {
         this.currentPlan = planData;
 
+        this.applyPlanToForm(planData);
+
+        // Обновляем сумму долей
+        this.updateSharesSum();
+        // Авто-расчёт производных метрик
+        this.autoCalculateDerivedMetrics();
+    }
+
+    /**
+     * Перенести значения плана в поля формы.
+     *
+     * Поле, которого в planData нет, остаётся с прежним значением (форма одна на
+     * все планы). Для доли чеков с картой это опасно: у планов, сохранённых до
+     * 2026-09-05, поля нет, и в форме осталась бы цифра от прошлого открытого
+     * плана — поэтому отсутствующее значение заменяем на дефолт.
+     */
+    applyPlanToForm(planData) {
         for (const [key, value] of Object.entries(planData)) {
             const field = this.formFields[key];
             if (field && value !== null && value !== undefined) {
@@ -585,10 +616,10 @@ class PlansViewer {
             }
         }
 
-        // Обновляем сумму долей
-        this.updateSharesSum();
-        // Авто-расчёт производных метрик
-        this.autoCalculateDerivedMetrics();
+        const share = planData.cardChecksShare;
+        if (this.formFields.cardChecksShare && (share === null || share === undefined)) {
+            this.formFields.cardChecksShare.value = CARD_CHECKS_SHARE_DEFAULT.toFixed(2);
+        }
     }
 
     /**
@@ -611,6 +642,7 @@ class PlansViewer {
             markupPackaged: 120,
             markupKitchen: 160,
             loyaltyWriteoffs: 0,
+            cardChecksShare: CARD_CHECKS_SHARE_DEFAULT,
             tapActivity: 100
         };
     }
@@ -644,12 +676,7 @@ class PlansViewer {
         this.hideValidationError();
 
         // Заполняем поля формы
-        for (const [key, value] of Object.entries(planData)) {
-            const field = this.formFields[key];
-            if (field && value !== null && value !== undefined) {
-                field.value = typeof value === 'number' ? value.toFixed(2) : value;
-            }
-        }
+        this.applyPlanToForm(planData);
 
         // Обновляем сумму долей
         this.updateSharesSum();
@@ -691,7 +718,7 @@ class PlansViewer {
             'draftShare', 'packagedShare', 'kitchenShare',
             'revenueDraft', 'revenuePackaged', 'revenueKitchen',
             'markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen',
-            'loyaltyWriteoffs', 'tapActivity'
+            'loyaltyWriteoffs', 'cardChecksShare', 'tapActivity'
         ];
 
         for (const field of requiredFields) {
@@ -708,6 +735,13 @@ class PlansViewer {
         const sharesSum = (planData.draftShare || 0) + (planData.packagedShare || 0) + (planData.kitchenShare || 0);
         if (Math.abs(sharesSum - 100) > 1) {
             return { valid: false, message: `Сумма долей категорий должна быть 100% (сейчас ${sharesSum.toFixed(1)}%)` };
+        }
+
+        // Доля чеков с картой — процент от всех чеков, потолок 100%
+        // (отрицательные отсёк общий цикл выше; бэкенд save_plan проверяет тот же диапазон).
+        const cardChecksShare = planData.cardChecksShare || 0;
+        if (cardChecksShare > 100) {
+            return { valid: false, message: `Доля чеков с картой должна быть от 0 до 100% (сейчас ${cardChecksShare.toFixed(1)}%)` };
         }
 
         return { valid: true };
@@ -733,6 +767,7 @@ class PlansViewer {
             markupPackaged: 'Наценка фасовка',
             markupKitchen: 'Наценка кухня',
             loyaltyWriteoffs: 'Списания баллов',
+            cardChecksShare: 'Доля чеков с картой',
             tapActivity: 'Активность кранов'
         };
         return labels[key] || key;

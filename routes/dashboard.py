@@ -12,6 +12,7 @@ from core.dashboard_details import (
 from core.draft_loader import load_draft_kegs
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.daily_plans_generator import DailyPlansGenerator
+from core.plans_manager import BUDGET_METRICS, plan_score
 from core.weeks_generator import WeeksGenerator
 from core import monthly_report
 from extensions import (
@@ -795,6 +796,9 @@ def plans_export():
             'markupKitchen': 'Наценка кухня (%)',
             'loyaltyWriteoffs': 'Списания баллов (₽)',
             'tapActivity': 'Активность кранов (%)',
+            # План доли чеков с картой (2026-09-05): у старых месяцев подставлен дефолт
+            # PLAN_DEFAULTS через get_all_plans, поэтому колонка всегда заполнена.
+            'cardChecksShare': 'Доля чеков с картой (%)',
         }
 
         rows = []
@@ -1601,11 +1605,18 @@ def export_pdf():
                 plan_text = f"{plan_val:,.2f} {unit}" if has_plan else "не задан"
                 percent_text = f"{percent:.1f}%" if has_plan else "—"
 
+                # Светофор как на экране: у бюджетных метрик (списания) план —
+                # потолок, поэтому статус берётся от зеркального процента
+                # (core.plans_manager.plan_score), а не от самого процента.
+                is_budget = plan_key in BUDGET_METRICS
+                score = plan_score(percent, is_budget)
+                plan_label = 'Бюджет' if is_budget else 'План'
+                progress_label = 'Использовано' if is_budget else 'Выполнение'
                 if not has_plan:
                     color = '#9E9E9E'
-                elif percent >= 100:
+                elif score >= 100:
                     color = '#4CAF50'
-                elif percent >= 90:
+                elif score >= 90:
                     color = '#FFC107'
                 else:
                     color = '#F44336'
@@ -1615,7 +1626,7 @@ def export_pdf():
                     <div class="metric-name">{name}</div>
                     <div class="metric-values">
                         <div class="value-row">
-                            <span class="label">План:</span>
+                            <span class="label">{plan_label}:</span>
                             <span class="value">{plan_text}</span>
                         </div>
                         <div class="value-row">
@@ -1623,7 +1634,7 @@ def export_pdf():
                             <span class="value" style="color: {color}; font-weight: bold;">{actual_val:,.2f} {unit}</span>
                         </div>
                         <div class="value-row progress-row">
-                            <span class="label">Выполнение:</span>
+                            <span class="label">{progress_label}:</span>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: {min(percent, 100)}%; background: {color};"></div>
                                 <span class="progress-text">{percent_text}</span>

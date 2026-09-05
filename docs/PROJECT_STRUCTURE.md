@@ -73,7 +73,7 @@ beer-abc-analysis/
 | `employee_analysis.py` | Метрики по AuthUser, word-set matching имён |
 | `employee_plans.py` | KPI-каталог, **BAR_NAME_MAPPING** (cashshifts vs OLAP) |
 | `kpi_calculator.py` | KPI бонусы |
-| `plans_manager.py` | CRUD планов + **portalocker** cross-worker |
+| `plans_manager.py` | CRUD планов + **portalocker** cross-worker; `PLAN_DEFAULTS` (cardChecksShare 70%), `fill_missing_defaults`, `BUDGET_METRICS`/`plan_score` |
 | `shifts_manager.py` | SQLite + WAL pragma |
 | `meeting_notes.py` | Заметки совещаний |
 | `salary_payload.py` | Серверная сборка payload расчёта ЗП (зеркало страницы) |
@@ -138,7 +138,7 @@ beer-abc-analysis/
 
 ```
 templates/
-├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 20 метрик, AI
+├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 17 карточек (20 метрик в API), AI
 ├── employee.html        # Дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html        # Краны одного бара
 ├── stocks.html          # 4 вкладки: Сводный заказ / Таплист / Фасовка / Сроки
@@ -319,7 +319,8 @@ scripts/
 ├── debug/                   # debug_<bar>_<feature>.py
 ├── check/                   # check_*.py — проверка данных
 ├── analysis/                # analyze_*, calculate_*, search_*
-└── maintenance/             # backup.bat, daily_update_mapping.bat, convert_pdf_to_md.py
+├── maintenance/             # backup.bat, daily_update_mapping.bat, convert_pdf_to_md.py
+└── fill_plan_defaults.py    # Проставить дефолты планов (cardChecksShare = 70) во все месяцы; --dry-run; на проде через docker exec
 ```
 
 > `scripts/import_export/` удалён в 2026-05-15 (Excel-импорт планов заменён UI-only редактированием).
