@@ -83,7 +83,7 @@ function escapeHtml(text) {
  */
 function mobileCaret(metric) {
     return EXPANDABLE_METRICS.includes(metric.id)
-        ? '<span class="m-caret" aria-hidden="true">&#9662;</span>' : '';
+        ? `<span class="m-caret" aria-hidden="true">${CHEVRON_SVG}</span>` : '';
 }
 
 /** Шеврон для строк-аккордеонов и заголовков групп. */
@@ -131,6 +131,7 @@ class Analytics {
         this._detailsInflight = {}; // {metricId: промис} — секции метрики, за которыми уже пошёл запрос
         this.activeTab = {};       // {metricId: id вкладки} — выбор живёт на время сессии
         this.expandedCard = null;  // Текущая раскрытая карточка
+        this.breakdownEl = null;   // Её раскрытие: панель под рядом или блок внутри карточки
         this.isProcessing = false; // Флаг для предотвращения множественных кликов
         this._inflightKey = null;     // Ключ выполняющегося запроса (дедупликация)
         this._inflightPromise = null; // Промис выполняющегося запроса
@@ -329,6 +330,7 @@ class Analytics {
         this.metricsGrid.innerHTML = '';
         // Старые карточки удалены из DOM: раскрытой карточки больше нет.
         this.expandedCard = null;
+        this.breakdownEl = null;
         this.metricsGrid.appendChild(this.renderDesktop(stats));
         this.metricsGrid.appendChild(this.renderMobile(stats));
 
@@ -397,9 +399,10 @@ class Analytics {
 
         const formattedActual = formatValue(actualValue, metric.format);
         // Каретка раскрытия — в строке заголовка, справа (макет 7a). Раньше она
-        // висела абсолютом и налезала на подвал карточки.
+        // висела абсолютом и налезала на подвал карточки. С 2026-09-05 это
+        // шеврон в кружке: маленькую стрелку в углу владелец не замечал.
         const caret = EXPANDABLE_METRICS.includes(metric.id)
-            ? '<span class="mc-caret" aria-hidden="true">&#9662;</span>' : '';
+            ? `<span class="mc-caret" aria-hidden="true">${CHEVRON_SVG}</span>` : '';
 
         if (!hasPlan) {
             card.innerHTML = `
@@ -957,6 +960,37 @@ class Analytics {
     }
 
     /**
+     * Куда класть раскрытие. Карточка в сетке (десктопный ряд группы, пара
+     * «чеки / средний чек» на телефоне) раскрывается ПАНЕЛЬЮ ПОД РЯДОМ: сама
+     * сетка не двигается, соседи не меняют размер (замечание владельца
+     * 2026-09-05: раскрытие внутри ячейки сбивало ориентацию). Возвращает
+     * сетку или null — тогда раскрытие пришивается к низу элемента (строка
+     * аккордеона, карточка на всю ширину).
+     */
+    panelHost(card) {
+        const parent = card.parentElement;
+        if (!parent) return null;
+        const inGrid = parent.classList.contains('metrics-grid-row') || parent.classList.contains('m-duo');
+        return inGrid ? parent : null;
+    }
+
+    /**
+     * Последняя карточка того же визуального ряда сетки, что и card. Панель
+     * встаёт элементом сетки на всю ширину сразу после неё: когда ряд из
+     * четырёх карточек переносится в 2–3 колонки (≤1100px), панель всё равно
+     * оказывается под рядом раскрытой карточки, а не под всей сеткой.
+     * Ряд определяется по offsetTop (transform при наведении его не меняет).
+     */
+    rowEndCard(card, host) {
+        let last = card;
+        for (const el of host.children) {
+            if (el.classList.contains('metric-breakdown')) continue;
+            if (el.offsetTop === card.offsetTop) last = el;
+        }
+        return last;
+    }
+
+    /**
      * Раскрыть карточку: вкладки «Сотрудники» и секции метрики.
      *
      * Сотрудники рисуются сразу из клиентского кэша (пустой список периода без
@@ -969,12 +1003,21 @@ class Analytics {
         this.expandedCard = card;
         card.classList.add('expanded');
 
+        const host = this.panelHost(card);
         const breakdown = document.createElement('div');
-        breakdown.className = 'metric-breakdown';
+        breakdown.className = host ? 'metric-breakdown metric-breakdown-panel' : 'metric-breakdown';
+        // Не data-metric-id: по нему ищут КАРТОЧКИ (applyPreviousPeriod и тесты),
+        // и панель не должна попадать в эти выборки.
+        breakdown.dataset.forMetric = metric.id;
+        // В панели под рядом название метрики повторяется: панель стоит
+        // отдельно от карточки, и без подписи не ясно, чьи это детали.
+        const metricLabel = host
+            ? `<span class="breakdown-metric">${escapeHtml(metric.name)}</span>` : '';
         breakdown.innerHTML = `
             <div class="breakdown-header">
+                ${metricLabel}
                 <span class="breakdown-heading">По сотрудникам</span>
-                <span class="breakdown-close" onclick="event.stopPropagation()">✕</span>
+                <button type="button" class="breakdown-close" aria-label="Закрыть">✕</button>
             </div>
             <div class="breakdown-tabs hidden" role="tablist"></div>
             <div class="breakdown-formula hidden"></div>
@@ -986,7 +1029,12 @@ class Analytics {
             e.stopPropagation();
             this.collapseCard(card);
         });
-        card.appendChild(breakdown);
+        if (host) {
+            this.rowEndCard(card, host).insertAdjacentElement('afterend', breakdown);
+        } else {
+            card.appendChild(breakdown);
+        }
+        this.breakdownEl = breakdown;
 
         this.renderTabs(card, metric);
         this.showTab(card, metric, this.currentTab(metric));
@@ -994,17 +1042,33 @@ class Analytics {
     }
 
     /**
-     * Закрыть раскрытую карточку
+     * Закрыть раскрытую карточку: убрать её раскрытие (панель под рядом или
+     * блок внутри). Чужую карточку не трогаем — у неё раскрытия нет.
      */
     collapseCard(card) {
         card.classList.remove('expanded');
-        const breakdown = card.querySelector('.metric-breakdown');
-        if (breakdown) {
-            breakdown.remove();
-        }
         if (this.expandedCard === card) {
+            if (this.breakdownEl) this.breakdownEl.remove();
+            this.breakdownEl = null;
             this.expandedCard = null;
         }
+    }
+
+    /** Разметка раскрытия карточки card; null, если раскрыта другая карточка. */
+    breakdownOf(card) {
+        return this.expandedCard === card ? this.breakdownEl : null;
+    }
+
+    /** Заголовок, формула, список и заметка раскрытия карточки card (или null). */
+    breakdownParts(card) {
+        const panel = this.breakdownOf(card);
+        if (!panel) return null;
+        return {
+            heading: panel.querySelector('.breakdown-heading'),
+            formulaEl: panel.querySelector('.breakdown-formula'),
+            list: panel.querySelector('.breakdown-list'),
+            noteEl: panel.querySelector('.breakdown-note'),
+        };
     }
 
     /**
@@ -1141,7 +1205,8 @@ class Analytics {
      * Полоса скрыта, пока вкладка одна.
      */
     renderTabs(card, metric) {
-        const tabsEl = card.querySelector('.breakdown-tabs');
+        const panel = this.breakdownOf(card);
+        const tabsEl = panel && panel.querySelector('.breakdown-tabs');
         if (!tabsEl) return;
         const tabs = this.tabsFor(metric);
         const active = this.currentTab(metric);
@@ -1163,7 +1228,9 @@ class Analytics {
 
     /** Переключить активный чип без пересборки полосы: прокрутка и фокус остаются. */
     markActiveTab(card, sectionId) {
-        card.querySelectorAll('.breakdown-tab').forEach(btn => {
+        const panel = this.breakdownOf(card);
+        if (!panel) return;
+        panel.querySelectorAll('.breakdown-tab').forEach(btn => {
             const active = btn.dataset.section === sectionId;
             btn.classList.toggle('active', active);
             btn.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -1178,11 +1245,9 @@ class Analytics {
 
     /** Показать вкладку: заголовок, формула, список и заметка секции. */
     showTab(card, metric, sectionId) {
-        const heading = card.querySelector('.breakdown-heading');
-        const formulaEl = card.querySelector('.breakdown-formula');
-        const list = card.querySelector('.breakdown-list');
-        const noteEl = card.querySelector('.breakdown-note');
-        if (!heading || !list) return;
+        const els = this.breakdownParts(card);
+        if (!els) return;
+        const { heading, formulaEl, list, noteEl } = els;
         const setFormula = (text) => {
             formulaEl.textContent = text || '';
             formulaEl.classList.toggle('hidden', !text);
@@ -1236,10 +1301,9 @@ class Analytics {
 
     /** Заголовок, формула, строки и заметка секции — в разметку раскрытия. */
     renderSectionInto(card, section) {
-        const heading = card.querySelector('.breakdown-heading');
-        const formulaEl = card.querySelector('.breakdown-formula');
-        const list = card.querySelector('.breakdown-list');
-        const noteEl = card.querySelector('.breakdown-note');
+        const els = this.breakdownParts(card);
+        if (!els) return;
+        const { heading, formulaEl, list, noteEl } = els;
         heading.textContent = section.heading || section.title || 'Детали';
         formulaEl.textContent = section.formula || '';
         formulaEl.classList.toggle('hidden', !section.formula);

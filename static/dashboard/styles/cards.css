@@ -50,12 +50,14 @@
 }
 
 /* Каждая группа — ровно 4 метрики, поэтому 4 колонки заполняются целиком
-   и справа не остаётся пустой четверти ряда. */
+   и справа не остаётся пустой четверти ряда. Карточки ряда одной высоты
+   (stretch): раскрытие живёт вне ячейки (панель под рядом), так что растяжка
+   безвредна, а «носик» раскрытой карточки без плана не висит над панелью. */
 .metrics-grid-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
-    align-items: start;
+    align-items: stretch;
 }
 
 @media (max-width: 1100px) {
@@ -762,17 +764,69 @@
     gap: 8px;
 }
 
+/* Шеврон раскрытия в кружке (2026-09-05): маленькую стрелку в углу владелец
+   не замечал. Кликабельна вся карточка (обработчик на ней), кружок только
+   подсказывает это; при наведении он и рамка карточки красятся акцентом,
+   у раскрытой карточки кружок залит акцентом и повёрнут. */
 .mc-caret {
+    flex: 0 0 auto;
     margin-left: auto;
-    font-size: 10px;
-    line-height: 1;
-    color: var(--caret-color);
-    cursor: pointer;
-    transition: transform 0.2s ease;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
-.metric-card.expanded .mc-caret {
+.mc-caret .chevron {
+    width: 14px;
+    height: 14px;
+}
+
+.metric-card.expandable:hover .mc-caret {
+    background: var(--accent-light);
+    color: var(--accent);
+}
+
+.metric-card.expanded .mc-caret,
+.metric-card.expanded:hover .mc-caret {
     transform: rotate(180deg);
+    background: var(--accent);
+    color: var(--text-on-accent);
+}
+
+/* Наведение на раскрываемую карточку: рамка и тень акцентом поверх общего
+   подъёма .metric-card:hover — так видно, что карточка кликабельна целиком. */
+.metric-card.expandable:hover,
+[data-theme="dark"] .metric-card.expandable:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-md);
+}
+
+/* Раскрытая карточка: акцентная рамка и «носик» вниз — к панели под рядом.
+   Селектор с [data-theme="dark"] — иначе тёмная тема не показывала бы рамку:
+   раньше её перебивало правило [data-theme="dark"] .metric-card. */
+.metric-card.expanded,
+[data-theme="dark"] .metric-card.expanded {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-md);
+}
+
+.metric-card.expanded::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -8px;
+    width: 14px;
+    height: 14px;
+    transform: translateX(-50%) rotate(45deg);
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--accent);
+    border-bottom: 1px solid var(--accent);
 }
 
 /* Мобильные карточки и строки раскрываются тем же attachCardBehaviour:
@@ -782,25 +836,40 @@
     cursor: pointer;
 }
 
+/* Тот же шеврон в кружке, что на десктопе, только меньше: стоит внутри подписи. */
 .m-caret {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+    width: 18px;
+    height: 18px;
     margin-left: 6px;
-    font-size: 9px;
-    line-height: 1;
-    color: var(--caret-color);
-    transition: transform 0.2s ease;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.m-caret .chevron {
+    width: 11px;
+    height: 11px;
 }
 
 .m-hero.expanded .m-caret,
 .m-compact.expanded .m-caret,
 .m-row.expanded .m-caret {
     transform: rotate(180deg);
+    background: var(--accent);
+    color: var(--text-on-accent);
 }
 
-/* В паре «чеки / средний чек» раскрытая карточка занимает всю ширину:
-   в половине экрана телефона имена сотрудников не помещаются. */
-.m-duo .m-compact.expanded {
-    grid-column: 1 / -1;
+/* Раскрытый мобильный элемент — акцентная рамка, как у десктопной карточки.
+   В паре «чеки / средний чек» раскрытая карточка больше НЕ растягивается на
+   всю ширину (сосед прыгал): раскрытие встаёт панелью под парой. */
+.m-hero.expanded,
+.m-compact.expanded {
+    border-color: var(--accent);
 }
 
 .m-row .metric-breakdown {
@@ -808,8 +877,13 @@
     padding-top: 10px;
 }
 
-.metric-card.loading::after {
-    content: '⟳';
+/* Загрузка сотрудников при первом клике: крутится кружок шеврона. Раньше
+   ::after с символом вставал в поток ПОСЛЕ подвала и на время загрузки менял
+   высоту карточки — тот самый скачок сетки, только короткий. */
+.metric-card.loading .mc-caret,
+.m-hero.loading .m-caret,
+.m-compact.loading .m-caret,
+.m-row.loading .m-caret {
     animation: spin 1s linear infinite;
 }
 
@@ -839,6 +913,94 @@
     to {
         opacity: 1;
         transform: translateY(0);
+    }
+}
+
+/* ============================================
+   ПАНЕЛЬ ДЕТАЛЕЙ ПОД РЯДОМ (2026-09-05)
+   Карточка в сетке раскрывается не внутрь ячейки, а панелью на всю ширину
+   под рядом: сетка KPI неподвижна, соседи не меняют размер и место. Панель —
+   элемент той же сетки (.metrics-grid-row или .m-duo) на всю ширину
+   (grid-column: 1 / -1), вставленный сразу после последней карточки ряда:
+   при переносе ряда в 2–3 колонки она всё равно под своим рядом. Связь с
+   карточкой — акцентная рамка карточки, «носик» и название метрики в шапке.
+   Расстояние до ряда = gap сетки минус 4px, чтобы носик почти касался панели.
+   ============================================ */
+
+.metric-breakdown-panel {
+    grid-column: 1 / -1;
+    margin-top: -4px;
+    padding: 16px 20px 18px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--accent);
+    border-radius: 14px;
+}
+
+.breakdown-metric {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    white-space: nowrap;
+}
+
+.breakdown-metric + .breakdown-heading::before {
+    content: '·';
+    margin-right: 8px;
+    color: var(--text-tertiary);
+}
+
+/* Ширина панели больше ширины карточки в четыре раза: строки раскладываются
+   плиткой по 360px+ (порядок чтения слева направо сохраняет ранг), «Остальные»,
+   «Итого», «Нет данных» и «Загрузка…» — на всю ширину. Длинное название
+   (сорт, кег, блюдо) в плитке переносится, доля и подпись уходят на вторую
+   строку — иначе от подписи оставалось «438 пор…». Минимум плитки —
+   min(360px, 100%): на телефоне уже 406px панель (пара «чеки / средний чек»)
+   иначе переполнялась и давала странице горизонтальный скролл. */
+.metric-breakdown-panel .breakdown-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
+    gap: 6px 14px;
+}
+
+.metric-breakdown-panel .breakdown-item {
+    align-items: flex-start;
+}
+
+.metric-breakdown-panel .breakdown-rank {
+    flex: 0 0 auto;
+    margin-top: 1px;
+}
+
+.metric-breakdown-panel .breakdown-name {
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.25;
+}
+
+.metric-breakdown-panel .breakdown-name .breakdown-sub {
+    display: block;
+    margin-left: 0;
+}
+
+.metric-breakdown-panel .breakdown-rest,
+.metric-breakdown-panel .breakdown-total,
+.metric-breakdown-panel .breakdown-empty,
+.metric-breakdown-panel .breakdown-loading {
+    grid-column: 1 / -1;
+}
+
+.metric-breakdown-panel .breakdown-formula {
+    max-width: 960px;
+}
+
+@media (max-width: 768px) {
+    .metric-breakdown-panel {
+        margin-top: 0;
+        padding: 14px;
+        border-radius: 16px;
     }
 }
 
@@ -944,10 +1106,16 @@
     font-size: 0.85rem;
 }
 
+/* Кнопка (а не span): закрывается с клавиатуры, у скринридера есть подпись. */
 .breakdown-close {
     cursor: pointer;
     padding: 4px 8px;
+    border: 0;
     border-radius: 4px;
+    background: none;
+    font: inherit;
+    color: inherit;
+    line-height: 1;
     transition: background 0.2s ease;
 }
 
@@ -978,7 +1146,7 @@
     align-items: center;
     justify-content: center;
     background: var(--accent);
-    color: white;
+    color: var(--text-on-accent);
     border-radius: 50%;
     font-size: 0.7rem;
     font-weight: 600;
@@ -1056,11 +1224,6 @@
 /* ============================================
    DARK THEME OVERRIDES
    ============================================ */
-
-[data-theme="dark"] .metric-card {
-    background: var(--bg-secondary);
-    border-color: var(--border-color);
-}
 
 [data-theme="dark"] .metric-name {
     color: var(--text-secondary);

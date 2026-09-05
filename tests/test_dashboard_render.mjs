@@ -192,7 +192,7 @@ const REDESIGN_CLASSES = [
     // десктопные группы и карточка
     'mv-desktop', 'metric-group', 'mg-separator', 'mg-title', 'mg-line',
     'metrics-grid-row', 'metric-card', 'metric-name', 'metric-value',
-    'mc-head', 'mc-caret',
+    'mc-head', 'mc-caret', 'metric-breakdown-panel', 'breakdown-metric',
     // легенда шкал — одна на страницу, в строке вкладок
     'tabs-legend', 'tl-item', 'tl-swatch', 'tl-swatch-prev', 'tabs-divider',
     'tabs-spacer', 'completion-label', 'completion-value',
@@ -257,6 +257,57 @@ test('мобильные карточки и строки раскрываютс
     for (const cls of ['m-caret', 'm-compact.expanded', 'm-row .metric-breakdown']) {
         assert.ok(CSS.includes(`.${cls}`), `нет правил для .${cls}`);
     }
+});
+
+console.log('\n--- панель деталей под рядом и заметный шеврон (2026-09-05) ---');
+
+test('раскрытие карточки в сетке — панель после ряда, а не внутри ячейки', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(js.includes('panelHost(card)'), 'нет выбора места для панели');
+    assert.ok(js.includes("parent.classList.contains('metrics-grid-row') || parent.classList.contains('m-duo')"),
+        'панель под рядом должна работать для десктопного ряда и мобильной пары');
+    assert.ok(js.includes("this.rowEndCard(card, host).insertAdjacentElement('afterend', breakdown)"), 'панель не вставляется после последней карточки ряда');
+    assert.ok(js.includes('el.offsetTop === card.offsetTop'), 'ряд карточки не определяется по offsetTop');
+    assert.ok(/\.metric-breakdown-panel \{[^}]*grid-column: 1 \/ -1/.test(CSS), 'панель не на всю ширину сетки');
+    assert.ok(js.includes("host ? 'metric-breakdown metric-breakdown-panel' : 'metric-breakdown'"), 'нет класса панели');
+    assert.ok(js.includes('breakdown-metric'), 'в шапке панели нет названия метрики');
+    // Разметка раскрытия больше не ищется внутри карточки — только через breakdownOf.
+    assert.ok(!js.includes("card.querySelector('.breakdown-"), 'осталась выборка раскрытия внутри карточки');
+    assert.ok(!js.includes("card.querySelectorAll('.breakdown-"), 'осталась выборка вкладок внутри карточки');
+    assert.ok(!js.includes("card.querySelector('.metric-breakdown')"), 'закрытие ищет раскрытие внутри карточки');
+    assert.ok(js.includes('return this.expandedCard === card ? this.breakdownEl : null;'), 'нет breakdownOf');
+    // Сброс ссылки на панель вместе с раскрытой карточкой при перерисовке.
+    assert.equal(js.split('this.breakdownEl = null;').length - 1, 3, 'breakdownEl не сбрасывается везде, где expandedCard');
+});
+
+test('шеврон раскрытия — SVG в кружке на десктопе и телефоне, старой стрелки нет', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(js.includes('class="mc-caret" aria-hidden="true">${CHEVRON_SVG}</span>'), 'десктопная каретка не шеврон');
+    assert.ok(js.includes('class="m-caret" aria-hidden="true">${CHEVRON_SVG}</span>'), 'мобильная каретка не шеврон');
+    assert.ok(!js.includes('&#9662;'), 'осталась старая стрелка');
+    for (const rule of ['.mc-caret .chevron', '.m-caret .chevron', '.metric-card.expandable:hover .mc-caret',
+                        '.metric-card.expandable:hover', '.metric-card.expanded::before', '.metric-card.expanded .mc-caret']) {
+        assert.ok(CSS.includes(rule), `нет правила ${rule}`);
+    }
+});
+
+test('панель под рядом: сетка неподвижна — пара на телефоне больше не растягивает карточку', () => {
+    const js = read('static/js/dashboard/modules/analytics.js');
+    assert.ok(!/\.m-compact\.expanded[^{]*\{[^}]*grid-column/.test(CSS), 'раскрытая карточка пары снова на всю ширину');
+    // Плитка панели не шире панели: на телефоне минимум 360px переполнял пару.
+    assert.ok(CSS.includes('minmax(min(360px, 100%), 1fr)'), 'минимум плитки панели жёстче ширины панели');
+    // Тёмная тема не должна гасить акцентную рамку раскрытой/наведённой карточки.
+    assert.ok(CSS.includes('[data-theme="dark"] .metric-card.expanded'), 'в тёмной теме нет рамки у раскрытой карточки');
+    assert.ok(!/\[data-theme="dark"\] \.metric-card \{/.test(CSS), 'осталось правило тёмной темы, перебивающее состояния карточки');
+    // Спиннер загрузки — на шевроне, а не псевдоэлементом в потоке (менял высоту карточки).
+    assert.ok(!CSS.includes('.metric-card.loading::after'), 'спиннер загрузки снова в потоке карточки');
+    assert.ok(CSS.includes('.metric-card.loading .mc-caret'), 'спиннер загрузки не на шевроне');
+    assert.ok(/\.metrics-grid-row \{[^}]*align-items: stretch/.test(CSS), 'карточки ряда не одной высоты');
+    assert.ok(!read('static/dashboard/styles/variables.css').includes('--caret-color'), 'мёртвый токен --caret-color');
+    assert.ok(js.includes('<button type="button" class="breakdown-close" aria-label="Закрыть">'), 'крестик закрытия не кнопка');
+    assert.ok(CSS.includes('.metric-breakdown-panel .breakdown-list'), 'нет плитки строк в панели');
+    assert.ok(/\.metric-breakdown-panel \.breakdown-total[^{]*\{[^}]*grid-column: 1 \/ -1/.test(CSS), '«Итого» в панели не на всю ширину');
+    assert.ok(CSS.includes('.metric-breakdown-panel {'), 'нет стиля панели');
 });
 
 test('ответ по сотрудникам принимается только для текущего бара и периода', () => {
