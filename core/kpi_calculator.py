@@ -9,7 +9,22 @@
 
 Цели и минимумы — взвешенные по сменам на точках.
 Конфигурация KPI (какие метрики используются) привязана к месяцу.
+
+Штучные и суммовые показатели считаются НА КАССОВУЮ СМЕНУ (с августа 2026,
+решение владельца 2026-09-06): одно абсолютное число «30 карт за месяц» нельзя
+ставить и человеку с 5 сменами, и человеку с 25 — факт таких метрик растёт со
+сменами, а коэффициент смен потом множит премию ещё раз. Поэтому у KPI на
+«экстенсивной» метрике (см. `extensive` в AVAILABLE_METRICS) факт делится на
+число кассовых смен за период, а цель и минимум задаются за одну смену.
+Долевые и удельные метрики (доли, средний чек, наценка, выручка/смена) уже
+«на единицу» и не меняются.
+
+Направление метрики выводится из целей: цель выше минимума — «больше лучше»,
+минимум выше цели — «меньше лучше» (опоздания, отмены). Пара «цель 0 / мин 0»
+считается НЕ заданной: такая точка не участвует ни во взвешивании, ни в
+коэффициенте (редактор сохраняет пустые поля нулями).
 """
+import copy
 import json
 import os
 from typing import Dict, List, Optional, Tuple
@@ -29,29 +44,45 @@ RUSSIAN_BAR_NAMES = {
 
 KPI_KEYS = ['kpi1', 'kpi2', 'kpi3']
 
+# Первый месяц расчёта, с которого штучные метрики без явного флага `per_shift`
+# в конфиге считаются «на смену» (владелец: «делаем начиная с 31 июля, для
+# августа пересчитать по новым правилам»). Расчёт помесячный, поэтому граница —
+# месяц: июль и раньше считаются как прежде, август и позже — на смену.
+# Явный флаг в конфиге месяца всегда сильнее этой даты.
+PER_SHIFT_FROM_MONTH = '2026-08'
+
+# Единица «на смену» в подписях (страница ЗП, /me, /goals)
+PER_SHIFT_UNIT_SUFFIX = '/смену'
+
+# Знаков после запятой у значения «на смену»: штуки и часы за смену — дробные
+# (1,6 карты за смену), рубли за смену остаются целыми
+PER_SHIFT_DECIMALS = 2
+
 # Каталог доступных метрик из EmployeeMetricsCalculator.calculate().
 # Полный набор соответствует карточкам на странице /employee (дашборд сотрудника).
-# Инверсные метрики (late_count, cancelled_count): для них в редакторе KPI задают min > target,
-# тогда формула (fact - min) / (target - min) даёт положительный ratio при низком факте.
+# extensive: факт растёт с числом смен (штуки, суммы, часы) — такие KPI считаются
+#   на кассовую смену (см. докстринг модуля). Долевые и удельные метрики — нет.
+# lower_is_better: подсказка редактору («меньше — лучше»: минимум ставят выше
+#   цели). На формулу не влияет — направление выводится из цели и минимума.
 AVAILABLE_METRICS = {
     'kitchen_share':       {'name': 'Доля кухни',              'unit': '%',  'decimals': 1},
     'draft_share':         {'name': 'Доля розлива',            'unit': '%',  'decimals': 1},
     'bottles_share':       {'name': 'Доля фасовки',            'unit': '%',  'decimals': 1},
     'avg_check':           {'name': 'Средний чек',             'unit': '₽',  'decimals': 0},
-    'total_revenue':       {'name': 'Общая выручка',           'unit': '₽',  'decimals': 0},
+    'total_revenue':       {'name': 'Общая выручка',           'unit': '₽',  'decimals': 0, 'extensive': True},
     'revenue_per_shift':   {'name': 'Выручка/смена',           'unit': '₽',  'decimals': 0},
     'revenue_per_hour':    {'name': 'Выручка/час',             'unit': '₽',  'decimals': 0},
-    'total_checks':        {'name': 'Кол-во чеков',            'unit': 'шт', 'decimals': 0},
+    'total_checks':        {'name': 'Кол-во чеков',            'unit': 'шт', 'decimals': 0, 'extensive': True},
     'avg_markup':          {'name': 'Средняя наценка',         'unit': '%',  'decimals': 1},
     'discount_percent':    {'name': '% скидок',                'unit': '%',  'decimals': 1},
-    'cancelled_count':     {'name': 'Отмены/возвраты',         'unit': 'шт', 'decimals': 0},
-    'draft_revenue':       {'name': 'Выручка розлива',         'unit': '₽',  'decimals': 0},
-    'bottles_revenue':     {'name': 'Выручка фасовки',         'unit': '₽',  'decimals': 0},
-    'kitchen_revenue':     {'name': 'Выручка кухни',           'unit': '₽',  'decimals': 0},
+    'cancelled_count':     {'name': 'Отмены/возвраты',         'unit': 'шт', 'decimals': 0, 'extensive': True, 'lower_is_better': True},
+    'draft_revenue':       {'name': 'Выручка розлива',         'unit': '₽',  'decimals': 0, 'extensive': True},
+    'bottles_revenue':     {'name': 'Выручка фасовки',         'unit': '₽',  'decimals': 0, 'extensive': True},
+    'kitchen_revenue':     {'name': 'Выручка кухни',           'unit': '₽',  'decimals': 0, 'extensive': True},
     'shifts_count':        {'name': 'Количество смен',         'unit': 'шт', 'decimals': 0},
-    'work_hours':          {'name': 'Часы работы',             'unit': 'ч',  'decimals': 1},
-    'late_count':          {'name': 'Опоздания',               'unit': 'шт', 'decimals': 0},
-    'loyalty_cards_count': {'name': 'Новые карты лояльности',  'unit': 'шт', 'decimals': 0},
+    'work_hours':          {'name': 'Часы работы',             'unit': 'ч',  'decimals': 1, 'extensive': True},
+    'late_count':          {'name': 'Опоздания',               'unit': 'шт', 'decimals': 0, 'extensive': True, 'lower_is_better': True},
+    'loyalty_cards_count': {'name': 'Новые карты лояльности',  'unit': 'шт', 'decimals': 0, 'extensive': True},
     'plan_fact_percent':   {'name': 'План/Факт',               'unit': '%',  'decimals': 1},
 }
 
@@ -61,6 +92,96 @@ DEFAULT_KPI_CONFIG = {
     'kpi2': {'metric': 'draft_share',   'name': 'Доля розлива (%)'},
     'kpi3': {'metric': 'avg_check',     'name': 'Средний чек (₽)'},
 }
+
+# Ключи ответа GET /api/kpi-targets, которые редактор шлёт обратно, но в файл
+# они не пишутся (справочник метрик, граница «на смену», журнал конвертации)
+NON_PERSISTENT_KEYS = ('available_metrics', 'per_shift_from_month',
+                       'converted_from_monthly')
+
+
+def is_extensive(metric: str) -> bool:
+    """Метрика «растёт со сменами» — штуки, суммы, часы (см. AVAILABLE_METRICS)."""
+    return bool((AVAILABLE_METRICS.get(metric) or {}).get('extensive'))
+
+
+def metric_unit(metric: str, per_shift: bool = False) -> str:
+    """Единица показателя для подписей: «шт», а на смену — «шт/смену»."""
+    unit = (AVAILABLE_METRICS.get(metric) or {}).get('unit', '')
+    return f"{unit}{PER_SHIFT_UNIT_SUFFIX}" if per_shift else unit
+
+
+def metric_decimals(metric: str, per_shift: bool = False) -> int:
+    """Знаки после запятой: у значения «на смену» штуки и часы дробные."""
+    info = AVAILABLE_METRICS.get(metric) or {}
+    decimals = int(info.get('decimals', 1))
+    if per_shift and info.get('unit') != '₽':
+        return max(decimals, PER_SHIFT_DECIMALS)
+    return decimals
+
+
+def targets_are_set(loc_targets) -> bool:
+    """Заданы ли цели точки по KPI. Пара 0/0 — «не задано» (пустые поля
+    редактора сохраняются нулями); отсутствие ключа — тоже не задано."""
+    if not isinstance(loc_targets, dict):
+        return False
+    try:
+        target = float(loc_targets.get('target') or 0)
+        min_val = float(loc_targets.get('min') or 0)
+    except (TypeError, ValueError):
+        return False
+    return not (target == 0 and min_val == 0)
+
+
+def per_shift_effective(kpi_conf: dict) -> bool:
+    """Считается ли KPI на смену: явный флаг конфига И экстенсивная метрика.
+    Флаг на долевой метрике игнорируется — делить процент на смены бессмысленно."""
+    if not isinstance(kpi_conf, dict):
+        return False
+    return bool(kpi_conf.get('per_shift')) and is_extensive(kpi_conf.get('metric', ''))
+
+
+def normalize_month_data(month: str, month_data: dict, defaults: dict) -> Tuple[dict, dict]:
+    """Привести конфиг месяца к явной форме «на смену».
+
+    Для каждого KPI на экстенсивной метрике БЕЗ флага `per_shift` в месяце
+    начиная с PER_SHIFT_FROM_MONTH: флаг ставится, а месячные цель/минимум по
+    точкам делятся на норму смен — «30 карт за месяц при норме 15» = «2 за
+    смену» (округление до сотых). Так расчёт августа по старому конфигу и
+    редактор видят одни и те же числа; после первого сохранения месяц хранится
+    уже в явном виде. Явный флаг (true/false) и месяцы до границы не трогаются.
+
+    Returns:
+        (копия данных месяца, {kpi_key: {'norm_shifts': N}} — что было сконвертировано)
+    """
+    data = copy.deepcopy(month_data or {})
+    converted = {}
+    kpi_config = data.get('kpi_config')
+    if not isinstance(kpi_config, dict) or month < PER_SHIFT_FROM_MONTH:
+        return data, converted
+
+    norm = float((defaults or {}).get('norm_shifts') or 15)
+    if norm <= 0:
+        norm = 15.0
+
+    for kpi_key, conf in kpi_config.items():
+        if not isinstance(conf, dict) or 'per_shift' in conf:
+            continue
+        if not is_extensive(conf.get('metric', '')):
+            continue
+        conf['per_shift'] = True
+        converted[kpi_key] = {'norm_shifts': norm}
+        for loc, loc_targets in data.items():
+            if loc == 'kpi_config' or not isinstance(loc_targets, dict):
+                continue
+            t = loc_targets.get(kpi_key)
+            if not isinstance(t, dict):
+                continue
+            try:
+                t['target'] = round(float(t.get('target') or 0) / norm, PER_SHIFT_DECIMALS)
+                t['min'] = round(float(t.get('min') or 0) / norm, PER_SHIFT_DECIMALS)
+            except (TypeError, ValueError):
+                t['target'], t['min'] = 0, 0
+    return data, converted
 
 
 class KpiTargetsReader:
@@ -104,8 +225,26 @@ class KpiTargetsReader:
             return {}
 
     def get_all_data(self) -> dict:
-        """Полные данные для UI-редактора."""
+        """Полные данные как в файле (без нормализации «на смену»)."""
         return self._load()
+
+    def get_editor_data(self) -> dict:
+        """Данные для редактора целей и памятки /goals: месяцы в явной форме
+        «на смену» (см. normalize_month_data) плюс граница и журнал конвертации.
+        Ключи из NON_PERSISTENT_KEYS при сохранении отбрасываются."""
+        raw = self._load()
+        defaults = self.get_defaults()
+        months, converted_all = {}, {}
+        for month, month_data in (raw.get('months') or {}).items():
+            months[month], converted = normalize_month_data(month, month_data, defaults)
+            if converted:
+                converted_all[month] = converted
+        return {
+            'defaults': copy.deepcopy(raw.get('defaults', defaults)),
+            'months': months,
+            'per_shift_from_month': PER_SHIFT_FROM_MONTH,
+            'converted_from_monthly': converted_all,
+        }
 
     def get_defaults(self) -> dict:
         data = self._load()
@@ -131,19 +270,22 @@ class KpiTargetsReader:
         return sorted(keys, key=lambda k: int(k[3:]) if k[3:].isdigit() else 0)
 
     def get_month_data(self, month_str: str) -> dict:
-        """Все данные месяца (kpi_config + targets по точкам)."""
+        """Все данные месяца (kpi_config + targets по точкам) в явной форме
+        «на смену» — копия, кэш файла не меняется."""
         data = self._load()
-        return data.get('months', {}).get(month_str, {})
+        month_data = data.get('months', {}).get(month_str, {})
+        normalized, _ = normalize_month_data(month_str, month_data, self.get_defaults())
+        return normalized
 
     def get_kpi_config_for_month(self, month_str: str) -> dict:
         """
         Конфигурация KPI для месяца.
 
         Returns:
-            {kpi1: {metric, name}, kpi2: ..., kpi3: ...}
+            {kpi1: {metric, name, per_shift?}, kpi2: ..., kpi3: ...}
         """
         month_data = self.get_month_data(month_str)
-        return month_data.get('kpi_config', DEFAULT_KPI_CONFIG)
+        return month_data.get('kpi_config', copy.deepcopy(DEFAULT_KPI_CONFIG))
 
     def get_targets_for_month(self, month_str: str) -> dict:
         """
@@ -162,14 +304,30 @@ class KpiTargetsReader:
         return sorted(data.get('months', {}).keys())
 
     def save_targets(self, new_data: dict):
-        """Сохраняет полные данные в JSON."""
+        """Сохраняет полные данные в JSON.
+
+        Служебные ключи ответа редактора (справочник метрик, граница «на
+        смену», журнал конвертации) отбрасываются. Запись атомарная: во
+        временный файл рядом и os.replace — оборванная запись не оставит
+        полфайла (цели читает каждый расчёт ЗП).
+        """
+        if not isinstance(new_data, dict) or not isinstance(new_data.get('months'), dict):
+            raise ValueError('Неверный формат данных: ожидается объект с "months"')
+        to_save = {k: v for k, v in new_data.items() if k not in NON_PERSISTENT_KEYS}
+        tmp_path = f"{self.filepath}.tmp"
         try:
-            with open(self.filepath, 'w', encoding='utf-8') as f:
-                json.dump(new_data, f, ensure_ascii=False, indent=2)
-            self._cache = new_data
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(to_save, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, self.filepath)
+            self._cache = to_save
             print(f"[KPI] Tseli sohraneny v {self.filepath}")
         except Exception as e:
             print(f"[KPI] Oshibka zapisi JSON: {e}")
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except OSError:
+                pass
             raise
 
     def clear_cache(self):
@@ -212,42 +370,55 @@ class KpiCalculator:
         """
         Взвешенные цели по сменам на точках.
 
+        Точка участвует в KPI, если её цели по этому KPI заданы
+        (targets_are_set: есть ключ и пара не 0/0). KPI без единой заданной
+        точки у сотрудника помечается no_targets — премия по нему 0, а не
+        «максимум за цель 0».
+
         Returns:
-            ({kpi_key: {target: float, min: float}}, total_shifts)
+            ({kpi_key: {target, min, shifts, no_targets, locations: {loc: {target, min, shifts}}}},
+             total_shifts — смены сотрудника на точках, где задан ХОТЯ БЫ ОДИН KPI месяца)
         """
         if kpi_keys is None:
             kpi_keys = KPI_KEYS
 
         result = {}
-        total_shifts = 0
+        locations_with_any = set()
 
         for kpi_key in kpi_keys:
             weighted_target = 0.0
             weighted_min = 0.0
             shifts_with_targets = 0
+            locations = {}
 
             for location, shift_count in shifts_per_location.items():
                 loc_targets = month_targets.get(location, {})
-                kpi_targets = loc_targets.get(kpi_key)
-                if kpi_targets is None:
+                kpi_targets = loc_targets.get(kpi_key) if isinstance(loc_targets, dict) else None
+                if not targets_are_set(kpi_targets):
                     continue
 
-                weighted_target += shift_count * kpi_targets['target']
-                weighted_min += shift_count * kpi_targets['min']
+                target = float(kpi_targets['target'] or 0)
+                min_val = float(kpi_targets['min'] or 0)
+                weighted_target += shift_count * target
+                weighted_min += shift_count * min_val
                 shifts_with_targets += shift_count
+                locations[location] = {'target': target, 'min': min_val, 'shifts': shift_count}
+                locations_with_any.add(location)
 
             if shifts_with_targets > 0:
                 result[kpi_key] = {
                     'target': round(weighted_target / shifts_with_targets, 2),
                     'min': round(weighted_min / shifts_with_targets, 2),
+                    'shifts': shifts_with_targets,
+                    'no_targets': False,
+                    'locations': locations,
                 }
             else:
-                result[kpi_key] = {'target': 0, 'min': 0}
+                result[kpi_key] = {'target': 0, 'min': 0, 'shifts': 0,
+                                   'no_targets': True, 'locations': {}}
 
-            # Запомним total_shifts при первом KPI
-            if kpi_key == kpi_keys[0]:
-                total_shifts = shifts_with_targets
-
+        total_shifts = sum(count for loc, count in shifts_per_location.items()
+                           if loc in locations_with_any)
         return result, total_shifts
 
     def calculate_premium(
@@ -266,6 +437,11 @@ class KpiCalculator:
             capped_ratio = max(0, min(ratio, max_ratio))
             intermediate_premium = capped_ratio × base_premium
 
+        Направление — из целей. Цель выше минимума: «больше лучше», факт ниже
+        минимума даёт 0. Минимум выше цели («меньше лучше»: опоздания, отмены):
+        та же формула, факт выше минимума даёт 0, факт ниже цели — выше 1.
+        Цель равна минимуму: ступенька — max_ratio при факте не ниже цели.
+
         Коэффициент (смены / норма) применяется позже к общей сумме.
 
         Args:
@@ -279,12 +455,15 @@ class KpiCalculator:
             base_premium = defaults.get('base_premium', 5000)
         max_ratio = defaults.get('max_ratio', 2)
 
-        if target == min_val:
+        span = target - min_val
+        if span == 0:
             ratio = float(max_ratio) if fact >= target else 0.0
-        elif fact < min_val:
-            ratio = 0.0
+        elif span > 0:
+            # обычная метрика: больше — лучше
+            ratio = 0.0 if fact < min_val else (fact - min_val) / span
         else:
-            ratio = (fact - min_val) / (target - min_val)
+            # инверсная метрика: меньше — лучше (минимум выше цели)
+            ratio = 0.0 if fact > min_val else (fact - min_val) / span
 
         capped_ratio = max(0.0, min(ratio, float(max_ratio)))
         intermediate_premium = capped_ratio * base_premium
@@ -301,28 +480,34 @@ class KpiCalculator:
         metrics: dict,
         shift_locations: dict,
         month: str,
+        shifts_divisor: int = None,
     ) -> Optional[dict]:
         """
         Полный расчёт KPI-бонуса для сотрудника.
 
         Args:
             employee_name: имя сотрудника
-            metrics: результат EmployeeMetricsCalculator.calculate()
+            metrics: результат EmployeeMetricsCalculator.calculate() /
+                     _build_kpi_metrics(); metrics['shifts_count'] — кассовые
+                     смены за период, делитель показателей «на смену»
             shift_locations: {date: location} из cashshifts
             month: "YYYY-MM"
+            shifts_divisor: явный делитель «на смену» (кассовые смены); если
+                     None — metrics['shifts_count'], а без него — дни смен
 
         Returns:
             Полный результат расчёта или None если нет целей/смен
         """
-        month_targets = self.reader.get_targets_for_month(month)
+        month_data = self.reader.get_month_data(month)
+        month_targets = {k: v for k, v in month_data.items() if k != 'kpi_config'}
         if not month_targets:
             return None
 
         defaults = self.reader.get_defaults()
         norm_shifts = defaults.get('norm_shifts', 15)
 
-        # Конфиг KPI из месяца (какие метрики используются)
-        kpi_config = self.reader.get_kpi_config_for_month(month)
+        # Конфиг KPI из месяца (какие метрики используются, флаг «на смену»)
+        kpi_config = month_data.get('kpi_config', copy.deepcopy(DEFAULT_KPI_CONFIG))
 
         # Динамическое количество KPI: ключи берём из конфига месяца
         kpi_keys = self.reader.get_kpi_keys_for_month(month)
@@ -352,6 +537,17 @@ class KpiCalculator:
         if total_shifts == 0:
             return None
 
+        # Делитель показателей «на смену» — кассовые смены периода (мы считаем
+        # смены по кассам). Без них в метриках — дни смен, чтобы не делить на 0.
+        if shifts_divisor is None:
+            shifts_divisor = metrics.get('shifts_count') or 0
+        try:
+            shifts_divisor = int(shifts_divisor or 0)
+        except (TypeError, ValueError):
+            shifts_divisor = 0
+        if shifts_divisor <= 0:
+            shifts_divisor = total_shifts_all
+
         # Расчёт по каждому KPI
         kpis = {}
         total_intermediate = 0.0
@@ -362,26 +558,45 @@ class KpiCalculator:
             default_conf = DEFAULT_KPI_CONFIG.get(kpi_key, {})
             metric_field = kpi_conf.get('metric', default_conf.get('metric', ''))
             kpi_name = kpi_conf.get('name', kpi_key)
+            per_shift = per_shift_effective({'metric': metric_field,
+                                             'per_shift': kpi_conf.get('per_shift')})
 
-            fact = metrics.get(metric_field, 0)
-            targets = weighted_targets.get(kpi_key, {'target': 0, 'min': 0})
+            fact_raw = metrics.get(metric_field, 0) or 0
+            fact = fact_raw / shifts_divisor if per_shift else fact_raw
+            targets = weighted_targets.get(kpi_key) or {
+                'target': 0, 'min': 0, 'shifts': 0, 'no_targets': True, 'locations': {}}
 
-            premium_result = self.calculate_premium(
-                fact=fact,
-                target=targets['target'],
-                min_val=targets['min'],
-                defaults=defaults,
-                base_premium=base_per_kpi,
-            )
+            if targets['no_targets']:
+                # Ни на одной точке сотрудника этот KPI не задан — премии нет
+                premium_result = {'ratio': 0.0, 'capped_ratio': 0.0,
+                                  'intermediate_premium': 0.0}
+            else:
+                premium_result = self.calculate_premium(
+                    fact=fact,
+                    target=targets['target'],
+                    min_val=targets['min'],
+                    defaults=defaults,
+                    base_premium=base_per_kpi,
+                )
 
-            kpis[kpi_key] = {
+            kpi_row = {
                 'name': kpi_name,
                 'metric': metric_field,
-                'fact': round(fact, 2),
+                'fact': round(fact, 4 if per_shift else 2),
                 'target': targets['target'],
                 'min': targets['min'],
+                'per_shift': per_shift,
+                'unit': metric_unit(metric_field, per_shift),
+                'decimals': metric_decimals(metric_field, per_shift),
+                'no_targets': targets['no_targets'],
+                'target_shifts': targets['shifts'],
+                'location_targets': targets['locations'],
                 **premium_result,
             }
+            if per_shift:
+                kpi_row['fact_raw'] = round(fact_raw, 2)
+                kpi_row['shifts_divisor'] = shifts_divisor
+            kpis[kpi_key] = kpi_row
             total_intermediate += premium_result['intermediate_premium']
 
         # Коэффициент применяется к итогу всех KPI
@@ -393,6 +608,7 @@ class KpiCalculator:
             'total_shifts': total_shifts,
             'koef': koef,
             'shifts_per_location': shifts_per_location,
+            'cash_shifts': shifts_divisor,
             'kpis': kpis,
             'kpi_count': kpi_count,
             'kpi_pool': kpi_pool,

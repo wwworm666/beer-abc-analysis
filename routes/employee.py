@@ -900,10 +900,16 @@ def kpi_calculate():
     """
     API endpoint для расчёта KPI-бонусов всех сотрудников.
 
-    Формула:
-    - ratio = (Факт - Мін) / (Цель - Мін), capped [0, 2]
-    - Премия_kpi = ratio × Смен × (5000 / 15)
-    - Цели взвешены по сменам на точках
+    Формула (core/kpi_calculator.py):
+    - ratio = (Факт - Мин) / (Цель - Мин), capped [0, max_ratio]
+    - промежуточная премия = ratio × (фонд / кол-во KPI)
+    - итого = Σ промежуточных × (смены на точках с целями / норма)
+    - цели взвешены по сменам на точках
+    - штучные метрики (карты, чеки, выручка, отмены, опоздания) с августа 2026
+      считаются НА КАССОВУЮ СМЕНУ: факт / кассовые смены против цели за смену;
+      месячные цели старых конфигов делятся на норму смен (нормализация в
+      KpiTargetsReader), поэтому month_targets и kpi_config в ответе — уже в
+      единицах «за смену» для таких KPI
     """
     try:
         data = request.json
@@ -1102,11 +1108,18 @@ def kpi_calculate():
 
 @employee_bp.route('/api/kpi-targets', methods=['GET'])
 def kpi_targets_get():
-    """Получить текущие KPI-цели для редактора."""
+    """Получить текущие KPI-цели для редактора (и памятки /goals).
+
+    Месяцы отдаются в явной форме «на смену»: у штучных метрик в месяцах с
+    `per_shift_from_month` проставлен флаг `per_shift`, месячные цели поделены
+    на норму смен (`converted_from_monthly` перечисляет, что было
+    сконвертировано). Редактор шлёт это же обратно — первое сохранение месяца
+    закрепляет явный вид в файле.
+    """
     try:
         clear_kpi_cache()
         reader = KpiTargetsReader()
-        data = reader.get_all_data()
+        data = reader.get_editor_data()
         data['available_metrics'] = AVAILABLE_METRICS
         return jsonify(data)
     except Exception as e:
@@ -1115,10 +1128,10 @@ def kpi_targets_get():
 
 @employee_bp.route('/api/kpi-targets', methods=['POST'])
 def kpi_targets_save():
-    """Сохранить KPI-цели."""
+    """Сохранить KPI-цели (служебные ключи ответа GET отбрасываются)."""
     try:
         new_data = request.json
-        if not new_data or 'months' not in new_data:
+        if not new_data or not isinstance(new_data.get('months'), dict):
             return jsonify({'error': 'Неверный формат данных'}), 400
 
         clear_kpi_cache()

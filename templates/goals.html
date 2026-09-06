@@ -136,6 +136,7 @@
             border-top: 1px dashed var(--border-color);
         }
         .kpi-goal-min b { color: var(--warning); font-variant-numeric: tabular-nums; font-weight: 700; }
+        .kpi-goal-per-shift { font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px; }
 
         /* Daily plan calendar — ограничиваем ширину, чтобы ячейки были соразмерны,
            а не растягивались на всю карточку (иначе суммы «плавают» в пустоте). */
@@ -418,8 +419,10 @@
             foot.innerHTML =
                 `<strong style="color:var(--text-secondary);">Как считаются цифры</strong><br>` +
                 `${planFormula}<br>` +
-                `<b>KPI</b> — цель и минимум за месяц по каждой точке (задаются на странице «Расчёт ЗП»). ` +
-                `Премия начисляется при достижении минимума и растёт до цели.`;
+                `<b>KPI</b> — цель и минимум по каждой точке (задаются на странице «Расчёт ЗП»). ` +
+                `Премия начисляется при достижении минимума и растёт до цели. ` +
+                `Штучные показатели (карты, чеки, выручка, отмены, опоздания, часы) — за одну кассовую смену: ` +
+                `факт за месяц делится на число кассовых смен.`;
             document.getElementById('foot-card').style.display = 'block';
         }
 
@@ -475,7 +478,15 @@
                 kpiKeys.forEach(k => {
                     const conf = kpiConfig[k] || {};
                     const metric = conf.metric || '';
-                    const info = availableMetrics[metric] || { unit: '', decimals: 1 };
+                    const catalog = availableMetrics[metric] || { unit: '', decimals: 1 };
+                    // Штучный KPI «на смену» (с августа 2026, флаг per_shift в
+                    // конфиге месяца): цель и минимум — за одну кассовую смену.
+                    // Ответ /api/kpi-targets уже в этих единицах.
+                    const perShift = !!conf.per_shift && !!catalog.extensive;
+                    const info = {
+                        unit: (catalog.unit || '') + (perShift ? '/смену' : ''),
+                        decimals: perShift && catalog.unit !== '₽' ? Math.max(catalog.decimals || 0, 2) : (catalog.decimals == null ? 1 : catalog.decimals),
+                    };
                     const name = conf.name || metric;
                     const t = barTargets[k];
                     if (!t || (t.target === 0 && t.min === 0)) {
@@ -487,7 +498,8 @@
                         s += `<div class="kpi-goal">` +
                              `<div class="kpi-goal-name">${name}</div>` +
                              `<div class="kpi-goal-target"><span class="val">${fmtNum(t.target, info.decimals)}</span><span class="unit">${info.unit || ''}</span></div>` +
-                             `<div class="kpi-goal-min">минимум <b>${fmtNum(t.min, info.decimals)}&#8239;${info.unit || ''}</b> — ниже премии нет</div>` +
+                             `<div class="kpi-goal-min">минимум <b>${fmtNum(t.min, info.decimals)}&#8239;${info.unit || ''}</b> — ${t.min > t.target ? 'выше' : 'ниже'} премии нет</div>` +
+                             (perShift ? `<div class="kpi-goal-per-shift">за каждую кассовую смену</div>` : '') +
                              `</div>`;
                     }
                 });

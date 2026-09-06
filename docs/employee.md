@@ -16,6 +16,7 @@
 - [`core/salary_export.py`](../../core/salary_export.py) — рендерер раскладки в .xlsx (openpyxl)
 - [`core/salary_gsheet.py`](../../core/salary_gsheet.py) — рендерер раскладки в Google Таблицу (Sheets API)
 - [`templates/bonus.html`](../../templates/bonus.html) — страница `/salary` (расчёт ЗП)
+- [`tests/test_kpi_calculator.py`](../../tests/test_kpi_calculator.py) — тесты калькулятора KPI («на смену», инверсные метрики, пустые цели)
 
 ---
 
@@ -695,36 +696,36 @@ additive-only.
 # core/kpi_calculator.py — calculate_premium()
 def calculate_premium(self, fact, target, min_val, defaults, base_premium=None):
     """
-    ratio              = (Факт - Мин) / (Цель - Мин)
-    capped_ratio       = max(0, min(ratio, max_ratio))
+    ratio                = (Факт - Мин) / (Цель - Мин)
+    capped_ratio         = max(0, min(ratio, max_ratio))
     intermediate_premium = capped_ratio × base_premium   # base_premium = фонд / кол-во KPI
     """
     if base_premium is None:                 # легаси-режим (нет kpi_pool)
         base_premium = defaults.get('base_premium', 5000)
     max_ratio = defaults.get('max_ratio', 2)
 
-    if target == min_val:
-        ratio = float(max_ratio) if fact >= target else 0.0
-    elif fact < min_val:
-        ratio = 0.0
+    span = target - min_val
+    if span == 0:
+        ratio = float(max_ratio) if fact >= target else 0.0   # ступенька: цель равна минимуму
+    elif span > 0:
+        ratio = 0.0 if fact < min_val else (fact - min_val) / span   # больше — лучше
     else:
-        ratio = (fact - min_val) / (target - min_val)
+        ratio = 0.0 if fact > min_val else (fact - min_val) / span   # меньше — лучше
 
     capped_ratio = max(0.0, min(ratio, float(max_ratio)))
     intermediate_premium = capped_ratio * base_premium
-
-    return {
-        'ratio': round(ratio, 4),
-        'capped_ratio': round(capped_ratio, 4),
-        'intermediate_premium': round(intermediate_premium, 2),
-    }
 ```
+
+Направление метрики выводится из целей. Цель выше минимума — «больше лучше». Минимум выше цели
+(опоздания, отмены: `target=0, min=3`) — «меньше лучше»: факт ниже цели даёт множитель выше 1,
+факт выше минимума — 0. До 2026-09-06 защита «факт ниже минимума — ноль» стояла перед формулой
+и не знала про направление, поэтому инверсный KPI не платил никогда (см. [lessons.md](lessons.md)).
 
 Финальный шаг — в `calculate_employee()`:
 
 ```python
 base_per_kpi = kpi_pool / kpi_count          # фонд делится поровну (15000 / 2 = 7500)
-koef = total_shifts / norm_shifts            # total_shifts = смены ТОЛЬКО на точках с целями
+koef = total_shifts / norm_shifts            # total_shifts = дни смен на точках, где задан хотя бы один KPI
 total_intermediate = Σ intermediate_premium  # по всем KPI месяца
 total_premium = total_intermediate × koef    # коэффициент применяется один раз к сумме
 ```
@@ -736,27 +737,67 @@ total_premium = total_intermediate × koef    # коэффициент прим�
 3 KPI → по 5000 ₽. Легаси: если `kpi_pool` не задан, берётся `base_premium` за каждый KPI
 (тогда сумма растёт с количеством — старое поведение).
 
-Инверсные метрики (`late_count`, `cancelled_count`): задайте `min > target`
-(например target=0, min=3). Формула `(fact - min) / (target - min)` даст
-положительный ratio при низком факте и clamp в 0 при `fact > min`.
+#### Штучные показатели считаются на кассовую смену (с августа 2026)
+
+Метрики каталога `AVAILABLE_METRICS` делятся на два типа (признак `extensive`):
+
+| Тип | Метрики | Факт в формуле |
+|---|---|---|
+| Долевые и удельные | доля кухни / розлива / фасовки, средний чек, наценка, % скидок, план/факт, выручка/смена, выручка/час | как есть |
+| Штучные и суммовые (`extensive`) | новые карты лояльности, кол-во чеков, общая выручка, выручка розлива / фасовки / кухни, часы работы, отмены, опоздания | факт / кассовые смены периода |
+| Особый случай | количество смен | как есть (делить смены на смены бессмысленно) |
+
+Штучный факт растёт с числом смен, а коэффициент смен потом множит премию ещё раз, поэтому одно
+месячное число «30 карт» нельзя ставить и человеку с 5 сменами, и с 25 (владелец, 2026-09-06:
+«количественные KPI должны считаться от количества смен»). У KPI на штучной метрике с флагом
+`per_shift: true` в `kpi_config` месяца:
+
+- **факт** = значение за период / кассовые смены за период (`metrics['shifts_count']` из iiko —
+  «мы считаем смены по кассам»; без него — дни смен). В ответе: `fact` — уже за смену, плюс
+  `fact_raw`, `shifts_divisor`, `unit` («шт/смену»), `decimals` (2 для штук и часов, 0 для рублей);
+- **цель и минимум** задаются за одну кассовую смену. Редактор: чекбокс «на смену» у штучной метрики
+  (по умолчанию включён в месяцах с границы), подпись «на смену» у строки сетки, автоназвание
+  «Новые карты лояльности (шт/смену)»; при переключении числа в сетке делятся/умножаются на норму;
+- **коэффициент смен не меняется**: он масштабирует выплату по числу смен, деление на смены меняет
+  только множитель достижения — двойного счёта нет. Флаг на долевой метрике игнорируется.
+
+Пример: цель 2 карты за смену, минимум 0,67; два KPI, база 7 500 ₽.
+
+| Бармен | Касс. смен | Карт | Факт/смену | Множитель | Коэфф. | Премия по KPI |
+|---|---|---|---|---|---|---|
+| A | 5 | 8 | 1,60 | 0,70 | 0,33 | 1 731 ₽ |
+| B | 25 | 40 | 1,60 | 0,70 | 1,67 | 8 758 ₽ |
+
+Раньше при месячной цели 30 / мин 10: A — множитель 0 и 0 ₽, B — множитель 1,5 и 12 525 ₽ при
+одинаковой работе.
+
+**Граница — месяц расчёта.** `PER_SHIFT_FROM_MONTH = '2026-08'`: в месяцах с августа 2026 у штучных
+метрик БЕЗ явного флага `KpiTargetsReader` проставляет `per_shift: true` и делит месячные цель/минимум
+по точкам на норму смен (`normalize_month_data`: «30 карт при норме 15» = «2 за смену», округление до
+сотых). Это делается на чтении (`get_month_data`, `get_editor_data`), файл не меняется, пока месяц не
+сохранят из редактора — тогда явный вид закрепляется. Июль и раньше считаются как прежде. Явный флаг
+(`true`/`false`) сильнее границы. `GET /api/kpi-targets` отдаёт месяцы уже нормализованными плюс
+`per_shift_from_month` и `converted_from_monthly` (что сконвертировано; редактор показывает
+подсказку «цели пересчитаны из месячных» до первого сохранения), при сохранении служебные ключи
+отбрасываются (`NON_PERSISTENT_KEYS`). Запись файла атомарная (tmp + `os.replace`).
 
 #### Метрики KPI (количество настраивается)
 
 Конфигурация KPI привязана к месяцу и хранится в `data/kpi_targets.json`. Количество показателей —
 переменное (`kpi1..kpiN`), задаётся в редакторе целей степпером «Показателей: − N +». Цели по точкам
-содержат столько же ключей. Пример с 2 KPI:
+содержат столько же ключей. Пример с 2 KPI, второй — штучный «на смену»:
 
 ```json
 {
   "months": {
-    "2026-07": {
+    "2026-08": {
       "kpi_config": {
         "kpi1": {"metric": "kitchen_share", "name": "Доля кухни (%)"},
-        "kpi2": {"metric": "draft_share", "name": "Доля розлива (%)"}
+        "kpi2": {"metric": "loyalty_cards_count", "name": "Новые карты лояльности (шт/смену)", "per_shift": true}
       },
       "Кременчугская": {
         "kpi1": {"target": 18.0, "min": 13.0},
-        "kpi2": {"target": 61.0, "min": 57.0}
+        "kpi2": {"target": 2.0, "min": 0.67}
       },
       ...
     }
@@ -772,64 +813,62 @@ total_premium = total_intermediate × koef    # коэффициент прим�
 
 `kpi_pool` — общий премиальный фонд за KPI; делится поровну на количество показателей месяца.
 `base_premium` остаётся как легаси-fallback (используется, только если `kpi_pool` отсутствует).
+`per_shift` хранится только у штучных метрик (`true`/`false`); у долевых ключа нет.
 
 #### Взвешенные цели
 
-Если сотрудник работал в разных локациях, цели усредняются взвешенно по сменам:
+Если сотрудник работал в разных локациях, цели усредняются взвешенно по сменам. Точка участвует
+в KPI, если её цели по этому KPI заданы: пара `цель 0 / мин 0` — «не задано» (редактор сохраняет
+пустые поля нулями), такая точка не входит ни во взвешивание, ни в коэффициент.
 
 ```python
-# core/kpi_calculator.py:166-211
-def calculate_weighted_targets(self, shifts_per_location, month_targets):
-    """
-    weighted_target = Σ(shift_count × target) / Σ(shift_count)
-    """
-    for location, shift_count in shifts_per_location.items():
-        loc_targets = month_targets.get(location, {})
-        weighted_target += shift_count * loc_targets[kpi_key]['target']
-        weighted_min += shift_count * loc_targets[kpi_key]['min']
-
-    return {
-        'target': weighted_target / total_shifts,
-        'min': weighted_min / total_shifts
-    }
+# core/kpi_calculator.py — calculate_weighted_targets()
+for location, shift_count in shifts_per_location.items():
+    kpi_targets = month_targets.get(location, {}).get(kpi_key)
+    if not targets_are_set(kpi_targets):      # нет ключа или 0/0 — точка пропускается
+        continue
+    weighted_target += shift_count * target
+    weighted_min += shift_count * min_val
+    shifts_with_targets += shift_count
+# result[kpi_key] = {target: Σ/N, min: Σ/N, shifts: N, no_targets: N == 0,
+#                    locations: {точка: {target, min, shifts}}}
+# total_shifts = смены на точках, где задан ХОТЯ БЫ ОДИН KPI месяца (база коэффициента)
 ```
+
+KPI, не заданный ни на одной точке сотрудника, помечается `no_targets` — премия по нему 0
+(до 2026-09-06 цель 0 равнялась минимуму 0, и формула давала максимальный множитель ×2).
+Сотрудник, у которого ни на одной точке не задан ни один KPI, из расчёта выпадает (`None`).
 
 #### Итоговая премия
 
 ```python
 # core/kpi_calculator.py — calculate_employee()
-def calculate_employee(self, employee_name, metrics, shift_locations, month):
+def calculate_employee(self, employee_name, metrics, shift_locations, month, shifts_divisor=None):
     # 1. Считаем смены по точкам (русские названия для kpi_targets.json)
     shifts_per_location = self.count_shifts_per_location(shift_locations)
 
-    # 2. Взвешенные цели — total_shifts здесь = ТОЛЬКО смены на точках с целями
+    # 2. Взвешенные цели — total_shifts здесь = дни смен на точках с целями
     weighted_targets, total_shifts = self.calculate_weighted_targets(...)
     if total_shifts == 0:
         return None  # нет точек с настроенными KPI → премия не считается
 
-    # 3. Промежуточная премия по каждому KPI (без множителя на смены)
-    #    kpi_keys — динамически из kpi_config месяца (kpi1..kpiN)
-    total_intermediate = 0.0
-    for kpi_key in kpi_keys:
-        metric_field = kpi_config[kpi_key]['metric']
-        fact = metrics.get(metric_field, 0)
-        targets = weighted_targets.get(kpi_key)
-
-        result = self.calculate_premium(fact, targets['target'], targets['min'], defaults)
-        total_intermediate += result['intermediate_premium']
-
-    # 4. Финальный шаг — коэффициент применяется один раз к сумме
+    # 3. Делитель «на смену» — кассовые смены периода (metrics['shifts_count'])
+    # 4. Промежуточная премия по каждому KPI (без множителя на смены):
+    #    fact = fact_raw / shifts_divisor для extensive-метрики с per_shift;
+    #    no_targets → 0; иначе calculate_premium(fact, target, min)
+    # 5. Финальный шаг — коэффициент применяется один раз к сумме
     koef = round(total_shifts / norm_shifts, 2)
     total_premium = round(total_intermediate * koef, 2)
-
-    return {
-        'employee_name': employee_name,
-        'total_shifts': total_shifts,
-        'koef': koef,
-        'kpis': {...},
-        'total_premium': total_premium,
-    }
 ```
+
+Ответ по KPI (`kpis[kpi_key]`): `name, metric, fact, target, min, per_shift, unit, decimals,
+no_targets, target_shifts, location_targets, ratio, capped_ratio, intermediate_premium`, а для
+«на смену» ещё `fact_raw, shifts_divisor`. По сотруднику: `total_shifts, koef, cash_shifts,
+shifts_per_location, kpi_count, kpi_pool, base_per_kpi, total_premium`. Потребители: панель «KPI»
+на странице ЗП (факт «8 шт / 5 касс. смен = 1,60 шт/смену», цели точек из `location_targets`),
+`core/salary_payload.py` (экспорт — только премии), `core/me_snapshot.py` (`_kpi_for` пробрасывает
+`per_shift`, `fact_raw`, `shifts_divisor`, `unit`, `decimals`, `no_targets`), `templates/goals.html`
+(единица «/смену» и подпись «за каждую кассовую смену» у целей).
 
 ---
 
@@ -976,13 +1015,15 @@ DishSumInt = DishDiscountSumInt + DiscountSum на всех чеках (2026-06-
 ### KPI ratio
 ```
 base_per_kpi         = kpi_pool / кол-во KPI              # фонд делится поровну
-ratio                = (Факт - Мин) / (Цель - Мин)
+fact                 = факт / кассовые смены               # только extensive-метрики с per_shift (месяцы с 2026-08)
+ratio                = (Факт - Мин) / (Цель - Мин)         # направление из целей: мин > цель = «меньше лучше»
 capped_ratio         = clamp(ratio, 0, max_ratio)
-intermediate_premium = capped_ratio × base_per_kpi       # per KPI
+intermediate_premium = capped_ratio × base_per_kpi       # per KPI; KPI без целей на точках сотрудника = 0
 total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ```
 
-где `total_shifts` — смены на точках с настроенными KPI-целями (не общее число смен).
+где `total_shifts` — дни смен на точках, где задан хотя бы один KPI (цель 0 / мин 0 = не задано),
+а кассовые смены — делитель штучных показателей.
 
 ---
 
@@ -1002,6 +1043,33 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ---
 
 ## Changelog
+
+### 2026-09-06 — Штучные KPI считаются на кассовую смену; инверсные метрики и пустые цели
+
+Владелец: «количественные KPI должны считаться от количества смен — зарегистрированные карты
+нельзя ставить одним числом человеку с 5 сменами и с 25». Решения: смены считаем по кассам;
+цели за смену (понятнее бармену: «2 карты за смену»); новые правила с августа 2026, август
+пересчитать.
+
+- `core/kpi_calculator.py`: признак `extensive` в каталоге метрик; `per_shift` в `kpi_config`
+  месяца — факт делится на кассовые смены (`metrics['shifts_count']`), цель и минимум за смену;
+  `PER_SHIFT_FROM_MONTH = '2026-08'` — старые конфиги с августа нормализуются на чтении
+  (`normalize_month_data`: месячная цель / норма смен), `get_editor_data` для редактора и /goals.
+  Множитель стал направленным (минимум выше цели = «меньше лучше») — инверсные KPI платят.
+  Пара 0/0 — «не задано» (`targets_are_set`): точка не входит во взвешивание и коэффициент, KPI
+  без целей на точках сотрудника — 0 (`no_targets`), а не ×2. База коэффициента — точки с любым
+  заданным KPI. В ответ добавлены `per_shift, unit, decimals, fact_raw, shifts_divisor,
+  no_targets, target_shifts, location_targets, cash_shifts`. Запись файла атомарная.
+- `routes/employee.py`: `GET /api/kpi-targets` отдаёт нормализованные месяцы +
+  `per_shift_from_month`, `converted_from_monthly`; `POST` отбрасывает служебные ключи.
+- `templates/bonus.html`: панель «KPI» — бейдж «на смену», факт «8 шт / 5 касс. смен = 1,60 шт/смену»,
+  единицы у цели и минимума, цели точек из `location_targets`, заметка «цели не заданы»; блок «Расчёт»
+  суммирует `intermediate_premium × koef` (совпадает с шапкой). Редактор — чекбокс «на смену» у
+  штучных метрик с пересчётом чисел на норму, подпись «на смену» в сетке, подсказка о серверной
+  конвертации, «Копировать из пред.» конвертирует месячные числа июля в «за смену».
+- `core/me_snapshot.py`, `static/js/me/snapshot.js`, `templates/goals.html`: единица «/смену»,
+  разложение факта, вердикты для инверсных метрик и `no_targets`.
+- Тесты: `tests/test_kpi_calculator.py` (20).
 
 ### 2026-09-04 (2) — Строка сотрудника несёт ключи лояльности
 

@@ -205,9 +205,18 @@
 
     function kpiCard(it, kpi, meta, maxRatio) {
         var cat = (meta.metrics_catalog || {})[it.metric] || {};
-        var unit = cat.unit || '';
-        var dec = cat.decimals == null ? 1 : cat.decimals;
+        // Штучный KPI «на смену» (с августа 2026): сервер отдаёт единицу
+        // «шт/смену» и знаки; факт, цель и минимум — за одну кассовую смену
+        var unit = it.unit != null ? it.unit : (cat.unit || '') + (it.per_shift ? '/смену' : '');
+        var dec = it.decimals != null ? it.decimals : (cat.decimals == null ? 1 : cat.decimals);
         var v = function (x) { return x == null ? '—' : num(x, dec) + (unit ? ' ' + unit : ''); };
+        var rawDec = cat.decimals == null ? 0 : cat.decimals;
+        var perShiftLine = it.per_shift && it.fact_raw != null && it.shifts_divisor
+            ? 'Показатель считается на кассовую смену: ' + num(it.fact_raw, rawDec)
+              + (cat.unit ? ' ' + cat.unit : '') + ' за месяц / ' + it.shifts_divisor
+              + ' ' + plural(it.shifts_divisor, 'кассовая смена', 'кассовые смены', 'кассовых смен')
+              + ' = ' + v(it.fact) + '<br>'
+            : '';
 
         var ratio = it.ratio == null ? 0 : it.ratio;
         var fill = Math.max(0, Math.min(100, ratio / maxRatio * 100));
@@ -215,8 +224,14 @@
 
         // Вердикт словами: молчаливый ноль читается как ошибка расчёта.
         var verdict, mulCls = '';
-        if (it.min != null && it.fact != null && it.fact < it.min) {
-            verdict = '<div class="me-verdict is-warn">Ниже минимума — премия не начисляется</div>';
+        var inverse = it.min != null && it.target != null && it.min > it.target;
+        if (it.no_targets) {
+            verdict = '<div class="me-verdict is-warn">Цели на ваших точках не заданы — премия не начисляется</div>';
+            mulCls = ' is-bad';
+        } else if (it.min != null && it.fact != null
+                   && (inverse ? it.fact > it.min : it.fact < it.min)) {
+            verdict = '<div class="me-verdict is-warn">' + (inverse ? 'Выше' : 'Ниже')
+                    + ' минимума — премия не начисляется</div>';
             mulCls = ' is-bad';
         } else if (ratio >= maxRatio) {
             verdict = '<div class="me-verdict is-ok">Выше цели — множитель на максимуме</div>';
@@ -230,8 +245,11 @@
 
         // Формула с подставленными числами.
         var calc;
-        if (it.min != null && it.fact != null && it.fact < it.min) {
-            calc = 'Факт ' + v(it.fact) + ' ниже минимума ' + v(it.min)
+        if (it.no_targets) {
+            calc = 'На ваших точках цели по этому показателю не заданы — премия по нему не начисляется';
+        } else if (it.min != null && it.fact != null
+                   && (inverse ? it.fact > it.min : it.fact < it.min)) {
+            calc = 'Факт ' + v(it.fact) + (inverse ? ' выше' : ' ниже') + ' минимума ' + v(it.min)
                  + ' — множитель 0, премия 0' + RUB;
         } else {
             calc = 'Множитель = (факт − минимум) / (цель − минимум)<br>= ('
@@ -265,7 +283,7 @@
             + num(maxRatio, 0) + '</span></div>'
             + verdict
             + '<details class="me-how"><summary>КАК ПОСЧИТАНО' + CHV + '</summary>'
-            + '<div class="me-box">' + calc + locRows
+            + '<div class="me-box">' + perShiftLine + calc + locRows
             + boxSub('Цели взвешены по вашим сменам: где вы работали больше, та цель весит сильнее.')
             + '</div></details>'
             + '</div>';

@@ -671,7 +671,7 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config):
         if not src:
             continue
         inter = src.get('intermediate_premium') or 0
-        items.append({
+        item = {
             'key': key,
             'name': src.get('name') or (kpi_config.get(key) or {}).get('name') or key,
             'metric': src.get('metric'),
@@ -681,7 +681,18 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config):
             'ratio': src.get('capped_ratio', src.get('ratio')),
             'intermediate_premium': round(inter, 2),
             'premium': round(inter * koef, 2),
-        })
+        }
+        # Штучный KPI «на смену» (с августа 2026): факт, цель и минимум выше —
+        # за одну кассовую смену; сырой факт и делитель — чтобы кабинет показал
+        # «8 шт / 5 смен = 1,60 шт/смену», а не голое 1,60
+        if src.get('per_shift'):
+            item['per_shift'] = True
+            item['fact_raw'] = src.get('fact_raw')
+            item['shifts_divisor'] = src.get('shifts_divisor')
+        for extra in ('unit', 'decimals', 'no_targets'):
+            if src.get(extra) is not None:
+                item[extra] = src.get(extra)
+        items.append(item)
     return {
         'status': 'ok',
         'koef': koef,

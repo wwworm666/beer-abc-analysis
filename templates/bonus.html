@@ -321,6 +321,28 @@
         }
         .kpi-calc-summary strong { color: var(--text-primary); }
 
+        /* KPI «на смену»: подпись сырого факта, бейдж, заметка «нет целей» */
+        .kpi-metric-sub { font-size: 0.7rem; color: var(--text-tertiary); margin-top: 2px; }
+        .kpi-per-shift-badge {
+            display: inline-block;
+            font-size: 0.68rem;
+            font-weight: 500;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 1px 6px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .kpi-no-targets { font-size: 0.78rem; color: var(--warning); margin-bottom: 10px; }
+        /* Редактор: чекбокс «на смену» и подсказки */
+        .targets-content input[type="checkbox"] { width: auto; padding: 0; margin: 0 6px 0 0; vertical-align: middle; }
+        .kpi-per-shift { display: flex; align-items: center; margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; }
+        .kpi-config-hint { font-size: 0.72rem; color: var(--text-tertiary); margin-top: 6px; line-height: 1.4; }
+        .kpi-config-hint.converted { color: var(--warning); }
+        .kpi-config-note { font-size: 0.8rem; color: var(--text-tertiary); line-height: 1.5; }
+        .tg-unit { font-size: 0.7rem; color: var(--accent); margin-left: 6px; white-space: nowrap; }
+
         /* ====== Сворачиваемые секции (KPI-цели, ставки, описание расчёта) ====== */
         /* Единый вертикальный ритм: секции идут друг за другом с одинаковым
            зазором, последняя отделена от результатов */
@@ -608,7 +630,7 @@
                     <strong>Премия за план:</strong> за каждую смену где выручка >= плана ТТ <code>1 000 + перевыполнение x 5%</code><br>
                     <strong>За передачу смены:</strong> <code>500 x дни смен</code> — премия за день не платится, если не сдана касса (наличные в сейфе; правило с 11.07.2026, дни до неё оплачиваются как раньше) либо если на день проставлен ручной штраф. Две кассовые смены в одном дне = одна премия, за первую открытую<br>
                     <strong>Штраф за опоздания:</strong> 1-е <code>250</code>, 2-е <code>500</code>, 3-е <code>750</code> и т.д.<br>
-                    <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен<br>
+                    <strong>KPI-премия:</strong> <code>множитель x Коэффициент x (Фонд / кол-во KPI)</code>, где Коэффициент = <span title="Учитываются только смены на точках, где для месяца заданы KPI-цели">смены с целями</span> / норму смен. Штучные показатели (карты, чеки, выручка, отмены, опоздания, часы) с августа 2026 считаются на кассовую смену: <code>факт / кассовые смены</code> против цели за смену; цель 0 / мин 0 = показатель на точке не задан<br>
                     <strong>Оплата часов:</strong> сумма по сменам — <code>часы из графика x ставка роли</code> (часы = факт из графика смен; ставки ролей настраиваются выше)<br>
                     <strong>Такси:</strong> <code>700 x полноценная дневная смена</code> из графика (вечер и «второй бармен» не считаются); зачёт официальной оплаты и «мосты» — в Excel-таблице у бухгалтера<br>
                     <strong>Штраф кассы (ручной):</strong> кнопка «штраф» в таблице смен сотрудника снимает премию за передачу смены (<code>-500</code>) за конкретный день — если сумма кассы указана неверно или забыты траты; с днями «нет кассы» не задваивается
@@ -1472,6 +1494,23 @@
         }
 
         // ===================== KPI DETAIL =====================
+        // Единица и знаки показателя — из ответа расчёта: у штучного KPI «на
+        // смену» сервер отдаёт unit «шт/смену» и decimals 2 (core/kpi_calculator.py,
+        // metric_unit / metric_decimals); старый ответ без этих полей — по каталогу
+        function kpiDecimals(kpi) {
+            if (kpi.decimals != null) return kpi.decimals;
+            return availableMetrics[kpi.metric] ? availableMetrics[kpi.metric].decimals : 1;
+        }
+        function kpiUnit(kpi) {
+            if (kpi.unit != null) return kpi.unit;
+            const info = availableMetrics[kpi.metric] || {};
+            return (info.unit || '') + (kpi.per_shift ? PER_SHIFT_SUFFIX : '');
+        }
+        function withUnit(kpi, v) {
+            const unit = kpiUnit(kpi);
+            return formatNum(v, kpiDecimals(kpi)) + (unit ? ' ' + unit : '');
+        }
+
         function renderKpiDetail(index) {
             const emp = mergedEmployees[index];
             const k = emp.kpi;
@@ -1485,11 +1524,6 @@
             const normShifts = kpiData.defaults.norm_shifts || 15;
             const basePerKpi = k.base_per_kpi || 0;
             const pool = k.kpi_pool != null ? k.kpi_pool : basePerKpi * keys.length;
-            // Формат значения метрики по её decimals (а не по номеру KPI)
-            const fmtKpiVal = (kpi, v) => {
-                const dec = availableMetrics[kpi.metric] ? availableMetrics[kpi.metric].decimals : 1;
-                return formatNum(v, dec);
-            };
             // total_shifts из API считает только смены на точках с настроенными целями
             const koefTitle = `Смены на точках с настроенными целями (${k.total_shifts}) / норма (${normShifts})`;
 
@@ -1505,35 +1539,51 @@
             keys.forEach(key => {
                 const kpi = k.kpis[key];
                 if (!kpi) return;
-                const color = ratioColor(kpi.capped_ratio);
+                const catalog = availableMetrics[kpi.metric] || {};
+                const color = kpi.no_targets ? 'var(--text-tertiary)' : ratioColor(kpi.capped_ratio);
                 const perKpiPremium = (kpi.intermediate_premium || 0) * k.koef;
                 const premColor = perKpiPremium > 0 ? 'var(--success)' : 'var(--text-tertiary)';
                 const pct = Math.min(kpi.capped_ratio / maxRatio * 100, 100);
+                // Штучный KPI «на смену»: под фактом — из чего он получен
+                // (сырое значение за период / кассовые смены за период)
+                const factSub = kpi.per_shift && kpi.fact_raw != null
+                    ? `<div class="kpi-metric-sub" title="Штучный показатель считается на кассовую смену: факт за период / кассовые смены за период">${formatNum(kpi.fact_raw, catalog.decimals != null ? catalog.decimals : 0)} ${catalog.unit || ''} / ${kpi.shifts_divisor} касс. смен</div>`
+                    : '';
+                const badge = kpi.per_shift
+                    ? ' <span class="kpi-per-shift-badge" title="Цель, минимум и факт — за одну кассовую смену">на смену</span>' : '';
+                const noTargets = kpi.no_targets
+                    ? '<div class="kpi-no-targets">На точках сотрудника цели по этому показателю не заданы: премия по нему не начисляется</div>' : '';
+                // Цели точек — из ответа расчёта, уже в единицах показателя (за смену
+                // для штучных); month_targets — фоллбэк для старого ответа без location_targets
+                const resolvedLocs = kpi.location_targets || null;
+                const targetShifts = kpi.target_shifts != null ? kpi.target_shifts : totalShifts;
 
                 html += `<div class="kpi-detail-card">
                     <div class="kpi-detail-header">
-                        <span class="kpi-detail-name">${kpi.name}</span>
+                        <span class="kpi-detail-name">${kpi.name}${badge}</span>
                         <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(perKpiPremium)} <span class="kpi-detail-max">/ ${formatMoney(basePerKpi)}</span></span>
                     </div>
 
                     <div class="kpi-metrics-grid">
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Факт</div>
-                            <div class="kpi-metric-val" style="color:${color};">${fmtKpiVal(kpi, kpi.fact)}</div>
+                            <div class="kpi-metric-val" style="color:${color};">${withUnit(kpi, kpi.fact)}</div>
+                            ${factSub}
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Цель (взвеш.)</div>
-                            <div class="kpi-metric-val">${fmtKpiVal(kpi, kpi.target)}</div>
+                            <div class="kpi-metric-val">${kpi.no_targets ? '—' : withUnit(kpi, kpi.target)}</div>
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Минимум</div>
-                            <div class="kpi-metric-val">${fmtKpiVal(kpi, kpi.min)}</div>
+                            <div class="kpi-metric-val">${kpi.no_targets ? '—' : withUnit(kpi, kpi.min)}</div>
                         </div>
                         <div class="kpi-metric-item">
                             <div class="kpi-metric-label">Множитель</div>
                             <div class="kpi-metric-val">x${formatNum(kpi.capped_ratio, 2)}${kpi.ratio > kpi.capped_ratio ? ' (cap)' : ''}</div>
                         </div>
                     </div>
+                    ${noTargets}
 
                     <div class="kpi-ratio-bar">
                         <div class="kpi-ratio-fill" style="width:${pct}%;background:${color};"></div>
@@ -1544,34 +1594,42 @@
                         <tbody>`;
 
                 locs.forEach(([loc, cnt]) => {
-                    const locTargets = (monthTargets[loc] || {})[key] || {};
-                    const weight = totalShifts > 0 ? (cnt / totalShifts * 100) : 0;
-                    const t = locTargets.target !== undefined ? locTargets.target : '—';
-                    const m = locTargets.min !== undefined ? locTargets.min : '—';
+                    let locTargets, isSet;
+                    if (resolvedLocs) {
+                        locTargets = resolvedLocs[loc] || null;
+                        isSet = !!locTargets;
+                    } else {
+                        locTargets = (monthTargets[loc] || {})[key] || {};
+                        isSet = locTargets.target !== undefined && !(locTargets.target === 0 && locTargets.min === 0);
+                    }
+                    // Вес точки — среди смен на точках, где этот KPI задан
+                    const weight = isSet && targetShifts > 0 ? (cnt / targetShifts * 100) : null;
                     html += `<tr>
                         <td>${loc}</td>
                         <td>${cnt}</td>
-                        <td>${formatNum(weight, 0)}%</td>
-                        <td>${typeof t === 'number' ? fmtKpiVal(kpi, t) : t}</td>
-                        <td>${typeof m === 'number' ? fmtKpiVal(kpi, m) : m}</td>
+                        <td>${weight === null ? '—' : formatNum(weight, 0) + '%'}</td>
+                        <td>${isSet ? withUnit(kpi, locTargets.target) : '—'}</td>
+                        <td>${isSet ? withUnit(kpi, locTargets.min) : '—'}</td>
                     </tr>`;
                 });
 
                 html += `<tr class="loc-weighted">
-                    <td>Взвешенное</td><td>${totalShifts}</td><td>100%</td>
-                    <td>${fmtKpiVal(kpi, kpi.target)}</td><td>${fmtKpiVal(kpi, kpi.min)}</td>
+                    <td>Взвешенное</td><td>${targetShifts}</td><td>${targetShifts > 0 ? '100%' : '—'}</td>
+                    <td>${kpi.no_targets ? '—' : withUnit(kpi, kpi.target)}</td><td>${kpi.no_targets ? '—' : withUnit(kpi, kpi.min)}</td>
                 </tr>`;
 
                 html += `</tbody></table></div>`;
             });
 
-            // Premium calc summary
+            // Premium calc summary. Сумма строк — из intermediate_premium × koef
+            // (то, что реально начислено); множитель в тексте округлён до сотых,
+            // поэтому произведение «на глаз» может отличаться на рубль
             let calcSum = 0;
             html += `<div class="kpi-calc-summary"><strong>Расчёт:</strong><br>`;
             keys.forEach(key => {
                 const kpi = k.kpis[key];
                 if (!kpi) return;
-                const kpiPremCalc = k.koef * kpi.capped_ratio * basePerKpi;
+                const kpiPremCalc = (kpi.intermediate_premium || 0) * k.koef;
                 calcSum += kpiPremCalc;
                 html += `${kpi.name}: ${formatNum(k.koef, 2)} x ${formatNum(kpi.capped_ratio, 2)} x ${formatNum(basePerKpi, 0)} = ${formatMoney(kpiPremCalc)}<br>`;
             });
@@ -1642,6 +1700,15 @@
         }
 
         // ===================== KPI TARGETS EDITOR =====================
+        // Зеркало PER_SHIFT_UNIT_SUFFIX (core/kpi_calculator.py) — единица «за смену»
+        const PER_SHIFT_SUFFIX = '/смену';
+        // Первый месяц, с которого штучные метрики считаются «на смену»
+        // (PER_SHIFT_FROM_MONTH на сервере; приходит в /api/kpi-targets).
+        // До загрузки — null: флаг по умолчанию не ставится
+        let perShiftFromMonth = null;
+        // Флаги «на смену» показателей в редакторе: {kpi1: true/false}
+        let editorPerShift = {};
+
         function toggleTargets() {
             const content = document.getElementById('targets-content');
             content.classList.toggle('active');
@@ -1656,6 +1723,7 @@
                 const resp = await fetch('/api/kpi-targets');
                 targetsData = await resp.json();
                 availableMetrics = targetsData.available_metrics || {};
+                perShiftFromMonth = targetsData.per_shift_from_month || null;
                 populateMonthSelector();
                 loadDefaults();
                 loadTargetsMonth();
@@ -1682,9 +1750,42 @@
             kpi3: {metric: 'avg_check', name: 'Средний чек (₽)'},
         };
 
-        function metricLabel(metric) {
+        // Штучная метрика (штуки, суммы, часы): факт растёт со сменами —
+        // такие KPI считаются на кассовую смену (каталог: extensive)
+        function isExtensive(metric) {
+            return !!(availableMetrics[metric] && availableMetrics[metric].extensive);
+        }
+        function lowerIsBetter(metric) {
+            return !!(availableMetrics[metric] && availableMetrics[metric].lower_is_better);
+        }
+        // Флаг «на смену» по умолчанию: штучная метрика в месяце с границы
+        function defaultPerShift(metric, month) {
+            return isExtensive(metric) && !!perShiftFromMonth && !!month && month >= perShiftFromMonth;
+        }
+        // Флаг показателя из конфига месяца; без явного флага — по умолчанию
+        function perShiftOf(conf, month) {
+            if (!conf) return false;
+            if (conf.per_shift != null) return !!conf.per_shift && isExtensive(conf.metric);
+            return defaultPerShift(conf.metric, month);
+        }
+        function currentNorm() {
+            return parseInt(document.getElementById('def-norm').value) || 15;
+        }
+        function unitLabel(metric, perShift) {
             const info = availableMetrics[metric] || {};
-            return info.name ? info.name + (info.unit ? ' (' + info.unit + ')' : '') : metric;
+            return (info.unit || '') + (perShift ? PER_SHIFT_SUFFIX : '');
+        }
+        function metricLabel(metric, perShift) {
+            const info = availableMetrics[metric] || {};
+            const unit = unitLabel(metric, !!perShift);
+            return info.name ? info.name + (unit ? ' (' + unit + ')' : '') : metric;
+        }
+        // Пересчёт целей точки при смене режима: «за смену» = месячное / норма,
+        // обратно — умножить. До сотых, как normalize_month_data на сервере
+        function convertTargets(t, toPerShift, norm) {
+            const f = v => toPerShift ? Math.round((v || 0) / norm * 100) / 100
+                                      : Math.round((v || 0) * norm * 100) / 100;
+            return { target: f(t.target), min: f(t.min) };
         }
 
         // Метрика по умолчанию для нового KPI: первая ещё не использованная
@@ -1732,14 +1833,21 @@
             }
 
             const monthData = targetsData.months[month];
-            editorKpiKeys = sortedKpiKeys(monthData.kpi_config || {});
+            const cfg = monthData.kpi_config || {};
+            editorKpiKeys = sortedKpiKeys(cfg);
             if (editorKpiKeys.length === 0) editorKpiKeys = DEFAULT_KPI_KEYS.slice();
-            renderKpiConfig(monthData.kpi_config || {});
+            editorPerShift = {};
+            editorKpiKeys.forEach(k => { editorPerShift[k] = perShiftOf(cfg[k] || DEFAULT_KPI_CONFIG[k], month); });
+            renderKpiConfig(cfg);
             renderTargetsGrid(monthData);
         }
 
         function renderKpiConfig(kpiConfig) {
             const n = editorKpiKeys.length;
+            const month = document.getElementById('target-month').value;
+            // Что сервер пересчитал из месячных целей в «за смену» (старый конфиг
+            // месяца с границы) — подсказка до первого сохранения
+            const converted = ((targetsData && targetsData.converted_from_monthly) || {})[month] || {};
 
             let html = `<div class="kpi-config-head">
                 <h4 class="section-title">Метрики KPI</h4>
@@ -1756,6 +1864,7 @@
                 const conf = kpiConfig[k] || DEFAULT_KPI_CONFIG[k] || {};
                 const currentMetric = conf.metric || '';
                 const currentName = conf.name || '';
+                const perShift = !!editorPerShift[k];
 
                 html += `<div class="kpi-config-card">
                     <div class="kpi-config-label">KPI #${i + 1}</div>
@@ -1767,20 +1876,74 @@
                 }
 
                 html += `</select>
-                    <input type="text" class="kpi-name-input" id="kpi-name-${k}" value="${currentName}" placeholder="Название">
-                </div>`;
+                    <input type="text" class="kpi-name-input" id="kpi-name-${k}" value="${currentName}" placeholder="Название">`;
+                if (isExtensive(currentMetric)) {
+                    html += `<label class="kpi-per-shift" title="Факт за период делится на кассовые смены; цель и минимум задаются за одну смену">
+                        <input type="checkbox" id="kpi-pershift-${k}" onchange="onPerShiftChange('${k}')"${perShift ? ' checked' : ''}>на смену</label>`;
+                    if (converted[k]) {
+                        html += `<div class="kpi-config-hint converted">Цели пересчитаны из месячных: месячная цель / норма ${converted[k].norm_shifts || currentNorm()} смен. Проверьте и сохраните</div>`;
+                    }
+                }
+                if (lowerIsBetter(currentMetric)) {
+                    html += `<div class="kpi-config-hint">Меньше — лучше: минимум ставьте выше цели</div>`;
+                }
+                html += `</div>`;
             });
 
             html += '</div>';
             html += `<div class="kpi-split-label" id="kpi-split-label"></div>`;
+            html += `<div class="kpi-config-note">Штучные показатели (карты, чеки, выручка, отмены, опоздания, часы) считаются на кассовую смену: факт за период / кассовые смены сравнивается с целью за смену, поэтому бармен с 5 сменами и бармен с 25 оцениваются одинаково. Долевые показатели (доли, средний чек, наценка) не меняются. Пустые цель и минимум (0 / 0) = показатель на точке не задан: точка не участвует ни в цели, ни в коэффициенте смен.</div>`;
             document.getElementById('kpi-config-section').innerHTML = html;
             updateKpiSplitLabel();
         }
 
         function onMetricChange(kpiKey) {
+            const month = document.getElementById('target-month').value;
             const sel = document.getElementById('kpi-metric-' + kpiKey);
             const nameInput = document.getElementById('kpi-name-' + kpiKey);
-            nameInput.value = metricLabel(sel.value);
+            editorPerShift[kpiKey] = defaultPerShift(sel.value, month);
+            nameInput.value = metricLabel(sel.value, editorPerShift[kpiKey]);
+            // Перерисовать: у штучной метрики появляется чекбокс «на смену»,
+            // у сетки меняются единицы; введённые числа сохраняются
+            if (!month) return;
+            const md = readEditorInputs(month);
+            renderKpiConfig(md.kpi_config);
+            renderTargetsGrid(md);
+        }
+
+        // Переключение «на смену»: числа в сетке пересчитываются (месячное /
+        // норма и обратно), автоназвание получает единицу «/смену»
+        function onPerShiftChange(kpiKey) {
+            const month = document.getElementById('target-month').value;
+            if (!month) return;
+            const cb = document.getElementById('kpi-pershift-' + kpiKey);
+            const on = !!(cb && cb.checked);
+            const md = readEditorInputs(month);
+            const norm = currentNorm();
+            editorPerShift[kpiKey] = on;
+            const conf = md.kpi_config[kpiKey];
+            if (conf) {
+                conf.per_shift = on;
+                if (conf.name === metricLabel(conf.metric, !on)) conf.name = metricLabel(conf.metric, on);
+            }
+            LOCATIONS.forEach(loc => {
+                const t = (md[loc] || {})[kpiKey];
+                if (t) md[loc][kpiKey] = convertTargets(t, on, norm);
+            });
+            // Режим выбран вручную — подсказка о серверной конвертации больше не нужна
+            const conv = (targetsData.converted_from_monthly || {})[month];
+            if (conv) delete conv[kpiKey];
+            renderKpiConfig(md.kpi_config);
+            renderTargetsGrid(md);
+        }
+
+        // Запись конфига показателя: флаг «на смену» хранится явно только у
+        // штучных метрик (true/false), у долевых его нет
+        function kpiConfigEntry(metric, name, k) {
+            const perShift = isExtensive(metric) ? !!editorPerShift[k] : false;
+            const entry = { metric: metric, name: name || metricLabel(metric, perShift) };
+            if (isExtensive(metric)) entry.per_shift = perShift;
+            return entry;
         }
 
         // Считывает текущие значения редактора в targetsData (чтобы при +/- KPI ввод не терялся)
@@ -1791,7 +1954,7 @@
                 const metricSel = document.getElementById('kpi-metric-' + k);
                 const nameInput = document.getElementById('kpi-name-' + k);
                 if (metricSel) {
-                    kpiConfig[k] = { metric: metricSel.value, name: (nameInput && nameInput.value) || metricLabel(metricSel.value) };
+                    kpiConfig[k] = kpiConfigEntry(metricSel.value, (nameInput && nameInput.value) || '', k);
                 }
             });
             const md = { kpi_config: kpiConfig };
@@ -1820,7 +1983,8 @@
             editorKpiKeys.push(newKey);
             const used = Object.values(md.kpi_config).map(c => c.metric).filter(Boolean);
             const metric = (DEFAULT_KPI_CONFIG[newKey] && DEFAULT_KPI_CONFIG[newKey].metric) || defaultMetricForNewKpi(used);
-            md.kpi_config[newKey] = { metric, name: metricLabel(metric) };
+            editorPerShift[newKey] = defaultPerShift(metric, month);
+            md.kpi_config[newKey] = kpiConfigEntry(metric, '', newKey);
             LOCATIONS.forEach(loc => { md[loc] = md[loc] || {}; md[loc][newKey] = { target: 0, min: 0 }; });
             renderKpiConfig(md.kpi_config);
             renderTargetsGrid(md);
@@ -1833,6 +1997,7 @@
             const md = readEditorInputs(month);
             const removed = editorKpiKeys.pop();
             delete md.kpi_config[removed];
+            delete editorPerShift[removed];
             LOCATIONS.forEach(loc => { if (md[loc]) delete md[loc][removed]; });
             renderKpiConfig(md.kpi_config);
             renderTargetsGrid(md);
@@ -1840,6 +2005,7 @@
 
         function renderTargetsGrid(monthData) {
             const kpiConfig = monthData.kpi_config || {};
+            const norm = currentNorm();
             let html = '<div class="targets-grid">';
 
             html += '<div class="tg-cell tg-header"></div>';
@@ -1850,14 +2016,21 @@
             editorKpiKeys.forEach(k => {
                 const conf = kpiConfig[k] || {};
                 const label = conf.name || document.getElementById('kpi-name-' + k)?.value || k;
-                html += `<div class="tg-cell tg-label">${label}</div>`;
+                const perShift = !!editorPerShift[k];
+                const unit = perShift
+                    ? `<span class="tg-unit" title="Цель и минимум за одну кассовую смену; за норму ${norm} смен это в ${norm} раз больше">на смену</span>`
+                    : '';
+                const title = perShift
+                    ? `За одну кассовую смену. Умножьте на норму (${norm}) для месячного числа`
+                    : (lowerIsBetter(conf.metric) ? 'Меньше — лучше: минимум выше цели' : '');
+                html += `<div class="tg-cell tg-label">${label}${unit}</div>`;
                 LOCATIONS.forEach(loc => {
                     const vals = (monthData[loc] || {})[k] || {};
                     html += `<div class="tg-cell">
                         <div class="tg-input-group">
-                            <input type="number" class="tg-input" id="tg-${k}-${loc}-target" value="${vals.target || ''}" placeholder="Цель" step="any">
+                            <input type="number" class="tg-input" id="tg-${k}-${loc}-target" value="${vals.target || ''}" placeholder="Цель" step="any" title="${title}">
                             <span class="tg-sep">/</span>
-                            <input type="number" class="tg-input" id="tg-${k}-${loc}-min" value="${vals.min || ''}" placeholder="Min" step="any">
+                            <input type="number" class="tg-input" id="tg-${k}-${loc}-min" value="${vals.min || ''}" placeholder="Min" step="any" title="${title}">
                         </div>
                     </div>`;
                 });
@@ -1878,10 +2051,32 @@
             const prevData = (targetsData.months || {})[prevMonth];
             if (!prevData) { alert(`Нет данных за ${prevMonth}`); return; }
 
-            editorKpiKeys = sortedKpiKeys(prevData.kpi_config || {});
+            // Копия целей прошлого месяца, но режим «на смену» — по правилам
+            // текущего: штучная метрика без флага из месяца до границы (месячные
+            // числа) в месяце с границы становится «на смену», числа делятся на норму
+            const copy = JSON.parse(JSON.stringify(prevData));
+            const cfg = copy.kpi_config || {};
+            const norm = currentNorm();
+            editorKpiKeys = sortedKpiKeys(cfg);
             if (editorKpiKeys.length === 0) editorKpiKeys = DEFAULT_KPI_KEYS.slice();
-            renderKpiConfig(prevData.kpi_config || {});
-            renderTargetsGrid(prevData);
+            editorPerShift = {};
+            editorKpiKeys.forEach(k => {
+                const conf = cfg[k] || DEFAULT_KPI_CONFIG[k] || {};
+                const wasPerShift = perShiftOf(conf, prevMonth);
+                const nowPerShift = perShiftOf(conf, currentMonth);
+                editorPerShift[k] = nowPerShift;
+                if (wasPerShift !== nowPerShift) {
+                    LOCATIONS.forEach(loc => {
+                        const t = (copy[loc] || {})[k];
+                        if (t) copy[loc][k] = convertTargets(t, nowPerShift, norm);
+                    });
+                    if (cfg[k] && cfg[k].name === metricLabel(conf.metric, wasPerShift)) {
+                        cfg[k].name = metricLabel(conf.metric, nowPerShift);
+                    }
+                }
+            });
+            renderKpiConfig(cfg);
+            renderTargetsGrid(copy);
         }
 
         async function saveTargets() {
@@ -1900,7 +2095,7 @@
                 const metricSel = document.getElementById('kpi-metric-' + k);
                 const nameInput = document.getElementById('kpi-name-' + k);
                 if (metricSel && nameInput) {
-                    kpiConfig[k] = { metric: metricSel.value, name: nameInput.value || k };
+                    kpiConfig[k] = kpiConfigEntry(metricSel.value, nameInput.value, k);
                 }
             });
 
@@ -1917,7 +2112,8 @@
             });
 
             try {
-                const {available_metrics, ...dataToSave} = targetsData;
+                // Служебные ключи ответа GET в файл не пишутся (сервер их тоже отбрасывает)
+                const {available_metrics, per_shift_from_month, converted_from_monthly, ...dataToSave} = targetsData;
                 const resp = await fetch('/api/kpi-targets', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1925,6 +2121,10 @@
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'Ошибка');
+
+                // Месяц сохранён в явном виде «на смену» — подсказка о конвертации снята
+                if (targetsData.converted_from_monthly) delete targetsData.converted_from_monthly[month];
+                renderKpiConfig(kpiConfig);
 
                 document.getElementById('save-error').classList.remove('active');
                 const msg = document.getElementById('save-success');
