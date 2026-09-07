@@ -210,12 +210,27 @@
         var unit = it.unit != null ? it.unit : (cat.unit || '') + (it.per_shift ? '/смену' : '');
         var dec = it.decimals != null ? it.decimals : (cat.decimals == null ? 1 : cat.decimals);
         var v = function (x) { return x == null ? '—' : num(x, dec) + (unit ? ' ' + unit : ''); };
-        var rawDec = cat.decimals == null ? 0 : cat.decimals;
-        var perShiftLine = it.per_shift && it.fact_raw != null && it.shifts_divisor
-            ? 'Показатель считается на кассовую смену: ' + num(it.fact_raw, rawDec)
-              + (cat.unit ? ' ' + cat.unit : '') + ' за месяц / ' + it.shifts_divisor
-              + ' ' + plural(it.shifts_divisor, 'кассовая смена', 'кассовые смены', 'кассовых смен')
-              + ' = ' + v(it.fact) + '<br>'
+        // Штучный KPI: цель зависит от смен — норма за смену x смены человека.
+        // Главные числа на экране в штуках («8 из 10»), «за смену» — в пояснении
+        var perShift = !!(it.per_shift && it.target_period != null && it.shifts_divisor);
+        var rawUnit = cat.unit || '';
+        var pv = function (x) {
+            if (x == null) return '—';
+            var dec = it.period_decimals != null ? it.period_decimals : (cat.decimals || 0);
+            var round = Math.abs(x - Math.round(x)) < 0.05;
+            return num(x, (rawUnit === '\u20bd' || round) ? dec : Math.max(dec, 1))
+                + (rawUnit ? ' ' + rawUnit : '');
+        };
+        var pf = perShift ? pv : v;   // как показывать факт/цель/минимум
+        var shiftsWord = perShift
+            ? it.shifts_divisor + ' ' + plural(it.shifts_divisor, 'смену', 'смены', 'смен') : '';
+        // Пояснение без дробей «за смену»: норма смен -> целое, его смены -> целое
+        var normShifts = meta.norm_shifts || 15;
+        var perShiftLine = perShift
+            ? 'Цель зависит от смен: за норму ' + normShifts + ' '
+              + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
+              + pv(it.target * normShifts) + ', за ваши ' + shiftsWord + ' — '
+              + pv(it.target_period) + ' (минимум ' + pv(it.min_period) + ')<br>'
             : '';
 
         var ratio = it.ratio == null ? 0 : it.ratio;
@@ -249,12 +264,16 @@
             calc = 'На ваших точках цели по этому показателю не заданы — премия по нему не начисляется';
         } else if (it.min != null && it.fact != null
                    && (inverse ? it.fact > it.min : it.fact < it.min)) {
-            calc = 'Факт ' + v(it.fact) + (inverse ? ' выше' : ' ниже') + ' минимума ' + v(it.min)
+            calc = 'Факт ' + pf(perShift ? it.fact_raw : it.fact) + (inverse ? ' выше' : ' ниже')
+                 + ' минимума ' + pf(perShift ? it.min_period : it.min)
                  + ' — множитель 0, премия 0' + RUB;
         } else {
+            var cFact = perShift ? pv(it.fact_raw) : num(it.fact, dec);
+            var cMin = perShift ? pv(it.min_period) : num(it.min, dec);
+            var cTarget = perShift ? pv(it.target_period) : num(it.target, dec);
             calc = 'Множитель = (факт − минимум) / (цель − минимум)<br>= ('
-                 + num(it.fact, dec) + ' − ' + num(it.min, dec) + ') / ('
-                 + num(it.target, dec) + ' − ' + num(it.min, dec) + ') = ' + num(ratio, 2);
+                 + cFact + ' − ' + cMin + ') / ('
+                 + cTarget + ' − ' + cMin + ') = ' + num(ratio, 2);
             if (ratio >= maxRatio) {
                 calc += '<br>Множитель ограничен диапазоном 0…' + num(maxRatio, 0);
             }
@@ -274,8 +293,11 @@
             + '<span class="me-kpi-prem' + zero(it.premium) + '">' + money(it.premium)
             + ' <span class="me-kpi-max">/ ' + money(meta.base_per_kpi) + '</span></span></div>'
             + '<div class="me-kpi-nums">'
-            + kpiNum('факт', v(it.fact)) + kpiNum('цель', v(it.target))
-            + kpiNum('минимум', v(it.min)) + kpiNum('множитель', 'x' + num(ratio, 2), mulCls)
+            + kpiNum('факт', pf(perShift ? it.fact_raw : it.fact))
+            + kpiNum(perShift ? 'цель за ' + shiftsWord : 'цель',
+                     pf(perShift ? it.target_period : it.target))
+            + kpiNum('минимум', pf(perShift ? it.min_period : it.min))
+            + kpiNum('множитель', 'x' + num(ratio, 2), mulCls)
             + '</div>'
             + '<div class="me-scale"><span class="me-scale-fill" style="width:' + fill + '%"></span>'
             + '<span class="me-scale-mark" style="left:' + mark + '%"></span></div>'

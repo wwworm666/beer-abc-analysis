@@ -55,8 +55,15 @@ PER_SHIFT_FROM_MONTH = '2026-08'
 PER_SHIFT_UNIT_SUFFIX = '/смену'
 
 # Знаков после запятой у значения «на смену»: штуки и часы за смену — дробные
-# (1,6 карты за смену), рубли за смену остаются целыми
+# (1,6 карты за смену), рубли за смену остаются целыми. Это ТЕХНИЧЕСКАЯ единица:
+# человеку «за смену» не показывают как главное число — экраны считают цель на
+# смены конкретного сотрудника и показывают её в штуках (см. target_period).
 PER_SHIFT_DECIMALS = 2
+
+# Точность ХРАНЕНИЯ значения «за смену». Четыре знака, а не два: цель вводится
+# за норму смен, и при 10/15 = 0.6667 обратный пересчёт даёт 10.0005 -> «10»,
+# тогда как округление до 0.67 показало бы менеджеру «10,05» вместо введённых 10.
+PER_SHIFT_STORE_DECIMALS = 4
 
 # Каталог доступных метрик из EmployeeMetricsCalculator.calculate().
 # Полный набор соответствует карточкам на странице /employee (дашборд сотрудника).
@@ -177,8 +184,8 @@ def normalize_month_data(month: str, month_data: dict, defaults: dict) -> Tuple[
             if not isinstance(t, dict):
                 continue
             try:
-                t['target'] = round(float(t.get('target') or 0) / norm, PER_SHIFT_DECIMALS)
-                t['min'] = round(float(t.get('min') or 0) / norm, PER_SHIFT_DECIMALS)
+                t['target'] = round(float(t.get('target') or 0) / norm, PER_SHIFT_STORE_DECIMALS)
+                t['min'] = round(float(t.get('min') or 0) / norm, PER_SHIFT_STORE_DECIMALS)
             except (TypeError, ValueError):
                 t['target'], t['min'] = 0, 0
     return data, converted
@@ -407,8 +414,8 @@ class KpiCalculator:
 
             if shifts_with_targets > 0:
                 result[kpi_key] = {
-                    'target': round(weighted_target / shifts_with_targets, 2),
-                    'min': round(weighted_min / shifts_with_targets, 2),
+                    'target': round(weighted_target / shifts_with_targets, PER_SHIFT_STORE_DECIMALS),
+                    'min': round(weighted_min / shifts_with_targets, PER_SHIFT_STORE_DECIMALS),
                     'shifts': shifts_with_targets,
                     'no_targets': False,
                     'locations': locations,
@@ -594,8 +601,19 @@ class KpiCalculator:
                 **premium_result,
             }
             if per_shift:
+                # Главные числа для человека — за ЕГО смены, в штуках: «сделал 8
+                # из 10», а не «0,80 из 2,00 за смену». Значение «за смену»
+                # остаётся технической единицей формулы (владелец 2026-09-06:
+                # «0,75 из 1,67 — непонятно чего»).
                 kpi_row['fact_raw'] = round(fact_raw, 2)
                 kpi_row['shifts_divisor'] = shifts_divisor
+                kpi_row['target_period'] = round(targets['target'] * shifts_divisor, 2)
+                kpi_row['min_period'] = round(targets['min'] * shifts_divisor, 2)
+                kpi_row['period_decimals'] = metric_decimals(metric_field)
+                for loc, loc_row in (kpi_row['location_targets'] or {}).items():
+                    loc_shifts = loc_row.get('shifts') or 0
+                    loc_row['target_period'] = round(loc_row['target'] * loc_shifts, 2)
+                    loc_row['min_period'] = round(loc_row['min'] * loc_shifts, 2)
             kpis[kpi_key] = kpi_row
             total_intermediate += premium_result['intermediate_premium']
 

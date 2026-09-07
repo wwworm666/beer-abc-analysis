@@ -421,8 +421,8 @@
                 `${planFormula}<br>` +
                 `<b>KPI</b> — цель и минимум по каждой точке (задаются на странице «Расчёт ЗП»). ` +
                 `Премия начисляется при достижении минимума и растёт до цели. ` +
-                `Штучные показатели (карты, чеки, выручка, отмены, опоздания, часы) — за одну кассовую смену: ` +
-                `факт за месяц делится на число кассовых смен.`;
+                `У штучных показателей (карты, чеки, выручка, отмены, опоздания, часы) цель зависит от смен: ` +
+                `она указана за норму смен, а каждому пересчитывается на его смены — половина смен, половина цели.`;
             document.getElementById('foot-card').style.display = 'block';
         }
 
@@ -483,9 +483,18 @@
                     // конфиге месяца): цель и минимум — за одну кассовую смену.
                     // Ответ /api/kpi-targets уже в этих единицах.
                     const perShift = !!conf.per_shift && !!catalog.extensive;
+                    // Цель показываем в штуках за норму смен: «30 шт за 15 смен».
+                    // Дробное «2 за смену» — техническая единица, человеку не нужна
+                    const norm = ((kpiTargets.defaults || {}).norm_shifts) || 15;
                     const info = {
-                        unit: (catalog.unit || '') + (perShift ? '/смену' : ''),
-                        decimals: perShift && catalog.unit !== '₽' ? Math.max(catalog.decimals || 0, 2) : (catalog.decimals == null ? 1 : catalog.decimals),
+                        unit: catalog.unit || '',
+                        decimals: catalog.decimals == null ? 1 : catalog.decimals,
+                    };
+                    const scale = v => perShift ? Math.round((v || 0) * norm * 100) / 100 : (v || 0);
+                    const fmtGoal = v => {
+                        const x = scale(v);
+                        const round = Math.abs(x - Math.round(x)) < 0.05;
+                        return fmtNum(x, (info.unit === '₽' || round) ? info.decimals : Math.max(info.decimals, 1));
                     };
                     const name = conf.name || metric;
                     const t = barTargets[k];
@@ -497,9 +506,9 @@
                     } else {
                         s += `<div class="kpi-goal">` +
                              `<div class="kpi-goal-name">${name}</div>` +
-                             `<div class="kpi-goal-target"><span class="val">${fmtNum(t.target, info.decimals)}</span><span class="unit">${info.unit || ''}</span></div>` +
-                             `<div class="kpi-goal-min">минимум <b>${fmtNum(t.min, info.decimals)}&#8239;${info.unit || ''}</b> — ${t.min > t.target ? 'выше' : 'ниже'} премии нет</div>` +
-                             (perShift ? `<div class="kpi-goal-per-shift">за каждую кассовую смену</div>` : '') +
+                             `<div class="kpi-goal-target"><span class="val">${fmtGoal(t.target)}</span><span class="unit">${info.unit || ''}</span></div>` +
+                             `<div class="kpi-goal-min">минимум <b>${fmtGoal(t.min)}&#8239;${info.unit || ''}</b> — ${t.min > t.target ? 'выше' : 'ниже'} премии нет</div>` +
+                             (perShift ? `<div class="kpi-goal-per-shift">за ${norm} смен — ваша цель пересчитывается на ваши смены</div>` : '') +
                              `</div>`;
                     }
                 });

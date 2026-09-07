@@ -70,11 +70,30 @@ def test_owner_example_same_rate_gives_same_ratio(tmp_path):
     assert ka['fact'] == kb['fact'] == 1.6
     assert (ka['fact_raw'], ka['shifts_divisor']) == (8, 5)
     assert (kb['fact_raw'], kb['shifts_divisor']) == (40, 25)
-    assert ka['target'] == kb['target'] == 2.0 and ka['min'] == kb['min'] == 0.67
-    assert ka['capped_ratio'] == kb['capped_ratio'] == pytest.approx(0.6992, abs=1e-4)
+    assert ka['target'] == kb['target'] == 2.0
+    assert ka['min'] == kb['min'] == pytest.approx(0.6667, abs=1e-4)
+    # 0,70 ровно: точность хранения 4 знака даёт минимум 10x5/15 = 3,33, а не 3,35
+    assert ka['capped_ratio'] == kb['capped_ratio'] == pytest.approx(0.7, abs=1e-4)
     assert ka['unit'] == 'шт/смену' and ka['decimals'] == 2
+    # Человеку показывают цель за ЕГО смены, в штуках: «8 из 10» и «40 из 50»
+    assert (ka['target_period'], ka['min_period']) == (10.0, 3.33)
+    assert (kb['target_period'], kb['min_period']) == (50.0, 16.67)
+    assert ka['period_decimals'] == 0
+    assert ka['location_targets']['Кременчугская']['target_period'] == 10.0
+    assert kb['location_targets']['Кременчугская']['target_period'] == 50.0
     assert a['koef'] == 0.33 and b['koef'] == 1.67
     assert a['cash_shifts'] == 5 and b['cash_shifts'] == 25
+
+
+def test_period_targets_scale_with_shifts(tmp_path):
+    """Цель за период = цель за смену x кассовые смены сотрудника. Это то,
+    что видит человек: «сделал 8 из 10», дробные «за смену» на экран не идут."""
+    calc = KpiCalculator(make_reader(tmp_path, AUG))
+    for cash, want_target, want_min in ((15, 30.0, 10.0), (10, 20.0, 6.67), (30, 60.0, 20.0)):
+        res = calc.calculate_employee('A', {'loyalty_cards_count': 1, 'shifts_count': cash},
+                                      shifts(15), '2026-08')
+        k = res['kpis']['kpi2']
+        assert (k['target_period'], k['min_period']) == (want_target, want_min), cash
 
 
 def test_per_shift_divides_by_cash_shifts_not_days(tmp_path):
@@ -123,7 +142,8 @@ def test_legacy_monthly_targets_normalized_from_august():
     data, converted = normalize_month_data('2026-08', AUG['2026-08'], DEFAULTS)
     assert data['kpi_config']['kpi2']['per_shift'] is True
     assert 'per_shift' not in data['kpi_config']['kpi1']
-    assert data['Кременчугская']['kpi2'] == {'target': 2.0, 'min': 0.67}
+    assert data['Кременчугская']['kpi2']['target'] == 2.0
+    assert data['Кременчугская']['kpi2']['min'] == pytest.approx(0.6667, abs=1e-4)
     assert data['Кременчугская']['kpi1'] == {'target': 18, 'min': 13}
     assert converted == {'kpi2': {'norm_shifts': 15.0}}
     # исходник не тронут
@@ -165,9 +185,13 @@ def test_editor_data_and_calculator_see_same_numbers(tmp_path):
     reader = make_reader(tmp_path, AUG)
     editor = reader.get_editor_data()
     assert editor['per_shift_from_month'] == '2026-08'
-    assert editor['months']['2026-08']['Лиговский']['kpi2'] == {'target': 2.0, 'min': 0.67}
+    assert editor['months']['2026-08']['Лиговский']['kpi2']['target'] == 2.0
     assert editor['converted_from_monthly'] == {'2026-08': {'kpi2': {'norm_shifts': 15.0}}}
-    assert reader.get_targets_for_month('2026-08')['Лиговский']['kpi2'] == {'target': 2.0, 'min': 0.67}
+    assert reader.get_targets_for_month('2026-08')['Лиговский']['kpi2']['target'] == 2.0
+    # Обратный пересчёт в редакторе (значение x норма) возвращает введённые 30 / 10,
+    # а не 30,0 / 10,05 — ради этого хранение «за смену» держит 4 знака
+    per = editor['months']['2026-08']['Лиговский']['kpi2']
+    assert round(per['target'] * 15, 2) == 30 and round(per['min'] * 15, 2) == 10
 
 
 # ==================== формула множителя ====================
@@ -206,6 +230,8 @@ def test_inverse_metric_per_shift_end_to_end(tmp_path):
     k = res['kpis']['kpi1']
     assert k['per_shift'] and k['target'] == 0.0 and k['min'] == 0.2
     assert k['fact'] == 0.1 and k['capped_ratio'] == 0.5
+    # На экране: «1 опоздание при пороге 2 за 10 смен», а не «0,1 против 0,2»
+    assert (k['fact_raw'], k['target_period'], k['min_period']) == (1, 0.0, 2.0)
 
 
 # ==================== пустые цели 0/0 ====================
@@ -270,12 +296,12 @@ def test_save_strips_meta_keys_and_persists_explicit_flags(tmp_path):
     assert set(saved) == {'defaults', 'months'}
     assert not any(k in saved for k in NON_PERSISTENT_KEYS)
     assert saved['months']['2026-08']['kpi_config']['kpi2']['per_shift'] is True
-    assert saved['months']['2026-08']['Варшавская']['kpi2'] == {'target': 2.0, 'min': 0.67}
+    assert saved['months']['2026-08']['Варшавская']['kpi2']['target'] == 2.0
     assert not (tmp_path / 'kpi_targets.json.tmp').exists()
     # после сохранения месяц уже явный — конвертировать нечего
     reader.clear_cache()
     assert reader.get_editor_data()['converted_from_monthly'] == {}
-    assert reader.get_targets_for_month('2026-08')['Варшавская']['kpi2'] == {'target': 2.0, 'min': 0.67}
+    assert reader.get_targets_for_month('2026-08')['Варшавская']['kpi2']['target'] == 2.0
 
 
 def test_save_rejects_bad_payload(tmp_path):

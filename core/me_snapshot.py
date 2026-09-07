@@ -660,6 +660,9 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config):
     Премия одного KPI = промежуточная премия × коэффициент смен. Коэффициент
     применяется к итогу всех KPI (core/kpi_calculator.py), поэтому по каждому
     показателю он тоже разложен — иначе сумма разложения не сходилась бы с итогом.
+
+    У штучного KPI («зависит от смен») рядом с технической единицей «за смену»
+    едет цель за смены этого человека в штуках — её и показывает кабинет.
     """
     if not kpi_row:
         return {'status': 'no_data', 'items': [], 'total_premium': 0, 'koef': 0}
@@ -689,6 +692,11 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config):
             item['per_shift'] = True
             item['fact_raw'] = src.get('fact_raw')
             item['shifts_divisor'] = src.get('shifts_divisor')
+            # Цель за ЕГО смены, в штуках — главное число на экране
+            # («сделал 8 из 10», а не «0,80 из 2,00 за смену»)
+            item['target_period'] = src.get('target_period')
+            item['min_period'] = src.get('min_period')
+            item['period_decimals'] = src.get('period_decimals')
         for extra in ('unit', 'decimals', 'no_targets'):
             if src.get(extra) is not None:
                 item[extra] = src.get(extra)
