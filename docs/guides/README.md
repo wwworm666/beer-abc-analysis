@@ -9,6 +9,7 @@
 | Документ | Описание |
 |----------|----------|
 | [📖 README.md](../README.md) | Главная страница проекта |
+| [🚀 deploy.md](deploy.md) | **Актуальный деплой** — GitHub main → `git pull` → `docker compose up -d --build app` на Selectel VPS |
 | [🚀 DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) | (legacy Render) Руководство по деплою — актуальный деплой через Docker Compose на Selectel VPS (https://beerkultura.ru) |
 | [💾 RENDER_DISK_SETUP.md](RENDER_DISK_SETUP.md) | (legacy) Настройка Render Disk — на Selectel это host mount `/kultura` |
 
@@ -27,6 +28,7 @@
 ### Основные документы:
 
 - [README.md](../README.md) - Архитектура и структура (Selectel VPS + Docker)
+- [deploy.md](deploy.md) - **Актуальный деплой** (Selectel VPS, Docker Compose): путь кода до прода, пересборка образа, маунты, откат
 - [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) - (legacy Render) Workflow деплоя
 - [RENDER_DISK_SETUP.md](RENDER_DISK_SETUP.md) - (legacy) Работа с данными; на Selectel это host volume `/kultura`
 
@@ -64,7 +66,7 @@ static/                 # CSS, JS
 
 При проблемах:
 
-1. Проверить [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md) → Устранение проблем
+1. Проверить [deploy.md](deploy.md) → «Грабли» (legacy Render — в [DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md))
 2. Проверить логи контейнера: `docker compose logs -f` (или Render Dashboard, если rollback)
 3. Проверить что host volume \`/kultura\` примонтирован в контейнер
 
