@@ -1621,16 +1621,24 @@
                 // Показываем в штуках за период, «за смену» уводим в пояснение.
                 const perShift = kpi.per_shift && kpi.target_period != null;
                 const shifts = kpi.shifts_divisor || 0;
+                // «Меньше — лучше» (опоздания, отмены): порог задан ВЫШЕ цели,
+                // и слово «минимум» тут обмануло бы — это потолок
+                const inverse = !kpi.no_targets && kpi.min > kpi.target;
                 const factSub = perShift
                     ? `<div class="kpi-metric-sub">за ${shifts} ${shiftWord(shifts)}</div>` : '';
-                const targetSub = perShift
+                // У инверсного показателя цель обычно 0 — подпись «за N смен»
+                // под нулём ничего не объясняет, она нужна только у обычной цели
+                const targetSub = perShift && !inverse
                     ? `<div class="kpi-metric-sub">за ${shifts} ${shiftWord(shifts)}</div>` : '';
                 const badge = perShift
                     ? ' <span class="kpi-per-shift-badge" title="Цель зависит от числа смен: задана за норму смен и пересчитана на смены сотрудника">по сменам</span>' : '';
                 // Пояснение без дробей: норма смен -> целое число, его смены -> целое
-                const perShiftNote = perShift
-                    ? `<div class="kpi-per-shift-note">Цель зависит от смен: за норму ${normShifts} ${shiftWord(normShifts)} — ${periodVal(kpi, kpi.target * normShifts)}, за ${shifts} ${shiftWord(shifts)} — <b>${periodVal(kpi, kpi.target_period)}</b> (минимум ${periodVal(kpi, kpi.min_period)})</div>`
-                    : '';
+                // У инверсного показателя от смен зависит ПОТОЛОК (цель обычно 0),
+                // поэтому пересчёт показываем по нему, а не по цели
+                const perShiftNote = !perShift ? ''
+                    : inverse
+                    ? `<div class="kpi-per-shift-note">Порог зависит от смен: за норму ${normShifts} ${shiftWord(normShifts)} — ${periodVal(kpi, kpi.min * normShifts)}, за ${shifts} ${shiftWord(shifts)} — не больше <b>${periodVal(kpi, kpi.min_period)}</b></div>`
+                    : `<div class="kpi-per-shift-note">Цель зависит от смен: за норму ${normShifts} ${shiftWord(normShifts)} — ${periodVal(kpi, kpi.target * normShifts)}, за ${shifts} ${shiftWord(shifts)} — <b>${periodVal(kpi, kpi.target_period)}</b> (минимум ${periodVal(kpi, kpi.min_period)})</div>`;
                 const noTargets = kpi.no_targets
                     ? '<div class="kpi-no-targets">На точках сотрудника цели по этому показателю не заданы: премия по нему не начисляется</div>' : '';
                 // KPI на блюда: из чего сложился факт и что не нашлось в продажах
@@ -1671,7 +1679,7 @@
                             ${kpi.no_targets ? '' : targetSub}
                         </div>
                         <div class="kpi-metric-item">
-                            <div class="kpi-metric-label">Минимум</div>
+                            <div class="kpi-metric-label">${inverse ? 'Максимум' : 'Минимум'}</div>
                             <div class="kpi-metric-val">${kpi.no_targets ? '—' : (perShift ? periodVal(kpi, kpi.min_period) : withUnit(kpi, kpi.min))}</div>
                         </div>
                         <div class="kpi-metric-item">
@@ -1688,7 +1696,7 @@
                     </div>
 
                     <table class="loc-breakdown">
-                        <thead><tr><th>Точка</th><th>Смены</th><th>Вес</th><th>Цель ТТ</th><th>Мин ТТ</th></tr></thead>
+                        <thead><tr><th>Точка</th><th>Смены</th><th>Вес</th><th>Цель ТТ</th><th>${inverse ? 'Макс ТТ' : 'Мин ТТ'}</th></tr></thead>
                         <tbody>`;
 
                 locs.forEach(([loc, cnt]) => {

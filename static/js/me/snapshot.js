@@ -226,12 +226,18 @@
             ? it.shifts_divisor + ' ' + plural(it.shifts_divisor, 'смену', 'смены', 'смен') : '';
         // Пояснение без дробей «за смену»: норма смен -> целое, его смены -> целое
         var normShifts = meta.norm_shifts || 15;
-        var perShiftLine = perShift
-            ? 'Цель зависит от смен: за норму ' + normShifts + ' '
+        // «Меньше — лучше» (опоздания, отмены): от смен зависит ПОТОЛОК, а не цель
+        var inverseKpi = !it.no_targets && it.min != null && it.target != null && it.min > it.target;
+        var perShiftLine = !perShift ? ''
+            : inverseKpi
+            ? 'Порог зависит от смен: за норму ' + normShifts + ' '
+              + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
+              + pv(it.min * normShifts) + ', за ваши ' + shiftsWord + ' — не больше '
+              + pv(it.min_period) + '<br>'
+            : 'Цель зависит от смен: за норму ' + normShifts + ' '
               + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
               + pv(it.target * normShifts) + ', за ваши ' + shiftsWord + ' — '
-              + pv(it.target_period) + ' (минимум ' + pv(it.min_period) + ')<br>'
-            : '';
+              + pv(it.target_period) + ' (минимум ' + pv(it.min_period) + ')<br>';
 
         var ratio = it.ratio == null ? 0 : it.ratio;
         var fill = Math.max(0, Math.min(100, ratio / maxRatio * 100));
@@ -306,7 +312,7 @@
             + kpiNum('факт', pf(perShift ? it.fact_raw : it.fact))
             + kpiNum(perShift ? 'цель за ' + shiftsWord : 'цель',
                      pf(perShift ? it.target_period : it.target))
-            + kpiNum('минимум', pf(perShift ? it.min_period : it.min))
+            + kpiNum(inverse ? 'максимум' : 'минимум', pf(perShift ? it.min_period : it.min))
             + kpiNum('множитель', 'x' + num(ratio, 2), mulCls)
             + '</div>'
             + '<div class="me-scale"><span class="me-scale-fill" style="width:' + fill + '%"></span>'
