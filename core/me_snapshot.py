@@ -697,6 +697,11 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config):
             item['target_period'] = src.get('target_period')
             item['min_period'] = src.get('min_period')
             item['period_decimals'] = src.get('period_decimals')
+        # KPI на выбранные блюда: список и разбивка по каждому блюду
+        if src.get('dishes') is not None:
+            item['dishes'] = src.get('dishes')
+            item['dish_facts'] = src.get('dish_facts') or {}
+            item['no_dishes'] = bool(src.get('no_dishes'))
         for extra in ('unit', 'decimals', 'no_targets'):
             if src.get(extra) is not None:
                 item[extra] = src.get(extra)

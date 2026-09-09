@@ -509,6 +509,7 @@
                              `<div class="kpi-goal-target"><span class="val">${fmtGoal(t.target)}</span><span class="unit">${info.unit || ''}</span></div>` +
                              `<div class="kpi-goal-min">минимум <b>${fmtGoal(t.min)}&#8239;${info.unit || ''}</b> — ${t.min > t.target ? 'выше' : 'ниже'} премии нет</div>` +
                              (perShift ? `<div class="kpi-goal-per-shift">за ${norm} смен — ваша цель пересчитывается на ваши смены</div>` : '') +
+                             ((conf.dishes && conf.dishes.length) ? `<div class="kpi-goal-per-shift">блюда: ${conf.dishes.join(', ')}</div>` : '') +
                              `</div>`;
                     }
                 });

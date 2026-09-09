@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.kpi_calculator import (  # noqa: E402
     NON_PERSISTENT_KEYS, PER_SHIFT_FROM_MONTH, KpiCalculator, KpiTargetsReader,
-    is_extensive, metric_decimals, metric_unit, normalize_month_data,
-    targets_are_set,
+    is_dish_based, is_extensive, metric_decimals, metric_unit,
+    normalize_dish_name, normalize_month_data, resolve_fact, targets_are_set,
 )
 
 LOCS = ['Кременчугская', 'Варшавская', 'Лиговский', 'Большой пр В.О.']
@@ -312,7 +312,112 @@ def test_save_rejects_bad_payload(tmp_path):
         reader.save_targets({'months': []})
 
 
+# ==================== KPI на выбранные блюда ====================
+
+DISHES = {'metric': 'dish_count', 'name': 'Брискет + Щёчки (шт)',
+          'per_shift': True, 'dishes': ['Брискет', 'Щёчки говяжьи']}
+
+
+def dish_month(config=None, targets=(2, 0.6667)):
+    return month_data(config or {'kpi1': DISHES}, {'kpi1': targets})
+
+
+def test_dish_kpi_sums_selected_dishes(tmp_path):
+    """Факт KPI на блюда — сумма продаж выбранных позиций; в ответе разбивка."""
+    reader = make_reader(tmp_path, {'2026-09': dish_month()})
+    metrics = {'shifts_count': 10,
+               'dishes': {'count': {'брискет': 7, 'щёчки говяжьи': 5, 'борщ': 40}}}
+    res = KpiCalculator(reader).calculate_employee('A', metrics, shifts(10, month='2026-09'), '2026-09')
+    k = res['kpis']['kpi1']
+    assert k['fact_raw'] == 12 and k['dish_facts'] == {'Брискет': 7, 'Щёчки говяжьи': 5}
+    assert k['dishes'] == ['Брискет', 'Щёчки говяжьи'] and k['no_dishes'] is False
+    # блюда штучные -> KPI зависит от смен: цель 2/смену x 10 смен = 20
+    assert k['per_shift'] and (k['target_period'], k['fact']) == (20.0, 1.2)
+    assert k['capped_ratio'] == pytest.approx(0.4, abs=1e-4)
+
+
+def test_dish_kpi_without_dishes_pays_zero(tmp_path):
+    """Метрика выбрана, блюда — нет: настройка не закончена, премии нет."""
+    reader = make_reader(tmp_path, {'2026-09': dish_month({'kpi1': dict(DISHES, dishes=[])})})
+    metrics = {'shifts_count': 10, 'dishes': {'count': {'брискет': 7}}}
+    res = KpiCalculator(reader).calculate_employee('A', metrics, shifts(10, month='2026-09'), '2026-09')
+    k = res['kpis']['kpi1']
+    assert k['no_dishes'] is True and k['dishes'] == []
+    assert k['capped_ratio'] == 0.0 and k['intermediate_premium'] == 0.0
+    assert res['total_premium'] == 0.0
+
+
+def test_dish_name_matching_ignores_case_and_spaces():
+    assert normalize_dish_name('  Щёчки   ГОВЯЖЬИ ') == 'щёчки говяжьи'
+    assert normalize_dish_name(None) == ''
+    metrics = {'dishes': {'count': {'брискет': 7}, 'revenue': {'брискет': 4900}}}
+    assert resolve_fact(metrics, 'dish_count', {'dishes': ['  БРИСКЕТ  ']}) == (7, {'  БРИСКЕТ  ': 7})
+    assert resolve_fact(metrics, 'dish_revenue', {'dishes': ['Брискет']})[0] == 4900
+
+
+def test_dish_revenue_metric_uses_money(tmp_path):
+    conf = {'kpi1': {'metric': 'dish_revenue', 'name': 'Выручка по брискету (₽)',
+                     'per_shift': False, 'dishes': ['Брискет']}}
+    reader = make_reader(tmp_path, {'2026-09': dish_month(conf, targets=(10000, 4000))})
+    metrics = {'shifts_count': 10, 'dishes': {'count': {'брискет': 7}, 'revenue': {'брискет': 7000}}}
+    res = KpiCalculator(reader).calculate_employee('A', metrics, shifts(10, month='2026-09'), '2026-09')
+    k = res['kpis']['kpi1']
+    assert k['fact'] == 7000 and k['per_shift'] is False
+    assert k['capped_ratio'] == 0.5 and 'target_period' not in k
+
+
+def test_two_dish_kpis_have_independent_dish_sets(tmp_path):
+    """Одна метрика на два показателя с разными блюдами — факты не смешиваются."""
+    conf = {'kpi1': dict(DISHES, dishes=['Брискет']),
+            'kpi2': dict(DISHES, name='Щёчки (шт)', dishes=['Щёчки говяжьи'])}
+    m = month_data(conf, {'kpi1': (2, 0.6667), 'kpi2': (1, 0.3333)})
+    reader = make_reader(tmp_path, {'2026-09': m})
+    metrics = {'shifts_count': 15, 'dishes': {'count': {'брискет': 30, 'щёчки говяжьи': 9}}}
+    res = KpiCalculator(reader).calculate_employee('A', metrics, shifts(15, month='2026-09'), '2026-09')
+    assert res['kpis']['kpi1']['fact_raw'] == 30 and res['kpis']['kpi2']['fact_raw'] == 9
+    # 30 брискетов за 15 смен = ровно цель (2/смену); щёчек 9 из 15 -> 0,6 при цели 1
+    assert res['kpis']['kpi1']['capped_ratio'] == 1.0
+    assert res['kpis']['kpi2']['capped_ratio'] == pytest.approx(0.4, abs=1e-4)
+
+
+def test_non_dish_metric_ignores_dishes_key(tmp_path):
+    """Список блюд у обычной метрики ничего не меняет (и не попадает в ответ)."""
+    conf = {'kpi1': {'metric': 'kitchen_share', 'name': 'Доля кухни (%)', 'dishes': ['Брискет']}}
+    reader = make_reader(tmp_path, {'2026-09': month_data(conf, {'kpi1': (18, 13)})})
+    metrics = {'kitchen_share': 18.0, 'shifts_count': 10, 'dishes': {'count': {'брискет': 7}}}
+    res = KpiCalculator(reader).calculate_employee('A', metrics, shifts(10, month='2026-09'), '2026-09')
+    k = res['kpis']['kpi1']
+    assert k['fact'] == 18.0 and k['capped_ratio'] == 1.0
+    assert 'dishes' not in k and 'dish_facts' not in k
+
+
+def test_route_collects_and_normalizes_dishes():
+    """routes/employee.py: что запросить у OLAP и как разложить ответ."""
+    from routes.employee import _configured_dishes, _dish_metric_map
+    config = {'kpi1': {'metric': 'dish_count', 'dishes': ['Брискет', 'Щёчки говяжьи']},
+              'kpi2': {'metric': 'kitchen_share'},
+              'kpi3': {'metric': 'dish_revenue', 'dishes': [' брискет ', 'Стейк']}}
+    # дубль между показателями схлопнут, порядок первого появления сохранён
+    assert _configured_dishes(config) == ['Брискет', 'Щёчки говяжьи', 'Стейк']
+    assert _configured_dishes({}) == []
+    sales = {'Брискет': {'count': 7, 'revenue': 4900},
+             'Щёчки  ГОВЯЖЬИ': {'count': 5, 'revenue': 2500}}
+    assert _dish_metric_map(sales) == {
+        'count': {'брискет': 7.0, 'щёчки говяжьи': 5.0},
+        'revenue': {'брискет': 4900.0, 'щёчки говяжьи': 2500.0},
+    }
+    assert _dish_metric_map(None) == {'count': {}, 'revenue': {}}
+
+
 # ==================== каталог и подписи ====================
+
+def test_dish_metrics_are_in_catalog():
+    assert is_dish_based('dish_count') and is_dish_based('dish_revenue')
+    assert not is_dish_based('kitchen_share')
+    # штучные -> зависят от смен, как карты и чеки
+    assert is_extensive('dish_count') and is_extensive('dish_revenue')
+    assert metric_unit('dish_count') == 'шт' and metric_unit('dish_revenue') == '₽'
+
 
 def test_catalog_marks_extensive_metrics():
     assert all(is_extensive(m) for m in ('loyalty_cards_count', 'total_checks', 'total_revenue',

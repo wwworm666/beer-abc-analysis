@@ -19,6 +19,11 @@
 Долевые и удельные метрики (доли, средний чек, наценка, выручка/смена) уже
 «на единицу» и не меняются.
 
+Кроме готового каталога метрик есть KPI по ВЫБРАННЫМ блюдам (`dish_count`,
+`dish_revenue`): в конфиге месяца у такого показателя лежит список `dishes`
+(названия из iiko), факт — сумма продаж этих позиций из OLAP. Так ставится
+цель вида «продажи брискетов и щёчек».
+
 Направление метрики выводится из целей: цель выше минимума — «больше лучше»,
 минимум выше цели — «меньше лучше» (опоздания, отмены). Пара «цель 0 / мин 0»
 считается НЕ заданной: такая точка не участвует ни во взвешивании, ни в
@@ -91,6 +96,14 @@ AVAILABLE_METRICS = {
     'late_count':          {'name': 'Опоздания',               'unit': 'шт', 'decimals': 0, 'extensive': True, 'lower_is_better': True},
     'loyalty_cards_count': {'name': 'Новые карты лояльности',  'unit': 'шт', 'decimals': 0, 'extensive': True},
     'plan_fact_percent':   {'name': 'План/Факт',               'unit': '%',  'decimals': 1},
+    # Метрики по ВЫБРАННЫМ блюдам (custom-KPI: «продажи брискетов и щёчек»).
+    # Сами блюда задаются в конфиге KPI (`dishes`), факт приходит из OLAP по
+    # DishName (core/olap_reports.py get_dish_sales_by_waiter) — поэтому одну и
+    # ту же метрику можно поставить на разные наборы блюд в разных KPI месяца.
+    'dish_count':          {'name': 'Продажи блюд',             'unit': 'шт', 'decimals': 0,
+                            'extensive': True, 'dish_based': True, 'dish_source': 'count'},
+    'dish_revenue':        {'name': 'Выручка по блюдам',        'unit': '₽',  'decimals': 0,
+                            'extensive': True, 'dish_based': True, 'dish_source': 'revenue'},
 }
 
 # Дефолтный конфиг KPI (если в месяце не указан kpi_config)
@@ -109,6 +122,45 @@ NON_PERSISTENT_KEYS = ('available_metrics', 'per_shift_from_month',
 def is_extensive(metric: str) -> bool:
     """Метрика «растёт со сменами» — штуки, суммы, часы (см. AVAILABLE_METRICS)."""
     return bool((AVAILABLE_METRICS.get(metric) or {}).get('extensive'))
+
+
+def is_dish_based(metric: str) -> bool:
+    """Метрика по выбранным блюдам: факт зависит от списка `dishes` в конфиге KPI."""
+    return bool((AVAILABLE_METRICS.get(metric) or {}).get('dish_based'))
+
+
+def normalize_dish_name(name: str) -> str:
+    """Ключ сопоставления блюда: регистр и лишние пробелы не важны.
+
+    Настройка хранит название ровно как в iiko (менеджер выбирает его из
+    списка проданных позиций), но написание в выгрузке может отличаться
+    регистром или двойным пробелом — сравниваем по нормализованному виду.
+    """
+    return ' '.join(str(name or '').split()).lower()
+
+
+def resolve_fact(metrics: dict, metric_field: str, kpi_conf: dict = None):
+    """Факт показателя из метрик сотрудника.
+
+    Обычная метрика — значение по ключу. Метрика по блюдам — сумма выбранных
+    в конфиге блюд из карты `metrics['dishes'][source]`, которую собирает
+    routes/employee.py по ответу OLAP.
+
+    Returns:
+        (факт, {название блюда: значение} — разбивка для показа, или None)
+    """
+    if not is_dish_based(metric_field):
+        return metrics.get(metric_field, 0) or 0, None
+
+    source = (AVAILABLE_METRICS.get(metric_field) or {}).get('dish_source', 'count')
+    per_dish = ((metrics or {}).get('dishes') or {}).get(source) or {}
+    breakdown = {}
+    total = 0.0
+    for dish in ((kpi_conf or {}).get('dishes') or []):
+        value = per_dish.get(normalize_dish_name(dish), 0) or 0
+        breakdown[dish] = round(value, 2)
+        total += value
+    return total, breakdown
 
 
 def metric_unit(metric: str, per_shift: bool = False) -> str:
@@ -568,12 +620,17 @@ class KpiCalculator:
             per_shift = per_shift_effective({'metric': metric_field,
                                              'per_shift': kpi_conf.get('per_shift')})
 
-            fact_raw = metrics.get(metric_field, 0) or 0
+            fact_raw, dish_breakdown = resolve_fact(metrics, metric_field, kpi_conf)
             fact = fact_raw / shifts_divisor if per_shift else fact_raw
             targets = weighted_targets.get(kpi_key) or {
                 'target': 0, 'min': 0, 'shifts': 0, 'no_targets': True, 'locations': {}}
 
-            if targets['no_targets']:
+            # KPI по блюдам без выбранных блюд — настройка не закончена: факт
+            # всегда 0, поэтому премию не начисляем и говорим об этом прямо
+            dishes = list(kpi_conf.get('dishes') or []) if is_dish_based(metric_field) else None
+            no_dishes = dish_breakdown is not None and not dishes
+
+            if targets['no_targets'] or no_dishes:
                 # Ни на одной точке сотрудника этот KPI не задан — премии нет
                 premium_result = {'ratio': 0.0, 'capped_ratio': 0.0,
                                   'intermediate_premium': 0.0}
@@ -600,6 +657,10 @@ class KpiCalculator:
                 'location_targets': targets['locations'],
                 **premium_result,
             }
+            if dishes is not None:
+                kpi_row['dishes'] = dishes
+                kpi_row['dish_facts'] = dish_breakdown
+                kpi_row['no_dishes'] = no_dishes
             if per_shift:
                 # Главные числа для человека — за ЕГО смены, в штуках: «сделал 8
                 # из 10», а не «0,80 из 2,00 за смену». Значение «за смену»

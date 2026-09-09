@@ -8,7 +8,8 @@
 
 - [`core/employee_analysis.py`](../../core/employee_analysis.py) — расчёт метрик сотрудника
 - [`core/employee_plans.py`](../../core/employee_plans.py) — планы из смен
-- [`core/kpi_calculator.py`](../../core/kpi_calculator.py) — KPI бонусы
+- [`core/kpi_calculator.py`](../../core/kpi_calculator.py) — KPI бонусы (в т.ч. KPI на выбранные блюда)
+- [`core/olap_reports.py`](../../core/olap_reports.py) — `get_dish_sales_by_waiter`, `get_dish_names` — продажи блюд для custom-KPI
 - [`core/iiko_api.py`](../../core/iiko_api.py) — кассовые смены, расчёт часов
 - [`routes/employee.py`](../../routes/employee.py) — Flask endpoint'ы
 - [`routes/salary.py`](../../routes/salary.py) — штраф за кассовую смену + экспорт (Excel, Google)
@@ -797,6 +798,60 @@ total_premium = total_intermediate × koef    # коэффициент прим�
 подсказку «цели пересчитаны из месячных» до первого сохранения), при сохранении служебные ключи
 отбрасываются (`NON_PERSISTENT_KEYS`). Запись файла атомарная (tmp + `os.replace`).
 
+#### KPI на выбранные блюда (с сентября 2026)
+
+Кроме готового каталога метрик показатель можно поставить на КОНКРЕТНЫЕ позиции меню —
+запрос владельца «KPI на продажу брискетов и щёчек». Две метрики каталога помечены
+`dish_based`:
+
+| Метрика | Что считает | Единица |
+|---|---|---|
+| `dish_count` | штуки выбранных блюд (`DishAmountInt`) | шт |
+| `dish_revenue` | выручка по выбранным блюдам (`DishDiscountSumInt`) | ₽ |
+
+Список блюд лежит в конфиге САМОГО показателя, поэтому в одном месяце можно держать
+два разных KPI на разные блюда:
+
+```json
+"kpi2": {
+  "metric": "dish_count",
+  "name": "Брискет + Щёчки говяжьи (шт)",
+  "per_shift": true,
+  "dishes": ["Брискет", "Щёчки говяжьи"]
+}
+```
+
+Обе метрики штучные (`extensive`), поэтому по умолчанию зависят от смен: «30 блюд за
+норму 15 смен» превращается в цель 10 для бармена с 5 сменами.
+
+**Источник факта.** `OlapReports.get_dish_sales_by_waiter(date_from, date_to, dish_names)` —
+OLAP `SALES`, группировка `AuthUser` + `DishName`, агрегаты `DishAmountInt` и
+`DishDiscountSumInt`, фильтр `DishName IncludeValues` по выбранным блюдам. Фильтр держит
+ответ маленьким (блюда × сотрудники), поэтому запрос идёт на каждый расчёт ЗП — четвёртым
+в том же `ThreadPoolExecutor`, что summary/categories, отмены и лояльность, и только если
+в месяце есть KPI на блюда (`_configured_dishes`). Дубли блюд между показателями
+схлопываются: один запрос обслуживает все такие KPI.
+
+**Сопоставление имён.** Настройка хранит `DishName` как в iiko. Сравнение —
+по `normalize_dish_name` (регистр и лишние пробелы не важны, «ё» НЕ приводится к «е»:
+это разные позиции меню, объединять их молча нельзя). Факт считает `resolve_fact`,
+он же отдаёт разбивку по каждому блюду для показа.
+
+**Переименовали блюдо в iiko — KPI молча обнулился бы.** Поэтому `/api/kpi-calculate`
+возвращает `dishes_not_found`: настроенные блюда, которых за период не оказалось НИ У КОГО.
+Панель «KPI» рисует такое блюдо как «Брискет — нет в продажах» жёлтым, а не как ноль.
+
+**Выбор блюд в редакторе.** `GET /api/kpi-dishes` отдаёт каталог ПРОДАННЫХ за последние
+90 дней позиций (`get_dish_names`: группировка по `DishName` + `DishGroup.TopParent`,
+сортировка по числу продаж), кэш 15 минут, `?refresh=1` — принудительно. Именно проданные
+позиции, а не вся номенклатура: настройка идёт по `DishName`, и написание обязано совпасть
+с тем, которым блюдо приходит в продажах. В карточке показателя — поиск по каталогу
+(«щечки» находит «Щёчки», ё-нечувствительно) и выбранные блюда чипами; название
+показателя собирается из блюд («Брискет + Щёчки говяжьи (шт)»), пока его не правят руками.
+
+**Блюда не выбраны** — премия по такому KPI не начисляется (`no_dishes: true` в ответе):
+факт всегда 0, и молча платить за незаконченную настройку нельзя.
+
 #### Метрики KPI (количество настраивается)
 
 Конфигурация KPI привязана к месяцу и хранится в `data/kpi_targets.json`. Количество показателей —
@@ -880,7 +935,9 @@ def calculate_employee(self, employee_name, metrics, shift_locations, month, shi
 Ответ по KPI (`kpis[kpi_key]`): `name, metric, fact, target, min, per_shift, unit, decimals,
 no_targets, target_shifts, location_targets, ratio, capped_ratio, intermediate_premium`, а для
 «на смену» ещё `fact_raw, shifts_divisor` и числа для показа человеку — `target_period,
-min_period, period_decimals` (плюс `target_period`/`min_period` внутри `location_targets`). По сотруднику: `total_shifts, koef, cash_shifts,
+min_period, period_decimals` (плюс `target_period`/`min_period` внутри `location_targets`),
+а для KPI на блюда — `dishes, dish_facts, no_dishes`. В ответе эндпоинта также
+`dishes_not_found` — блюда настройки, которых нет в продажах периода. По сотруднику: `total_shifts, koef, cash_shifts,
 shifts_per_location, kpi_count, kpi_pool, base_per_kpi, total_premium`. Потребители: панель «KPI»
 на странице ЗП (факт «8 шт / 5 касс. смен = 1,60 шт/смену», цели точек из `location_targets`),
 `core/salary_payload.py` (экспорт — только премии), `core/me_snapshot.py` (`_kpi_for` пробрасывает
@@ -890,6 +947,16 @@ shifts_per_location, kpi_count, kpi_pool, base_per_kpi, total_premium`. Потр
 ---
 
 ## API endpoint'ы
+
+### Каталог блюд для KPI
+
+```
+GET /api/kpi-dishes[?refresh=1]
+-> {dishes: [{name, group, amount}], days: 90, cached: bool}
+```
+
+Проданные за последние 90 дней позиции меню — выбор блюд в «Настройка KPI-целей».
+Кэш 15 минут (`DISHES_CACHE`), `refresh=1` перечитывает из iiko.
 
 ### Список сотрудников
 
@@ -1060,6 +1127,21 @@ total_premium        = Σ intermediate × (total_shifts / norm_shifts)
 ---
 
 ## Changelog
+
+### 2026-09-09 — KPI на выбранные блюда (брискеты и щёчки)
+
+Владелец: «хочу поставить KPI на продажу брискетов и щёчек — два блюда, они уже заведены
+в iiko». Каталог метрик считал только агрегаты, поэтому добавлены две метрики с
+собственным списком позиций: `dish_count` (штуки) и `dish_revenue` (выручка). Список
+блюд лежит в конфиге показателя (`dishes`), так что в месяце можно держать несколько
+KPI на разные блюда. Факт — из нового OLAP-запроса `get_dish_sales_by_waiter`
+(`AuthUser` + `DishName`, фильтр по выбранным позициям), он идёт четвёртым в общем
+executor и только когда такие KPI настроены. Обе метрики штучные, поэтому по умолчанию
+зависят от смен. В редакторе — поиск по каталогу проданных блюд (`GET /api/kpi-dishes`,
+90 дней, кэш 15 минут) с выбором чипами и автоназванием из блюд; в панели «KPI», `/me` и
+`/goals` — разбивка по каждому блюду. Переименование блюда в iiko не обнуляет KPI молча:
+`dishes_not_found` подсвечивает «нет в продажах». Блюда не выбраны — премия по показателю
+не начисляется (`no_dishes`). Тесты: `tests/test_kpi_calculator.py` (29).
 
 ### 2026-09-06 (2) — Цель показывается за смены сотрудника, а не дробью за смену
 

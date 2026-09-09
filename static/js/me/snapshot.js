@@ -281,6 +281,16 @@
                  + ' x ' + num(kpi.koef, 2) + ' = ' + money(it.premium);
         }
 
+        // KPI на выбранные блюда: из чего сложился факт
+        var dishLine = '';
+        if (it.no_dishes) {
+            dishLine = 'Блюда для показателя не выбраны — премия по нему не начисляется<br>';
+        } else if (it.dishes && it.dishes.length) {
+            dishLine = 'Блюда: ' + it.dishes.map(function (d) {
+                return esc(d) + ' ' + pv((it.dish_facts || {})[d] || 0);
+            }).join(' · ') + '<br>';
+        }
+
         var locs = kpi.shifts_per_location || {};
         var locRows = Object.keys(locs).map(function (n) {
             return '<div class="me-box-row"><span>' + esc(n) + '</span><span class="sp"></span>'
@@ -305,7 +315,7 @@
             + num(maxRatio, 0) + '</span></div>'
             + verdict
             + '<details class="me-how"><summary>КАК ПОСЧИТАНО' + CHV + '</summary>'
-            + '<div class="me-box">' + perShiftLine + calc + locRows
+            + '<div class="me-box">' + dishLine + perShiftLine + calc + locRows
             + boxSub('Цели взвешены по вашим сменам: где вы работали больше, та цель весит сильнее.')
             + '</div></details>'
             + '</div>';

@@ -1991,6 +1991,166 @@ class OlapReports:
 
         return {'summary': summary, 'categories': categories}
 
+    def get_dish_sales_by_waiter(self, date_from, date_to, dish_names, bar_name=None):
+        """Продажи КОНКРЕТНЫХ блюд по сотрудникам — источник custom-KPI на блюдо.
+
+        Нужен KPI вида «продажи брискетов и щёчек»: каталог метрик считает
+        агрегаты (доли, чеки, выручка), а тут — штуки и деньги по названным
+        позициям меню. Фильтр по DishName держит ответ маленьким (несколько
+        блюд x сотрудники), поэтому запрос можно звать на каждый расчёт ЗП.
+
+        Args:
+            dish_names: список названий блюд ровно как в iiko (их отдаёт
+                        get_dish_names, из него же выбирает менеджер)
+
+        Returns:
+            {waiter_name: {dish_name: {'count': float, 'revenue': float}}} —
+            имена блюд как в ответе OLAP; сопоставление с настройкой делает
+            вызывающая сторона (routes/employee.py) через normalize_dish_name.
+            Пустой dict — блюда не заданы или запрос не удался.
+        """
+        names = [n for n in (dish_names or []) if isinstance(n, str) and n.strip()]
+        if not names:
+            return {}
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return {}
+
+        print(f"\n[OLAP] Zaprashivayu prodazhi blyud po sotrudnikam: {len(names)} poziciy")
+
+        request = {
+            "reportType": "SALES",
+            "buildSummary": "false",
+            "groupByRowFields": ["AuthUser", "DishName"],
+            "groupByColFields": [],
+            "aggregateFields": ["DishAmountInt", "DishDiscountSumInt"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DishName": {
+                    "filterType": "IncludeValues",
+                    "values": names
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+        if bar_name:
+            request["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        try:
+            response = requests.post(url, params={"key": self.token}, json=request,
+                                     headers={"Content-Type": "application/json"},
+                                     timeout=60)
+            if response.status_code != 200:
+                print(f"[ERROR] OLAP prodazhi blyud: HTTP {response.status_code}: {response.text[:300]}")
+                return {}
+            rows = response.json().get('data', []) or []
+        except Exception as e:
+            print(f"[ERROR] OLAP prodazhi blyud: {e}")
+            return {}
+
+        by_waiter = {}
+        for row in rows:
+            waiter = row.get('AuthUser', '')
+            dish = row.get('DishName', '')
+            if not waiter or not dish:
+                continue
+            try:
+                count = float(row.get('DishAmountInt', 0) or 0)
+                revenue = float(row.get('DishDiscountSumInt', 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            cell = by_waiter.setdefault(waiter, {}).setdefault(dish, {'count': 0.0, 'revenue': 0.0})
+            cell['count'] += count
+            cell['revenue'] += revenue
+
+        print(f"[OK] OLAP prodazhi blyud: {len(rows)} strok, sotrudnikov {len(by_waiter)}")
+        return by_waiter
+
+    def get_dish_names(self, date_from, date_to):
+        """Список проданных за период блюд — каталог для выбора в KPI-целях.
+
+        Именно проданные позиции, а не вся номенклатура: настройка KPI идёт по
+        DishName, и в списке должны быть ровно те написания, которыми блюда
+        приходят в продажах (иначе фильтр запроса не совпадёт).
+
+        Returns:
+            [{'name': str, 'group': str, 'amount': float}] по убыванию продаж
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return []
+
+        request = {
+            "reportType": "SALES",
+            "buildSummary": "false",
+            "groupByRowFields": ["DishName", "DishGroup.TopParent"],
+            "groupByColFields": [],
+            "aggregateFields": ["DishAmountInt"],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+
+        url = f"{self.api.base_url}/v2/reports/olap"
+        try:
+            response = requests.post(url, params={"key": self.token}, json=request,
+                                     headers={"Content-Type": "application/json"},
+                                     timeout=60)
+            if response.status_code != 200:
+                print(f"[ERROR] OLAP spisok blyud: HTTP {response.status_code}: {response.text[:300]}")
+                return []
+            rows = response.json().get('data', []) or []
+        except Exception as e:
+            print(f"[ERROR] OLAP spisok blyud: {e}")
+            return []
+
+        merged = {}
+        for row in rows:
+            name = (row.get('DishName') or '').strip()
+            if not name:
+                continue
+            try:
+                amount = float(row.get('DishAmountInt', 0) or 0)
+            except (TypeError, ValueError):
+                amount = 0.0
+            item = merged.setdefault(name, {'name': name,
+                                            'group': row.get('DishGroup.TopParent') or '',
+                                            'amount': 0.0})
+            item['amount'] += amount
+
+        result = sorted(merged.values(), key=lambda d: (-d['amount'], d['name']))
+        print(f"[OK] OLAP spisok blyud: {len(result)} poziciy za {date_from}..{date_to}")
+        return result
+
     def debug_employee_field_names(self, date_from, date_to, employee_name):
         """
         Диагностика: пробует разные поля для группировки по сотруднику,

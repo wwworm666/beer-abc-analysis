@@ -345,6 +345,56 @@
         .kpi-config-note { font-size: 0.8rem; color: var(--text-tertiary); line-height: 1.5; }
         .tg-unit { font-size: 0.7rem; color: var(--accent); margin-left: 6px; white-space: nowrap; }
 
+        /* Выбор блюд для KPI на блюдо (брискеты, щёчки и т.п.) */
+        .dish-picker { margin-top: 10px; }
+        .dish-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+        .dish-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            padding: 3px 8px;
+            font-size: 0.75rem;
+            color: var(--text-primary);
+        }
+        .dish-chip button {
+            background: none; border: none; padding: 0; cursor: pointer;
+            color: var(--text-tertiary); font-size: 0.9rem; line-height: 1;
+        }
+        .dish-chip button:hover { color: var(--danger); }
+        .dish-search-wrap { position: relative; }
+        .dish-options {
+            position: absolute;
+            z-index: 20;
+            left: 0; right: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-top: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        }
+        .dish-option {
+            padding: 7px 10px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .dish-option:last-child { border-bottom: none; }
+        .dish-option:hover { background: var(--bg-tertiary); color: var(--accent); }
+        .dish-option .dish-option-meta { color: var(--text-tertiary); font-size: 0.7rem; }
+        .dish-option.is-empty { cursor: default; color: var(--text-tertiary); }
+        .dish-option.is-empty:hover { background: none; color: var(--text-tertiary); }
+
+        /* Блюда в панели KPI */
+        .kpi-dish-facts { font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 10px; }
+        .kpi-dish-facts b { color: var(--text-secondary); font-weight: 600; }
+        .kpi-dish-missing { color: var(--warning); }
+
         /* ====== Сворачиваемые секции (KPI-цели, ставки, описание расчёта) ====== */
         /* Единый вертикальный ритм: секции идут друг за другом с одинаковым
            зазором, последняя отделена от результатов */
@@ -1583,6 +1633,21 @@
                     : '';
                 const noTargets = kpi.no_targets
                     ? '<div class="kpi-no-targets">На точках сотрудника цели по этому показателю не заданы: премия по нему не начисляется</div>' : '';
+                // KPI на блюда: из чего сложился факт и что не нашлось в продажах
+                const notFound = (kpiData.dishes_not_found || []);
+                let dishLine = '';
+                if (kpi.no_dishes) {
+                    dishLine = '<div class="kpi-no-targets">Блюда для этого показателя не выбраны: премия по нему не начисляется. Выберите их в «Настройка KPI-целей»</div>';
+                } else if (kpi.dishes && kpi.dishes.length) {
+                    const parts = kpi.dishes.map(d => {
+                        const val = (kpi.dish_facts || {})[d] || 0;
+                        const missing = notFound.some(n => n.trim().toLowerCase() === String(d).trim().toLowerCase());
+                        return missing
+                            ? `<span class="kpi-dish-missing" title="За период это блюдо не продавалось ни у кого — возможно, его переименовали в iiko">${d} — нет в продажах</span>`
+                            : `${d} <b>${periodVal(kpi, val)}</b>`;
+                    });
+                    dishLine = `<div class="kpi-dish-facts">Блюда: ${parts.join(' &middot; ')}</div>`;
+                }
                 // Цели точек — из ответа расчёта, уже в единицах показателя (за смену
                 // для штучных); month_targets — фоллбэк для старого ответа без location_targets
                 const resolvedLocs = kpi.location_targets || null;
@@ -1615,6 +1680,7 @@
                         </div>
                     </div>
                     ${noTargets}
+                    ${dishLine}
                     ${kpi.no_targets ? '' : perShiftNote}
 
                     <div class="kpi-ratio-bar">
@@ -1750,6 +1816,12 @@
         let perShiftFromMonth = null;
         // Флаги «на смену» показателей в редакторе: {kpi1: true/false}
         let editorPerShift = {};
+        // Блюда KPI на блюдо в редакторе: {kpi1: ['Брискет', 'Щёчки говяжьи']}
+        let editorDishes = {};
+        // Каталог проданных блюд для выбора (/api/kpi-dishes), грузится по требованию
+        let dishCatalog = [];
+        let dishCatalogState = 'idle';   // idle | loading | ready | error
+        let dishSearch = {};             // {kpi1: 'бриск'} — строка поиска по каждому KPI
 
         function toggleTargets() {
             const content = document.getElementById('targets-content');
@@ -1799,6 +1871,152 @@
         }
         function lowerIsBetter(metric) {
             return !!(availableMetrics[metric] && availableMetrics[metric].lower_is_better);
+        }
+        // KPI на выбранные блюда («продажи брискетов и щёчек»): факт считается
+        // по списку позиций меню, поэтому у показателя есть свой выбор блюд
+        function isDishBased(metric) {
+            return !!(availableMetrics[metric] && availableMetrics[metric].dish_based);
+        }
+
+        // ===================== ВЫБОР БЛЮД ДЛЯ KPI =====================
+        // Каталог — то, что реально продавалось за последние месяцы: настройка
+        // хранит название блюда, и оно обязано совпадать с написанием в продажах
+        async function loadDishCatalog(force) {
+            if (dishCatalogState === 'loading') return;
+            if (dishCatalogState === 'ready' && !force) return;
+            dishCatalogState = 'loading';
+            renderDishPickers();
+            try {
+                const resp = await fetch('/api/kpi-dishes' + (force ? '?refresh=1' : ''));
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Ошибка загрузки блюд');
+                dishCatalog = data.dishes || [];
+                dishCatalogState = 'ready';
+            } catch (e) {
+                console.error('Failed to load dishes:', e);
+                dishCatalogState = 'error';
+            }
+            renderDishPickers();
+        }
+
+        function dishesOf(kpiKey) {
+            return editorDishes[kpiKey] || (editorDishes[kpiKey] = []);
+        }
+
+        // Автоназвание KPI по блюдам: «Брискет + Щёчки (шт)». Пока имя совпадает
+        // с автоматическим, оно едет за списком блюд; своё название не трогаем
+        function dishAutoName(metric, dishes) {
+            const unit = (availableMetrics[metric] || {}).unit || '';
+            if (!dishes || !dishes.length) return metricLabel(metric);
+            return dishes.join(' + ') + (unit ? ' (' + unit + ')' : '');
+        }
+        function isAutoName(kpiKey, metric, value) {
+            if (!value) return true;
+            if (value === metricLabel(metric)) return true;
+            // любое автоимя из подмножества уже выбранных блюд
+            const dishes = dishesOf(kpiKey);
+            for (let i = 0; i <= dishes.length; i++) {
+                if (value === dishAutoName(metric, dishes.slice(0, i))) return true;
+            }
+            return false;
+        }
+        function syncDishName(kpiKey) {
+            const sel = document.getElementById('kpi-metric-' + kpiKey);
+            const nameInput = document.getElementById('kpi-name-' + kpiKey);
+            if (!sel || !nameInput) return;
+            nameInput.value = dishAutoName(sel.value, dishesOf(kpiKey));
+        }
+
+        function addDish(kpiKey, name) {
+            const dishes = dishesOf(kpiKey);
+            const auto = isAutoName(kpiKey, (document.getElementById('kpi-metric-' + kpiKey) || {}).value, (document.getElementById('kpi-name-' + kpiKey) || {}).value);
+            if (!dishes.includes(name)) dishes.push(name);
+            dishSearch[kpiKey] = '';
+            if (auto) syncDishName(kpiKey);
+            renderDishPickers();
+        }
+        function removeDish(kpiKey, name) {
+            const auto = isAutoName(kpiKey, (document.getElementById('kpi-metric-' + kpiKey) || {}).value, (document.getElementById('kpi-name-' + kpiKey) || {}).value);
+            editorDishes[kpiKey] = dishesOf(kpiKey).filter(d => d !== name);
+            if (auto) syncDishName(kpiKey);
+            renderDishPickers();
+        }
+        function onDishSearch(kpiKey, value) {
+            dishSearch[kpiKey] = value;
+            renderDishOptions(kpiKey);
+        }
+
+        // Совпадение по подстроке без учёта регистра; «ё» = «е», чтобы
+        // «щечки» находили «Щёчки»
+        function dishSearchKey(s) {
+            return String(s || '').toLowerCase().replace(/ё/g, 'е').trim();
+        }
+
+        function renderDishOptions(kpiKey) {
+            const host = document.getElementById('dish-options-' + kpiKey);
+            if (!host) return;
+            const query = dishSearchKey(dishSearch[kpiKey] || '');
+            if (!query) { host.innerHTML = ''; return; }
+            if (dishCatalogState === 'loading') {
+                host.innerHTML = `<div class="dish-options"><div class="dish-option is-empty">Загружаем список блюд...</div></div>`;
+                return;
+            }
+            if (dishCatalogState === 'error') {
+                host.innerHTML = `<div class="dish-options"><div class="dish-option is-empty">Не удалось загрузить список блюд из iiko</div></div>`;
+                return;
+            }
+            const chosen = dishesOf(kpiKey);
+            const found = dishCatalog
+                .filter(d => dishSearchKey(d.name).includes(query) && !chosen.includes(d.name))
+                .slice(0, 30);
+            if (!found.length) {
+                host.innerHTML = `<div class="dish-options"><div class="dish-option is-empty">Ничего не найдено среди проданных блюд</div></div>`;
+                return;
+            }
+            host.innerHTML = `<div class="dish-options">` + found.map(d =>
+                `<div class="dish-option" onclick="addDish('${kpiKey}', ${JSON.stringify(d.name).replace(/"/g, '&quot;')})">${d.name}
+                    <span class="dish-option-meta">${d.group ? d.group + ' · ' : ''}${formatNum(d.amount, 0)} продано</span></div>`
+            ).join('') + `</div>`;
+        }
+
+        function dishPickerHtml(kpiKey) {
+            const dishes = dishesOf(kpiKey);
+            const chips = dishes.map(d =>
+                `<span class="dish-chip">${d}<button type="button" title="Убрать блюдо"
+                    onclick="removeDish('${kpiKey}', ${JSON.stringify(d).replace(/"/g, '&quot;')})">&times;</button></span>`
+            ).join('');
+            const note = dishes.length
+                ? ''
+                : `<div class="kpi-config-hint converted">Выберите блюда — без них показатель не считается</div>`;
+            return `<div class="dish-picker">
+                <div class="dish-chips" id="dish-chips-${kpiKey}">${chips}</div>
+                <div class="dish-search-wrap">
+                    <input type="text" id="dish-search-${kpiKey}" placeholder="Найти блюдо в меню"
+                           value="${(dishSearch[kpiKey] || '').replace(/"/g, '&quot;')}"
+                           oninput="onDishSearch('${kpiKey}', this.value)" onfocus="loadDishCatalog()">
+                    <div id="dish-options-${kpiKey}"></div>
+                </div>
+                ${note}
+            </div>`;
+        }
+
+        // Перерисовать только блоки выбора блюд, не трогая остальную форму
+        // (перерисовка всей секции сбрасывала бы фокус в поле поиска)
+        function renderDishPickers() {
+            editorKpiKeys.forEach(k => {
+                const host = document.getElementById('dish-picker-' + k);
+                if (!host) return;
+                const sel = document.getElementById('kpi-metric-' + k);
+                if (!sel || !isDishBased(sel.value)) { host.innerHTML = ''; return; }
+                const focused = document.activeElement
+                    && document.activeElement.id === 'dish-search-' + k;
+                host.innerHTML = dishPickerHtml(k);
+                renderDishOptions(k);
+                if (focused) {
+                    const input = document.getElementById('dish-search-' + k);
+                    if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+                }
+            });
         }
         // Флаг «на смену» по умолчанию: штучная метрика в месяце с границы
         function defaultPerShift(metric, month) {
@@ -1886,7 +2104,13 @@
             editorKpiKeys = sortedKpiKeys(cfg);
             if (editorKpiKeys.length === 0) editorKpiKeys = DEFAULT_KPI_KEYS.slice();
             editorPerShift = {};
-            editorKpiKeys.forEach(k => { editorPerShift[k] = perShiftOf(cfg[k] || DEFAULT_KPI_CONFIG[k], month); });
+            editorDishes = {};
+            dishSearch = {};
+            editorKpiKeys.forEach(k => {
+                const conf = cfg[k] || DEFAULT_KPI_CONFIG[k] || {};
+                editorPerShift[k] = perShiftOf(conf, month);
+                editorDishes[k] = (conf.dishes || []).slice();
+            });
             renderKpiConfig(cfg);
             renderTargetsGrid(monthData);
         }
@@ -1936,14 +2160,18 @@
                 if (lowerIsBetter(currentMetric)) {
                     html += `<div class="kpi-config-hint">Меньше — лучше: минимум ставьте выше цели</div>`;
                 }
+                // Выбор блюд — только у KPI на блюдо; наполняется renderDishPickers
+                html += `<div id="dish-picker-${k}"></div>`;
                 html += `</div>`;
             });
 
             html += '</div>';
             html += `<div class="kpi-split-label" id="kpi-split-label"></div>`;
-            html += `<div class="kpi-config-note">У штучных показателей (карты, чеки, выручка, отмены, опоздания, часы) цель зависит от смен: вводится число за норму ${currentNorm()} смен, а каждому сотруднику пересчитывается на его смены — при цели 30 бармен с 5 сменами получит цель 10, с 25 сменами — 50, и оба оцениваются одинаково справедливо. Долевые показатели (доли, средний чек, наценка) не меняются. Пустые цель и минимум (0 / 0) = показатель на точке не задан: точка не участвует ни в цели, ни в коэффициенте смен.</div>`;
+            html += `<div class="kpi-config-note">У штучных показателей (карты, чеки, выручка, отмены, опоздания, часы) цель зависит от смен: вводится число за норму ${currentNorm()} смен, а каждому сотруднику пересчитывается на его смены — при цели 30 бармен с 5 сменами получит цель 10, с 25 сменами — 50, и оба оцениваются одинаково справедливо. Долевые показатели (доли, средний чек, наценка) не меняются. Пустые цель и минимум (0 / 0) = показатель на точке не задан: точка не участвует ни в цели, ни в коэффициенте смен.<br>«Продажи блюд» и «Выручка по блюдам» — цель на конкретные позиции меню (например брискет и щёчки): выберите блюда в карточке показателя, факт будет суммой их продаж.</div>`;
             document.getElementById('kpi-config-section').innerHTML = html;
             updateKpiSplitLabel();
+            renderDishPickers();
+            if (editorKpiKeys.some(k => isDishBased((kpiConfig[k] || {}).metric))) loadDishCatalog();
         }
 
         function onMetricChange(kpiKey) {
@@ -1951,7 +2179,15 @@
             const sel = document.getElementById('kpi-metric-' + kpiKey);
             const nameInput = document.getElementById('kpi-name-' + kpiKey);
             editorPerShift[kpiKey] = defaultPerShift(sel.value, month);
-            nameInput.value = metricLabel(sel.value);
+            // Блюда прошлой метрики к новой не относятся
+            if (!isDishBased(sel.value)) {
+                editorDishes[kpiKey] = [];
+                nameInput.value = metricLabel(sel.value);
+            } else {
+                loadDishCatalog();
+                nameInput.value = dishAutoName(sel.value, dishesOf(kpiKey));
+            }
+            dishSearch[kpiKey] = '';
             // Перерисовать: у штучной метрики появляется чекбокс «на смену»,
             // у сетки меняются единицы; введённые числа сохраняются
             if (!month) return;
@@ -1989,6 +2225,8 @@
             const perShift = isExtensive(metric) ? !!editorPerShift[k] : false;
             const entry = { metric: metric, name: name || metricLabel(metric) };
             if (isExtensive(metric)) entry.per_shift = perShift;
+            // Блюда храним только у метрик по блюдам, иначе поле бессмысленно
+            if (isDishBased(metric)) entry.dishes = dishesOf(k).slice();
             return entry;
         }
 
@@ -2031,6 +2269,7 @@
             const used = Object.values(md.kpi_config).map(c => c.metric).filter(Boolean);
             const metric = (DEFAULT_KPI_CONFIG[newKey] && DEFAULT_KPI_CONFIG[newKey].metric) || defaultMetricForNewKpi(used);
             editorPerShift[newKey] = defaultPerShift(metric, month);
+            editorDishes[newKey] = [];
             md.kpi_config[newKey] = kpiConfigEntry(metric, '', newKey);
             LOCATIONS.forEach(loc => { md[loc] = md[loc] || {}; md[loc][newKey] = { target: 0, min: 0 }; });
             renderKpiConfig(md.kpi_config);
@@ -2045,6 +2284,8 @@
             const removed = editorKpiKeys.pop();
             delete md.kpi_config[removed];
             delete editorPerShift[removed];
+            delete editorDishes[removed];
+            delete dishSearch[removed];
             LOCATIONS.forEach(loc => { if (md[loc]) delete md[loc][removed]; });
             renderKpiConfig(md.kpi_config);
             renderTargetsGrid(md);
@@ -2109,8 +2350,11 @@
             editorKpiKeys = sortedKpiKeys(cfg);
             if (editorKpiKeys.length === 0) editorKpiKeys = DEFAULT_KPI_KEYS.slice();
             editorPerShift = {};
+            editorDishes = {};
+            dishSearch = {};
             editorKpiKeys.forEach(k => {
                 const conf = cfg[k] || DEFAULT_KPI_CONFIG[k] || {};
+                editorDishes[k] = (conf.dishes || []).slice();
                 const wasPerShift = perShiftOf(conf, prevMonth);
                 const nowPerShift = perShiftOf(conf, currentMonth);
                 editorPerShift[k] = nowPerShift;

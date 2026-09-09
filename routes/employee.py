@@ -7,12 +7,19 @@ from core.iiko_api import IikoAPI
 from core.employee_analysis import EmployeeMetricsCalculator, get_employees_from_waiter_data
 from core.employee_plans import get_employee_plan_by_shifts
 from core.daily_plans_generator import get_daily_plan_for_date, regenerate_daily_plans
-from core.kpi_calculator import KpiCalculator, KpiTargetsReader, clear_kpi_cache, AVAILABLE_METRICS
+from core.kpi_calculator import (KpiCalculator, KpiTargetsReader, clear_kpi_cache,
+                                AVAILABLE_METRICS, is_dish_based, normalize_dish_name)
 from core.dashboard_analysis import DashboardMetrics
 from extensions import EMPLOYEES_CACHE, EMPLOYEES_CACHE_TTL
 from routes.dashboard import load_dashboard_sales
 
 employee_bp = Blueprint('employee', __name__)
+
+# Каталог проданных блюд для выбора в KPI-целях: OLAP по всему меню за 90 дней
+# отвечает секунды, а редактор целей открывают часто — держим короткий кэш.
+DISHES_CACHE = {'data': None, 'timestamp': 0}
+DISHES_CACHE_TTL = 900          # 15 минут
+DISHES_CATALOG_DAYS = 90        # окно, за которое собираем список позиций меню
 
 
 @employee_bp.route('/api/employees', methods=['GET'])
@@ -803,6 +810,7 @@ def _build_kpi_metrics(
     loyalty_cards=0,
     cancelled_count=0,
     plan_revenue=0.0,
+    dish_sales=None,
 ):
     """
     Собрать метрики для KPI из OLAP данных и кассовых смен.
@@ -817,6 +825,11 @@ def _build_kpi_metrics(
       OLAP loyalty -> loyalty_cards_count
       OLAP cancelled -> cancelled_count
       daily_plans -> plan_revenue, plan_fact_percent
+      OLAP по блюдам -> dishes (для KPI на выбранные блюда)
+
+    `dish_sales` — {название блюда: {'count': n, 'revenue': r}} этого сотрудника
+    из get_dish_sales_by_waiter. Кладём под ключ `dishes` в разрезе источников,
+    а какие блюда суммировать, решает конфиг KPI (core/kpi_calculator.resolve_fact).
     """
     summary = _find_employee_in_olap(kpi_olap['summary'], emp_name)
     cat_rows = _find_employee_in_olap(kpi_olap['categories'], emp_name) or []
@@ -892,7 +905,42 @@ def _build_kpi_metrics(
         'loyalty_cards_count': int(loyalty_cards or 0),
         'plan_revenue': round(plan_revenue or 0.0, 2),
         'plan_fact_percent': round(plan_fact_percent, 2),
+        'dishes': _dish_metric_map(dish_sales),
     }
+
+
+def _dish_metric_map(dish_sales):
+    """{блюдо: {count, revenue}} -> {'count': {ключ: n}, 'revenue': {ключ: r}}.
+
+    Ключ — нормализованное имя (регистр и лишние пробелы не важны), потому что
+    в настройке KPI лежит написание на момент выбора.
+    """
+    counts, revenues = {}, {}
+    for dish, values in (dish_sales or {}).items():
+        key = normalize_dish_name(dish)
+        if not key:
+            continue
+        counts[key] = counts.get(key, 0) + float((values or {}).get('count', 0) or 0)
+        revenues[key] = revenues.get(key, 0) + float((values or {}).get('revenue', 0) or 0)
+    return {'count': counts, 'revenue': revenues}
+
+
+def _configured_dishes(kpi_config):
+    """Все блюда, выбранные в KPI месяца — что запрашивать у OLAP.
+
+    Порядок сохраняем (по первому появлению), дубли между показателями
+    схлопываем: один запрос обслуживает все KPI на блюда.
+    """
+    seen, names = set(), []
+    for conf in (kpi_config or {}).values():
+        if not isinstance(conf, dict) or not is_dish_based(conf.get('metric', '')):
+            continue
+        for dish in (conf.get('dishes') or []):
+            key = normalize_dish_name(dish)
+            if key and key not in seen:
+                seen.add(key)
+                names.append(dish)
+    return names
 
 
 @employee_bp.route('/api/kpi-calculate', methods=['POST'])
@@ -932,7 +980,11 @@ def kpi_calculate():
         clear_kpi_cache()
         kpi_calc = KpiCalculator()
         month_targets = kpi_calc.reader.get_targets_for_month(month)
-        kpi_log(f"Stage targets loaded: locations={len(month_targets)}")
+        kpi_config = kpi_calc.reader.get_kpi_config_for_month(month)
+        # Блюда custom-KPI («продажи брискетов и щёчек») — их продажи тянем
+        # отдельным лёгким OLAP-запросом, если такие показатели в месяце есть
+        wanted_dishes = _configured_dishes(kpi_config)
+        kpi_log(f"Stage targets loaded: locations={len(month_targets)}, dishes={len(wanted_dishes)}")
         if not month_targets:
             return jsonify({'error': f'Нет KPI-целей за месяц {month}. Настройте цели во вкладке "Настройка целей".'}), 404
 
@@ -969,6 +1021,7 @@ def kpi_calculate():
         # - kpi_olap (2 внутренних запроса): summary + categories
         # - cancelled: отмены/возвраты по официантам
         # - loyalty: новые карты лояльности по официантам (уникальные телефоны)
+        # - dishes: продажи выбранных блюд по официантам (только если настроены)
         olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
 
         olap = OlapReports()
@@ -976,15 +1029,20 @@ def kpi_calculate():
             return jsonify({'error': 'Не удалось подключиться к iiko OLAP'}), 500
 
         try:
-            kpi_log("Stage OLAP started (kpi summary/categories + cancelled + loyalty)")
-            with ThreadPoolExecutor(max_workers=3) as olap_executor:
+            kpi_log("Stage OLAP started (kpi summary/categories + cancelled + loyalty"
+                    + (" + dishes)" if wanted_dishes else ")"))
+            with ThreadPoolExecutor(max_workers=4) as olap_executor:
                 future_kpi = olap_executor.submit(olap.get_kpi_olap_data, date_from, olap_date_to)
                 future_cancelled = olap_executor.submit(olap.get_cancelled_orders_by_waiter, date_from, olap_date_to)
                 future_loyalty = olap_executor.submit(olap.get_new_loyalty_cards_by_waiter, date_from, olap_date_to)
+                future_dishes = (olap_executor.submit(olap.get_dish_sales_by_waiter,
+                                                      date_from, olap_date_to, wanted_dishes)
+                                 if wanted_dishes else None)
 
                 kpi_olap = future_kpi.result()
                 cancelled_raw = future_cancelled.result()
                 loyalty_cards_data = future_loyalty.result() or {}
+                dish_sales_data = (future_dishes.result() or {}) if future_dishes else {}
         finally:
             olap.disconnect()
 
@@ -1029,9 +1087,11 @@ def kpi_calculate():
             # План сотрудника = сумма дневных планов ТТ по локациям из смен
             plan_revenue = get_employee_plan_by_shifts(shift_locations)
 
-            # Новые карты лояльности и отмены — fuzzy-матч имени (порядок слов может различаться)
+            # Новые карты лояльности, отмены и продажи блюд — fuzzy-матч имени
+            # (порядок слов может различаться)
             loyalty_cards = _find_employee_in_olap(loyalty_cards_data, emp_name) or 0
             cancelled_count = _find_employee_in_olap(cancelled_by_waiter, emp_name) or 0
+            dish_sales = _find_employee_in_olap(dish_sales_data, emp_name) or {}
 
             # Собираем метрики из OLAP данных + смен (без EmployeeMetricsCalculator)
             metrics = _build_kpi_metrics(
@@ -1043,6 +1103,7 @@ def kpi_calculate():
                 loyalty_cards=loyalty_cards,
                 cancelled_count=cancelled_count,
                 plan_revenue=plan_revenue,
+                dish_sales=dish_sales,
             )
 
             # Рассчитываем KPI-бонус
@@ -1073,10 +1134,19 @@ def kpi_calculate():
         results.sort(key=lambda x: x['total_premium'], reverse=True)
 
         defaults = kpi_calc.reader.get_defaults()
-        kpi_config = kpi_calc.reader.get_kpi_config_for_month(month)
 
         # kpi_names из конфига месяца
         kpi_names = {k: v.get('name', k) for k, v in kpi_config.items()}
+
+        # Блюда, которых за период не оказалось НИ У КОГО: обычно переименовали
+        # позицию в iiko, и настройка KPI показывает на несуществующее имя —
+        # молча считать такой KPI нулём нельзя, страница про это предупреждает
+        sold_dishes = {normalize_dish_name(d)
+                       for rows in dish_sales_data.values() for d in (rows or {})}
+        dishes_not_found = [d for d in wanted_dishes
+                            if normalize_dish_name(d) not in sold_dishes]
+        if dishes_not_found:
+            kpi_log(f"Stage dishes: ne nadeno v prodazhakh: {dishes_not_found}")
 
         kpi_log(f"Stage final complete: results={len(results)}, total_premium={total_premium:.0f}")
         print(f"[OK] KPI calculated for {len(results)} employees, total premium: {total_premium:.0f}")
@@ -1093,6 +1163,7 @@ def kpi_calculate():
             'kpi_config': kpi_config,
             'month_targets': month_targets,
             'available_metrics': AVAILABLE_METRICS,
+            'dishes_not_found': dishes_not_found,
         })
 
     except Exception as e:
@@ -1103,6 +1174,45 @@ def kpi_calculate():
         print(f"[ERROR] Oshibka v /api/kpi-calculate: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@employee_bp.route('/api/kpi-dishes', methods=['GET'])
+def kpi_dishes():
+    """Каталог проданных блюд — выбор позиций для KPI на блюдо.
+
+    Отдаёт то, что реально продавалось за последние DISHES_CATALOG_DAYS дней:
+    настройка KPI хранит DishName, и в списке должны быть ровно те написания,
+    которыми блюда приходят в продажах. Ответ кэшируется на DISHES_CACHE_TTL —
+    редактор целей открывают часто, а список меняется редко.
+
+    Ответ: {dishes: [{name, group, amount}], days, cached}
+    """
+    try:
+        now = time.time()
+        fresh = request.args.get('refresh') in ('1', 'true', 'yes')
+        if not fresh and DISHES_CACHE['data'] is not None \
+                and (now - DISHES_CACHE['timestamp']) < DISHES_CACHE_TTL:
+            return jsonify({'dishes': DISHES_CACHE['data'],
+                            'days': DISHES_CATALOG_DAYS, 'cached': True})
+
+        date_to_obj = datetime.now()
+        date_from = (date_to_obj - timedelta(days=DISHES_CATALOG_DAYS)).strftime('%Y-%m-%d')
+        date_to = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')  # OLAP exclusive
+
+        olap = OlapReports()
+        if not olap.connect():
+            return jsonify({'error': 'Не удалось подключиться к iiko OLAP'}), 500
+        try:
+            dishes = olap.get_dish_names(date_from, date_to)
+        finally:
+            olap.disconnect()
+
+        DISHES_CACHE['data'] = dishes
+        DISHES_CACHE['timestamp'] = now
+        return jsonify({'dishes': dishes, 'days': DISHES_CATALOG_DAYS, 'cached': False})
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/kpi-dishes: {e}")
         return jsonify({'error': str(e)}), 500
 
 
