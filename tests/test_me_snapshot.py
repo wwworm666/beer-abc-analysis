@@ -72,11 +72,14 @@ def _kpi_row(emp_id, name, *, koef=0.93, total=13120.0):
     }
 
 
-def _hours_row(emp_id, name, *, pay=29100.0, day_shifts=12, hours=97.0):
+def _hours_row(emp_id, name, *, pay=29100.0, day_shifts=12, hours=97.0,
+               shifts_planned=16):
     return {
         'employee_name': name, 'employee_id': emp_id,
         'total_hours': hours, 'total_pay': pay, 'total_minutes': int(hours * 60),
         'day_shifts': day_shifts, 'shifts_with_fact': 13, 'shifts_without_fact': 1,
+        # все смены месяца по графику, включая будущие (база месячной цели KPI)
+        'shifts_planned': shifts_planned,
         'roles': [{'role_id': 1, 'role_name': 'бармен', 'rate_per_hour': 300,
                    'minutes': int(hours * 60), 'hours': hours, 'pay': pay}],
     }
@@ -397,6 +400,32 @@ def test_kpi_items_have_formula_inputs():
     assert first['premium'] == round(5100.0 * 0.93, 2)
     assert snap['kpi_meta']['base_per_kpi'] == 5000
     assert snap['kpi_meta']['keys'] == ['kpi1', 'kpi2']
+
+
+def test_assemble_passes_planned_shifts_into_kpi():
+    """Связка сборки: план смен из строки часов доезжает до карточки KPI.
+
+    Отдельно от _kpi_for: именно здесь ломается «цель на месяц» тихо — блок
+    посчитается по отработанным сменам и выглядит правдоподобно.
+    """
+    kpi = _kpi_row(ID_A, 'Юреня Роман')
+    kpi['kpis']['kpi3'] = {
+        'name': 'Брискет (шт)', 'metric': 'dish_count', 'fact': 0.6667,
+        'target': 0.5, 'min': 0.25, 'capped_ratio': 1.5,
+        'intermediate_premium': 7500.0, 'per_shift': True,
+        'fact_raw': 2, 'shifts_divisor': 3, 'target_period': 1.5,
+        'min_period': 0.75, 'period_decimals': 0, 'no_targets': False,
+    }
+    kpi_data = _kpi_data()
+    kpi_data['kpi_config']['kpi3'] = {'metric': 'dish_count', 'name': 'Брискет (шт)',
+                                      'per_shift': True, 'dishes': ['Брискет']}
+    snap = _assemble([_bonus_row(ID_A, 'Юреня Роман')], [kpi],
+                     [_hours_row(ID_A, 'Юреня Роман', shifts_planned=16)],
+                     kpi_data=kpi_data)
+    dish = snap['employees'][ID_A]['kpi']['items'][2]
+    assert dish['month_shifts'] == 16 and dish['month_shifts_source'] == 'schedule'
+    assert dish['target_month'] == 8.0            # 0,5 x 16 смен графика
+    assert dish['remaining'] == 6.0               # 8 − 2 сделанных
 
 
 def test_kpi_target_is_for_whole_month_by_schedule():
