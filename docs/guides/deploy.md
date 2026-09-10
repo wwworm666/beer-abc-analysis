@@ -82,6 +82,29 @@ workflow использует `StrictHostKeyChecking=yes`, без слепого
 восстанавливается автоматически. В лог попадает только отпечаток публичного ключа.
 Первоначальный ключ, раскрытый при настройке, явно отклоняется: нужен новый ключ.
 
+### Проверка сервера и копирование ключа из PowerShell
+
+Чтобы не выделять ключ в терминале вручную, открыть новую вкладку PowerShell
+на Windows и выполнить:
+
+```powershell
+$beerKey = ssh root@139.100.200.92 "cd /opt/beer && runuser -u deploy -- git pull --ff-only origin main >&2 && bash scripts/deploy/install.sh >&2 && python3 scripts/deploy/check_server.py --copy-key"
+if ($LASTEXITCODE -eq 0) {
+    ($beerKey -join "`n") | Set-Clipboard
+    Write-Host 'Ключ скопирован. Вставьте его в BEER_DEPLOY_SSH_KEY на GitHub.'
+} else {
+    Write-Host 'Проверка не прошла. Пришлите только строки OK/FAIL из отчёта.'
+}
+Remove-Variable beerKey -ErrorAction SilentlyContinue
+```
+
+Проверка собирает результаты Git, владельцев файлов, Compose, работающих
+контейнеров, HTTP/HTTPS, изменений `data/`, исходных SSH-файлов, отзыва раскрытого
+ключа и входа через ограниченный ключ. Отчёт идёт в stderr; stdout содержит
+только приватный ключ и только после всех успешных проверок. Приложение не
+перезапускается. В GitHub нужно вставить буфер в существующий Secret и сохранить.
+Содержимое буфера не отправлять в чат.
+
 Теперь открыть [Actions → Deploy production](https://github.com/wwworm666/beer-abc-analysis/actions/workflows/deploy.yml),
 нажать **Run workflow**, оставить `main` и запустить. Это первый сквозной тест
 подключения. До установки ключа и Secrets deployment job сообщает о незавершённой настройке.
