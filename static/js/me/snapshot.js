@@ -222,8 +222,30 @@
                 + (rawUnit ? ' ' + rawUnit : '');
         };
         var pf = perShift ? pv : v;   // как показывать факт/цель/минимум
+        // Месячная цель — ориентир на действие: «продать 6», а не «5,6».
+        // Штучные величины округляем до целого, деньги и проценты — как есть.
+        // На деньги это не влияет: множитель считается по темпу за смену.
+        var countUnit = rawUnit !== '\u20bd'
+            && (it.period_decimals == null || it.period_decimals === 0);
+        var mv = function (x) {
+            if (x == null) return '—';
+            return countUnit ? num(Math.round(x), 0) + (rawUnit ? ' ' + rawUnit : '') : pv(x);
+        };
         var shiftsWord = perShift
             ? it.shifts_divisor + ' ' + plural(it.shifts_divisor, 'смену', 'смены', 'смен') : '';
+        // Цель показываем НА ВЕСЬ МЕСЯЦ по графику смен (владелец 2026-09-10):
+        // цель за уже отработанные смены росла бы каждый день и «выполнялась»
+        // в первую же смену. Множитель и премия по-прежнему считаются по темпу
+        // за отработанное — поэтому они подписаны отдельно.
+        var monthly = perShift && it.target_month != null && it.month_shifts;
+        var monthShiftsWord = monthly
+            ? it.month_shifts + ' ' + plural(it.month_shifts, 'смена', 'смены', 'смен') : '';
+        // Подпись под плиткой: откуда взялась месячная цель. В саму метку
+        // «на месяц» не выносим — длинная метка ломает сетку плиток на телефоне
+        var monthSub = monthly
+            ? 'на месяц · ' + monthShiftsWord
+              + (it.month_shifts_source === 'schedule' ? ' по графику' : '')
+            : '';
         // Пояснение без дробей «за смену»: норма смен -> целое, его смены -> целое
         var normShifts = meta.norm_shifts || 15;
         // «Меньше — лучше» (опоздания, отмены): от смен зависит ПОТОЛОК, а не цель
@@ -232,12 +254,19 @@
             : inverseKpi
             ? 'Порог зависит от смен: за норму ' + normShifts + ' '
               + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
-              + pv(it.min * normShifts) + ', за ваши ' + shiftsWord + ' — не больше '
-              + pv(it.min_period) + '<br>'
+              + mv(it.min * normShifts) + ', за ваши ' + monthShiftsWord + ' — не больше '
+              + mv(it.min_month != null ? it.min_month : it.min_period) + '<br>'
             : 'Цель зависит от смен: за норму ' + normShifts + ' '
               + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
-              + pv(it.target * normShifts) + ', за ваши ' + shiftsWord + ' — '
-              + pv(it.target_period) + ' (минимум ' + pv(it.min_period) + ')<br>';
+              + mv(it.target * normShifts) + ', за ваши ' + monthShiftsWord + ' — '
+              + mv(monthly ? it.target_month : it.target_period)
+              + ' (минимум ' + mv(monthly ? it.min_month : it.min_period) + ')<br>';
+        // Множитель и премия считаются по УЖЕ ОТРАБОТАННЫМ сменам, а цель — на
+        // месяц: без этой строки «сделал 2 из 6, а множитель x2» читается как ошибка
+        var paceLine = (monthly && !inverseKpi && it.shifts_divisor)
+            ? 'Множитель — по темпу за отработанные ' + shiftsWord + ': нужно было '
+              + pv(it.target_period) + ', сделано ' + pv(it.fact_raw) + '<br>'
+            : '';
 
         var ratio = it.ratio == null ? 0 : it.ratio;
         var fill = Math.max(0, Math.min(100, ratio / maxRatio * 100));
@@ -255,13 +284,27 @@
                     + ' минимума — премия не начисляется</div>';
             mulCls = ' is-bad';
         } else if (ratio >= maxRatio) {
-            verdict = '<div class="me-verdict is-ok">Выше цели — множитель на максимуме</div>';
+            verdict = '<div class="me-verdict is-ok">' + (monthly ? 'Темп выше цели' : 'Выше цели')
+                    + ' — множитель на максимуме</div>';
             mulCls = ' is-ok';
         } else if (ratio >= 1) {
-            verdict = '<div class="me-verdict is-ok">Цель выполнена</div>';
+            verdict = '<div class="me-verdict is-ok">'
+                    + (monthly ? 'Идёте по цели' : 'Цель выполнена') + '</div>';
             mulCls = ' is-ok';
         } else {
-            verdict = '<div class="me-verdict is-plain">Между минимумом и целью — премия частичная</div>';
+            verdict = '<div class="me-verdict is-plain">'
+                    + (monthly ? 'Темп ниже цели — премия частичная'
+                               : 'Между минимумом и целью — премия частичная') + '</div>';
+        }
+        // Сколько ещё нужно до месячной цели — самая полезная строка на экране
+        if (monthly && !inverse && it.remaining != null && !it.no_targets) {
+            // «Осталось» считаем от показанной (округлённой) цели, чтобы
+            // сделано + осталось сходилось с целью на экране
+            var left = Math.max(0, (countUnit ? Math.round(it.target_month) : it.target_month)
+                                   - (it.fact_raw || 0));
+            verdict += '<div class="me-verdict is-plain">' + (left > 0
+                ? 'До цели месяца осталось ' + mv(left)
+                : 'Цель месяца уже набрана') + '</div>';
         }
 
         // Формула с подставленными числами.
@@ -271,7 +314,8 @@
         } else if (it.min != null && it.fact != null
                    && (inverse ? it.fact > it.min : it.fact < it.min)) {
             calc = 'Факт ' + pf(perShift ? it.fact_raw : it.fact) + (inverse ? ' выше' : ' ниже')
-                 + ' минимума ' + pf(perShift ? it.min_period : it.min)
+                 + (inverse ? ' максимума ' : ' минимума ')
+                 + pf(monthly ? it.min_month : (perShift ? it.min_period : it.min))
                  + ' — множитель 0, премия 0' + RUB;
         } else {
             var cFact = perShift ? pv(it.fact_raw) : num(it.fact, dec);
@@ -307,13 +351,16 @@
             + '<div class="me-card-h"><span class="me-kpi-name">' + esc(it.name) + '</span>'
             + '<span class="me-card-sp"></span>'
             + '<span class="me-kpi-prem' + zero(it.premium) + '">' + money(it.premium)
-            + ' <span class="me-kpi-max">/ ' + money(meta.base_per_kpi) + '</span></span></div>'
+            + ' <span class="me-kpi-max">начислено</span></span></div>'
             + '<div class="me-kpi-nums">'
-            + kpiNum('факт', pf(perShift ? it.fact_raw : it.fact))
-            + kpiNum(perShift ? 'цель за ' + shiftsWord : 'цель',
-                     pf(perShift ? it.target_period : it.target))
-            + kpiNum(inverse ? 'максимум' : 'минимум', pf(perShift ? it.min_period : it.min))
-            + kpiNum('множитель', 'x' + num(ratio, 2), mulCls)
+            + kpiNum(monthly ? 'сделано' : 'факт', pf(perShift ? it.fact_raw : it.fact))
+            + kpiNum('цель',
+                     monthly ? mv(it.target_month) : pf(perShift ? it.target_period : it.target),
+                     '', monthly && !inverse ? monthSub : '')
+            + kpiNum(inverse ? 'максимум' : 'минимум',
+                     monthly ? mv(it.min_month) : pf(perShift ? it.min_period : it.min),
+                     '', monthly && inverse ? monthSub : '')
+            + kpiNum('множитель', 'x' + num(ratio, 2), mulCls, monthly ? 'по темпу' : '')
             + '</div>'
             + '<div class="me-scale"><span class="me-scale-fill" style="width:' + fill + '%"></span>'
             + '<span class="me-scale-mark" style="left:' + mark + '%"></span></div>'
@@ -321,15 +368,16 @@
             + num(maxRatio, 0) + '</span></div>'
             + verdict
             + '<details class="me-how"><summary>КАК ПОСЧИТАНО' + CHV + '</summary>'
-            + '<div class="me-box">' + dishLine + perShiftLine + calc + locRows
+            + '<div class="me-box">' + dishLine + perShiftLine + paceLine + calc + locRows
             + boxSub('Цели взвешены по вашим сменам: где вы работали больше, та цель весит сильнее.')
             + '</div></details>'
             + '</div>';
     }
 
-    function kpiNum(label, value, cls) {
+    function kpiNum(label, value, cls, sub) {
         return '<div class="me-kpi-num"><div class="me-kpi-num-l">' + esc(label.toUpperCase())
-            + '</div><div class="me-kpi-num-v' + (cls || '') + '">' + esc(value) + '</div></div>';
+            + '</div><div class="me-kpi-num-v' + (cls || '') + '">' + esc(value) + '</div>'
+            + (sub ? '<div class="me-kpi-num-s">' + esc(sub) + '</div>' : '') + '</div>';
     }
 
     // ==================== Показатели ====================

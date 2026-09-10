@@ -567,7 +567,10 @@ def _assemble(month, date_from, date_to, bonus_emps, kpi_emps, hours_emps,
 
         metrics = _metrics_for(EmployeeMetricsCalculator, name_olap, b, olap_raw,
                                loyalty) if name_olap else {'status': 'no_olap_name'}
-        kpi_block = _kpi_for(k, kpi_keys, kpi_config)
+        # Смены месяца по графику (с будущими) — по ним считается цель KPI на
+        # месяц целиком: цель за уже отработанные смены росла бы каждый день
+        kpi_block = _kpi_for(k, kpi_keys, kpi_config,
+                             shifts_planned=(h or {}).get('shifts_planned') or 0)
         hours_block = _hours_for(h, trust)
         money = _money_for(b, k, h, trust)
 
@@ -654,15 +657,19 @@ def _metrics_for(calculator_cls, name_olap, bonus_row, olap_raw, loyalty):
     return metrics
 
 
-def _kpi_for(kpi_row, kpi_keys, kpi_config):
+def _kpi_for(kpi_row, kpi_keys, kpi_config, shifts_planned=0):
     """Блок KPI: факт, цель, минимум, множитель и премия по каждому показателю.
 
     Премия одного KPI = промежуточная премия × коэффициент смен. Коэффициент
     применяется к итогу всех KPI (core/kpi_calculator.py), поэтому по каждому
     показателю он тоже разложен — иначе сумма разложения не сходилась бы с итогом.
 
-    У штучного KPI («зависит от смен») рядом с технической единицей «за смену»
-    едет цель за смены этого человека в штуках — её и показывает кабинет.
+    У штучного KPI («зависит от смен») цель считается на ВЕСЬ МЕСЯЦ по графику
+    (`shifts_planned`), а не на уже отработанные смены: цель за отработанное
+    росла бы с каждой сменой и «выполнялась» в первый же день месяца — владелец
+    2026-09-10. База — максимум из графика и уже отработанных кассовых смен:
+    график может быть заполнен не до конца месяца, и цель не должна оказаться
+    ниже той, по которой человека уже мерили.
     """
     if not kpi_row:
         return {'status': 'no_data', 'items': [], 'total_premium': 0, 'koef': 0}
@@ -697,6 +704,20 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config):
             item['target_period'] = src.get('target_period')
             item['min_period'] = src.get('min_period')
             item['period_decimals'] = src.get('period_decimals')
+            # Цель на месяц: за смену × смены месяца по графику
+            worked = src.get('shifts_divisor') or 0
+            month_shifts = max(int(shifts_planned or 0), int(worked))
+            per_shift_target = src.get('target') or 0
+            per_shift_min = src.get('min') or 0
+            item['month_shifts'] = month_shifts
+            item['month_shifts_source'] = 'schedule' if shifts_planned else 'worked'
+            item['target_month'] = round(per_shift_target * month_shifts, 2)
+            item['min_month'] = round(per_shift_min * month_shifts, 2)
+            fact_now = src.get('fact_raw') or 0
+            # Сколько ещё нужно до месячной цели (у инверсных метрик «осталось»
+            # смысла не имеет: там не набирают, а не превышают)
+            if per_shift_target >= per_shift_min:
+                item['remaining'] = round(max(0, item['target_month'] - fact_now), 2)
         # KPI на выбранные блюда: список и разбивка по каждому блюду
         if src.get('dishes') is not None:
             item['dishes'] = src.get('dishes')
@@ -722,7 +743,8 @@ def _hours_for(hours_row, trust):
     """Часы и оплата по ролям из графика (fact_minutes × ставка роли)."""
     if not hours_row:
         return {'trust': 'none', 'total_hours': 0, 'total_pay': 0, 'day_shifts': 0,
-                'shifts_with_fact': 0, 'shifts_without_fact': 0, 'by_role': []}
+                'shifts_with_fact': 0, 'shifts_without_fact': 0, 'shifts_planned': 0,
+                'by_role': []}
     return {
         'trust': trust,
         'employee_name': hours_row.get('employee_name'),
@@ -731,6 +753,8 @@ def _hours_for(hours_row, trust):
         'day_shifts': hours_row.get('day_shifts') or 0,
         'shifts_with_fact': hours_row.get('shifts_with_fact') or 0,
         'shifts_without_fact': hours_row.get('shifts_without_fact') or 0,
+        # Все смены месяца по графику, включая будущие — база месячной цели KPI
+        'shifts_planned': hours_row.get('shifts_planned') or 0,
         'by_role': [{'role_name': r.get('role_name'),
                      'rate_per_hour': r.get('rate_per_hour'),
                      'hours': r.get('hours'), 'pay': r.get('pay')}

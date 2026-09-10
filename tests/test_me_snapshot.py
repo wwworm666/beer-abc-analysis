@@ -399,6 +399,61 @@ def test_kpi_items_have_formula_inputs():
     assert snap['kpi_meta']['keys'] == ['kpi1', 'kpi2']
 
 
+def test_kpi_target_is_for_whole_month_by_schedule():
+    """Цель штучного KPI — на весь месяц по графику смен, а не за отработанные.
+
+    Иначе цель ползёт вверх с каждой сменой и «выполняется» в первый же день
+    (владелец 2026-09-10). Множитель и премия по-прежнему по отработанному.
+    """
+    kpi_row = _kpi_row(ID_A, 'Юреня Роман')
+    kpi_row['kpis']['kpi3'] = {
+        'name': 'Брискет (шт)', 'metric': 'dish_count', 'fact': 0.6667,
+        'target': 0.4667, 'min': 0.2667, 'capped_ratio': 2.0,
+        'intermediate_premium': 15000.0, 'per_shift': True,
+        'fact_raw': 2, 'shifts_divisor': 3, 'target_period': 1.4,
+        'min_period': 0.8, 'period_decimals': 0, 'no_targets': False,
+    }
+    block = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=12)
+    dish = block['items'][2]
+    assert dish['month_shifts'] == 12 and dish['month_shifts_source'] == 'schedule'
+    assert dish['target_month'] == round(0.4667 * 12, 2)      # 5.6
+    assert dish['min_month'] == round(0.2667 * 12, 2)         # 3.2
+    assert dish['remaining'] == round(dish['target_month'] - 2, 2)
+    # числа за отработанные смены остались — по ним считается множитель
+    assert dish['target_period'] == 1.4 and dish['shifts_divisor'] == 3
+
+
+def test_kpi_month_target_falls_back_to_worked_shifts():
+    """График не заполнен (или пуст) — берём отработанные смены, не ноль."""
+    kpi_row = _kpi_row(ID_A, 'Юреня Роман')
+    kpi_row['kpis']['kpi3'] = {
+        'name': 'Брискет (шт)', 'metric': 'dish_count', 'fact': 1.0, 'target': 2.0,
+        'min': 1.0, 'capped_ratio': 0.0, 'intermediate_premium': 0.0,
+        'per_shift': True, 'fact_raw': 5, 'shifts_divisor': 5, 'target_period': 10.0,
+        'min_period': 5.0, 'period_decimals': 0, 'no_targets': False,
+    }
+    dish = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=0)['items'][2]
+    assert dish['month_shifts'] == 5 and dish['month_shifts_source'] == 'worked'
+    assert dish['target_month'] == 10.0
+    # график короче отработанного — цель не должна опускаться ниже уже пройденного
+    dish2 = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=3)['items'][2]
+    assert dish2['month_shifts'] == 5
+
+
+def test_kpi_inverse_month_threshold_has_no_remaining():
+    """У «меньше — лучше» на месяц масштабируется порог, а «осталось» не бывает."""
+    kpi_row = _kpi_row(ID_A, 'Юреня Роман')
+    kpi_row['kpis']['kpi3'] = {
+        'name': 'Опоздания (шт)', 'metric': 'late_count', 'fact': 0.0, 'target': 0.0,
+        'min': 0.2, 'capped_ratio': 1.0, 'intermediate_premium': 7500.0,
+        'per_shift': True, 'fact_raw': 0, 'shifts_divisor': 3, 'target_period': 0.0,
+        'min_period': 0.6, 'period_decimals': 0, 'no_targets': False,
+    }
+    late = ms._kpi_for(kpi_row, ['kpi1', 'kpi2', 'kpi3'], {}, shifts_planned=12)['items'][2]
+    assert late['min_month'] == round(0.2 * 12, 2) and late['target_month'] == 0.0
+    assert 'remaining' not in late
+
+
 def test_kpi_no_targets_is_not_error():
     """Нет KPI-целей на месяц: статус no_data, остальное посчитано."""
     snap = _assemble([_bonus_row(ID_A, 'Юреня Роман')], [],

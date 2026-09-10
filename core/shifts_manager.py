@@ -620,6 +620,9 @@ class ShiftsManager:
         Будущие смены и смена сегодня не считаются пробелом: факт вносится после
         смены, иначе в начале месяца весь график светился бы как «без часов».
         Оплата роли = часы × roles.rate_per_hour.
+        `shifts_planned` — ВСЕ смены периода, включая будущие: по ним кабинет
+        считает цель KPI на месяц целиком («в графике 12 смен — цель 6 шт»),
+        иначе цель ползла бы вверх с каждой отработанной сменой.
         Даты включительно (date >= from AND date <= to). today — ISO-дата «сегодня»
         (по умолчанию date.today(); параметр для детерминированных тестов).
         """
@@ -646,6 +649,7 @@ class ShiftsManager:
                            COALESCE(SUM(s.fact_minutes), 0) AS minutes,
                            SUM(CASE WHEN s.fact_minutes IS NOT NULL THEN 1 ELSE 0 END) AS shifts_with_fact,
                            SUM(CASE WHEN s.fact_minutes IS NULL AND s.date < ? THEN 1 ELSE 0 END) AS shifts_without_fact,
+                           COUNT(*) AS shifts_planned,
                            SUM(CASE WHEN r.name NOT LIKE 'второй%'
                                      AND (s.start_time IS NULL OR s.start_time < '18:00')
                                      AND (s.fact_minutes IS NOT NULL OR s.date < ?)
@@ -668,7 +672,7 @@ class ShiftsManager:
                 'employee_id': row['employee_id'],
                 'roles': [], 'total_minutes': 0, 'total_pay': 0.0,
                 'shifts_with_fact': 0, 'shifts_without_fact': 0,
-                'day_shifts': 0,
+                'day_shifts': 0, 'shifts_planned': 0,
             })
             minutes = row['minutes'] or 0
             rate = row['rate_per_hour'] or 0
@@ -684,6 +688,7 @@ class ShiftsManager:
             emp['shifts_with_fact'] += row['shifts_with_fact']
             emp['shifts_without_fact'] += row['shifts_without_fact']
             emp['day_shifts'] += row['day_shifts']
+            emp['shifts_planned'] += row['shifts_planned']
 
         result = []
         for emp in by_emp.values():
