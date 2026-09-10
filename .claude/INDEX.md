@@ -75,6 +75,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/technical/OLAP_REPORTS_COLLECTION.md](../docs/technical/OLAP_REPORTS_COLLECTION.md) | Копии всех 24 OLAP-запросов проекта (дословные JSON-тела + потребители) | ✅ |
 | [docs/technical/OLAP_REPORT_BUILDING_RULES.md](../docs/technical/OLAP_REPORT_BUILDING_RULES.md) | Правила создания OLAP-отчётов (iiko API): тело запроса, поля, фильтры, даты, чек-лист | ✅ |
 | [docs/technical/audits/OLAP_AUDIT_2026-06-02.md](../docs/technical/audits/OLAP_AUDIT_2026-06-02.md) | Аудит OLAP-отчётов: 26 issue (4 high), приоритеты, рекомендации (без правок) | ✅ |
+| [docs/technical/audits/STOCKS_AUDIT_2026-09-10.md](../docs/technical/audits/STOCKS_AUDIT_2026-09-10.md) | Аудит страницы «Заказы и остатки»: фактическое устройство 6 вкладок и формулы, реестр 41 проблемы (10 high) и 9 расхождений docs↔код, решения владельца 2026-09-10 (без правок) | ✅ |
 | [docs/technical/ORDERIA_CASHAPI.md](../docs/technical/ORDERIA_CASHAPI.md) | Внешняя система лояльности Orderia: эндпоинт `never.php` (карты без покупок), поля, 7 ловушек данных, открытые вопросы | ✅ |
 | [docs/lessons.md](../docs/lessons.md) | Баги, ловушки, паттерны (Problem→Cause→Solution) | ✅ |
 | [docs/remote-sync.md](../docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale + SSH | ✅ |
