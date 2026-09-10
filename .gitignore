@@ -37,6 +37,8 @@ nul
 
 # Данные кранов (хранятся на Render Disk, не в git)
 data/taps_data.json
+# Заказы поставщикам (общий черновик и история; на проде живут на /kultura)
+data/orders.json
 taps_data*.json
 
 # Бэкапы

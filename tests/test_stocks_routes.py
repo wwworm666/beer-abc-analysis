@@ -26,6 +26,7 @@ routes.stocks (get_stock_snapshot / get_stocks_nomenclature) на маленьк
 
 import os
 import sys
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -35,6 +36,7 @@ os.environ['SESSION_COOKIE_SECURE'] = '0'
 
 from flask import Flask  # noqa: E402
 import routes.stocks as rs  # noqa: E402
+from core.order_store import OrderStore  # noqa: E402
 from extensions import BARS  # noqa: E402
 from routes.stocks import stocks_bp  # noqa: E402
 
@@ -199,17 +201,28 @@ def _make_app():
     return app
 
 
+def _temp_order_store():
+    return OrderStore(os.path.join(tempfile.mkdtemp(prefix='stocks_orders_'), 'orders.json'))
+
+
 @contextmanager
-def _patched(snapshot=_DEFAULT, nomenclature=_DEFAULT):
-    """Подменить источники данных routes.stocks; отдаёт тестовый клиент."""
+def _patched(snapshot=_DEFAULT, nomenclature=_DEFAULT, order_store=_DEFAULT):
+    """Подменить источники данных routes.stocks; отдаёт тестовый клиент.
+
+    Хранилище заказов — временное (пустое), чтобы доска не зависела от
+    data/orders.json; order_store=callable подменяет фабрику целиком.
+    """
     saved = {name: getattr(rs, name) for name in
-             ('get_stock_snapshot', 'get_stocks_nomenclature', 'get_barcode_map', '_CHZ_CACHE_FILE')}
+             ('get_stock_snapshot', 'get_stocks_nomenclature', 'get_barcode_map', '_CHZ_CACHE_FILE',
+              'get_order_store')}
     snap = _snapshot() if snapshot is _DEFAULT else snapshot
     nom = _nomenclature() if nomenclature is _DEFAULT else nomenclature
+    store = _temp_order_store() if order_store is _DEFAULT else order_store
     rs.get_stock_snapshot = lambda *a, **k: snap
     rs.get_stocks_nomenclature = lambda *a, **k: nom
     rs.get_barcode_map = lambda *a, **k: {}
     rs._CHZ_CACHE_FILE = NO_CHZ_FILE
+    rs.get_order_store = store if callable(store) else (lambda: store)
     # Атрибут экземпляра перекрывает метод класса; снимается в finally.
     rs.taps_manager.get_bar_taps = _fake_bar_taps
     try:
@@ -422,13 +435,14 @@ ORDER_BOARD_KEYS = {
     'safety_days', 'near_expiry_block_days', 'slow_mover_weekly_sales',
     'fast_mover_weekly_sales', 'total_items', 'critical_count', 'high_count',
     'medium_count', 'active_count', 'slow_count', 'dead_count',
-    'recommended_total', 'items',
+    'recommended_total', 'on_order_count', 'draft_count', 'items',
 }
 ORDER_ITEM_KEYS = {
     'product_id', 'type', 'name', 'supplier', 'unit', 'stock', 'avg_sales',
     'weekly_sales', 'days_in_period', 'is_new', 'consumption_by_type', 'velocity',
     'days_left', 'lead_time_days', 'pack_size', 'recommended', 'urgency',
     'nearest_expiry', 'days_to_expiry',
+    'on_order', 'effective_stock', 'open_orders', 'draft_qty',   # этап 1: заказы поставщикам
 }
 
 
@@ -577,6 +591,129 @@ def test_taplist_network():
         assert d['total_items'] == 4
         assert d['total_liters'] == 48.0                       # 18 + 30, минус не вычитается
         assert d['negative_stock_count'] == 1
+
+
+# --- этап 1: заказы поставщикам на доске (S-10..S-13) ---------------------------
+
+USER = {'login': 'anna', 'display_name': 'Анна'}
+
+
+def _order_item(pid, bar, qty, name='x', unit='шт', kind='bottle'):
+    return {'product_id': pid, 'bar': bar, 'qty': qty, 'name': name, 'unit': unit, 'kind': kind}
+
+
+def test_order_board_on_order_reduces_recommendation():
+    """Открытый заказ вычитается из рекомендации, но не из «хватит дн.».
+
+    P_BOTTLE на Лиговском: остаток 4, расход 1.5/день, ООО "Май" lead 2:
+    без заказа → рекомендация 4, срочность medium (см. test_order_board_shape_and_totals);
+    с заказом 10 в пути → effective 14 ≥ target 7.5 → рекомендация 0, срочность low,
+    days_left по-прежнему 4 / 1.5 = 2.7. Заказ на Большой — только в «Общая» (сумма).
+    """
+    store = _temp_order_store()
+    store.set_draft_items('ООО "Май"', [_order_item(P_BOTTLE, BAR_LIG, 10), _order_item(P_BOTTLE, BAR_BOL, 6)], USER)
+    order = store.send('ООО "Май"', USER, expected_at='2025-11-07')
+    with _patched(order_store=store) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert code == 200, d
+        it = _by_id(d)[P_BOTTLE]
+        assert it['stock'] == 4.0 and it['on_order'] == 10.0 and it['effective_stock'] == 14.0
+        assert it['recommended'] == 0 and it['urgency'] == 'low'
+        assert it['days_left'] == 2.7
+        assert it['open_orders'] == [{'order_id': order['id'], 'supplier': 'ООО "Май"', 'qty': 10.0,
+                                      'expected_at': '2025-11-07', 'status': 'sent'}]
+        assert d['on_order_count'] == 1 and d['recommended_total'] == 0
+        # у остальных позиций «в пути» нет
+        assert all(x['on_order'] == 0 for x in d['items'] if x['product_id'] != P_BOTTLE)
+
+        code, d = _get(c, 'order-board', BAR_BOL)
+        assert _by_id(d)[P_BOTTLE]['on_order'] == 6.0
+        code, d = _get(c, 'order-board', BAR_ALL)
+        it = _by_id(d)[P_BOTTLE]
+        assert it['on_order'] == 16.0 and it['effective_stock'] == 29.0
+        assert len(it['open_orders']) == 2
+
+        # «приехало» не закрывает «в пути»; отмена — закрывает
+        store.mark_received(order['id'], USER)
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert _by_id(d)[P_BOTTLE]['on_order'] == 10.0
+        assert _by_id(d)[P_BOTTLE]['open_orders'][0]['status'] == 'received'
+        store.cancel(order['id'], USER)
+        code, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_BOTTLE]
+        assert it['on_order'] == 0 and it['recommended'] == 4 and it['urgency'] == 'medium'
+        assert d['on_order_count'] == 0
+
+
+def test_order_board_negative_stock_stays_critical_with_on_order():
+    store = _temp_order_store()
+    store.set_draft_items('Лента', [_order_item(P_NEG, BAR_LIG, 5)], USER)
+    store.send('Лента', USER)
+    with _patched(order_store=store) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_NEG]
+        assert it['stock'] == -1.0 and it['on_order'] == 5.0 and it['effective_stock'] == 4.0
+        assert it['urgency'] == 'critical'                 # учётная ошибка не лечится заказом
+        assert d['items'][0]['product_id'] == P_NEG
+
+
+def test_order_board_draft_qty_per_bar():
+    store = _temp_order_store()
+    store.set_draft_items('ООО "Май"', [_order_item(P_BOTTLE, BAR_LIG, 3), _order_item(P_BOTTLE, BAR_BOL, 2)], USER)
+    store.set_draft_items('Лента', [_order_item(P_IDLE, BAR_LIG, 1)], USER)
+    with _patched(order_store=store) as c:
+        _, lig = _get(c, 'order-board', BAR_LIG)
+        assert _by_id(lig)[P_BOTTLE]['draft_qty'] == 3.0
+        assert _by_id(lig)[P_IDLE]['draft_qty'] == 1.0
+        assert lig['draft_count'] == 2
+        _, bol = _get(c, 'order-board', BAR_BOL)
+        assert _by_id(bol)[P_BOTTLE]['draft_qty'] == 2.0 and bol['draft_count'] == 1
+        _, net = _get(c, 'order-board', BAR_ALL)
+        assert _by_id(net)[P_BOTTLE]['draft_qty'] == 5.0      # для «Общая» — сумма, только показ
+        # черновик не влияет на рекомендацию (в пути — только отправленное)
+        assert _by_id(lig)[P_BOTTLE]['recommended'] == 4 and _by_id(lig)[P_BOTTLE]['on_order'] == 0
+
+
+def test_order_board_reconciles_with_incoming_invoice():
+    """Приход P_NEW на Лиговский 26.10.2025 закрывает заказ, отправленный до него.
+
+    Заказ от 25.10 → позиция оприходована 26.10, заказ posted, «в пути» 0.
+    Заказ от 27.10 (после накладной) остаётся открытым.
+    """
+    store = _temp_order_store()
+    data = store._load()
+    data['orders'] = [
+        {'id': 'before', 'supplier': 'Лента', 'status': 'sent', 'sent_at': '2025-10-25T10:00:00',
+         'expected_at': '2025-10-27',
+         'items': [{'product_id': P_NEW, 'bar': BAR_LIG, 'name': 'Лимонад', 'unit': 'шт', 'qty': 24}]},
+        {'id': 'after', 'supplier': 'Лента', 'status': 'sent', 'sent_at': '2025-10-27T10:00:00',
+         'expected_at': '2025-10-29',
+         'items': [{'product_id': P_NEW, 'bar': BAR_LIG, 'name': 'Лимонад', 'unit': 'шт', 'qty': 12}]},
+        {'id': 'other-bar', 'supplier': 'Лента', 'status': 'sent', 'sent_at': '2025-10-25T10:00:00',
+         'items': [{'product_id': P_NEW, 'bar': BAR_KRE, 'name': 'Лимонад', 'unit': 'шт', 'qty': 6}]},
+    ]
+    store._save(data)
+    with _patched(order_store=store) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert code == 200, d
+        it = _by_id(d)[P_NEW]
+        assert it['on_order'] == 12.0
+        assert [o['order_id'] for o in it['open_orders']] == ['after']
+    before = store.get_order('before')
+    assert before['status'] == 'posted' and before['items'][0]['posted_at'] == '2025-10-26'
+    assert store.get_order('after')['status'] == 'sent'
+    assert store.get_order('other-bar')['status'] == 'sent'   # склад Кременчугской: прихода не было
+
+
+def test_order_board_survives_order_store_failure():
+    def broken():
+        raise OSError('disk gone')
+    with _patched(order_store=broken) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert code == 200, d
+        it = _by_id(d)[P_BOTTLE]
+        assert it['on_order'] == 0 and it['draft_qty'] == 0 and it['open_orders'] == []
+        assert it['recommended'] == 4
 
 
 def _run():

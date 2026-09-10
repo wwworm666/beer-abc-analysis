@@ -43,6 +43,7 @@
 | `employee_bp` | `/api` | employee KPI, salary, bonus | [routes/employee.py](../routes/employee.py) |
 | `taps_bp` | `/api` | краны START/STOP/REPLACE, taplist export CSV | [routes/taps.py](../routes/taps.py) |
 | `stocks_bp` | `/api` | taplist, kitchen, bottles, order-board, expiry, chz refresh | [routes/stocks.py](../routes/stocks.py) |
+| `orders_bp` | `/api/orders` | черновик заказа, отправка, «приехало», отмена, история | [routes/orders.py](../routes/orders.py) |
 | `schedule_bp` | `/api` | график смен по барам | [routes/schedule.py](../routes/schedule.py) |
 | `misc_bp` | `/api` | dish-group, wiki, Telegram webhook | [routes/misc.py](../routes/misc.py) |
 | `expiration_bp` | `/api` | Shelf-Life Cockpit (board, recommend) | [routes/expiration.py](../routes/expiration.py) |
@@ -236,6 +237,7 @@ data/
 | Taps | `/api/taps/<bar>`, `/api/taps/<bar>/start|stop|replace` | GET/POST | [taps.md](taps.md) |
 | Stocks | `/api/stocks/taplist|kitchen|bottles|order-board|expiry` | GET | [stocks.md](stocks.md) |
 | Stocks | `/api/chz/stock|refresh|refresh/status` | GET/POST | [chz-stock-integration.md](chz-stock-integration.md) |
+| Orders | `/api/orders/draft`, `/api/orders/send`, `/api/orders`, `/api/orders/<id>/received|cancel` | GET/POST | [orders.md](orders.md) |
 | Expiration | `/api/expiration/board?bars=...` | GET | [expiration.md](expiration.md) |
 | Explorer | `/api/explorer/pivot` | GET | [explorer.md](explorer.md) |
 | Open-check | `/api/admin/open-check/run-now`, `/telegram/openbot/*` | POST/GET | [open-check-bot.md](open-check-bot.md) |

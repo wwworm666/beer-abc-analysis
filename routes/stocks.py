@@ -13,6 +13,7 @@ from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from core.dashboard_analysis import DashboardMetrics
 from core.stock_consumption import aggregate_consumption
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
+from core.order_store import get_order_store
 from extensions import taps_manager, BARS
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
@@ -230,6 +231,34 @@ def _load_stock_data():
 
 def _snapshot_today(snapshot):
     return date.fromisoformat(snapshot['today'])
+
+
+def _bar_store_map():
+    """{имя бара: store_id} для сверки заказов с приходами iiko (без «Общая»)."""
+    return {name: _STORE_ID_MAP[bid] for name, bid in _BAR_ID_MAP.items() if bid}
+
+
+def _orders_context(snapshot, bar, target_store_id):
+    """Заказы поставщикам для доски: сверка с приходами и количества «в пути»/в черновике.
+
+    Возвращает (on_order, open_orders, draft_qty), все — {product_id: ...}:
+        on_order     — сумма по открытым заказам (sent/received, ещё не оприходовано)
+                       по складу бара; для «Общая» — по всей сети;
+        open_orders  — список открытых заказов по позиции (для подсказки в UI);
+        draft_qty    — количество в общем черновике для этого бара
+                       (для «Общая» — сумма по барам, только для показа).
+    Сбой хранилища заказов не роняет доску: возвращаются пустые словари.
+    """
+    try:
+        store = get_order_store()
+        store.reconcile_with_operations(snapshot.get('operations') or [], _bar_store_map())
+        scope_bar = bar if target_store_id else None
+        return (store.open_quantities(scope_bar),
+                store.open_orders_for(scope_bar),
+                store.draft_quantities(scope_bar))
+    except Exception as e:  # noqa: BLE001 — доска важнее сверки заказов
+        print(f"[ORDERS] orders context unavailable: {e}")
+        return {}, {}, {}
 
 
 def _fasovka_ids(nomenclature):
@@ -880,11 +909,15 @@ def get_order_board():
     Ответ сортируется по срочности (critical→high→medium→low), внутри — по days_left.
 
     Формула рекомендации (см. _calc_recommendation):
+        effective    = stock + on_order
         target_stock = avg_sales × (lead_time_days + SAFETY_DAYS)
-        deficit      = max(0, target_stock − stock)
+        deficit      = max(0, target_stock − effective)
         recommended  = ceil(deficit / pack_size) × pack_size
 
     Где:
+        on_order         — уже заказано и не оприходовано в iiko (открытые
+                           заказы core/order_store: «отправлено» и «приехало»);
+                           страница не просит второй раз то, что в пути (S-12)
         avg_sales        — расход/день по складу выбранного бара за окно
                            (core/stock_consumption.aggregate_consumption:
                            продажи + перемещения из бара + списания; для
@@ -895,7 +928,9 @@ def get_order_board():
 
     Если для позиции есть данные ЧЗ и ближайшая партия истекает <14 дней —
     рекомендация принудительно 0 (расходуем то что есть на полке).
-    Срочность: см. _urgency_level.
+    Срочность: см. _urgency_level; считается по effective, но отрицательный
+    физический остаток остаётся critical (учётная ошибка не лечится заказом).
+    days_left («хватит дн.») — по физическому остатку на полке.
     """
     try:
         bar, target_store_id, target_kpp, err = _bar_from_request()
@@ -915,12 +950,15 @@ def get_order_board():
 
         product_to_gtins = invert_to_product_gtins(get_barcode_map())
         chz_by_gtin, chz_updated_at = _load_chz_by_gtin()
+        on_order_map, open_orders_map, draft_map = _orders_context(snapshot, bar, target_store_id)
 
         items = []
         for product_id, data in products.items():
             stock = data['stock']
             st = stats[product_id]
             avg_sales = st['avg_per_day']
+            on_order = float(on_order_map.get(product_id, 0.0))
+            effective_stock = stock + on_order
 
             nearest_expiry = None
             days_to_expiry = None
@@ -938,8 +976,9 @@ def get_order_board():
             pack_size = params['pack_size']
             velocity = _velocity(avg_sales)
             days_left = (stock / avg_sales) if avg_sales > 0 else None
-            recommended = _calc_recommendation(stock, avg_sales, lead_time, pack_size, days_to_expiry, velocity)
-            urgency = _urgency_level(stock, avg_sales, lead_time, velocity)
+            recommended = _calc_recommendation(effective_stock, avg_sales, lead_time, pack_size,
+                                               days_to_expiry, velocity)
+            urgency = 'critical' if stock < 0 else _urgency_level(effective_stock, avg_sales, lead_time, velocity)
 
             items.append({
                 'product_id': product_id,
@@ -948,6 +987,10 @@ def get_order_board():
                 'supplier': data['category'],
                 'unit': data['unit'],
                 'stock': round(stock, 1),
+                'on_order': round(on_order, 1),
+                'effective_stock': round(effective_stock, 1),
+                'open_orders': open_orders_map.get(product_id, []),
+                'draft_qty': draft_map.get(product_id, 0.0),
                 'avg_sales': round(avg_sales, 2),
                 'weekly_sales': round(avg_sales * DAYS_PER_WEEK, 2),
                 'days_in_period': st['days_in_period'],
@@ -991,6 +1034,8 @@ def get_order_board():
             'slow_count': sum(1 for i in items if i['velocity'] == 'slow'),
             'dead_count': sum(1 for i in items if i['velocity'] == 'dead'),
             'recommended_total': sum(i['recommended'] for i in items),
+            'on_order_count': sum(1 for i in items if i['on_order'] > 0),
+            'draft_count': sum(1 for i in items if i['draft_qty'] > 0),
             'items': items,
         })
 

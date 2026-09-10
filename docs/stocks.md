@@ -20,7 +20,7 @@
 | Фасовка | `GET /api/stocks/bottles?bar=` | Остатки и расход товаров верхней группы «Напитки Фасовка» |
 | Сроки годности | `GET /api/stocks/expiry?bar=`, `POST /api/chz/refresh`, `GET /api/chz/refresh/status` | Фасовка с партиями и сроками из ЧЗ (view-only) |
 | Меню кухни | `GET /api/stocks/kitchen?bar=` | Остатки и расход товаров верхней группы «ЕДА» |
-| Формирование заказа | нет запросов | Корзина в памяти браузера, один CSV на поставщика |
+| Формирование заказа | `GET/POST /api/orders/draft`, `POST /api/orders/send`, `GET /api/orders` | Общий серверный черновик по поставщикам с текстом для чата, «Отправлено», «В пути» с «Приехало», история 30 дней ([orders.md](orders.md)) |
 
 Параметр `bar` обязателен: имя из `extensions.BARS` или `Общая` (вся сеть). Любое
 другое значение — `400` со списком `known_bars`.
@@ -34,6 +34,7 @@
 - [core/stock_snapshot.py](../core/stock_snapshot.py) — один снимок сети (остатки + операции + номенклатура) с кэшем.
 - [core/stock_consumption.py](../core/stock_consumption.py) — расход по складу за окно, знаменатель периода.
 - [core/nomenclature_xml.py](../core/nomenclature_xml.py) — полная номенклатура из XML с именем верхней группы.
+- [core/order_store.py](../core/order_store.py), [core/supplier_calendar.py](../core/supplier_calendar.py), [routes/orders.py](../routes/orders.py) — заказы поставщикам: черновик, «в пути», сверка с приходами, календарь поставок ([orders.md](orders.md)).
 - [core/olap_reports.py](../core/olap_reports.py) — `get_store_balances`, `get_store_operations_report`, `get_nomenclature`.
 - [extensions.py](../extensions.py) — `get_cached_nomenclature` (память 15 мин, диск 24 ч), `cached_olap`, `taps_manager`, `BARS`.
 - [core/taps_manager.py](../core/taps_manager.py) — активные краны для таплиста.
@@ -160,10 +161,16 @@ avg_per_day     = outgoing / days_in_period
 **Рекомендация** (`_calc_recommendation`):
 
 ```
+effective    = stock + on_order
 target_stock = avg_sales × (lead_time_days + SAFETY_DAYS)
-deficit      = max(0, target_stock − stock)
+deficit      = max(0, target_stock − effective)
 recommended  = ceil(deficit / pack_size) × pack_size
 ```
+
+- `on_order` — уже заказано и ещё не оприходовано в iiko: открытые заказы (`sent`,
+  `received`) на склад бара из `core/order_store` ([orders.md](orders.md)); для «Общая» —
+  сумма по барам. Черновик в `on_order` не входит. Страница не просит второй раз то, что
+  в пути (S-12 концепции).
 
 - `lead_time_days` — из `SUPPLIER_PARAMS` по точному имени поставщика, иначе
   `SUPPLIER_DEFAULT` (3 дня). В списке только 13 кухонных поставщиков; пивные получают
@@ -181,16 +188,22 @@ recommended  = ceil(deficit / pack_size) × pack_size
 
 **Срочность** (`_urgency_level`), порядок проверок важен: `stock < 0` → `critical`;
 `dead/slow` → `low`; `days_left < 1` → `critical`; `< lead_time_days` → `high`;
-`< lead_time_days + SAFETY_DAYS` → `medium`; иначе `low`.
+`< lead_time_days + SAFETY_DAYS` → `medium`; иначе `low`. С этапа 1 срочность считается
+от `effective` (остаток + в пути), но отрицательный **физический** остаток остаётся
+`critical`: учётную ошибку заказом не вылечить. `days_left` («хватит дн.») — по
+физическому остатку на полке.
 
 Ответ: `bar`, `updated_at` (время снимка), `chz_updated_at`, `consumption_scope`,
 `window_days`, константы формулы (`safety_days`, `near_expiry_block_days`,
 `slow_mover_weekly_sales`, `fast_mover_weekly_sales`), счётчики
 (`critical_count`, `high_count`, `medium_count`, `active_count`, `slow_count`,
-`dead_count`, `recommended_total`) и `items[]`: `product_id, type, name, supplier, unit,
-stock, avg_sales, weekly_sales, days_in_period, is_new, consumption_by_type, velocity,
+`dead_count`, `recommended_total`, `on_order_count`, `draft_count`) и `items[]`:
+`product_id, type, name, supplier, unit, stock, on_order, effective_stock, open_orders[],
+draft_qty, avg_sales, weekly_sales, days_in_period, is_new, consumption_by_type, velocity,
 days_left, lead_time_days, pack_size, recommended, urgency, nearest_expiry,
-days_to_expiry`. Сортировка: срочность, затем `days_left`.
+days_to_expiry`. Сортировка: срочность, затем `days_left`. Перед расчётом доска сверяет
+открытые заказы с приходными накладными снимка (`_orders_context`); сбой файла заказов
+доску не роняет (нули в `on_order`/`draft_qty`).
 
 ### Фасовка и Кухня
 
@@ -211,16 +224,29 @@ inferred_batches, nearest_expiry, latest_expiry, days_to_expiry, has_chz_data`.
 `nearest_expiry` — самая поздняя просроченная дата, дни отрицательные. Обновление кэша ЧЗ
 и его устройство — в chz-stock-integration.md и expiration.md.
 
-### Корзина и экспорт
+### Черновик заказа и вкладка «Формирование заказа»
 
-`ordersByBar` в памяти браузера (теряется при перезагрузке), ключ позиции — тип + название
-в пределах бара; вкладки Фасовка и Кухня передают поставщика и единицу, Таплист — нет.
-Экспорт: один CSV на поставщика через все бары, колонки `Тип, Название, Бар, Количество,
-Ед.` (известные дефекты S-10…S-13 реестра; корзина переезжает на сервер на этапе 1
-редизайна).
+С этапа 1 корзины в браузере нет. Инпуты «В заказ» на Сводном заказе, во Фасовке и в
+Меню кухни пишут в общий серверный черновик (`POST /api/orders/draft`, одна позиция — один
+запрос; «Применить рекомендации» — один батч), значение подставляется из `draft_qty`
+ответа и синхронизируется между вкладками. Строка помнит бар, для которого построена
+(`data-bar`), поэтому смена бара в селекте или поздний ответ не отправят позицию не в тот
+бар. В режиме «Общая» инпуты заблокированы. Таплист инпута «Для заказа» больше не имеет
+(у строки крана нет `product_id`; кеги заказываются со Сводного заказа в литрах).
+
+Вкладка «Формирование заказа»: карточки черновика по поставщикам с текстом для чата,
+«Скопировать текст», «Отправлено поставщику» (черновик → заказ, ожидаемая дата по
+календарю поставок), CSV запасной кнопкой; блок «В пути» с «Приехало» и «Отменить»;
+история за 30 дней. Устройство, статусы, API — в [orders.md](orders.md).
 
 ## Changelog
 
+- **2026-09-10 (этап 1 редизайна)** — Заказ стал серверной сущностью ([orders.md](orders.md)):
+  общий черновик на всех управляющих вместо корзины в памяти браузера, колонки «В пути» и
+  «В заказ», рекомендация и срочность от `stock + on_order`, сверка открытых заказов с
+  приходными накладными снимка, вкладка «Формирование заказа» с текстом для чата,
+  «Отправлено» / «Приехало» / «Отменить» и историей; у Таплиста убран инпут «Для заказа»;
+  CSV стал чистым (S-10). Закрыты S-10…S-13.
 - **2026-09-10 (этап 0 редизайна)** — Расход считается по складу выбранного бара
   (`primaryStore`), а не по всей сети; для «Общая» перемещения между своими складами не
   считаются; один снимок сети с кэшем 120 с и отрицательным кэшем 30 с вместо пяти

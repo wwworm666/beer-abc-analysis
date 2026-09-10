@@ -76,6 +76,8 @@ beer-abc-analysis/
 | `plans_manager.py` | CRUD планов + **portalocker** cross-worker; `PLAN_DEFAULTS` (cardChecksShare 70%), `fill_missing_defaults`, `BUDGET_METRICS`/`plan_score` |
 | `shifts_manager.py` | SQLite + WAL pragma |
 | `meeting_notes.py` | Заметки совещаний |
+| `order_store.py` | Заказы поставщикам: общий черновик, статусы, «в пути», сверка с накладными iiko, текст для чата |
+| `supplier_calendar.py` | Календарь поставок: ожидаемая дата без сб/вс, горизонт, допуск задержки |
 | `salary_payload.py` | Серверная сборка payload расчёта ЗП (зеркало страницы) |
 | `salary_layout.py` | Раскладка листа ЗП: строки, формулы, порядок колонок |
 | `salary_export.py` | Рендерер раскладки в .xlsx (openpyxl) |
@@ -122,6 +124,7 @@ beer-abc-analysis/
 | `employee_bp` | `/api` | `employee.py` |
 | `taps_bp` | `/api` | `taps.py` |
 | `stocks_bp` | `/api` | `stocks.py` |
+| `orders_bp` | `/api/orders` | `orders.py` |
 | `schedule_bp` | `/api` | `schedule.py` |
 | `misc_bp` | `/api` | `misc.py` |
 | `expiration_bp` | `/api` | `expiration.py` |
@@ -188,6 +191,7 @@ data/
 ├── kpi_targets.json        # KPI цели
 ├── taps_data.json          # 60 кранов + история (atomic-write)
 ├── meeting_notes.json      # Заметки совещаний
+├── orders.json             # Заказы поставщикам: черновик + история (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
@@ -255,7 +259,7 @@ docs/
 ├── CHANGELOG.md             # История сессий
 ├── lessons.md               # Баги, паттерны
 │
-├── dashboard.md, employee.md, taps.md, stocks.md, venues-plans.md, schedule.md
+├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, venues-plans.md, schedule.md
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
 ├── iiko-integration.md, frontend.md, design-system.md

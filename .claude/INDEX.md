@@ -19,6 +19,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 ├── Управление кранами           → taps.md
 ├── Редактор меню (/menu)        → menu-editor.md
 ├── Остатки + Сводный заказ      → stocks.md
+├── Заказы поставщикам           → orders.md
 ├── Shelf-Life Cockpit           → expiration.md
 ├── Температура по барам         → temperature.md
 ├── iiko ↔ Честный Знак          → chz-stock-integration.md
@@ -56,7 +57,8 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/explorer.md](../docs/explorer.md) | Конструктор отчётов — `/explorer`, pivot iiko-данных | ✅ |
 | [docs/taps.md](../docs/taps.md) | Управление 60 кранами (START/STOP/REPLACE) | ✅ |
 | [docs/menu-editor.md](../docs/menu-editor.md) | Редактор меню `/menu`: единый каталог, цены из iiko, вкусы/теги, печать A4 (перенос из menu_tool) | ✅ |
-| [docs/stocks.md](../docs/stocks.md) | Заказы и остатки `/stocks`: снимок сети с кэшем, расход по складу бара (с 2026-09-10), номенклатура OLAP поверх XML, классификация по верхней группе (кухня = «ЕДА»), формулы Сводного заказа, 6 вкладок | ✅ |
+| [docs/stocks.md](../docs/stocks.md) | Заказы и остатки `/stocks`: снимок сети с кэшем, расход по складу бара (с 2026-09-10), номенклатура OLAP поверх XML, классификация по верхней группе (кухня = «ЕДА»), формулы Сводного заказа с вычетом «в пути», 6 вкладок | ✅ |
+| [docs/orders.md](../docs/orders.md) | Заказы поставщикам `/api/orders/*` (этап 1 редизайна): общий серверный черновик, статусы sent/received/posted/cancelled, «в пути» в рекомендации, сверка с накладными iiko, календарь поставок, текст для чата | ✅ |
 | [docs/expiration.md](../docs/expiration.md) | Shelf-Life Cockpit — `/expiration` с tier-логикой и уценкой | ✅ |
 | [docs/temperature.md](../docs/temperature.md) | Мониторинг температуры по барам — `/temperature`, Tuya Cloud, масштаб из спеки, история SQLite | ✅ |
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
@@ -76,7 +78,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/technical/OLAP_REPORT_BUILDING_RULES.md](../docs/technical/OLAP_REPORT_BUILDING_RULES.md) | Правила создания OLAP-отчётов (iiko API): тело запроса, поля, фильтры, даты, чек-лист | ✅ |
 | [docs/technical/audits/OLAP_AUDIT_2026-06-02.md](../docs/technical/audits/OLAP_AUDIT_2026-06-02.md) | Аудит OLAP-отчётов: 26 issue (4 high), приоритеты, рекомендации (без правок) | ✅ |
 | [docs/technical/audits/STOCKS_AUDIT_2026-09-10.md](../docs/technical/audits/STOCKS_AUDIT_2026-09-10.md) | Аудит страницы «Заказы и остатки»: фактическое устройство 6 вкладок и формулы, реестр 41 проблемы (10 high) и 9 расхождений docs↔код, решения владельца 2026-09-10 (без правок) | ✅ |
-| [docs/planning/stocks-order-redesign-2026-09-10.md](../docs/planning/stocks-order-redesign-2026-09-10.md) | Почему `/stocks` неудобна для заказа (5 причин, сценарий «утро вторника») и целевая концепция: заказ как серверная сущность, экран «К заказу» по поставщикам, кеги в кегах, этапы 0–3, вопросы владельцу | Концепт |
+| [docs/planning/stocks-order-redesign-2026-09-10.md](../docs/planning/stocks-order-redesign-2026-09-10.md) | Почему `/stocks` неудобна для заказа (5 причин, сценарий «утро вторника») и целевая концепция: заказ как серверная сущность, экран «К заказу» по поставщикам, разливное в литрах, этапы 0–3 (0 и 1 выполнены), ответы владельца | Концепт |
 | [docs/technical/ORDERIA_CASHAPI.md](../docs/technical/ORDERIA_CASHAPI.md) | Внешняя система лояльности Orderia: эндпоинт `never.php` (карты без покупок), поля, 7 ловушек данных, открытые вопросы | ✅ |
 | [docs/lessons.md](../docs/lessons.md) | Баги, ловушки, паттерны (Problem→Cause→Solution) | ✅ |
 | [docs/remote-sync.md](../docs/remote-sync.md) | Удалённая работа с бар-ПК через Tailscale + SSH | ✅ |
@@ -108,7 +110,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 **Работаешь с Dashboard?** → [docs/dashboard.md](../docs/dashboard.md)
 
-**Работаешь с остатками/ЧЗ?** → [docs/stocks.md](../docs/stocks.md), [docs/chz-stock-integration.md](../docs/chz-stock-integration.md)
+**Работаешь с остатками/ЧЗ/заказами?** → [docs/stocks.md](../docs/stocks.md), [docs/orders.md](../docs/orders.md), [docs/chz-stock-integration.md](../docs/chz-stock-integration.md)
 
 **Конструктор отчётов?** → [docs/explorer.md](../docs/explorer.md)
 
