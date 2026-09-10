@@ -38,7 +38,7 @@ jobs:
       - name: Deploy script checks
         run: |
           bash -n scripts/deploy/beer-deploy.sh scripts/deploy/install.sh
-          python -m pytest -q scripts/deploy/test_deploy.py
+          python -m pytest -q scripts/deploy
       - name: JavaScript syntax
         run: node --check static/js/me/snapshot.js
 
@@ -48,6 +48,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/deploy
       - name: Deploy tested commit through restricted SSH key
         env:
           DEPLOY_KEY: ${{ secrets.BEER_DEPLOY_SSH_KEY }}
@@ -56,16 +61,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "$DEPLOY_KEY" || -z "$DEPLOY_HOST_KEYS" ]]; then
-            echo '::error::One-time setup required: install scripts/deploy/install.sh on the VPS and add BEER_DEPLOY_SSH_KEY and BEER_DEPLOY_KNOWN_HOSTS in repository Actions secrets.'
-            exit 1
-          fi
           [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           ssh_dir=$(mktemp -d "$RUNNER_TEMP/beer-ssh.XXXXXX")
           trap 'rm -f -- "$ssh_dir/key" "$ssh_dir/known_hosts"; rmdir -- "$ssh_dir"' EXIT
           umask 077
-          printf '%s\n' "$DEPLOY_KEY" > "$ssh_dir/key"
-          printf '%s\n' "$DEPLOY_HOST_KEYS" > "$ssh_dir/known_hosts"
+          python3 scripts/deploy/prepare_ssh.py "$ssh_dir"
           ssh -T -i "$ssh_dir/key" \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
