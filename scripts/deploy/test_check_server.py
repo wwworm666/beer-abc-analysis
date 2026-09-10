@@ -9,7 +9,7 @@ import pytest
 import check_server
 
 
-@pytest.mark.parametrize('failure', [None, 'git', 'https', 'authorization'])
+@pytest.mark.parametrize('failure', [None, 'git', 'https', 'authorization', 'ownership', 'permissions'])
 def test_clipboard_is_emitted_only_after_all_checks_pass(tmp_path, monkeypatch, capsys, failure):
     repo = tmp_path / 'repo'
     (repo / '.git').mkdir(parents=True)
@@ -26,9 +26,19 @@ def test_clipboard_is_emitted_only_after_all_checks_pass(tmp_path, monkeypatch, 
     hosts.write_text('139.100.200.92 ' + public)
     authorized = tmp_path / 'authorized_keys'
     authorized.write_text('' if failure == 'authorization' else 'restrict,command="/usr/local/sbin/beer-deploy" ' + public)
+
+    class ServerKey:
+        # Model a root-owned VPS key without requiring the test runner to be
+        # root. All actual key parsing still uses the disposable file above.
+        def read_text(self): return key.read_text()
+        def is_file(self): return key.is_file()
+        def stat(self):
+            mode = key.stat().st_mode | (0o004 if failure == 'permissions' else 0)
+            return SimpleNamespace(st_uid=1 if failure == 'ownership' else 0, st_mode=mode)
+
     mapping = {
         '/usr/local/sbin/beer-deploy': installed,
-        '/root/.ssh/beer_github_actions': key,
+        '/root/.ssh/beer_github_actions': ServerKey(),
         '/var/lib/beer-deploy/known_hosts': hosts,
         '/root/.ssh/authorized_keys': authorized,
     }
@@ -68,5 +78,6 @@ def test_clipboard_is_emitted_only_after_all_checks_pass(tmp_path, monkeypatch, 
         assert result == 1 and output.out == ''
         assert 'FAILED:' in output.err
     else:
-        assert result == 0 and output.out == key.read_text()
+        assert result == 0, output.err
+        assert output.out == key.read_text()
         assert 'READY:' in output.err
