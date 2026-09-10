@@ -117,6 +117,30 @@ def test_hours_by_role_pay_and_breakdown(tmpdir):
     assert rows[0]['employee_name'] == 'Романов Юрий'
 
 
+def test_shifts_planned_counts_future_shifts(tmpdir):
+    """shifts_planned — ВСЕ смены месяца, включая будущие.
+
+    По ним кабинет считает цель KPI на месяц целиком: если считать по
+    отработанным, цель росла бы с каждой сменой (владелец 2026-09-10).
+    """
+    mgr = _fresh_mgr(tmpdir)
+    loc = mgr.get_locations()[0]['id']
+    barmen = _role_id(mgr, 'бармен')
+    # две смены с фактом, одна прошедшая без факта, две будущие
+    for day, fact in (('2026-07-05', 720), ('2026-07-06', 600)):
+        mgr.set_shift_fact(mgr.create_shift(day, 'Романов Юрий', loc, barmen), fact)
+    mgr.create_shift('2026-07-07', 'Романов Юрий', loc, barmen)          # прошла, без факта
+    mgr.create_shift('2026-07-25', 'Романов Юрий', loc, barmen)          # будущая
+    mgr.create_shift('2026-07-28', 'Романов Юрий', loc, barmen)          # будущая
+    mgr.create_shift('2026-08-02', 'Романов Юрий', loc, barmen)          # другой месяц
+
+    rom = mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31',
+                                           today='2026-07-18')[0]
+    assert rom['shifts_planned'] == 5          # весь июльский график, август не в счёт
+    assert rom['shifts_with_fact'] == 2
+    assert rom['shifts_without_fact'] == 1     # только прошедшая без факта
+
+
 def test_hours_by_role_empty_period(tmpdir):
     mgr = _fresh_mgr(tmpdir)
     assert mgr.get_hours_by_role_for_period('2026-07-01', '2026-07-31') == []
