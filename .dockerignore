@@ -5,7 +5,12 @@
 .idea
 .claude
 .env
-.env.example
+.env.*
+secrets/
+**/.ssh/
+**/id_rsa*
+**/id_ed25519*
+scripts/deploy/
 
 __pycache__
 *.py[cod]

@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+ARG BEER_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$BEER_COMMIT
+
 EXPOSE 10000
 
 # worker-class gthread + threads: блокирующий iiko/OLAP-вызов больше не занимает
