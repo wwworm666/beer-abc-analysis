@@ -100,7 +100,7 @@ templates/                  # Jinja2 HTML
 ├── dashboard.html          # дашборд /dashboard: 4 точки + Общая, 20 метрик, AI-анализ
 ├── employee.html           # дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html           # управление кранами одного бара (/taps/<bar_id>)
-├── stocks.html             # 4 вкладки: Сводный заказ, Таплист, Фасовка, Сроки годности
+├── stocks.html             # 6 вкладок: Сводный заказ, Таплист, Фасовка, Сроки годности, Меню кухни, Формирование заказа
 ├── expiration.html         # Shelf-Life Cockpit (отдельная страница)
 ├── explorer.html           # Конструктор отчётов
 ├── schedule.html, salary.html, bonus.html, packaging.html, draft.html

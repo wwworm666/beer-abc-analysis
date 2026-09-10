@@ -141,7 +141,7 @@ templates/
 ├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 17 карточек (20 метрик в API), AI
 ├── employee.html        # Дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html        # Краны одного бара
-├── stocks.html          # 4 вкладки: Сводный заказ / Таплист / Фасовка / Сроки
+├── stocks.html          # 6 вкладок: Сводный заказ / Таплист / Фасовка / Сроки / Меню кухни / Формирование заказа
 ├── expiration.html      # Shelf-Life Cockpit
 ├── explorer.html        # Конструктор отчётов
 ├── schedule.html, salary.html, bonus.html

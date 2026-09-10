@@ -655,10 +655,10 @@
             <div class="card" id="order-board-content" style="display: none;">
                 <h2>Сводная таблица заказа</h2>
                 <div id="order-board-formula" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-                    <strong>Рекомендация</strong> = <code>продажи_в_день × (срок_поставки + страховой_запас) − текущий_остаток</code>,
+                    <strong>Рекомендация</strong> = <code>расход_в_день × (срок_поставки + страховой_запас) − текущий_остаток</code>,
                     округлено вверх до кратного партии. Страховой запас — 3 дня. Если до конца срока годности &lt; 14 дней — рекомендация 0.
                     <br>
-                    <strong>Скорость продаж</strong> (в неделю): <span style="color: var(--text-secondary);">dead</span> = 0;
+                    <strong>Скорость расхода</strong> (в неделю): <span style="color: var(--text-secondary);">dead</span> = 0;
                     <span style="color: var(--text-secondary);">slow</span> = &lt; 1 (раз в месяц или реже — <em>не пополняем автоматически</em>);
                     regular = 1–7; fast = ≥ 7.
                     <br>
@@ -666,7 +666,12 @@
                     <span style="color: #d97706;">высокая</span> = поставка не успеет до окончания;
                     <span style="color: #b45309;">средняя</span> = успеет, но без страхового запаса.
                     Slow- и dead-mover'ы не считаются «срочными» даже при нулевом остатке.
+                    <br>
+                    <strong>Расход</strong> = продажи + перемещения из бара + списания по складу выбранного бара за 30 дней;
+                    для товара, которого в начале окна не было, — с первого прихода.
                 </div>
+
+                <div id="order-board-meta" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;"></div>
 
                 <div class="stats-grid" id="order-board-stats"></div>
 
@@ -722,7 +727,7 @@
                             <th>Тип</th>
                             <th>Скорость</th>
                             <th>Остаток</th>
-                            <th>В неделю</th>
+                            <th>Расход в неделю</th>
                             <th>Хватит дн.</th>
                             <th>Поставка дн.</th>
                             <th>Истекает</th>
@@ -960,6 +965,16 @@
         function renderOrderBoard() {
             if (!orderBoardData) return;
             const data = orderBoardData;
+
+            const meta = document.getElementById('order-board-meta');
+            if (meta) {
+                const at = data.updated_at ? new Date(data.updated_at).toLocaleString('ru-RU') : 'нет данных';
+                const scope = data.consumption_scope === 'store'
+                    ? 'по складу бара «' + (data.bar || '') + '»'
+                    : 'по всей сети';
+                meta.textContent = 'Остатки и операции iiko на ' + at + '. Расход за ' + (data.window_days || 30)
+                    + ' дн. ' + scope + ': продажи, перемещения из бара, списания; для товара, которого не было в начале окна, — с первого прихода.';
+            }
             const filterType = document.getElementById('ob-filter-type').value;
             const filterSupplier = document.getElementById('ob-filter-supplier').value;
             const filterUrgency = document.getElementById('ob-filter-urgency').value;
@@ -1232,8 +1247,8 @@
                             <thead>
                                 <tr>
                                     <th>Название</th>
-                                    <th>Остаток (шт)</th>
-                                    <th>Средние продажи (шт/день)</th>
+                                    <th>Остаток</th>
+                                    <th>Расход в день</th>
                                     <th>Статус</th>
                                     <th>Для заказа</th>
                                 </tr>
@@ -1247,13 +1262,13 @@
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${item.stock || 0}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
                             <td><input type="number" min="0" value="0" style="width: 80px;"></td>
                         `;
                         row.querySelector('input').addEventListener('change', function() {
-                            addToOrder('bottles', item.name, this.value);
+                            addToOrder('bottle', item.name, this.value, item.category, item.unit);
                         });
                         tbody.appendChild(row);
                     });
@@ -1429,8 +1444,8 @@
                             <thead>
                                 <tr>
                                     <th>Название</th>
-                                    <th>Остаток (шт)</th>
-                                    <th>Ср. продажи</th>
+                                    <th>Остаток</th>
+                                    <th>Расход в день</th>
                                     <th>Срок (по последним партиям)</th>
                                     <th>Партии на полке</th>
                                 </tr>
@@ -1445,8 +1460,8 @@
                         row.setAttribute('style', expiryRowStyle(item));
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${item.stock || 0}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td>${formatHeadlineExpiry(item)}</td>
                             <td style="font-size: 12px;">${formatBatches(item)}</td>
                         `;
@@ -1516,9 +1531,9 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Блюдо</th>
-                                    <th>Остаток (шт)</th>
-                                    <th>Средние продажи (шт/день)</th>
+                                    <th>Товар</th>
+                                    <th>Остаток</th>
+                                    <th>Расход в день</th>
                                     <th>Статус</th>
                                     <th>Для заказа</th>
                                 </tr>
@@ -1532,13 +1547,13 @@
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${item.stock || 0}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
                             <td><input type="number" min="0" value="0" style="width: 80px;"></td>
                         `;
                         row.querySelector('input').addEventListener('change', function() {
-                            addToOrder('kitchen', item.name, this.value);
+                            addToOrder('kitchen', item.name, this.value, item.category, item.unit);
                         });
                         tbody.appendChild(row);
                     });

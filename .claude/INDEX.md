@@ -56,7 +56,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/explorer.md](../docs/explorer.md) | Конструктор отчётов — `/explorer`, pivot iiko-данных | ✅ |
 | [docs/taps.md](../docs/taps.md) | Управление 60 кранами (START/STOP/REPLACE) | ✅ |
 | [docs/menu-editor.md](../docs/menu-editor.md) | Редактор меню `/menu`: единый каталог, цены из iiko, вкусы/теги, печать A4 (перенос из menu_tool) | ✅ |
-| [docs/stocks.md](../docs/stocks.md) | Остатки: taplist/kitchen/bottles + Order Board (velocity) | ✅ |
+| [docs/stocks.md](../docs/stocks.md) | Заказы и остатки `/stocks`: снимок сети с кэшем, расход по складу бара (с 2026-09-10), номенклатура OLAP поверх XML, классификация по верхней группе (кухня = «ЕДА»), формулы Сводного заказа, 6 вкладок | ✅ |
 | [docs/expiration.md](../docs/expiration.md) | Shelf-Life Cockpit — `/expiration` с tier-логикой и уценкой | ✅ |
 | [docs/temperature.md](../docs/temperature.md) | Мониторинг температуры по барам — `/temperature`, Tuya Cloud, масштаб из спеки, история SQLite | ✅ |
 | [docs/chz-stock-integration.md](../docs/chz-stock-integration.md) | iiko ↔ Честный Знак — dispenser API, КПП-привязка, авторефреш | ✅ |
