@@ -201,7 +201,33 @@
         }).join('');
 
         host.innerHTML = band + total + '<div class="me-kpi-grid">' + cards + '</div>';
+        scaleHost = host;
+        fitScaleLabels(host);
     }
+
+    // Подпись риски («минимум», «цель») не должна наезжать на крайние подписи
+    // легенды. Ширина текста известна только после отрисовки, поэтому меряем:
+    // если подпись упирается в соседа, опускаем её строкой ниже — под ту же
+    // риску. Перемеряем при повороте телефона.
+    var scaleHost = null;
+    function fitScaleLabels(host) {
+        var legends = host.querySelectorAll('.me-scale-legend');
+        for (var i = 0; i < legends.length; i++) {
+            var lg = legends[i], mid = lg.querySelector('.me-scale-mid');
+            if (!mid) continue;
+            lg.classList.remove('is-two-rows');
+            mid.classList.remove('is-below');
+            var ends = lg.children;
+            var l = ends[0].getBoundingClientRect(), r = ends[ends.length - 1].getBoundingClientRect(),
+                m = mid.getBoundingClientRect();
+            if (!m.width) continue;   // секция скрыта — мерить нечего
+            if (m.left < l.right + 4 || m.right > r.left - 4) {
+                lg.classList.add('is-two-rows');
+                mid.classList.add('is-below');
+            }
+        }
+    }
+    window.addEventListener('resize', function () { if (scaleHost) fitScaleLabels(scaleHost); });
 
     function kpiCard(it, kpi, meta, maxRatio) {
         var cat = (meta.metrics_catalog || {})[it.metric] || {};
@@ -269,8 +295,14 @@
             : '';
 
         var ratio = it.ratio == null ? 0 : it.ratio;
-        var fill = Math.max(0, Math.min(100, ratio / maxRatio * 100));
-        var mark = 1 / maxRatio * 100;
+        // Шкала. У месячного KPI это прогресс к цели месяца «0 … цель» с риской
+        // на минимуме, а не множитель: владелец 2026-09-10 — «на графике всё
+        // равно показывает цель за текущие смены, а должен за весь месяц».
+        // Шкала по множителю при цели на месяц читалась как «58% сделано».
+        // У «меньше — лучше» шкала «0 … максимум», риска на цели: заливка —
+        // сколько потолка уже израсходовано, за потолком краснеет.
+        // Обычные KPI (доля розлива) остаются на шкале множителя 0 … max.
+        var scale = kpiScale(it, ratio, maxRatio, monthly, inverseKpi, countUnit, mv);
 
         // Вердикт словами: молчаливый ноль читается как ошибка расчёта.
         var verdict, mulCls = '';
@@ -362,16 +394,55 @@
                      '', monthly && inverse ? monthSub : '')
             + kpiNum('множитель', 'x' + num(ratio, 2), mulCls, monthly ? 'по темпу' : '')
             + '</div>'
-            + '<div class="me-scale"><span class="me-scale-fill" style="width:' + fill + '%"></span>'
-            + '<span class="me-scale-mark" style="left:' + mark + '%"></span></div>'
-            + '<div class="me-scale-legend"><span>0</span><span>цель</span><span>'
-            + num(maxRatio, 0) + '</span></div>'
+            + scaleHtml(scale)
             + verdict
             + '<details class="me-how"><summary>КАК ПОСЧИТАНО' + CHV + '</summary>'
             + '<div class="me-box">' + dishLine + perShiftLine + paceLine + calc + locRows
             + boxSub('Цели взвешены по вашим сменам: где вы работали больше, та цель весит сильнее.')
             + '</div></details>'
             + '</div>';
+    }
+
+    // Геометрия шкалы под плитками KPI: заливка, риска и подписи в процентах.
+    // Возвращает {fill, mark, left, mid, right, fillCls}; mid = '' — подпись
+    // риски скрыта (риска у самого края наехала бы на «0» или на правую подпись).
+    function kpiScale(it, ratio, maxRatio, monthly, inverse, countUnit, mv) {
+        var pct = function (x) { return Math.max(0, Math.min(100, x)); };
+        var whole = function (x) { return countUnit ? Math.round(x) : x; };
+        var fact = it.fact_raw || 0;
+        var sc;
+        if (monthly && !inverse) {
+            // Цель — показанная на плитке (округлённая), чтобы «сделано 8 из 8»
+            // заливало шкалу целиком, а не на 96% из-за цели 8,33
+            var goal = whole(it.target_month), floor = whole(it.min_month);
+            sc = { fill: goal > 0 ? pct(fact / goal * 100) : (fact > 0 ? 100 : 0),
+                   mark: goal > 0 ? pct(floor / goal * 100) : 0,
+                   left: '0', mid: 'минимум', right: 'цель ' + mv(goal), fillCls: '' };
+        } else if (monthly && inverse) {
+            var cap = whole(it.min_month), goalInv = whole(it.target_month);
+            sc = { fill: cap > 0 ? pct(fact / cap * 100) : (fact > 0 ? 100 : 0),
+                   mark: cap > 0 ? pct(goalInv / cap * 100) : 0,
+                   left: '0', mid: 'цель', right: 'максимум ' + mv(cap),
+                   fillCls: fact > cap ? ' is-bad' : ' is-inverse' };
+        } else {
+            sc = { fill: pct(ratio / maxRatio * 100), mark: 1 / maxRatio * 100,
+                   left: '0', mid: 'цель', right: num(maxRatio, 0), fillCls: '' };
+        }
+        // Подпись риски: у краёв прячем, ближе к краю — прижимаем к риске
+        // с внутренней стороны, чтобы не наезжала на крайние подписи
+        sc.midCls = sc.mark < 30 ? ' is-left' : sc.mark > 70 ? ' is-right' : '';
+        if (sc.mark < 8 || sc.mark > 92) sc.mid = '';
+        return sc;
+    }
+
+    function scaleHtml(sc) {
+        return '<div class="me-scale"><span class="me-scale-fill' + sc.fillCls
+            + '" style="width:' + sc.fill + '%"></span>'
+            + '<span class="me-scale-mark" style="left:' + sc.mark + '%"></span></div>'
+            + '<div class="me-scale-legend"><span>' + esc(sc.left) + '</span>'
+            + (sc.mid ? '<span class="me-scale-mid' + sc.midCls + '" style="left:' + sc.mark
+                        + '%">' + esc(sc.mid) + '</span>' : '')
+            + '<span>' + esc(sc.right) + '</span></div>';
     }
 
     function kpiNum(label, value, cls, sub) {

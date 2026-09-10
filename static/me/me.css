@@ -549,13 +549,30 @@ details[open] > .me-box { animation: meIn .22s cubic-bezier(.2, .7, .3, 1); }
     background: var(--me-ink);
     opacity: .55;
 }
+/* Шкала «меньше — лучше»: заливка — израсходованный потолок, за потолком — красная */
+.me-scale-fill.is-inverse { background: var(--me-ink5); }
+.me-scale-fill.is-bad { background: var(--me-bad); }
 .me-scale-legend {
+    position: relative;
     display: flex;
     justify-content: space-between;
     margin-top: 6px;
     font: 500 10.5px/1 var(--me-mono);
     color: var(--me-ink4);
 }
+/* Подпись риски стоит под самой риской (left задаётся инлайном в процентах):
+   у месячного KPI минимум не посередине шкалы, и flex-центрирование не подходит */
+.me-scale-mid {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+.me-scale-mid.is-left { transform: none; }
+.me-scale-mid.is-right { transform: translateX(-100%); }
+/* Подпись упёрлась в соседа — строкой ниже, под той же риской */
+.me-scale-mid.is-below { top: 14px; }
+.me-scale-legend.is-two-rows { margin-bottom: 14px; }
 .me-verdict { margin-top: 12px; font: 400 12.5px/1.5 var(--me-sans); }
 .me-verdict.is-ok { color: var(--me-ok); }
 .me-verdict.is-warn { color: var(--me-warn); }
