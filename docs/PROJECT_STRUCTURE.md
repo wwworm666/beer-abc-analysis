@@ -78,6 +78,7 @@ beer-abc-analysis/
 | `meeting_notes.py` | Заметки совещаний |
 | `order_store.py` | Заказы поставщикам: общий черновик, статусы, «в пути», сверка с накладными iiko, текст для чата |
 | `supplier_calendar.py` | Календарь поставок: ожидаемая дата без сб/вс, горизонт, допуск задержки |
+| `supplier_directory.py` | Справочник поставщиков: написания, срок и дни доставки, кратность, самовывоз (suppliers.json) |
 | `salary_payload.py` | Серверная сборка payload расчёта ЗП (зеркало страницы) |
 | `salary_layout.py` | Раскладка листа ЗП: строки, формулы, порядок колонок |
 | `salary_export.py` | Рендерер раскладки в .xlsx (openpyxl) |
@@ -125,6 +126,7 @@ beer-abc-analysis/
 | `taps_bp` | `/api` | `taps.py` |
 | `stocks_bp` | `/api` | `stocks.py` |
 | `orders_bp` | `/api/orders` | `orders.py` |
+| `suppliers_bp` | `/api/suppliers` | `suppliers.py` |
 | `schedule_bp` | `/api` | `schedule.py` |
 | `misc_bp` | `/api` | `misc.py` |
 | `expiration_bp` | `/api` | `expiration.py` |
@@ -144,7 +146,8 @@ templates/
 ├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 17 карточек (20 метрик в API), AI
 ├── employee.html        # Дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html        # Краны одного бара
-├── stocks.html          # 6 вкладок: Сводный заказ / Таплист / Фасовка / Сроки / Меню кухни / Формирование заказа
+├── stocks.html          # 6 вкладок: К заказу / К отправке / Таплист / Фасовка / Сроки / Меню кухни
+├── suppliers.html       # Справочник поставщиков (/suppliers)
 ├── expiration.html      # Shelf-Life Cockpit
 ├── explorer.html        # Конструктор отчётов
 ├── schedule.html, salary.html, bonus.html
@@ -192,6 +195,7 @@ data/
 ├── taps_data.json          # 60 кранов + история (atomic-write)
 ├── meeting_notes.json      # Заметки совещаний
 ├── orders.json             # Заказы поставщикам: черновик + история (на проде /kultura, в git нет)
+├── suppliers.json          # Справочник поставщиков (на проде /kultura, в git нет; без файла — стартовый набор из кода)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
@@ -259,7 +263,7 @@ docs/
 ├── CHANGELOG.md             # История сессий
 ├── lessons.md               # Баги, паттерны
 │
-├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, venues-plans.md, schedule.md
+├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, suppliers.md, venues-plans.md, schedule.md
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
 ├── iiko-integration.md, frontend.md, design-system.md
@@ -370,7 +374,8 @@ docker compose up -d
 | `/packaging`, `/draft` | ABC/XYZ-анализ |
 | `/explorer` | Конструктор отчётов |
 | `/taps/<bar_id>` | Управление кранами |
-| `/stocks` | Остатки + Сводный заказ |
+| `/stocks` | Заказы и остатки: экран «К заказу» |
+| `/suppliers` | Справочник поставщиков |
 | `/expiration` | Shelf-Life Cockpit |
 | `/employee`, `/salary`, `/bonus`, `/schedule` | Сотрудники |
 | `/waiters` | 301 на `/draft#bartenders` (страница слита в «Анализ проливов») |

@@ -74,6 +74,12 @@ def stocks():
     return render_template('stocks.html', bars=BARS)
 
 
+@pages_bp.route('/suppliers')
+def suppliers():
+    """Справочник поставщиков: алиасы, сроки и дни поставки, кратность"""
+    return render_template('suppliers.html')
+
+
 @pages_bp.route('/employee')
 def employee_dashboard():
     """Страница детального дашборда по сотруднику"""

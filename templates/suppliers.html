@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поставщики - Beer Analysis</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        .card h2 { font-size: 1.3rem; margin-bottom: 8px; color: var(--text-primary); }
+        .hint { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px; }
+        .btn {
+            background: var(--accent); color: white; border: none; border-radius: 6px;
+            padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .btn:hover { background: var(--accent-hover); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-secondary:hover { background: var(--bg-secondary); }
+        .btn-danger { background: transparent; color: #991b1b; border: 1px solid rgba(153, 27, 27, 0.4); }
+        input[type="text"], input[type="number"], textarea, select {
+            padding: 8px 10px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+            border-radius: 6px; color: var(--text-primary); font-size: 13px; font-family: inherit;
+            box-sizing: border-box;
+        }
+        input[type="number"] { width: 70px; text-align: center; }
+        textarea { width: 100%; min-height: 48px; resize: vertical; }
+        .supplier {
+            border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 12px;
+            background: var(--bg-primary);
+        }
+        .supplier.dirty { border-color: var(--accent); }
+        .supplier-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+        .supplier-head h3 { font-size: 1.05rem; color: var(--accent); margin: 0; }
+        .supplier-head .meta { font-size: 11px; color: var(--text-secondary); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        .field label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .weekdays { display: flex; gap: 6px; flex-wrap: wrap; }
+        .weekdays label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-primary); margin: 0; cursor: pointer; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+        .status { font-size: 12px; color: var(--text-secondary); }
+        .status.error { color: #991b1b; }
+        .status.ok { color: #047857; }
+        .unmapped { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--border-color); }
+        .unmapped:last-child { border-bottom: none; }
+        .unmapped .cat { font-weight: 600; min-width: 200px; }
+        .unmapped .count { font-size: 11px; color: var(--text-secondary); }
+        .banner { padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; }
+        .banner.error { background: rgba(239, 68, 68, 0.12); color: #991b1b; }
+        .banner.info { background: rgba(59, 130, 246, 0.10); color: var(--text-primary); }
+        .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .toolbar input[type="text"] { min-width: 220px; }
+        @media (max-width: 640px) {
+            .card { padding: 16px; }
+            .unmapped .cat { min-width: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% set page_title = "Поставщики" %}
+        {% set page_subtitle = "Сроки, дни доставки, написания" %}
+        {% include 'shared/nav.html' %}
+
+        <div id="banner"></div>
+
+        <div class="card">
+            <h2>Справочник поставщиков</h2>
+            <div class="hint">
+                Здесь задаётся, как страница <a href="/stocks">Заказы и остатки</a> считает рекомендацию и группирует позиции.
+                <strong>Срок поставки</strong> считается в днях доставки: заказ в пятницу со сроком 1 при доставке пн–пт приедет в понедельник.
+                <strong>Дни доставки</strong> задают, когда поставщик привозит; заказ должен дожить до поставки, следующей за ближайшей.
+                <strong>Написания</strong> склеивают разные категории iiko в одного поставщика (например, «ООО МаркетБир» и «Маркет Бир»).
+                <strong>Кратность</strong> округляет рекомендацию вверх для фасовки и кухни; кеги считаются в литрах без кратности.
+                Поставщики, которых здесь нет, получают срок по умолчанию и помечены на странице заказа «по умолчанию».
+            </div>
+            <div class="toolbar">
+                <input type="text" id="new-name" placeholder="Имя нового поставщика">
+                <button class="btn" onclick="createSupplier()">Добавить поставщика</button>
+                <span class="status" id="stored-status"></span>
+            </div>
+            <div id="suppliers"></div>
+        </div>
+
+        <div class="card">
+            <h2>Категории iiko без поставщика</h2>
+            <div class="hint">Так называются категории товаров в номенклатуре iiko, которые не совпадают ни с одним именем или написанием выше. Привяжите как написание к существующему поставщику или заведите нового с этим именем.</div>
+            <div id="unmapped"></div>
+        </div>
+    </div>
+
+    <script>
+        const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+        let data = null;
+
+        function escapeHtml(text) {
+            return String(text === null || text === undefined ? '' : text)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function showBanner(text, kind) {
+            const b = document.getElementById('banner');
+            b.innerHTML = text ? `<div class="banner ${kind || 'info'}">${escapeHtml(text)}</div>` : '';
+        }
+        async function api(method, url, body) {
+            const response = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: body === undefined ? undefined : JSON.stringify(body),
+            });
+            let payload = {};
+            try { payload = await response.json(); } catch (e) { payload = {}; }
+            if (!response.ok) throw new Error(payload.error || ('Ошибка ' + response.status));
+            return payload;
+        }
+        function fmtDateTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d)) return String(iso);
+            return d.toLocaleString('ru-RU', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+        }
+
+        async function load() {
+            try {
+                data = await api('GET', '/api/suppliers');
+                render();
+            } catch (error) {
+                showBanner('Не удалось загрузить справочник: ' + error.message, 'error');
+            }
+        }
+
+        function render() {
+            const box = document.getElementById('suppliers');
+            box.innerHTML = '';
+            document.getElementById('stored-status').textContent = data.stored
+                ? '' : 'Показан стартовый набор из кода: он сохранится в файл при первом изменении.';
+            data.suppliers.forEach(s => box.appendChild(supplierCard(s)));
+            renderUnmapped();
+        }
+
+        function supplierCard(s) {
+            const card = document.createElement('div');
+            card.className = 'supplier';
+            card.dataset.name = s.name;
+            const days = WEEKDAYS.map((d, i) => `
+                <label><input type="checkbox" data-field="weekday" value="${i}" ${s.delivery_weekdays.includes(i) ? 'checked' : ''}> ${d}</label>`).join('');
+            card.innerHTML = `
+                <div class="supplier-head">
+                    <h3>${escapeHtml(s.name)}</h3>
+                    <span class="meta">${s.updated_at ? 'изменён ' + fmtDateTime(s.updated_at) + ' (' + escapeHtml(s.updated_by || '') + ')' : 'стартовое значение из кода'}</span>
+                </div>
+                <div class="grid">
+                    <div class="field">
+                        <label>Написания в iiko (через запятую)</label>
+                        <textarea data-field="aliases">${escapeHtml((s.aliases || []).join(', '))}</textarea>
+                    </div>
+                    <div class="field">
+                        <label>Срок поставки, дней доставки</label>
+                        <input type="number" min="0" max="60" data-field="lead_time_days" value="${s.lead_time_days}">
+                        <label style="margin-top: 8px;">Кратность (упаковка)</label>
+                        <input type="number" min="1" max="10000" data-field="pack_size" value="${s.pack_size}">
+                    </div>
+                    <div class="field">
+                        <label>Дни доставки</label>
+                        <div class="weekdays">${days}</div>
+                        <label style="margin-top: 8px;"><input type="checkbox" data-field="self_pickup" ${s.self_pickup ? 'checked' : ''}> Самовывоз (Метро, Лента)</label>
+                    </div>
+                    <div class="field">
+                        <label>Заметка</label>
+                        <textarea data-field="note">${escapeHtml(s.note || '')}</textarea>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="btn" data-action="save">Сохранить</button>
+                    <button class="btn btn-secondary" data-action="rename">Переименовать</button>
+                    <button class="btn btn-danger" data-action="delete">Удалить</button>
+                    <span class="status" data-role="status"></span>
+                </div>
+            `;
+            card.querySelectorAll('input, textarea').forEach(el => el.addEventListener('input', () => card.classList.add('dirty')));
+            card.querySelector('[data-action="save"]').addEventListener('click', () => saveSupplier(card));
+            card.querySelector('[data-action="rename"]').addEventListener('click', () => renameSupplier(card));
+            card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteSupplier(card));
+            return card;
+        }
+
+        function readCard(card) {
+            const weekdays = [...card.querySelectorAll('input[data-field="weekday"]:checked')].map(i => parseInt(i.value));
+            return {
+                aliases: card.querySelector('[data-field="aliases"]').value,
+                lead_time_days: card.querySelector('[data-field="lead_time_days"]').value,
+                pack_size: card.querySelector('[data-field="pack_size"]').value,
+                delivery_weekdays: weekdays,
+                self_pickup: card.querySelector('[data-field="self_pickup"]').checked,
+                note: card.querySelector('[data-field="note"]').value,
+            };
+        }
+        function setStatus(card, text, kind) {
+            const el = card.querySelector('[data-role="status"]');
+            el.textContent = text;
+            el.className = 'status ' + (kind || '');
+        }
+
+        async function saveSupplier(card, extra) {
+            const name = card.dataset.name;
+            try {
+                data = await api('PUT', '/api/suppliers/' + encodeURIComponent(name), Object.assign(readCard(card), extra || {}));
+                render();
+                showBanner('Сохранено: ' + (data.supplier ? data.supplier.name : name), 'info');
+            } catch (error) {
+                setStatus(card, error.message, 'error');
+            }
+        }
+        async function renameSupplier(card) {
+            const newName = prompt('Новое имя поставщика (написания сохранятся):', card.dataset.name);
+            if (!newName || newName.trim() === card.dataset.name) return;
+            await saveSupplier(card, {rename_to: newName.trim()});
+        }
+        async function deleteSupplier(card) {
+            const name = card.dataset.name;
+            if (!confirm('Удалить поставщика «' + name + '»? Его позиции на странице заказа получат срок по умолчанию.')) return;
+            try {
+                data = await api('DELETE', '/api/suppliers/' + encodeURIComponent(name));
+                render();
+                showBanner('Удалён: ' + name, 'info');
+            } catch (error) {
+                setStatus(card, error.message, 'error');
+            }
+        }
+        async function createSupplier(presetName) {
+            const input = document.getElementById('new-name');
+            const name = (presetName || input.value || '').trim();
+            if (!name) { showBanner('Введите имя поставщика', 'error'); return; }
+            try {
+                data = await api('PUT', '/api/suppliers/' + encodeURIComponent(name), {});
+                input.value = '';
+                render();
+                showBanner('Добавлен: ' + name + '. Проверьте срок и дни доставки.', 'info');
+                const card = [...document.querySelectorAll('.supplier')].find(c => c.dataset.name === (data.supplier || {}).name);
+                if (card) card.scrollIntoView({behavior: 'smooth', block: 'center'});
+            } catch (error) {
+                showBanner(error.message, 'error');
+            }
+        }
+
+        function renderUnmapped() {
+            const box = document.getElementById('unmapped');
+            if (!data.nomenclature_available) {
+                box.innerHTML = '<p class="hint">Номенклатура iiko сейчас недоступна: список категорий появится после подключения.</p>';
+                return;
+            }
+            if (!data.unmapped_categories.length) {
+                box.innerHTML = '<p class="hint">Все категории привязаны к поставщикам.</p>';
+                return;
+            }
+            box.innerHTML = '';
+            const options = data.suppliers.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+            data.unmapped_categories.forEach(u => {
+                const row = document.createElement('div');
+                row.className = 'unmapped';
+                row.innerHTML = `
+                    <span class="cat">${escapeHtml(u.category)} <span class="count">${u.products} поз.</span></span>
+                    <select data-role="target"><option value="">Написание поставщика...</option>${options}</select>
+                    <button class="btn btn-secondary" data-action="alias">Привязать</button>
+                    <button class="btn btn-secondary" data-action="create">Завести как поставщика</button>
+                    <span class="status" data-role="status"></span>
+                `;
+                row.querySelector('[data-action="alias"]').addEventListener('click', async () => {
+                    const target = row.querySelector('[data-role="target"]').value;
+                    if (!target) { setStatus(row, 'Выберите поставщика', 'error'); return; }
+                    try {
+                        data = await api('POST', '/api/suppliers/' + encodeURIComponent(target) + '/aliases', {alias: u.category});
+                        render();
+                        showBanner('«' + u.category + '» теперь написание поставщика ' + target, 'info');
+                    } catch (error) {
+                        setStatus(row, error.message, 'error');
+                    }
+                });
+                row.querySelector('[data-action="create"]').addEventListener('click', () => createSupplier(u.category));
+                box.appendChild(row);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', load);
+    </script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

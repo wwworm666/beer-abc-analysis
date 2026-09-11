@@ -32,7 +32,9 @@ from flask import Flask  # noqa: E402
 import routes.orders as ro  # noqa: E402
 from routes.orders import orders_bp  # noqa: E402
 from routes.stocks import _supplier_params  # noqa: E402
+import routes.stocks as rs  # noqa: E402
 from core.order_store import OrderStore  # noqa: E402
+from core.supplier_directory import SupplierDirectory  # noqa: E402
 from core.supplier_calendar import next_delivery_date, ORDER_OVERDUE_GRACE_DAYS  # noqa: E402
 from extensions import BARS  # noqa: E402
 
@@ -43,16 +45,19 @@ BAR_BOL = 'Большой пр. В.О'
 
 @contextmanager
 def _client():
-    store = OrderStore(os.path.join(tempfile.mkdtemp(prefix='orders_api_'), 'orders.json'))
-    saved = (ro.get_order_store, ro.current_user)
+    tmp = tempfile.mkdtemp(prefix='orders_api_')
+    store = OrderStore(os.path.join(tmp, 'orders.json'))
+    directory = SupplierDirectory(os.path.join(tmp, 'suppliers.json'))   # стартовый набор
+    saved = (ro.get_order_store, ro.current_user, rs.get_supplier_directory)
     ro.get_order_store = lambda: store
     ro.current_user = lambda: USER
+    rs.get_supplier_directory = lambda: directory
     app = Flask('test_orders')
     app.register_blueprint(orders_bp)
     try:
         yield app.test_client(), store
     finally:
-        ro.get_order_store, ro.current_user = saved
+        ro.get_order_store, ro.current_user, rs.get_supplier_directory = saved
 
 
 def _post(c, url, body=None):
@@ -147,8 +152,9 @@ def test_send_expected_date_and_errors():
         code, d = _post(c, '/api/orders/send', {'supplier': 'Метро', 'note': 'к открытию'})
         assert code == 200, d
         o = d['order']
-        lead = _supplier_params('Метро')['lead_time_days']
-        assert o['expected_at'] == next_delivery_date(date.today(), lead).isoformat()
+        params = _supplier_params('Метро')
+        assert o['expected_at'] == next_delivery_date(date.today(), params['lead_time_days'],
+                                                      params['delivery_weekdays']).isoformat()
         assert o['status'] == 'sent' and o['sent_by'] == 'anna' and o['note'] == 'к открытию'
         assert 'Ожидаемая поставка' in o['text'] and 'Поставщик: Метро' in o['text']
         assert c.get('/api/orders/draft').get_json()['drafts'] == []

@@ -37,6 +37,7 @@ os.environ['SESSION_COOKIE_SECURE'] = '0'
 from flask import Flask  # noqa: E402
 import routes.stocks as rs  # noqa: E402
 from core.order_store import OrderStore  # noqa: E402
+from core.supplier_directory import SupplierDirectory  # noqa: E402
 from extensions import BARS  # noqa: E402
 from routes.stocks import stocks_bp  # noqa: E402
 
@@ -205,16 +206,22 @@ def _temp_order_store():
     return OrderStore(os.path.join(tempfile.mkdtemp(prefix='stocks_orders_'), 'orders.json'))
 
 
+def _temp_directory():
+    """Справочник поставщиков без файла: действует стартовый набор (SEED_SUPPLIERS)."""
+    return SupplierDirectory(os.path.join(tempfile.mkdtemp(prefix='stocks_suppliers_'), 'suppliers.json'))
+
+
 @contextmanager
-def _patched(snapshot=_DEFAULT, nomenclature=_DEFAULT, order_store=_DEFAULT):
+def _patched(snapshot=_DEFAULT, nomenclature=_DEFAULT, order_store=_DEFAULT, directory=_DEFAULT):
     """Подменить источники данных routes.stocks; отдаёт тестовый клиент.
 
     Хранилище заказов — временное (пустое), чтобы доска не зависела от
     data/orders.json; order_store=callable подменяет фабрику целиком.
+    Справочник поставщиков — временный (стартовый набор), directory=SupplierDirectory.
     """
     saved = {name: getattr(rs, name) for name in
              ('get_stock_snapshot', 'get_stocks_nomenclature', 'get_barcode_map', '_CHZ_CACHE_FILE',
-              'get_order_store')}
+              'get_order_store', 'get_supplier_directory')}
     snap = _snapshot() if snapshot is _DEFAULT else snapshot
     nom = _nomenclature() if nomenclature is _DEFAULT else nomenclature
     store = _temp_order_store() if order_store is _DEFAULT else order_store
@@ -223,6 +230,8 @@ def _patched(snapshot=_DEFAULT, nomenclature=_DEFAULT, order_store=_DEFAULT):
     rs.get_barcode_map = lambda *a, **k: {}
     rs._CHZ_CACHE_FILE = NO_CHZ_FILE
     rs.get_order_store = store if callable(store) else (lambda: store)
+    directory_obj = _temp_directory() if directory is _DEFAULT else directory
+    rs.get_supplier_directory = lambda: directory_obj
     # Атрибут экземпляра перекрывает метод класса; снимается в finally.
     rs.taps_manager.get_bar_taps = _fake_bar_taps
     try:
@@ -435,7 +444,7 @@ ORDER_BOARD_KEYS = {
     'safety_days', 'near_expiry_block_days', 'slow_mover_weekly_sales',
     'fast_mover_weekly_sales', 'total_items', 'critical_count', 'high_count',
     'medium_count', 'active_count', 'slow_count', 'dead_count',
-    'recommended_total', 'on_order_count', 'draft_count', 'items',
+    'recommended_total', 'on_order_count', 'draft_count', 'decide_count', 'idle_count', 'today', 'items',
 }
 ORDER_ITEM_KEYS = {
     'product_id', 'type', 'name', 'supplier', 'unit', 'stock', 'avg_sales',
@@ -443,6 +452,9 @@ ORDER_ITEM_KEYS = {
     'days_left', 'lead_time_days', 'pack_size', 'recommended', 'urgency',
     'nearest_expiry', 'days_to_expiry',
     'on_order', 'effective_stock', 'open_orders', 'draft_qty',   # этап 1: заказы поставщикам
+    'supplier_raw', 'supplier_is_default', 'self_pickup', 'days_to_delivery', 'horizon_days',
+    'expected_delivery', 'next_delivery', 'target_stock', 'last_incoming',
+    'reason', 'reason_code', 'section',                          # этапы 2-3: экран «К заказу»
 }
 
 
@@ -479,18 +491,28 @@ def test_order_board_shape_and_totals():
         assert neg['velocity'] == 'dead' and neg['recommended'] == 0
         assert items[0]['product_id'] == P_NEG
 
-        # Расчёт для P_BOTTLE (ООО "Май": lead 2, pack 1):
-        # target = 1.5 × (2 + 3) = 7.5; deficit = 7.5 − 4 = 3.5 → ceil → 4;
-        # days_left = 4 / 1.5 = 2.67 — меньше lead + safety → medium.
+        # Расчёт для P_BOTTLE (ООО "Май": срок 2 дня доставки, пн–пт, кратность 1).
+        # Сегодня ср 05.11.2025: ближайшая поставка пт 07.11 (2 дня), следующая пн 10.11
+        # (горизонт 5 дней); target = 1.5 × (5 + 3) = 12; deficit = 12 − 4 = 8 → 8;
+        # days_left = 4 / 1.5 = 2.67 — меньше 2 + 3 → medium.
         it = _by_id(d)[P_BOTTLE]
         assert it['velocity'] == 'fast'
         assert it['weekly_sales'] == 10.5
         assert it['lead_time_days'] == 2 and it['pack_size'] == 1
-        assert it['recommended'] == 4
+        assert it['days_to_delivery'] == 2 and it['horizon_days'] == 5
+        assert it['expected_delivery'] == '2025-11-07' and it['next_delivery'] == '2025-11-10'
+        assert it['target_stock'] == 12.0
+        assert it['recommended'] == 8
         assert it['urgency'] == 'medium'
         assert it['days_left'] == 2.7
+        assert it['supplier'] == 'ООО "Май"' and it['supplier_is_default'] is False
+        assert it['section'] == 'decide' and it['reason_code'] == 'order'
+        assert it['reason'] == 'нужно 12 шт (5 дн. до следующей поставки + 3 дн. запаса), есть 4: заказать 8 к пт 07.11'
+        assert it['last_incoming'] == {'date': '2025-10-06', 'amount': 20.0}
         assert items[1]['product_id'] == P_BOTTLE     # сортировка: срочность, потом days_left
-        assert d['recommended_total'] == 4
+        assert d['recommended_total'] == 8
+        assert d['decide_count'] == 2                 # P_NEG (остаток < 0) и P_BOTTLE
+        assert d['idle_count'] == 4                   # slow: P_SAUCE, P_OIL, P_GUID; dead: P_IDLE (P_NEG — в decide)
 
 
 def test_negative_stock_in_tabs():
@@ -605,9 +627,9 @@ def _order_item(pid, bar, qty, name='x', unit='шт', kind='bottle'):
 def test_order_board_on_order_reduces_recommendation():
     """Открытый заказ вычитается из рекомендации, но не из «хватит дн.».
 
-    P_BOTTLE на Лиговском: остаток 4, расход 1.5/день, ООО "Май" lead 2:
-    без заказа → рекомендация 4, срочность medium (см. test_order_board_shape_and_totals);
-    с заказом 10 в пути → effective 14 ≥ target 7.5 → рекомендация 0, срочность low,
+    P_BOTTLE на Лиговском: остаток 4, расход 1.5/день, ООО "Май" (горизонт 5 дн.):
+    без заказа → рекомендация 8, срочность medium (см. test_order_board_shape_and_totals);
+    с заказом 10 в пути → effective 14 ≥ target 12 → рекомендация 0, срочность low,
     days_left по-прежнему 4 / 1.5 = 2.7. Заказ на Большой — только в «Общая» (сумма).
     """
     store = _temp_order_store()
@@ -620,6 +642,8 @@ def test_order_board_on_order_reduces_recommendation():
         assert it['stock'] == 4.0 and it['on_order'] == 10.0 and it['effective_stock'] == 14.0
         assert it['recommended'] == 0 and it['urgency'] == 'low'
         assert it['days_left'] == 2.7
+        assert it['reason_code'] == 'in_transit' and it['section'] == 'ok'
+        assert it['reason'] == 'в пути 10 шт: с ним хватит до следующей поставки'
         assert it['open_orders'] == [{'order_id': order['id'], 'supplier': 'ООО "Май"', 'qty': 10.0,
                                       'expected_at': '2025-11-07', 'status': 'sent'}]
         assert d['on_order_count'] == 1 and d['recommended_total'] == 0
@@ -641,7 +665,7 @@ def test_order_board_on_order_reduces_recommendation():
         store.cancel(order['id'], USER)
         code, d = _get(c, 'order-board', BAR_LIG)
         it = _by_id(d)[P_BOTTLE]
-        assert it['on_order'] == 0 and it['recommended'] == 4 and it['urgency'] == 'medium'
+        assert it['on_order'] == 0 and it['recommended'] == 8 and it['urgency'] == 'medium'
         assert d['on_order_count'] == 0
 
 
@@ -654,6 +678,7 @@ def test_order_board_negative_stock_stays_critical_with_on_order():
         it = _by_id(d)[P_NEG]
         assert it['stock'] == -1.0 and it['on_order'] == 5.0 and it['effective_stock'] == 4.0
         assert it['urgency'] == 'critical'                 # учётная ошибка не лечится заказом
+        assert it['reason_code'] == 'negative_stock' and it['section'] == 'decide'
         assert d['items'][0]['product_id'] == P_NEG
 
 
@@ -671,7 +696,7 @@ def test_order_board_draft_qty_per_bar():
         _, net = _get(c, 'order-board', BAR_ALL)
         assert _by_id(net)[P_BOTTLE]['draft_qty'] == 5.0      # для «Общая» — сумма, только показ
         # черновик не влияет на рекомендацию (в пути — только отправленное)
-        assert _by_id(lig)[P_BOTTLE]['recommended'] == 4 and _by_id(lig)[P_BOTTLE]['on_order'] == 0
+        assert _by_id(lig)[P_BOTTLE]['recommended'] == 8 and _by_id(lig)[P_BOTTLE]['on_order'] == 0
 
 
 def test_order_board_reconciles_with_incoming_invoice():
@@ -705,6 +730,54 @@ def test_order_board_reconciles_with_incoming_invoice():
     assert store.get_order('other-bar')['status'] == 'sent'   # склад Кременчугской: прихода не было
 
 
+def test_order_board_uses_supplier_directory():
+    """Алиас склеивает написания, срок и дни доставки меняют горизонт и дату поставки.
+
+    «ИП Ромашка» (P_SAUCE, кухня) заведён как алиас «Ромашка» с доставкой только по
+    понедельникам и сроком 1: сегодня ср 05.11 → ближайшая пн 10.11 (5 дн.),
+    следующая пн 17.11 (12 дн.). Незаведённый «Лента» помечен как по умолчанию
+    после удаления из справочника.
+    """
+    directory = _temp_directory()
+    directory.upsert('Ромашка', {'aliases': ['ИП Ромашка'], 'lead_time_days': 1, 'delivery_weekdays': [0],
+                                 'pack_size': 6}, USER)
+    directory.delete('Лента')
+    with _patched(directory=directory) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert code == 200, d
+        sauce = _by_id(d)[P_SAUCE]
+        assert sauce['supplier'] == 'Ромашка' and sauce['supplier_raw'] == 'ИП Ромашка'
+        assert sauce['supplier_is_default'] is False and sauce['pack_size'] == 6
+        assert sauce['days_to_delivery'] == 5 and sauce['horizon_days'] == 12
+        assert sauce['expected_delivery'] == '2025-11-10' and sauce['next_delivery'] == '2025-11-17'
+        idle = _by_id(d)[P_IDLE]
+        assert idle['supplier'] == 'Лента' and idle['supplier_is_default'] is True
+        assert idle['lead_time_days'] == rs.DEFAULT_LEAD_TIME_DAYS
+        # кеги: кратность всегда 1, даже если у поставщика задана
+        directory.upsert('ООО "Арбореал"', {'pack_size': 30}, USER)
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert _by_id(d)[P_KEG_LAGER]['pack_size'] == 1
+
+
+def test_order_board_reason_phrases():
+    """Фраза-причина согласована с рекомендацией и секцией (S-14, S-15)."""
+    with _patched() as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        by = _by_id(d)
+        assert by[P_IDLE]['reason_code'] == 'no_movement' and by[P_IDLE]['section'] == 'idle'
+        assert by[P_IDLE]['reason'] == f'без движения {WINDOW} дн.'
+        assert by[P_SAUCE]['reason_code'] == 'slow' and by[P_SAUCE]['section'] == 'idle'
+        assert by[P_SAUCE]['reason'] == 'редко расходится (0.35 в нед.): не пополняем автоматически'
+        # P_NEW: 13 шт, расход 1/день, Лента срок 1: ближайшая чт 06.11 (1 дн.), следующая пт 07.11 (2 дн.);
+        # target = 1 × (2 + 3) = 5 < 13 → хватает
+        new = by[P_NEW]
+        assert new['recommended'] == 0 and new['reason_code'] == 'enough' and new['section'] == 'ok'
+        assert new['reason'] == 'хватит на 13 дн., до следующей поставки 2 дн.'
+        for it in d['items']:
+            assert (it['recommended'] > 0) == (it['reason_code'] == 'order'), it
+            assert (it['section'] == 'decide') == (it['recommended'] > 0 or it['stock'] < 0), it
+
+
 def test_order_board_survives_order_store_failure():
     def broken():
         raise OSError('disk gone')
@@ -713,7 +786,7 @@ def test_order_board_survives_order_store_failure():
         assert code == 200, d
         it = _by_id(d)[P_BOTTLE]
         assert it['on_order'] == 0 and it['draft_qty'] == 0 and it['open_orders'] == []
-        assert it['recommended'] == 4
+        assert it['recommended'] == 8
 
 
 def _run():

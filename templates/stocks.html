@@ -297,6 +297,89 @@
             border-bottom: none;
         }
 
+        /* Экран «К заказу» (этап 2 редизайна) */
+        .ob-banner {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .ob-banner.loading { background: var(--bg-tertiary); color: var(--text-secondary); }
+        .ob-banner.error { background: rgba(239, 68, 68, 0.12); color: #991b1b; }
+        .ob-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px; }
+        .ob-head h2 { margin-bottom: 4px; }
+        .ob-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .ob-help { font-size: 12px; color: var(--text-secondary); line-height: 1.5; max-width: 560px; }
+        .ob-help summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
+        .ob-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .ob-controls input[type="search"] { padding: 8px 12px; min-width: 220px; font-size: 13px; }
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .chip.active { background: var(--accent); border-color: var(--accent); color: white; }
+        .ob-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); text-transform: none; letter-spacing: 0; font-weight: 500; cursor: pointer; }
+        .ob-group { margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: var(--bg-primary); }
+        .ob-group-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 16px; background: var(--bg-tertiary); }
+        .ob-group-head h3 { margin: 0; font-size: 1.05rem; color: var(--accent); }
+        .ob-group-head .ob-group-meta { font-size: 12px; color: var(--text-secondary); }
+        .ob-group-head .ob-group-meta a { color: inherit; }
+        .ob-group-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .ob-table { margin-top: 0; font-size: 0.9rem; }
+        .ob-table th { font-size: 0.7rem; }
+        .ob-table td { vertical-align: top; }
+        .ob-row.critical { box-shadow: inset 4px 0 0 #991b1b; }
+        .ob-row.high { box-shadow: inset 4px 0 0 #d97706; }
+        .ob-row.medium { box-shadow: inset 4px 0 0 #f59e0b; }
+        .ob-name { font-weight: 600; background: none; border: none; padding: 0; color: var(--text-primary); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+        .ob-name:hover { color: var(--accent); }
+        .ob-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+        .ob-reason { font-size: 12px; line-height: 1.4; }
+        .ob-reason.order { color: var(--text-primary); }
+        .ob-reason.negative_stock { color: #991b1b; font-weight: 600; }
+        .ob-reason.near_expiry { color: #b45309; }
+        .ob-reason.in_transit, .ob-reason.enough, .ob-reason.no_movement, .ob-reason.slow { color: var(--text-secondary); }
+        .ob-order { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .ob-order input[type="number"] { width: 72px; padding: 6px 8px; }
+        .ob-take { padding: 5px 10px; font-size: 12px; white-space: nowrap; }
+        .ob-detail td { background: var(--bg-tertiary); font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+        .ob-detail code { font-size: 11px; }
+        .ob-idle { margin-top: 8px; }
+        .ob-idle summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 8px 0; }
+        .ob-idle .ob-table { margin-top: 8px; }
+        .ob-empty { padding: 16px; color: var(--text-secondary); font-size: 13px; }
+        .ob-sticky {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            z-index: 50;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+            padding: 10px 16px;
+            display: none;
+            justify-content: center;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+        .ob-sticky.visible { display: flex; }
+        body.has-sticky { padding-bottom: 64px; }
+        .tab .tab-count[hidden] { display: none; }
+        .tab .tab-count { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: var(--accent); color: white; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+
         /* Заказы поставщикам: карточки черновика / «в пути» / истории */
         .order-card {
             margin-top: 16px;
@@ -681,6 +764,27 @@
                 width: 18%;
             }
         }
+
+        /* Экран «К заказу» на телефоне: строка = карточка. Блок последний в таблице стилей и с
+           большей специфичностью, чтобы перекрыть общие мобильные ширины колонок выше. */
+        @media (max-width: 768px) {
+            table.ob-table, table.ob-table tbody, table.ob-table tr, table.ob-table td {
+                display: block;
+                width: 100% !important;
+                max-width: none !important;
+                box-sizing: border-box;
+            }
+            table.ob-table thead { display: none; }
+            table.ob-table tr.ob-row { padding: 10px 12px; border-bottom: 1px solid var(--border-color); }
+            table.ob-table td { padding: 2px 0; border: none; text-align: left; font-size: 0.85rem; }
+            table.ob-table td[data-label]::before { content: attr(data-label) ': '; color: var(--text-secondary); font-size: 11px; }
+            table.ob-table td.ob-cell-name::before { content: none; }
+            table.ob-table .ob-order { margin-top: 6px; }
+            table.ob-table td input[type="number"] { width: 72px !important; max-width: 72px !important; font-size: 0.85rem; padding: 6px 8px; }
+            table.ob-table .ob-take { width: auto; white-space: nowrap; font-size: 12px; padding: 6px 10px; }
+            table.ob-table .ob-reason { font-size: 0.85rem; }
+            table.ob-table tr.ob-detail td { padding: 8px 12px; }
+        }
     </style>
 </head>
 <body>
@@ -709,110 +813,56 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('order-board')">Сводный заказ</button>
-            <button class="tab" onclick="switchTab('taplist')">Таплист</button>
-            <button class="tab" onclick="switchTab('bottles')">Фасовка</button>
-            <button class="tab" onclick="switchTab('expiry')">Сроки годности</button>
-            <button class="tab" onclick="switchTab('kitchen')">Меню кухни</button>
-            <button class="tab" onclick="switchTab('order')">Формирование заказа</button>
+            <button class="tab active" data-tab="order-board" onclick="switchTab('order-board')">К заказу</button>
+            <button class="tab" data-tab="order" onclick="switchTab('order')">К отправке<span class="tab-count" id="order-tab-count" hidden>0</span></button>
+            <button class="tab" data-tab="taplist" onclick="switchTab('taplist')">Таплист</button>
+            <button class="tab" data-tab="bottles" onclick="switchTab('bottles')">Фасовка</button>
+            <button class="tab" data-tab="expiry" onclick="switchTab('expiry')">Сроки годности</button>
+            <button class="tab" data-tab="kitchen" onclick="switchTab('kitchen')">Меню кухни</button>
         </div>
 
-        <!-- Order Board Tab (главная: сводная таблица заказа с рекомендациями) -->
+        <!-- Экран «К заказу» (главная): группы по поставщику, фраза-причина, заказ в один тап -->
         <div id="order-board-tab" class="tab-content active">
-            <div class="card loading" id="loading-order-board">
-                <div class="spinner"></div>
-                <h2>Считаем рекомендации...</h2>
-            </div>
-
+            <div id="ob-banner"></div>
             <div class="card" id="order-board-content" style="display: none;">
-                <h2>Сводная таблица заказа</h2>
-                <div id="order-board-formula" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-                    <strong>Рекомендация</strong> = <code>расход_в_день × (срок_поставки + страховой_запас) − текущий_остаток</code>,
-                    округлено вверх до кратного партии. Страховой запас — 3 дня. Если до конца срока годности &lt; 14 дней — рекомендация 0.
-                    <br>
-                    <strong>Скорость расхода</strong> (в неделю): <span style="color: var(--text-secondary);">dead</span> = 0;
-                    <span style="color: var(--text-secondary);">slow</span> = &lt; 1 (раз в месяц или реже — <em>не пополняем автоматически</em>);
-                    regular = 1–7; fast = ≥ 7.
-                    <br>
-                    <strong>Срочность:</strong> <span style="color: #991b1b;">критическая</span> = остаток отрицательный или закончится за &lt;1 день;
-                    <span style="color: #d97706;">высокая</span> = поставка не успеет до окончания;
-                    <span style="color: #b45309;">средняя</span> = успеет, но без страхового запаса.
-                    Slow- и dead-mover'ы не считаются «срочными» даже при нулевом остатке.
-                    <br>
-                    <strong>Расход</strong> = продажи + перемещения из бара + списания по складу выбранного бара за 30 дней;
-                    для товара, которого в начале окна не было, — с первого прихода.
-                    <br>
-                    <strong>В пути</strong> = отправленные поставщику заказы, ещё не оприходованные в iiko (вкладка «Формирование заказа»).
-                    Рекомендация и срочность считаются от <code>остаток + в пути</code>, чтобы не заказать то же самое второй раз.
+                <div class="ob-head">
+                    <div>
+                        <h2>К заказу</h2>
+                        <div class="ob-meta" id="ob-meta"></div>
+                    </div>
+                    <details class="ob-help">
+                        <summary>Как считается</summary>
+                        <div style="margin-top: 6px;">
+                            <strong>Нужно</strong> = расход в день × (дней до следующей поставки + 3 дня запаса).
+                            Дней до следующей поставки: заказ, отправленный сегодня, приедет в ближайший день доставки поставщика
+                            по его сроку, а дожить должен до поставки, следующей за ней (заказ в четверг с поставкой в пятницу
+                            покрывает выходные до понедельника). Срок и дни доставки — в <a href="/suppliers">справочнике поставщиков</a>.
+                            <br><strong>Заказать</strong> = нужно − остаток − в пути, вверх до кратности упаковки. Кеги в литрах, без кратности.
+                            <br><strong>Расход</strong> = продажи + перемещения из бара + списания по складу выбранного бара за 30 дней;
+                            для товара, которого в начале окна не было, — с первого прихода.
+                            <br><strong>В пути</strong> = отправленные поставщику заказы, ещё не оприходованные в iiko (вкладка «К отправке»).
+                            <br><strong>Не заказываем</strong>: партия истекает раньше 14 дней; без движения 30 дней; реже одной продажи в неделю;
+                            отрицательный остаток — проверить учёт.
+                            <br><strong>Хватит дн.</strong> = остаток на полке ÷ расход в день (без учёта «в пути»).
+                        </div>
+                    </details>
                 </div>
-
-                <div id="order-board-meta" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;"></div>
-
-                <div class="stats-grid" id="order-board-stats"></div>
-
-                <!-- Фильтры -->
-                <div style="display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: end;">
-                    <div class="form-group" style="min-width: 130px;">
-                        <label>Тип</label>
-                        <select id="ob-filter-type" onchange="renderOrderBoard()">
-                            <option value="">Все</option>
-                            <option value="bottle">Фасовка</option>
-                            <option value="draft">Кеги</option>
-                            <option value="kitchen">Кухня</option>
-                        </select>
+                <div class="ob-controls">
+                    <input type="search" id="ob-search" placeholder="Поиск по названию" oninput="renderOrderBoard()">
+                    <div class="chips" id="ob-chips">
+                        <button class="chip active" data-kind="" onclick="setKind('')">Все</button>
+                        <button class="chip" data-kind="draft" onclick="setKind('draft')">Кеги</button>
+                        <button class="chip" data-kind="bottle" onclick="setKind('bottle')">Фасовка</button>
+                        <button class="chip" data-kind="kitchen" onclick="setKind('kitchen')">Кухня</button>
                     </div>
-                    <div class="form-group" style="min-width: 180px;">
-                        <label>Поставщик</label>
-                        <select id="ob-filter-supplier" onchange="renderOrderBoard()">
-                            <option value="">Все</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="min-width: 130px;">
-                        <label>Срочность</label>
-                        <select id="ob-filter-urgency" onchange="renderOrderBoard()">
-                            <option value="">Любая</option>
-                            <option value="critical">Критическая</option>
-                            <option value="high">Высокая</option>
-                            <option value="medium">Средняя</option>
-                            <option value="needs">Требует заказа (рекомендация &gt; 0)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="min-width: 130px;">
-                        <label>Скорость</label>
-                        <select id="ob-filter-velocity" onchange="renderOrderBoard()">
-                            <option value="active">Только активные (regular+fast)</option>
-                            <option value="">Все</option>
-                            <option value="fast">Только fast</option>
-                            <option value="regular">Только regular</option>
-                            <option value="slow">Только slow</option>
-                            <option value="dead">Только dead</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-secondary" onclick="applyAllRecommendations()" style="height: 44px;">
-                        Применить рекомендации
-                    </button>
+                    <label class="ob-toggle"><input type="checkbox" id="ob-show-all" onchange="renderOrderBoard()"> показать и то, чего хватает</label>
+                    <button class="btn btn-secondary btn-small" onclick="applyAllRecommendations()">Взять все рекомендации</button>
                 </div>
-
-                <table id="order-board-table">
-                    <thead>
-                        <tr>
-                            <th>Срочность</th>
-                            <th>Поставщик</th>
-                            <th>Позиция</th>
-                            <th>Тип</th>
-                            <th>Скорость</th>
-                            <th>Остаток</th>
-                            <th>В пути</th>
-                            <th>Расход в неделю</th>
-                            <th>Хватит дн.</th>
-                            <th>Поставка дн.</th>
-                            <th>Истекает</th>
-                            <th>Рекомендация</th>
-                            <th>В заказ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="order-board-tbody"></tbody>
-                </table>
+                <div id="ob-groups"></div>
+                <details class="ob-idle" id="ob-idle">
+                    <summary id="ob-idle-summary">Без движения или редко</summary>
+                    <div id="ob-idle-list"></div>
+                </details>
             </div>
         </div>
 
@@ -917,14 +967,19 @@
         </div>
     </div>
 
+    <div class="ob-sticky" id="ob-sticky">
+        <span id="ob-sticky-text"></span>
+        <button class="btn btn-small" onclick="switchTab('order')">К отправке</button>
+    </div>
+
     <script>
         let currentBar = '';
 
-        // Escape HTML entities
+        // Экранирование для innerHTML и атрибутов: кавычки тоже (имена вроде ООО "Май", S-09)
         function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            return String(text === null || text === undefined ? '' : text)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         // Fetch with retry (handles 502 from Render wake-up / iiko timeouts)
@@ -985,188 +1040,358 @@
             // Черновик и заказы не зависят от выбранного бара — грузим сразу
             loadDrafts();
             loadOrders();
+            // Вход без ритуала: бар выбирается сам, доска грузится сразу
+            const bar = initialBar();
+            if (bar) {
+                document.getElementById('bar-select').value = bar;
+                loadStocks();
+            }
         });
 
-        // Tab switching
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
+        // Вкладки: остальные экраны грузятся лениво при первом открытии для текущего бара
+        const TAB_LOADERS = {taplist: loadTaplist, bottles: loadBottles, expiry: loadExpiry, kitchen: loadKitchenMenu};
+        let tabLoadedFor = {};   // имя вкладки → бар, для которого она загружена
 
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(tabName + '-tab').classList.add('active');
+            const loader = TAB_LOADERS[tabName];
+            if (loader && currentBar && tabLoadedFor[tabName] !== currentBar) {
+                tabLoadedFor[tabName] = currentBar;
+                loader(currentBar).then(syncDraftInputs);
+            }
+            if (tabName === 'order-board') window.scrollTo({top: 0});
+            renderStickyPanel();
         }
 
-        // Load stocks data
+        // Бар: ?bar= → localStorage → первый в списке; выбор запоминается (S-25, вход без ритуала)
+        const BAR_STORAGE_KEY = 'stocks.bar';
+        function initialBar() {
+            const options = [...document.querySelectorAll('#bar-select option')].map(o => o.value).filter(Boolean);
+            const fromUrl = new URLSearchParams(location.search).get('bar');
+            let stored = null;
+            try { stored = localStorage.getItem(BAR_STORAGE_KEY); } catch (e) { stored = null; }
+            return [fromUrl, stored, options[0]].find(b => b && options.includes(b)) || '';
+        }
+        function rememberBar(bar) {
+            try { localStorage.setItem(BAR_STORAGE_KEY, bar); } catch (e) { /* приватный режим */ }
+            const url = new URL(location.href);
+            url.searchParams.set('bar', bar);
+            history.replaceState(null, '', url);
+        }
+
+        // Смена бара: фильтр над кэшированным снимком сети, а не перезапуск всей страницы
         async function loadStocks() {
             const bar = document.getElementById('bar-select').value;
-            if (!bar) {
-                alert('Пожалуйста, выберите бар');
-                return;
-            }
-
+            if (!bar) return;
             currentBar = bar;
-
-            // Load all data in parallel
-            await Promise.allSettled([
-                loadOrderBoard(bar),
-                loadTaplist(bar),
-                loadBottles(bar),
-                loadExpiry(bar),
-                loadKitchenMenu(bar)
-            ]);
+            rememberBar(bar);
+            tabLoadedFor = {};
+            const active = document.querySelector('.tab.active');
+            const activeTab = active ? active.dataset.tab : 'order-board';
+            const jobs = [loadOrderBoard(bar)];
+            if (TAB_LOADERS[activeTab]) {
+                tabLoadedFor[activeTab] = bar;
+                jobs.push(TAB_LOADERS[activeTab](bar));
+            }
+            await Promise.allSettled(jobs);
             syncDraftInputs();
         }
 
-        // === Сводный заказ (Order Board) ===
+        // === Экран «К заказу» (order-board) ===
         let orderBoardData = null;  // последний ответ /api/stocks/order-board
+        let obKind = '';            // чип: '' | draft | bottle | kitchen
+        let obOpenDetails = new Set();   // product_id раскрытых строк
+        let obRequestSeq = 0;       // защита от позднего ответа прошлого бара (S-25)
+        const URGENCY_RANK = {critical: 0, high: 1, medium: 2, low: 3};
+        const KIND_LABELS = {draft: 'кеги', bottle: 'фасовка', kitchen: 'кухня'};
+        const DOC_TYPE_LABELS = {SALES_DOCUMENT: 'продажи', INTERNAL_TRANSFER: 'перемещения', WRITEOFF_DOCUMENT: 'списания',
+                                 OUTGOING_INVOICE: 'расходные накладные', INVENTORY_CORRECTION: 'инвентаризация'};
+
+        // Ошибка вкладки — строкой внутри вкладки, а не alert (S-25)
+        function showTabError(tab, text) {
+            const container = document.getElementById(tab + '-tab');
+            if (!container) return;
+            let banner = container.querySelector('.tab-error');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.className = 'ob-banner error tab-error';
+                container.insertBefore(banner, container.firstChild);
+            }
+            banner.innerHTML = `<span>${escapeHtml(text)}</span><button class="btn btn-secondary btn-small" onclick="loadStocks()">Повторить</button>`;
+        }
+        function clearTabError(tab) {
+            const container = document.getElementById(tab + '-tab');
+            const banner = container ? container.querySelector('.tab-error') : null;
+            if (banner) banner.remove();
+        }
+
+        function showBoardBanner(kind, text, retry) {
+            const b = document.getElementById('ob-banner');
+            if (!kind) { b.innerHTML = ''; return; }
+            b.innerHTML = `<div class="ob-banner ${kind}"><span>${escapeHtml(text)}</span>${retry ? '<button class="btn btn-secondary btn-small" onclick="loadStocks()">Повторить</button>' : ''}</div>`;
+        }
 
         async function loadOrderBoard(bar) {
-            const loading = document.getElementById('loading-order-board');
             const content = document.getElementById('order-board-content');
-            loading.classList.add('active');
-            content.style.display = 'none';
-
+            const seq = ++obRequestSeq;
+            showBoardBanner('loading', 'Считаем, что заказать для «' + bar + '»: остатки и операции iiko за 30 дней...');
             try {
                 const response = await fetchWithRetry(`/api/stocks/order-board?bar=${encodeURIComponent(bar)}`);
-                if (!response.ok) throw new Error(`Ошибка загрузки (${response.status})`);
-                orderBoardData = await response.json();
-
-                // Заполняем фильтр поставщиков
-                const suppliers = [...new Set(orderBoardData.items.map(i => i.supplier))].sort();
-                const supplierSelect = document.getElementById('ob-filter-supplier');
-                supplierSelect.innerHTML = '<option value="">Все</option>' +
-                    suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-
+                let payload = null;
+                try { payload = await response.json(); } catch (e) { payload = null; }
+                if (seq !== obRequestSeq) return;   // бар уже сменили — этот ответ устарел
+                if (!response.ok) {
+                    const msg = (payload && payload.error) ? payload.error : ('Ошибка загрузки (' + response.status + ')');
+                    throw new Error(msg);
+                }
+                orderBoardData = payload;
                 renderOrderBoard();
                 content.style.display = 'block';
+                showBoardBanner(null);
             } catch (error) {
+                if (seq !== obRequestSeq) return;
                 console.error('Error loading order board:', error);
-                alert('Ошибка загрузки сводного заказа: ' + error.message);
-            } finally {
-                loading.classList.remove('active');
+                content.style.display = 'none';
+                showBoardBanner('error', 'Не удалось получить данные iiko: ' + error.message, true);
             }
+        }
+
+        function setKind(kind) {
+            obKind = kind;
+            document.querySelectorAll('#ob-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.kind === kind));
+            renderOrderBoard();
+        }
+
+        function fmtTime(iso) {
+            if (!iso) return 'нет данных';
+            const d = new Date(iso);
+            if (isNaN(d)) return String(iso);
+            const today = new Date();
+            const sameDay = d.toDateString() === today.toDateString();
+            const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            return sameDay ? hm : (fmtDate(d.toISOString().slice(0, 10)) + ' ' + hm);
+        }
+
+        function boardFilter() {
+            const search = (document.getElementById('ob-search').value || '').trim().toLowerCase();
+            const showAll = document.getElementById('ob-show-all').checked;
+            return item => {
+                if (obKind && item.type !== obKind) return false;
+                if (search && !(item.name || '').toLowerCase().includes(search)) return false;
+                return true;
+            };
+        }
+
+        function rowVisible(item, showAll) {
+            if (item.section === 'decide') return true;
+            if (draftQtyFor(item.product_id, orderBoardData.bar) > 0) return true;
+            return showAll && item.section === 'ok';
         }
 
         function renderOrderBoard() {
             if (!orderBoardData) return;
             const data = orderBoardData;
+            const bar = data.bar;
 
-            const meta = document.getElementById('order-board-meta');
-            if (meta) {
-                const at = data.updated_at ? new Date(data.updated_at).toLocaleString('ru-RU') : 'нет данных';
-                const scope = data.consumption_scope === 'store'
-                    ? 'по складу бара «' + (data.bar || '') + '»'
-                    : 'по всей сети';
-                meta.textContent = 'Остатки и операции iiko на ' + at + '. Расход за ' + (data.window_days || 30)
-                    + ' дн. ' + scope + ': продажи, перемещения из бара, списания; для товара, которого не было в начале окна, — с первого прихода.'
-                    + (data.on_order_count ? ' В пути: ' + data.on_order_count + ' поз.' : '')
-                    + (data.bar === 'Общая' ? ' Чтобы добавить в заказ, выберите конкретный бар.' : '');
-            }
-            const filterType = document.getElementById('ob-filter-type').value;
-            const filterSupplier = document.getElementById('ob-filter-supplier').value;
-            const filterUrgency = document.getElementById('ob-filter-urgency').value;
-            const filterVelocity = document.getElementById('ob-filter-velocity').value;
+            const meta = document.getElementById('ob-meta');
+            const scope = data.consumption_scope === 'store' ? 'по складу бара' : 'по всей сети';
+            meta.textContent = bar + ' · ' + fmtDate(data.today) + ' · остатки iiko на ' + fmtTime(data.updated_at)
+                + (data.chz_updated_at ? ' · сроки ЧЗ на ' + fmtTime(data.chz_updated_at) : ' · ЧЗ: нет данных')
+                + ' · расход за ' + (data.window_days || 30) + ' дн. ' + scope
+                + (data.on_order_count ? ' · в пути: ' + data.on_order_count + ' поз.' : '');
 
-            const filtered = data.items.filter(item => {
-                if (filterType && item.type !== filterType) return false;
-                if (filterSupplier && item.supplier !== filterSupplier) return false;
-                if (filterUrgency === 'needs' && item.recommended <= 0) return false;
-                if (filterUrgency && filterUrgency !== 'needs' && item.urgency !== filterUrgency) return false;
-                if (filterVelocity === 'active') {
-                    if (item.velocity !== 'regular' && item.velocity !== 'fast') return false;
-                } else if (filterVelocity && item.velocity !== filterVelocity) return false;
-                return true;
+            const showAll = document.getElementById('ob-show-all').checked;
+            const passes = boardFilter();
+            const filtered = data.items.filter(passes);
+
+            // Группы по поставщику: срочность группы = лучшая срочность среди строк к решению
+            const groups = new Map();
+            filtered.forEach(item => {
+                if (item.section === 'idle' && draftQtyFor(item.product_id, bar) <= 0) return;
+                if (!rowVisible(item, showAll)) return;
+                let g = groups.get(item.supplier);
+                if (!g) {
+                    g = {supplier: item.supplier, items: [], rank: 99, decide: 0, is_default: item.supplier_is_default,
+                         self_pickup: item.self_pickup, lead: item.lead_time_days, expected: item.expected_delivery,
+                         next: item.next_delivery};
+                    groups.set(item.supplier, g);
+                }
+                g.items.push(item);
+                if (item.section === 'decide') {
+                    g.decide++;
+                    g.rank = Math.min(g.rank, URGENCY_RANK[item.urgency] === undefined ? 99 : URGENCY_RANK[item.urgency]);
+                }
             });
+            const ordered = [...groups.values()].sort((a, b) => (a.rank - b.rank) || (b.decide - a.decide) || a.supplier.localeCompare(b.supplier, 'ru'));
 
-            // Stats
-            const recoSum = filtered.reduce((s, i) => s + i.recommended, 0);
-            const statsHtml = `
-                <div class="stat-card">
-                    <div class="label">Активных позиций</div>
-                    <div class="value">${data.active_count}</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">из ${data.total_items} (regular+fast)</div>
-                </div>
-                <div class="stat-card" style="border-color: #991b1b;">
-                    <div class="label" style="color: #991b1b;">Критических</div>
-                    <div class="value" style="color: #991b1b;">${data.critical_count}</div>
-                </div>
-                <div class="stat-card" style="border-color: #d97706;">
-                    <div class="label" style="color: #d97706;">Высокая срочность</div>
-                    <div class="value" style="color: #d97706;">${data.high_count}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Slow / Dead</div>
-                    <div class="value" style="font-size: 1.4rem;">${data.slow_count} / ${data.dead_count}</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">скрыты по умолчанию</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Сумма рекомендаций</div>
-                    <div class="value">${recoSum}</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">по текущему фильтру</div>
+            const box = document.getElementById('ob-groups');
+            box.innerHTML = '';
+            if (ordered.length === 0) {
+                const idleN = filtered.filter(i => i.section === 'idle').length;
+                box.innerHTML = '<div class="ob-empty">Заказывать нечего: всего хватает до следующей поставки'
+                    + (idleN ? ', а ' + idleN + ' поз. без движения — ниже' : '') + '.'
+                    + (showAll ? '' : ' Включите «показать и то, чего хватает», чтобы увидеть остальные позиции.') + '</div>';
+            }
+            ordered.forEach(g => box.appendChild(groupCard(g, bar)));
+
+            // Свёрнутый блок: без движения / редко (никогда не «Норма» и никогда не исчезает)
+            const idle = filtered.filter(i => i.section === 'idle' && draftQtyFor(i.product_id, bar) <= 0)
+                .sort((a, b) => a.supplier.localeCompare(b.supplier, 'ru') || a.name.localeCompare(b.name, 'ru'));
+            document.getElementById('ob-idle-summary').textContent = 'Без движения или редко (' + idle.length + ')';
+            const idleBox = document.getElementById('ob-idle-list');
+            idleBox.innerHTML = '';
+            document.getElementById('ob-idle').style.display = idle.length ? '' : 'none';
+            if (idle.length) idleBox.appendChild(rowsTable(idle, bar, true));
+
+            syncDraftInputs();
+        }
+
+        function groupCard(g, bar) {
+            const card = document.createElement('div');
+            card.className = 'ob-group';
+            const recoItems = g.items.filter(i => i.recommended > 0);
+            const metaParts = [
+                'поставка ' + fmtDate(g.expected) + ', следующая ' + fmtDate(g.next),
+                'срок ' + g.lead + ' дн.' + (g.is_default ? ' (по умолчанию)' : ''),
+            ];
+            if (g.self_pickup) metaParts.push('самовывоз');
+            card.innerHTML = `
+                <div class="ob-group-head">
+                    <div>
+                        <h3>${escapeHtml(g.supplier)}</h3>
+                        <div class="ob-group-meta">${escapeHtml(metaParts.join(' · '))} · <a href="/suppliers" title="Срок и дни доставки, написания">настроить</a></div>
+                    </div>
+                    <div class="ob-group-actions">
+                        <span class="ob-group-meta">к решению: ${g.decide}</span>
+                        ${recoItems.length ? '<button class="btn btn-secondary btn-small" data-action="take-group">Взять рекомендации (' + recoItems.length + ')</button>' : ''}
+                    </div>
                 </div>
             `;
-            document.getElementById('order-board-stats').innerHTML = statsHtml;
+            const sorted = [...g.items].sort((a, b) => {
+                const ra = URGENCY_RANK[a.urgency] === undefined ? 99 : URGENCY_RANK[a.urgency];
+                const rb = URGENCY_RANK[b.urgency] === undefined ? 99 : URGENCY_RANK[b.urgency];
+                if (ra !== rb) return ra - rb;
+                const da = a.days_left === null ? 9999 : a.days_left;
+                const db = b.days_left === null ? 9999 : b.days_left;
+                return (da - db) || a.name.localeCompare(b.name, 'ru');
+            });
+            card.appendChild(rowsTable(sorted, bar, false));
+            const take = card.querySelector('[data-action="take-group"]');
+            if (take) take.addEventListener('click', () => takeRecommendations(recoItems, bar));
+            return card;
+        }
 
-            // Table rows
-            const tbody = document.getElementById('order-board-tbody');
-            tbody.innerHTML = '';
-            const renderBar = data.bar;   // строки пишут в черновик того бара, для которого построены
-            filtered.forEach(item => {
+        function rowsTable(items, bar, idle) {
+            const table = document.createElement('table');
+            table.className = 'ob-table';
+            table.innerHTML = `
+                <thead><tr>
+                    <th style="width: 32%;">Позиция</th>
+                    <th>Остаток</th>
+                    <th>Хватит дн.</th>
+                    <th style="width: 30%;">Причина</th>
+                    <th>Заказ</th>
+                </tr></thead>
+                <tbody></tbody>`;
+            const tbody = table.querySelector('tbody');
+            items.forEach(item => {
                 const row = document.createElement('tr');
-                row.setAttribute('style', orderBoardRowStyle(item));
-
-                const expiryCell = item.nearest_expiry
-                    ? `${escapeHtml(item.nearest_expiry)} <span style="color: var(--text-secondary); font-size: 11px;">(${item.days_to_expiry}д)</span>`
-                    : (item.type === 'bottle' ? '<span style="color: var(--text-secondary);">нет в ЧЗ</span>' : '—');
-
-                const daysLeftCell = item.days_left !== null
-                    ? item.days_left.toFixed(1)
-                    : '<span style="color: var(--text-secondary);">нет продаж</span>';
-
-                const stockStyle = item.stock < 0 ? 'color: #991b1b; font-weight: 700;' : '';
-
-                const onOrder = item.on_order || 0;
-                const onOrderCell = onOrder > 0
-                    ? `<span title="${escapeHtml(openOrdersTitle(item))}" style="font-weight: 600; cursor: help;">${fmtQty(onOrder)}</span>`
-                    : '<span style="color: var(--text-secondary);">—</span>';
-                const recoTitle = onOrder > 0
-                    ? `Считается от остаток + в пути = ${fmtQty(item.effective_stock)} ${item.unit}`
-                    : '';
-
+                row.className = 'ob-row ' + (item.section === 'decide' ? item.urgency : '');
+                const onOrder = item.on_order > 0
+                    ? `<div class="ob-sub" title="${escapeHtml(openOrdersTitle(item))}">в пути ${fmtQty(item.on_order)}</div>` : '';
+                const sub = [KIND_LABELS[item.type] || item.type];
+                if (idle) sub.push(item.supplier);
+                if (item.is_new) sub.push('новинка, ' + item.days_in_period + ' дн.');
+                const daysLeft = item.days_left === null
+                    ? '<span style="color: var(--text-secondary);">—</span>'
+                    : fmtQty(item.days_left);
+                const canTake = item.recommended > 0;
                 row.innerHTML = `
-                    <td><span class="badge ${urgencyBadgeClass(item.urgency)}">${urgencyLabel(item.urgency)}</span></td>
-                    <td>${escapeHtml(item.supplier)}</td>
-                    <td>${escapeHtml(item.name)}</td>
-                    <td>${typeLabel(item.type)}</td>
-                    <td><span style="font-size: 11px; color: ${velocityColor(item.velocity)}; font-weight: 600;">${velocityLabel(item.velocity)}</span></td>
-                    <td style="${stockStyle}">${item.stock} ${escapeHtml(item.unit)}</td>
-                    <td>${onOrderCell}</td>
-                    <td>${item.weekly_sales.toFixed(2)}</td>
-                    <td>${daysLeftCell}</td>
-                    <td>${item.lead_time_days}</td>
-                    <td>${expiryCell}</td>
-                    <td title="${escapeHtml(recoTitle)}"><strong>${item.recommended}</strong> ${escapeHtml(item.unit)}</td>
-                    <td>
-                        <input type="number" min="0" step="any" value="0"
-                            data-product-id="${escapeHtml(item.product_id)}"
-                            data-bar="${escapeHtml(renderBar)}"
-                            data-recommended="${item.recommended}"
-                            style="width: 70px;">
+                    <td class="ob-cell-name">
+                        <button class="ob-name" type="button" title="Подробнее: формула, расход, приходы">${escapeHtml(item.name)}</button>
+                        <div class="ob-sub">${escapeHtml(sub.join(' · '))}</div>
+                    </td>
+                    <td data-label="Остаток">${item.stock < 0 ? '<span style="color: #991b1b; font-weight: 700;">' : ''}${fmtQty(item.stock)} ${escapeHtml(item.unit)}${item.stock < 0 ? '</span>' : ''}${onOrder}</td>
+                    <td data-label="Хватит дн.">${daysLeft}</td>
+                    <td data-label="Почему"><span class="ob-reason ${escapeHtml(item.reason_code || '')}">${escapeHtml(item.reason || '')}</span></td>
+                    <td data-label="Заказ">
+                        <div class="ob-order">
+                            <input type="number" min="0" step="any" value="0" placeholder="0"
+                                data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}"
+                                data-recommended="${item.recommended}" aria-label="Заказать ${escapeHtml(item.name)}">
+                            <span style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(item.unit)}</span>
+                            ${canTake ? `<button class="btn btn-secondary btn-small ob-take" type="button" data-take="${item.recommended}">Взять ${fmtQty(item.recommended)}</button>` : ''}
+                        </div>
                     </td>
                 `;
                 const input = row.querySelector('input');
-                input.addEventListener('change', function() {
-                    setDraftQty(item, this.value, renderBar);
-                });
+                input.addEventListener('change', function() { setDraftQty(item, this.value, bar); });
+                const take = row.querySelector('.ob-take');
+                if (take) take.addEventListener('click', () => setDraftQty(item, item.recommended, bar));
+                row.querySelector('.ob-name').addEventListener('click', () => toggleDetail(item.product_id));
                 tbody.appendChild(row);
+
+                const detail = document.createElement('tr');
+                detail.className = 'ob-detail';
+                detail.dataset.detailFor = item.product_id;
+                detail.hidden = !obOpenDetails.has(item.product_id);
+                detail.innerHTML = `<td colspan="5">${detailHtml(item)}</td>`;
+                tbody.appendChild(detail);
             });
-            syncDraftInputs();
+            return table;
+        }
+
+        function toggleDetail(productId) {
+            if (obOpenDetails.has(productId)) obOpenDetails.delete(productId); else obOpenDetails.add(productId);
+            document.querySelectorAll(`tr.ob-detail[data-detail-for="${CSS.escape(productId)}"]`).forEach(tr => {
+                tr.hidden = !obOpenDetails.has(productId);
+            });
+        }
+
+        function detailHtml(item) {
+            const u = escapeHtml(item.unit);
+            const lines = [];
+            const safety = orderBoardData.safety_days;
+            lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDate(item.next_delivery)} + ${safety} дн. запаса)`);
+            lines.push(`<strong>Есть</strong> ${fmtQty(item.stock)} ${u}` + (item.on_order > 0 ? ` + в пути ${fmtQty(item.on_order)} = ${fmtQty(item.effective_stock)}` : '')
+                + (item.recommended > 0 ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>` + (item.pack_size > 1 ? ` (кратность ${item.pack_size})` : '') + `, приедет ${fmtDate(item.expected_delivery)}` : ' → заказывать не нужно'));
+            const byType = Object.entries(item.consumption_by_type || {});
+            const breakdown = byType.length
+                ? byType.map(([k, v]) => (DOC_TYPE_LABELS[k] || k) + ' ' + fmtQty(v)).join(', ')
+                : 'операций нет';
+            lines.push(`<strong>Расход</strong> за ${item.days_in_period} дн.${item.is_new ? ' (с первого прихода)' : ''}: ${escapeHtml(breakdown)} → ${fmtQty(item.avg_sales)} ${u} в день, ${fmtQty(item.weekly_sales)} в неделю`);
+            if (item.last_incoming) lines.push(`<strong>Последний приход</strong> ${fmtDate(item.last_incoming.date)}: ${fmtQty(item.last_incoming.amount)} ${u}`);
+            if (item.open_orders && item.open_orders.length) {
+                lines.push('<strong>В пути</strong>: ' + item.open_orders.map(o => escapeHtml(o.supplier) + ' ' + fmtQty(o.qty) + ' ' + u
+                    + (o.expected_at ? ', ожидается ' + fmtDate(o.expected_at) : '') + ' (' + escapeHtml((ORDER_STATUS_LABELS[o.status] || o.status).toLowerCase()) + ')').join('; '));
+            }
+            if (item.type === 'bottle') {
+                lines.push('<strong>Срок годности</strong>: ' + (item.nearest_expiry
+                    ? fmtDate(item.nearest_expiry) + ' (' + item.days_to_expiry + ' дн.)' : 'нет данных ЧЗ') + ' · <a href="/expiration">партии</a>');
+            }
+            if (item.type === 'draft') lines.push('<a href="/taps">Краны бара</a>');
+            if (item.supplier_raw && item.supplier_raw !== item.supplier) lines.push('Категория в iiko: ' + escapeHtml(item.supplier_raw));
+            return lines.join('<br>');
+        }
+
+        async function takeRecommendations(items, bar) {
+            if (!canOrderFor(bar)) { alert('Выберите конкретный бар: заказ приезжает на склад бара'); return; }
+            const payload = items.filter(it => it.recommended > 0).map(it => draftPayload(it, it.recommended, bar));
+            if (payload.length === 0) { alert('Нет позиций с рекомендацией'); return; }
+            try {
+                applyDrafts(await postJson('/api/orders/draft/batch', {items: payload}));
+            } catch (error) {
+                alert('Не удалось положить в заказ: ' + error.message);
+            }
+        }
+
+        async function applyAllRecommendations() {
+            // Рекомендации всех видимых (по чипу и поиску) строк — в общий черновик одним запросом
+            if (!orderBoardData) return;
+            const passes = boardFilter();
+            await takeRecommendations(orderBoardData.items.filter(passes), orderBoardData.bar);
         }
 
         function openOrdersTitle(item) {
@@ -1177,67 +1402,11 @@
             ).join('\n');
         }
 
-        function velocityLabel(v) {
-            if (v === 'fast') return 'fast';
-            if (v === 'regular') return 'regular';
-            if (v === 'slow') return 'slow';
-            if (v === 'dead') return 'dead';
-            return v;
-        }
-        function velocityColor(v) {
-            if (v === 'fast') return '#059669';
-            if (v === 'regular') return 'var(--text-primary)';
-            if (v === 'slow') return 'var(--text-secondary)';
-            if (v === 'dead') return '#9ca3af';
-            return 'var(--text-secondary)';
-        }
-
-        async function applyAllRecommendations() {
-            // Кладёт в общий черновик рекомендации по видимым (не скрытым фильтром) строкам одним запросом
-            if (!orderBoardData) return;
-            if (!canOrderForCurrentBar()) {
-                alert('Выберите конкретный бар: заказ приезжает на склад бара');
-                return;
-            }
-            const tbody = document.getElementById('order-board-tbody');
-            const visible = new Set([...tbody.querySelectorAll('input[data-product-id]')].map(i => i.dataset.productId));
-            const items = orderBoardData.items
-                .filter(it => visible.has(it.product_id) && it.recommended > 0)
-                .map(it => draftPayload(it, it.recommended, currentBar));
-            if (items.length === 0) {
-                alert('Нет позиций с рекомендацией > 0 (или все скрыты фильтром)');
-                return;
-            }
-            try {
-                applyDrafts(await postJson('/api/orders/draft/batch', {items: items}));
-            } catch (error) {
-                alert('Не удалось применить рекомендации: ' + error.message);
-            }
-        }
-
-        function urgencyBadgeClass(u) {
-            if (u === 'critical') return 'negative';
-            if (u === 'high') return 'low';
-            if (u === 'medium') return 'medium';
-            return 'high';
-        }
-        function urgencyLabel(u) {
-            if (u === 'critical') return 'Критич.';
-            if (u === 'high') return 'Высокая';
-            if (u === 'medium') return 'Средняя';
-            return 'Норма';
-        }
         function typeLabel(t) {
             if (t === 'bottle') return 'Фасовка';
             if (t === 'draft') return 'Кеги';
             if (t === 'kitchen') return 'Кухня';
             return t;
-        }
-        function orderBoardRowStyle(item) {
-            if (item.urgency === 'critical') return 'background: rgba(239, 68, 68, 0.18);';
-            if (item.urgency === 'high') return 'background: rgba(245, 158, 11, 0.12);';
-            if (item.days_to_expiry !== null && item.days_to_expiry < 30) return 'background: rgba(239, 68, 68, 0.06);';
-            return '';
         }
 
         // Load taplist
@@ -1297,7 +1466,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading taplist:', error);
-                alert('Ошибка загрузки таплиста: ' + error.message);
+                showTabError('taplist', 'Ошибка загрузки таплиста: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1389,7 +1558,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading bottles:', error);
-                alert('Ошибка загрузки фасовки: ' + error.message);
+                showTabError('bottles', 'Ошибка загрузки фасовки: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1583,7 +1752,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading expiry:', error);
-                alert('Ошибка загрузки сроков годности: ' + error.message);
+                showTabError('expiry', 'Ошибка загрузки сроков годности: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1674,7 +1843,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading kitchen menu:', error);
-                alert('Ошибка загрузки меню кухни: ' + error.message);
+                showTabError('kitchen', 'Ошибка загрузки меню кухни: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1762,7 +1931,31 @@
                 inp.disabled = disabled;
                 inp.title = disabled ? 'Выберите конкретный бар, чтобы добавить в заказ' : '';
                 inp.value = disabled ? 0 : draftQtyFor(inp.dataset.productId, bar);
+                // Кнопка «Взять N» не нужна, когда в черновике уже ровно рекомендация
+                const take = inp.parentElement ? inp.parentElement.querySelector('.ob-take') : null;
+                if (take) take.style.display = (Number(inp.value) === Number(take.dataset.take)) ? 'none' : '';
             });
+            renderStickyPanel();
+        }
+
+        // Липкая панель: «Заказ: N позиций · M поставщиков · К отправке» на любом экране
+        function renderStickyPanel() {
+            const panel = document.getElementById('ob-sticky');
+            const count = document.getElementById('order-tab-count');
+            const positions = draftsData.reduce((n, d) => n + (d.items || []).length, 0);
+            const suppliers = draftsData.length;
+            if (count) { count.textContent = positions; count.hidden = positions === 0; }
+            if (!panel) return;
+            const onOrderTab = document.getElementById('order-tab').classList.contains('active');
+            if (positions === 0 || onOrderTab) {
+                panel.classList.remove('visible');
+                document.body.classList.remove('has-sticky');
+                return;
+            }
+            document.getElementById('ob-sticky-text').textContent = 'Заказ: ' + positions + ' поз. · ' + suppliers
+                + ' ' + (suppliers === 1 ? 'поставщик' : (suppliers < 5 ? 'поставщика' : 'поставщиков'));
+            panel.classList.add('visible');
+            document.body.classList.add('has-sticky');
         }
 
         async function loadDrafts() {

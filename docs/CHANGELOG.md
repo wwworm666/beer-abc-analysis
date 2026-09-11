@@ -1,5 +1,78 @@
 ﻿# Changelog
 
+### 2026-09-11 — Этапы 2 и 3 редизайна «Заказы и остатки»: экран «К заказу» и справочник поставщиков
+
+**Повод.** Продолжение плана концепции
+([docs/planning/stocks-order-redesign-2026-09-10.md](planning/stocks-order-redesign-2026-09-10.md))
+после этапов 0 и 1: экран, с которого управляющий начинает заказ без ритуала, и
+справочник поставщиков вместо констант в коде.
+
+**Что сделано.**
+- Экран «К заказу» (`templates/stocks.html`, бывший «Сводный заказ»): бар из `?bar=` /
+  `localStorage` / первый в списке, автозагрузка, остальные вкладки лениво; ошибка iiko
+  строкой с «Повторить» вместо `alert`, поздний ответ прошлого бара отбрасывается;
+  шапка со временем снимка и ЧЗ; поиск, чипы Все/Кеги/Фасовка/Кухня, переключатель
+  «показать и то, чего хватает»; группы по поставщику с датами ближайшей и следующей
+  поставки и сроком «(по умолчанию)» + ссылка «настроить»; строка из 5 колонок с
+  фразой-причиной и «Взять N»; раскрытие строки: формула в числах, расход по типам
+  документов, последний приход, «в пути», срок годности, ссылки; свёрнутый блок «Без
+  движения или редко (N)»; карточки на телефоне; липкая панель «Заказ: N поз. · M
+  поставщиков · К отправке» и счётчик на вкладке. Убраны KPI-карточки, фильтр «Скорость»,
+  английские velocity, «Сумма рекомендаций», абзац с формулой (теперь `<details>`).
+- Формула (`routes/stocks.py`): `target = avg × (horizon_days + SAFETY_DAYS)`, где
+  `horizon_days` — дней до поставки, следующей за ближайшей, по календарю поставщика
+  (`_delivery_plan`, `core/supplier_calendar`); срочность — от дней до ближайшей
+  поставки (`days_to_delivery`). Новые поля позиции: `supplier_raw`,
+  `supplier_is_default`, `self_pickup`, `days_to_delivery`, `horizon_days`,
+  `expected_delivery`, `next_delivery`, `target_stock`, `last_incoming`, `reason_code`,
+  `reason`, `section`; в ответе `today`, `decide_count`, `idle_count`. Фраза-причина
+  (`_reason`) идёт по тем же проверкам, что рекомендация (S-14, S-15). Кратность для кег
+  всегда 1.
+- `core/stock_consumption.py`: `last_in` / `last_in_amount` (последний приход в окне).
+- Справочник поставщиков: `core/supplier_directory.py` (имя, написания с нормализацией
+  регистра/кавычек/пробелов, срок в днях доставки, дни доставки, кратность, самовывоз,
+  заметка; `suppliers.json` на `/kultura`, стартовый набор `SEED_SUPPLIERS` из бывшего
+  `SUPPLIER_PARAMS`), `routes/suppliers.py` (`GET/PUT/DELETE /api/suppliers`, `POST
+  …/aliases`, список непривязанных категорий номенклатуры), страница `/suppliers`
+  (`templates/suppliers.html`, роут в `routes/pages.py`). `routes/stocks._supplier_params`
+  и `routes/orders` (ожидаемая дата) читают справочник.
+- `escapeHtml` в `templates/stocks.html` экранирует кавычки: `title`/`value`/`data-*` с
+  именами вроде `ООО "Май"` больше не ломают разметку (S-09).
+- Тесты: новый `tests/test_supplier_directory.py` (8: нормализация, стартовый набор,
+  проверка полей, upsert/переименование/удаление/алиас/файл, битый файл, категории, API),
+  `tests/test_stocks_routes.py` (+2: справочник на доске, фразы-причины; числа обновлены
+  под горизонт, справочник в тестах временный), `tests/test_stock_consumption.py` (+1:
+  последний приход), `tests/test_orders_routes.py` (справочник подменён). Полный прогон:
+  697 passed, 2 xfailed. Сквозной сценарий в Chromium: автозагрузка по `?bar=`, группы и
+  фразы, раскрытие, «Взять 8», липкая панель, поиск и чипы, отправка и «в пути», смена
+  бара, ленивая вкладка, мобильная разметка, справочник (срок, написание, новый
+  поставщик, ошибка проверки) — без ошибок консоли.
+- Документация: новый `docs/suppliers.md`; `docs/stocks.md` (формула, фразы, секции,
+  экран), `docs/orders.md`, `docs/lessons.md` (два урока по CSS), `docs/overview.md`,
+  `docs/PROJECT_STRUCTURE.md`, аудит (статусы после этапов 2–3), план (этапы 2 и 3
+  выполнены), `.claude/INDEX.md`; `data/suppliers.json` в `.gitignore`.
+
+**Почему так.**
+- Горизонт до следующей поставки вместо срока: заказ в четверг с поставкой в пятницу
+  должен покрыть выходные до понедельника, иначе формула занижает заказ перед
+  выходными. Числа в тестах поменялись (рекомендация 4 → 8 для примера из фикстуры).
+- Фраза-причина считается на сервере по тем же проверкам, что рекомендация: одно место
+  правды, фронт только показывает.
+- Кеги остаются в литрах (решение владельца), объём кеги из названия/контейнера не
+  вводился.
+- Адверсариальное ревью этапа 1 через Workflow запустить не удалось: субагенты упёрлись
+  в лимит сессии (сброс 22:50 UTC); проверка сделана тестами и браузерным сценарием,
+  ревью планируется отдельно.
+
+**Файлы.** `core/supplier_directory.py` (новый), `core/stock_consumption.py`,
+`routes/suppliers.py` (новый), `routes/stocks.py`, `routes/orders.py`, `routes/pages.py`,
+`routes/__init__.py`, `templates/stocks.html`, `templates/suppliers.html` (новый),
+`.gitignore`, `tests/test_supplier_directory.py` (новый), `tests/test_stocks_routes.py`,
+`tests/test_stock_consumption.py`, `tests/test_orders_routes.py`, `docs/suppliers.md`
+(новый), `docs/stocks.md`, `docs/orders.md`, `docs/lessons.md`, `docs/overview.md`,
+`docs/PROJECT_STRUCTURE.md`, `docs/technical/audits/STOCKS_AUDIT_2026-09-10.md`,
+`docs/planning/stocks-order-redesign-2026-09-10.md`, `.claude/INDEX.md`.
+
 ### 2026-09-10 (4) — Этап 1 редизайна «Заказы и остатки»: заказ как серверная сущность
 
 **Повод.** По плану концепции ([docs/planning/stocks-order-redesign-2026-09-10.md](planning/stocks-order-redesign-2026-09-10.md))

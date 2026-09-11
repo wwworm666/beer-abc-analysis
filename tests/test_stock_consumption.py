@@ -482,8 +482,24 @@ def test_empty_operations_and_new_stats_shape():
     assert stats == {'p1': new_stats('store')}
     assert new_stats('store', 7)['days_in_period'] == 7
     assert set(new_stats('network')) == {'outgoing', 'incoming', 'by_document_type', 'first_in',
-                                         'first_out', 'days_in_period', 'avg_per_day', 'is_new',
-                                         'opening_stock', 'skipped', 'scope'}
+                                         'first_out', 'last_in', 'last_in_amount', 'days_in_period',
+                                         'avg_per_day', 'is_new', 'opening_stock', 'skipped', 'scope'}
+
+
+def test_last_incoming_date_and_amount():
+    """last_in — дата последнего прихода в окне, last_in_amount — сумма приходов в этот день."""
+    inv = dict(product='p1', store=STORE_A, incoming='true', doc_type='INCOMING_INVOICE')
+    ops = [
+        _op(amount='10.000000000', op_date='02.11.2025', **inv),
+        _op(amount='4.000000000', op_date='04.11.2025', **inv),
+        _op(amount='6.000000000', op_date='04.11.2025', **inv),
+        _op(product='p1', store=STORE_A, amount='-3.000000000', op_date='05.11.2025'),
+        _op(product='p1', store=STORE_B, amount='50.000000000', op_date='05.11.2025',
+            incoming='true', doc_type='INCOMING_INVOICE'),   # другой склад
+    ]
+    st = aggregate_consumption(ops, ['p1'], STORE_A, TODAY)['p1']
+    assert st['last_in'] == date(2025, 11, 4) and st['last_in_amount'] == 10.0
+    assert aggregate_consumption([], ['p1'], STORE_A, TODAY)['p1']['last_in'] is None
 
 
 # --- интеграция на реальном кэше storeOperations ---------------------------

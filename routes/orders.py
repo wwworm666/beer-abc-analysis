@@ -11,7 +11,7 @@ iiko при пересчёте доски заказа, см. routes/stocks.get_
 
 Ожидаемая дата поставки при отправке считается календарём поставок
 (core/supplier_calendar.next_delivery_date) от сегодняшнего дня и срока
-поставки поставщика (routes/stocks.SUPPLIER_PARAMS); её можно переопределить
+поставки и дней доставки поставщика (справочник core/supplier_directory); её можно переопределить
 в запросе. Дата ориентировочная: поставщики задерживают на 1–2 дня.
 
 Эндпоинты:
@@ -180,8 +180,9 @@ def send_order():
             return _error('expected_at должен быть датой YYYY-MM-DD')
         expected_at = str(expected_at)[:10]
     else:
-        lead = _supplier_params(supplier)['lead_time_days']
-        expected_at = next_delivery_date(date.today(), lead).isoformat()
+        params = _supplier_params(supplier)
+        expected_at = next_delivery_date(date.today(), params['lead_time_days'],
+                                         params['delivery_weekdays']).isoformat()
     note = body.get('note')
     store = get_order_store()
     try:

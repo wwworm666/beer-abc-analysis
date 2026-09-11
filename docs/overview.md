@@ -44,6 +44,7 @@
 | `taps_bp` | `/api` | краны START/STOP/REPLACE, taplist export CSV | [routes/taps.py](../routes/taps.py) |
 | `stocks_bp` | `/api` | taplist, kitchen, bottles, order-board, expiry, chz refresh | [routes/stocks.py](../routes/stocks.py) |
 | `orders_bp` | `/api/orders` | черновик заказа, отправка, «приехало», отмена, история | [routes/orders.py](../routes/orders.py) |
+| `suppliers_bp` | `/api/suppliers` | справочник поставщиков: написания, срок и дни доставки, кратность | [routes/suppliers.py](../routes/suppliers.py) |
 | `schedule_bp` | `/api` | график смен по барам | [routes/schedule.py](../routes/schedule.py) |
 | `misc_bp` | `/api` | dish-group, wiki, Telegram webhook | [routes/misc.py](../routes/misc.py) |
 | `expiration_bp` | `/api` | Shelf-Life Cockpit (board, recommend) | [routes/expiration.py](../routes/expiration.py) |
@@ -101,7 +102,8 @@ templates/                  # Jinja2 HTML
 ├── dashboard.html          # дашборд /dashboard: 4 точки + Общая, 20 метрик, AI-анализ
 ├── employee.html           # дашборд сотрудника, KPI, бонусы
 ├── taps_bar.html           # управление кранами одного бара (/taps/<bar_id>)
-├── stocks.html             # 6 вкладок: Сводный заказ, Таплист, Фасовка, Сроки годности, Меню кухни, Формирование заказа
+├── stocks.html             # 6 вкладок: К заказу, К отправке, Таплист, Фасовка, Сроки годности, Меню кухни
+├── suppliers.html          # справочник поставщиков /suppliers
 ├── expiration.html         # Shelf-Life Cockpit (отдельная страница)
 ├── explorer.html           # Конструктор отчётов
 ├── schedule.html, salary.html, bonus.html, packaging.html, draft.html
@@ -238,6 +240,7 @@ data/
 | Stocks | `/api/stocks/taplist|kitchen|bottles|order-board|expiry` | GET | [stocks.md](stocks.md) |
 | Stocks | `/api/chz/stock|refresh|refresh/status` | GET/POST | [chz-stock-integration.md](chz-stock-integration.md) |
 | Orders | `/api/orders/draft`, `/api/orders/send`, `/api/orders`, `/api/orders/<id>/received|cancel` | GET/POST | [orders.md](orders.md) |
+| Suppliers | `/api/suppliers`, `/api/suppliers/<name>`, `/api/suppliers/<name>/aliases` | GET/PUT/DELETE/POST | [suppliers.md](suppliers.md) |
 | Expiration | `/api/expiration/board?bars=...` | GET | [expiration.md](expiration.md) |
 | Explorer | `/api/explorer/pivot` | GET | [explorer.md](explorer.md) |
 | Open-check | `/api/admin/open-check/run-now`, `/telegram/openbot/*` | POST/GET | [open-check-bot.md](open-check-bot.md) |

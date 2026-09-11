@@ -14,6 +14,9 @@ from core.dashboard_analysis import DashboardMetrics
 from core.stock_consumption import aggregate_consumption
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from core.order_store import get_order_store
+from core.supplier_directory import (DEFAULT_LEAD_TIME_DAYS, DEFAULT_PACK_SIZE, get_supplier_directory,
+                                     seed_records)
+from core.supplier_calendar import next_delivery_date, delivery_after
 from extensions import taps_manager, BARS
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
@@ -47,27 +50,12 @@ _BAR_KPP_MAP = {
     'bar4': '781045001',
 }
 
-# Параметры поставщиков для расчёта рекомендации к заказу.
-# lead_time_days  — типичный срок от размещения заказа до приёмки (рабочих дней).
-# pack_size       — минимальная партия (упаковка). Прототип: для всех 1, менеджер
-#                   корректирует руками. Будущая задача — вынести в редактируемые настройки.
-# Значения подобраны эмпирически по типу поставщика; уточнить с менеджером.
-SUPPLIER_PARAMS = {
-    'Метро':                       {'lead_time_days': 1, 'pack_size': 1},
-    'Лента':                       {'lead_time_days': 1, 'pack_size': 1},
-    'ООО "Май"':                   {'lead_time_days': 2, 'pack_size': 1},
-    'ИП Тихомиров':                {'lead_time_days': 2, 'pack_size': 1},
-    'ООО "Кулинарпродторг"':       {'lead_time_days': 2, 'pack_size': 1},
-    'ИП Новиков':                  {'lead_time_days': 3, 'pack_size': 1},
-    'ООО "Арбореал"':              {'lead_time_days': 3, 'pack_size': 1},
-    'Криспи':                      {'lead_time_days': 3, 'pack_size': 1},
-    'ООО "ВУРСТХАУСМАНУФАКТУР"':   {'lead_time_days': 3, 'pack_size': 1},
-    'ООО "КВГ"':                   {'lead_time_days': 2, 'pack_size': 1},
-    'ГС Маркет':                   {'lead_time_days': 2, 'pack_size': 1},
-    'ООО МП Арсенал':              {'lead_time_days': 3, 'pack_size': 1},
-    'ООО "МП-Арсенал АО"':         {'lead_time_days': 3, 'pack_size': 1},
-}
-SUPPLIER_DEFAULT = {'lead_time_days': 3, 'pack_size': 1}
+# Параметры поставщиков (срок поставки, кратность, дни доставки) — справочник
+# core/supplier_directory.py, редактируемый на /suppliers (этап 3 редизайна).
+# SUPPLIER_PARAMS оставлен как стартовые значения для совместимости.
+SUPPLIER_PARAMS = {name: {'lead_time_days': rec['lead_time_days'], 'pack_size': rec['pack_size']}
+                   for name, rec in seed_records().items()}
+SUPPLIER_DEFAULT = {'lead_time_days': DEFAULT_LEAD_TIME_DAYS, 'pack_size': DEFAULT_PACK_SIZE}
 
 # Параметры формулы рекомендации к заказу
 SAFETY_DAYS = 3                  # страховой запас сверх lead_time: колебания спроса и
@@ -79,11 +67,16 @@ SLOW_MOVER_WEEKLY_SALES = 1.0    # граница slow-mover'а: < 1 прода�
 FAST_MOVER_WEEKLY_SALES = 7.0    # граница fast-mover'а: ≥ 7 продаж в неделю
 
 
-def _supplier_params(supplier_name):
-    """Возвращает {lead_time_days, pack_size} для поставщика. Fallback — SUPPLIER_DEFAULT."""
-    if not supplier_name:
-        return dict(SUPPLIER_DEFAULT)
-    return dict(SUPPLIER_PARAMS.get(supplier_name, SUPPLIER_DEFAULT))
+def _supplier_params(supplier_name, view=None):
+    """Параметры поставщика из справочника по имени или алиасу category.
+
+    Возвращает {name, lead_time_days, pack_size, delivery_weekdays, self_pickup,
+    is_default}; неизвестный поставщик получает умолчания (is_default = True).
+    view — срез справочника на один запрос (get_supplier_directory().view()).
+    """
+    if view is None:
+        view = get_supplier_directory().view()
+    return dict(view.params(supplier_name))
 
 
 def _velocity(avg_sales):
@@ -105,12 +98,17 @@ def _velocity(avg_sales):
     return 'fast'
 
 
-def _calc_recommendation(stock, avg_sales, lead_time_days, pack_size, days_to_expiry, velocity):
+def _calc_recommendation(stock, avg_sales, cover_days, pack_size, days_to_expiry, velocity):
     """Расчёт рекомендованного количества к заказу.
 
-    target_stock = avg_sales * (lead_time_days + SAFETY_DAYS)
+    target_stock = avg_sales * (cover_days + SAFETY_DAYS)
     deficit      = max(0, target_stock - stock)
     recommended  = ceil(deficit / pack_size) * pack_size
+
+    cover_days — сколько дней должен покрыть заказ: до поставки, следующей за
+    ближайшей (core/supplier_calendar.horizon_days). Заказ в четверг с поставкой
+    в пятницу должен дожить до понедельника: 4 дня, а не 1 (с 2026-09-11, этап 2;
+    раньше здесь был константный lead_time_days).
 
     Спецслучаи (рекомендация принудительно 0):
         velocity in ('dead', 'slow')       → не пополняем редко-продаваемые позиции
@@ -122,7 +120,7 @@ def _calc_recommendation(stock, avg_sales, lead_time_days, pack_size, days_to_ex
         return 0
     if days_to_expiry is not None and 0 <= days_to_expiry < NEAR_EXPIRY_BLOCK_DAYS:
         return 0
-    target_stock = avg_sales * (lead_time_days + SAFETY_DAYS)
+    target_stock = avg_sales * (cover_days + SAFETY_DAYS)
     deficit = target_stock - stock
     if deficit <= 0:
         return 0
@@ -130,14 +128,17 @@ def _calc_recommendation(stock, avg_sales, lead_time_days, pack_size, days_to_ex
     return int(math.ceil(deficit / pack) * pack)
 
 
-def _urgency_level(stock, avg_sales, lead_time_days, velocity):
+def _urgency_level(stock, avg_sales, days_to_delivery, velocity):
     """Уровень срочности позиции.
+
+    days_to_delivery — календарных дней до ближайшей поставки, если заказать
+    сегодня (по календарю поставщика; раньше здесь был lead_time_days).
 
     critical: stock < 0 (учётная ошибка) — независимо от скорости продаж
     low:      velocity in ('dead', 'slow') — редко продаётся, не критично
     critical: days_left < 1
-    high:     days_left < lead_time_days (поставка не успеет)
-    medium:   days_left < lead_time_days + SAFETY_DAYS
+    high:     days_left < days_to_delivery (поставка не успеет)
+    medium:   days_left < days_to_delivery + SAFETY_DAYS
     low:      остальное
     """
     if stock < 0:
@@ -149,11 +150,80 @@ def _urgency_level(stock, avg_sales, lead_time_days, velocity):
     days_left = stock / avg_sales
     if days_left < 1:
         return 'critical'
-    if days_left < lead_time_days:
+    if days_left < days_to_delivery:
         return 'high'
-    if days_left < lead_time_days + SAFETY_DAYS:
+    if days_left < days_to_delivery + SAFETY_DAYS:
         return 'medium'
     return 'low'
+
+
+def _delivery_plan(today, params):
+    """(ближайшая поставка, следующая за ней, дней до ближайшей, дней до следующей).
+
+    По сроку и дням доставки поставщика из справочника. «Дней до следующей» —
+    горизонт, который должен покрыть заказ (см. _calc_recommendation).
+    """
+    weekdays = params.get('delivery_weekdays')
+    first = next_delivery_date(today, params['lead_time_days'], weekdays)
+    following = delivery_after(first, weekdays)
+    return first, following, (first - today).days, (following - today).days
+
+
+def _fmt_num(value):
+    """Число для фразы: целое без «.0», иначе до двух знаков без хвостовых нулей."""
+    value = float(value)
+    if abs(value - round(value)) < 0.005:
+        return str(int(round(value)))
+    return f'{value:.2f}'.rstrip('0').rstrip('.')
+
+
+def _fmt_day(value):
+    """'2026-09-14' → 'пн 14.09' для фразы-причины."""
+    try:
+        d = value if isinstance(value, date) else date.fromisoformat(str(value)[:10])
+    except ValueError:
+        return str(value)
+    return f"{('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')[d.weekday()]} {d.strftime('%d.%m')}"
+
+
+def _reason(item, target_stock, horizon_days, first_delivery, window_days):
+    """Фраза-причина и код: одно объяснение = одно действие (S-14, S-15).
+
+    Порядок проверок повторяет _calc_recommendation и _urgency_level, чтобы
+    фраза никогда не расходилась с рекомендацией:
+        negative_stock  остаток < 0 — проверить учёт, заказом не лечится
+        near_expiry     партия истекает < NEAR_EXPIRY_BLOCK_DAYS — не заказываем
+        no_movement     расхода нет (velocity dead)
+        slow            редко расходится (velocity slow) — не пополняем автоматически
+        order           рекомендация > 0: нужно X (горизонт + запас), есть Y, в пути Z
+        in_transit      рекомендация 0, но есть «в пути»
+        enough          хватает до следующей поставки
+    """
+    unit = item['unit']
+    stock, on_order = item['stock'], item['on_order']
+    if stock < 0:
+        return 'negative_stock', f'остаток {_fmt_num(stock)} {unit}: проверить учёт в iiko, заказом не лечится'
+    d = item['days_to_expiry']
+    if d is not None and 0 <= d < NEAR_EXPIRY_BLOCK_DAYS:
+        return 'near_expiry', f'партия истекает {_fmt_day(item["nearest_expiry"])} ({d} дн.): не заказываем, продаём что есть'
+    if item['velocity'] == 'dead':
+        if item['is_new']:
+            return 'no_movement', f'нет расхода с прихода ({item["days_in_period"]} дн.)'
+        return 'no_movement', f'без движения {window_days} дн.'
+    if item['velocity'] == 'slow':
+        return 'slow', f'редко расходится ({_fmt_num(item["weekly_sales"])} в нед.): не пополняем автоматически'
+    if item['recommended'] > 0:
+        text = (f'нужно {_fmt_num(target_stock)} {unit} ({horizon_days} дн. до следующей поставки'
+                f' + {SAFETY_DAYS} дн. запаса), есть {_fmt_num(stock)}')
+        if on_order > 0:
+            text += f', в пути {_fmt_num(on_order)}'
+        text += f': заказать {_fmt_num(item["recommended"])} к {_fmt_day(first_delivery)}'
+        return 'order', text
+    if on_order > 0:
+        return 'in_transit', f'в пути {_fmt_num(on_order)} {unit}: с ним хватит до следующей поставки'
+    if item['days_left'] is not None:
+        return 'enough', f'хватит на {_fmt_num(item["days_left"])} дн., до следующей поставки {horizon_days} дн.'
+    return 'enough', 'расхода нет'
 
 
 stocks_bp = Blueprint('stocks', __name__)
@@ -910,9 +980,13 @@ def get_order_board():
 
     Формула рекомендации (см. _calc_recommendation):
         effective    = stock + on_order
-        target_stock = avg_sales × (lead_time_days + SAFETY_DAYS)
+        target_stock = avg_sales × (horizon_days + SAFETY_DAYS)
         deficit      = max(0, target_stock − effective)
         recommended  = ceil(deficit / pack_size) × pack_size
+
+        horizon_days — дней до поставки, следующей за ближайшей, по календарю
+                       поставщика (справочник /suppliers: срок и дни доставки);
+                       заказ должен дожить до следующей возможности получить товар
 
     Где:
         on_order         — уже заказано и не оприходовано в iiko (открытые
@@ -922,7 +996,8 @@ def get_order_board():
                            (core/stock_consumption.aggregate_consumption:
                            продажи + перемещения из бара + списания; для
                            новинок делитель — дни с первого прихода)
-        lead_time_days   — срок поставки от поставщика (SUPPLIER_PARAMS)
+        lead_time_days   — срок поставки в днях доставки (справочник поставщиков,
+                           иначе DEFAULT_LEAD_TIME_DAYS с пометкой supplier_is_default)
         SAFETY_DAYS = 3  — страховой запас на колебания спроса
         pack_size        — минимальная партия (упаковка)
 
@@ -951,6 +1026,8 @@ def get_order_board():
         product_to_gtins = invert_to_product_gtins(get_barcode_map())
         chz_by_gtin, chz_updated_at = _load_chz_by_gtin()
         on_order_map, open_orders_map, draft_map = _orders_context(snapshot, bar, target_store_id)
+        directory = get_supplier_directory().view()
+        plans = {}   # имя поставщика → (first, following, days_to_delivery, horizon_days)
 
         items = []
         for product_id, data in products.items():
@@ -971,20 +1048,31 @@ def get_order_board():
                 exp_dates = sorted({b['expiration_date'] for b in bar_batches if b.get('expiration_date')})
                 nearest_expiry, days_to_expiry = _nearest_expiry(exp_dates, today)
 
-            params = _supplier_params(data['category'])
+            params = _supplier_params(data['category'], directory)
+            supplier = params['name']
             lead_time = params['lead_time_days']
-            pack_size = params['pack_size']
+            # Кратность — для фасовки и кухни; кеги считаем в литрах без кратности (решение владельца).
+            pack_size = 1 if data['kind'] == 'draft' else params['pack_size']
+            if supplier not in plans:
+                plans[supplier] = _delivery_plan(today, params)
+            first_delivery, next_delivery, days_to_delivery, horizon_days = plans[supplier]
             velocity = _velocity(avg_sales)
             days_left = (stock / avg_sales) if avg_sales > 0 else None
-            recommended = _calc_recommendation(effective_stock, avg_sales, lead_time, pack_size,
+            target_stock = avg_sales * (horizon_days + SAFETY_DAYS)
+            recommended = _calc_recommendation(effective_stock, avg_sales, horizon_days, pack_size,
                                                days_to_expiry, velocity)
-            urgency = 'critical' if stock < 0 else _urgency_level(effective_stock, avg_sales, lead_time, velocity)
+            urgency = 'critical' if stock < 0 else _urgency_level(effective_stock, avg_sales,
+                                                                  days_to_delivery, velocity)
+            last_in = st.get('last_in')
 
             items.append({
                 'product_id': product_id,
                 'type': data['kind'],
                 'name': data['name'],
-                'supplier': data['category'],
+                'supplier': supplier,
+                'supplier_raw': data['category'],
+                'supplier_is_default': params['is_default'],
+                'self_pickup': params['self_pickup'],
                 'unit': data['unit'],
                 'stock': round(stock, 1),
                 'on_order': round(on_order, 1),
@@ -999,12 +1087,30 @@ def get_order_board():
                 'velocity': velocity,
                 'days_left': round(days_left, 1) if days_left is not None else None,
                 'lead_time_days': lead_time,
+                'days_to_delivery': days_to_delivery,
+                'horizon_days': horizon_days,
+                'expected_delivery': first_delivery.isoformat(),
+                'next_delivery': next_delivery.isoformat(),
+                'target_stock': round(target_stock, 1),
                 'pack_size': pack_size,
                 'recommended': recommended,
                 'urgency': urgency,
                 'nearest_expiry': nearest_expiry,
                 'days_to_expiry': days_to_expiry,
+                'last_incoming': ({'date': last_in.isoformat(), 'amount': round(st.get('last_in_amount') or 0.0, 2)}
+                                  if last_in else None),
             })
+            it = items[-1]
+            it['reason_code'], it['reason'] = _reason(it, target_stock, horizon_days, first_delivery,
+                                                      snapshot['window_days'])
+            # Секция экрана «К заказу»: decide — требует решения; idle — без движения /
+            # редко; ok — хватает. Черновик показывается всегда (решает фронт).
+            if recommended > 0 or stock < 0:
+                it['section'] = 'decide'
+            elif velocity in ('dead', 'slow'):
+                it['section'] = 'idle'
+            else:
+                it['section'] = 'ok'
 
         # Сортировка: сначала срочность, внутри — по days_left возрастающе
         urgency_rank = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
@@ -1018,6 +1124,7 @@ def get_order_board():
 
         return jsonify({
             'bar': bar,
+            'today': snapshot['today'],
             'updated_at': snapshot['fetched_at'],
             'chz_updated_at': chz_updated_at,
             'consumption_scope': 'store' if target_store_id else 'network',
@@ -1036,6 +1143,8 @@ def get_order_board():
             'recommended_total': sum(i['recommended'] for i in items),
             'on_order_count': sum(1 for i in items if i['on_order'] > 0),
             'draft_count': sum(1 for i in items if i['draft_qty'] > 0),
+            'decide_count': sum(1 for i in items if i['section'] == 'decide'),
+            'idle_count': sum(1 for i in items if i['section'] == 'idle'),
             'items': items,
         })
 

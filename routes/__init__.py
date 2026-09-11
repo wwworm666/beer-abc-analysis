@@ -4,6 +4,7 @@ from .employee import employee_bp
 from .taps import taps_bp
 from .stocks import stocks_bp
 from .orders import orders_bp
+from .suppliers import suppliers_bp
 from .dashboard import dashboard_bp
 from .schedule import schedule_bp
 from .misc import misc_bp
@@ -30,6 +31,7 @@ def register_blueprints(app):
     app.register_blueprint(taps_bp)
     app.register_blueprint(stocks_bp)
     app.register_blueprint(orders_bp)
+    app.register_blueprint(suppliers_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(schedule_bp)
     app.register_blueprint(misc_bp)
