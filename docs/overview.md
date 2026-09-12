@@ -239,7 +239,7 @@ data/
 | Taps | `/api/taps/<bar>`, `/api/taps/<bar>/start|stop|replace` | GET/POST | [taps.md](taps.md) |
 | Stocks | `/api/stocks/taplist|kitchen|bottles|order-board|expiry` | GET | [stocks.md](stocks.md) |
 | Stocks | `/api/chz/stock|refresh|refresh/status` | GET/POST | [chz-stock-integration.md](chz-stock-integration.md) |
-| Orders | `/api/orders/draft`, `/api/orders/send`, `/api/orders`, `/api/orders/<id>/received|cancel` | GET/POST | [orders.md](orders.md) |
+| Orders | `/api/orders/draft`, `/api/orders/send`, `/api/orders`, `/api/orders/<id>/received|close|cancel` | GET/POST | [orders.md](orders.md) |
 | Suppliers | `/api/suppliers`, `/api/suppliers/<name>`, `/api/suppliers/<name>/aliases` | GET/PUT/DELETE/POST | [suppliers.md](suppliers.md) |
 | Expiration | `/api/expiration/board?bars=...` | GET | [expiration.md](expiration.md) |
 | Explorer | `/api/explorer/pivot` | GET | [explorer.md](explorer.md) |

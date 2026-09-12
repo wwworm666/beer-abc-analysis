@@ -15,7 +15,8 @@ from typing import Iterable
 
 DEFAULT_DELIVERY_WEEKDAYS = (0, 1, 2, 3, 4)   # пн–пт (date.weekday(): пн = 0)
 ORDER_OVERDUE_GRACE_DAYS = 2                  # столько дней после ожидаемой даты задержка не считается проблемой
-_MAX_SCAN_DAYS = 60                           # защита от пустого набора дней доставки
+_SCAN_DAYS_PER_LEAD_DAY = 7                   # при одном дне доставки в неделю один «день срока» = неделя
+_SCAN_DAYS_EXTRA = 14                         # запас на выходные в начале и конце сканирования
 
 
 def _weekdays(delivery_weekdays: Iterable[int] | None) -> set:
@@ -32,13 +33,16 @@ def next_delivery_date(sent_on: date, lead_time_days: int,
     days = _weekdays(delivery_weekdays)
     remaining = max(1, int(lead_time_days or 1))
     current = sent_on
-    for _ in range(_MAX_SCAN_DAYS):
+    # Сканируем не больше lead × 7 + 14 дней: даже при одном дне доставки в неделю
+    # хватает (раньше был потолок 60 дней, и срок 9+ у «понедельничного» поставщика
+    # молча давал неверную дату).
+    for _ in range(remaining * _SCAN_DAYS_PER_LEAD_DAY + _SCAN_DAYS_EXTRA):
         current += timedelta(days=1)
         if current.weekday() in days:
             remaining -= 1
             if remaining == 0:
                 return current
-    return current
+    raise ValueError(f'Не удалось найти день доставки: срок {lead_time_days}, дни {sorted(days)}')
 
 
 def delivery_after(day: date, delivery_weekdays: Iterable[int] | None = None) -> date:

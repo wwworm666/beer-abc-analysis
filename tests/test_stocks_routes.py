@@ -22,9 +22,21 @@ routes.stocks (get_stock_snapshot / get_stocks_nomenclature) на маленьк
 - фасовка по имени верхней группы (стиль XML) и по GUID группы;
 - форма ответа order-board (прежние ключи + days_in_period/is_new/
   consumption_by_type) и таплиста.
+
+Этапы 1–3 редизайна (раздел «этап 1» в конце файла):
+- «в пути» по открытым заказам вычитается из рекомендации, черновик — нет;
+  отрицательный физический остаток остаётся critical и не рекомендуется;
+- сверка открытых заказов с приходными накладными по складу бара и дате;
+- сбой файла заказов: доска отвечает 200 с orders_available = false;
+- справочник поставщиков: написания склеивают группы, срок и дни доставки
+  дают даты поставок и горизонт формулы, кратность не трогает кеги;
+- фразы-причины согласованы с рекомендацией и секцией; кг и л не бывают slow;
+  near_expiry с критичной срочностью попадает в decide; новинка без расхода.
 """
 
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -36,8 +48,8 @@ os.environ['SESSION_COOKIE_SECURE'] = '0'
 
 from flask import Flask  # noqa: E402
 import routes.stocks as rs  # noqa: E402
-from core.order_store import OrderStore  # noqa: E402
-from core.supplier_directory import SupplierDirectory  # noqa: E402
+from core.order_store import OrderStore, OrderStoreUnavailable  # noqa: E402
+from core.supplier_directory import SupplierDirectory, DEFAULT_LEAD_TIME_DAYS  # noqa: E402
 from extensions import BARS  # noqa: E402
 from routes.stocks import stocks_bp  # noqa: E402
 
@@ -202,13 +214,19 @@ def _make_app():
     return app
 
 
+def _tmpdir(prefix):
+    path = tempfile.mkdtemp(prefix=prefix)
+    atexit.register(shutil.rmtree, path, ignore_errors=True)   # не оставлять мусор в temp
+    return path
+
+
 def _temp_order_store():
-    return OrderStore(os.path.join(tempfile.mkdtemp(prefix='stocks_orders_'), 'orders.json'))
+    return OrderStore(os.path.join(_tmpdir('stocks_orders_'), 'orders.json'))
 
 
 def _temp_directory():
     """Справочник поставщиков без файла: действует стартовый набор (SEED_SUPPLIERS)."""
-    return SupplierDirectory(os.path.join(tempfile.mkdtemp(prefix='stocks_suppliers_'), 'suppliers.json'))
+    return SupplierDirectory(os.path.join(_tmpdir('stocks_suppliers_'), 'suppliers.json'))
 
 
 @contextmanager
@@ -444,7 +462,8 @@ ORDER_BOARD_KEYS = {
     'safety_days', 'near_expiry_block_days', 'slow_mover_weekly_sales',
     'fast_mover_weekly_sales', 'total_items', 'critical_count', 'high_count',
     'medium_count', 'active_count', 'slow_count', 'dead_count',
-    'recommended_total', 'on_order_count', 'draft_count', 'decide_count', 'idle_count', 'today', 'items',
+    'recommended_total', 'on_order_count', 'draft_count', 'decide_count', 'idle_count', 'today',
+    'orders_available', 'orders_error', 'items',
 }
 ORDER_ITEM_KEYS = {
     'product_id', 'type', 'name', 'supplier', 'unit', 'stock', 'avg_sales',
@@ -481,9 +500,10 @@ def test_order_board_shape_and_totals():
         assert d['critical_count'] == sum(1 for it in items if it['urgency'] == 'critical') == 1
         assert d['high_count'] == 0
         assert d['medium_count'] == 1
-        assert d['active_count'] == 4     # fast: P_BOTTLE, P_NEW; regular: P_METRO, P_KEG_LAGER
-        assert d['slow_count'] == 3       # P_SAUCE, P_OIL, P_GUID
+        assert d['active_count'] == 6     # fast: P_BOTTLE, P_NEW; regular: P_METRO, P_KEG_LAGER, P_SAUCE (кг), P_OIL (л)
+        assert d['slow_count'] == 1       # P_GUID: 0.7 шт в неделю; кг и л slow не бывают
         assert d['dead_count'] == 2       # P_IDLE, P_NEG
+        assert d['orders_available'] is True and d['orders_error'] is None
 
         # Отрицательный остаток — critical раньше любой скорости, рекомендация 0, первая строка.
         neg = _by_id(d)[P_NEG]
@@ -507,12 +527,12 @@ def test_order_board_shape_and_totals():
         assert it['days_left'] == 2.7
         assert it['supplier'] == 'ООО "Май"' and it['supplier_is_default'] is False
         assert it['section'] == 'decide' and it['reason_code'] == 'order'
-        assert it['reason'] == 'нужно 12 шт (5 дн. до следующей поставки + 3 дн. запаса), есть 4: заказать 8 к пт 07.11'
+        assert it['reason'] == 'до поставки пн 10.11 нужно 12 шт (1.5 в день × 8 дн. с запасом), есть 4: заказать 8 к пт 07.11'
         assert it['last_incoming'] == {'date': '2025-10-06', 'amount': 20.0}
         assert items[1]['product_id'] == P_BOTTLE     # сортировка: срочность, потом days_left
         assert d['recommended_total'] == 8
         assert d['decide_count'] == 2                 # P_NEG (остаток < 0) и P_BOTTLE
-        assert d['idle_count'] == 4                   # slow: P_SAUCE, P_OIL, P_GUID; dead: P_IDLE (P_NEG — в decide)
+        assert d['idle_count'] == 2                   # slow: P_GUID; dead: P_IDLE (P_NEG — в decide)
 
 
 def test_negative_stock_in_tabs():
@@ -643,7 +663,7 @@ def test_order_board_on_order_reduces_recommendation():
         assert it['recommended'] == 0 and it['urgency'] == 'low'
         assert it['days_left'] == 2.7
         assert it['reason_code'] == 'in_transit' and it['section'] == 'ok'
-        assert it['reason'] == 'в пути 10 шт: с ним хватит до следующей поставки'
+        assert it['reason'] == 'в пути 10 шт: с ним хватит до поставки пн 10.11'
         assert it['open_orders'] == [{'order_id': order['id'], 'supplier': 'ООО "Май"', 'qty': 10.0,
                                       'expected_at': '2025-11-07', 'status': 'sent'}]
         assert d['on_order_count'] == 1 and d['recommended_total'] == 0
@@ -752,7 +772,7 @@ def test_order_board_uses_supplier_directory():
         assert sauce['expected_delivery'] == '2025-11-10' and sauce['next_delivery'] == '2025-11-17'
         idle = _by_id(d)[P_IDLE]
         assert idle['supplier'] == 'Лента' and idle['supplier_is_default'] is True
-        assert idle['lead_time_days'] == rs.DEFAULT_LEAD_TIME_DAYS
+        assert idle['lead_time_days'] == DEFAULT_LEAD_TIME_DAYS
         # кеги: кратность всегда 1, даже если у поставщика задана
         directory.upsert('ООО "Арбореал"', {'pack_size': 30}, USER)
         code, d = _get(c, 'order-board', BAR_LIG)
@@ -766,19 +786,78 @@ def test_order_board_reason_phrases():
         by = _by_id(d)
         assert by[P_IDLE]['reason_code'] == 'no_movement' and by[P_IDLE]['section'] == 'idle'
         assert by[P_IDLE]['reason'] == f'без движения {WINDOW} дн.'
-        assert by[P_SAUCE]['reason_code'] == 'slow' and by[P_SAUCE]['section'] == 'idle'
-        assert by[P_SAUCE]['reason'] == 'редко расходится (0.35 в нед.): не пополняем автоматически'
+        # штучный товар реже раза в неделю — slow; кг (P_SAUCE) с тем же темпом — нет
+        assert by[P_GUID]['reason_code'] == 'slow' and by[P_GUID]['section'] == 'idle'
+        assert by[P_GUID]['reason'] == 'редко расходится (0.7 в нед.): не пополняем автоматически'
+        sauce = by[P_SAUCE]
+        assert sauce['velocity'] == 'regular' and sauce['reason_code'] == 'enough' and sauce['section'] == 'ok'
+        assert sauce['reason'] == 'хватит на 50 дн., следующая поставка вт 11.11 через 6 дн.'
         # P_NEW: 13 шт, расход 1/день, Лента срок 1: ближайшая чт 06.11 (1 дн.), следующая пт 07.11 (2 дн.);
         # target = 1 × (2 + 3) = 5 < 13 → хватает
         new = by[P_NEW]
         assert new['recommended'] == 0 and new['reason_code'] == 'enough' and new['section'] == 'ok'
-        assert new['reason'] == 'хватит на 13 дн., до следующей поставки 2 дн.'
+        assert new['reason'] == 'хватит на 13 дн., следующая поставка пт 07.11 через 2 дн.'
         for it in d['items']:
             assert (it['recommended'] > 0) == (it['reason_code'] == 'order'), it
-            assert (it['section'] == 'decide') == (it['recommended'] > 0 or it['stock'] < 0), it
+            negative = it['stock'] < -rs.STOCK_ZERO_EPS
+            assert (it['section'] == 'decide') == (it['recommended'] > 0 or negative
+                                                   or it['urgency'] in ('critical', 'high')), it
+            if negative:
+                assert it['recommended'] == 0 and it['urgency'] == 'critical'
+
+
+def test_order_board_near_expiry_and_new_without_consumption():
+    """Партия истекает < 14 дней: рекомендация 0 и фраза; при критичной срочности — в decide.
+
+    Новинка с приходом, но без расхода — «нет расхода с прихода (N дн.)».
+    """
+    saved = rs._nearest_expiry
+    rs._nearest_expiry = lambda dates, today: ('2025-11-10', 5)
+    try:
+        with _patched() as c:
+            _, d = _get(c, 'order-board', BAR_LIG)
+            it = _by_id(d)[P_BOTTLE]                 # 4 шт, 1.5/день: хватит до пт, срочность medium → ok
+            assert it['recommended'] == 0 and it['reason_code'] == 'near_expiry'
+            assert it['reason'] == 'партия истекает пн 10.11 (5 дн.): не заказываем, продаём что есть'
+            assert it['urgency'] == 'medium' and it['section'] == 'ok'
+        balances = [b for b in _balances() if not (b['product'] == P_BOTTLE and b['store'] == STORE_LIG)]
+        balances.append(_bal(STORE_LIG, P_BOTTLE, 1.0, 100.0))       # хватит на 0.67 дня → critical
+        with _patched(snapshot=_snapshot(balances=balances)) as c:
+            _, d = _get(c, 'order-board', BAR_LIG)
+            it = _by_id(d)[P_BOTTLE]
+            assert it['recommended'] == 0 and it['reason_code'] == 'near_expiry'
+            assert it['urgency'] == 'critical' and it['section'] == 'decide'
+    finally:
+        rs._nearest_expiry = saved
+    ops = _operations() + [_op(P_IDLE, STORE_LIG, '6.000000000', '30.10.2025', 'INCOMING_INVOICE', 'true')]
+    with _patched(snapshot=_snapshot(operations=ops)) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_IDLE]
+        assert it['is_new'] is True and it['days_in_period'] == 7
+        assert it['reason_code'] == 'no_movement' and it['reason'] == 'нет расхода с прихода (7 дн.)'
+
+
+def test_order_board_tiny_negative_stock_is_zero():
+    """−0.04 — учётный ноль, а не «отрицательный остаток».
+
+    Без движения (P_IDLE): low / idle / «без движения», не critical. С расходом
+    (P_SAUCE): полка пуста — critical и «заказать», а не «проверить учёт».
+    """
+    balances = [b for b in _balances() if b['product'] not in (P_SAUCE, P_IDLE)]
+    balances += [_bal(STORE_LIG, P_SAUCE, -0.04, 0.0), _bal(STORE_LIG, P_IDLE, -0.04, 0.0)]
+    with _patched(snapshot=_snapshot(balances=balances)) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        idle = _by_id(d)[P_IDLE]
+        assert idle['stock'] == -0.04 and idle['urgency'] == 'low' and idle['section'] == 'idle'
+        assert idle['reason_code'] == 'no_movement'
+        sauce = _by_id(d)[P_SAUCE]
+        assert sauce['urgency'] == 'critical' and sauce['section'] == 'decide'
+        assert sauce['reason_code'] == 'order' and sauce['recommended'] == 1
+        assert d['critical_count'] == 2                                # P_NEG и пустой соус
 
 
 def test_order_board_survives_order_store_failure():
+    """Файл заказов недоступен: доска отвечает, но с флагом orders_available = false."""
     def broken():
         raise OSError('disk gone')
     with _patched(order_store=broken) as c:
@@ -787,6 +866,34 @@ def test_order_board_survives_order_store_failure():
         it = _by_id(d)[P_BOTTLE]
         assert it['on_order'] == 0 and it['draft_qty'] == 0 and it['open_orders'] == []
         assert it['recommended'] == 8
+        assert d['orders_available'] is False and 'disk gone' in d['orders_error']
+
+    # нечитаемый orders.json: то же самое, файл не тронут
+    store = _temp_order_store()
+    with open(store.data_file, 'w', encoding='utf-8') as f:
+        f.write('{broken')
+    with _patched(order_store=store) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        assert code == 200 and d['orders_available'] is False
+        assert 'не читается' in d['orders_error']
+    assert open(store.data_file, encoding='utf-8').read() == '{broken'
+    try:
+        store.get_drafts()
+        assert False
+    except OrderStoreUnavailable:
+        pass
+
+
+def test_stock_tabs_carry_canonical_supplier():
+    """Фасовка и Кухня отдают и сырую категорию, и имя из справочника."""
+    directory = _temp_directory()
+    directory.upsert('Ромашка', {'aliases': ['ИП Ромашка']}, USER)
+    with _patched(directory=directory) as c:
+        _, d = _get(c, 'kitchen', BAR_LIG)
+        it = _by_id(d)[P_SAUCE]
+        assert it['category'] == 'ИП Ромашка' and it['supplier'] == 'Ромашка'
+        _, d = _get(c, 'bottles', BAR_LIG)
+        assert _by_id(d)[P_BOTTLE]['supplier'] == 'ООО "Май"'
 
 
 def _run():

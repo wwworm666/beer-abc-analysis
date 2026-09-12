@@ -23,16 +23,26 @@ iiko при пересчёте доски заказа, см. routes/stocks.get_
     GET  /api/orders?days=30            — открытые заказы всегда + закрытые за days дней
     GET  /api/orders/<id>               — один заказ + текст
     POST /api/orders/<id>/received      — {items?: [{product_id, bar, qty}], note?}
+    POST /api/orders/<id>/close         — {note?} закрыть без сверки (posted вручную)
     POST /api/orders/<id>/cancel        — {note?}
+
+Поставщик черновика приводится к каноническому имени справочника
+(core/supplier_directory), чтобы «Фасовка» с сырой категорией iiko и «К заказу»
+с именем справочника писали в один черновик. Нечитаемый файл заказов — 503
+с кодом orders_unavailable у всех эндпоинтов (запись поверх запрещена).
 """
+import math
 from datetime import date
+from functools import wraps
 
 from flask import Blueprint, jsonify, request
 
+from core import msk_time
 from core.auth_guard import current_user
-from core.order_store import (DEFAULT_HISTORY_DAYS, ALL_STATUSES, get_order_store,
-                              order_text)
+from core.order_store import (DEFAULT_HISTORY_DAYS, ALL_STATUSES, MAX_QTY, OrderStoreUnavailable,
+                              get_order_store, order_text, overdue_days, unmatched_days)
 from core.supplier_calendar import ORDER_OVERDUE_GRACE_DAYS, next_delivery_date
+from core.supplier_directory import get_supplier_directory
 from extensions import BARS
 from routes.stocks import _supplier_params
 
@@ -53,6 +63,27 @@ def _error(message: str, status: int = 400, **extra):
     return jsonify(payload), status
 
 
+def _today() -> date:
+    """Московская дата (сервер живёт в UTC, бары работают за полночь)."""
+    return msk_time.today()
+
+
+def _store_guard(view):
+    """Нечитаемый файл заказов — 503 с кодом, а не 500 и не тихая запись поверх."""
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        try:
+            return view(*args, **kwargs)
+        except OrderStoreUnavailable as e:
+            return _error(str(e), 503, code='orders_unavailable')
+    return wrapper
+
+
+def _canonical_supplier(raw) -> str:
+    """Имя поставщика через справочник: «ИП Ромашка» и «Ромашка» — один черновик."""
+    return get_supplier_directory().view().resolve(str(raw or '').strip())
+
+
 def _validate_item(raw: dict) -> dict:
     """Проверить позицию черновика; ValueError с понятным текстом."""
     if not isinstance(raw, dict):
@@ -67,8 +98,10 @@ def _validate_item(raw: dict) -> dict:
         qty = float(raw.get('qty', 0))
     except (TypeError, ValueError):
         raise ValueError('qty должно быть числом')
-    if qty != qty or qty < 0:
+    if not math.isfinite(qty) or qty < 0:
         raise ValueError('qty должно быть числом >= 0')
+    if qty > MAX_QTY:
+        raise ValueError(f'qty не может быть больше {int(MAX_QTY)}')
     kind = raw.get('kind') or None
     if kind is not None and kind not in ALLOWED_KINDS:
         raise ValueError(f'kind должен быть одним из {", ".join(ALLOWED_KINDS)}')
@@ -86,20 +119,37 @@ def _validate_item(raw: dict) -> dict:
 def _with_text(order: dict) -> dict:
     result = dict(order)
     result['text'] = order_text(order, BARS)
+    today = _today()
+    result['overdue_days'] = overdue_days(order, today)
+    result['unmatched_days'] = unmatched_days(order, today)
     return result
 
 
+def _expected_for(supplier: str) -> str:
+    """Ожидаемая дата поставки при отправке сегодня по календарю поставщика."""
+    params = _supplier_params(supplier)
+    return next_delivery_date(_today(), params['lead_time_days'], params['delivery_weekdays']).isoformat()
+
+
 def _draft_view(draft: dict) -> dict:
-    """Черновик для фронта: позиции списком, отсортированы по бару и названию."""
+    """Черновик для фронта: позиции списком, отсортированы по бару и названию.
+
+    Текст черновика уже содержит желаемую дату поставки: управляющий копирует
+    его в чат до нажатия «Отправлено», и поставщик должен видеть дату.
+    """
     items = sorted(draft.get('items', {}).values(), key=lambda i: (i.get('bar') or '', i.get('name') or ''))
+    expected_at = _expected_for(draft.get('supplier') or '')
     view = {
         'supplier': draft.get('supplier'),
         'updated_at': draft.get('updated_at'),
         'updated_by': draft.get('updated_by'),
+        'updated_by_name': draft.get('updated_by_name') or draft.get('updated_by'),
+        'expected_at': expected_at,
         'items': items,
         'total_qty': sum(float(i.get('qty') or 0) for i in items),
     }
-    view['text'] = order_text({'supplier': draft.get('supplier'), 'items': items}, BARS)
+    view['text'] = order_text({'supplier': draft.get('supplier'), 'items': items, 'expected_at': expected_at},
+                              BARS, expected_label='Желаемая поставка')
     return view
 
 
@@ -110,11 +160,13 @@ def _drafts_response(store):
 
 
 @orders_bp.route('/api/orders/draft', methods=['GET'])
+@_store_guard
 def get_drafts():
     return _drafts_response(get_order_store())
 
 
 @orders_bp.route('/api/orders/draft', methods=['POST'])
+@_store_guard
 def set_draft_item():
     body = _json_body()
     supplier = str(body.get('supplier') or '').strip()
@@ -125,11 +177,12 @@ def set_draft_item():
     except ValueError as e:
         return _error(str(e))
     store = get_order_store()
-    store.set_draft_item(supplier, item, current_user())
+    store.set_draft_item(_canonical_supplier(supplier), item, current_user())
     return _drafts_response(store)
 
 
 @orders_bp.route('/api/orders/draft/batch', methods=['POST'])
+@_store_guard
 def set_draft_batch():
     """Много позиций разом; каждая несёт своего поставщика (supplier)."""
     body = _json_body()
@@ -145,7 +198,7 @@ def set_draft_batch():
             item = _validate_item(raw)
         except ValueError as e:
             return _error(f'позиция {idx}: {e}')
-        by_supplier.setdefault(supplier, []).append(item)
+        by_supplier.setdefault(_canonical_supplier(supplier), []).append(item)
     store = get_order_store()
     user = current_user()
     for supplier, items in by_supplier.items():
@@ -154,6 +207,7 @@ def set_draft_batch():
 
 
 @orders_bp.route('/api/orders/draft/clear', methods=['POST'])
+@_store_guard
 def clear_draft():
     body = _json_body()
     supplier = body.get('supplier')
@@ -167,6 +221,7 @@ def clear_draft():
 
 
 @orders_bp.route('/api/orders/send', methods=['POST'])
+@_store_guard
 def send_order():
     body = _json_body()
     supplier = str(body.get('supplier') or '').strip()
@@ -180,9 +235,7 @@ def send_order():
             return _error('expected_at должен быть датой YYYY-MM-DD')
         expected_at = str(expected_at)[:10]
     else:
-        params = _supplier_params(supplier)
-        expected_at = next_delivery_date(date.today(), params['lead_time_days'],
-                                         params['delivery_weekdays']).isoformat()
+        expected_at = _expected_for(supplier)
     note = body.get('note')
     store = get_order_store()
     try:
@@ -193,6 +246,7 @@ def send_order():
 
 
 @orders_bp.route('/api/orders', methods=['GET'])
+@_store_guard
 def list_orders():
     try:
         days = int(request.args.get('days', DEFAULT_HISTORY_DAYS))
@@ -212,6 +266,7 @@ def list_orders():
 
 
 @orders_bp.route('/api/orders/<order_id>', methods=['GET'])
+@_store_guard
 def get_order(order_id):
     order = get_order_store().get_order(order_id)
     if not order:
@@ -220,6 +275,7 @@ def get_order(order_id):
 
 
 @orders_bp.route('/api/orders/<order_id>/received', methods=['POST'])
+@_store_guard
 def mark_received(order_id):
     body = _json_body()
     raw_items = body.get('items') or []
@@ -233,10 +289,28 @@ def mark_received(order_id):
             qty = float(raw.get('qty', 0))
         except (TypeError, ValueError):
             return _error(f'позиция {idx}: qty должно быть числом')
-        received.append({'product_id': raw.get('product_id'), 'bar': raw.get('bar'), 'qty': qty})
+        if not math.isfinite(qty) or qty < 0 or qty > MAX_QTY:
+            return _error(f'позиция {idx}: qty должно быть числом от 0 до {int(MAX_QTY)}')
+        received.append({'product_id': str(raw.get('product_id') or '').strip(),
+                         'bar': str(raw.get('bar') or '').strip(), 'qty': qty})
     store = get_order_store()
     try:
         order = store.mark_received(order_id, current_user(), received_items=received, note=body.get('note'))
+    except KeyError:
+        return _error(f'Заказ {order_id} не найден', 404)
+    except ValueError as e:
+        return _error(str(e), 400 if 'нет позиций' in str(e) else 409)
+    return jsonify({'order': _with_text(order)})
+
+
+@orders_bp.route('/api/orders/<order_id>/close', methods=['POST'])
+@_store_guard
+def close_order(order_id):
+    """«Закрыть без сверки»: открытый заказ → posted вручную (накладная не совпадёт)."""
+    body = _json_body()
+    store = get_order_store()
+    try:
+        order = store.close(order_id, current_user(), note=body.get('note'))
     except KeyError:
         return _error(f'Заказ {order_id} не найден', 404)
     except ValueError as e:
@@ -245,6 +319,7 @@ def mark_received(order_id):
 
 
 @orders_bp.route('/api/orders/<order_id>/cancel', methods=['POST'])
+@_store_guard
 def cancel_order(order_id):
     body = _json_body()
     store = get_order_store()

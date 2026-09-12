@@ -360,6 +360,13 @@
         .ob-idle summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 8px 0; }
         .ob-idle .ob-table { margin-top: 8px; }
         .ob-empty { padding: 16px; color: var(--text-secondary); font-size: 13px; }
+        .ob-note[hidden] { display: none; }
+        .ob-note { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 12px; margin: 8px 0 12px; border-radius: 6px; background: rgba(59, 130, 246, 0.10); font-size: 12px; }
+        .ob-note button { padding: 3px 10px; font-size: 11px; }
+        .ob-group-sent { font-size: 12px; color: #1d4ed8; }
+        .recv-form { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--border-color); border-radius: 6px; }
+        .recv-form input[type="number"] { width: 72px; padding: 4px 6px; }
+        .recv-form .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 0; font-size: 13px; }
         .ob-sticky {
             position: fixed;
             left: 0; right: 0; bottom: 0;
@@ -784,6 +791,11 @@
             table.ob-table .ob-take { width: auto; white-space: nowrap; font-size: 12px; padding: 6px 10px; }
             table.ob-table .ob-reason { font-size: 0.85rem; }
             table.ob-table tr.ob-detail td { padding: 8px 12px; }
+            /* display: block выше перекрывает атрибут hidden: скрытые строки подробностей прячем явно */
+            table.ob-table tr[hidden] { display: none !important; }
+            /* Таблицы карточек «К отправке»: общие мобильные ширины по nth-child не для них */
+            .order-card table { table-layout: auto; }
+            .order-card th, .order-card td { width: auto !important; overflow: visible; text-overflow: clip; white-space: normal; }
         }
     </style>
 </head>
@@ -857,7 +869,13 @@
                     </div>
                     <label class="ob-toggle"><input type="checkbox" id="ob-show-all" onchange="renderOrderBoard()"> показать и то, чего хватает</label>
                     <button class="btn btn-secondary btn-small" onclick="applyAllRecommendations()">Взять все рекомендации</button>
+                    <a class="btn btn-secondary btn-small" href="/suppliers" style="text-decoration: none;">Поставщики</a>
                 </div>
+                <div class="ob-note" id="ob-note" hidden>
+                    <span>С 11.09 «нужно» считается до поставки, следующей за ближайшей (раньше — только до ближайшей): рекомендации стали больше, особенно перед выходными. Подробнее в «Как считается».</span>
+                    <button class="btn btn-secondary" onclick="dismissNote()">Понятно</button>
+                </div>
+                <div id="ob-orders-warning"></div>
                 <div id="ob-groups"></div>
                 <details class="ob-idle" id="ob-idle">
                     <summary id="ob-idle-summary">Без движения или редко</summary>
@@ -943,7 +961,7 @@
                 <h2>Черновик заказа</h2>
                 <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
                     Черновик общий для всех управляющих и всех баров, хранится на сервере: одна карточка — одно сообщение поставщику.
-                    Количество можно поправить здесь или в колонке «В заказ» на «Сводном заказе». Отправили сообщение в чат —
+                    Количество можно поправить здесь или в колонке «Заказ» на вкладке «К заказу». Отправили сообщение в чат —
                     нажмите «Отправлено поставщику»: заказ перейдёт в «В пути» и перестанет попадать в рекомендации.
                 </p>
                 <div id="order-drafts"></div>
@@ -974,6 +992,7 @@
 
     <script>
         let currentBar = '';
+        const CURRENT_USER_NAME = {{ (current_user.display_name if current_user else '') | tojson }};
 
         // Экранирование для innerHTML и атрибутов: кавычки тоже (имена вроде ООО "Май", S-09)
         function escapeHtml(text) {
@@ -1061,6 +1080,11 @@
                 tabLoadedFor[tabName] = currentBar;
                 loader(currentBar).then(syncDraftInputs);
             }
+            if (tabName === 'order') {
+                // Черновик общий: перед отправкой показываем то, что видит сервер, а не снимок при входе
+                loadDrafts();
+                loadOrders();
+            }
             if (tabName === 'order-board') window.scrollTo({top: 0});
             renderStickyPanel();
         }
@@ -1088,9 +1112,11 @@
             currentBar = bar;
             rememberBar(bar);
             tabLoadedFor = {};
+            document.querySelectorAll('.tab-error').forEach(b => b.remove());
             const active = document.querySelector('.tab.active');
             const activeTab = active ? active.dataset.tab : 'order-board';
-            const jobs = [loadOrderBoard(bar)];
+            // Черновик и заказы правят коллеги: «Обновить данные» и смена бара перечитывают их
+            const jobs = [loadOrderBoard(bar), loadDrafts(), loadOrders()];
             if (TAB_LOADERS[activeTab]) {
                 tabLoadedFor[activeTab] = bar;
                 jobs.push(TAB_LOADERS[activeTab](bar));
@@ -1171,7 +1197,7 @@
             const today = new Date();
             const sameDay = d.toDateString() === today.toDateString();
             const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-            return sameDay ? hm : (fmtDate(d.toISOString().slice(0, 10)) + ' ' + hm);
+            return sameDay ? hm : (fmtDate(localDateIso(d)) + ' ' + hm);
         }
 
         function boardFilter() {
@@ -1201,6 +1227,15 @@
                 + (data.chz_updated_at ? ' · сроки ЧЗ на ' + fmtTime(data.chz_updated_at) : ' · ЧЗ: нет данных')
                 + ' · расход за ' + (data.window_days || 30) + ' дн. ' + scope
                 + (data.on_order_count ? ' · в пути: ' + data.on_order_count + ' поз.' : '');
+            ordersUnavailable = data.orders_available === false;
+            const warning = document.getElementById('ob-orders-warning');
+            warning.innerHTML = ordersUnavailable
+                ? `<div class="ob-banner error"><span>Файл заказов недоступен: «в пути» и черновик не учтены, добавлять в заказ пока нельзя. ${escapeHtml(data.orders_error || '')}</span></div>`
+                : '';
+            const note = document.getElementById('ob-note');
+            let dismissed = false;
+            try { dismissed = localStorage.getItem(NOTE_STORAGE_KEY) === '1'; } catch (e) { dismissed = false; }
+            note.hidden = dismissed;
 
             const showAll = document.getElementById('ob-show-all').checked;
             const passes = boardFilter();
@@ -1257,11 +1292,21 @@
                 'срок ' + g.lead + ' дн.' + (g.is_default ? ' (по умолчанию)' : ''),
             ];
             if (g.self_pickup) metaParts.push('самовывоз');
+            // Коллега уже отправил заказ этому поставщику: видно на карточке группы (решение владельца 1)
+            const lastSent = ordersData
+                .filter(o => (o.status === 'sent' || o.status === 'received') && o.supplier === g.supplier)
+                .sort((a, b) => (b.sent_at || '').localeCompare(a.sent_at || ''))[0];
+            const sentLine = lastSent
+                ? `<div class="ob-group-sent">отправлено ${fmtDateTimeHtml(lastSent.sent_at)} (${escapeHtml(lastSent.sent_by_name || lastSent.sent_by || '')})`
+                  + (lastSent.expected_at ? `, ожидается ${fmtDateHtml(lastSent.expected_at)}` : '')
+                  + (lastSent.status === 'received' ? ', приехало' : '') + '</div>'
+                : '';
             card.innerHTML = `
                 <div class="ob-group-head">
                     <div>
                         <h3>${escapeHtml(g.supplier)}</h3>
                         <div class="ob-group-meta">${escapeHtml(metaParts.join(' · '))} · <a href="/suppliers" title="Срок и дни доставки, написания">настроить</a></div>
+                        ${sentLine}
                     </div>
                     <div class="ob-group-actions">
                         <span class="ob-group-meta">к решению: ${g.decide}</span>
@@ -1350,26 +1395,28 @@
             });
         }
 
+        function fmtDateHtml(iso) { return escapeHtml(fmtDate(iso)); }   // для innerHTML: дата из внешних данных экранируется
+
         function detailHtml(item) {
             const u = escapeHtml(item.unit);
             const lines = [];
             const safety = orderBoardData.safety_days;
-            lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDate(item.next_delivery)} + ${safety} дн. запаса)`);
+            lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDateHtml(item.next_delivery)} + ${safety} дн. запаса)`);
             lines.push(`<strong>Есть</strong> ${fmtQty(item.stock)} ${u}` + (item.on_order > 0 ? ` + в пути ${fmtQty(item.on_order)} = ${fmtQty(item.effective_stock)}` : '')
-                + (item.recommended > 0 ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>` + (item.pack_size > 1 ? ` (кратность ${item.pack_size})` : '') + `, приедет ${fmtDate(item.expected_delivery)}` : ' → заказывать не нужно'));
+                + (item.recommended > 0 ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>` + (item.pack_size > 1 ? ` (упаковка ${item.pack_size})` : '') + `, приедет ${fmtDateHtml(item.expected_delivery)}` : ' → заказывать не нужно'));
             const byType = Object.entries(item.consumption_by_type || {});
             const breakdown = byType.length
                 ? byType.map(([k, v]) => (DOC_TYPE_LABELS[k] || k) + ' ' + fmtQty(v)).join(', ')
                 : 'операций нет';
             lines.push(`<strong>Расход</strong> за ${item.days_in_period} дн.${item.is_new ? ' (с первого прихода)' : ''}: ${escapeHtml(breakdown)} → ${fmtQty(item.avg_sales)} ${u} в день, ${fmtQty(item.weekly_sales)} в неделю`);
-            if (item.last_incoming) lines.push(`<strong>Последний приход</strong> ${fmtDate(item.last_incoming.date)}: ${fmtQty(item.last_incoming.amount)} ${u}`);
+            if (item.last_incoming) lines.push(`<strong>Последний приход</strong> ${fmtDateHtml(item.last_incoming.date)}: ${fmtQty(item.last_incoming.amount)} ${u}`);
             if (item.open_orders && item.open_orders.length) {
                 lines.push('<strong>В пути</strong>: ' + item.open_orders.map(o => escapeHtml(o.supplier) + ' ' + fmtQty(o.qty) + ' ' + u
-                    + (o.expected_at ? ', ожидается ' + fmtDate(o.expected_at) : '') + ' (' + escapeHtml((ORDER_STATUS_LABELS[o.status] || o.status).toLowerCase()) + ')').join('; '));
+                    + (o.expected_at ? ', ожидается ' + fmtDateHtml(o.expected_at) : '') + ' (' + escapeHtml((ORDER_STATUS_LABELS[o.status] || o.status).toLowerCase()) + ')').join('; '));
             }
             if (item.type === 'bottle') {
                 lines.push('<strong>Срок годности</strong>: ' + (item.nearest_expiry
-                    ? fmtDate(item.nearest_expiry) + ' (' + item.days_to_expiry + ' дн.)' : 'нет данных ЧЗ') + ' · <a href="/expiration">партии</a>');
+                    ? fmtDateHtml(item.nearest_expiry) + ' (' + item.days_to_expiry + ' дн.)' : 'нет данных ЧЗ') + ' · <a href="/expiration">партии</a>');
             }
             if (item.type === 'draft') lines.push('<a href="/taps">Краны бара</a>');
             if (item.supplier_raw && item.supplier_raw !== item.supplier) lines.push('Категория в iiko: ' + escapeHtml(item.supplier_raw));
@@ -1381,7 +1428,7 @@
             const payload = items.filter(it => it.recommended > 0).map(it => draftPayload(it, it.recommended, bar));
             if (payload.length === 0) { alert('Нет позиций с рекомендацией'); return; }
             try {
-                applyDrafts(await postJson('/api/orders/draft/batch', {items: payload}));
+                await draftRequest('POST', '/api/orders/draft/batch', {items: payload});
             } catch (error) {
                 alert('Не удалось положить в заказ: ' + error.message);
             }
@@ -1423,6 +1470,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('taplist');
 
                 // Update stats
                 const statsHtml = `
@@ -1485,6 +1534,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('bottles');
 
                 // Update stats
                 const statsHtml = `
@@ -1502,7 +1553,7 @@
                 // Group items by supplier
                 const groupedItems = {};
                 (data.items || []).forEach(item => {
-                    const supplier = item.category || 'Без поставщика';
+                    const supplier = item.supplier || item.category || 'Без поставщика';
                     if (!groupedItems[supplier]) {
                         groupedItems[supplier] = [];
                     }
@@ -1547,7 +1598,7 @@
                             <td><input type="number" min="0" step="any" value="0" data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}" style="width: 80px;"></td>
                         `;
                         row.querySelector('input').addEventListener('change', function() {
-                            setDraftQty({...item, supplier: item.category, type: 'bottle'}, this.value, bar);
+                            setDraftQty({...item, supplier: item.supplier || item.category, type: 'bottle'}, this.value, bar);
                         });
                         tbody.appendChild(row);
                     });
@@ -1598,7 +1649,7 @@
             let warn = '';
             if (barChz > stock + 1) {
                 // в ЧЗ за этим баром числится больше кодов чем по факту в iiko
-                warn += `<div style="color: #d97706; font-size: 11px; margin-top: 4px;">⚠ В ЧЗ за этим баром ${barChz} кодов, в iiko ${stock} — касса не RETIRE'ит проданные</div>`;
+                warn += `<div style="color: #d97706; font-size: 11px; margin-top: 4px;">Внимание: в ЧЗ за этим баром ${barChz} кодов, в iiko ${stock} — касса не RETIRE'ит проданные</div>`;
             }
             if (totalChz > barChz) {
                 warn += `<div style="color: var(--text-secondary); font-size: 11px;">по всему юрлицу: ${totalChz} кодов</div>`;
@@ -1675,6 +1726,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('expiry');
 
                 const chzDate = data.chz_updated_at
                     ? new Date(data.chz_updated_at).toLocaleString('ru-RU')
@@ -1770,6 +1823,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('kitchen');
 
                 // Update stats
                 const statsHtml = `
@@ -1787,7 +1842,7 @@
                 // Group items by supplier
                 const groupedItems = {};
                 (data.items || []).forEach(item => {
-                    const supplier = item.category || 'Без поставщика';
+                    const supplier = item.supplier || item.category || 'Без поставщика';
                     if (!groupedItems[supplier]) {
                         groupedItems[supplier] = [];
                     }
@@ -1832,7 +1887,7 @@
                             <td><input type="number" min="0" step="any" value="0" data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}" style="width: 80px;"></td>
                         `;
                         row.querySelector('input').addEventListener('change', function() {
-                            setDraftQty({...item, supplier: item.category, type: 'kitchen'}, this.value, bar);
+                            setDraftQty({...item, supplier: item.supplier || item.category, type: 'kitchen'}, this.value, bar);
                         });
                         tbody.appendChild(row);
                     });
@@ -1857,7 +1912,6 @@
         // во «Фасовке» и «Меню кухни» пишут в него сразу (одна позиция — один POST).
         let draftsData = [];        // GET /api/orders/draft → drafts[]
         let ordersData = [];        // GET /api/orders → orders[]
-        let ordersGraceDays = 2;    // из ответа /api/orders (core/supplier_calendar.ORDER_OVERDUE_GRACE_DAYS)
         let draftQtyByKey = {};     // "product_id|bar" → qty для предзаполнения инпутов
         const ORDER_STATUS_LABELS = {sent: 'Отправлено', received: 'Приехало', posted: 'Оприходовано', cancelled: 'Отменено'};
         const WEEKDAYS_RU = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -1912,6 +1966,35 @@
             };
         }
 
+        // Ответы на правки черновика применяются по порядку отправки: поздний ответ раннего
+        // запроса не откатывает более новую правку (тот же приём, что obRequestSeq у доски)
+        let draftSeq = 0;
+        let draftApplied = 0;
+        let ordersUnavailable = false;
+        const NOTE_STORAGE_KEY = 'stocks.horizonNote.v1';
+        function dismissNote() {
+            try { localStorage.setItem(NOTE_STORAGE_KEY, '1'); } catch (e) { /* приватный режим */ }
+            document.getElementById('ob-note').hidden = true;
+        }
+        function fmtDateTimeHtml(iso) { return escapeHtml(fmtDateTime(iso)); }
+
+        async function draftRequest(method, url, body) {
+            const seq = ++draftSeq;
+            const data = method === 'GET' ? await (async () => {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    let payload = {};
+                    try { payload = await response.json(); } catch (e) { payload = {}; }
+                    throw new Error(payload.error || ('Ошибка ' + response.status));
+                }
+                return response.json();
+            })() : await postJson(url, body);
+            if (seq < draftApplied) return null;      // уже применён более новый ответ
+            draftApplied = seq;
+            applyDrafts(data);
+            return data;
+        }
+
         function applyDrafts(data) {
             draftsData = data.drafts || [];
             draftQtyByKey = {};
@@ -1927,14 +2010,21 @@
         function syncDraftInputs() {
             document.querySelectorAll('input[data-product-id]').forEach(inp => {
                 const bar = inp.dataset.bar;
-                const disabled = !canOrderFor(bar);
+                const disabled = !canOrderFor(bar) || ordersUnavailable;
                 inp.disabled = disabled;
-                inp.title = disabled ? 'Выберите конкретный бар, чтобы добавить в заказ' : '';
-                inp.value = disabled ? 0 : draftQtyFor(inp.dataset.productId, bar);
+                inp.title = ordersUnavailable ? 'Файл заказов недоступен'
+                    : (disabled ? 'Выберите конкретный бар, чтобы добавить в заказ' : '');
+                // Поле, в котором человек сейчас печатает, не перезаписываем ответом сервера
+                if (inp !== document.activeElement) {
+                    inp.value = disabled ? 0 : draftQtyFor(inp.dataset.productId, bar);
+                }
                 // Кнопка «Взять N» не нужна, когда в черновике уже ровно рекомендация
                 const take = inp.parentElement ? inp.parentElement.querySelector('.ob-take') : null;
-                if (take) take.style.display = (Number(inp.value) === Number(take.dataset.take)) ? 'none' : '';
+                if (take) {
+                    take.style.display = (ordersUnavailable || Number(inp.value) === Number(take.dataset.take)) ? 'none' : '';
+                }
             });
+            document.querySelectorAll('[data-action="take-group"]').forEach(btn => { btn.disabled = ordersUnavailable; });
             renderStickyPanel();
         }
 
@@ -1950,19 +2040,20 @@
             if (positions === 0 || onOrderTab) {
                 panel.classList.remove('visible');
                 document.body.classList.remove('has-sticky');
+                document.body.style.paddingBottom = '';
                 return;
             }
             document.getElementById('ob-sticky-text').textContent = 'Заказ: ' + positions + ' поз. · ' + suppliers
                 + ' ' + (suppliers === 1 ? 'поставщик' : (suppliers < 5 ? 'поставщика' : 'поставщиков'));
             panel.classList.add('visible');
             document.body.classList.add('has-sticky');
+            // На узком экране панель переносится на две строки: отступ снизу — по её высоте
+            document.body.style.paddingBottom = (panel.offsetHeight + 8) + 'px';
         }
 
         async function loadDrafts() {
             try {
-                const response = await fetch('/api/orders/draft');
-                if (!response.ok) throw new Error('Ошибка ' + response.status);
-                applyDrafts(await response.json());
+                await draftRequest('GET', '/api/orders/draft');
             } catch (error) {
                 console.error('Error loading drafts:', error);
             }
@@ -1974,7 +2065,6 @@
                 if (!response.ok) throw new Error('Ошибка ' + response.status);
                 const data = await response.json();
                 ordersData = data.orders || [];
-                if (data.overdue_grace_days !== undefined) ordersGraceDays = data.overdue_grace_days;
                 renderOpenOrders();
                 renderOrderHistory();
             } catch (error) {
@@ -1991,7 +2081,7 @@
                 return;
             }
             try {
-                applyDrafts(await postJson('/api/orders/draft', draftPayload(item, qty, bar)));
+                await draftRequest('POST', '/api/orders/draft', draftPayload(item, qty, bar));
             } catch (error) {
                 alert('Не удалось сохранить позицию: ' + error.message);
                 syncDraftInputs();
@@ -2003,7 +2093,7 @@
             const actions = document.getElementById('order-drafts-actions');
             if (!box) return;
             if (draftsData.length === 0) {
-                box.innerHTML = '<p style="color: var(--text-secondary);">Черновик пуст. Добавьте позиции в колонке «В заказ» на «Сводном заказе» или во вкладках «Фасовка» и «Меню кухни».</p>';
+                box.innerHTML = '<p style="color: var(--text-secondary);">Черновик пуст. Добавьте позиции в колонке «Заказ» на вкладке «К заказу» или во вкладках «Фасовка» и «Меню кухни».</p>';
                 if (actions) actions.style.display = 'none';
                 return;
             }
@@ -2026,7 +2116,7 @@
                     </tr>`).join('');
                 card.innerHTML = `
                     <h4>${escapeHtml(draft.supplier)}</h4>
-                    <div class="order-meta">Изменён ${fmtDateTime(draft.updated_at)} (${escapeHtml(draft.updated_by || '')}) · позиций: ${draft.items.length}</div>
+                    <div class="order-meta">Изменён ${fmtDateTime(draft.updated_at)} (${escapeHtml(draft.updated_by_name || draft.updated_by || '')}) · позиций: ${draft.items.length}${draft.expected_at ? ' · желаемая поставка ' + fmtDate(draft.expected_at) : ''}</div>
                     <table>
                         <thead><tr><th>Бар</th><th>Позиция</th><th>Количество</th><th></th><th></th></tr></thead>
                         <tbody>${rows}</tbody>
@@ -2093,31 +2183,36 @@
         async function clearDraft(supplier) {
             if (!confirm('Убрать черновик «' + supplier + '»? Позиции придётся добавлять заново.')) return;
             try {
-                applyDrafts(await postJson('/api/orders/draft/clear', {supplier: supplier}));
+                await draftRequest('POST', '/api/orders/draft/clear', {supplier: supplier});
             } catch (error) {
                 alert('Не удалось убрать черновик: ' + error.message);
             }
         }
 
         async function clearAllDrafts() {
-            if (!confirm('Очистить весь черновик по всем поставщикам и барам?')) return;
+            // Черновик общий: называем, чьи карточки исчезнут вместе с вашими
+            const others = [...new Set(draftsData
+                .filter(d => (d.updated_by_name || d.updated_by) && (d.updated_by_name || d.updated_by) !== CURRENT_USER_NAME)
+                .map(d => (d.updated_by_name || d.updated_by) + ' (' + d.supplier + ')'))];
+            const warn = others.length ? ' В черновике есть карточки коллег: ' + others.join(', ') + '.' : '';
+            if (!confirm('Очистить весь черновик по всем поставщикам и барам?' + warn)) return;
             try {
-                applyDrafts(await postJson('/api/orders/draft/clear', {}));
+                await draftRequest('POST', '/api/orders/draft/clear', {});
             } catch (error) {
                 alert('Не удалось очистить черновик: ' + error.message);
             }
         }
 
         function orderStatusBadge(order) {
+            // Задержка считается на сервере (московская дата, допуск ORDER_OVERDUE_GRACE_DAYS)
             let cls = order.status;
             let label = ORDER_STATUS_LABELS[order.status] || order.status;
-            if (order.status === 'sent' && order.expected_at) {
-                const today = new Date(); today.setHours(0, 0, 0, 0);
-                const exp = new Date(String(order.expected_at).slice(0, 10) + 'T00:00:00');
-                const lateDays = Math.round((today - exp) / 86400000);
-                if (lateDays > ordersGraceDays) { cls = 'overdue'; label = 'Задерживается ' + lateDays + ' дн.'; }
+            if (order.overdue_days > 0) { cls = 'overdue'; label = 'Задерживается ' + order.overdue_days + ' дн.'; }
+            let html = `<span class="order-status ${cls}">${escapeHtml(label)}</span>`;
+            if (order.unmatched_days > 0) {
+                html += ` <span class="order-status overdue" title="Накладной в iiko нет уже ${order.unmatched_days} дн. после ожидаемой даты: проверьте или закройте без сверки">накладной нет ${order.unmatched_days} дн.</span>`;
             }
-            return `<span class="order-status ${cls}">${escapeHtml(label)}</span>`;
+            return html;
         }
 
         function orderItemsTable(order) {
@@ -2148,8 +2243,10 @@
                 <div class="order-actions">
                     ${order.status === 'sent' ? '<button class="btn btn-small" data-action="received">Приехало</button>' : ''}
                     <button class="btn btn-secondary btn-small" data-action="copy">Скопировать текст</button>
+                    <button class="btn btn-secondary btn-small" data-action="close" title="Заказ больше не ждёт накладной: товар заменили, накладную провели иначе">Закрыть без сверки</button>
                     <button class="btn btn-secondary btn-small" data-action="cancel">Отменить заказ</button>
-                </div>` : '';
+                </div>
+                <div class="recv-form" data-role="recv-form" hidden></div>` : '';
             card.innerHTML = `
                 <h4>${escapeHtml(order.supplier)} ${orderStatusBadge(order)}</h4>
                 <div class="order-meta">${meta}</div>
@@ -2161,12 +2258,50 @@
                 ${actions}
             `;
             const received = card.querySelector('[data-action="received"]');
-            if (received) received.addEventListener('click', function() { markReceived(order); });
+            if (received) received.addEventListener('click', function() { openReceiveForm(order, card); });
             const copy = card.querySelector('[data-action="copy"]');
             if (copy) copy.addEventListener('click', function() { copyText(order.text || '', this); });
+            const closeBtn = card.querySelector('[data-action="close"]');
+            if (closeBtn) closeBtn.addEventListener('click', function() { closeOrder(order); });
             const cancel = card.querySelector('[data-action="cancel"]');
             if (cancel) cancel.addEventListener('click', function() { cancelOrder(order); });
             return card;
+        }
+
+        // «Приехало» с фактом: количества по позициям можно поправить перед подтверждением
+        function openReceiveForm(order, card) {
+            const form = card.querySelector('[data-role="recv-form"]');
+            if (!form) return;
+            if (!form.hidden) { form.hidden = true; return; }
+            form.innerHTML = '<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Сколько приехало на самом деле (если меньше или больше заказа, поправьте):</div>'
+                + order.items.map(it => `
+                    <div class="row">
+                        <span style="min-width: 120px;">${escapeHtml(it.bar)}</span>
+                        <span style="flex: 1;">${escapeHtml(it.name)}</span>
+                        <input type="number" min="0" step="any" value="${fmtQty(it.qty)}"
+                            data-recv-product="${escapeHtml(it.product_id)}" data-recv-bar="${escapeHtml(it.bar)}"> ${escapeHtml(it.unit || 'шт')}
+                    </div>`).join('')
+                + '<div class="order-actions"><button class="btn btn-small" data-action="confirm-receive">Подтвердить приёмку</button>'
+                + '<button class="btn btn-secondary btn-small" data-action="cancel-receive">Отмена</button></div>';
+            form.hidden = false;
+            form.querySelector('[data-action="cancel-receive"]').addEventListener('click', () => { form.hidden = true; });
+            form.querySelector('[data-action="confirm-receive"]').addEventListener('click', () => {
+                const items = [...form.querySelectorAll('input[data-recv-product]')].map(inp => ({
+                    product_id: inp.dataset.recvProduct, bar: inp.dataset.recvBar, qty: parseFloat(inp.value) || 0,
+                }));
+                markReceived(order, items);
+            });
+        }
+
+        async function closeOrder(order) {
+            if (!confirm('Закрыть заказ «' + order.supplier + '» без сверки с накладной? Он перестанет считаться «в пути».')) return;
+            try {
+                await postJson('/api/orders/' + encodeURIComponent(order.id) + '/close', {});
+                await loadOrders();
+                if (currentBar) loadOrderBoard(currentBar);
+            } catch (error) {
+                alert('Не удалось закрыть заказ: ' + error.message);
+            }
         }
 
         function renderOpenOrders() {
@@ -2193,11 +2328,11 @@
             closed.forEach(o => box.appendChild(orderCard(o, false)));
         }
 
-        async function markReceived(order) {
-            if (!confirm('Отметить заказ «' + order.supplier + '» как приехавший? Он останется «в пути» для рекомендаций, пока бухгалтерия не оприходует накладную.')) return;
+        async function markReceived(order, items) {
             try {
-                await postJson('/api/orders/' + encodeURIComponent(order.id) + '/received', {});
+                await postJson('/api/orders/' + encodeURIComponent(order.id) + '/received', {items: items || []});
                 await loadOrders();
+                if (currentBar) loadOrderBoard(currentBar);
             } catch (error) {
                 alert('Не удалось отметить приёмку: ' + error.message);
             }

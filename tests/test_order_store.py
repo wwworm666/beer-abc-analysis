@@ -23,16 +23,19 @@ Self-runnable: `py -3 tests/test_order_store.py` (совместимо с pytest
 - календарь: пропуск выходных, lead_time в днях доставки, горизонт, задержка.
 """
 
+import atexit
 import os
 import sys
 import json
+import shutil
 import tempfile
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core import order_store as osm  # noqa: E402
-from core.order_store import OrderStore, order_text, draft_key  # noqa: E402
+from core.order_store import (OrderStore, OrderStoreUnavailable, order_text, draft_key,  # noqa: E402
+                              overdue_days, unmatched_days)
 from core.supplier_calendar import (next_delivery_date, delivery_after, horizon_days,  # noqa: E402
                                     is_overdue, ORDER_OVERDUE_GRACE_DAYS)
 
@@ -47,6 +50,7 @@ BAR_STORES = {BAR_LIG: STORE_LIG, BAR_BOL: STORE_BOL}
 
 def _store():
     tmp = tempfile.mkdtemp(prefix='orders_test_')
+    atexit.register(shutil.rmtree, tmp, ignore_errors=True)   # не оставлять мусор в temp
     return OrderStore(os.path.join(tmp, 'orders.json'))
 
 
@@ -164,14 +168,8 @@ def test_list_orders_window_and_filters():
     s = _store()
     _seed_orders(s)
     fixed_today = date(2026, 9, 10)
-
-    class _FakeDT(osm.datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return cls(fixed_today.year, fixed_today.month, fixed_today.day, 12, 0, 0)
-
-    saved = osm.datetime
-    osm.datetime = _FakeDT
+    saved = osm._today
+    osm._today = lambda: fixed_today
     try:
         ids = [o['id'] for o in s.list_orders(days=30)]
         # открытый старый заказ виден всегда; старый posted отрезан окном; новые первыми
@@ -180,7 +178,7 @@ def test_list_orders_window_and_filters():
         assert [o['id'] for o in s.list_orders(days=30, statuses=['cancelled'])] == ['recent-cancelled']
         assert [o['id'] for o in s.list_orders(days=0)] == ['recent-cancelled', 'old-sent', 'old-posted']
     finally:
-        osm.datetime = saved
+        osm._today = saved
 
 
 # --- приёмка, отмена, статусы ---------------------------------------------
@@ -193,10 +191,23 @@ def test_received_cancel_and_status_guards():
     assert r['status'] == 'received' and r['received_by'] == 'boris' and r['note'] == 'одной не хватило'
     by_pid = {i['product_id']: i for i in r['items']}
     assert by_pid['p1']['received_qty'] == 2.0 and 'received_qty' not in by_pid['p2']
+    # факт по позиции, которой нет в заказе, — ошибка, а не молчаливая потеря
+    try:
+        s.mark_received(o['id'], USER_A, received_items=[{'product_id': 'p9', 'bar': BAR_LIG, 'qty': 1}])
+        assert False
+    except ValueError as e:
+        assert 'нет позиций' in str(e)
     # «приехало» повторно допустимо (статус остаётся received), после отмены — нет
     assert s.mark_received(o['id'], USER_A)['status'] == 'received'
     c = s.cancel(o['id'], USER_A, note='поставщик не смог')
     assert c['status'] == 'cancelled' and c['cancelled_by'] == 'anna'
+    # повторная отмена не переписывает автора и время
+    try:
+        s.cancel(o['id'], USER_B)
+        assert False
+    except ValueError:
+        pass
+    assert s.get_order(o['id'])['cancelled_by'] == 'anna'
     try:
         s.mark_received(o['id'], USER_A)
         assert False
@@ -272,8 +283,8 @@ def test_reconcile_with_incoming_invoices():
         _inv('p1', STORE_BOL, '09.09.2026'),                      # другой склад — не считается
         _inv('p1', STORE_LIG, '09.09.2026', doc='INTERNAL_TRANSFER'),  # не накладная
         _inv('p1', STORE_LIG, '09.09.2026', incoming='false'),    # не приход
-        _inv('p1', STORE_LIG, '10.09.2026'),                      # подходит o1 и o2
-        _inv('p1', STORE_LIG, '11.09.2026'),
+        _inv('p1', STORE_LIG, '10.09.2026'),                      # позже 08.09 → o1
+        _inv('p1', STORE_LIG, '11.09.2026'),                      # позже 09.09 → o2 (10.09 уже занята o1)
         _inv('p2', STORE_LIG, 'мусор'),                           # битая дата пропускается
     ]
     assert s.reconcile_with_operations(ops, BAR_STORES) == 2
@@ -281,7 +292,8 @@ def test_reconcile_with_incoming_invoices():
     assert o1['status'] == 'sent'                                  # p2 ещё не оприходован
     assert o1['items'][0]['posted_at'] == '2026-09-10'             # ближайшая подходящая накладная
     assert 'posted_at' not in o1['items'][1]
-    assert o2['status'] == 'posted' and o2['posted_at'] and o2['items'][0]['posted_at'] == '2026-09-10'
+    # одна накладная закрывает одну позицию: o2 получает следующую дату, а не ту же
+    assert o2['status'] == 'posted' and o2['posted_at'] and o2['items'][0]['posted_at'] == '2026-09-11'
     assert o3['status'] == 'cancelled' and 'posted_at' not in o3['items'][0]
     assert s.open_quantities(BAR_LIG) == {}
     assert s.open_quantities(BAR_BOL) == {'p2': 2.0}
@@ -297,6 +309,77 @@ def test_reconcile_with_incoming_invoices():
     assert s.get_order('o1')['status'] == 'posted'
 
 
+def test_reconcile_ignores_invoice_on_send_day_and_one_invoice_one_order():
+    """Накладная в день отправки — предыдущая поставка; одна накладная не закрывает два заказа."""
+    s = _store()
+    data = s._load()
+    data['orders'] = [
+        {'id': 'a', 'supplier': 'Метро', 'status': 'sent', 'sent_at': '2026-09-09T10:00:00',
+         'items': [{'product_id': 'p1', 'bar': BAR_LIG, 'name': 'Кола', 'unit': 'шт', 'qty': 5}]},
+        {'id': 'b', 'supplier': 'Метро', 'status': 'sent', 'sent_at': '2026-09-10T15:00:00',
+         'items': [{'product_id': 'p1', 'bar': BAR_LIG, 'name': 'Кола', 'unit': 'шт', 'qty': 7}]},
+    ]
+    s._save(data)
+    # накладная 10.09: подходит только a (отправлен 09.09); b отправлен 10.09 — это не его поставка
+    assert s.reconcile_with_operations([_inv('p1', STORE_LIG, '10.09.2026')], BAR_STORES) == 1
+    assert s.get_order('a')['status'] == 'posted' and s.get_order('b')['status'] == 'sent'
+    assert s.open_quantities(BAR_LIG) == {'p1': 7.0}
+    # та же накладная повторно не закрывает b; нужна новая, позже 10.09
+    assert s.reconcile_with_operations([_inv('p1', STORE_LIG, '10.09.2026')], BAR_STORES) == 0
+    assert s.reconcile_with_operations([_inv('p1', STORE_LIG, '12.09.2026')], BAR_STORES) == 1
+    assert s.get_order('b')['status'] == 'posted'
+
+
+def test_close_manually_and_flags():
+    """«Закрыть без сверки» переводит открытый заказ в posted; задержка и «накладной нет» считаются."""
+    s = _store()
+    s.set_draft_items('Метро', [_item('p1', BAR_LIG, 3)], USER_A)
+    o = s.send('Метро', USER_A, expected_at='2026-09-14')
+    assert overdue_days(o, date(2026, 9, 16)) == 0            # допуск 2 дня
+    assert overdue_days(o, date(2026, 9, 17)) == 3
+    assert unmatched_days(o, date(2026, 9, 21)) == 0          # 7 дней после ожидаемой — ещё рано
+    assert unmatched_days(o, date(2026, 9, 22)) == 8
+    closed = s.close(o['id'], USER_B, note='поставщик заменил товар')
+    assert closed['status'] == 'posted' and closed['closed_by'] == 'boris' and closed['closed_manually'] is True
+    assert all(it['posted_at'] for it in closed['items'])
+    assert overdue_days(closed, date(2026, 9, 30)) == 0 and unmatched_days(closed, date(2026, 9, 30)) == 0
+    assert s.open_quantities(BAR_LIG) == {}
+    for fn in (s.close, s.mark_received):
+        try:
+            fn(o['id'], USER_A)
+            assert False
+        except ValueError:
+            pass
+    try:
+        s.close('nope', USER_A)
+        assert False
+    except KeyError:
+        pass
+
+
+def test_rename_supplier_moves_drafts_and_orders():
+    s = _store()
+    s.set_draft_items('Ромашка', [_item('p1', BAR_LIG, 3)], USER_A)
+    s.set_draft_items('ИП Ромашкин', [_item('p2', BAR_LIG, 1)], USER_A)
+    s.set_draft_items('Лента', [_item('p3', BAR_LIG, 2)], USER_A)
+    o = s.send('Лента', USER_A)
+    s.set_draft_items('Лента', [_item('p3', BAR_LIG, 2)], USER_A)
+    assert s.rename_supplier('Ромашка', 'ИП Ромашкин') == 1
+    drafts = s.get_drafts()
+    assert 'Ромашка' not in drafts and set(drafts['ИП Ромашкин']['items']) == {draft_key('p1', BAR_LIG), draft_key('p2', BAR_LIG)}
+    assert s.rename_supplier('Лента', 'Лента СПб') == 2          # черновик + заказ
+    assert s.get_order(o['id'])['supplier'] == 'Лента СПб' and 'Лента СПб' in s.get_drafts()
+    assert s.rename_supplier('нет', 'x') == 0 and s.rename_supplier('a', 'a') == 0
+
+
+def test_qty_rejects_infinity_and_caps():
+    s = _store()
+    assert s.set_draft_item('Метро', {'product_id': 'p', 'bar': BAR_LIG, 'qty': float('inf')}, USER_A) is None
+    d = s.set_draft_item('Метро', {'product_id': 'p', 'bar': BAR_LIG, 'qty': 1e12}, USER_A)
+    assert d['items'][draft_key('p', BAR_LIG)]['qty'] == osm.MAX_QTY
+    assert d['items'][draft_key('p', BAR_LIG)]['updated_by_name'] == 'Анна'
+
+
 # --- файл --------------------------------------------------------------------
 
 def test_persistence_and_corrupted_file():
@@ -306,13 +389,29 @@ def test_persistence_and_corrupted_file():
     assert again.draft_quantities(BAR_LIG) == {'p1': 3.0}
     raw = _raw(s)
     assert raw['version'] == osm.SCHEMA_VERSION and 'drafts' in raw and 'orders' in raw
+    # нечитаемый файл: чтение и запись — OrderStoreUnavailable, файл не перезаписывается
     with open(s.data_file, 'w', encoding='utf-8') as f:
         f.write('{not json')
-    assert OrderStore(s.data_file).get_drafts() == {}
+    broken = OrderStore(s.data_file)
+    for call in (broken.get_drafts, broken.open_quantities, broken.list_orders,
+                 lambda: broken.set_draft_item('Метро', _item('p1', BAR_LIG, 3), USER_A),
+                 lambda: broken.reconcile_with_operations([_inv('p1', STORE_LIG, '10.09.2026')], BAR_STORES)):
+        try:
+            call()
+            assert False, call
+        except OrderStoreUnavailable:
+            pass
+    assert open(s.data_file, encoding='utf-8').read() == '{not json'
     with open(s.data_file, 'w', encoding='utf-8') as f:
         f.write('[]')
-    assert OrderStore(s.data_file).list_orders() == []
-    missing = OrderStore(os.path.join(tempfile.mkdtemp(), 'none.json'))
+    try:
+        OrderStore(s.data_file).list_orders()
+        assert False
+    except OrderStoreUnavailable:
+        pass
+    missing_dir = tempfile.mkdtemp()
+    atexit.register(shutil.rmtree, missing_dir, ignore_errors=True)
+    missing = OrderStore(os.path.join(missing_dir, 'none.json'))
     assert missing.get_drafts() == {} and missing.open_quantities() == {}
 
 
@@ -342,6 +441,8 @@ def test_order_text_format():
     order['expected_at'] = None
     lines = order_text(order).split('\n')
     assert lines[2] == f'{BAR_BOL}:' and 'Ожидаемая' not in lines[-1]
+    order['expected_at'] = '2026-09-14'
+    assert order_text(order, expected_label='Желаемая поставка').split('\n')[-1] == 'Желаемая поставка: пн 14.09 (ориентировочно)'
 
 
 # --- календарь поставок -------------------------------------------------------
@@ -363,6 +464,9 @@ def test_next_delivery_date_skips_weekends():
     # пустой набор дней → по умолчанию пн–пт
     assert next_delivery_date(fri, 1, ()) == mon
     assert delivery_after(mon) == date(2026, 9, 15)
+    # длинные сроки при одном дне доставки: 10 понедельников, а не потолок в 60 дней
+    assert next_delivery_date(thu, 10, (0,)) == date(2026, 11, 16)
+    assert next_delivery_date(date(2026, 9, 8), 50) == date(2026, 11, 17)
 
 
 def test_horizon_and_overdue():

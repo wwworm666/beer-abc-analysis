@@ -83,6 +83,7 @@
                 <strong>Дни доставки</strong> задают, когда поставщик привозит; заказ должен дожить до поставки, следующей за ближайшей.
                 <strong>Написания</strong> склеивают разные категории iiko в одного поставщика (например, «ООО МаркетБир» и «Маркет Бир»).
                 <strong>Кратность</strong> округляет рекомендацию вверх для фасовки и кухни; кеги считаются в литрах без кратности.
+                Срок не бывает меньше 1: поставка раньше следующего дня доставки не приезжает.
                 Поставщики, которых здесь нет, получают срок по умолчанию и помечены на странице заказа «по умолчанию».
             </div>
             <div class="toolbar">
@@ -140,12 +141,36 @@
             }
         }
 
-        function render() {
+        // Несохранённые правки в других карточках переживают перерисовку после любого сохранения
+        function collectDirty() {
+            const dirty = {};
+            document.querySelectorAll('.supplier.dirty').forEach(card => { dirty[card.dataset.name] = readCard(card); });
+            return dirty;
+        }
+        function restoreDirty(dirty) {
+            Object.entries(dirty).forEach(([name, values]) => {
+                const card = [...document.querySelectorAll('.supplier')].find(c => c.dataset.name === name);
+                if (!card) return;
+                card.querySelector('[data-field="aliases"]').value = values.aliases;
+                card.querySelector('[data-field="lead_time_days"]').value = values.lead_time_days;
+                card.querySelector('[data-field="pack_size"]').value = values.pack_size;
+                card.querySelectorAll('input[data-field="weekday"]').forEach(i => { i.checked = values.delivery_weekdays.includes(parseInt(i.value)); });
+                card.querySelector('[data-field="self_pickup"]').checked = values.self_pickup;
+                card.querySelector('[data-field="note"]').value = values.note;
+                card.classList.add('dirty');
+                setStatus(card, 'Есть несохранённые правки', '');
+            });
+        }
+
+        function render(keepName) {
+            const dirty = collectDirty();
+            if (keepName) delete dirty[keepName];
             const box = document.getElementById('suppliers');
             box.innerHTML = '';
             document.getElementById('stored-status').textContent = data.stored
                 ? '' : 'Показан стартовый набор из кода: он сохранится в файл при первом изменении.';
             data.suppliers.forEach(s => box.appendChild(supplierCard(s)));
+            restoreDirty(dirty);
             renderUnmapped();
         }
 
@@ -166,8 +191,8 @@
                         <textarea data-field="aliases">${escapeHtml((s.aliases || []).join(', '))}</textarea>
                     </div>
                     <div class="field">
-                        <label>Срок поставки, дней доставки</label>
-                        <input type="number" min="0" max="60" data-field="lead_time_days" value="${s.lead_time_days}">
+                        <label>Срок поставки (в днях доставки)</label>
+                        <input type="number" min="1" max="60" data-field="lead_time_days" value="${s.lead_time_days}">
                         <label style="margin-top: 8px;">Кратность (упаковка)</label>
                         <input type="number" min="1" max="10000" data-field="pack_size" value="${s.pack_size}">
                     </div>
@@ -216,14 +241,16 @@
             const name = card.dataset.name;
             try {
                 data = await api('PUT', '/api/suppliers/' + encodeURIComponent(name), Object.assign(readCard(card), extra || {}));
-                render();
-                showBanner('Сохранено: ' + (data.supplier ? data.supplier.name : name), 'info');
+                render(name);
+                let text = 'Сохранено: ' + (data.supplier ? data.supplier.name : name);
+                if (data.orders_renamed) text += '. Черновики и заказы переименованы: ' + data.orders_renamed;
+                showBanner(data.warning ? text + '. ' + data.warning : text, data.warning ? 'error' : 'info');
             } catch (error) {
                 setStatus(card, error.message, 'error');
             }
         }
         async function renameSupplier(card) {
-            const newName = prompt('Новое имя поставщика (написания сохранятся):', card.dataset.name);
+            const newName = prompt('Новое имя поставщика. Старое имя останется написанием, черновики и заказы переедут под новое:', card.dataset.name);
             if (!newName || newName.trim() === card.dataset.name) return;
             await saveSupplier(card, {rename_to: newName.trim()});
         }
