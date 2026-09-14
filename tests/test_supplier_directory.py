@@ -34,7 +34,8 @@ import routes.suppliers as rsup  # noqa: E402
 from routes.suppliers import suppliers_bp  # noqa: E402
 from core.supplier_directory import (SupplierDirectory, SupplierDirectoryUnavailable, normalize_name,  # noqa: E402
                                      make_record, seed_records, categories_in_use, NO_SUPPLIER,
-                                     DEFAULT_LEAD_TIME_DAYS, DEFAULT_PACK_SIZE, SEED_SUPPLIERS)
+                                     DEFAULT_LEAD_TIME_DAYS, DEFAULT_PACK_SIZE, SEED_SUPPLIERS,
+                                     SEED_MIN_ORDER_SUM)
 
 USER = {'login': 'anna', 'display_name': 'Анна'}
 
@@ -78,7 +79,12 @@ def test_seed_and_default_params():
     unknown = v.params('ИП Ромашка')
     assert unknown == {'name': 'ИП Ромашка', 'lead_time_days': DEFAULT_LEAD_TIME_DAYS,
                        'pack_size': DEFAULT_PACK_SIZE, 'delivery_weekdays': [0, 1, 2, 3, 4],
-                       'self_pickup': False, 'is_default': True}
+                       'self_pickup': False, 'min_order_sum': 0, 'min_order_scope': 'bar',
+                       'is_default': True}
+    # Минимальный заказ из стартового набора: у доставки 10 000 руб., у самовывоза его нет
+    assert v.params('ООО "Май"')['min_order_sum'] == SEED_MIN_ORDER_SUM
+    assert v.params('ООО "Май"')['min_order_scope'] == 'bar'
+    assert metro['min_order_sum'] == 0
     assert v.params('')['name'] == NO_SUPPLIER and v.params('')['is_default'] is True
     assert seed_records()['Метро']['delivery_weekdays'] == [0, 1, 2, 3, 4]
 
@@ -97,6 +103,8 @@ def test_make_record_validation():
         ('A', {'lead_time_days': 1e400}), ('A', {'pack_size': 'inf'}),
         ('A', {'pack_size': 0}), ('A', {'delivery_weekdays': []}), ('A', {'delivery_weekdays': [7]}),
         ('A', {'delivery_weekdays': 'пн'}), ('A', {'aliases': 5}), ('A', {'self_pickup': 'может быть'}),
+        ('A', {'min_order_sum': -1}), ('A', {'min_order_sum': 'десять тысяч'}),
+        ('A', {'min_order_sum': 10000001}), ('A', {'min_order_scope': 'неделя'}),
     ]
     for name, fields in bad:
         try:
@@ -239,7 +247,9 @@ def test_api_list_put_delete_alias():
         assert payload['unmapped_categories'] == [{'category': 'ООО "Ромашка"', 'products': 2}]
         assert payload['defaults'] == {'lead_time_days': DEFAULT_LEAD_TIME_DAYS, 'pack_size': DEFAULT_PACK_SIZE,
                                        'delivery_weekdays': [0, 1, 2, 3, 4],
-                                       'min_lead_time_days': 1, 'max_lead_time_days': 60}
+                                       'min_lead_time_days': 1, 'max_lead_time_days': 60,
+                                       'min_order_sum': 0, 'min_order_scope': 'bar',
+                                       'max_min_order_sum': 10000000}
         assert 'Метро' in {s['name'] for s in payload['suppliers']}
 
         r = c.put('/api/suppliers/Ромашка', json={'aliases': ['ООО "Ромашка"'], 'lead_time_days': 2,
@@ -248,6 +258,16 @@ def test_api_list_put_delete_alias():
         assert r.status_code == 200, payload
         assert payload['supplier']['name'] == 'Ромашка' and payload['supplier']['delivery_weekdays'] == [1, 4]
         assert payload['supplier']['self_pickup'] is False
+
+        # Минимальный заказ: строка из формы, регистр в способе счёта — как у остальных полей
+        r = c.put('/api/suppliers/Ромашка', json={'min_order_sum': '12000', 'min_order_scope': 'ORDER'})
+        payload = r.get_json()
+        assert r.status_code == 200, payload
+        assert payload['supplier']['min_order_sum'] == 12000
+        assert payload['supplier']['min_order_scope'] == 'order'
+        assert payload['supplier']['delivery_weekdays'] == [1, 4]        # остальные поля не сброшены
+        r = c.put('/api/suppliers/Ромашка', json={'min_order_sum': 'много'})
+        assert r.status_code == 400 and 'Минимальный заказ' in r.get_json()['error']
         assert payload['unmapped_categories'] == [] and payload['stored'] is True
 
         r = c.put('/api/suppliers/Ромашка', json={'lead_time_days': 'много'})

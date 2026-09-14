@@ -26,6 +26,11 @@ iiko при пересчёте доски заказа, см. routes/stocks.get_
     POST /api/orders/<id>/close         — {note?} закрыть без сверки (posted вручную)
     POST /api/orders/<id>/cancel        — {note?}
 
+Сумма черновика и заказа считается по цене единицы, сохранённой в позиции в момент
+добавления (core/purchase_price → поле price): она нужна минимальному заказу поставщика
+(min_order_sum в справочнике) и не зависит от того, доступен ли iiko сейчас. В текст для
+чата сумма не попадает: это наша закупочная оценка, а не прайс поставщика.
+
 Поставщик черновика приводится к каноническому имени справочника
 (core/supplier_directory), чтобы «Фасовка» с сырой категорией iiko и «К заказу»
 с именем справочника писали в один черновик. Нечитаемый файл заказов — 503
@@ -41,6 +46,7 @@ from core import msk_time
 from core.auth_guard import current_user
 from core.order_store import (DEFAULT_HISTORY_DAYS, ALL_STATUSES, MAX_QTY, OrderStoreUnavailable,
                               get_order_store, order_text, overdue_days, unmatched_days)
+from core.purchase_price import line_sum
 from core.supplier_calendar import ORDER_OVERDUE_GRACE_DAYS, next_delivery_date
 from core.supplier_directory import get_supplier_directory
 from extensions import BARS
@@ -113,6 +119,51 @@ def _validate_item(raw: dict) -> dict:
         'unit': raw.get('unit'),
         'kind': kind,
         'recommended': raw.get('recommended'),
+        # Цена единицы на момент добавления; мусор и отрицательное значение хранилище
+        # превращает в None («без цены»), а не в ошибку: заказ важнее суммы.
+        'price': raw.get('price'),
+    }
+
+
+def _sums(items, params) -> dict:
+    """Суммы позиций и статус минимального заказа поставщика.
+
+    Минимум задаётся в справочнике (docs/suppliers.md) и считается либо на каждый
+    бар (`min_order_scope = bar`: у поставщика минимум на доставку по адресу), либо
+    на весь заказ сразу (`order`). Позиции без цены в сумму не входят и считаются
+    отдельно: сумма — оценка, а не счёт поставщика.
+    """
+    by_bar = {}
+    total = 0.0
+    no_price = 0
+    for it in items:
+        value = line_sum(it.get('price'), it.get('qty'))
+        if value is None:
+            no_price += 1
+            continue
+        bar = it.get('bar') or ''
+        by_bar[bar] = round(by_bar.get(bar, 0.0) + value, 2)
+        total = round(total + value, 2)
+    min_sum = int(params.get('min_order_sum') or 0)
+    scope = params.get('min_order_scope') or 'bar'
+    bars = []
+    if min_sum > 0 and scope == 'bar':
+        for bar in sorted({it.get('bar') or '' for it in items}):
+            value = by_bar.get(bar, 0.0)
+            bars.append({'bar': bar, 'sum': value, 'missing': round(max(0.0, min_sum - value), 2)})
+    missing = round(max(0.0, min_sum - total), 2) if (min_sum > 0 and scope == 'order') else \
+        round(sum(b['missing'] for b in bars), 2)
+    return {
+        'total_sum': total,
+        'by_bar': by_bar,
+        'no_price_count': no_price,
+        'min_order': {
+            'sum': min_sum,
+            'scope': scope,
+            'ok': min_sum <= 0 or missing <= 0,
+            'missing': missing,
+            'bars': bars,
+        },
     }
 
 
@@ -122,6 +173,10 @@ def _with_text(order: dict) -> dict:
     today = _today()
     result['overdue_days'] = overdue_days(order, today)
     result['unmatched_days'] = unmatched_days(order, today)
+    sums = _sums(order.get('items') or [], _supplier_params(order.get('supplier') or ''))
+    result['total_sum'] = sums['total_sum']
+    result['sum_by_bar'] = sums['by_bar']
+    result['no_price_count'] = sums['no_price_count']
     return result
 
 
@@ -138,15 +193,22 @@ def _draft_view(draft: dict) -> dict:
     его в чат до нажатия «Отправлено», и поставщик должен видеть дату.
     """
     items = sorted(draft.get('items', {}).values(), key=lambda i: (i.get('bar') or '', i.get('name') or ''))
-    expected_at = _expected_for(draft.get('supplier') or '')
+    params = _supplier_params(draft.get('supplier') or '')
+    expected_at = next_delivery_date(_today(), params['lead_time_days'],
+                                     params['delivery_weekdays']).isoformat()
+    sums = _sums(items, params)
     view = {
         'supplier': draft.get('supplier'),
         'updated_at': draft.get('updated_at'),
         'updated_by': draft.get('updated_by'),
         'updated_by_name': draft.get('updated_by_name') or draft.get('updated_by'),
         'expected_at': expected_at,
-        'items': items,
+        'items': [dict(i, line_sum=line_sum(i.get('price'), i.get('qty'))) for i in items],
         'total_qty': sum(float(i.get('qty') or 0) for i in items),
+        'total_sum': sums['total_sum'],
+        'sum_by_bar': sums['by_bar'],
+        'no_price_count': sums['no_price_count'],
+        'min_order': sums['min_order'],
     }
     view['text'] = order_text({'supplier': draft.get('supplier'), 'items': items, 'expected_at': expected_at},
                               BARS, expected_label='Желаемая поставка')

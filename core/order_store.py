@@ -16,12 +16,17 @@ docs/planning/stocks-order-redesign-2026-09-10.md). Здесь заказ — о
 Модель.
     drafts[supplier] = {supplier, updated_at, updated_by, updated_by_name,
                         items: {"<product_id>|<bar>": {product_id, bar, name, unit,
-                                kind, qty, recommended, updated_at, updated_by,
+                                kind, qty, recommended, price, updated_at, updated_by,
                                 updated_by_name}}}
     orders[] = {id, supplier, status, items: [{product_id, bar, name, unit, kind, qty,
-                received_qty?, posted_at?}], sent_at, sent_by, sent_by_name,
+                price, received_qty?, posted_at?}], sent_at, sent_by, sent_by_name,
                 expected_at, received_at?, received_by?, posted_at?, closed_by?,
                 closed_manually?, cancelled_at?, cancelled_by?, note?}
+
+price — цена единицы на момент добавления позиции (последняя приходная накладная или
+себестоимость остатка, core/purchase_price): сумма заказа считается по ней и не зависит
+от того, доступен ли iiko в момент отправки. Цена в текст поставщику не попадает: это
+наша закупочная оценка, а не его прайс.
 
 Статусы заказа: sent → received (вручную, «Приехало») → posted (автоматически,
 когда в iiko появилась приходная накладная по позиции и складу позже дня
@@ -118,6 +123,22 @@ def _parse_day(value) -> Optional[date]:
         return date.fromisoformat(str(value)[:10])
     except (TypeError, ValueError):
         return None
+
+
+def _price(value) -> Optional[float]:
+    """Цена единицы позиции: число >= 0 или None («цена неизвестна»).
+
+    Мусор и бесконечность — не цена: позиция просто не участвует в сумме заказа.
+    """
+    if value is None or value == '':
+        return None
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(price) or price < 0:
+        return None
+    return round(price, 2)
 
 
 def order_text(order: dict, bar_order: Optional[Iterable[str]] = None,
@@ -226,6 +247,7 @@ class OrderStore:
             'kind': item.get('kind') or None,
             'qty': _qty(item.get('qty')),
             'recommended': item.get('recommended'),
+            'price': _price(item.get('price')),
         }
 
     def set_draft_items(self, supplier: str, items: Iterable[dict], user: Optional[dict]) -> Optional[dict]:
@@ -347,7 +369,8 @@ class OrderStore:
                 'status': STATUS_SENT,
                 'items': [
                     {'product_id': it['product_id'], 'bar': it['bar'], 'name': it['name'],
-                     'unit': it['unit'], 'kind': it.get('kind'), 'qty': _qty(it['qty'])}
+                     'unit': it['unit'], 'kind': it.get('kind'), 'qty': _qty(it['qty']),
+                     'price': _price(it.get('price'))}
                     for it in sorted(draft['items'].values(), key=lambda i: (i['bar'], i['name']))
                 ],
                 'sent_at': stamp,
@@ -466,12 +489,18 @@ class OrderStore:
         return _qty(it.get('received_qty') if it.get('received_qty') is not None else it.get('qty'))
 
     def open_state(self, bar: Optional[str] = None):
-        """Одно чтение файла → (on_order, open_orders, draft_qty), все {product_id: ...}.
+        """Одно чтение файла → (on_order, open_orders, draft_qty, draft_items).
 
-        on_order    — сумма по открытым заказам (sent/received), не оприходованные позиции;
-        open_orders — [{order_id, supplier, qty, expected_at, status}] по позиции;
-        draft_qty   — черновик. bar=None — вся сеть. Одно чтение вместо трёх: ответ
-        доски не смешивает две версии файла, если коллега что-то менял в этот момент.
+        on_order    — {product_id: qty} по открытым заказам (sent/received), не
+                      оприходованные позиции;
+        open_orders — {product_id: [{order_id, supplier, qty, expected_at, status}]};
+        draft_qty   — {product_id: qty} черновика;
+        draft_items — {supplier: [{product_id, bar, qty, price}]} по всем барам:
+                      минимальный заказ поставщика может считаться на весь заказ, а не
+                      на один бар (docs/suppliers.md), поэтому доске нужны и чужие бары.
+        bar=None — вся сеть (в draft_qty количества суммируются по барам). Одно чтение
+        вместо трёх: ответ доски не смешивает две версии файла, если коллега что-то
+        менял в этот момент.
         """
         data = self._load()
         on_order: Dict[str, float] = {}
@@ -490,7 +519,14 @@ class OrderStore:
                     'order_id': order['id'], 'supplier': order['supplier'], 'qty': qty,
                     'expected_at': order.get('expected_at'), 'status': order['status'],
                 })
-        return on_order, open_orders, self._draft_quantities(data, bar)
+        draft_items: Dict[str, List[dict]] = {}
+        for supplier, draft in data['drafts'].items():
+            draft_items[supplier] = [
+                {'product_id': it['product_id'], 'bar': it.get('bar'),
+                 'qty': _qty(it.get('qty')), 'price': _price(it.get('price'))}
+                for it in draft['items'].values()
+            ]
+        return on_order, open_orders, self._draft_quantities(data, bar), draft_items
 
     def open_quantities(self, bar: Optional[str] = None) -> Dict[str, float]:
         """{product_id: qty} по открытым заказам (sent/received) для бара; None — сумма по барам."""

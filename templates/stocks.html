@@ -364,6 +364,14 @@
         .ob-note { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 12px; margin: 8px 0 12px; border-radius: 6px; background: rgba(59, 130, 246, 0.10); font-size: 12px; }
         .ob-note button { padding: 3px 10px; font-size: 11px; }
         .ob-group-sent { font-size: 12px; color: #1d4ed8; }
+        .ob-min-order { font-size: 12px; color: var(--text-secondary); }
+        .ob-min-order.filled { color: #1d4ed8; }
+        .ob-min-order.short { color: #b45309; }
+        .ob-min-order.ok { color: #15803d; }
+        .ob-reason.min_order { color: #1d4ed8; }
+        .order-sums { font-size: 12px; margin: 6px 0; color: var(--text-secondary); }
+        .order-sums.short { color: #b45309; }
+        .order-sums.ok { color: #15803d; }
         .recv-form { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--border-color); border-radius: 6px; }
         .recv-form input[type="number"] { width: 72px; padding: 4px 6px; }
         .recv-form .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 0; font-size: 13px; }
@@ -1292,6 +1300,27 @@
                 'срок ' + g.lead + ' дн.' + (g.is_default ? ' (по умолчанию)' : ''),
             ];
             if (g.self_pickup) metaParts.push('самовывоз');
+            // Минимальный заказ поставщика: сколько он вообще принимает и что с этим сделала формула
+            const ms = (orderBoardData && orderBoardData.suppliers) ? orderBoardData.suppliers[g.supplier] : null;
+            if (ms && ms.min_order_sum > 0) {
+                metaParts.push('минимум ' + fmtMoney(ms.min_order_sum)
+                    + (ms.min_order_scope === 'order' ? ' на весь заказ' : ' на бар'));
+            }
+            let minLine = '';
+            if (ms && ms.min_order_sum > 0 && ms.applies) {
+                if (ms.extra_days > 0) {
+                    minLine = '<div class="ob-min-order filled">Набрано до минимума: считаем запас на '
+                        + ms.extra_days + ' дн. вперёд, рекомендации на ' + fmtMoney(ms.sum)
+                        + ' (без минимума хватило бы ' + fmtMoney(ms.base_sum) + ')</div>';
+                } else if (ms.reachable === false) {
+                    minLine = '<div class="ob-min-order short">До минимума не добрать: рекомендаций на '
+                        + fmtMoney(ms.base_sum) + ', даже с запасом на ' + ms.max_extra_days + ' дн. — '
+                        + fmtMoney(ms.max_sum || 0) + '. Добавьте позиции руками или закажите позже.</div>';
+                } else if (ms.other_bars_sum > 0 && ms.min_order_scope === 'order') {
+                    minLine = '<div class="ob-min-order">В заказе по другим барам уже '
+                        + fmtMoney(ms.other_bars_sum) + '</div>';
+                }
+            }
             // Коллега уже отправил заказ этому поставщику: видно на карточке группы (решение владельца 1)
             const lastSent = ordersData
                 .filter(o => (o.status === 'sent' || o.status === 'received') && o.supplier === g.supplier)
@@ -1305,11 +1334,13 @@
                 <div class="ob-group-head">
                     <div>
                         <h3>${escapeHtml(g.supplier)}</h3>
-                        <div class="ob-group-meta">${escapeHtml(metaParts.join(' · '))} · <a href="/suppliers" title="Срок и дни доставки, написания">настроить</a></div>
+                        <div class="ob-group-meta">${escapeHtml(metaParts.join(' · '))} · <a href="/suppliers" title="Срок и дни доставки, минимальный заказ, написания">настроить</a></div>
+                        ${minLine}
                         ${sentLine}
                     </div>
                     <div class="ob-group-actions">
                         <span class="ob-group-meta">к решению: ${g.decide}</span>
+                        <span data-draft-sum-for="${escapeHtml(g.supplier)}">${draftSumLine(g.supplier, bar)}</span>
                         ${recoItems.length ? '<button class="btn btn-secondary btn-small" data-action="take-group">Взять рекомендации (' + recoItems.length + ')</button>' : ''}
                     </div>
                 </div>
@@ -1397,6 +1428,36 @@
 
         function fmtDateHtml(iso) { return escapeHtml(fmtDate(iso)); }   // для innerHTML: дата из внешних данных экранируется
 
+        // Рубли без копеек, разряды через пробел: 10240.4 → «10 240 руб.» (как в ответе сервера)
+        function fmtMoney(value) {
+            const n = Math.round(Number(value) || 0);
+            return n.toLocaleString('ru-RU').replace(/\u00a0/g, ' ') + ' руб.';
+        }
+
+        // Черновик поставщика: сумма и статус минимального заказа (данные /api/orders/draft)
+        function draftFor(supplier) {
+            return draftsData.find(d => d.supplier === supplier) || null;
+        }
+
+        // Строка «В заказе N руб. …» для карточки группы: на баре — сумма этого бара,
+        // на весь заказ — сумма по всем барам (как считает минимум сам поставщик)
+        function draftSumLine(supplier, bar) {
+            const draft = draftFor(supplier);
+            if (!draft) return '';
+            const min = draft.min_order || {};
+            const perBar = (min.scope || 'bar') === 'bar';
+            const barEntry = (min.bars || []).find(b => b.bar === bar);
+            const value = perBar ? ((draft.sum_by_bar || {})[bar] || 0) : (draft.total_sum || 0);
+            const missing = perBar ? (barEntry ? barEntry.missing : 0) : (min.missing || 0);
+            const noPrice = draft.no_price_count ? ', ' + draft.no_price_count + ' поз. без цены' : '';
+            if (!min.sum) return '<span class="ob-min-order">В заказе ' + fmtMoney(value) + noPrice + '</span>';
+            if (missing > 0) {
+                return '<span class="ob-min-order short">В заказе ' + fmtMoney(value) + ' из ' + fmtMoney(min.sum)
+                    + ': не хватает ' + fmtMoney(missing) + noPrice + '</span>';
+            }
+            return '<span class="ob-min-order ok">В заказе ' + fmtMoney(value) + ': минимум набран' + noPrice + '</span>';
+        }
+
         function detailHtml(item) {
             const u = escapeHtml(item.unit);
             const lines = [];
@@ -1409,6 +1470,20 @@
                 ? byType.map(([k, v]) => (DOC_TYPE_LABELS[k] || k) + ' ' + fmtQty(v)).join(', ')
                 : 'операций нет';
             lines.push(`<strong>Расход</strong> за ${item.days_in_period} дн.${item.is_new ? ' (с первого прихода)' : ''}: ${escapeHtml(breakdown)} → ${fmtQty(item.avg_sales)} ${u} в день, ${fmtQty(item.weekly_sales)} в неделю`);
+            if (item.min_order_extra_days > 0) {
+                const ms = (orderBoardData.suppliers || {})[item.supplier] || {};
+                lines.push(`<strong>Минимальный заказ</strong> ${fmtMoney(ms.min_order_sum)}: рекомендации поставщика`
+                    + ` считаются на ${item.min_order_extra_days} дн. вперёд, иначе заказ на ${fmtMoney(ms.base_sum)} он не примет`);
+            }
+            if (item.price !== null && item.price !== undefined) {
+                const src = item.price_source === 'invoice'
+                    ? ('по накладной' + (item.price_date ? ' ' + fmtDateHtml(item.price_date) : ''))
+                    : 'по себестоимости остатка';
+                lines.push(`<strong>Цена</strong> ${fmtMoney(item.price)} за ${u} ${escapeHtml(src)}`
+                    + (item.line_sum ? ` → на ${fmtQty(item.recommended)} ${u} это ${fmtMoney(item.line_sum)}` : ''));
+            } else {
+                lines.push('<strong>Цена</strong> неизвестна: нет прихода за период и себестоимости остатка, в сумму заказа не входит');
+            }
             if (item.last_incoming) lines.push(`<strong>Последний приход</strong> ${fmtDateHtml(item.last_incoming.date)}: ${fmtQty(item.last_incoming.amount)} ${u}`);
             if (item.open_orders && item.open_orders.length) {
                 lines.push('<strong>В пути</strong>: ' + item.open_orders.map(o => escapeHtml(o.supplier) + ' ' + fmtQty(o.qty) + ' ' + u
@@ -1963,6 +2038,9 @@
                 unit: item.unit,
                 kind: item.type || item.kind || null,
                 recommended: (item.recommended !== undefined) ? item.recommended : null,
+                // Цена единицы на момент добавления: по ней считается сумма заказа и
+                // минимум поставщика (позиция без цены в сумму не входит)
+                price: (item.price !== undefined && item.price !== null) ? item.price : null,
             };
         }
 
@@ -2025,6 +2103,10 @@
                 }
             });
             document.querySelectorAll('[data-action="take-group"]').forEach(btn => { btn.disabled = ordersUnavailable; });
+            // Сумма заказа и минимум поставщика пересчитываются сервером при каждой правке
+            document.querySelectorAll('[data-draft-sum-for]').forEach(el => {
+                el.innerHTML = draftSumLine(el.dataset.draftSumFor, orderBoardData ? orderBoardData.bar : currentBar);
+            });
             renderStickyPanel();
         }
 
@@ -2111,14 +2193,38 @@
                                 data-draft-product="${escapeHtml(it.product_id)}" data-draft-bar="${escapeHtml(it.bar)}">
                             ${escapeHtml(it.unit || 'шт')}
                         </td>
-                        <td style="color: var(--text-secondary); font-size: 11px;">${(it.recommended !== null && it.recommended !== undefined) ? 'реком. ' + fmtQty(it.recommended) : ''}</td>
+                        <td style="color: var(--text-secondary); font-size: 11px;">${(it.line_sum !== null && it.line_sum !== undefined) ? fmtMoney(it.line_sum) : 'без цены'}${(it.recommended !== null && it.recommended !== undefined) ? ' · реком. ' + fmtQty(it.recommended) : ''}</td>
                         <td><button class="btn btn-secondary btn-small" data-remove-product="${escapeHtml(it.product_id)}" data-remove-bar="${escapeHtml(it.bar)}">Убрать</button></td>
                     </tr>`).join('');
+                const min = draft.min_order || {};
+                const perBar = (min.scope || 'bar') === 'bar';
+                const barSums = Object.entries(draft.sum_by_bar || {})
+                    .map(([b, v]) => escapeHtml(b) + ' ' + fmtMoney(v)).join(', ');
+                const shortBars = (min.bars || []).filter(b => b.missing > 0);
+                let sumsClass = '';
+                let sumsText = 'Сумма заказа ' + fmtMoney(draft.total_sum || 0)
+                    + (barSums && Object.keys(draft.sum_by_bar || {}).length > 1 ? ' (' + barSums + ')' : '')
+                    + (draft.no_price_count ? ' · ' + draft.no_price_count + ' поз. без цены, в сумму не вошли' : '');
+                if (min.sum > 0) {
+                    sumsText += ' · минимум ' + fmtMoney(min.sum) + (perBar ? ' на бар' : ' на весь заказ');
+                    if (perBar && shortBars.length) {
+                        sumsClass = ' short';
+                        sumsText += ': не хватает ' + shortBars
+                            .map(b => escapeHtml(b.bar) + ' ' + fmtMoney(b.missing)).join(', ');
+                    } else if (!perBar && min.missing > 0) {
+                        sumsClass = ' short';
+                        sumsText += ': не хватает ' + fmtMoney(min.missing);
+                    } else {
+                        sumsClass = ' ok';
+                        sumsText += ': набран';
+                    }
+                }
                 card.innerHTML = `
                     <h4>${escapeHtml(draft.supplier)}</h4>
                     <div class="order-meta">Изменён ${fmtDateTime(draft.updated_at)} (${escapeHtml(draft.updated_by_name || draft.updated_by || '')}) · позиций: ${draft.items.length}${draft.expected_at ? ' · желаемая поставка ' + fmtDate(draft.expected_at) : ''}</div>
+                    <div class="order-sums${sumsClass}">${sumsText}</div>
                     <table>
-                        <thead><tr><th>Бар</th><th>Позиция</th><th>Количество</th><th></th><th></th></tr></thead>
+                        <thead><tr><th>Бар</th><th>Позиция</th><th>Количество</th><th>Сумма</th><th></th></tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                     <textarea class="order-text" readonly>${escapeHtml(draft.text || '')}</textarea>
@@ -2170,7 +2276,18 @@
         }
 
         async function sendDraft(supplier) {
-            if (!confirm('Отметить заказ «' + supplier + '» как отправленный поставщику? Он перейдёт в «В пути» и будет вычитаться из рекомендаций.')) return;
+            // Минимум поставщика — его правило, а не наше: предупреждаем, но не запрещаем
+            // (с поставщиком можно договориться, и цена у нас оценочная)
+            const draft = draftFor(supplier);
+            const min = (draft && draft.min_order) || {};
+            let warn = '';
+            if (min.sum > 0 && !min.ok) {
+                const where = (min.scope === 'order')
+                    ? 'на весь заказ'
+                    : (min.bars || []).filter(b => b.missing > 0).map(b => b.bar).join(', ');
+                warn = 'Заказ меньше минимального: не хватает ' + fmtMoney(min.missing) + ' (' + where + '). ';
+            }
+            if (!confirm(warn + 'Отметить заказ «' + supplier + '» как отправленный поставщику? Он перейдёт в «В пути» и будет вычитаться из рекомендаций.')) return;
             try {
                 await postJson('/api/orders/send', {supplier: supplier});
                 await Promise.all([loadDrafts(), loadOrders()]);

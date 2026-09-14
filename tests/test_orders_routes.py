@@ -19,6 +19,8 @@ Self-runnable: `py -3 tests/test_orders_routes.py` (совместимо с pyte
 - один заказ (404), «приехало» с фактом (неизвестная позиция → 400), отмена,
   «закрыть без сверки», запреты по статусам (409);
 - поставщик черновика приводится к имени справочника; qty без бесконечности;
+- сумма черновика и заказа по ценам позиций, статус минимального заказа поставщика
+  (на бар и на весь заказ), позиция без цены в сумму не входит;
 - нечитаемый файл заказов → 503 orders_unavailable, файл не перезаписан.
 """
 
@@ -284,6 +286,50 @@ def test_unreadable_store_gives_503_and_keeps_file():
             r = c.get(url) if method == 'GET' else c.post(url, json=body)
             assert r.status_code == 503 and r.get_json()['code'] == 'orders_unavailable', (url, r.status_code)
         assert open(store.data_file, encoding='utf-8').read() == '{broken'
+
+
+# --- сумма заказа и минимум поставщика --------------------------------------------
+
+def test_draft_sums_and_supplier_minimum_per_bar():
+    """Сумма считается по цене позиции; минимум «на бар» проверяется по каждому бару."""
+    with _client() as (c, _):
+        directory = ro.get_supplier_directory()
+        directory.upsert('Метро', {'min_order_sum': 1000, 'min_order_scope': 'bar'}, USER)
+        _post(c, '/api/orders/draft', _item(pid='p1', qty=4, price=150))          # Лиговский: 600
+        _post(c, '/api/orders/draft', _item(pid='p2', qty=2, price=200, bar=BAR_BOL))   # Большой: 400
+        st, d = _post(c, '/api/orders/draft', _item(pid='p3', qty=1, price=None))       # без цены
+        assert st == 200, d
+        draft = d['drafts'][0]
+        assert draft['total_sum'] == 1000.0
+        assert draft['sum_by_bar'] == {BAR_LIG: 600.0, BAR_BOL: 400.0}
+        assert draft['no_price_count'] == 1
+        assert [i['line_sum'] for i in draft['items'] if i['product_id'] == 'p1'] == [600.0]
+        # Минимум на бар: 1 000 руб. нужны каждому бару отдельно, общая сумма не спасает
+        assert draft['min_order'] == {'sum': 1000, 'scope': 'bar', 'ok': False, 'missing': 1000.0,
+                                      'bars': [{'bar': BAR_BOL, 'sum': 400.0, 'missing': 600.0},
+                                               {'bar': BAR_LIG, 'sum': 600.0, 'missing': 400.0}]}
+
+        # Тот же черновик с минимумом на весь заказ — набран
+        directory.upsert('Метро', {'min_order_scope': 'order'}, USER)
+        st, d = c.get('/api/orders/draft').status_code, c.get('/api/orders/draft').get_json()
+        assert st == 200
+        assert d['drafts'][0]['min_order'] == {'sum': 1000, 'scope': 'order', 'ok': True,
+                                               'missing': 0.0, 'bars': []}
+
+
+def test_order_keeps_prices_and_sum_after_send():
+    """Цена уезжает в заказ: сумма отправленного заказа не зависит от iiko и справочника."""
+    with _client() as (c, store):
+        _post(c, '/api/orders/draft', _item(pid='p1', qty=4, price=150))
+        _post(c, '/api/orders/draft', _item(pid='p2', qty=2, price='мусор'))     # не число → без цены
+        st, d = _post(c, '/api/orders/send', {'supplier': 'Метро'})
+        assert st == 200, d
+        assert d['order']['total_sum'] == 600.0
+        assert d['order']['no_price_count'] == 1
+        assert d['order']['sum_by_bar'] == {BAR_LIG: 600.0}
+        assert 'руб' not in d['order']['text']            # поставщику уходит количество, не наша цена
+        stored = store.list_orders(days=30)[0]
+        assert [it.get('price') for it in stored['items']] == [150.0, None]
 
 
 if __name__ == '__main__':

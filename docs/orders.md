@@ -27,6 +27,7 @@
 
 - [core/order_store.py](../core/order_store.py) — модель, хранение, статусы, «в пути», сверка с приходами, текст заказа.
 - [core/supplier_calendar.py](../core/supplier_calendar.py) — ожидаемая дата поставки с пропуском выходных, горизонт, признак задержки.
+- [core/purchase_price.py](../core/purchase_price.py) — цена единицы для суммы заказа: последняя приходная накладная iiko, иначе себестоимость остатка.
 - [routes/orders.py](../routes/orders.py) — blueprint `orders_bp`: API черновика и заказов.
 - [routes/stocks.py](../routes/stocks.py) — `_orders_context`: сверка с приходами и `on_order` / `draft_qty` в ответе `order-board`.
 - [templates/stocks.html](../templates/stocks.html) — вкладка «К отправке», «в пути» и инпут «Заказ» на «К заказу», инпуты во «Фасовке» и «Меню кухни».
@@ -48,9 +49,9 @@
 ```
 drafts[supplier] = {supplier, updated_at, updated_by,
                     items: {"<product_id>|<bar>": {product_id, bar, name, unit, kind,
-                            qty, recommended, updated_at, updated_by}}}
+                            qty, recommended, price, updated_at, updated_by}}}
 orders[]         = {id, supplier, status, items: [{product_id, bar, name, unit, kind, qty,
-                    received_qty?, posted_at?}],
+                    price, received_qty?, posted_at?}],
                     sent_at, sent_by, sent_by_name, expected_at, note?,
                     received_at?, received_by?, posted_at?, cancelled_at?, cancelled_by?}
 ```
@@ -64,6 +65,12 @@ orders[]         = {id, supplier, status, items: [{product_id, bar, name, unit, 
 - Поставщик черновика приводится к каноническому имени справочника
   ([suppliers.md](suppliers.md)): «Фасовка» с сырой категорией iiko и «К заказу» с именем
   справочника пишут в один черновик.
+- `price` — цена единицы на момент добавления позиции (`core/purchase_price`: последняя
+  приходная накладная, иначе себестоимость остатка). По ней считается сумма заказа и
+  проверяется минимальный заказ поставщика ([suppliers.md](suppliers.md)). Цена
+  фиксируется в позиции, чтобы «К отправке» показывала сумму и без iiko; мусор,
+  отрицательное значение и бесконечность становятся «без цены» (позиция в сумму не
+  входит), а не ошибкой: заказ важнее суммы.
 - `id` заказа: `ord-YYYYMMDD-xxxxxxxxxxxx` (московская дата отправки + 12 hex, проверка на
   повтор внутри блокировки).
 - Время (`updated_at`, `sent_at`, ...) — московское (`core/msk_time`); сервер живёт в UTC,
@@ -171,6 +178,23 @@ next_delivery_date(sent_on, lead_time_days, delivery_weekdays = пн–пт)
 (сколько дней должен покрыть заказ до следующей поставки) с этапа 2 используется в
 формуле рекомендации ([stocks.md](stocks.md)).
 
+### Сумма заказа и минимум поставщика (с 2026-09-14)
+
+`GET /api/orders/draft` и `/api/orders` считают суммы по сохранённым ценам позиций:
+
+| Поле | Что это |
+|---|---|
+| `items[].line_sum` | цена × количество позиции (до копеек), `null` — цены нет |
+| `total_sum` | сумма черновика или заказа по всем барам |
+| `sum_by_bar` | `{бар: сумма}` — минимум обычно считается на доставку в один бар |
+| `no_price_count` | сколько позиций без цены (в сумму не вошли) |
+| `min_order` (только черновик) | `{sum, scope, ok, missing, bars: [{bar, sum, missing}]}` |
+
+`min_order.ok` — минимум набран: при `scope = bar` каждый бар с позициями дотягивает до
+`sum`, при `scope = order` — общая сумма. Недобор не запрещает отправку: экран
+предупреждает («не хватает 2 800 руб. (Большой пр. В.О)»), а решает управляющий —
+с поставщиком можно договориться, а цена у нас оценочная.
+
 ### Текст заказа (`order_text`)
 
 ```
@@ -240,6 +264,10 @@ Ctrl+C. CSV остался запасной кнопкой: чистый CSV с 
 
 ## Changelog
 
+- **2026-09-14 (минимальный заказ)** — В позиции черновика и заказа появилась `price`;
+  черновик и заказ отдают `total_sum`, `sum_by_bar`, `no_price_count`, черновик — ещё
+  `min_order`; `open_state` возвращает черновики по поставщикам (доске нужны другие бары
+  для минимума «на весь заказ»); в тексте для чата суммы нет.
 - **2026-09-12 (ревью этапов 1–3)** — Нечитаемый файл больше не перезаписывается
   (`OrderStoreUnavailable`, 503 / `orders_available: false`); сверка: накладная строго
   позже дня отправки и одна дата на одну позицию; «Закрыть без сверки» и

@@ -12,6 +12,7 @@ from datetime import date, datetime
 from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from core.dashboard_analysis import DashboardMetrics
 from core.stock_consumption import aggregate_consumption
+from core.purchase_price import line_sum, resolve_prices
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from core.order_store import get_order_store
 from core.supplier_directory import get_supplier_directory
@@ -64,6 +65,10 @@ FAST_MOVER_WEEKLY_SALES = 7.0    # граница fast-mover'а: ≥ 7 прод�
 PIECE_UNITS = ('шт',)            # «раз в неделю» имеет смысл только для штучного товара:
                                  # 0.9 кг соуса или 0.9 л в неделю — не «редко», а нормальный расход
 STOCK_ZERO_EPS = 0.05            # |остаток| меньше этого — учётный ноль, не «отрицательный остаток»
+# Добор до минимального заказа поставщика (docs/suppliers.md): горизонт группы
+# растягивается не больше чем на столько дней сверх расчётного. 30 дней — окно расхода:
+# дальше средний расход уже ничего не гарантирует, а товар месяц стоит на складе.
+MIN_ORDER_MAX_EXTRA_DAYS = 30
 
 
 def _supplier_params(supplier_name, view=None):
@@ -129,6 +134,89 @@ def _calc_recommendation(stock, avg_sales, cover_days, pack_size, days_to_expiry
     return int(math.ceil(deficit / pack) * pack)
 
 
+def _recommend_at(row, extra_days):
+    """Рекомендация позиции, если считать на extra_days дней дальше её горизонта.
+
+    Те же правила, что у базового расчёта (_calc_recommendation): отрицательный
+    остаток, dead/slow и истекающая партия остаются нулём на любом горизонте —
+    добор до минимального заказа не оживляет то, что заказывать нельзя.
+    """
+    if row['is_negative']:
+        return 0
+    return _calc_recommendation(row['effective_stock'], row['avg_sales'],
+                                row['horizon_days'] + extra_days, row['pack_size'],
+                                row['days_to_expiry'], row['velocity'])
+
+
+def _group_sum(rows, extra_days):
+    """Сумма рекомендаций группы на горизонте +extra_days, рублей (позиции без цены — 0)."""
+    total = 0.0
+    for row in rows:
+        if row['price'] is None:
+            continue
+        total += row['price'] * _recommend_at(row, extra_days)
+    return round(total, 2)
+
+
+def _min_order_state(rows, params, other_bars_sum=0.0, apply_fill=True,
+                     max_extra_days=MIN_ORDER_MAX_EXTRA_DAYS):
+    """Добор группы поставщика до минимального заказа: на сколько дней растянуть горизонт.
+
+    Поставщик не принимает заказ дешевле min_order_sum (docs/suppliers.md), поэтому
+    «заказать три пиццы» невозможно физически. Вместо отдельной логики «добить чем
+    попало» группа считается на один увеличенный горизонт: заказываем тот же товар,
+    что и так уходит, но реже и крупнее. Доля каждой позиции остаётся пропорциональной
+    её расходу, формула строки не меняется — меняется только число дней.
+
+        base_sum = Σ price × recommended(0)                     — что нужно на самом деле
+        need     = min_order_sum − (уже в черновике по другим барам, если минимум на заказ)
+        extra    = наименьшее 1..max_extra_days, при котором Σ price × recommended(extra) >= need
+
+    Сумма растёт вместе с extra (цель = расход × (горизонт + запас) не убывает), поэтому
+    первое подходящее extra — минимальное: система не заказывает больше, чем нужно для
+    минимума. Добор не применяется, если:
+        - минимум не задан (0) или уже набран;
+        - в группе нечего заказывать (все рекомендации нулевые) — заказ сегодня не нужен;
+        - минимум не набирается и за max_extra_days: рекомендации остаются базовыми,
+          reachable = False, и управляющий решает сам (добавить позиции, заказать позже,
+          договориться с поставщиком).
+
+    Возвращает dict для ответа доски; extra_days = 0 означает «считаем как обычно».
+    """
+    min_sum = int(params.get('min_order_sum') or 0)
+    scope = params.get('min_order_scope') or 'bar'
+    base_sum = _group_sum(rows, 0)
+    state = {
+        'min_order_sum': min_sum,
+        'min_order_scope': scope,
+        'base_sum': base_sum,
+        'sum': base_sum,
+        'extra_days': 0,
+        'reachable': True,
+        'other_bars_sum': round(other_bars_sum, 2),
+        'no_price_count': sum(1 for r in rows if r['price'] is None),
+        'max_extra_days': max_extra_days,
+        'applies': bool(apply_fill),
+        'need_sum': float(min_sum),      # сколько нужно набрать этому бару (уточняется ниже)
+    }
+    # «Общая» — это не доставка: минимум считается по бару, поэтому там добора нет.
+    if not apply_fill or min_sum <= 0 or not any(r['recommended_base'] > 0 for r in rows):
+        return state
+    need = min_sum - (other_bars_sum if scope == 'order' else 0.0)
+    state['need_sum'] = round(max(0.0, need), 2)
+    if base_sum >= need:
+        return state
+    for extra in range(1, max_extra_days + 1):
+        total = _group_sum(rows, extra)
+        if total >= need:
+            state['extra_days'] = extra
+            state['sum'] = total
+            return state
+    state['reachable'] = False
+    state['max_sum'] = _group_sum(rows, max_extra_days)
+    return state
+
+
 def _urgency_level(stock, avg_sales, days_to_delivery, velocity):
     """Уровень срочности позиции.
 
@@ -187,6 +275,15 @@ def _fmt_day(value):
     return f"{('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')[d.weekday()]} {d.strftime('%d.%m')}"
 
 
+def _fmt_money(value):
+    """Рубли без копеек, разряды через пробел: 10240.4 → «10 240 руб.»."""
+    try:
+        n = int(round(float(value)))
+    except (TypeError, ValueError):
+        return str(value)
+    return f'{n:,}'.replace(',', ' ') + ' руб.'
+
+
 def _reason(calc, window_days):
     """Фраза-причина и код: одно объяснение = одно действие (S-14, S-15).
 
@@ -201,6 +298,7 @@ def _reason(calc, window_days):
         no_movement     расхода нет (velocity dead)
         slow            редко расходится (velocity slow, только штучные) — не пополняем
         order           рекомендация > 0: до поставки X нужно N (avg × дней), есть, в пути
+        min_order       то же, но горизонт растянут ради минимального заказа поставщика
         in_transit      рекомендация 0, но есть «в пути»
         enough          хватает до следующей поставки
     """
@@ -219,14 +317,22 @@ def _reason(calc, window_days):
         return 'slow', f'редко расходится ({_fmt_num(calc["avg"] * DAYS_PER_WEEK)} в нед.): не пополняем автоматически'
     cover = calc['horizon_days'] + SAFETY_DAYS
     if calc['recommended'] > 0:
-        text = (f'до поставки {_fmt_day(calc["next_delivery"])} нужно {_fmt_num(calc["target"])} {unit}'
-                f' ({_fmt_num(calc["avg"])} в день × {cover} дн. с запасом), есть {_fmt_num(stock)}')
+        extra = calc.get('min_order_extra_days') or 0
+        if extra:
+            # Минимум поставщика не набирается тем, что нужно к ближайшей поставке:
+            # берём тот же товар на больший срок (заказ реже, но крупнее).
+            text = (f'до минимального заказа {_fmt_money(calc.get("min_order_sum"))} берём запас на'
+                    f' {cover + extra} дн. вместо {cover}: нужно {_fmt_num(calc["target"])} {unit}'
+                    f' ({_fmt_num(calc["avg"])} в день), есть {_fmt_num(stock)}')
+        else:
+            text = (f'до поставки {_fmt_day(calc["next_delivery"])} нужно {_fmt_num(calc["target"])} {unit}'
+                    f' ({_fmt_num(calc["avg"])} в день × {cover} дн. с запасом), есть {_fmt_num(stock)}')
         if on_order > 0:
             text += f', в пути {_fmt_num(on_order)}'
         text += f': заказать {_fmt_num(calc["recommended"])} к {_fmt_day(calc["first_delivery"])}'
         if calc['pack_size'] > 1:
             text += f' (упаковка {calc["pack_size"]})'
-        return 'order', text
+        return ('min_order' if extra else 'order'), text
     if on_order > 0:
         return 'in_transit', f'в пути {_fmt_num(on_order)} {unit}: с ним хватит до поставки {_fmt_day(calc["next_delivery"])}'
     if calc['days_left'] is not None:
@@ -316,15 +422,37 @@ def _bar_store_map():
     return {name: _STORE_ID_MAP[bid] for name, bid in _BAR_ID_MAP.items() if bid}
 
 
+def _draft_sum(draft_items, only_bar=None, exclude_bar=None):
+    """Сумма черновика поставщика в рублях по сохранённым ценам позиций.
+
+    draft_items — [{product_id, bar, qty, price}] из core.order_store.open_state.
+    Позиция без цены в сумму не входит (её видно как «N поз. без цены»).
+    only_bar — считать один бар, exclude_bar — все бары, кроме этого
+    (что коллеги уже набрали в другие бары одного заказа поставщику).
+    """
+    total = 0.0
+    for it in draft_items or []:
+        if only_bar is not None and it.get('bar') != only_bar:
+            continue
+        if exclude_bar is not None and it.get('bar') == exclude_bar:
+            continue
+        if it.get('price') is None:
+            continue
+        total += float(it['price']) * float(it.get('qty') or 0)
+    return round(total, 2)
+
+
 def _orders_context(snapshot, bar, target_store_id):
     """Заказы поставщикам для доски: сверка с приходами и количества «в пути»/в черновике.
 
-    Возвращает (on_order, open_orders, draft_qty, error), первые три — {product_id: ...}:
+    Возвращает (on_order, open_orders, draft_qty, draft_items, error):
         on_order     — сумма по открытым заказам (sent/received, ещё не оприходовано)
                        по складу бара; для «Общая» — по всей сети;
         open_orders  — список открытых заказов по позиции (для подсказки в UI);
-        draft_qty    — количество в общем черновике для этого бара
+        draft_qty    — {product_id: qty} в общем черновике для этого бара
                        (для «Общая» — сумма по барам, только для показа);
+        draft_items  — {supplier: [{product_id, bar, qty, price}]} по всем барам:
+                       минимальный заказ поставщика может считаться на весь заказ;
         error        — None или текст: файл заказов недоступен. Доска в этом случае
                        всё равно отдаётся (нули), но с флагом orders_available = false,
                        чтобы фронт не предлагал «Взять» то, что уже может быть в пути.
@@ -335,11 +463,11 @@ def _orders_context(snapshot, bar, target_store_id):
         store = get_order_store()
         store.reconcile_with_operations(snapshot.get('operations') or [], _bar_store_map())
         scope_bar = bar if target_store_id else None
-        on_order, open_orders, drafts = store.open_state(scope_bar)
-        return on_order, open_orders, drafts, None
+        on_order, open_orders, drafts, draft_items = store.open_state(scope_bar)
+        return on_order, open_orders, drafts, draft_items, None
     except Exception as e:  # noqa: BLE001 — доска важнее сверки заказов, но молчать нельзя
         print(f"[ORDERS] orders context unavailable: {e}")
-        return {}, {}, {}, str(e)
+        return {}, {}, {}, {}, str(e)
 
 
 def _fasovka_ids(nomenclature):
@@ -627,15 +755,21 @@ def _stock_tab_items(snapshot, nomenclature, target_store_id, kinds):
                                   snapshot['window_days'],
                                   stock_now={pid: p['stock'] for pid, p in products.items()})
     directory = get_supplier_directory().view()
+    # Цена нужна и здесь: позиция, добавленная в заказ из «Фасовки» или «Меню кухни»,
+    # должна попадать в сумму заказа наравне с позицией доски (docs/orders.md).
+    prices = resolve_prices(snapshot['operations'], snapshot['balances'], products.keys())
     items = []
     for product_id, data in products.items():
         st = stats[product_id]
+        price_info = prices.get(product_id) or {}
         items.append({
             'product_id': product_id,
             'category': data['category'],
             'supplier': directory.resolve(data['category']),   # каноническое имя из справочника
             'name': data['name'],
             'unit': data['unit'],
+            'price': price_info.get('price'),
+            'price_source': price_info.get('source'),
             'stock': round(data['stock'], 1),
             'avg_sales': round(st['avg_per_day'], 2),
             'days_in_period': st['days_in_period'],
@@ -1014,6 +1148,14 @@ def get_order_board():
         SAFETY_DAYS = 3  — страховой запас на колебания спроса
         pack_size        — минимальная партия (упаковка)
 
+    Минимальный заказ поставщика (min_order_sum в справочнике) считается по группе:
+    если сумма рекомендаций (price × recommended по ценам core/purchase_price) меньше
+    минимума, горизонт всей группы растягивается на общее число дней, пока сумма не
+    дотянет до минимума (_min_order_state). Это заказ реже, но крупнее — тем же товаром,
+    который и так расходится; «три пиццы» поставщик с минимумом 10 000 руб. не примет.
+    Не набирается за MIN_ORDER_MAX_EXTRA_DAYS — рекомендации остаются базовыми, группа
+    помечена reachable = false.
+
     Если для позиции есть данные ЧЗ и ближайшая партия истекает <14 дней —
     рекомендация принудительно 0 (расходуем то что есть на полке).
     Срочность: см. _urgency_level; считается по effective, но отрицательный
@@ -1038,11 +1180,16 @@ def get_order_board():
 
         product_to_gtins = invert_to_product_gtins(get_barcode_map())
         chz_by_gtin, chz_updated_at = _load_chz_by_gtin()
-        on_order_map, open_orders_map, draft_map, orders_error = _orders_context(snapshot, bar, target_store_id)
+        on_order_map, open_orders_map, draft_map, draft_items_map, orders_error = _orders_context(
+            snapshot, bar, target_store_id)
         directory = get_supplier_directory().view()
+        # Цена единицы для суммы заказа: последняя приходная накладная, иначе себестоимость
+        # остатка (core/purchase_price). Нужна минимальному заказу поставщика в рублях.
+        prices = resolve_prices(snapshot['operations'], snapshot['balances'], products.keys())
         plans = {}   # имя поставщика → (first, following, days_to_delivery, horizon_days)
+        params_by_supplier = {}
 
-        items = []
+        rows = []
         for product_id, data in products.items():
             stock = data['stock']
             st = stats[product_id]
@@ -1063,7 +1210,7 @@ def get_order_board():
 
             params = _supplier_params(data['category'], directory)
             supplier = params['name']
-            lead_time = params['lead_time_days']
+            params_by_supplier.setdefault(supplier, params)
             # Кратность — для фасовки и кухни; кеги считаем в литрах без кратности (решение владельца).
             pack_size = 1 if data['kind'] == 'draft' else params['pack_size']
             if supplier not in plans:
@@ -1071,68 +1218,115 @@ def get_order_board():
             first_delivery, next_delivery, days_to_delivery, horizon_days = plans[supplier]
             velocity = _velocity(avg_sales, data['unit'])
             days_left = (stock / avg_sales) if avg_sales > 0 else None
-            target_stock = avg_sales * (horizon_days + SAFETY_DAYS)
             # Отрицательный физический остаток (за вычетом учётного нуля) — ошибка учёта:
             # рекомендация 0 и critical, заказом не лечится; управляющий может ввести
             # количество руками (S-14).
             is_negative = stock < -STOCK_ZERO_EPS
-            recommended = 0 if is_negative else _calc_recommendation(
-                effective_stock, avg_sales, horizon_days, pack_size, days_to_expiry, velocity)
-            urgency = 'critical' if is_negative else _urgency_level(effective_stock, avg_sales,
-                                                                    days_to_delivery, velocity)
+            price_info = prices.get(product_id) or {}
+            row = {
+                'product_id': product_id, 'data': data, 'st': st, 'supplier': supplier,
+                'params': params, 'stock': stock, 'on_order': on_order,
+                'effective_stock': effective_stock, 'avg_sales': avg_sales,
+                'velocity': velocity, 'days_left': days_left, 'pack_size': pack_size,
+                'horizon_days': horizon_days, 'days_to_delivery': days_to_delivery,
+                'first_delivery': first_delivery, 'next_delivery': next_delivery,
+                'days_to_expiry': days_to_expiry, 'nearest_expiry': nearest_expiry,
+                'is_negative': is_negative,
+                'price': price_info.get('price'),
+                'price_source': price_info.get('source'),
+                'price_date': price_info.get('date'),
+            }
+            row['recommended_base'] = _recommend_at(row, 0)
+            row['urgency'] = 'critical' if is_negative else _urgency_level(
+                effective_stock, avg_sales, days_to_delivery, velocity)
+            rows.append(row)
+
+        # Минимальный заказ поставщика: группа считается на один увеличенный горизонт,
+        # пока сумма рекомендаций не дотянет до минимума (docs/suppliers.md).
+        by_supplier = {}
+        for row in rows:
+            by_supplier.setdefault(row['supplier'], []).append(row)
+        supplier_states = {}
+        for supplier, group_rows in by_supplier.items():
+            params = params_by_supplier[supplier]
+            other_sum = _draft_sum(draft_items_map.get(supplier), exclude_bar=bar)
+            state = _min_order_state(group_rows, params, other_bars_sum=other_sum,
+                                     apply_fill=bool(target_store_id))
+            state['supplier'] = supplier
+            state['draft_bar_sum'] = _draft_sum(draft_items_map.get(supplier), only_bar=bar)
+            state['draft_total_sum'] = _draft_sum(draft_items_map.get(supplier))
+            supplier_states[supplier] = state
+
+        items = []
+        for row in rows:
+            data, st = row['data'], row['st']
+            extra_days = supplier_states[row['supplier']]['extra_days']
+            recommended = _recommend_at(row, extra_days)
+            cover_days = row['horizon_days'] + extra_days
+            target_stock = row['avg_sales'] * (cover_days + SAFETY_DAYS)
             last_in = st.get('last_in')
 
             items.append({
-                'product_id': product_id,
+                'product_id': row['product_id'],
                 'type': data['kind'],
                 'name': data['name'],
-                'supplier': supplier,
+                'supplier': row['supplier'],
                 'supplier_raw': data['category'],
-                'supplier_is_default': params['is_default'],
-                'self_pickup': params['self_pickup'],
+                'supplier_is_default': row['params']['is_default'],
+                'self_pickup': row['params']['self_pickup'],
                 'unit': data['unit'],
-                'stock': round(stock, 2),
-                'on_order': round(on_order, 2),
-                'effective_stock': round(effective_stock, 2),
-                'open_orders': open_orders_map.get(product_id, []),
-                'draft_qty': draft_map.get(product_id, 0.0),
-                'avg_sales': round(avg_sales, 2),
-                'weekly_sales': round(avg_sales * DAYS_PER_WEEK, 2),
+                'stock': round(row['stock'], 2),
+                'on_order': round(row['on_order'], 2),
+                'effective_stock': round(row['effective_stock'], 2),
+                'open_orders': open_orders_map.get(row['product_id'], []),
+                'draft_qty': draft_map.get(row['product_id'], 0.0),
+                'avg_sales': round(row['avg_sales'], 2),
+                'weekly_sales': round(row['avg_sales'] * DAYS_PER_WEEK, 2),
                 'days_in_period': st['days_in_period'],
                 'is_new': st['is_new'],
                 'consumption_by_type': {k: round(v, 2) for k, v in st['by_document_type'].items()},
-                'velocity': velocity,
-                'days_left': round(days_left, 1) if days_left is not None else None,
-                'lead_time_days': lead_time,
-                'days_to_delivery': days_to_delivery,
-                'horizon_days': horizon_days,
-                'expected_delivery': first_delivery.isoformat(),
-                'next_delivery': next_delivery.isoformat(),
+                'velocity': row['velocity'],
+                'days_left': round(row['days_left'], 1) if row['days_left'] is not None else None,
+                'lead_time_days': row['params']['lead_time_days'],
+                'days_to_delivery': row['days_to_delivery'],
+                'horizon_days': row['horizon_days'],
+                'expected_delivery': row['first_delivery'].isoformat(),
+                'next_delivery': row['next_delivery'].isoformat(),
                 'target_stock': round(target_stock, 2),
-                'pack_size': pack_size,
+                'pack_size': row['pack_size'],
                 'recommended': recommended,
-                'urgency': urgency,
-                'nearest_expiry': nearest_expiry,
-                'days_to_expiry': days_to_expiry,
+                'recommended_base': row['recommended_base'],
+                'min_order_extra_days': extra_days if recommended > row['recommended_base'] else 0,
+                'price': row['price'],
+                'price_source': row['price_source'],
+                'price_date': row['price_date'],
+                'line_sum': line_sum(row['price'], recommended),
+                'urgency': row['urgency'],
+                'nearest_expiry': row['nearest_expiry'],
+                'days_to_expiry': row['days_to_expiry'],
                 'last_incoming': ({'date': last_in.isoformat(), 'amount': round(st.get('last_in_amount') or 0.0, 2)}
                                   if last_in else None),
             })
             it = items[-1]
             it['reason_code'], it['reason'] = _reason({
-                'unit': data['unit'], 'stock': stock, 'on_order': on_order, 'avg': avg_sales,
-                'target': target_stock, 'recommended': recommended, 'horizon_days': horizon_days,
-                'first_delivery': first_delivery, 'next_delivery': next_delivery, 'pack_size': pack_size,
-                'velocity': velocity, 'days_left': days_left, 'days_to_expiry': days_to_expiry,
-                'nearest_expiry': nearest_expiry, 'is_new': st['is_new'],
-                'days_in_period': st['days_in_period'], 'is_negative': is_negative,
+                'unit': data['unit'], 'stock': row['stock'], 'on_order': row['on_order'],
+                'avg': row['avg_sales'], 'target': target_stock, 'recommended': recommended,
+                'horizon_days': row['horizon_days'], 'first_delivery': row['first_delivery'],
+                'next_delivery': row['next_delivery'], 'pack_size': row['pack_size'],
+                'velocity': row['velocity'], 'days_left': row['days_left'],
+                'days_to_expiry': row['days_to_expiry'], 'nearest_expiry': row['nearest_expiry'],
+                'is_new': st['is_new'], 'days_in_period': st['days_in_period'],
+                'is_negative': row['is_negative'],
+                'min_order_extra_days': it['min_order_extra_days'],
+                'min_order_sum': supplier_states[row['supplier']]['min_order_sum'],
             }, snapshot['window_days'])
             # Секция экрана «К заказу»: decide — требует решения (есть что заказать,
             # учётная ошибка или полка опустеет раньше поставки, даже если заказ
             # заблокирован сроком годности); idle — без движения / редко; ok — хватает.
             # Черновик показывается всегда (решает фронт).
-            if recommended > 0 or is_negative or urgency in ('critical', 'high'):
+            if recommended > 0 or row['is_negative'] or row['urgency'] in ('critical', 'high'):
                 it['section'] = 'decide'
-            elif velocity in ('dead', 'slow'):
+            elif row['velocity'] in ('dead', 'slow'):
                 it['section'] = 'idle'
             else:
                 it['section'] = 'ok'
@@ -1155,6 +1349,7 @@ def get_order_board():
             'consumption_scope': 'store' if target_store_id else 'network',
             'window_days': snapshot['window_days'],
             'safety_days': SAFETY_DAYS,
+            'min_order_max_extra_days': MIN_ORDER_MAX_EXTRA_DAYS,
             'near_expiry_block_days': NEAR_EXPIRY_BLOCK_DAYS,
             'slow_mover_weekly_sales': SLOW_MOVER_WEEKLY_SALES,
             'fast_mover_weekly_sales': FAST_MOVER_WEEKLY_SALES,
@@ -1172,6 +1367,7 @@ def get_order_board():
             'idle_count': sum(1 for i in items if i['section'] == 'idle'),
             'orders_available': orders_error is None,
             'orders_error': orders_error,
+            'suppliers': supplier_states,
             'items': items,
         })
 

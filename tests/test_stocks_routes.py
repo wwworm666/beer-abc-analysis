@@ -152,10 +152,17 @@ def _balances():
     ]
 
 
-def _op(product, store, amount, op_date, doc_type='SALES_DOCUMENT', incoming='false'):
-    """Запись storeOperations в виде iiko: amount строкой со знаком, incoming строкой."""
-    return {'product': product, 'primaryStore': store, 'amount': amount,
-            'incoming': incoming, 'documentType': doc_type, 'date': op_date}
+def _op(product, store, amount, op_date, doc_type='SALES_DOCUMENT', incoming='false', total=None):
+    """Запись storeOperations в виде iiko: amount строкой со знаком, incoming строкой.
+
+    total — сумма строки накладной (поле sum): из неё считается цена единицы
+    (core/purchase_price), по которой доска проверяет минимальный заказ поставщика.
+    """
+    record = {'product': product, 'primaryStore': store, 'amount': amount,
+              'incoming': incoming, 'documentType': doc_type, 'date': op_date}
+    if total is not None:
+        record['sum'] = total
+    return record
 
 
 def _operations():
@@ -163,7 +170,8 @@ def _operations():
         # P_BOTTLE: приход в первый день окна (не новинка), продажи на Лиговском 45,
         # на Большом 60 + перемещение с Большого 30 (входит в расход Большого),
         # приход перемещения на Кременчугскую — не расход.
-        _op(P_BOTTLE, STORE_LIG, '20.000000000', '06.10.2025', 'INCOMING_INVOICE', 'true'),
+        # 20 шт за 2400 руб. → цена по накладной 120 руб. (себестоимость остатка дала бы 100)
+        _op(P_BOTTLE, STORE_LIG, '20.000000000', '06.10.2025', 'INCOMING_INVOICE', 'true', total='2400.000000000'),
         _op(P_BOTTLE, STORE_LIG, '-30.000000000', '10.10.2025'),
         _op(P_BOTTLE, STORE_LIG, '-15.000000000', '20.10.2025'),
         _op(P_BOTTLE, STORE_BOL, '-60.000000000', '15.10.2025'),
@@ -464,6 +472,7 @@ ORDER_BOARD_KEYS = {
     'medium_count', 'active_count', 'slow_count', 'dead_count',
     'recommended_total', 'on_order_count', 'draft_count', 'decide_count', 'idle_count', 'today',
     'orders_available', 'orders_error', 'items',
+    'suppliers', 'min_order_max_extra_days',                      # минимальный заказ поставщика
 }
 ORDER_ITEM_KEYS = {
     'product_id', 'type', 'name', 'supplier', 'unit', 'stock', 'avg_sales',
@@ -474,6 +483,8 @@ ORDER_ITEM_KEYS = {
     'supplier_raw', 'supplier_is_default', 'self_pickup', 'days_to_delivery', 'horizon_days',
     'expected_delivery', 'next_delivery', 'target_stock', 'last_incoming',
     'reason', 'reason_code', 'section',                          # этапы 2-3: экран «К заказу»
+    'price', 'price_source', 'price_date', 'line_sum',           # минимальный заказ: цена и сумма
+    'recommended_base', 'min_order_extra_days',
 }
 
 
@@ -910,6 +921,111 @@ def _run():
             traceback.print_exc()
     print(f'\n{len(tests) - failed}/{len(tests)} passed')
     return 1 if failed else 0
+
+
+# --- минимальный заказ поставщика (2026-09-14) -------------------------------------
+
+def test_price_per_unit_from_invoice_then_stock():
+    """Цена единицы: последняя приходная накладная, иначе себестоимость остатка."""
+    with _patched() as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        by = _by_id(d)
+        assert by[P_BOTTLE]['price'] == 120.0                 # 2400 / 20 из накладной
+        assert by[P_BOTTLE]['price_source'] == 'invoice' and by[P_BOTTLE]['price_date'] == '2025-10-06'
+        assert by[P_SAUCE]['price'] == 100.0                  # 250 / 2.5 — себестоимость остатка
+        assert by[P_SAUCE]['price_source'] == 'stock' and by[P_SAUCE]['price_date'] is None
+        assert by[P_NEG]['price'] is None                     # ни прихода, ни стоимости остатка
+        assert by[P_NEG]['line_sum'] is None
+        assert by[P_BOTTLE]['line_sum'] == round(by[P_BOTTLE]['price'] * by[P_BOTTLE]['recommended'], 2)
+
+
+def test_order_board_fills_group_up_to_supplier_minimum():
+    """Рекомендаций на 960 руб. при минимуме 1200 — горизонт группы растягивается."""
+    directory = _temp_directory()
+    directory.upsert('ООО "Май"', {'min_order_sum': 1200}, USER)
+    with _patched(directory=directory) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        bottle = _by_id(d)[P_BOTTLE]
+        state = d['suppliers']['ООО "Май"']
+        assert state['min_order_sum'] == 1200 and state['min_order_scope'] == 'bar'
+        assert state['base_sum'] == 960.0                      # 8 шт × 120 руб. без минимума
+        assert state['extra_days'] == 1 and state['reachable'] is True and state['applies'] is True
+        assert state['no_price_count'] == 0
+        # 1.5 в день × (5 дн. до следующей поставки + 1 день добора + 3 запаса) = 13.5,
+        # есть 4 → заказать 10 на 1200 руб.: ровно минимум, больше не берём
+        assert bottle['recommended_base'] == 8 and bottle['recommended'] == 10
+        assert bottle['min_order_extra_days'] == 1 and bottle['target_stock'] == 13.5
+        assert bottle['line_sum'] == 1200.0 and bottle['section'] == 'decide'
+        assert state['sum'] == 1200.0
+        assert bottle['reason_code'] == 'min_order'
+        assert bottle['reason'] == ('до минимального заказа 1 200 руб. берём запас на 9 дн. вместо 8: '
+                                    'нужно 13.5 шт (1.5 в день), есть 4: заказать 10 к пт 07.11')
+
+
+def test_order_board_keeps_base_when_minimum_unreachable():
+    """Минимум 10 000 руб. одной позицией не набрать: рекомендации остаются базовыми."""
+    with _patched() as c:                                      # стартовый набор: минимум 10 000
+        _, d = _get(c, 'order-board', BAR_LIG)
+        bottle = _by_id(d)[P_BOTTLE]
+        state = d['suppliers']['ООО "Май"']
+        assert state['min_order_sum'] == 10000 and state['reachable'] is False
+        assert state['extra_days'] == 0 and state['max_sum'] < 10000
+        assert state['max_extra_days'] == rs.MIN_ORDER_MAX_EXTRA_DAYS
+        assert bottle['recommended'] == bottle['recommended_base'] == 8
+        assert bottle['min_order_extra_days'] == 0 and bottle['reason_code'] == 'order'
+
+
+def test_min_order_does_not_order_what_is_blocked_or_not_needed():
+    """Добор не оживляет dead/slow, истекающие партии и отрицательный остаток."""
+    directory = _temp_directory()
+    directory.upsert('Лента', {'min_order_sum': 500}, USER)     # у «Ленты» заказывать нечего
+    with _patched(directory=directory) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        state = d['suppliers']['Лента']
+        by = _by_id(d)
+        assert state['min_order_sum'] == 500 and state['extra_days'] == 0
+        assert state['base_sum'] == 0.0 and state['reachable'] is True
+        assert by[P_IDLE]['recommended'] == 0 and by[P_IDLE]['section'] == 'idle'
+        assert by[P_GUID]['recommended'] == 0                   # slow остаётся нулём
+        assert by[P_NEG]['recommended'] == 0 and by[P_NEG]['reason_code'] == 'negative_stock'
+
+
+def test_min_order_scope_order_counts_other_bars_from_draft():
+    """Минимум «на весь заказ»: то, что коллега набрал в другой бар, уменьшает добор."""
+    directory = _temp_directory()
+    directory.upsert('ООО "Май"', {'min_order_sum': 1200, 'min_order_scope': 'order'}, USER)
+    store = _temp_order_store()
+    store.set_draft_items('ООО "Май"', [{'product_id': P_BOTTLE, 'bar': BAR_BOL, 'qty': 10,
+                                         'name': 'Пиво Светлое 0.5', 'unit': 'шт', 'price': 120}], USER)
+    with _patched(directory=directory, order_store=store) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        state = d['suppliers']['ООО "Май"']
+        assert state['other_bars_sum'] == 1200.0 and state['draft_total_sum'] == 1200.0
+        assert state['draft_bar_sum'] == 0.0
+        assert state['extra_days'] == 0                         # минимум уже набран другим баром
+        assert _by_id(d)[P_BOTTLE]['recommended'] == 8
+
+
+def test_min_order_not_applied_for_network_view():
+    """«Общая» — не доставка: там минимум только показывается, рекомендации базовые."""
+    directory = _temp_directory()
+    directory.upsert('ООО "Май"', {'min_order_sum': 1200}, USER)
+    with _patched(directory=directory) as c:
+        _, d = _get(c, 'order-board', BAR_ALL)
+        state = d['suppliers']['ООО "Май"']
+        assert state['applies'] is False and state['extra_days'] == 0
+        assert state['min_order_sum'] == 1200
+        assert _by_id(d)[P_BOTTLE]['min_order_extra_days'] == 0
+
+
+def test_stock_tabs_carry_price_for_order_sum():
+    """Позиция, добавленная в заказ из «Фасовки» и «Кухни», тоже попадает в сумму."""
+    with _patched() as c:
+        _, bottles = _get(c, 'bottles', BAR_LIG)
+        _, kitchen = _get(c, 'kitchen', BAR_LIG)
+        assert _by_id(bottles)[P_BOTTLE]['price'] == 120.0
+        assert _by_id(bottles)[P_BOTTLE]['price_source'] == 'invoice'
+        assert _by_id(kitchen)[P_SAUCE]['price'] == 100.0
 
 
 if __name__ == '__main__':

@@ -19,7 +19,9 @@ tests/test_stocks_routes.py (iiko не нужен), хранилища — вр�
 - «Приехало» с фактом по позициям, кнопка «Закрыть без сверки»;
 - смена бара и ленивая вкладка; мобильная разметка без видимых скрытых строк;
 - справочник: несохранённые правки переживают сохранение соседней карточки,
-  срок и написание меняют доску, новый поставщик, ошибка проверки строкой.
+  срок и написание меняют доску, новый поставщик, ошибка проверки строкой;
+- минимальный заказ поставщика: минимум в заголовке группы, «до минимума не добрать»,
+  живая сумма черновика и добор рекомендаций после смены минимума на /suppliers.
 """
 
 import importlib.util
@@ -59,6 +61,11 @@ WD = ('пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс')
 
 def fmt_day(d):
     return f'{WD[d.weekday()]} {d.strftime("%d.%m")}'
+
+
+def head_sum_text(page, supplier):
+    """Текст заголовка группы поставщика на доске (там же живёт сумма черновика)."""
+    return page.inner_text(f'#ob-groups .ob-group:has-text(\'{supplier}\') .ob-group-head')
 
 
 def _browser_available():
@@ -156,6 +163,9 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         assert 'ООО "Май"' in groups, groups
         head = page.inner_text('#ob-groups .ob-group:has-text(\'ООО "Май"\') .ob-group-head')
         assert 'поставка пт 07.11, следующая пн 10.11' in head and 'срок 2 дн.' in head and 'по умолчанию' not in head, head
+        # минимальный заказ поставщика: 10 000 руб. одной позицией не набрать — так и сказано
+        assert 'минимум 10 000 руб. на бар' in head, head
+        assert 'До минимума не добрать: рекомендаций на 960 руб.' in head, head
         lenta_head = page.inner_text('#ob-groups .ob-group:has-text("Лента") .ob-group-head')
         assert 'срок 1 дн.' in lenta_head, lenta_head
         # причина и кнопка «Взять 8» у P_BOTTLE
@@ -184,6 +194,8 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         page.wait_for_function(f'() => !document.querySelector(\'tr.ob-detail[data-detail-for="{fx.P_BOTTLE}"]\').hidden')
         dt = detail.inner_text()
         assert 'Нужно 12 шт = 1.5 в день × (5 дн.' in dt and 'Последний приход пн 06.10: 20 шт' in dt and 'продажи 45' in dt, dt
+        # цена единицы и сумма строки — из накладной iiko, а не «оценочно»
+        assert 'Цена 120 руб. за шт по накладной пн 06.10 → на 8 шт это 960 руб.' in dt, dt
 
         # 3. «Взять 8» → черновик, липкая панель, счётчик на вкладке, кнопка «Взять» прячется
         row.locator('.ob-take').click()
@@ -192,6 +204,9 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         assert 'Заказ: 1 поз. · 1 поставщик' in page.inner_text('#ob-sticky')
         # черновик показывает имя автора и желаемую дату; текст уже с датой
         assert 'Анна' in page.inner_text('#order-drafts .order-card .order-meta')
+        # сумма заказа и недобор до минимума видны и на карточке группы, и в «К отправке»
+        assert 'В заказе 960 руб. из 10 000 руб.: не хватает 9 040 руб.' in head_sum_text(page, 'ООО "Май"')
+        assert 'Сумма заказа 960 руб. · минимум 10 000 руб. на бар: не хватает' in page.inner_text('#order-drafts .order-sums')
         assert f'Желаемая поставка: {MAI_EXPECTED}' in page.input_value('#order-drafts .order-text')
         assert page.inner_text('#order-tab-count') == '1'
         assert row.locator('.ob-take').is_hidden()
@@ -291,6 +306,11 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         fest.locator('[data-field="lead_time_days"]').fill('99')
         fest.locator('[data-action="save"]').click()
         page.wait_for_function('() => document.querySelector(\'.supplier[data-name="Фёст"] [data-role="status"]\').textContent.includes("Срок поставки")')
+        # 9. Минимальный заказ «ООО Май» 1 200 руб.: доска добирает рекомендацию до минимума
+        mai = page.locator('.supplier[data-name=\'ООО "Май"\']')
+        mai.locator('[data-field="min_order_sum"]').fill('1200')
+        mai.locator('[data-action="save"]').click()
+        page.wait_for_function('() => document.querySelector("#banner").textContent.includes("Сохранено")')
     
         page.goto(BASE + '/stocks?bar=' + fx.BAR_LIG)
         page.wait_for_selector('#order-board-content', state='visible')
@@ -302,11 +322,25 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         lenta_txt = page.inner_text('#ob-groups .ob-group:has-text("Лента")')
         assert 'Соус Барбекю' in lenta_txt and 'хватит на 50 дн.' in lenta_txt, lenta_txt
 
+        # добор: вместо 8 шт рекомендуется 10 (1 200 руб. ровно), фраза объясняет почему
+        mai_head = head_sum_text(page, 'ООО "Май"')
+        assert 'минимум 1 200 руб. на бар' in mai_head, mai_head
+        # 8 шт уже в пути (заказ отмечен приехавшим выше), поэтому без минимума хватило бы 240 руб.
+        assert 'Набрано до минимума: считаем запас на' in mai_head and 'рекомендации на 1 200 руб.' in mai_head, mai_head
+        assert '(без минимума хватило бы 240 руб.)' in mai_head, mai_head
+        mai_row = page.locator(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_BOTTLE}"])')
+        mai_text = mai_row.inner_text()
+        assert 'до минимального заказа 1 200 руб. берём запас на' in mai_text, mai_text
+        # в пути 6 (двух штук не довезли, факт отмечен выше) — добор считает их частью запаса
+        assert 'в пути 6' in mai_text and 'заказать 10 к пт 07.11' in mai_text, mai_text
+        assert 'нужно 19.5 шт (1.5 в день)' in mai_text, mai_text
+
         browser.close()
 
     assert not errors, errors
     assert [(o['supplier'], o['status']) for o in store.list_orders(days=365)] == [('ООО "Май"', 'received')]
-    assert {s['name'] for s in directory.list() if s.get('updated_at')} == {'Лента', 'Фёст'}
+    assert {s['name'] for s in directory.list() if s.get('updated_at')} == {'Лента', 'Фёст', 'ООО "Май"'}
+    assert directory.get('ООО "Май"')['min_order_sum'] == 1200
 
 
 if __name__ == '__main__':

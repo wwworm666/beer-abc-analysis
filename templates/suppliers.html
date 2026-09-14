@@ -83,6 +83,10 @@
                 <strong>Дни доставки</strong> задают, когда поставщик привозит; заказ должен дожить до поставки, следующей за ближайшей.
                 <strong>Написания</strong> склеивают разные категории iiko в одного поставщика (например, «ООО МаркетБир» и «Маркет Бир»).
                 <strong>Кратность</strong> округляет рекомендацию вверх для фасовки и кухни; кеги считаются в литрах без кратности.
+                <strong>Минимальный заказ</strong> — сумма, дешевле которой поставщик заказ не принимает. Экран «К заказу»
+                считает рекомендации этого поставщика на больший срок, пока сумма не дотянет до минимума: тот же товар,
+                но заказ реже и крупнее. Цена берётся из последней приходной накладной iiko, иначе из себестоимости остатка.
+                0 — минимума нет.
                 Срок не бывает меньше 1: поставка раньше следующего дня доставки не приезжает.
                 Поставщики, которых здесь нет, получают срок по умолчанию и помечены на странице заказа «по умолчанию».
             </div>
@@ -154,6 +158,8 @@
                 card.querySelector('[data-field="aliases"]').value = values.aliases;
                 card.querySelector('[data-field="lead_time_days"]').value = values.lead_time_days;
                 card.querySelector('[data-field="pack_size"]').value = values.pack_size;
+                card.querySelector('[data-field="min_order_sum"]').value = values.min_order_sum;
+                card.querySelector('[data-field="min_order_scope"]').value = values.min_order_scope;
                 card.querySelectorAll('input[data-field="weekday"]').forEach(i => { i.checked = values.delivery_weekdays.includes(parseInt(i.value)); });
                 card.querySelector('[data-field="self_pickup"]').checked = values.self_pickup;
                 card.querySelector('[data-field="note"]').value = values.note;
@@ -195,6 +201,13 @@
                         <input type="number" min="1" max="60" data-field="lead_time_days" value="${s.lead_time_days}">
                         <label style="margin-top: 8px;">Кратность (упаковка)</label>
                         <input type="number" min="1" max="10000" data-field="pack_size" value="${s.pack_size}">
+                        <label style="margin-top: 8px;">Минимальный заказ, руб. (0 — нет)</label>
+                        <input type="number" min="0" max="10000000" step="100" data-field="min_order_sum" value="${s.min_order_sum || 0}">
+                        <label style="margin-top: 8px;">Минимум считать</label>
+                        <select data-field="min_order_scope">
+                            <option value="bar" ${(s.min_order_scope || 'bar') === 'bar' ? 'selected' : ''}>на каждый бар</option>
+                            <option value="order" ${s.min_order_scope === 'order' ? 'selected' : ''}>на весь заказ</option>
+                        </select>
                     </div>
                     <div class="field">
                         <label>Дни доставки</label>
@@ -213,7 +226,11 @@
                     <span class="status" data-role="status"></span>
                 </div>
             `;
-            card.querySelectorAll('input, textarea').forEach(el => el.addEventListener('input', () => card.classList.add('dirty')));
+            card.querySelectorAll('input, textarea, select').forEach(el => {
+                // select шлёт change, а не input: без этого выбор «на весь заказ» не считался бы правкой
+                el.addEventListener('input', () => card.classList.add('dirty'));
+                el.addEventListener('change', () => card.classList.add('dirty'));
+            });
             card.querySelector('[data-action="save"]').addEventListener('click', () => saveSupplier(card));
             card.querySelector('[data-action="rename"]').addEventListener('click', () => renameSupplier(card));
             card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteSupplier(card));
@@ -226,6 +243,8 @@
                 aliases: card.querySelector('[data-field="aliases"]').value,
                 lead_time_days: card.querySelector('[data-field="lead_time_days"]').value,
                 pack_size: card.querySelector('[data-field="pack_size"]').value,
+                min_order_sum: card.querySelector('[data-field="min_order_sum"]').value,
+                min_order_scope: card.querySelector('[data-field="min_order_scope"]').value,
                 delivery_weekdays: weekdays,
                 self_pickup: card.querySelector('[data-field="self_pickup"]').checked,
                 note: card.querySelector('[data-field="note"]').value,

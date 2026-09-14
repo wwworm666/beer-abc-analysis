@@ -18,8 +18,8 @@ stocks-order-redesign-2026-09-10.md): справочник редактируе�
 Модель.
     suppliers[name] = {name, aliases: [str], lead_time_days: int,
                        delivery_weekdays: [0..6], pack_size: int,
-                       self_pickup: bool, note: str,
-                       updated_at, updated_by}
+                       self_pickup: bool, min_order_sum: int, min_order_scope: str,
+                       note: str, updated_at, updated_by}
 
 Разрешение имени (resolve): точное имя → оно; иначе алиас после нормализации
 (регистр, кавычки, лишние пробелы) → каноническое имя; иначе сама строка
@@ -47,33 +47,49 @@ MIN_LEAD_TIME_DAYS = 1                  # поставка раньше след
 MAX_LEAD_TIME_DAYS = 60
 MAX_PACK_SIZE = 10000
 MAX_NAME_LEN = 120
+# Минимальный заказ поставщика в рублях: 0 — минимума нет. Верхняя граница — защита от
+# опечатки «10000000» вместо «10000», а не реальное ограничение поставщика.
+DEFAULT_MIN_ORDER_SUM = 0
+MAX_MIN_ORDER_SUM = 10000000
+# На что распространяется минимум: 'bar' — на каждую доставку в бар (типично: минимум на
+# адрес доставки), 'order' — на весь заказ поставщику сразу по всем барам.
+MIN_ORDER_SCOPE_BAR = 'bar'
+MIN_ORDER_SCOPE_ORDER = 'order'
+MIN_ORDER_SCOPES = (MIN_ORDER_SCOPE_BAR, MIN_ORDER_SCOPE_ORDER)
+DEFAULT_MIN_ORDER_SCOPE = MIN_ORDER_SCOPE_BAR
+# Стартовый минимальный заказ для поставщиков с доставкой: со слов владельца
+# (2026-09-14) «почти у каждого поставщика минимальный заказ от 10 000 руб».
+# Уточняется по каждому поставщику на /suppliers; у самовывоза (Метро, Лента) минимума нет.
+SEED_MIN_ORDER_SUM = 10000
 
 # Стартовые значения. Кухонные — бывший SUPPLIER_PARAMS routes/stocks.py (2026-04-27),
 # подобраны эмпирически; пивные добавлены 2026-09-12 по категориям номенклатуры
 # (ревью этапа 3: без них 90 % позиций были «по умолчанию»), срок у всех 3 дня до
 # уточнения владельцем на /suppliers. Написания МаркетБир склеены сразу.
+# Минимальный заказ 10 000 руб. проставлен всем, кроме самовывоза (решение владельца
+# 2026-09-14), и уточняется по каждому поставщику на /suppliers.
 SEED_SUPPLIERS = {
     'Метро':                       {'lead_time_days': 1, 'self_pickup': True},
     'Лента':                       {'lead_time_days': 1, 'self_pickup': True},
-    'ООО "Май"':                   {'lead_time_days': 2},
-    'ИП Тихомиров':                {'lead_time_days': 2},
-    'ООО "Кулинарпродторг"':       {'lead_time_days': 2},
-    'ИП Новиков':                  {'lead_time_days': 3},
-    'ООО "Арбореал"':              {'lead_time_days': 3},
-    'Криспи':                      {'lead_time_days': 3},
-    'ООО "ВУРСТХАУСМАНУФАКТУР"':   {'lead_time_days': 3},
-    'ООО "КВГ"':                   {'lead_time_days': 2},
-    'ГС Маркет':                   {'lead_time_days': 2},
-    'ООО МП Арсенал':              {'lead_time_days': 3, 'aliases': ['ООО "МП-Арсенал АО"']},
-    'ООО Невский Синдикат':        {'lead_time_days': 3},
-    'ООО Фёст':                    {'lead_time_days': 3},
-    'ООО МаркетБир':               {'lead_time_days': 3, 'aliases': ['ООО "МаркетБир"', 'Маркет бир']},
-    'СПБ-Премиум':                 {'lead_time_days': 3},
-    'Партнер ООО':                 {'lead_time_days': 3},
-    'БирИнсайдерс':                {'lead_time_days': 3},
-    'ДримТим':                     {'lead_time_days': 3},
-    'ЕГАИС':                       {'lead_time_days': 3},
-    'ООО ТК Параллель':            {'lead_time_days': 3},
+    'ООО "Май"':                   {'lead_time_days': 2, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ИП Тихомиров':                {'lead_time_days': 2, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО "Кулинарпродторг"':       {'lead_time_days': 2, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ИП Новиков':                  {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО "Арбореал"':              {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'Криспи':                      {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО "ВУРСТХАУСМАНУФАКТУР"':   {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО "КВГ"':                   {'lead_time_days': 2, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ГС Маркет':                   {'lead_time_days': 2, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО МП Арсенал':              {'lead_time_days': 3, 'aliases': ['ООО "МП-Арсенал АО"'], 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО Невский Синдикат':        {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО Фёст':                    {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО МаркетБир':               {'lead_time_days': 3, 'aliases': ['ООО "МаркетБир"', 'Маркет бир'], 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'СПБ-Премиум':                 {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'Партнер ООО':                 {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'БирИнсайдерс':                {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ДримТим':                     {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ЕГАИС':                       {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
+    'ООО ТК Параллель':            {'lead_time_days': 3, 'min_order_sum': SEED_MIN_ORDER_SUM},
 }
 
 # Кавычки всех видов, включая типографские: «ООО “Май”» и «ООО "Май"» — одно написание.
@@ -127,6 +143,14 @@ def _bool(value) -> bool:
             return True
         raise ValueError(f'Флаг должен быть да/нет, а не «{value}»')
     return bool(value)
+
+
+def _scope(value) -> str:
+    """На что распространяется минимальный заказ: 'bar' (на каждый бар) или 'order'."""
+    text = str(value or '').strip().casefold()
+    if text in MIN_ORDER_SCOPES:
+        return text
+    raise ValueError(f'Минимальный заказ: считать на бар или на заказ, а не «{value}»')
 
 
 def _weekdays(value) -> List[int]:
@@ -200,6 +224,9 @@ def make_record(name: str, fields: Optional[dict] = None, base: Optional[dict] =
         'delivery_weekdays': _weekdays(pick('delivery_weekdays', None)),
         'pack_size': _int(pick('pack_size', DEFAULT_PACK_SIZE), DEFAULT_PACK_SIZE, 1, MAX_PACK_SIZE, 'Кратность'),
         'self_pickup': _bool(pick('self_pickup', False)),
+        'min_order_sum': _int(pick('min_order_sum', DEFAULT_MIN_ORDER_SUM), DEFAULT_MIN_ORDER_SUM,
+                              0, MAX_MIN_ORDER_SUM, 'Минимальный заказ'),
+        'min_order_scope': _scope(pick('min_order_scope', DEFAULT_MIN_ORDER_SCOPE)),
         'note': str(pick('note', '') or '')[:500],
     }
     # алиас, совпадающий с самим именем, лишний
@@ -213,7 +240,8 @@ def seed_records() -> Dict[str, dict]:
 
 class SupplierParams(dict):
     """Параметры для формулы: dict с ключами name, lead_time_days, pack_size,
-    delivery_weekdays, self_pickup, is_default (поставщик не заведён)."""
+    delivery_weekdays, self_pickup, min_order_sum, min_order_scope,
+    is_default (поставщик не заведён)."""
 
 
 class DirectoryView:
@@ -244,11 +272,15 @@ class DirectoryView:
             return SupplierParams(name=name, lead_time_days=DEFAULT_LEAD_TIME_DAYS,
                                   pack_size=DEFAULT_PACK_SIZE,
                                   delivery_weekdays=list(DEFAULT_DELIVERY_WEEKDAYS),
-                                  self_pickup=False, is_default=True)
+                                  self_pickup=False, min_order_sum=DEFAULT_MIN_ORDER_SUM,
+                                  min_order_scope=DEFAULT_MIN_ORDER_SCOPE, is_default=True)
         return SupplierParams(name=name, lead_time_days=rec['lead_time_days'],
                               pack_size=rec['pack_size'],
                               delivery_weekdays=list(rec['delivery_weekdays']),
-                              self_pickup=bool(rec.get('self_pickup')), is_default=False)
+                              self_pickup=bool(rec.get('self_pickup')),
+                              min_order_sum=int(rec.get('min_order_sum') or DEFAULT_MIN_ORDER_SUM),
+                              min_order_scope=rec.get('min_order_scope') or DEFAULT_MIN_ORDER_SCOPE,
+                              is_default=False)
 
 
 class SupplierDirectory:

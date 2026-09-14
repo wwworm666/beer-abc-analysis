@@ -2,7 +2,7 @@
 
 Справочник — core/supplier_directory.py: каноническое имя, алиасы написаний
 category из iiko, срок поставки в днях доставки, дни доставки (пн = 0),
-кратность для фасовки/кухни, самовывоз, заметка. Редактируется на странице
+кратность для фасовки/кухни, самовывоз, минимальный заказ в рублях, заметка. Редактируется на странице
 /suppliers; читается доской заказа (routes/stocks) и отправкой заказа
 (routes/orders) для группировки, формулы и ожидаемой даты поставки.
 
@@ -11,7 +11,7 @@ category из iiko, срок поставки в днях доставки, дн
                                             которые ни к кому не привязаны
     PUT    /api/suppliers/<name>          — создать/обновить {aliases, lead_time_days,
                                             delivery_weekdays, pack_size, self_pickup,
-                                            note, rename_to?}
+                                            min_order_sum, min_order_scope, note, rename_to?}
     DELETE /api/suppliers/<name>          — удалить
     POST   /api/suppliers/<name>/aliases  — {alias} добавить одно написание
 """
@@ -21,14 +21,17 @@ from flask import Blueprint, jsonify, request
 
 from core.auth_guard import current_user
 from core.order_store import OrderStoreUnavailable, get_order_store
-from core.supplier_directory import (DEFAULT_LEAD_TIME_DAYS, DEFAULT_PACK_SIZE, MIN_LEAD_TIME_DAYS,
-                                     MAX_LEAD_TIME_DAYS, NO_SUPPLIER, SupplierDirectoryUnavailable,
-                                     categories_in_use, clean_name, get_supplier_directory, normalize_name)
+from core.supplier_directory import (DEFAULT_LEAD_TIME_DAYS, DEFAULT_MIN_ORDER_SCOPE,
+                                     DEFAULT_MIN_ORDER_SUM, DEFAULT_PACK_SIZE, MAX_LEAD_TIME_DAYS,
+                                     MAX_MIN_ORDER_SUM, MIN_LEAD_TIME_DAYS, NO_SUPPLIER,
+                                     SupplierDirectoryUnavailable, categories_in_use, clean_name,
+                                     get_supplier_directory, normalize_name)
 from core.supplier_calendar import DEFAULT_DELIVERY_WEEKDAYS
 
 suppliers_bp = Blueprint('suppliers', __name__)
 
-EDITABLE_FIELDS = ('aliases', 'lead_time_days', 'delivery_weekdays', 'pack_size', 'self_pickup', 'note')
+EDITABLE_FIELDS = ('aliases', 'lead_time_days', 'delivery_weekdays', 'pack_size', 'self_pickup',
+                   'min_order_sum', 'min_order_scope', 'note')
 
 
 def _json_body() -> dict:
@@ -84,7 +87,9 @@ def _payload(directory, with_categories: bool = True):
         'nomenclature_available': nomenclature_ok,
         'defaults': {'lead_time_days': DEFAULT_LEAD_TIME_DAYS, 'pack_size': DEFAULT_PACK_SIZE,
                      'delivery_weekdays': list(DEFAULT_DELIVERY_WEEKDAYS),
-                     'min_lead_time_days': MIN_LEAD_TIME_DAYS, 'max_lead_time_days': MAX_LEAD_TIME_DAYS},
+                     'min_lead_time_days': MIN_LEAD_TIME_DAYS, 'max_lead_time_days': MAX_LEAD_TIME_DAYS,
+                     'min_order_sum': DEFAULT_MIN_ORDER_SUM, 'min_order_scope': DEFAULT_MIN_ORDER_SCOPE,
+                     'max_min_order_sum': MAX_MIN_ORDER_SUM},
         'stored': directory.is_stored(),
     }
 
