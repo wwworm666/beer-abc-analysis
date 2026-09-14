@@ -365,6 +365,11 @@
         .ob-note button { padding: 3px 10px; font-size: 11px; }
         .ob-group-sent { font-size: 12px; color: #1d4ed8; }
         .ob-min-order { font-size: 12px; color: var(--text-secondary); }
+        /* Сумма черновика стоит рядом с «к решению» — отделяем её, когда она есть.
+           На телефоне элементы шапки идут строками, и разделитель только мешает. */
+        @media (min-width: 769px) {
+            .ob-group-actions [data-draft-sum-for]:not(:empty) { border-left: 1px solid var(--border-color); padding-left: 10px; }
+        }
         .ob-min-order.filled { color: #1d4ed8; }
         .ob-min-order.short { color: #b45309; }
         .ob-min-order.ok { color: #15803d; }
@@ -1462,7 +1467,11 @@
             const u = escapeHtml(item.unit);
             const lines = [];
             const safety = orderBoardData.safety_days;
-            lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDateHtml(item.next_delivery)} + ${safety} дн. запаса)`);
+            // Дни добора до минимального заказа входят в «нужно», поэтому названы здесь же:
+            // формула в подробностях обязана сходиться с числом в строке
+            const extraDays = item.min_order_extra_days > 0
+                ? ` + ${item.min_order_extra_days} дн. до минимального заказа` : '';
+            lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDateHtml(item.next_delivery)}${extraDays} + ${safety} дн. запаса)`);
             lines.push(`<strong>Есть</strong> ${fmtQty(item.stock)} ${u}` + (item.on_order > 0 ? ` + в пути ${fmtQty(item.on_order)} = ${fmtQty(item.effective_stock)}` : '')
                 + (item.recommended > 0 ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>` + (item.pack_size > 1 ? ` (упаковка ${item.pack_size})` : '') + `, приедет ${fmtDateHtml(item.expected_delivery)}` : ' → заказывать не нужно'));
             const byType = Object.entries(item.consumption_by_type || {});

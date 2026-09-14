@@ -331,6 +331,12 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         mai_row = page.locator(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_BOTTLE}"])')
         mai_text = mai_row.inner_text()
         assert 'до минимального заказа 1 200 руб. берём запас на' in mai_text, mai_text
+        # формула в подробностях сходится с числом строки: дни добора названы в ней
+        page.click(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_BOTTLE}"]) .ob-name')
+        page.wait_for_function(f'() => !document.querySelector(\'tr.ob-detail[data-detail-for="{fx.P_BOTTLE}"]\').hidden')
+        mai_detail = page.inner_text(f'tr.ob-detail[data-detail-for="{fx.P_BOTTLE}"]')
+        assert 'дн. до минимального заказа + 3 дн. запаса)' in mai_detail, mai_detail
+        assert 'Минимальный заказ 1 200 руб.' in mai_detail, mai_detail
         # в пути 6 (двух штук не довезли, факт отмечен выше) — добор считает их частью запаса
         assert 'в пути 6' in mai_text and 'заказать 10 к пт 07.11' in mai_text, mai_text
         assert 'нужно 19.5 шт (1.5 в день)' in mai_text, mai_text

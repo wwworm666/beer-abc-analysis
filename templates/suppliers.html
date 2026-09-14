@@ -35,6 +35,9 @@
             box-sizing: border-box;
         }
         input[type="number"] { width: 70px; text-align: center; }
+        /* Минимальный заказ — до восьми знаков («10 000 000»), в узкое поле не влезает */
+        input[data-field="min_order_sum"] { width: 120px; }
+        select[data-field="min_order_scope"] { width: 100%; max-width: 200px; }
         textarea { width: 100%; min-height: 48px; resize: vertical; }
         .supplier {
             border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 12px;
@@ -70,7 +73,7 @@
 <body>
     <div class="container">
         {% set page_title = "Поставщики" %}
-        {% set page_subtitle = "Сроки, дни доставки, написания" %}
+        {% set page_subtitle = "Сроки, дни доставки, минимальный заказ, написания" %}
         {% include 'shared/nav.html' %}
 
         <div id="banner"></div>
