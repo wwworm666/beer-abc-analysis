@@ -106,6 +106,18 @@ class OlapReports:
         print("[NOMENCLATURE] OLAP failed, trying /products XML...")
         return self._get_nomenclature_via_xml()
 
+    def get_nomenclature_olap_only(self):
+        """Номенклатура только через OLAP TRANSACTIONS, без XML-fallback.
+
+        Для страниц остатков полный список товаров берётся из локального XML
+        (core/nomenclature_xml.py), а OLAP нужен ради свежих категорий и
+        parentId в виде имени верхней группы. None — если OLAP не ответил.
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+        return self._get_nomenclature_via_olap()
+
     def _get_nomenclature_via_olap(self):
         """
         Получить номенклатуру через OLAP TRANSACTIONS.

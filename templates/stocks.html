@@ -297,6 +297,174 @@
             border-bottom: none;
         }
 
+        /* Экран «К заказу» (этап 2 редизайна) */
+        .ob-banner {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .ob-banner.loading { background: var(--bg-tertiary); color: var(--text-secondary); }
+        .ob-banner.error { background: rgba(239, 68, 68, 0.12); color: #991b1b; }
+        .ob-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 12px; }
+        .ob-head h2 { margin-bottom: 4px; }
+        .ob-meta { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+        .ob-help { font-size: 12px; color: var(--text-secondary); line-height: 1.5; max-width: 560px; }
+        .ob-help summary { cursor: pointer; font-weight: 600; color: var(--text-primary); }
+        .ob-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+        .ob-controls input[type="search"] { padding: 8px 12px; min-width: 220px; font-size: 13px; }
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .chip.active { background: var(--accent); border-color: var(--accent); color: white; }
+        .ob-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); text-transform: none; letter-spacing: 0; font-weight: 500; cursor: pointer; }
+        .ob-group { margin-bottom: 20px; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: var(--bg-primary); }
+        .ob-group-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 16px; background: var(--bg-tertiary); }
+        .ob-group-head h3 { margin: 0; font-size: 1.05rem; color: var(--accent); }
+        .ob-group-head .ob-group-meta { font-size: 12px; color: var(--text-secondary); }
+        .ob-group-head .ob-group-meta a { color: inherit; }
+        .ob-group-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .ob-table { margin-top: 0; font-size: 0.9rem; }
+        .ob-table th { font-size: 0.7rem; }
+        .ob-table td { vertical-align: top; }
+        .ob-row.critical { box-shadow: inset 4px 0 0 #991b1b; }
+        .ob-row.high { box-shadow: inset 4px 0 0 #d97706; }
+        .ob-row.medium { box-shadow: inset 4px 0 0 #f59e0b; }
+        .ob-name { font-weight: 600; background: none; border: none; padding: 0; color: var(--text-primary); font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+        .ob-name:hover { color: var(--accent); }
+        .ob-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+        .ob-reason { font-size: 12px; line-height: 1.4; }
+        .ob-reason.order { color: var(--text-primary); }
+        .ob-reason.negative_stock { color: #991b1b; font-weight: 600; }
+        .ob-reason.near_expiry { color: #b45309; }
+        .ob-reason.in_transit, .ob-reason.enough, .ob-reason.no_movement, .ob-reason.slow { color: var(--text-secondary); }
+        .ob-order { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .ob-order input[type="number"] { width: 72px; padding: 6px 8px; }
+        .ob-take { padding: 5px 10px; font-size: 12px; white-space: nowrap; }
+        .ob-detail td { background: var(--bg-tertiary); font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+        .ob-detail code { font-size: 11px; }
+        .ob-idle { margin-top: 8px; }
+        .ob-idle summary { cursor: pointer; font-weight: 600; color: var(--text-secondary); padding: 8px 0; }
+        .ob-idle .ob-table { margin-top: 8px; }
+        .ob-empty { padding: 16px; color: var(--text-secondary); font-size: 13px; }
+        .ob-note[hidden] { display: none; }
+        .ob-note { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 12px; margin: 8px 0 12px; border-radius: 6px; background: rgba(59, 130, 246, 0.10); font-size: 12px; }
+        .ob-note button { padding: 3px 10px; font-size: 11px; }
+        .ob-group-sent { font-size: 12px; color: #1d4ed8; }
+        .recv-form { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--border-color); border-radius: 6px; }
+        .recv-form input[type="number"] { width: 72px; padding: 4px 6px; }
+        .recv-form .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 0; font-size: 13px; }
+        .ob-sticky {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            z-index: 50;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+            padding: 10px 16px;
+            display: none;
+            justify-content: center;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+        .ob-sticky.visible { display: flex; }
+        body.has-sticky { padding-bottom: 64px; }
+        .tab .tab-count[hidden] { display: none; }
+        .tab .tab-count { display: inline-block; min-width: 18px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: var(--accent); color: white; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+
+        /* Заказы поставщикам: карточки черновика / «в пути» / истории */
+        .order-card {
+            margin-top: 16px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+        }
+
+        .order-card h4 {
+            color: var(--accent);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .order-card .order-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .order-card table {
+            margin-top: 8px;
+            font-size: 0.85rem;
+        }
+
+        .order-card details summary {
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        .order-text {
+            width: 100%;
+            min-height: 120px;
+            margin-top: 8px;
+            padding: 10px;
+            font-family: inherit;
+            font-size: 13px;
+            line-height: 1.4;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .order-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .order-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .order-status.sent { background: rgba(59, 130, 246, 0.15); color: #1d4ed8; }
+        .order-status.received { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+        .order-status.posted { background: rgba(16, 185, 129, 0.15); color: #047857; }
+        .order-status.cancelled { background: rgba(107, 114, 128, 0.15); color: #4b5563; }
+        .order-status.overdue { background: rgba(239, 68, 68, 0.15); color: #991b1b; }
+
         /* Tabs */
         .tabs {
             display: flex;
@@ -477,12 +645,6 @@
                 text-align: center;
             }
 
-            #taplist-table th:nth-child(5),
-            #taplist-table td:nth-child(5) { /* Для заказа */
-                width: 15%;
-                text-align: center;
-            }
-
             /* Badge */
             .badge {
                 padding: 2px 4px;
@@ -609,6 +771,32 @@
                 width: 18%;
             }
         }
+
+        /* Экран «К заказу» на телефоне: строка = карточка. Блок последний в таблице стилей и с
+           большей специфичностью, чтобы перекрыть общие мобильные ширины колонок выше. */
+        @media (max-width: 768px) {
+            table.ob-table, table.ob-table tbody, table.ob-table tr, table.ob-table td {
+                display: block;
+                width: 100% !important;
+                max-width: none !important;
+                box-sizing: border-box;
+            }
+            table.ob-table thead { display: none; }
+            table.ob-table tr.ob-row { padding: 10px 12px; border-bottom: 1px solid var(--border-color); }
+            table.ob-table td { padding: 2px 0; border: none; text-align: left; font-size: 0.85rem; }
+            table.ob-table td[data-label]::before { content: attr(data-label) ': '; color: var(--text-secondary); font-size: 11px; }
+            table.ob-table td.ob-cell-name::before { content: none; }
+            table.ob-table .ob-order { margin-top: 6px; }
+            table.ob-table td input[type="number"] { width: 72px !important; max-width: 72px !important; font-size: 0.85rem; padding: 6px 8px; }
+            table.ob-table .ob-take { width: auto; white-space: nowrap; font-size: 12px; padding: 6px 10px; }
+            table.ob-table .ob-reason { font-size: 0.85rem; }
+            table.ob-table tr.ob-detail td { padding: 8px 12px; }
+            /* display: block выше перекрывает атрибут hidden: скрытые строки подробностей прячем явно */
+            table.ob-table tr[hidden] { display: none !important; }
+            /* Таблицы карточек «К отправке»: общие мобильные ширины по nth-child не для них */
+            .order-card table { table-layout: auto; }
+            .order-card th, .order-card td { width: auto !important; overflow: visible; text-overflow: clip; white-space: normal; }
+        }
     </style>
 </head>
 <body>
@@ -637,101 +825,62 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('order-board')">Сводный заказ</button>
-            <button class="tab" onclick="switchTab('taplist')">Таплист</button>
-            <button class="tab" onclick="switchTab('bottles')">Фасовка</button>
-            <button class="tab" onclick="switchTab('expiry')">Сроки годности</button>
-            <button class="tab" onclick="switchTab('kitchen')">Меню кухни</button>
-            <button class="tab" onclick="switchTab('order')">Формирование заказа</button>
+            <button class="tab active" data-tab="order-board" onclick="switchTab('order-board')">К заказу</button>
+            <button class="tab" data-tab="order" onclick="switchTab('order')">К отправке<span class="tab-count" id="order-tab-count" hidden>0</span></button>
+            <button class="tab" data-tab="taplist" onclick="switchTab('taplist')">Таплист</button>
+            <button class="tab" data-tab="bottles" onclick="switchTab('bottles')">Фасовка</button>
+            <button class="tab" data-tab="expiry" onclick="switchTab('expiry')">Сроки годности</button>
+            <button class="tab" data-tab="kitchen" onclick="switchTab('kitchen')">Меню кухни</button>
         </div>
 
-        <!-- Order Board Tab (главная: сводная таблица заказа с рекомендациями) -->
+        <!-- Экран «К заказу» (главная): группы по поставщику, фраза-причина, заказ в один тап -->
         <div id="order-board-tab" class="tab-content active">
-            <div class="card loading" id="loading-order-board">
-                <div class="spinner"></div>
-                <h2>Считаем рекомендации...</h2>
-            </div>
-
+            <div id="ob-banner"></div>
             <div class="card" id="order-board-content" style="display: none;">
-                <h2>Сводная таблица заказа</h2>
-                <div id="order-board-formula" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-                    <strong>Рекомендация</strong> = <code>продажи_в_день × (срок_поставки + страховой_запас) − текущий_остаток</code>,
-                    округлено вверх до кратного партии. Страховой запас — 3 дня. Если до конца срока годности &lt; 14 дней — рекомендация 0.
-                    <br>
-                    <strong>Скорость продаж</strong> (в неделю): <span style="color: var(--text-secondary);">dead</span> = 0;
-                    <span style="color: var(--text-secondary);">slow</span> = &lt; 1 (раз в месяц или реже — <em>не пополняем автоматически</em>);
-                    regular = 1–7; fast = ≥ 7.
-                    <br>
-                    <strong>Срочность:</strong> <span style="color: #991b1b;">критическая</span> = остаток отрицательный или закончится за &lt;1 день;
-                    <span style="color: #d97706;">высокая</span> = поставка не успеет до окончания;
-                    <span style="color: #b45309;">средняя</span> = успеет, но без страхового запаса.
-                    Slow- и dead-mover'ы не считаются «срочными» даже при нулевом остатке.
+                <div class="ob-head">
+                    <div>
+                        <h2>К заказу</h2>
+                        <div class="ob-meta" id="ob-meta"></div>
+                    </div>
+                    <details class="ob-help">
+                        <summary>Как считается</summary>
+                        <div style="margin-top: 6px;">
+                            <strong>Нужно</strong> = расход в день × (дней до следующей поставки + 3 дня запаса).
+                            Дней до следующей поставки: заказ, отправленный сегодня, приедет в ближайший день доставки поставщика
+                            по его сроку, а дожить должен до поставки, следующей за ней (заказ в четверг с поставкой в пятницу
+                            покрывает выходные до понедельника). Срок и дни доставки — в <a href="/suppliers">справочнике поставщиков</a>.
+                            <br><strong>Заказать</strong> = нужно − остаток − в пути, вверх до кратности упаковки. Кеги в литрах, без кратности.
+                            <br><strong>Расход</strong> = продажи + перемещения из бара + списания по складу выбранного бара за 30 дней;
+                            для товара, которого в начале окна не было, — с первого прихода.
+                            <br><strong>В пути</strong> = отправленные поставщику заказы, ещё не оприходованные в iiko (вкладка «К отправке»).
+                            <br><strong>Не заказываем</strong>: партия истекает раньше 14 дней; без движения 30 дней; реже одной продажи в неделю;
+                            отрицательный остаток — проверить учёт.
+                            <br><strong>Хватит дн.</strong> = остаток на полке ÷ расход в день (без учёта «в пути»).
+                        </div>
+                    </details>
                 </div>
-
-                <div class="stats-grid" id="order-board-stats"></div>
-
-                <!-- Фильтры -->
-                <div style="display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; align-items: end;">
-                    <div class="form-group" style="min-width: 130px;">
-                        <label>Тип</label>
-                        <select id="ob-filter-type" onchange="renderOrderBoard()">
-                            <option value="">Все</option>
-                            <option value="bottle">Фасовка</option>
-                            <option value="draft">Кеги</option>
-                            <option value="kitchen">Кухня</option>
-                        </select>
+                <div class="ob-controls">
+                    <input type="search" id="ob-search" placeholder="Поиск по названию" oninput="renderOrderBoard()">
+                    <div class="chips" id="ob-chips">
+                        <button class="chip active" data-kind="" onclick="setKind('')">Все</button>
+                        <button class="chip" data-kind="draft" onclick="setKind('draft')">Кеги</button>
+                        <button class="chip" data-kind="bottle" onclick="setKind('bottle')">Фасовка</button>
+                        <button class="chip" data-kind="kitchen" onclick="setKind('kitchen')">Кухня</button>
                     </div>
-                    <div class="form-group" style="min-width: 180px;">
-                        <label>Поставщик</label>
-                        <select id="ob-filter-supplier" onchange="renderOrderBoard()">
-                            <option value="">Все</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="min-width: 130px;">
-                        <label>Срочность</label>
-                        <select id="ob-filter-urgency" onchange="renderOrderBoard()">
-                            <option value="">Любая</option>
-                            <option value="critical">Критическая</option>
-                            <option value="high">Высокая</option>
-                            <option value="medium">Средняя</option>
-                            <option value="needs">Требует заказа (рекомендация &gt; 0)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="min-width: 130px;">
-                        <label>Скорость</label>
-                        <select id="ob-filter-velocity" onchange="renderOrderBoard()">
-                            <option value="active">Только активные (regular+fast)</option>
-                            <option value="">Все</option>
-                            <option value="fast">Только fast</option>
-                            <option value="regular">Только regular</option>
-                            <option value="slow">Только slow</option>
-                            <option value="dead">Только dead</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-secondary" onclick="applyAllRecommendations()" style="height: 44px;">
-                        Применить рекомендации
-                    </button>
+                    <label class="ob-toggle"><input type="checkbox" id="ob-show-all" onchange="renderOrderBoard()"> показать и то, чего хватает</label>
+                    <button class="btn btn-secondary btn-small" onclick="applyAllRecommendations()">Взять все рекомендации</button>
+                    <a class="btn btn-secondary btn-small" href="/suppliers" style="text-decoration: none;">Поставщики</a>
                 </div>
-
-                <table id="order-board-table">
-                    <thead>
-                        <tr>
-                            <th>Срочность</th>
-                            <th>Поставщик</th>
-                            <th>Позиция</th>
-                            <th>Тип</th>
-                            <th>Скорость</th>
-                            <th>Остаток</th>
-                            <th>В неделю</th>
-                            <th>Хватит дн.</th>
-                            <th>Поставка дн.</th>
-                            <th>Истекает</th>
-                            <th>Рекомендация</th>
-                            <th>Заказ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="order-board-tbody"></tbody>
-                </table>
+                <div class="ob-note" id="ob-note" hidden>
+                    <span>С 11.09 «нужно» считается до поставки, следующей за ближайшей (раньше — только до ближайшей): рекомендации стали больше, особенно перед выходными. Подробнее в «Как считается».</span>
+                    <button class="btn btn-secondary" onclick="dismissNote()">Понятно</button>
+                </div>
+                <div id="ob-orders-warning"></div>
+                <div id="ob-groups"></div>
+                <details class="ob-idle" id="ob-idle">
+                    <summary id="ob-idle-summary">Без движения или редко</summary>
+                    <div id="ob-idle-list"></div>
+                </details>
             </div>
         </div>
 
@@ -752,7 +901,6 @@
                             <th>Название пива</th>
                             <th>Остаток (л)</th>
                             <th>Статус</th>
-                            <th>Для заказа</th>
                         </tr>
                     </thead>
                     <tbody id="taplist-tbody"></tbody>
@@ -807,32 +955,50 @@
             </div>
         </div>
 
-        <!-- Order Tab -->
+        <!-- Order Tab: серверный черновик (общий на всех управляющих), «в пути», история -->
         <div id="order-tab" class="tab-content">
             <div class="card">
-                <h2>Формирование заказа</h2>
-                <div class="order-summary" id="order-summary">
-                    <h3>Заказ пуст</h3>
-                    <p style="color: var(--text-secondary);">Добавьте позиции из таплиста или меню кухни</p>
+                <h2>Черновик заказа</h2>
+                <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+                    Черновик общий для всех управляющих и всех баров, хранится на сервере: одна карточка — одно сообщение поставщику.
+                    Количество можно поправить здесь или в колонке «Заказ» на вкладке «К заказу». Отправили сообщение в чат —
+                    нажмите «Отправлено поставщику»: заказ перейдёт в «В пути» и перестанет попадать в рекомендации.
+                </p>
+                <div id="order-drafts"></div>
+                <div class="order-actions" id="order-drafts-actions" style="display: none;">
+                    <button class="btn btn-secondary btn-small" onclick="clearAllDrafts()">Очистить весь черновик</button>
                 </div>
-                <div style="display: flex; gap: 12px; margin-top: 24px;">
-                    <button class="btn" onclick="exportOrder()">Экспортировать заказ</button>
-                    <button class="btn btn-secondary" onclick="clearOrder()">Очистить</button>
-                </div>
+            </div>
+            <div class="card">
+                <h2>В пути</h2>
+                <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5;">
+                    Отправленные заказы до оприходования в iiko. «Приехало» отмечают при приёмке; «Оприходовано» ставится само,
+                    когда бухгалтерия проведёт приходную накладную по товару и складу бара. Дата поставки ориентировочная:
+                    задержка на один-два дня не считается проблемой.
+                </p>
+                <div id="order-open"></div>
+            </div>
+            <div class="card">
+                <h2>История за 30 дней</h2>
+                <div id="order-history"></div>
             </div>
         </div>
     </div>
 
-    <script>
-        // Заказ хранится по барам: { "Лиговский": [ {type, name, quantity}, ... ], ... }
-        let ordersByBar = {};
-        let currentBar = '';
+    <div class="ob-sticky" id="ob-sticky">
+        <span id="ob-sticky-text"></span>
+        <button class="btn btn-small" onclick="switchTab('order')">К отправке</button>
+    </div>
 
-        // Escape HTML entities
+    <script>
+        let currentBar = '';
+        const CURRENT_USER_NAME = {{ (current_user.display_name if current_user else '') | tojson }};
+
+        // Экранирование для innerHTML и атрибутов: кавычки тоже (имена вроде ООО "Май", S-09)
         function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+            return String(text === null || text === undefined ? '' : text)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         // Fetch with retry (handles 502 from Render wake-up / iiko timeouts)
@@ -890,221 +1056,404 @@
             window.dashboardCheckApi();
             // Recheck connection every 60 seconds
             setInterval(window.dashboardCheckApi, 60000);
+            // Черновик и заказы не зависят от выбранного бара — грузим сразу
+            loadDrafts();
+            loadOrders();
+            // Вход без ритуала: бар выбирается сам, доска грузится сразу
+            const bar = initialBar();
+            if (bar) {
+                document.getElementById('bar-select').value = bar;
+                loadStocks();
+            }
         });
 
-        // Tab switching
-        function switchTab(tabName) {
-            // Update tab buttons
-            document.querySelectorAll('.tab').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
+        // Вкладки: остальные экраны грузятся лениво при первом открытии для текущего бара
+        const TAB_LOADERS = {taplist: loadTaplist, bottles: loadBottles, expiry: loadExpiry, kitchen: loadKitchenMenu};
+        let tabLoadedFor = {};   // имя вкладки → бар, для которого она загружена
 
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.getElementById(tabName + '-tab').classList.add('active');
+            const loader = TAB_LOADERS[tabName];
+            if (loader && currentBar && tabLoadedFor[tabName] !== currentBar) {
+                tabLoadedFor[tabName] = currentBar;
+                loader(currentBar).then(syncDraftInputs);
+            }
+            if (tabName === 'order') {
+                // Черновик общий: перед отправкой показываем то, что видит сервер, а не снимок при входе
+                loadDrafts();
+                loadOrders();
+            }
+            if (tabName === 'order-board') window.scrollTo({top: 0});
+            renderStickyPanel();
         }
 
-        // Load stocks data
+        // Бар: ?bar= → localStorage → первый в списке; выбор запоминается (S-25, вход без ритуала)
+        const BAR_STORAGE_KEY = 'stocks.bar';
+        function initialBar() {
+            const options = [...document.querySelectorAll('#bar-select option')].map(o => o.value).filter(Boolean);
+            const fromUrl = new URLSearchParams(location.search).get('bar');
+            let stored = null;
+            try { stored = localStorage.getItem(BAR_STORAGE_KEY); } catch (e) { stored = null; }
+            return [fromUrl, stored, options[0]].find(b => b && options.includes(b)) || '';
+        }
+        function rememberBar(bar) {
+            try { localStorage.setItem(BAR_STORAGE_KEY, bar); } catch (e) { /* приватный режим */ }
+            const url = new URL(location.href);
+            url.searchParams.set('bar', bar);
+            history.replaceState(null, '', url);
+        }
+
+        // Смена бара: фильтр над кэшированным снимком сети, а не перезапуск всей страницы
         async function loadStocks() {
             const bar = document.getElementById('bar-select').value;
-            if (!bar) {
-                alert('Пожалуйста, выберите бар');
-                return;
-            }
-
+            if (!bar) return;
             currentBar = bar;
-
-            // Load all data in parallel
-            await Promise.allSettled([
-                loadOrderBoard(bar),
-                loadTaplist(bar),
-                loadBottles(bar),
-                loadExpiry(bar),
-                loadKitchenMenu(bar)
-            ]);
+            rememberBar(bar);
+            tabLoadedFor = {};
+            document.querySelectorAll('.tab-error').forEach(b => b.remove());
+            const active = document.querySelector('.tab.active');
+            const activeTab = active ? active.dataset.tab : 'order-board';
+            // Черновик и заказы правят коллеги: «Обновить данные» и смена бара перечитывают их
+            const jobs = [loadOrderBoard(bar), loadDrafts(), loadOrders()];
+            if (TAB_LOADERS[activeTab]) {
+                tabLoadedFor[activeTab] = bar;
+                jobs.push(TAB_LOADERS[activeTab](bar));
+            }
+            await Promise.allSettled(jobs);
+            syncDraftInputs();
         }
 
-        // === Сводный заказ (Order Board) ===
+        // === Экран «К заказу» (order-board) ===
         let orderBoardData = null;  // последний ответ /api/stocks/order-board
+        let obKind = '';            // чип: '' | draft | bottle | kitchen
+        let obOpenDetails = new Set();   // product_id раскрытых строк
+        let obRequestSeq = 0;       // защита от позднего ответа прошлого бара (S-25)
+        const URGENCY_RANK = {critical: 0, high: 1, medium: 2, low: 3};
+        const KIND_LABELS = {draft: 'кеги', bottle: 'фасовка', kitchen: 'кухня'};
+        const DOC_TYPE_LABELS = {SALES_DOCUMENT: 'продажи', INTERNAL_TRANSFER: 'перемещения', WRITEOFF_DOCUMENT: 'списания',
+                                 OUTGOING_INVOICE: 'расходные накладные', INVENTORY_CORRECTION: 'инвентаризация'};
+
+        // Ошибка вкладки — строкой внутри вкладки, а не alert (S-25)
+        function showTabError(tab, text) {
+            const container = document.getElementById(tab + '-tab');
+            if (!container) return;
+            let banner = container.querySelector('.tab-error');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.className = 'ob-banner error tab-error';
+                container.insertBefore(banner, container.firstChild);
+            }
+            banner.innerHTML = `<span>${escapeHtml(text)}</span><button class="btn btn-secondary btn-small" onclick="loadStocks()">Повторить</button>`;
+        }
+        function clearTabError(tab) {
+            const container = document.getElementById(tab + '-tab');
+            const banner = container ? container.querySelector('.tab-error') : null;
+            if (banner) banner.remove();
+        }
+
+        function showBoardBanner(kind, text, retry) {
+            const b = document.getElementById('ob-banner');
+            if (!kind) { b.innerHTML = ''; return; }
+            b.innerHTML = `<div class="ob-banner ${kind}"><span>${escapeHtml(text)}</span>${retry ? '<button class="btn btn-secondary btn-small" onclick="loadStocks()">Повторить</button>' : ''}</div>`;
+        }
 
         async function loadOrderBoard(bar) {
-            const loading = document.getElementById('loading-order-board');
             const content = document.getElementById('order-board-content');
-            loading.classList.add('active');
-            content.style.display = 'none';
-
+            const seq = ++obRequestSeq;
+            showBoardBanner('loading', 'Считаем, что заказать для «' + bar + '»: остатки и операции iiko за 30 дней...');
             try {
                 const response = await fetchWithRetry(`/api/stocks/order-board?bar=${encodeURIComponent(bar)}`);
-                if (!response.ok) throw new Error(`Ошибка загрузки (${response.status})`);
-                orderBoardData = await response.json();
-
-                // Заполняем фильтр поставщиков
-                const suppliers = [...new Set(orderBoardData.items.map(i => i.supplier))].sort();
-                const supplierSelect = document.getElementById('ob-filter-supplier');
-                supplierSelect.innerHTML = '<option value="">Все</option>' +
-                    suppliers.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
-
+                let payload = null;
+                try { payload = await response.json(); } catch (e) { payload = null; }
+                if (seq !== obRequestSeq) return;   // бар уже сменили — этот ответ устарел
+                if (!response.ok) {
+                    const msg = (payload && payload.error) ? payload.error : ('Ошибка загрузки (' + response.status + ')');
+                    throw new Error(msg);
+                }
+                orderBoardData = payload;
                 renderOrderBoard();
                 content.style.display = 'block';
+                showBoardBanner(null);
             } catch (error) {
+                if (seq !== obRequestSeq) return;
                 console.error('Error loading order board:', error);
-                alert('Ошибка загрузки сводного заказа: ' + error.message);
-            } finally {
-                loading.classList.remove('active');
+                content.style.display = 'none';
+                showBoardBanner('error', 'Не удалось получить данные iiko: ' + error.message, true);
             }
+        }
+
+        function setKind(kind) {
+            obKind = kind;
+            document.querySelectorAll('#ob-chips .chip').forEach(c => c.classList.toggle('active', c.dataset.kind === kind));
+            renderOrderBoard();
+        }
+
+        function fmtTime(iso) {
+            if (!iso) return 'нет данных';
+            const d = new Date(iso);
+            if (isNaN(d)) return String(iso);
+            const today = new Date();
+            const sameDay = d.toDateString() === today.toDateString();
+            const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            return sameDay ? hm : (fmtDate(localDateIso(d)) + ' ' + hm);
+        }
+
+        function boardFilter() {
+            const search = (document.getElementById('ob-search').value || '').trim().toLowerCase();
+            const showAll = document.getElementById('ob-show-all').checked;
+            return item => {
+                if (obKind && item.type !== obKind) return false;
+                if (search && !(item.name || '').toLowerCase().includes(search)) return false;
+                return true;
+            };
+        }
+
+        function rowVisible(item, showAll) {
+            if (item.section === 'decide') return true;
+            if (draftQtyFor(item.product_id, orderBoardData.bar) > 0) return true;
+            return showAll && item.section === 'ok';
         }
 
         function renderOrderBoard() {
             if (!orderBoardData) return;
             const data = orderBoardData;
-            const filterType = document.getElementById('ob-filter-type').value;
-            const filterSupplier = document.getElementById('ob-filter-supplier').value;
-            const filterUrgency = document.getElementById('ob-filter-urgency').value;
-            const filterVelocity = document.getElementById('ob-filter-velocity').value;
+            const bar = data.bar;
 
-            const filtered = data.items.filter(item => {
-                if (filterType && item.type !== filterType) return false;
-                if (filterSupplier && item.supplier !== filterSupplier) return false;
-                if (filterUrgency === 'needs' && item.recommended <= 0) return false;
-                if (filterUrgency && filterUrgency !== 'needs' && item.urgency !== filterUrgency) return false;
-                if (filterVelocity === 'active') {
-                    if (item.velocity !== 'regular' && item.velocity !== 'fast') return false;
-                } else if (filterVelocity && item.velocity !== filterVelocity) return false;
-                return true;
+            const meta = document.getElementById('ob-meta');
+            const scope = data.consumption_scope === 'store' ? 'по складу бара' : 'по всей сети';
+            meta.textContent = bar + ' · ' + fmtDate(data.today) + ' · остатки iiko на ' + fmtTime(data.updated_at)
+                + (data.chz_updated_at ? ' · сроки ЧЗ на ' + fmtTime(data.chz_updated_at) : ' · ЧЗ: нет данных')
+                + ' · расход за ' + (data.window_days || 30) + ' дн. ' + scope
+                + (data.on_order_count ? ' · в пути: ' + data.on_order_count + ' поз.' : '');
+            ordersUnavailable = data.orders_available === false;
+            const warning = document.getElementById('ob-orders-warning');
+            warning.innerHTML = ordersUnavailable
+                ? `<div class="ob-banner error"><span>Файл заказов недоступен: «в пути» и черновик не учтены, добавлять в заказ пока нельзя. ${escapeHtml(data.orders_error || '')}</span></div>`
+                : '';
+            const note = document.getElementById('ob-note');
+            let dismissed = false;
+            try { dismissed = localStorage.getItem(NOTE_STORAGE_KEY) === '1'; } catch (e) { dismissed = false; }
+            note.hidden = dismissed;
+
+            const showAll = document.getElementById('ob-show-all').checked;
+            const passes = boardFilter();
+            const filtered = data.items.filter(passes);
+
+            // Группы по поставщику: срочность группы = лучшая срочность среди строк к решению
+            const groups = new Map();
+            filtered.forEach(item => {
+                if (item.section === 'idle' && draftQtyFor(item.product_id, bar) <= 0) return;
+                if (!rowVisible(item, showAll)) return;
+                let g = groups.get(item.supplier);
+                if (!g) {
+                    g = {supplier: item.supplier, items: [], rank: 99, decide: 0, is_default: item.supplier_is_default,
+                         self_pickup: item.self_pickup, lead: item.lead_time_days, expected: item.expected_delivery,
+                         next: item.next_delivery};
+                    groups.set(item.supplier, g);
+                }
+                g.items.push(item);
+                if (item.section === 'decide') {
+                    g.decide++;
+                    g.rank = Math.min(g.rank, URGENCY_RANK[item.urgency] === undefined ? 99 : URGENCY_RANK[item.urgency]);
+                }
             });
+            const ordered = [...groups.values()].sort((a, b) => (a.rank - b.rank) || (b.decide - a.decide) || a.supplier.localeCompare(b.supplier, 'ru'));
 
-            // Stats
-            const recoSum = filtered.reduce((s, i) => s + i.recommended, 0);
-            const statsHtml = `
-                <div class="stat-card">
-                    <div class="label">Активных позиций</div>
-                    <div class="value">${data.active_count}</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">из ${data.total_items} (regular+fast)</div>
-                </div>
-                <div class="stat-card" style="border-color: #991b1b;">
-                    <div class="label" style="color: #991b1b;">Критических</div>
-                    <div class="value" style="color: #991b1b;">${data.critical_count}</div>
-                </div>
-                <div class="stat-card" style="border-color: #d97706;">
-                    <div class="label" style="color: #d97706;">Высокая срочность</div>
-                    <div class="value" style="color: #d97706;">${data.high_count}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Slow / Dead</div>
-                    <div class="value" style="font-size: 1.4rem;">${data.slow_count} / ${data.dead_count}</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">скрыты по умолчанию</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Сумма рекомендаций</div>
-                    <div class="value">${recoSum}</div>
-                    <div style="font-size: 10px; color: var(--text-secondary); margin-top: 4px;">по текущему фильтру</div>
+            const box = document.getElementById('ob-groups');
+            box.innerHTML = '';
+            if (ordered.length === 0) {
+                const idleN = filtered.filter(i => i.section === 'idle').length;
+                box.innerHTML = '<div class="ob-empty">Заказывать нечего: всего хватает до следующей поставки'
+                    + (idleN ? ', а ' + idleN + ' поз. без движения — ниже' : '') + '.'
+                    + (showAll ? '' : ' Включите «показать и то, чего хватает», чтобы увидеть остальные позиции.') + '</div>';
+            }
+            ordered.forEach(g => box.appendChild(groupCard(g, bar)));
+
+            // Свёрнутый блок: без движения / редко (никогда не «Норма» и никогда не исчезает)
+            const idle = filtered.filter(i => i.section === 'idle' && draftQtyFor(i.product_id, bar) <= 0)
+                .sort((a, b) => a.supplier.localeCompare(b.supplier, 'ru') || a.name.localeCompare(b.name, 'ru'));
+            document.getElementById('ob-idle-summary').textContent = 'Без движения или редко (' + idle.length + ')';
+            const idleBox = document.getElementById('ob-idle-list');
+            idleBox.innerHTML = '';
+            document.getElementById('ob-idle').style.display = idle.length ? '' : 'none';
+            if (idle.length) idleBox.appendChild(rowsTable(idle, bar, true));
+
+            syncDraftInputs();
+        }
+
+        function groupCard(g, bar) {
+            const card = document.createElement('div');
+            card.className = 'ob-group';
+            const recoItems = g.items.filter(i => i.recommended > 0);
+            const metaParts = [
+                'поставка ' + fmtDate(g.expected) + ', следующая ' + fmtDate(g.next),
+                'срок ' + g.lead + ' дн.' + (g.is_default ? ' (по умолчанию)' : ''),
+            ];
+            if (g.self_pickup) metaParts.push('самовывоз');
+            // Коллега уже отправил заказ этому поставщику: видно на карточке группы (решение владельца 1)
+            const lastSent = ordersData
+                .filter(o => (o.status === 'sent' || o.status === 'received') && o.supplier === g.supplier)
+                .sort((a, b) => (b.sent_at || '').localeCompare(a.sent_at || ''))[0];
+            const sentLine = lastSent
+                ? `<div class="ob-group-sent">отправлено ${fmtDateTimeHtml(lastSent.sent_at)} (${escapeHtml(lastSent.sent_by_name || lastSent.sent_by || '')})`
+                  + (lastSent.expected_at ? `, ожидается ${fmtDateHtml(lastSent.expected_at)}` : '')
+                  + (lastSent.status === 'received' ? ', приехало' : '') + '</div>'
+                : '';
+            card.innerHTML = `
+                <div class="ob-group-head">
+                    <div>
+                        <h3>${escapeHtml(g.supplier)}</h3>
+                        <div class="ob-group-meta">${escapeHtml(metaParts.join(' · '))} · <a href="/suppliers" title="Срок и дни доставки, написания">настроить</a></div>
+                        ${sentLine}
+                    </div>
+                    <div class="ob-group-actions">
+                        <span class="ob-group-meta">к решению: ${g.decide}</span>
+                        ${recoItems.length ? '<button class="btn btn-secondary btn-small" data-action="take-group">Взять рекомендации (' + recoItems.length + ')</button>' : ''}
+                    </div>
                 </div>
             `;
-            document.getElementById('order-board-stats').innerHTML = statsHtml;
+            const sorted = [...g.items].sort((a, b) => {
+                const ra = URGENCY_RANK[a.urgency] === undefined ? 99 : URGENCY_RANK[a.urgency];
+                const rb = URGENCY_RANK[b.urgency] === undefined ? 99 : URGENCY_RANK[b.urgency];
+                if (ra !== rb) return ra - rb;
+                const da = a.days_left === null ? 9999 : a.days_left;
+                const db = b.days_left === null ? 9999 : b.days_left;
+                return (da - db) || a.name.localeCompare(b.name, 'ru');
+            });
+            card.appendChild(rowsTable(sorted, bar, false));
+            const take = card.querySelector('[data-action="take-group"]');
+            if (take) take.addEventListener('click', () => takeRecommendations(recoItems, bar));
+            return card;
+        }
 
-            // Table rows
-            const tbody = document.getElementById('order-board-tbody');
-            tbody.innerHTML = '';
-            filtered.forEach(item => {
+        function rowsTable(items, bar, idle) {
+            const table = document.createElement('table');
+            table.className = 'ob-table';
+            table.innerHTML = `
+                <thead><tr>
+                    <th style="width: 32%;">Позиция</th>
+                    <th>Остаток</th>
+                    <th>Хватит дн.</th>
+                    <th style="width: 30%;">Причина</th>
+                    <th>Заказ</th>
+                </tr></thead>
+                <tbody></tbody>`;
+            const tbody = table.querySelector('tbody');
+            items.forEach(item => {
                 const row = document.createElement('tr');
-                row.setAttribute('style', orderBoardRowStyle(item));
-
-                const expiryCell = item.nearest_expiry
-                    ? `${escapeHtml(item.nearest_expiry)} <span style="color: var(--text-secondary); font-size: 11px;">(${item.days_to_expiry}д)</span>`
-                    : (item.type === 'bottle' ? '<span style="color: var(--text-secondary);">нет в ЧЗ</span>' : '—');
-
-                const daysLeftCell = item.days_left !== null
-                    ? item.days_left.toFixed(1)
-                    : '<span style="color: var(--text-secondary);">нет продаж</span>';
-
-                const stockStyle = item.stock < 0 ? 'color: #991b1b; font-weight: 700;' : '';
-
+                row.className = 'ob-row ' + (item.section === 'decide' ? item.urgency : '');
+                const onOrder = item.on_order > 0
+                    ? `<div class="ob-sub" title="${escapeHtml(openOrdersTitle(item))}">в пути ${fmtQty(item.on_order)}</div>` : '';
+                const sub = [KIND_LABELS[item.type] || item.type];
+                if (idle) sub.push(item.supplier);
+                if (item.is_new) sub.push('новинка, ' + item.days_in_period + ' дн.');
+                const daysLeft = item.days_left === null
+                    ? '<span style="color: var(--text-secondary);">—</span>'
+                    : fmtQty(item.days_left);
+                const canTake = item.recommended > 0;
                 row.innerHTML = `
-                    <td><span class="badge ${urgencyBadgeClass(item.urgency)}">${urgencyLabel(item.urgency)}</span></td>
-                    <td>${escapeHtml(item.supplier)}</td>
-                    <td>${escapeHtml(item.name)}</td>
-                    <td>${typeLabel(item.type)}</td>
-                    <td><span style="font-size: 11px; color: ${velocityColor(item.velocity)}; font-weight: 600;">${velocityLabel(item.velocity)}</span></td>
-                    <td style="${stockStyle}">${item.stock} ${escapeHtml(item.unit)}</td>
-                    <td>${item.weekly_sales.toFixed(2)}</td>
-                    <td>${daysLeftCell}</td>
-                    <td>${item.lead_time_days}</td>
-                    <td>${expiryCell}</td>
-                    <td><strong>${item.recommended}</strong> ${escapeHtml(item.unit)}</td>
-                    <td>
-                        <input type="number" min="0" value="0"
-                            data-product-id="${escapeHtml(item.product_id)}"
-                            data-recommended="${item.recommended}"
-                            style="width: 70px;">
+                    <td class="ob-cell-name">
+                        <button class="ob-name" type="button" title="Подробнее: формула, расход, приходы">${escapeHtml(item.name)}</button>
+                        <div class="ob-sub">${escapeHtml(sub.join(' · '))}</div>
+                    </td>
+                    <td data-label="Остаток">${item.stock < 0 ? '<span style="color: #991b1b; font-weight: 700;">' : ''}${fmtQty(item.stock)} ${escapeHtml(item.unit)}${item.stock < 0 ? '</span>' : ''}${onOrder}</td>
+                    <td data-label="Хватит дн.">${daysLeft}</td>
+                    <td data-label="Почему"><span class="ob-reason ${escapeHtml(item.reason_code || '')}">${escapeHtml(item.reason || '')}</span></td>
+                    <td data-label="Заказ">
+                        <div class="ob-order">
+                            <input type="number" min="0" step="any" value="0" placeholder="0"
+                                data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}"
+                                data-recommended="${item.recommended}" aria-label="Заказать ${escapeHtml(item.name)}">
+                            <span style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(item.unit)}</span>
+                            ${canTake ? `<button class="btn btn-secondary btn-small ob-take" type="button" data-take="${item.recommended}">Взять ${fmtQty(item.recommended)}</button>` : ''}
+                        </div>
                     </td>
                 `;
                 const input = row.querySelector('input');
-                input.addEventListener('change', function() {
-                    addToOrder(item.type, item.name, this.value, item.supplier, item.unit);
-                });
+                input.addEventListener('change', function() { setDraftQty(item, this.value, bar); });
+                const take = row.querySelector('.ob-take');
+                if (take) take.addEventListener('click', () => setDraftQty(item, item.recommended, bar));
+                row.querySelector('.ob-name').addEventListener('click', () => toggleDetail(item.product_id));
                 tbody.appendChild(row);
+
+                const detail = document.createElement('tr');
+                detail.className = 'ob-detail';
+                detail.dataset.detailFor = item.product_id;
+                detail.hidden = !obOpenDetails.has(item.product_id);
+                detail.innerHTML = `<td colspan="5">${detailHtml(item)}</td>`;
+                tbody.appendChild(detail);
+            });
+            return table;
+        }
+
+        function toggleDetail(productId) {
+            if (obOpenDetails.has(productId)) obOpenDetails.delete(productId); else obOpenDetails.add(productId);
+            document.querySelectorAll(`tr.ob-detail[data-detail-for="${CSS.escape(productId)}"]`).forEach(tr => {
+                tr.hidden = !obOpenDetails.has(productId);
             });
         }
 
-        function velocityLabel(v) {
-            if (v === 'fast') return 'fast';
-            if (v === 'regular') return 'regular';
-            if (v === 'slow') return 'slow';
-            if (v === 'dead') return 'dead';
-            return v;
-        }
-        function velocityColor(v) {
-            if (v === 'fast') return '#059669';
-            if (v === 'regular') return 'var(--text-primary)';
-            if (v === 'slow') return 'var(--text-secondary)';
-            if (v === 'dead') return '#9ca3af';
-            return 'var(--text-secondary)';
+        function fmtDateHtml(iso) { return escapeHtml(fmtDate(iso)); }   // для innerHTML: дата из внешних данных экранируется
+
+        function detailHtml(item) {
+            const u = escapeHtml(item.unit);
+            const lines = [];
+            const safety = orderBoardData.safety_days;
+            lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDateHtml(item.next_delivery)} + ${safety} дн. запаса)`);
+            lines.push(`<strong>Есть</strong> ${fmtQty(item.stock)} ${u}` + (item.on_order > 0 ? ` + в пути ${fmtQty(item.on_order)} = ${fmtQty(item.effective_stock)}` : '')
+                + (item.recommended > 0 ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>` + (item.pack_size > 1 ? ` (упаковка ${item.pack_size})` : '') + `, приедет ${fmtDateHtml(item.expected_delivery)}` : ' → заказывать не нужно'));
+            const byType = Object.entries(item.consumption_by_type || {});
+            const breakdown = byType.length
+                ? byType.map(([k, v]) => (DOC_TYPE_LABELS[k] || k) + ' ' + fmtQty(v)).join(', ')
+                : 'операций нет';
+            lines.push(`<strong>Расход</strong> за ${item.days_in_period} дн.${item.is_new ? ' (с первого прихода)' : ''}: ${escapeHtml(breakdown)} → ${fmtQty(item.avg_sales)} ${u} в день, ${fmtQty(item.weekly_sales)} в неделю`);
+            if (item.last_incoming) lines.push(`<strong>Последний приход</strong> ${fmtDateHtml(item.last_incoming.date)}: ${fmtQty(item.last_incoming.amount)} ${u}`);
+            if (item.open_orders && item.open_orders.length) {
+                lines.push('<strong>В пути</strong>: ' + item.open_orders.map(o => escapeHtml(o.supplier) + ' ' + fmtQty(o.qty) + ' ' + u
+                    + (o.expected_at ? ', ожидается ' + fmtDateHtml(o.expected_at) : '') + ' (' + escapeHtml((ORDER_STATUS_LABELS[o.status] || o.status).toLowerCase()) + ')').join('; '));
+            }
+            if (item.type === 'bottle') {
+                lines.push('<strong>Срок годности</strong>: ' + (item.nearest_expiry
+                    ? fmtDateHtml(item.nearest_expiry) + ' (' + item.days_to_expiry + ' дн.)' : 'нет данных ЧЗ') + ' · <a href="/expiration">партии</a>');
+            }
+            if (item.type === 'draft') lines.push('<a href="/taps">Краны бара</a>');
+            if (item.supplier_raw && item.supplier_raw !== item.supplier) lines.push('Категория в iiko: ' + escapeHtml(item.supplier_raw));
+            return lines.join('<br>');
         }
 
-        function applyAllRecommendations() {
-            // Заполняет инпуты в видимых строках значением recommended и добавляет в заказ
-            const tbody = document.getElementById('order-board-tbody');
-            const inputs = tbody.querySelectorAll('input[type="number"]');
-            let count = 0;
-            inputs.forEach(inp => {
-                const reco = parseInt(inp.dataset.recommended || '0');
-                if (reco > 0) {
-                    inp.value = reco;
-                    inp.dispatchEvent(new Event('change'));
-                    count++;
-                }
-            });
-            if (count === 0) {
-                alert('Нет позиций с рекомендацией > 0 (или все скрыты фильтром)');
+        async function takeRecommendations(items, bar) {
+            if (!canOrderFor(bar)) { alert('Выберите конкретный бар: заказ приезжает на склад бара'); return; }
+            const payload = items.filter(it => it.recommended > 0).map(it => draftPayload(it, it.recommended, bar));
+            if (payload.length === 0) { alert('Нет позиций с рекомендацией'); return; }
+            try {
+                await draftRequest('POST', '/api/orders/draft/batch', {items: payload});
+            } catch (error) {
+                alert('Не удалось положить в заказ: ' + error.message);
             }
         }
 
-        function urgencyBadgeClass(u) {
-            if (u === 'critical') return 'negative';
-            if (u === 'high') return 'low';
-            if (u === 'medium') return 'medium';
-            return 'high';
+        async function applyAllRecommendations() {
+            // Рекомендации всех видимых (по чипу и поиску) строк — в общий черновик одним запросом
+            if (!orderBoardData) return;
+            const passes = boardFilter();
+            await takeRecommendations(orderBoardData.items.filter(passes), orderBoardData.bar);
         }
-        function urgencyLabel(u) {
-            if (u === 'critical') return 'Критич.';
-            if (u === 'high') return 'Высокая';
-            if (u === 'medium') return 'Средняя';
-            return 'Норма';
+
+        function openOrdersTitle(item) {
+            return (item.open_orders || []).map(o =>
+                o.supplier + ': ' + fmtQty(o.qty) + ' ' + item.unit
+                + (o.expected_at ? ', ожидается ' + fmtDate(o.expected_at) : '')
+                + ' (' + (ORDER_STATUS_LABELS[o.status] || o.status).toLowerCase() + ')'
+            ).join('\n');
         }
+
         function typeLabel(t) {
             if (t === 'bottle') return 'Фасовка';
             if (t === 'draft') return 'Кеги';
             if (t === 'kitchen') return 'Кухня';
             return t;
-        }
-        function orderBoardRowStyle(item) {
-            if (item.urgency === 'critical') return 'background: rgba(239, 68, 68, 0.18);';
-            if (item.urgency === 'high') return 'background: rgba(245, 158, 11, 0.12);';
-            if (item.days_to_expiry !== null && item.days_to_expiry < 30) return 'background: rgba(239, 68, 68, 0.06);';
-            return '';
         }
 
         // Load taplist
@@ -1121,6 +1470,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('taplist');
 
                 // Update stats
                 const statsHtml = `
@@ -1156,23 +1507,15 @@
                         <td>${escapedBeerName}</td>
                         <td style="${tap.remaining_liters < 0 ? 'color: #991b1b; font-weight: 700;' : ''}">${remainingDisplay}</td>
                         <td><span class="badge ${getStockBadge(tap.stock_level)}">${getStockLabel(tap.stock_level)}</span></td>
-                        <td>
-                            <input type="number" min="0" value="0"
-                                data-type="draft" data-name="${escapedBeerName}"
-                                style="width: 80px;">
-                        </td>
                     `;
-                    // Безопасный обработчик (без inline JS)
-                    row.querySelector('input').addEventListener('change', function() {
-                        addToOrder('draft', tap.beer_name, this.value);
-                    });
+                    // Кеги заказываются со «Сводного заказа» (в литрах): у строки крана нет product_id.
                     tbody.appendChild(row);
                 });
 
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading taplist:', error);
-                alert('Ошибка загрузки таплиста: ' + error.message);
+                showTabError('taplist', 'Ошибка загрузки таплиста: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1191,6 +1534,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('bottles');
 
                 // Update stats
                 const statsHtml = `
@@ -1208,7 +1553,7 @@
                 // Group items by supplier
                 const groupedItems = {};
                 (data.items || []).forEach(item => {
-                    const supplier = item.category || 'Без поставщика';
+                    const supplier = item.supplier || item.category || 'Без поставщика';
                     if (!groupedItems[supplier]) {
                         groupedItems[supplier] = [];
                     }
@@ -1232,8 +1577,8 @@
                             <thead>
                                 <tr>
                                     <th>Название</th>
-                                    <th>Остаток (шт)</th>
-                                    <th>Средние продажи (шт/день)</th>
+                                    <th>Остаток</th>
+                                    <th>Расход в день</th>
                                     <th>Статус</th>
                                     <th>Для заказа</th>
                                 </tr>
@@ -1247,13 +1592,13 @@
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${item.stock || 0}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
-                            <td><input type="number" min="0" value="0" style="width: 80px;"></td>
+                            <td><input type="number" min="0" step="any" value="0" data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}" style="width: 80px;"></td>
                         `;
                         row.querySelector('input').addEventListener('change', function() {
-                            addToOrder('bottles', item.name, this.value);
+                            setDraftQty({...item, supplier: item.supplier || item.category, type: 'bottle'}, this.value, bar);
                         });
                         tbody.appendChild(row);
                     });
@@ -1264,7 +1609,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading bottles:', error);
-                alert('Ошибка загрузки фасовки: ' + error.message);
+                showTabError('bottles', 'Ошибка загрузки фасовки: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1304,7 +1649,7 @@
             let warn = '';
             if (barChz > stock + 1) {
                 // в ЧЗ за этим баром числится больше кодов чем по факту в iiko
-                warn += `<div style="color: #d97706; font-size: 11px; margin-top: 4px;">⚠ В ЧЗ за этим баром ${barChz} кодов, в iiko ${stock} — касса не RETIRE'ит проданные</div>`;
+                warn += `<div style="color: #d97706; font-size: 11px; margin-top: 4px;">Внимание: в ЧЗ за этим баром ${barChz} кодов, в iiko ${stock} — касса не RETIRE'ит проданные</div>`;
             }
             if (totalChz > barChz) {
                 warn += `<div style="color: var(--text-secondary); font-size: 11px;">по всему юрлицу: ${totalChz} кодов</div>`;
@@ -1381,6 +1726,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('expiry');
 
                 const chzDate = data.chz_updated_at
                     ? new Date(data.chz_updated_at).toLocaleString('ru-RU')
@@ -1429,8 +1776,8 @@
                             <thead>
                                 <tr>
                                     <th>Название</th>
-                                    <th>Остаток (шт)</th>
-                                    <th>Ср. продажи</th>
+                                    <th>Остаток</th>
+                                    <th>Расход в день</th>
                                     <th>Срок (по последним партиям)</th>
                                     <th>Партии на полке</th>
                                 </tr>
@@ -1445,8 +1792,8 @@
                         row.setAttribute('style', expiryRowStyle(item));
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${item.stock || 0}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td>${formatHeadlineExpiry(item)}</td>
                             <td style="font-size: 12px;">${formatBatches(item)}</td>
                         `;
@@ -1458,7 +1805,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading expiry:', error);
-                alert('Ошибка загрузки сроков годности: ' + error.message);
+                showTabError('expiry', 'Ошибка загрузки сроков годности: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1476,6 +1823,8 @@
                 if (!response.ok) throw new Error(`Ошибка загрузки данных (${response.status})`);
 
                 const data = await response.json();
+                if (bar !== currentBar) return;   // бар сменили, пока ждали ответ (S-25)
+                clearTabError('kitchen');
 
                 // Update stats
                 const statsHtml = `
@@ -1493,7 +1842,7 @@
                 // Group items by supplier
                 const groupedItems = {};
                 (data.items || []).forEach(item => {
-                    const supplier = item.category || 'Без поставщика';
+                    const supplier = item.supplier || item.category || 'Без поставщика';
                     if (!groupedItems[supplier]) {
                         groupedItems[supplier] = [];
                     }
@@ -1516,9 +1865,9 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Блюдо</th>
-                                    <th>Остаток (шт)</th>
-                                    <th>Средние продажи (шт/день)</th>
+                                    <th>Товар</th>
+                                    <th>Остаток</th>
+                                    <th>Расход в день</th>
                                     <th>Статус</th>
                                     <th>Для заказа</th>
                                 </tr>
@@ -1532,13 +1881,13 @@
                         const row = document.createElement('tr');
                         row.innerHTML = `
                             <td>${escapeHtml(item.name)}</td>
-                            <td>${item.stock || 0}</td>
-                            <td>${item.avg_sales ? item.avg_sales.toFixed(1) : '—'}</td>
+                            <td>${item.stock || 0} ${escapeHtml(item.unit || 'шт')}</td>
+                            <td>${item.avg_sales ? item.avg_sales.toFixed(2) : '0'}${item.is_new ? ' <span title="Товара не было в начале окна: расход усреднён за ' + item.days_in_period + ' дн. с первого прихода, а не за 30">(с прихода, ' + item.days_in_period + ' дн.)</span>' : ''}</td>
                             <td><span class="badge ${getStockBadge(item.stock_level)}">${getStockLabel(item.stock_level)}</span></td>
-                            <td><input type="number" min="0" value="0" style="width: 80px;"></td>
+                            <td><input type="number" min="0" step="any" value="0" data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}" style="width: 80px;"></td>
                         `;
                         row.querySelector('input').addEventListener('change', function() {
-                            addToOrder('kitchen', item.name, this.value);
+                            setDraftQty({...item, supplier: item.supplier || item.category, type: 'kitchen'}, this.value, bar);
                         });
                         tbody.appendChild(row);
                     });
@@ -1549,7 +1898,7 @@
                 content.style.display = 'block';
             } catch (error) {
                 console.error('Error loading kitchen menu:', error);
-                alert('Ошибка загрузки меню кухни: ' + error.message);
+                showTabError('kitchen', 'Ошибка загрузки меню кухни: ' + error.message);
             } finally {
                 loading.classList.remove('active');
             }
@@ -1558,115 +1907,462 @@
         // Группировки и форматирование строк заказа
         const TYPE_LABELS = {draft: 'Кеги', bottle: 'Фасовка', kitchen: 'Кухня'};
 
-        // Add to order (привязка к текущему бару).
-        // supplier и unit опциональны — для legacy-вызовов из таплиста/кухни.
-        function addToOrder(type, itemName, quantity, supplier, unit) {
-            quantity = parseInt(quantity);
-            if (!currentBar) return;
+        // === Заказы поставщикам: серверный черновик, «в пути», история (/api/orders) ===
+        // Черновик общий на всех управляющих и все бары. Инпуты «в заказ» на доске,
+        // во «Фасовке» и «Меню кухни» пишут в него сразу (одна позиция — один POST).
+        let draftsData = [];        // GET /api/orders/draft → drafts[]
+        let ordersData = [];        // GET /api/orders → orders[]
+        let draftQtyByKey = {};     // "product_id|bar" → qty для предзаполнения инпутов
+        const ORDER_STATUS_LABELS = {sent: 'Отправлено', received: 'Приехало', posted: 'Оприходовано', cancelled: 'Отменено'};
+        const WEEKDAYS_RU = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
 
-            if (!ordersByBar[currentBar]) {
-                ordersByBar[currentBar] = [];
-            }
+        function draftKey(productId, bar) { return productId + '|' + bar; }
+        function draftQtyFor(productId, bar) { return draftQtyByKey[draftKey(productId, bar)] || 0; }
+        function canOrderFor(bar) { return !!bar && bar !== 'Общая'; }
+        function canOrderForCurrentBar() { return canOrderFor(currentBar); }
 
-            const barOrder = ordersByBar[currentBar];
-            const existingIndex = barOrder.findIndex(
-                item => item.type === type && item.name === itemName
-            );
+        function fmtQty(q) {
+            const n = Number(q) || 0;
+            return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+        }
+        function fmtDate(iso) {
+            if (!iso) return '';
+            const d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+            if (isNaN(d)) return String(iso);
+            const dd = String(d.getDate()).padStart(2, '0');
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            return WEEKDAYS_RU[d.getDay()] + ' ' + dd + '.' + mm;
+        }
+        function fmtDateTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (isNaN(d)) return String(iso);
+            return fmtDate(iso) + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
 
-            if (quantity <= 0) {
-                if (existingIndex >= 0) {
-                    barOrder.splice(existingIndex, 1);
+        async function postJson(url, body) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body || {}),
+            });
+            let data = {};
+            try { data = await response.json(); } catch (e) { data = {}; }
+            if (!response.ok) throw new Error(data.error || ('Ошибка ' + response.status));
+            return data;
+        }
+
+        function draftPayload(item, qty, bar) {
+            const q = parseFloat(qty);
+            return {
+                supplier: item.supplier || item.category || 'Без поставщика',
+                product_id: item.product_id,
+                bar: bar,
+                qty: isNaN(q) ? 0 : q,
+                name: item.name,
+                unit: item.unit,
+                kind: item.type || item.kind || null,
+                recommended: (item.recommended !== undefined) ? item.recommended : null,
+            };
+        }
+
+        // Ответы на правки черновика применяются по порядку отправки: поздний ответ раннего
+        // запроса не откатывает более новую правку (тот же приём, что obRequestSeq у доски)
+        let draftSeq = 0;
+        let draftApplied = 0;
+        let ordersUnavailable = false;
+        const NOTE_STORAGE_KEY = 'stocks.horizonNote.v1';
+        function dismissNote() {
+            try { localStorage.setItem(NOTE_STORAGE_KEY, '1'); } catch (e) { /* приватный режим */ }
+            document.getElementById('ob-note').hidden = true;
+        }
+        function fmtDateTimeHtml(iso) { return escapeHtml(fmtDateTime(iso)); }
+
+        async function draftRequest(method, url, body) {
+            const seq = ++draftSeq;
+            const data = method === 'GET' ? await (async () => {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    let payload = {};
+                    try { payload = await response.json(); } catch (e) { payload = {}; }
+                    throw new Error(payload.error || ('Ошибка ' + response.status));
                 }
-            } else if (existingIndex >= 0) {
-                barOrder[existingIndex].quantity = quantity;
-                if (supplier) barOrder[existingIndex].supplier = supplier;
-                if (unit) barOrder[existingIndex].unit = unit;
-            } else {
-                barOrder.push({
-                    type: type,
-                    name: itemName,
-                    quantity: quantity,
-                    supplier: supplier || '',
-                    unit: unit || (type === 'draft' ? 'л' : 'шт'),
-                });
-            }
-
-            if (barOrder.length === 0) {
-                delete ordersByBar[currentBar];
-            }
-
-            updateOrderSummary();
+                return response.json();
+            })() : await postJson(url, body);
+            if (seq < draftApplied) return null;      // уже применён более новый ответ
+            draftApplied = seq;
+            applyDrafts(data);
+            return data;
         }
 
-        // Update order summary — группировка по поставщикам (то что отправляется одному получателю)
-        function updateOrderSummary() {
-            const summary = document.getElementById('order-summary');
-            const bars = Object.keys(ordersByBar);
+        function applyDrafts(data) {
+            draftsData = data.drafts || [];
+            draftQtyByKey = {};
+            draftsData.forEach(d => (d.items || []).forEach(it => {
+                draftQtyByKey[draftKey(it.product_id, it.bar)] = it.qty;
+            }));
+            syncDraftInputs();
+            renderDrafts();
+        }
 
-            if (bars.length === 0) {
-                summary.innerHTML = `
-                    <h3>Заказ пуст</h3>
-                    <p style="color: var(--text-secondary);">Добавьте позиции на вкладке «Сводный заказ» или в таплисте/меню кухни</p>
+        // Все инпуты «в заказ» (доска, фасовка, кухня) показывают число из черновика бара,
+        // для которого построена строка (data-bar), а не текущего выбора в селекте.
+        function syncDraftInputs() {
+            document.querySelectorAll('input[data-product-id]').forEach(inp => {
+                const bar = inp.dataset.bar;
+                const disabled = !canOrderFor(bar) || ordersUnavailable;
+                inp.disabled = disabled;
+                inp.title = ordersUnavailable ? 'Файл заказов недоступен'
+                    : (disabled ? 'Выберите конкретный бар, чтобы добавить в заказ' : '');
+                // Поле, в котором человек сейчас печатает, не перезаписываем ответом сервера
+                if (inp !== document.activeElement) {
+                    inp.value = disabled ? 0 : draftQtyFor(inp.dataset.productId, bar);
+                }
+                // Кнопка «Взять N» не нужна, когда в черновике уже ровно рекомендация
+                const take = inp.parentElement ? inp.parentElement.querySelector('.ob-take') : null;
+                if (take) {
+                    take.style.display = (ordersUnavailable || Number(inp.value) === Number(take.dataset.take)) ? 'none' : '';
+                }
+            });
+            document.querySelectorAll('[data-action="take-group"]').forEach(btn => { btn.disabled = ordersUnavailable; });
+            renderStickyPanel();
+        }
+
+        // Липкая панель: «Заказ: N позиций · M поставщиков · К отправке» на любом экране
+        function renderStickyPanel() {
+            const panel = document.getElementById('ob-sticky');
+            const count = document.getElementById('order-tab-count');
+            const positions = draftsData.reduce((n, d) => n + (d.items || []).length, 0);
+            const suppliers = draftsData.length;
+            if (count) { count.textContent = positions; count.hidden = positions === 0; }
+            if (!panel) return;
+            const onOrderTab = document.getElementById('order-tab').classList.contains('active');
+            if (positions === 0 || onOrderTab) {
+                panel.classList.remove('visible');
+                document.body.classList.remove('has-sticky');
+                document.body.style.paddingBottom = '';
+                return;
+            }
+            document.getElementById('ob-sticky-text').textContent = 'Заказ: ' + positions + ' поз. · ' + suppliers
+                + ' ' + (suppliers === 1 ? 'поставщик' : (suppliers < 5 ? 'поставщика' : 'поставщиков'));
+            panel.classList.add('visible');
+            document.body.classList.add('has-sticky');
+            // На узком экране панель переносится на две строки: отступ снизу — по её высоте
+            document.body.style.paddingBottom = (panel.offsetHeight + 8) + 'px';
+        }
+
+        async function loadDrafts() {
+            try {
+                await draftRequest('GET', '/api/orders/draft');
+            } catch (error) {
+                console.error('Error loading drafts:', error);
+            }
+        }
+
+        async function loadOrders() {
+            try {
+                const response = await fetch('/api/orders?days=30');
+                if (!response.ok) throw new Error('Ошибка ' + response.status);
+                const data = await response.json();
+                ordersData = data.orders || [];
+                renderOpenOrders();
+                renderOrderHistory();
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            }
+        }
+
+        // Одна позиция черновика; qty <= 0 удаляет её. item — строка доски/вкладки/карточки,
+        // bar — бар, для которого построена строка (не текущий выбор в селекте).
+        async function setDraftQty(item, qty, bar) {
+            if (!canOrderFor(bar)) {
+                alert('Выберите конкретный бар: заказ приезжает на склад бара');
+                syncDraftInputs();
+                return;
+            }
+            try {
+                await draftRequest('POST', '/api/orders/draft', draftPayload(item, qty, bar));
+            } catch (error) {
+                alert('Не удалось сохранить позицию: ' + error.message);
+                syncDraftInputs();
+            }
+        }
+
+        function renderDrafts() {
+            const box = document.getElementById('order-drafts');
+            const actions = document.getElementById('order-drafts-actions');
+            if (!box) return;
+            if (draftsData.length === 0) {
+                box.innerHTML = '<p style="color: var(--text-secondary);">Черновик пуст. Добавьте позиции в колонке «Заказ» на вкладке «К заказу» или во вкладках «Фасовка» и «Меню кухни».</p>';
+                if (actions) actions.style.display = 'none';
+                return;
+            }
+            if (actions) actions.style.display = 'flex';
+            box.innerHTML = '';
+            draftsData.forEach(draft => {
+                const card = document.createElement('div');
+                card.className = 'order-card';
+                const rows = draft.items.map(it => `
+                    <tr>
+                        <td>${escapeHtml(it.bar)}</td>
+                        <td>${escapeHtml(it.name)}</td>
+                        <td>
+                            <input type="number" min="0" step="any" value="${fmtQty(it.qty)}" style="width: 80px;"
+                                data-draft-product="${escapeHtml(it.product_id)}" data-draft-bar="${escapeHtml(it.bar)}">
+                            ${escapeHtml(it.unit || 'шт')}
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 11px;">${(it.recommended !== null && it.recommended !== undefined) ? 'реком. ' + fmtQty(it.recommended) : ''}</td>
+                        <td><button class="btn btn-secondary btn-small" data-remove-product="${escapeHtml(it.product_id)}" data-remove-bar="${escapeHtml(it.bar)}">Убрать</button></td>
+                    </tr>`).join('');
+                card.innerHTML = `
+                    <h4>${escapeHtml(draft.supplier)}</h4>
+                    <div class="order-meta">Изменён ${fmtDateTime(draft.updated_at)} (${escapeHtml(draft.updated_by_name || draft.updated_by || '')}) · позиций: ${draft.items.length}${draft.expected_at ? ' · желаемая поставка ' + fmtDate(draft.expected_at) : ''}</div>
+                    <table>
+                        <thead><tr><th>Бар</th><th>Позиция</th><th>Количество</th><th></th><th></th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                    <textarea class="order-text" readonly>${escapeHtml(draft.text || '')}</textarea>
+                    <div class="order-actions">
+                        <button class="btn btn-small" data-action="copy">Скопировать текст</button>
+                        <button class="btn btn-small" data-action="send">Отправлено поставщику</button>
+                        <button class="btn btn-secondary btn-small" data-action="csv">CSV</button>
+                        <button class="btn btn-secondary btn-small" data-action="clear">Убрать черновик</button>
+                    </div>
                 `;
-                return;
-            }
-
-            const bySupplier = {};
-            bars.forEach(barName => {
-                (ordersByBar[barName] || []).forEach(item => {
-                    const sup = item.supplier || 'Без поставщика';
-                    if (!bySupplier[sup]) bySupplier[sup] = [];
-                    bySupplier[sup].push({...item, bar: barName});
+                card.querySelectorAll('input[data-draft-product]').forEach(inp => {
+                    inp.addEventListener('change', function() {
+                        const it = draft.items.find(i => i.product_id === this.dataset.draftProduct && i.bar === this.dataset.draftBar);
+                        if (it) setDraftQty({...it, supplier: draft.supplier, type: it.kind}, this.value, this.dataset.draftBar);
+                    });
                 });
-            });
-
-            let html = '<h3>Заказ</h3>';
-            html += '<div style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">Группировка по поставщикам — то что отправляется одному получателю:</div>';
-
-            Object.keys(bySupplier).sort().forEach(sup => {
-                html += `<div style="margin-top: 16px; padding: 16px; border: 1px solid var(--border-color); border-radius: 8px;">`;
-                html += `<h4 style="margin-bottom: 12px; color: var(--accent);">${escapeHtml(sup)}</h4>`;
-                bySupplier[sup].forEach(item => {
-                    const typeLbl = TYPE_LABELS[item.type] || item.type;
-                    html += `
-                        <div class="order-item">
-                            <span>${escapeHtml(item.name)} <span style="color: var(--text-secondary); font-size: 11px;">[${typeLbl} · ${escapeHtml(item.bar)}]</span></span>
-                            <span>${item.quantity} ${escapeHtml(item.unit || 'шт')}</span>
-                        </div>
-                    `;
+                card.querySelectorAll('button[data-remove-product]').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const it = draft.items.find(i => i.product_id === this.dataset.removeProduct && i.bar === this.dataset.removeBar);
+                        if (it) setDraftQty({...it, supplier: draft.supplier, type: it.kind}, 0, this.dataset.removeBar);
+                    });
                 });
-                html += '</div>';
+                card.querySelector('[data-action="copy"]').addEventListener('click', function() { copyText(draft.text || '', this); });
+                card.querySelector('[data-action="send"]').addEventListener('click', function() { sendDraft(draft.supplier); });
+                card.querySelector('[data-action="csv"]').addEventListener('click', function() { exportDraftCsv(draft); });
+                card.querySelector('[data-action="clear"]').addEventListener('click', function() { clearDraft(draft.supplier); });
+                box.appendChild(card);
             });
-
-            summary.innerHTML = html;
         }
 
-        // Export order — CSV по каждому поставщику (через все бары).
-        function exportOrder() {
-            const bars = Object.keys(ordersByBar);
-            if (bars.length === 0) {
-                alert('Заказ пуст');
+        async function copyText(text, button) {
+            try {
+                await navigator.clipboard.writeText(text);
+                flashButton(button, 'Скопировано');
+            } catch (e) {
+                // Без HTTPS clipboard API недоступен: выделяем текст, чтобы скопировать вручную (Ctrl+C)
+                const ta = button.closest('.order-card') && button.closest('.order-card').querySelector('.order-text');
+                if (ta) { ta.focus(); ta.select(); }
+                let copied = false;
+                try { copied = document.execCommand('copy'); } catch (e2) { copied = false; }
+                if (copied) flashButton(button, 'Скопировано');
+                else alert('Не удалось скопировать автоматически: текст выделен, нажмите Ctrl+C');
+            }
+        }
+        function flashButton(button, label) {
+            const old = button.textContent;
+            button.textContent = label;
+            setTimeout(() => { button.textContent = old; }, 1500);
+        }
+
+        async function sendDraft(supplier) {
+            if (!confirm('Отметить заказ «' + supplier + '» как отправленный поставщику? Он перейдёт в «В пути» и будет вычитаться из рекомендаций.')) return;
+            try {
+                await postJson('/api/orders/send', {supplier: supplier});
+                await Promise.all([loadDrafts(), loadOrders()]);
+                if (currentBar) loadOrderBoard(currentBar);
+            } catch (error) {
+                alert('Не удалось отметить заказ: ' + error.message);
+            }
+        }
+
+        async function clearDraft(supplier) {
+            if (!confirm('Убрать черновик «' + supplier + '»? Позиции придётся добавлять заново.')) return;
+            try {
+                await draftRequest('POST', '/api/orders/draft/clear', {supplier: supplier});
+            } catch (error) {
+                alert('Не удалось убрать черновик: ' + error.message);
+            }
+        }
+
+        async function clearAllDrafts() {
+            // Черновик общий: называем, чьи карточки исчезнут вместе с вашими
+            const others = [...new Set(draftsData
+                .filter(d => (d.updated_by_name || d.updated_by) && (d.updated_by_name || d.updated_by) !== CURRENT_USER_NAME)
+                .map(d => (d.updated_by_name || d.updated_by) + ' (' + d.supplier + ')'))];
+            const warn = others.length ? ' В черновике есть карточки коллег: ' + others.join(', ') + '.' : '';
+            if (!confirm('Очистить весь черновик по всем поставщикам и барам?' + warn)) return;
+            try {
+                await draftRequest('POST', '/api/orders/draft/clear', {});
+            } catch (error) {
+                alert('Не удалось очистить черновик: ' + error.message);
+            }
+        }
+
+        function orderStatusBadge(order) {
+            // Задержка считается на сервере (московская дата, допуск ORDER_OVERDUE_GRACE_DAYS)
+            let cls = order.status;
+            let label = ORDER_STATUS_LABELS[order.status] || order.status;
+            if (order.overdue_days > 0) { cls = 'overdue'; label = 'Задерживается ' + order.overdue_days + ' дн.'; }
+            let html = `<span class="order-status ${cls}">${escapeHtml(label)}</span>`;
+            if (order.unmatched_days > 0) {
+                html += ` <span class="order-status overdue" title="Накладной в iiko нет уже ${order.unmatched_days} дн. после ожидаемой даты: проверьте или закройте без сверки">накладной нет ${order.unmatched_days} дн.</span>`;
+            }
+            return html;
+        }
+
+        function orderItemsTable(order) {
+            const rows = order.items.map(it => `
+                <tr>
+                    <td>${escapeHtml(it.bar)}</td>
+                    <td>${escapeHtml(it.name)}</td>
+                    <td>${fmtQty(it.qty)} ${escapeHtml(it.unit || 'шт')}${(it.received_qty !== undefined && it.received_qty !== null && it.received_qty !== it.qty) ? ' <span style="color: var(--text-secondary); font-size: 11px;">(приехало ' + fmtQty(it.received_qty) + ')</span>' : ''}</td>
+                    <td style="font-size: 11px; color: var(--text-secondary);">${it.posted_at ? 'оприходовано ' + fmtDate(it.posted_at) : ''}</td>
+                </tr>`).join('');
+            return `<table><thead><tr><th>Бар</th><th>Позиция</th><th>Количество</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+        }
+
+        function orderCard(order, open) {
+            const card = document.createElement('div');
+            card.className = 'order-card';
+            const posted = order.items.filter(it => it.posted_at).length;
+            const meta = [
+                'Отправлен ' + fmtDateTime(order.sent_at) + ' (' + escapeHtml(order.sent_by_name || order.sent_by || '') + ')',
+                order.expected_at ? 'ожидаемая поставка ' + fmtDate(order.expected_at) + ' (ориентировочно)' : '',
+                'позиций: ' + order.items.length,
+                order.status === 'received' ? 'приехало ' + fmtDateTime(order.received_at) + ' (' + escapeHtml(order.received_by || '') + ')' : '',
+                order.status === 'cancelled' ? 'отменён ' + fmtDateTime(order.cancelled_at) + ' (' + escapeHtml(order.cancelled_by || '') + ')' : '',
+                (open && posted) ? 'оприходовано ' + posted + ' из ' + order.items.length : '',
+                order.note ? 'заметка: ' + escapeHtml(order.note) : '',
+            ].filter(Boolean).join(' · ');
+            const actions = open ? `
+                <div class="order-actions">
+                    ${order.status === 'sent' ? '<button class="btn btn-small" data-action="received">Приехало</button>' : ''}
+                    <button class="btn btn-secondary btn-small" data-action="copy">Скопировать текст</button>
+                    <button class="btn btn-secondary btn-small" data-action="close" title="Заказ больше не ждёт накладной: товар заменили, накладную провели иначе">Закрыть без сверки</button>
+                    <button class="btn btn-secondary btn-small" data-action="cancel">Отменить заказ</button>
+                </div>
+                <div class="recv-form" data-role="recv-form" hidden></div>` : '';
+            card.innerHTML = `
+                <h4>${escapeHtml(order.supplier)} ${orderStatusBadge(order)}</h4>
+                <div class="order-meta">${meta}</div>
+                <details${open ? ' open' : ''}>
+                    <summary>Состав и текст заказа</summary>
+                    ${orderItemsTable(order)}
+                    <textarea class="order-text" readonly>${escapeHtml(order.text || '')}</textarea>
+                </details>
+                ${actions}
+            `;
+            const received = card.querySelector('[data-action="received"]');
+            if (received) received.addEventListener('click', function() { openReceiveForm(order, card); });
+            const copy = card.querySelector('[data-action="copy"]');
+            if (copy) copy.addEventListener('click', function() { copyText(order.text || '', this); });
+            const closeBtn = card.querySelector('[data-action="close"]');
+            if (closeBtn) closeBtn.addEventListener('click', function() { closeOrder(order); });
+            const cancel = card.querySelector('[data-action="cancel"]');
+            if (cancel) cancel.addEventListener('click', function() { cancelOrder(order); });
+            return card;
+        }
+
+        // «Приехало» с фактом: количества по позициям можно поправить перед подтверждением
+        function openReceiveForm(order, card) {
+            const form = card.querySelector('[data-role="recv-form"]');
+            if (!form) return;
+            if (!form.hidden) { form.hidden = true; return; }
+            form.innerHTML = '<div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Сколько приехало на самом деле (если меньше или больше заказа, поправьте):</div>'
+                + order.items.map(it => `
+                    <div class="row">
+                        <span style="min-width: 120px;">${escapeHtml(it.bar)}</span>
+                        <span style="flex: 1;">${escapeHtml(it.name)}</span>
+                        <input type="number" min="0" step="any" value="${fmtQty(it.qty)}"
+                            data-recv-product="${escapeHtml(it.product_id)}" data-recv-bar="${escapeHtml(it.bar)}"> ${escapeHtml(it.unit || 'шт')}
+                    </div>`).join('')
+                + '<div class="order-actions"><button class="btn btn-small" data-action="confirm-receive">Подтвердить приёмку</button>'
+                + '<button class="btn btn-secondary btn-small" data-action="cancel-receive">Отмена</button></div>';
+            form.hidden = false;
+            form.querySelector('[data-action="cancel-receive"]').addEventListener('click', () => { form.hidden = true; });
+            form.querySelector('[data-action="confirm-receive"]').addEventListener('click', () => {
+                const items = [...form.querySelectorAll('input[data-recv-product]')].map(inp => ({
+                    product_id: inp.dataset.recvProduct, bar: inp.dataset.recvBar, qty: parseFloat(inp.value) || 0,
+                }));
+                markReceived(order, items);
+            });
+        }
+
+        async function closeOrder(order) {
+            if (!confirm('Закрыть заказ «' + order.supplier + '» без сверки с накладной? Он перестанет считаться «в пути».')) return;
+            try {
+                await postJson('/api/orders/' + encodeURIComponent(order.id) + '/close', {});
+                await loadOrders();
+                if (currentBar) loadOrderBoard(currentBar);
+            } catch (error) {
+                alert('Не удалось закрыть заказ: ' + error.message);
+            }
+        }
+
+        function renderOpenOrders() {
+            const box = document.getElementById('order-open');
+            if (!box) return;
+            const open = ordersData.filter(o => o.status === 'sent' || o.status === 'received');
+            if (open.length === 0) {
+                box.innerHTML = '<p style="color: var(--text-secondary);">Открытых заказов нет.</p>';
                 return;
             }
-            const today = new Date().toISOString().split('T')[0];
+            box.innerHTML = '';
+            open.forEach(o => box.appendChild(orderCard(o, true)));
+        }
 
-            const bySupplier = {};
-            bars.forEach(barName => {
-                (ordersByBar[barName] || []).forEach(item => {
-                    const sup = item.supplier || 'Без поставщика';
-                    if (!bySupplier[sup]) bySupplier[sup] = [];
-                    bySupplier[sup].push({...item, bar: barName});
-                });
-            });
+        function renderOrderHistory() {
+            const box = document.getElementById('order-history');
+            if (!box) return;
+            const closed = ordersData.filter(o => o.status === 'posted' || o.status === 'cancelled');
+            if (closed.length === 0) {
+                box.innerHTML = '<p style="color: var(--text-secondary);">За последние 30 дней закрытых заказов нет.</p>';
+                return;
+            }
+            box.innerHTML = '';
+            closed.forEach(o => box.appendChild(orderCard(o, false)));
+        }
 
-            Object.keys(bySupplier).forEach(sup => {
-                let csv = `Поставщик: ${sup}\nДата: ${today}\nТип,Название,Бар,Количество,Ед.\n`;
-                bySupplier[sup].forEach(item => {
-                    const typeLbl = TYPE_LABELS[item.type] || item.type;
-                    csv += `"${typeLbl}","${item.name}","${item.bar}","${item.quantity}","${item.unit || 'шт'}"\n`;
-                });
-                downloadCsv(csv, `order_${sanitizeFilename(sup)}_${today}.csv`);
+        async function markReceived(order, items) {
+            try {
+                await postJson('/api/orders/' + encodeURIComponent(order.id) + '/received', {items: items || []});
+                await loadOrders();
+                if (currentBar) loadOrderBoard(currentBar);
+            } catch (error) {
+                alert('Не удалось отметить приёмку: ' + error.message);
+            }
+        }
+
+        async function cancelOrder(order) {
+            if (!confirm('Отменить заказ «' + order.supplier + '» от ' + fmtDate(order.sent_at) + '? Его количество перестанет вычитаться из рекомендаций.')) return;
+            try {
+                await postJson('/api/orders/' + encodeURIComponent(order.id) + '/cancel', {});
+                await loadOrders();
+                if (currentBar) loadOrderBoard(currentBar);
+            } catch (error) {
+                alert('Не удалось отменить заказ: ' + error.message);
+            }
+        }
+
+        // CSV черновика одного поставщика — запасной канал, основной — текст в чат.
+        // Чистый CSV: заголовок первой строкой, кавычки удвоены, дата локальная (S-10).
+        function csvCell(v) { return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"'; }
+        function localDateIso(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+        function exportDraftCsv(draft) {
+            const today = localDateIso(new Date());
+            const rows = [['Дата', 'Поставщик', 'Тип', 'Название', 'Бар', 'Количество', 'Ед.']];
+            draft.items.forEach(it => {
+                rows.push([today, draft.supplier, TYPE_LABELS[it.kind] || it.kind || '', it.name, it.bar, fmtQty(it.qty), it.unit || 'шт']);
             });
+            const csv = rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+            downloadCsv(csv, `order_${sanitizeFilename(draft.supplier)}_${today}.csv`);
         }
 
         function sanitizeFilename(s) {
@@ -1682,19 +2378,6 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        }
-
-        // Clear order
-        function clearOrder() {
-            if (confirm('Очистить текущий заказ?')) {
-                ordersByBar = {};
-                updateOrderSummary();
-
-                // Reset all input fields
-                document.querySelectorAll('input[type="number"]').forEach(input => {
-                    input.value = 0;
-                });
-            }
         }
 
         // Get stock badge class

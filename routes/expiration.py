@@ -10,18 +10,17 @@
 """
 
 from flask import Blueprint, request, jsonify, render_template
-import os
 import json
 import time
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import date, datetime
 
-from core.olap_reports import OlapReports
 from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
-from core.expiry_recommend import classify_tier, recommend
-from extensions import get_cached_nomenclature, BARS
+from core.expiry_recommend import recommend
+from core.stock_consumption import WINDOW_DAYS, aggregate_consumption
+from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
+from extensions import BARS
 
 expiration_bp = Blueprint('expiration', __name__)
 
@@ -56,7 +55,7 @@ _BAR_KPP_MAP = {
 }
 _ID_TO_BAR = {v: k for k, v in _BAR_ID_MAP.items()}
 
-DAYS_IN_PERIOD = 30
+DAYS_IN_PERIOD = WINDOW_DAYS  # окно расхода задаёт снимок сети; здесь — только значение по умолчанию
 
 
 @expiration_bp.route('/expiration')
@@ -77,12 +76,15 @@ def _stock_level(stock: float, velocity: float) -> str:
     return 'high'
 
 
-def _build_bar_data(olap, nomenclature, bar_id: str, fasovka_ids: set,
-                    balances: list, ops: list) -> dict:
-    """Собрать data {product_id: {stock, outgoing, price}} по конкретному бару.
+def _build_bar_data(nomenclature, bar_id: str, fasovka_ids: set,
+                    balances: list, ops: list, today: date,
+                    window_days: int = DAYS_IN_PERIOD) -> dict:
+    """Собрать data {product_id: {stock, outgoing, days_in_period, price}} по бару.
 
-    `balances` и `ops` уже подгружены снаружи (балансы — общий список по всем складам,
-    операции — по конкретному бару). Это снимает N лишних запросов /balances в цикле.
+    `balances` и `ops` — общие списки по всей сети из снимка (core/stock_snapshot);
+    остатки фильтруются по складу бара здесь, расход — по `primaryStore` записи в
+    core/stock_consumption.aggregate_consumption (до 2026-09-10 расход считался по
+    всей сети — S-01 в docs/technical/audits/STOCKS_AUDIT_2026-09-10.md).
 
     price — себестоимость единицы (cost basis), считается как cost_sum / stock,
     где cost_sum — сумма из balances (поле `sum`), а stock — суммарный остаток.
@@ -107,6 +109,7 @@ def _build_bar_data(olap, nomenclature, bar_id: str, fasovka_ids: set,
                 'stock': 0.0,
                 'cost_sum': 0.0,
                 'outgoing': 0.0,
+                'days_in_period': DAYS_IN_PERIOD,
             }
         products[pid]['stock'] += float(b.get('amount', 0) or 0)
         products[pid]['cost_sum'] += float(b.get('sum', 0) or 0)
@@ -116,13 +119,11 @@ def _build_bar_data(olap, nomenclature, bar_id: str, fasovka_ids: set,
         if p['stock'] > 0:
             p['price'] = round(p['cost_sum'] / p['stock'], 2)
 
-    for r in ops:
-        pid = r.get('product')
-        if pid not in products:
-            continue
-        amt = float(r.get('amount', 0) or 0)
-        if r.get('incoming', 'false') != 'true':
-            products[pid]['outgoing'] += abs(amt)
+    stats = aggregate_consumption(ops, products.keys(), target_store, today, window_days,
+                                  stock_now={pid: p['stock'] for pid, p in products.items()})
+    for pid, p in products.items():
+        p['outgoing'] = stats[pid]['outgoing']
+        p['days_in_period'] = stats[pid]['days_in_period']
 
     return products
 
@@ -212,47 +213,35 @@ def expiration_board():
             cached['cache'] = {'hit': True, 'age_sec': int(time.time() - entry[0])}
             return jsonify(cached)
 
-    olap = OlapReports()
-    if not olap.connect():
-        return jsonify({'error': 'Не удалось подключиться к iiko API'}), 500
+    # force=1 сбрасывает и кэш борда, и кэш снимка сети (кнопка «Обновить»).
+    snapshot = get_stock_snapshot(force=force)
+    if not snapshot:
+        return jsonify({'error': 'iiko не отдал остатки или операции по складам. '
+                                 'Данные не показаны, чтобы не выдать нули за факт.',
+                        'code': 'iiko_unavailable'}), 503
+    nomenclature = get_stocks_nomenclature()
+    if not nomenclature:
+        return jsonify({'error': 'Не удалось получить номенклатуру', 'code': 'nomenclature_unavailable'}), 503
 
-    try:
-        nomenclature = get_cached_nomenclature(olap)
-        if not nomenclature:
-            return jsonify({'error': 'Не удалось получить номенклатуру'}), 500
+    FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
+    FASOVKA_GROUP_NAME = 'Напитки Фасовка'
+    fasovka_ids = {
+        pid for pid, info in nomenclature.items()
+        if info.get('parentId') in (FASOVKA_GROUP_ID, FASOVKA_GROUP_NAME)
+    }
 
-        FASOVKA_GROUP_ID = '6103ecbf-e6f8-49fe-8cd2-6102d49e14a6'
-        FASOVKA_GROUP_NAME = 'Напитки Фасовка'
-        fasovka_ids = {
-            pid for pid, info in nomenclature.items()
-            if info.get('parentId') in (FASOVKA_GROUP_ID, FASOVKA_GROUP_NAME)
-        }
-        if not fasovka_ids:
-            fasovka_ids = olap.get_products_in_group(FASOVKA_GROUP_ID, nomenclature)
-
-        # 1) Балансы — ОДИН запрос на все бары (раньше было N).
-        balances = olap.get_store_balances() or []
-
-        # 2) Операции — параллельно по барам через ThreadPoolExecutor.
-        date_to = datetime.now().strftime("%d.%m.%Y")
-        date_from = (datetime.now() - timedelta(days=DAYS_IN_PERIOD)).strftime("%d.%m.%Y")
-
-        def fetch_ops(bid):
-            bar_name = _ID_TO_BAR.get(bid)
-            return bid, (olap.get_store_operations_report(date_from, date_to, bar_name) or [])
-
-        ops_by_bar: dict[str, list] = {}
-        with ThreadPoolExecutor(max_workers=min(4, len(target_bar_ids))) as ex:
-            for bid, ops in ex.map(fetch_ops, target_bar_ids):
-                ops_by_bar[bid] = ops
-
-        bar_data = {
-            bid: _build_bar_data(olap, nomenclature, bid, fasovka_ids,
-                                 balances, ops_by_bar.get(bid, []))
-            for bid in target_bar_ids
-        }
-    finally:
-        olap.disconnect()
+    # Один снимок на всю сеть: остатки и операции по всем складам (кэш 120 с,
+    # single-flight). Раньше операции качались отдельно на каждый бар, хотя
+    # фильтр склада в get_store_operations_report не передаётся и приходила одна
+    # и та же сетевая выгрузка четыре раза; скоуп делается по primaryStore.
+    balances = snapshot['balances']
+    ops = snapshot['operations']
+    today = date.fromisoformat(snapshot['today'])   # одна дата и для расхода, и для сроков
+    window_days = snapshot.get('window_days') or DAYS_IN_PERIOD
+    bar_data = {
+        bid: _build_bar_data(nomenclature, bid, fasovka_ids, balances, ops, today, window_days)
+        for bid in target_bar_ids
+    }
 
     # ЧЗ-кэш
     chz_by_gtin = {}
@@ -269,7 +258,6 @@ def expiration_board():
     barcode_map = get_barcode_map()
     product_to_gtins = invert_to_product_gtins(barcode_map)
 
-    today = datetime.now().date()
     items = []
 
     # Сначала собираем «сырые» позиции по всем барам, потом считаем
@@ -279,7 +267,8 @@ def expiration_board():
         target_kpp = _BAR_KPP_MAP.get(bar_id)
         for pid, data in bar_data[bar_id].items():
             stock = data['stock']
-            velocity = data['outgoing'] / DAYS_IN_PERIOD if DAYS_IN_PERIOD > 0 else 0
+            days_in_period = data.get('days_in_period') or window_days
+            velocity = data['outgoing'] / days_in_period if days_in_period > 0 else 0
 
             gtins = product_to_gtins.get(pid, [])
             matched_gtins = []
@@ -402,7 +391,7 @@ def expiration_board():
     items.sort(key=sort_key)
 
     response = {
-        'updated_at': datetime.now().isoformat(),
+        'updated_at': snapshot['fetched_at'],
         'chz_updated_at': chz_updated_at,
         'bars': [_ID_TO_BAR.get(b, b) for b in target_bar_ids],
         'kpi': {
