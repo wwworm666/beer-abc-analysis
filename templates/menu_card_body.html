@@ -42,8 +42,9 @@
   </section>
 
   {# Колонки цен = item.servings (выбранные vols в каноническом порядке, 1-3 шт).
-     Класс nN задаёт число колонок сетки в menu_card.css. #}
-  <section class="prices n{{ item.servings|length }}">
+     Класс nN задаёт число колонок сетки в menu_card.css; wide — есть цена от 4 знаков
+     (item.prices_wide), в трёх колонках числа ужимаются. #}
+  <section class="prices n{{ item.servings|length }}{% if item.prices_wide %} wide{% endif %}">
     {%- for s in item.servings %}
     <div class="price"><span class="vol">{{ s.vol }}</span><span class="num">{{ s.price }}</span></div>
     {%- endfor %}
