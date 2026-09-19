@@ -1,4 +1,4 @@
-/* Страница «ABC/XYZ анализ» фасовки (/packaging).
+/* Страница «Фасовка — ABC/XYZ и потери» (/packaging).
 
    Устроена как /draft (static/js/draft/draft.js) и по тем же причинам: всё
    содержимое приходит ОДНИМ ответом /api/packaging — сводка, корзины действий,
@@ -296,10 +296,20 @@
                 data.min_xyz_weeks + ' полных недель';
         }
 
+        if (data.generated_at) {
+            el.updated.hidden = false;
+            el.updated.textContent = 'обновлено ' + data.generated_at;
+        } else {
+            el.updated.hidden = true;
+        }
+
         renderSummary(data);
         renderBuckets(data);
         renderCategories();
         renderPositions();
+        renderBalance(data);
+        renderLosses(data);
+        renderDiagnostics(data);
     }
 
     function tile(cap, value, unit, sub) {
@@ -543,6 +553,192 @@
                 '<span></span><span></span></div>';
         }
         el.pos.innerHTML = html;
+    }
+
+    // ==================== баланс и расхождения ====================
+
+    // Знак ставим сами: минус из Intl выглядит как дефис, а в балансе важно, что
+    // строка расходная — даже при нуле («−0» у перемещений).
+    function signed(magnitude, sign) {
+        if (magnitude === null || magnitude === undefined || isNaN(magnitude)) return '—';
+        return sign + qty(Math.abs(magnitude));
+    }
+    // Штуки: целые без дробной части («48»), дробь не прячется («0,5»). Столбик
+    // «48,00», как у литров на /draft, для бутылок читался бы как ошибка.
+    function qty(value) {
+        return num(value, 2);
+    }
+
+    // Цвет плашки «% от продаж»: до 10% спокойный, до 30% янтарный, выше красный.
+    // Пороги те же, что на /draft (там выведены из факта: 9,2% недостачи розлива
+    // за 3,5 месяца). Для фасовки своего факта ещё нет — пересмотреть после
+    // первого живого периода, это временная граница, а не вывод из данных.
+    function lossTone(percent) {
+        if (percent === null || percent === undefined || isNaN(percent)) return 'calm';
+        if (percent >= 30) return 'bad';
+        if (percent >= 10) return 'warn';
+        return 'calm';
+    }
+
+    function balanceRow(label, value, sign, scale, tone, pill) {
+        var width = scale > 0 ? Math.min(100, Math.abs(value) / scale * 100) : 0;
+        return '<div class="pk-bal-row">' +
+            '<span class="pk-bal-n">' + esc(label) + '</span>' +
+            '<span class="pk-bal-track' + (tone ? ' ' + tone : '') + '">' +
+                (Math.abs(value) > 0 ? '<i style="width:' + width.toFixed(1) + '%"></i>' : '') +
+                '</span>' +
+            '<span class="pk-bal-v ' + (Math.abs(value) < 0.005 ? 'zero' : (tone || '')) + '">' +
+                signed(value, sign) + '</span>' +
+            '<span>' + (pill || '') + '</span></div>';
+    }
+
+    function renderBalance(data) {
+        var losses = data.losses || {};
+        // Масштаб общий для всех полос: иначе списание 2 шт выглядит как продажа 1 800.
+        var scale = Math.max(losses.sold || 0, losses.invoice_in || 0, 1);
+        var html = '<div class="pk-card-h"><span class="pk-card-t">Баланс фасовки за период</span>' +
+            '<span class="pk-card-s">склад iiko</span></div>';
+
+        if (!losses.diagnostics || !losses.diagnostics.has_transactions) {
+            html += '<div class="pk-empty" style="border-top:none">' +
+                'проводки склада за период не пришли — баланса нет</div>';
+            el.balance.innerHTML = html;
+            return;
+        }
+
+        html += balanceRow('Приход по накладным', losses.invoice_in, '+', scale, 'ok');
+        html += balanceRow('Перемещения · приход', losses.transfer_in, '+', scale, '');
+        html += balanceRow('Перемещения · расход', losses.transfer_out, '−', scale, '');
+        html += balanceRow('Продано через кассу', losses.sold, '−', scale, '');
+        html += balanceRow('Списано актами', losses.writeoff, '−', scale, 'warn',
+            losses.sold > 0 ? '<span class="pk-pill warn">' +
+                pct(losses.writeoff_percent_of_sold, 1) + ' от продаж</span>' : '');
+        // Нетто-излишек — не потеря: подпись, знак и цвет другие, иначе строка
+        // «Недостача −4» читалась бы как пропажа, хотя остаток вырос.
+        if (losses.inventory_net < 0) {
+            html += balanceRow('Излишек по инвентаризациям', losses.inventory_net, '+', scale, 'ok',
+                losses.sold > 0 ? '<span class="pk-pill ok">' +
+                    pct(-losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+        } else {
+            html += balanceRow('Недостача по инвентаризациям', losses.inventory_net, '−', scale, 'bad',
+                losses.sold > 0 ? '<span class="pk-pill bad">' +
+                    pct(losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+        }
+
+        html += '<div class="pk-bal-total">' +
+            '<span class="pk-bal-total-n">Изменение остатка фасовки</span>' +
+            '<span class="pk-bal-lead"></span>' +
+            '<span class="pk-bal-total-v">' +
+            signed(losses.balance, losses.balance < 0 ? '−' : '+') + ' шт</span></div>' +
+            // Формула словами и числами — требование CLAUDE.md пункт 1.
+            '<div class="pk-note">приход ' + qty((losses.invoice_in || 0) + (losses.transfer_in || 0)) +
+            ' − расход ' + qty(losses.spent) +
+            ' (продано ' + qty(losses.sold) + ' + акты ' + qty(losses.writeoff) +
+            ' + недостача ' + qty(losses.inventory_net) + ' + перемещения ' + qty(losses.transfer_out) +
+            ') · товар фасовки списывается при продаже сам, без техкарты</div>';
+        el.balance.innerHTML = html;
+    }
+
+    function lossRow(row, maxLoss) {
+        var loss = row.LossQty || 0;
+        // Излишек (недостача с минусом) — не потеря: полосы у такой строки нет,
+        // иначе красная засечка читалась бы как «тут пропало».
+        var width = (maxLoss > 0 && loss > 0) ? Math.max(4, loss / maxLoss * 100) : 0;
+        var linked = row.PositionId !== null && row.PositionId !== undefined;
+        return '<div class="pk-loss-row' + (linked ? '' : ' is-static') + '"' +
+            (linked ? ' data-pos="' + row.PositionId + '"' : '') + '>' +
+            '<span class="pk-loss-n">' + esc(row.ProductName) + '</span>' +
+            '<span class="pk-num">' + (row.WriteoffQty ? qty(row.WriteoffQty) : '0') + '</span>' +
+            '<span class="pk-share">' +
+                '<span class="pk-bar pk-loss-bar"><i style="width:' + width.toFixed(1) +
+                '%"></i></span>' +
+                '<span class="pk-loss-v">' + signed(row.InventoryNetQty,
+                    row.InventoryNetQty < 0 ? '+' : '') + '</span></span>' +
+            '<span class="pk-pill ' + lossTone(row.LossPercentOfSold) + '">' +
+                (row.LossPercentOfSold === null || row.LossPercentOfSold === undefined
+                    ? '—' : pct(row.LossPercentOfSold, 1)) + '</span>' +
+            '</div>';
+    }
+
+    function renderLosses(data) {
+        var losses = data.losses || {};
+        var rows = losses.by_item || [];
+        var totalLoss = rows.reduce(function (acc, row) { return acc + (row.LossQty || 0); }, 0);
+        var maxLoss = rows.reduce(function (acc, row) { return Math.max(acc, row.LossQty || 0); }, 0);
+
+        var html = '<div class="pk-card-h"><span class="pk-card-t">Где именно расхождения</span>' +
+            '<span class="pk-card-s">' + rows.length + ' ' +
+            plural(rows.length, 'позиция', 'позиции', 'позиций') + ' · ' + qty(totalLoss) +
+            ' шт потерь</span></div>';
+
+        if (!rows.length) {
+            html += '<div class="pk-empty" style="border-top:none">' +
+                'за период расхождений по фасовке не было</div>';
+            el.losses.innerHTML = html;
+            return;
+        }
+
+        html += '<div class="pk-loss-row is-head">' +
+            '<span class="pk-th">ПОЗИЦИЯ</span>' +
+            '<span class="pk-th r">АКТЫ</span>' +
+            '<span class="pk-th r">НЕДОСТАЧА</span>' +
+            '<span class="pk-th r">% ОТ ПРОДАЖ</span></div>';
+
+        // Первые восемь видны сразу, остальные под раскрывашкой — как на /draft.
+        var head = rows.slice(0, 8), tail = rows.slice(8);
+        head.forEach(function (row) { html += lossRow(row, maxLoss); });
+
+        if (tail.length) {
+            var tailLoss = tail.reduce(function (acc, row) { return acc + (row.LossQty || 0); }, 0);
+            html += '<details class="pk-more"><summary>ещё ' + tail.length + ' ' +
+                plural(tail.length, 'позиция', 'позиции', 'позиций') + ' · ' + qty(tailLoss) +
+                ' шт потерь' +
+                '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">' +
+                '<path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" ' +
+                'stroke-linecap="round" stroke-linejoin="round"/></svg></summary>';
+            tail.forEach(function (row) { html += lossRow(row, maxLoss); });
+            html += '</details>';
+        }
+
+        html += '<div class="pk-note">% — потери (акты + недостача) к проданному по складу · ' +
+            '«—» — позиция не продавалась · серые строки — товар склада, которого нет ' +
+            'среди проданных позиций периода (нет продаж или другое имя в номенклатуре) · ' +
+            'клик по строке открывает карточку</div>';
+        el.losses.innerHTML = html;
+    }
+
+    function renderDiagnostics(data) {
+        var losses = data.losses || {};
+        var diag = losses.diagnostics || {};
+        var parts = [];
+        if (diag.has_transactions && Math.abs(diag.sold_delta || 0) > 0.005) {
+            parts.push('по кассе продано ' + qty(diag.sold_by_register) + ' шт, по складу списано ' +
+                qty(diag.sold_by_stock) + ' шт: разница ' +
+                signed(diag.sold_delta, diag.sold_delta < 0 ? '−' : '+') +
+                ' — граница учётного дня и наборы (в продажах набор — одна позиция, ' +
+                'на складе списываются бутылки из него)');
+        }
+        if ((diag.non_piece_products || []).length) {
+            parts.push('не в штуках, в баланс не вошли: ' +
+                diag.non_piece_products.map(function (p) {
+                    return esc(p.ProductName) + ' (' + esc(p.Unit) + ')';
+                }).join(', '));
+        }
+        var ignored = Object.keys(diag.ignored_types || {});
+        if (ignored.length) {
+            parts.push('проводки других типов (возвраты и т.п.) в баланс не входят: ' +
+                ignored.map(function (k) { return esc(k) + ' × ' + diag.ignored_types[k]; }).join(', '));
+        }
+        if (diag.unmatched_products) {
+            parts.push(diag.unmatched_products + ' ' +
+                plural(diag.unmatched_products, 'позиция склада не сопоставлена',
+                    'позиции склада не сопоставлены', 'позиций склада не сопоставлено') +
+                ' с продажами');
+        }
+        if (diag.has_transactions && diag.match_mode === 'name') {
+            parts.push('связка склада с продажами — по названию: в продажах нет DishId');
+        }
+        el.diag.innerHTML = parts.length ? parts.join(' · ') : '';
     }
 
     // ==================== карточки ====================
@@ -872,6 +1068,36 @@
             });
         }
 
+        var writeoffPct = p.SoldQtyStock > 0 ? p.WriteoffQty / p.SoldQtyStock * 100 : null;
+        var shortPct = p.SoldQtyStock > 0 ? p.InventoryNetQty / p.SoldQtyStock * 100 : null;
+        html += band('ПОТЕРИ', 'к проданному по складу');
+        html += '<div class="pk-cells three">' +
+            cell('ПРОДАНО ПО СКЛАДУ', qty(p.SoldQtyStock) + ' шт') +
+            '<div class="pk-cell"><div class="pk-cell-cap">СПИСАНО АКТАМИ</div>' +
+            '<div class="pk-cell-row"><span class="pk-cell-v">' + qty(p.WriteoffQty) +
+            '</span><span class="pk-pill ' + lossTone(writeoffPct) + '">' +
+            (writeoffPct === null ? '—' : pct(writeoffPct, 1)) + '</span></div></div>' +
+            '<div class="pk-cell"><div class="pk-cell-cap">НЕДОСТАЧА ИНВЕНТ.</div>' +
+            '<div class="pk-cell-row"><span class="pk-cell-v">' +
+            signed(p.InventoryNetQty, p.InventoryNetQty < 0 ? '+' : '') +
+            '</span><span class="pk-pill ' + lossTone(shortPct) + '">' +
+            (shortPct === null ? '—' : pct(shortPct, 1)) + '</span></div></div>' +
+            '</div>';
+        html += '<div class="pk-dr-note">' +
+            (p.SoldQtyStock > 0
+                ? 'Потери ' + qty(p.LossQty) + ' шт = акты ' + qty(p.WriteoffQty) +
+                  ' + недостача ' + qty(Math.max(p.InventoryNetQty, 0)) + ' · ' +
+                  qty(p.LossQty) + ' / ' + qty(p.SoldQtyStock) + ' = ' +
+                  pct(p.LossPercentOfSold, 1) + ' от проданного по складу. ' +
+                  'По кассе продано ' + qty(p.TotalQty) + ' шт' +
+                  (Math.abs(p.TotalQty - p.SoldQtyStock) > 0.005
+                      ? ' — расходится со складом на ' +
+                        signed(p.SoldQtyStock - p.TotalQty, p.SoldQtyStock < p.TotalQty ? '−' : '+') +
+                        ' (граница учётного дня или набор).'
+                      : '.')
+                : 'Движений по складу за период у позиции нет: проводки не пришли или товар не сопоставлен с продажами.') +
+            '</div>';
+
         var totals = data.totals || {};
         html += band('ABC-АНАЛИЗ', 'три буквы: выручка, наценка, спрос');
         html += '<div class="pk-abc-box"><div class="pk-abc-top">' +
@@ -1029,6 +1255,10 @@
         });
         el.cats.addEventListener('click', onTableClick);
         el.pos.addEventListener('click', onTableClick);
+        el.losses.addEventListener('click', function (event) {
+            var row = event.target.closest('[data-pos]');
+            if (row) openPosition(row.dataset.pos);
+        });
         el.drawer.addEventListener('click', function (event) {
             if (event.target.closest('[data-close]')) { closeDrawer(); return; }
             var row = event.target.closest('[data-pos]');
@@ -1067,6 +1297,10 @@
             posCount: document.getElementById('pkPosCount'),
             search: document.getElementById('pkSearch'),
             pos: document.getElementById('pkPos'),
+            updated: document.getElementById('pkUpdated'),
+            balance: document.getElementById('pkBalance'),
+            losses: document.getElementById('pkLosses'),
+            diag: document.getElementById('pkDiag'),
             drawer: document.getElementById('pkDrawer'),
             backdrop: document.getElementById('pkBackdrop')
         };
@@ -1095,12 +1329,13 @@
         module.exports = { num: num, fixed: fixed, money: money, pct: pct, esc: esc,
                            plural: plural, presetRange: presetRange, weeksIn: weeksIn,
                            abcClass: abcClass, bucketNote: bucketNote, xyzNote: xyzNote,
-                           BUCKETS: BUCKETS };
+                           lossTone: lossTone, signed: signed, qty: qty, BUCKETS: BUCKETS };
     }
     if (typeof window !== 'undefined') {
         window.__packaging = { state: state, render: render, openPosition: openPosition,
                                openCategory: openCategory, openBucket: openBucket,
                                num: num, money: money, pct: pct, esc: esc, plural: plural,
-                               abcClass: abcClass, weeksIn: weeksIn, BUCKETS: BUCKETS };
+                               abcClass: abcClass, weeksIn: weeksIn, lossTone: lossTone,
+                               signed: signed, qty: qty, BUCKETS: BUCKETS };
     }
 })();

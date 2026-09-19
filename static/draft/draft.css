@@ -883,4 +883,11 @@ body.draft-page .container { padding: 0; }
     .dr-drawer { width: 100%; max-width: 100%; }
     .dr-dr-in { padding: 18px 16px 26px; }
     .dr-cells.three, .dr-cells.two { grid-template-columns: 1fr 1fr; }
+    /* Сетки баланса и расхождений: настольные колонки (150+132+88+118 px) шире
+       телефона на 160 px и выталкивали всю страницу в горизонтальный скролл
+       (дефект отмечен 2026-09-19, чинится вместе с зеркальной секцией на
+       /packaging). На телефоне шкала и плашка ужимаются, имя получает остаток. */
+    .dr-bal-row { grid-template-columns: minmax(0, 1fr) 64px 70px 92px; gap: 8px; }
+    .dr-loss-row { grid-template-columns: minmax(0, 1fr) 40px 100px 84px; gap: 8px; }
+    .dr-bal-n, .dr-loss-n { white-space: normal; font-size: 12px; }
 }

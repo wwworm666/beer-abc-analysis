@@ -51,13 +51,15 @@ beer-abc-analysis/
 | `olap_reports.py` | OLAP v2 (all_sales, beer, draft, kitchen, **explorer_sales**), nomenclature, store_balances, store_operations |
 | `iiko_barcodes.py` | Парсер XML `/products` → `{gtin14: [iiko_pid]}` для стыковки с ЧЗ |
 
-### Аналитика (11)
+### Аналитика (13)
 | Файл | Что делает |
 |---|---|
 | `dashboard_analysis.py` | 19 из 20 метрик дашборда (в т.ч. чеки с картой лояльности / без карты; активность кранов — в routes/dashboard.py) |
 | `dashboard_details.py` | **Детали внутри карточки** дашборда: реестр «метрика -> секции» и чистые функции над строками единого OLAP-запроса (дни, бары, категории, топ позиций, локал/импорт, гости), секции «Литры» и «Краны» |
 | `draft_loader.py` | Общий загрузчик сырья `/draft` (`load_draft_kegs`: проводки кегов + продажи + техкарты под одним ключом кэша) — для страницы и для карточек розлива |
-| `packaging_analysis.py` | **ABC/XYZ фасовки** для `/packaging`: сведение баров в «Общую», ABC по выручке и марже, наценка от сумм, XYZ по недельным окнам, все категории, корзины действий |
+| `packaging_loader.py` | Общий загрузчик сырья `/packaging` (`load_packaging`: продажи с `DishId` + проводки склада группы «Напитки Фасовка» под одним ключом кэша, `fetched_at` для чипа «обновлено») |
+| `packaging_analysis.py` | **ABC/XYZ фасовки** для `/packaging`: сведение баров в «Общую», ABC по выручке и марже, наценка от сумм, XYZ по недельным окнам, все категории, корзины действий; вызывает блок потерь |
+| `packaging_losses.py` | **Баланс и потери фасовки в штуках**: приход, перемещения, продано, акты, недостача, изменение остатка по формуле кегов; связка товар — позиция по GUID или имени, диагностика отброшенного |
 | `abc_thresholds.py` | Пороги ABC/XYZ и подписи одним местом (Парето 80/95, наценка 1.2/1.0, CV 30/60, минимум 3 недели) |
 | `draft_kegs.py` | **Проливы** для `/draft`: литры из проводок iiko, деньги из продаж, связка и объём порции через техкарты, разрез по барменам |
 | `draft_analysis.py` | Разливное по названиям блюд (2-этапная нормализация) — месячный отчёт, меню, скрипты |
@@ -169,8 +171,8 @@ static/
 │   ├── dashboard/
 │   │   ├── core/        # state.js (singleton), api.js, utils.js
 │   │   └── modules/     # analytics, charts, trends, plans, comparison, ai_insights, ... (15+)
-│   ├── draft/           # draft.js — весь экран «Анализ проливов»
-│   ├── packaging/       # packaging.js — весь экран «ABC/XYZ анализ» фасовки
+│   ├── draft/           # draft.js — весь экран «Розлив — ABC/XYZ и потери»
+│   ├── packaging/       # packaging.js — весь экран «Фасовка — ABC/XYZ и потери»
 │   ├── employee/
 │   ├── guests/
 │   ├── me/
@@ -373,14 +375,14 @@ docker compose up -d
 | `/` | 302 на `/me` — главная страница сайта |
 | `/me` | Личный кабинет: своя смена, часы, KPI, деньги |
 | `/dashboard` | Дашборд План/Факт |
-| `/packaging`, `/draft` | ABC/XYZ-анализ |
+| `/packaging`, `/draft` | «Фасовка» и «Розлив»: ABC/XYZ и потери (баланс склада в штуках / кегов в литрах) |
 | `/explorer` | Конструктор отчётов |
 | `/taps/<bar_id>` | Управление кранами |
 | `/stocks` | Заказы и остатки: экран «К заказу» |
 | `/suppliers` | Справочник поставщиков |
 | `/expiration` | Shelf-Life Cockpit |
 | `/employee`, `/salary`, `/bonus`, `/schedule` | Сотрудники |
-| `/waiters` | 301 на `/draft#bartenders` (страница слита в «Анализ проливов») |
+| `/waiters` | 301 на `/draft#bartenders` (страница слита в «Розлив») |
 | `/wiki` | Встроенная wiki |
 | `/api/*` | JSON API |
 | `/telegram/*`, `/telegram/openbot/*` | Telegram webhooks |

@@ -73,6 +73,7 @@ const IDS = ['pkBurger', 'pkBarBtn', 'pkBarMenu', 'pkBarLabel', 'pkPerBtn', 'pkP
              'pkPerLabel', 'pkPerHint', 'pkCatch', 'pkRun', 'pkRunLabel', 'pkSpin',
              'pkContext', 'pkXyzChip', 'pkMsg', 'pkBody', 'pkSum', 'pkBuckets',
              'pkCatCount', 'pkCats', 'pkPosCount', 'pkSearch', 'pkPos',
+             'pkUpdated', 'pkBalance', 'pkLosses', 'pkDiag',
              'pkDrawer', 'pkBackdrop', 'pkBars'];
 
 function boot() {
@@ -259,6 +260,104 @@ test('число ячеек в строках совпадает с числом
         assert.deepEqual(wrong, [],
             `${selector}: колонок ${columns}, но есть строки с ${[...new Set(wrong)].join(', ')} ячейками`);
     }
+});
+
+test('чип «обновлено» показывает время забора данных из iiko', () => {
+    assert.equal(env.byId.pkUpdated.hidden, false, 'чип скрыт');
+    assert.match(env.byId.pkUpdated.textContent, /обновлено \d\d:\d\d/);
+});
+
+test('баланс фасовки: шесть строк со знаками, итог и формула словами', () => {
+    const html = env.byId.pkBalance.innerHTML;
+    for (const label of ['Приход по накладным', 'Перемещения · приход', 'Перемещения · расход',
+                         'Продано через кассу', 'Списано актами']) {
+        assert.ok(html.includes(label), `нет строки «${label}»`);
+    }
+    assert.ok(/Недостача по инвентаризациям|Излишек по инвентаризациям/.test(html),
+        'нет строки инвентаризации');
+    assert.ok(html.includes('Изменение остатка фасовки'), 'нет итога');
+    assert.ok(html.includes('+' + api.qty(BLOCK.losses.invoice_in)), 'приход без знака плюс');
+    assert.ok(html.includes('−' + api.qty(BLOCK.losses.sold)), 'продажи без знака минус');
+    assert.match(html, /от продаж/, 'нет плашки «% от продаж»');
+    assert.match(html, /приход .* − расход .* \(продано/, 'формула баланса не напечатана');
+    // Подписи /draft, которые для бутылок ложны: «кег…» и «списание по техкарте».
+    assert.ok(!/кег|по техкарте/.test(html), 'в баланс фасовки просочились подписи розлива');
+    assert.ok(html.includes('без техкарты'), 'не сказано, что товар списывается сам');
+});
+
+test('расхождения: все строки, раскрывашка после восьми, серые без карточки', () => {
+    const html = env.byId.pkLosses.innerHTML;
+    const items = BLOCK.losses.by_item;
+    assert.ok(items.length > 8, 'в фикстуре меньше 9 расхождений — раскрывашка не проверяется');
+    const rows = (html.match(/class="pk-loss-row(?! is-head)/g) || []).length;
+    assert.equal(rows, items.length, `строк ${rows}, расхождений ${items.length}`);
+    assert.match(html, /<details class="pk-more">/, 'нет раскрывашки');
+    assert.match(html, /ещё \d+ позиц/, 'раскрывашка без подписи');
+    const unmatched = items.filter((k) => k.PositionId === null);
+    assert.ok(unmatched.length > 0, 'в фикстуре нет несопоставленных товаров');
+    assert.equal((html.match(/pk-loss-row is-static/g) || []).length, unmatched.length,
+        'несопоставленные строки не помечены как некликабельные');
+    const linked = (html.match(/pk-loss-row" data-pos="/g) || []).length;
+    assert.equal(linked, items.length - unmatched.length, 'сопоставленные строки без data-pos');
+    // Излишек печатается со знаком плюс и не считается потерей.
+    const surplus = items.find((k) => k.InventoryNetQty < 0);
+    assert.ok(surplus, 'в фикстуре нет излишка');
+    assert.ok(html.includes('+' + api.qty(Math.abs(surplus.InventoryNetQty))), 'излишек без плюса');
+});
+
+test('пороги плашек потерь: 10% и 30%', () => {
+    assert.equal(api.lossTone(4), 'calm');
+    assert.equal(api.lossTone(12), 'warn');
+    assert.equal(api.lossTone(40), 'bad');
+    assert.equal(api.lossTone(null), 'calm');
+});
+
+test('диагностика склада называет всё, что выпало из баланса', () => {
+    const html = env.byId.pkDiag.innerHTML;
+    const d = BLOCK.losses.diagnostics;
+    assert.ok(d.non_piece_products.length > 0 && Object.keys(d.ignored_types).length > 0,
+        'фикстура не покрывает диагностику');
+    assert.ok(html.includes('не в штуках'), 'не названы товары не в штуках');
+    assert.ok(html.includes('других типов'), 'не названы чужие типы проводок');
+    assert.ok(html.includes('не сопоставлен'), 'не названы несопоставленные');
+    if (Math.abs(d.sold_delta) > 0.005) {
+        assert.ok(html.includes('по кассе продано'), 'разница касса/склад не показана');
+    }
+});
+
+test('карточка позиции: секция потерь с формулой', () => {
+    const withLoss = BLOCK.positions.find((p) => p.LossQty > 0);
+    assert.ok(withLoss, 'в фикстуре нет позиции с потерями');
+    api.openPosition(withLoss.Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes('ПОТЕРИ'), 'нет секции потерь');
+    for (const cap of ['ПРОДАНО ПО СКЛАДУ', 'СПИСАНО АКТАМИ', 'НЕДОСТАЧА ИНВЕНТ.']) {
+        assert.ok(html.includes(cap), `нет ячейки ${cap}`);
+    }
+    assert.ok(html.includes(api.qty(withLoss.LossQty) + ' / ' + api.qty(withLoss.SoldQtyStock)),
+        'формула процента потерь не напечатана числами');
+});
+
+test('клик по строке расхождений открывает карточку той же позиции', () => {
+    const linked = BLOCK.losses.by_item.find((k) => k.PositionId !== null);
+    api.openPosition(String(linked.PositionId));
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes(api.esc(BLOCK.positions[linked.PositionId].Beer)),
+        'карточка открылась не на той позиции');
+});
+
+test('страница переживает ответ без блока losses', () => {
+    const stripped = JSON.parse(JSON.stringify(BLOCK));
+    delete stripped.losses;
+    delete stripped.generated_at;
+    api.state.data = stripped;
+    api.render();
+    assert.ok(env.byId.pkBalance.innerHTML.includes('проводки склада за период не пришли'),
+        'без проводок баланс должен сказать об этом, а не молчать');
+    assert.ok(env.byId.pkLosses.innerHTML.includes('расхождений по фасовке не было'));
+    assert.equal(env.byId.pkUpdated.hidden, true);
+    api.state.data = BLOCK;
+    api.render();
 });
 
 test('карточка позиции: разбор всех трёх букв с формулами', () => {

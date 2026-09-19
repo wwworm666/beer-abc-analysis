@@ -146,6 +146,50 @@ class OlapContractGuards(unittest.TestCase):
         self.assertIn("OpenDate.Typed", captured["filters"])
 
 
+class PackagingReportBuilders(unittest.TestCase):
+    """Построители отчётов страницы /packaging (2026-09-19): проводки по фасовке и
+    продажи с DishId. Общий SALES-построитель без флага форму строки не меняет —
+    им пользуются revenue_metrics и knowledge_graph."""
+
+    def _capture(self, call):
+        olap = OlapReports()
+        olap.token = "test-token"
+        captured = {}
+
+        def capture(_self, request_body, tag):
+            captured.update(request_body)
+            return {"data": []}
+
+        with patch.object(OlapReports, "_post_olap_interactive", capture):
+            call(olap)
+        return captured
+
+    def test_packaging_writeoff_report_filters_bottles_group(self):
+        body = self._capture(lambda o: o.get_packaging_writeoff_report("2026-03-01", "2026-04-01"))
+        self.assertEqual("TRANSACTIONS", body["reportType"])
+        self.assertEqual(["Напитки Фасовка"], body["filters"]["Product.TopParent"]["values"])
+        for field in ("Product.Id", "Product.Name", "Product.MeasureUnit", "TransactionType"):
+            self.assertIn(field, body["groupByRowFields"])
+        self.assertNotIn("Account.Name", body["filters"])
+
+    def test_packaging_writeoff_report_filters_bar_by_account(self):
+        body = self._capture(lambda o: o.get_packaging_writeoff_report("2026-03-01", "2026-04-01", "Лиговский"))
+        self.assertEqual(["Лиговский"], body["filters"]["Account.Name"]["values"])
+
+    def test_draft_writeoff_report_unchanged_after_refactor(self):
+        body = self._capture(lambda o: o.get_draft_writeoff_report("2026-03-01", "2026-04-01"))
+        self.assertEqual(["Напитки Розлив"], body["filters"]["Product.TopParent"]["values"])
+
+    def test_sales_builder_adds_dish_id_only_on_request(self):
+        olap = OlapReports()
+        plain = olap._build_olap_request("2026-03-01", "2026-04-01")
+        self.assertNotIn("DishId", plain["groupByRowFields"])
+        self.assertEqual(["Напитки Фасовка"], plain["filters"]["DishGroup.TopParent"]["values"])
+        with_id = olap._build_olap_request("2026-03-01", "2026-04-01", include_dish_id=True)
+        self.assertIn("DishId", with_id["groupByRowFields"])
+        self.assertEqual(plain["aggregateFields"], with_id["aggregateFields"])
+
+
 class AuditExpectedFailures(unittest.TestCase):
     @unittest.expectedFailure
     @patch("core.revenue_metrics.OlapReports", FakeRevenueOlap)

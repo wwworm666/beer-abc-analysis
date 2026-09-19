@@ -7,6 +7,13 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from core.iiko_api import IikoAPI
 
+# Верхние группы номенклатуры iiko, по которым фильтруются отчёты. Фильтр идёт
+# по ИМЕНИ группы: если её переименуют в iiko, запрос молча вернёт пусто — поэтому
+# литерал живёт здесь один раз, а не рассыпан по построителям.
+TOP_PARENT_DRAFT = "Напитки Розлив"
+TOP_PARENT_BOTTLES = "Напитки Фасовка"
+
+
 class OlapReports:
     """Класс для работы с OLAP отчетами iiko"""
     
@@ -264,13 +271,25 @@ class OlapReports:
 
         return result_ids
 
-    def get_beer_sales_report(self, date_from, date_to, bar_name=None):
+    def get_packaging_sales_report(self, date_from, date_to, bar_name=None):
+        """Продажи фасовки С DishId — для страницы /packaging.
+
+        Тот же отчёт, что get_beer_sales_report, плюс DishId в группировке:
+        по нему проводки склада (Product.Id) связываются с позициями таблицы
+        без сопоставления по названиям (core/packaging_losses.py). Дублирования
+        строк DishId не даёт: у одного названия один GUID (проверено на
+        data/beer_report.json — 450 названий, 0 с двумя GUID).
+        """
+        return self.get_beer_sales_report(date_from, date_to, bar_name, include_dish_id=True)
+
+    def get_beer_sales_report(self, date_from, date_to, bar_name=None, include_dish_id=False):
         """
         Получить OLAP отчет по продажам пива
 
         date_from: дата начала (строка 'YYYY-MM-DD')
         date_to: дата окончания (строка 'YYYY-MM-DD')
         bar_name: название бара (если None, то все бары)
+        include_dish_id: добавить DishId в группировку (нужен только /packaging)
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
@@ -284,7 +303,8 @@ class OlapReports:
             print(f"   Bar: VSE")
 
         # Формируем JSON запрос для OLAP v2
-        request_body = self._build_olap_request(date_from, date_to, bar_name)
+        request_body = self._build_olap_request(date_from, date_to, bar_name,
+                                                include_dish_id=include_dish_id)
 
         url = f"{self.api.base_url}/v2/reports/olap"
         params = {"key": self.token}
@@ -562,11 +582,32 @@ class OlapReports:
                    вызывающая сторона добавляет +1 день к последнему дню периода)
         bar_name:  название бара или None для всех
         """
+        return self._transactions_report(date_from, date_to, bar_name,
+                                         TOP_PARENT_DRAFT, 'kegam razlivnogo',
+                                         'Provodki po kegam')
+
+    def get_packaging_writeoff_report(self, date_from, date_to, bar_name=None):
+        """Движение товаров фасовки в ШТУКАХ — OLAP по проводкам (TRANSACTIONS).
+
+        Тот же отчёт, что get_draft_writeoff_report, с фильтром по группе
+        «Напитки Фасовка». Товар фасовки продаётся сам (это GOODS, не блюдо с
+        техкартой), поэтому SESSION_WRITEOFF по нему — ровно проданные бутылки,
+        а Product.Id совпадает с DishId в отчёте по продажам. Источник баланса и
+        потерь на странице /packaging (core/packaging_losses.py).
+
+        Даты — как у розлива: from включительно, to ЭКСКЛЮЗИВНО.
+        """
+        return self._transactions_report(date_from, date_to, bar_name,
+                                         TOP_PARENT_BOTTLES, 'tovaram fasovki',
+                                         'Provodki po fasovke')
+
+    def _transactions_report(self, date_from, date_to, bar_name, top_parent, what, tag):
+        """Общее тело OLAP TRANSACTIONS для розлива и фасовки."""
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
 
-        print(f"\n[OLAP] Zaprashivayu provodki po kegam razlivnogo...")
+        print(f"\n[OLAP] Zaprashivayu provodki po {what}...")
         print(f"   Period: {date_from} - {date_to} (to exclusive)")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
@@ -592,7 +633,7 @@ class OlapReports:
                 },
                 "Product.TopParent": {
                     "filterType": "IncludeValues",
-                    "values": ["Напитки Розлив"]
+                    "values": [top_parent]
                 },
             }
         }
@@ -603,7 +644,7 @@ class OlapReports:
                 "values": [bar_name]
             }
 
-        return self._post_olap_interactive(request_body, 'Provodki po kegam')
+        return self._post_olap_interactive(request_body, tag)
 
     def get_dish_ingredient_map(self, date_from, date_to, use_cache=True):
         """Связка «блюдо -> ингредиенты» из технологических карт iiko.
@@ -1265,15 +1306,20 @@ class OlapReports:
 
         return request
 
-    def _build_olap_request(self, date_from, date_to, bar_name=None, draft=False, include_waiter=False):
+    def _build_olap_request(self, date_from, date_to, bar_name=None, draft=False,
+                            include_waiter=False, include_dish_id=False):
         """Построить JSON запрос для OLAP отчета v2
 
         draft: True - разливное пиво, False - фасованное пиво
         include_waiter: True - добавить поля с информацией об официантах
+        include_dish_id: True - добавить DishId (нужен только /packaging, чтобы
+            связывать продажи с проводками склада по GUID). Остальные вызывающие
+            (revenue_metrics, knowledge_graph, отчёт с официантами) форму строки
+            не меняют.
         """
 
         # Определяем группу напитков
-        drink_group = "Напитки Розлив" if draft else "Напитки Фасовка"
+        drink_group = TOP_PARENT_DRAFT if draft else TOP_PARENT_BOTTLES
 
         # Базовая структура запроса согласно документации
         groupByRowFields = [
@@ -1283,6 +1329,8 @@ class OlapReports:
             "DishForeignName",
             "OpenDate.Typed"
         ]
+        if include_dish_id:
+            groupByRowFields.append("DishId")
 
         # Добавляем поля официантов если требуется
         if include_waiter:

@@ -122,7 +122,7 @@ Content-Type для POST: `Application/json; charset=utf-8` (`olap-otchety-v2.md
 
 Поля для разных типов описаны в отдельных статьях: поля по продажам — статья olap-sales; по проводкам — olap-transactions (`formirovanie-olap-otcheta-v-api.md`, строки 13,19). Конкретное строковое значение reportType для отчёта по проводкам в гайде `formirovanie-olap-otcheta-v-api.md` не приведено — оно дано в `olap-otchety-v2.md` (`TRANSACTIONS`).
 
-В проекте задействованы только `SALES` (большинство запросов) и `TRANSACTIONS` (один запрос — номенклатура) (сверка: `core/olap_reports.py:102` TRANSACTIONS; `:614` и далее SALES). `DELIVERIES`/`STOCK` не используются (у заведения нет доставки).
+В проекте задействованы только `SALES` (большинство запросов) и `TRANSACTIONS` (три запроса: номенклатура `get_nomenclature_olap_only`, проводки кегов `get_draft_writeoff_report` и проводки фасовки `get_packaging_writeoff_report` — последние два через общий строитель `_transactions_report`) (сверка: `core/olap_reports.py`, `reportType` в `get_nomenclature_olap_only` и `_transactions_report` — TRANSACTIONS; остальные — SALES). `DELIVERIES`/`STOCK` не используются (у заведения нет доставки).
 
 ## Поля: строки vs агрегаты, типы данных
 

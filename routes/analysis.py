@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from core.olap_reports import OlapReports
 from core.packaging_analysis import PackagingAnalysis
+from core.packaging_loader import load_packaging
 from core.draft_analysis import DraftAnalysis
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.draft_loader import load_draft_kegs
@@ -67,37 +68,33 @@ def analyze_packaging():
         except ValueError:
             return jsonify({'error': 'Даты должны быть в формате YYYY-MM-DD'}), 400
 
-        # Кэш по бару и периоду: страница пересчитывает разрезы часто, а отчёт
-        # iiko за тот же период не меняется. Ключ включает бар, потому что
-        # сервер фильтрует выборку на стороне iiko.
-        cache_key = f"packaging:{bar_name or 'ALL'}:{date_from}:{olap_date_to}"
+        # Два запроса к iiko (проводки склада + продажи с DishId) под одним
+        # ключом кэша — core/packaging_loader.py, по образцу /draft. Сбой любого
+        # из них — 502 без кэширования, чтобы страница не жила на половине данных.
+        raw = load_packaging(bar_name, date_from, date_to)
+        if not raw:
+            return jsonify({'error': 'Не удалось получить данные из iiko API'}), 502
 
-        def fetch():
-            olap = OlapReports()
-            if not olap.connect():
-                return None
-            try:
-                return olap.get_beer_sales_report(date_from, olap_date_to, bar_name)
-            finally:
-                olap.disconnect()
-
-        report_data = cached_olap(cache_key, fetch)
-
-        if not report_data:
-            return jsonify({'error': 'Не удалось подключиться к iiko API'}), 502
-        if not report_data.get('data'):
-            return jsonify({'error': 'Нет данных за выбранный период'}), 404
-
-        analyzer = PackagingAnalysis(report_data['data'], date_from, date_to)
+        analyzer = PackagingAnalysis(raw['sales'], date_from, date_to,
+                                     transactions=raw['transactions'])
         block = analyzer.build(bar_name)
+        block['generated_at'] = raw.get('fetched_at')
 
-        if not block['positions']:
+        # «Нет данных» — только когда пусто и в кассе, и на складе: период с
+        # приходом без продаж — это данные, их надо показать (тот же критерий,
+        # что у /api/draft-kegs).
+        losses = block['losses']
+        if not block['positions'] and losses['invoice_in'] == 0 and losses['sold'] == 0:
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
 
         totals = block['totals']
         print(f"   [OK] SKU: {totals['sku']}, kategoriy: {totals['categories']}, "
               f"vyruchka: {totals['revenue']:.2f}, "
-              f"XYZ: {'da' if block['xyz_available'] else 'net (nuzhno 3 nedeli)'}")
+              f"XYZ: {'da' if block['xyz_available'] else 'net (nuzhno 3 nedeli)'}, "
+              f"sklad: prodano {losses['sold']:.0f} sht, spisano {losses['writeoff']:.0f}, "
+              f"nedostacha {losses['inventory_net']:.0f}")
+        if losses['diagnostics'].get('sold_delta'):
+            print(f"   [WARN] Kassa vs sklad: {losses['diagnostics']['sold_delta']:+.0f} sht")
 
         return jsonify(block)
 

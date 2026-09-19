@@ -35,6 +35,7 @@ pandas 3, агрегаты `'max'` подменяли сетевую нацен�
 from datetime import date, datetime, timedelta
 
 from core.abc_buckets import get_bucket_key
+from core.packaging_losses import build_losses_block
 from core.abc_thresholds import (
     MIN_XYZ_WEEKS,
     TOTAL_LABEL,
@@ -159,8 +160,12 @@ class PackagingAnalysis:
     ProductCostBase.ProductCost). Даты периода ВКЛЮЧИТЕЛЬНЫЕ.
     """
 
-    def __init__(self, rows, date_from, date_to):
+    def __init__(self, rows, date_from, date_to, transactions=None):
         self.rows = rows or []
+        # Проводки склада (OLAP TRANSACTIONS по «Напитки Фасовка») — для баланса
+        # и потерь. Необязательны: без них блок losses состоит из нулей, а
+        # таблицы и буквы считаются как раньше.
+        self.transactions = transactions or []
         self.date_from = _parse_day(date_from)
         self.date_to = _parse_day(date_to)
         if not self.date_from or not self.date_to:
@@ -243,6 +248,9 @@ class PackagingAnalysis:
                     # зависел бы от того, как iiko отсортировал ответ.
                     '_categories': {},
                     '_countries': {},
+                    # GUID блюда из продаж (DishId) — связка с проводками склада.
+                    # Копится с выручкой по тому же правилу, что стиль и страна.
+                    '_ids': {},
                 }
                 positions[name] = item
 
@@ -257,6 +265,9 @@ class PackagingAnalysis:
             country = _text(row.get('DishForeignName'))
             if country:
                 item['_countries'][country] = item['_countries'].get(country, 0.0) + revenue
+            dish_id = _text(row.get('DishId'))
+            if dish_id:
+                item['_ids'][dish_id] = item['_ids'].get(dish_id, 0.0) + revenue
 
             item['TotalQty'] += qty
             item['TotalRevenue'] += revenue
@@ -343,6 +354,11 @@ class PackagingAnalysis:
             # строкой.
             item['Category'] = _pick_by_revenue(item.pop('_categories'), UNCATEGORIZED)
             item['Country'] = _pick_by_revenue(item.pop('_countries'), '—')
+            ids = item.pop('_ids')
+            item['DishId'] = _pick_by_revenue(ids, None)
+            # Все GUID, встреченные под этим названием (перезаведённая карточка
+            # даёт второй) — чтобы проводки по любому из них нашли позицию.
+            item['DishIds'] = sorted(ids)
             item['TotalMargin'] = item['TotalRevenue'] - item['TotalCost']
             item['MarkupPercent'] = self._as_percent(
                 _markup_share(item['TotalRevenue'], item['TotalCost'])
@@ -415,6 +431,11 @@ class PackagingAnalysis:
         for category in categories:
             category['PositionIds'] = [r['Id'] for r in rows if r['Category'] == category['Category']]
 
+        totals = self._build_totals(rows, categories, revenue_base, margin_base)
+        # Баланс и потери по проводкам склада; заодно проставляет позициям поля
+        # движений (SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty).
+        losses = build_losses_block(self.transactions, bar_name, rows, totals['qty'])
+
         return {
             'scope': 'bar' if bar_name else 'total',
             'bar_label': bar_name or TOTAL_LABEL,
@@ -430,7 +451,8 @@ class PackagingAnalysis:
                 'weeks_from': self.weeks_from.isoformat() if self.weeks_from else None,
                 'weeks_to': self.weeks_to.isoformat() if self.weeks_to else None,
             },
-            'totals': self._build_totals(rows, categories, revenue_base, margin_base),
+            'totals': totals,
+            'losses': losses,
             'bucket_stats': self._count(rows, 'ABC_Bucket'),
             'abc_stats': self._count(rows, 'ABC_Combined'),
             'xyz_stats': self._count(rows, 'XYZ_Category'),

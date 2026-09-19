@@ -113,9 +113,16 @@ test('вкладок режима больше нет: категории и п�
 });
 
 test('категории не урезаются: в коде нет slice по спискам данных', () => {
-    const slices = js.match(/\.slice\(0,\s*\d+\)/g) || [];
-    assert.deepEqual(slices, [],
-        `остались урезания списков: ${slices.join(', ')} — «все категории» сломаны`);
+    // Урезание — это .slice(0, N) БЕЗ продолжения. Пара `rows.slice(0, 8)` +
+    // `rows.slice(8)` — раскрывашка «первые восемь, остальные под details», как на
+    // /draft: показаны все строки, просто не сразу. Такая пара разрешена.
+    const cuts = [];
+    for (const m of js.matchAll(/\.slice\(0,\s*(\d+)\)/g)) {
+        const n = m[1];
+        if (!js.includes(`.slice(${n})`)) cuts.push(m[0]);
+    }
+    assert.deepEqual(cuts, [],
+        `остались урезания списков: ${cuts.join(', ')} — «все категории» сломаны`);
     assert.ok(!/Топ-10|топ-10/.test(html + js), 'остался заголовок про топ-10');
 });
 
@@ -210,6 +217,35 @@ test('расшифровка букв на экране и совпадает с
     for (const letter of ['x', 'y', 'z']) {
         assert.ok(css.includes(`.pk-abc-ltr.${letter} {`), `нет цвета для буквы ${letter}`);
     }
+});
+
+test('секция баланса и расхождений — зеркало /draft, в штуках', () => {
+    assert.match(html, /БАЛАНС И РАСХОЖДЕНИЯ/, 'нет секции баланса');
+    assert.match(html, /всё в штуках/, 'единица не названа');
+    for (const id of ['pkBalance', 'pkLosses', 'pkDiag', 'pkUpdated']) {
+        assert.ok(html.includes(`id="${id}"`), `нет узла ${id}`);
+    }
+    for (const cls of ['pk-two', 'pk-card', 'pk-bal-row', 'pk-bal-total', 'pk-loss-row',
+                       'pk-more', 'pk-cell-row', 'pk-note']) {
+        assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
+    }
+    // Пороги плашек взяты с /draft временно — это должно быть сказано в коде.
+    assert.match(js, /Пороги те же, что на \/draft/, 'происхождение порогов 10\/30 не объяснено');
+    assert.match(js, /function lossTone/, 'нет lossTone');
+    assert.ok(js.includes('percent >= 30') && js.includes('percent >= 10'), 'пороги не 10/30');
+    // Формула баланса печатается словами и числами.
+    assert.ok(js.includes("' − расход '"), 'формула баланса не выводится на экран');
+});
+
+test('зеркальные заголовки двух страниц', () => {
+    const draft = read('templates/draft.html');
+    const nav = read('templates/shared/nav.html');
+    assert.match(html, /<title>Фасовка — ABC\/XYZ и потери — Пивная культура<\/title>/);
+    assert.match(draft, /<title>Розлив — ABC\/XYZ и потери — Пивная культура<\/title>/);
+    assert.match(html, /pk-title-n">Фасовка — ABC\/XYZ и потери</);
+    assert.match(draft, /dr-title-n">Розлив — ABC\/XYZ и потери</);
+    assert.ok(nav.includes('Фасовка\n') && nav.includes('Розлив\n'), 'пункты меню не переименованы');
+    assert.ok(!/ABC\/XYZ анализ\n|Анализ проливов\n/.test(nav), 'в меню остались старые названия');
 });
 
 test('формула наценки показана пользователю, а не только в документации', () => {

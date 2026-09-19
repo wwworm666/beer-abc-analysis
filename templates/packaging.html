@@ -4,7 +4,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ABC/XYZ анализ фасовки — Пивная культура</title>
+    <title>Фасовка — ABC/XYZ и потери — Пивная культура</title>
     <!-- Порядок важен: свой packaging.css последним, чтобы наши правила побеждали
          при равной специфичности с общими стилями дашборда.
          draft.css подключён ради @font-face IBM Plex Sans: объявление живёт там и
@@ -21,8 +21,8 @@
 </head>
 <body class="packaging-page">
     <div class="container">
-        {% set page_title = "ABC/XYZ анализ" %}
-        {% set page_subtitle = "Классификация фасовки по выручке, наценке и стабильности спроса" %}
+        {% set page_title = "Фасовка — ABC/XYZ и потери" %}
+        {% set page_subtitle = "Ассортимент фасовки и баланс склада в штуках" %}
         {% include 'shared/nav.html' %}
     </div>
 
@@ -36,8 +36,8 @@
           <span></span><span></span><span></span>
         </button>
         <span class="pk-title">
-          <span class="pk-title-n">ABC/XYZ анализ фасовки</span>
-          <span class="pk-title-s">что держать, что продвигать, что выводить</span>
+          <span class="pk-title-n">Фасовка — ABC/XYZ и потери</span>
+          <span class="pk-title-s">что держать, что продвигать, где теряются штуки</span>
         </span>
         <span class="pk-logo"><i>&gt;&nbsp;</i>k<span class="pk-logo-tail">ultura.os</span><b>_</b></span>
       </header>
@@ -91,6 +91,7 @@
         <span class="pk-grow"></span>
         <span class="pk-context-t" id="pkContext"></span>
         <span class="pk-context-chip" id="pkXyzChip" hidden></span>
+        <span class="pk-context-chip" id="pkUpdated" hidden></span>
       </div>
 
       <!-- Загрузка, ошибка и пустой ответ: одно место, чтобы страница никогда не
@@ -181,6 +182,18 @@
           В разрезе «Общая» бары складываются в одну сеть: количества и деньги
           суммируются, наценка и буквы пересчитываются от сумм заново. Клик по
           строке — карточка позиции с разбором каждой буквы и разбивкой по барам.</div>
+
+        <div class="pk-band">
+          <span class="pk-band-t">БАЛАНС И РАСХОЖДЕНИЯ</span>
+          <span class="pk-band-line"></span>
+          <span class="pk-band-s">всё в штуках</span>
+        </div>
+        <div class="pk-two">
+          <div class="pk-card" id="pkBalance"></div>
+          <div class="pk-card" id="pkLosses"></div>
+        </div>
+
+        <div class="pk-legend" id="pkDiag"></div>
       </div>
     </div>
 
