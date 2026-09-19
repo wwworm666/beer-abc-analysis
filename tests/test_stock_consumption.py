@@ -482,8 +482,25 @@ def test_empty_operations_and_new_stats_shape():
     assert stats == {'p1': new_stats('store')}
     assert new_stats('store', 7)['days_in_period'] == 7
     assert set(new_stats('network')) == {'outgoing', 'incoming', 'by_document_type', 'first_in',
-                                         'first_out', 'last_in', 'last_in_amount', 'days_in_period',
-                                         'avg_per_day', 'is_new', 'opening_stock', 'skipped', 'scope'}
+                                         'first_out', 'last_in', 'last_in_amount', 'last_out',
+                                         'days_in_period', 'avg_per_day', 'is_new', 'opening_stock',
+                                         'skipped', 'scope'}
+
+
+def test_last_outgoing_date():
+    """last_out — самый поздний расход в окне: по нему видно, ушла ли позиция из ротации."""
+    ops = [
+        _op(amount='-5.000000000', op_date='10.10.2025'),
+        _op(amount='-3.000000000', op_date='28.10.2025'),
+        _op(amount='-1.000000000', op_date='20.10.2025'),
+        _op(amount='24.000000000', op_date='01.11.2025', incoming='true', doc_type='INCOMING_INVOICE'),
+        {'product': PID, 'primaryStore': STORE_A, 'amount': '-2.000000000',
+         'incoming': 'false', 'date': 'мусор'},                     # дата не читается — порядок не меняет
+    ]
+    stats = aggregate_consumption(ops, [PID], STORE_A, TODAY)[PID]
+    assert stats['last_out'] == date(2025, 10, 28)
+    assert stats['first_out'] == date(2025, 10, 10)
+    assert new_stats('store')['last_out'] is None
 
 
 def test_last_incoming_date_and_amount():

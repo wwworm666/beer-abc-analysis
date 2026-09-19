@@ -30,6 +30,9 @@
 записи без поля incoming (неизвестно направление) — их число в stats['skipped'].
 last_in / last_in_amount — дата и количество последнего прихода в окне
 («последний приход 03.09: 24 шт» на экране заказа).
+last_out — дата последнего расхода в окне. Нужна позициям, которых нет в остатках
+iiko: товар, проданный вчера и упавший в ноль, заказывают сейчас, а тот, чей расход
+был три недели назад, из ротации вышел (docs/stocks.md, «Позиции без остатка»).
 Первая дата прихода/расхода фиксируется только по записям с amount > 0 и
 читаемой датой; запись с нечитаемой датой в суммы входит, но порядок событий
 не меняет.
@@ -101,6 +104,7 @@ def new_stats(scope: str, window_days: int = WINDOW_DAYS) -> dict:
         'first_out': None,
         'last_in': None,
         'last_in_amount': 0.0,
+        'last_out': None,
         'days_in_period': window_days,
         'avg_per_day': 0.0,
         'is_new': False,
@@ -165,6 +169,8 @@ def aggregate_consumption(operations: Iterable[dict],
             st['by_document_type'][doc_type] = st['by_document_type'].get(doc_type, 0.0) + amount
             if op_date and (st['first_out'] is None or op_date < st['first_out']):
                 st['first_out'] = op_date
+            if op_date and (st['last_out'] is None or op_date > st['last_out']):
+                st['last_out'] = op_date
         else:
             st['incoming'] += amount
             if op_date and (st['first_in'] is None or op_date < st['first_in']):
