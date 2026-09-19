@@ -49,7 +49,7 @@ beer-abc-analysis/
 | `iiko_api.py` | Auth (SHA-1), cashshifts v2, attendance, POS-mapping |
 | `olap_reports.py` | OLAP v2 (all_sales, beer, draft, kitchen, **explorer_sales**), nomenclature, store_balances, store_operations |
 | `iiko_barcodes.py` | Парсер XML `/products` → `{gtin14: [iiko_pid]}` для стыковки с ЧЗ |
-| `data_processor.py` | Генерация недель ISO, бакетирование |
+| `data_processor.py` | Генерация недель ISO, бакетирование — с 2026-09-19 не импортируется никем |
 
 ### Аналитика (10)
 | Файл | Что делает |
@@ -57,9 +57,11 @@ beer-abc-analysis/
 | `dashboard_analysis.py` | 19 из 20 метрик дашборда (в т.ч. чеки с картой лояльности / без карты; активность кранов — в routes/dashboard.py) |
 | `dashboard_details.py` | **Детали внутри карточки** дашборда: реестр «метрика -> секции» и чистые функции над строками единого OLAP-запроса (дни, бары, категории, топ позиций, локал/импорт, гости), секции «Литры» и «Краны» |
 | `draft_loader.py` | Общий загрузчик сырья `/draft` (`load_draft_kegs`: проводки кегов + продажи + техкарты под одним ключом кэша) — для страницы и для карточек розлива |
-| `abc_analysis.py` | ABC (Парето 80/15/5) |
-| `xyz_analysis.py` | XYZ (CV вариация) |
-| `category_analysis.py` | Анализ по категориям |
+| `packaging_analysis.py` | **ABC/XYZ фасовки** для `/packaging`: сведение баров в «Общую», ABC по выручке и марже, наценка от сумм, XYZ по недельным окнам, все категории, корзины действий |
+| `abc_thresholds.py` | Пороги ABC/XYZ и подписи одним местом (Парето 80/95, наценка 1.2/1.0, CV 30/60, минимум 3 недели) |
+| `abc_analysis.py` | Прежний ABC (Парето) — с 2026-09-19 не импортируется никем |
+| `xyz_analysis.py` | Прежний XYZ (CV по календарным неделям) — с 2026-09-19 не импортируется никем |
+| `category_analysis.py` | Прежний анализ по категориям — с 2026-09-19 не импортируется никем |
 | `draft_kegs.py` | **Проливы** для `/draft`: литры из проводок iiko, деньги из продаж, связка и объём порции через техкарты, разрез по барменам |
 | `draft_analysis.py` | Разливное по названиям блюд (2-этапная нормализация) — месячный отчёт, меню, скрипты |
 | `trends_analyzer.py` | Тренды по неделям |
@@ -171,6 +173,7 @@ static/
 │   │   ├── core/        # state.js (singleton), api.js, utils.js
 │   │   └── modules/     # analytics, charts, trends, plans, comparison, ai_insights, ... (15+)
 │   ├── draft/           # draft.js — весь экран «Анализ проливов»
+│   ├── packaging/       # packaging.js — весь экран «ABC/XYZ анализ» фасовки
 │   ├── employee/
 │   ├── guests/
 │   ├── me/
@@ -178,6 +181,7 @@ static/
 │   ├── taps/
 │   └── stocks/
 ├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
+├── packaging/           # packaging.css — оформление /packaging как /draft (токены --pk-*)
 ├── me/                  # me.css — оформление /me по макету (токены --me-*)
 ├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
 ├── css/

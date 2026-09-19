@@ -23,8 +23,14 @@ def index():
 
 @pages_bp.route('/packaging')
 def packaging():
-    """Страница фасовки"""
-    return render_template('index.html', bars=BARS)
+    """ABC/XYZ анализ фасовки: корзины действий, все категории, все позиции.
+
+    app_version нужен шаблону для кэш-бастинга своих packaging.css и
+    packaging.js — без него правки вёрстки не доезжают до браузеров
+    (docs/lessons.md). Прежний шаблон index.html отсюда больше не рендерится:
+    страница пересобрана в оформлении «Анализа проливов» (docs/abc-xyz-analysis.md).
+    """
+    return render_template('packaging.html', bars=BARS, app_version=APP_VERSION)
 
 
 @pages_bp.route('/draft')
