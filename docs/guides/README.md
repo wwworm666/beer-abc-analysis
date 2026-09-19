@@ -37,10 +37,10 @@
 \`\`\`
 app.py                  # Главное приложение
 core/                   # Бизнес-логика
-  ├── taps_manager.py   # Управление кранами
-  ├── abc_analysis.py   # ABC-анализ
-  ├── xyz_analysis.py   # XYZ-анализ
-  └── iiko_api.py       # Интеграция с iiko
+  ├── taps_manager.py        # Управление кранами
+  ├── packaging_analysis.py  # ABC/XYZ фасовки
+  ├── draft_kegs.py          # Проливы по кегам
+  └── iiko_api.py            # Интеграция с iiko
 templates/              # HTML
 static/                 # CSS, JS
 \`\`\`

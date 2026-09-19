@@ -178,6 +178,40 @@ test('пороги в подписях совпадают с константа�
     assert.ok(html.includes('от 120%'), 'в легенде не тот порог наценки');
 });
 
+test('расшифровка букв на экране и совпадает с порогами ядра', () => {
+    // Владелец просил видеть значение каждой буквы прямо на странице. Числа в
+    // расшифровке обязаны быть теми же, что в core/abc_thresholds.py — иначе
+    // страница объясняет одно, а считает другое.
+    const key = html.match(/<div class="pk-key" id="pkKey">([\s\S]*?)<\/div>\s*<div class="pk-legend">/);
+    assert.ok(key, 'нет блока расшифровки букв под таблицей позиций');
+    const rows = (key[1].match(/class="pk-key-row"/g) || []).length;
+    assert.equal(rows, 3, `в коде три буквы, строк расшифровки ${rows}`);
+    for (const letter of ['a', 'b', 'c', 'x', 'y', 'z', 'none']) {
+        assert.ok(key[1].includes(`pk-abc-ltr ${letter}"`), `нет таблетки для ${letter}`);
+    }
+    const a = thresholds.match(/PARETO_A_MAX_CUM_PERCENT = (\d+)/)[1];
+    const b = thresholds.match(/PARETO_B_MAX_CUM_PERCENT = (\d+)/)[1];
+    assert.ok(key[1].includes(`первые ${a}%`), `в расшифровке не ${a}% для A`);
+    assert.ok(key[1].includes(`следующие ${b - a}%`), `в расшифровке не ${b - a}% для B`);
+    assert.ok(key[1].includes(`последние ${100 - b}%`), `в расшифровке не ${100 - b}% для C`);
+    const mA = Math.round(parseFloat(thresholds.match(/MARKUP_A_MIN = ([\d.]+)/)[1]) * 100);
+    const mB = Math.round(parseFloat(thresholds.match(/MARKUP_B_MIN = ([\d.]+)/)[1]) * 100);
+    assert.ok(key[1].includes(`от ${mA}%`), `порог наценки A не ${mA}%`);
+    assert.ok(key[1].includes(`от ${mB}% до ${mA}%`), `порог наценки B не ${mB}–${mA}%`);
+    assert.ok(key[1].includes(`ниже ${mB}%`), `порог наценки C не ${mB}%`);
+    const x = Math.round(parseFloat(thresholds.match(/XYZ_X_MAX_CV = ([\d.]+)/)[1]));
+    const y = Math.round(parseFloat(thresholds.match(/XYZ_Y_MAX_CV = ([\d.]+)/)[1]));
+    assert.ok(key[1].includes(`до ${x}%`), `порог X не ${x}%`);
+    assert.ok(key[1].includes(`от ${x}% до ${y}%`), `порог Y не ${x}–${y}%`);
+    assert.ok(key[1].includes(`свыше ${y}%`), `порог Z не ${y}%`);
+    const minWeeks = thresholds.match(/MIN_XYZ_WEEKS = (\d+)/)[1];
+    assert.ok(key[1].includes(`меньше ${minWeeks} недель`), `минимум недель не ${minWeeks}`);
+    // Таблетки буквы XYZ должны быть раскрашены и в CSS.
+    for (const letter of ['x', 'y', 'z']) {
+        assert.ok(css.includes(`.pk-abc-ltr.${letter} {`), `нет цвета для буквы ${letter}`);
+    }
+});
+
 test('формула наценки показана пользователю, а не только в документации', () => {
     // Требование .claude/CLAUDE.md пункт 1: расчёт виден на экране.
     assert.match(html, /\(выручка − себестоимость\) \/ себестоимость/,

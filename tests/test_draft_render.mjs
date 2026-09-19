@@ -132,5 +132,39 @@ test('на странице объяснено, что такое бармен �
     assert.match(html, /расход кегов со склада/, 'не объяснено, откуда литры вообще');
 });
 
+test('расшифровка букв на экране и честна про методику /draft', () => {
+    // Владелец просил видеть значение каждой буквы на обеих страницах. Здесь
+    // 2-я и 3-я буквы считаются по ТРЕТЯМ среди кегов (core/draft_kegs.py,
+    // _abc_by_percentile), а не по фиксированным порогам, как у фасовки —
+    // расшифровка обязана говорить именно это, а не копировать /packaging.
+    const kegs = read('core/draft_kegs.py');
+    const key = html.match(/<div class="dr-key" id="drKey">([\s\S]*?)<\/div>\s*<div class="dr-legend">/);
+    assert.ok(key, 'нет блока расшифровки букв под таблицей кегов');
+    const rows = (key[1].match(/class="dr-key-row"/g) || []).length;
+    assert.equal(rows, 4, `три буквы ABC плюс XYZ, строк расшифровки ${rows}`);
+    assert.match(kegs, /_abc_by_percentile\(rows, 'MarkupPercent', 'ABC_Markup'\)/,
+        'наценка на /draft больше не по третям — расшифровка устарела');
+    assert.match(kegs, /_abc_by_percentile\(rows, 'TotalMargin', 'ABC_Margin'\)/,
+        'маржа на /draft больше не по третям — расшифровка устарела');
+    assert.ok(key[1].includes('верхняя треть кегов по наценке'), 'наценка не объяснена третями');
+    assert.ok(key[1].includes('верхняя треть кегов по марже'), 'маржа не объяснена третями');
+    assert.ok(!/от 120%|ниже 100%/.test(key[1]),
+        'в расшифровку /draft попали фиксированные пороги наценки с /packaging');
+    const x = Math.round(parseFloat(kegs.match(/XYZ_X_MAX_CV = ([\d.]+)/)[1]));
+    const y = Math.round(parseFloat(kegs.match(/XYZ_Y_MAX_CV = ([\d.]+)/)[1]));
+    assert.ok(key[1].includes(`до ${x}%`), `порог X не ${x}%`);
+    assert.ok(key[1].includes(`от ${x}% до ${y}%`), `порог Y не ${x}–${y}%`);
+    assert.ok(key[1].includes(`свыше ${y}%`), `порог Z не ${y}%`);
+    const minWeeks = kegs.match(/MIN_XYZ_WEEKS = (\d+)/)[1];
+    assert.ok(key[1].includes(`меньше ${minWeeks} недель`), `минимум недель не ${minWeeks}`);
+    for (const letter of ['a', 'b', 'c', 'x', 'y', 'z', 'none']) {
+        assert.ok(key[1].includes(`dr-abc-ltr ${letter}"`), `нет таблетки для ${letter}`);
+        assert.ok(css.includes(`.dr-abc-ltr.${letter} {`), `нет цвета для буквы ${letter}`);
+    }
+    for (const cls of ['dr-key', 'dr-key-row', 'dr-key-cap', 'dr-key-cells', 'dr-key-cell']) {
+        assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
+    }
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

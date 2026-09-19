@@ -803,6 +803,49 @@ body.draft-page .container { padding: 0; }
 .dr-abc-ltr.a { background: var(--dr-ok); }
 .dr-abc-ltr.b { background: var(--dr-warn); }
 .dr-abc-ltr.c { background: var(--dr-bad); }
+/* Буквы спроса по той же шкале «хорошо — средне — плохо»: X предсказуем, Z
+   скачет. Нужны расшифровке букв под таблицей кегов. */
+.dr-abc-ltr.x { background: var(--dr-ok); }
+.dr-abc-ltr.y { background: var(--dr-warn); }
+.dr-abc-ltr.z { background: var(--dr-bad); }
+.dr-abc-ltr.none { background: var(--dr-faint); }
+
+/* ==================== Что означают буквы ====================
+   Расшифровка кода таблицей: по строке на каждую букву, в строке три таблетки
+   с теми же цветами, что в колонке ABC. То же устройство, что у .pk-key на
+   /packaging — владелец просил одинаково объяснить буквы на обеих страницах. */
+.dr-key {
+    margin-top: 10px;
+    background: var(--dr-card);
+    border: 1px solid var(--dr-line);
+    border-radius: var(--dr-r-card);
+    box-shadow: var(--dr-shadow);
+    padding: 4px 18px;
+}
+.dr-key-row {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 9px 0;
+    border-top: 1px solid var(--dr-hair);
+}
+.dr-key-row:first-child { border-top: none; }
+.dr-key-cap { font: 600 9.5px/1.5 var(--dr-mono); letter-spacing: .12em; color: var(--dr-ink5); }
+.dr-key-cells { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.dr-key-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font: 400 12px/1.4 var(--dr-sans);
+    color: var(--dr-ink2);
+    white-space: nowrap;
+}
+.dr-key .dr-abc-ltr { display: inline-flex; }
+@media (max-width: 720px) {
+    .dr-key-row { grid-template-columns: 1fr; gap: 6px; }
+    .dr-key-cell { white-space: normal; }
+}
 .dr-abc-cat { font: 600 12.5px/1.3 var(--dr-sans); width: 74px; flex: none; }
 .dr-abc-txt { font: 400 12px/1.5 var(--dr-sans); color: var(--dr-ink3); }
 .dr-dr-note { margin-top: 10px; font: 400 11.5px/1.65 var(--dr-sans); color: var(--dr-ink4); }

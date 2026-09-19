@@ -561,6 +561,43 @@ body.packaging-page .container { padding: 0; }
 }
 .pk-legend { margin: 10px 4px 0; font: 400 11px/1.6 var(--pk-sans); color: var(--pk-ink5); }
 
+/* ==================== Что означают буквы ====================
+   Расшифровка кода — таблицей, а не абзацем: по строке на каждую букву кода,
+   в строке три таблетки с теми же цветами, что в таблице. Владелец просил
+   видеть значение букв прямо на экране, а не восстанавливать его из прозы. */
+.pk-key {
+    margin-top: 10px;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    padding: 4px 18px;
+}
+.pk-key-row {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 9px 0;
+    border-top: 1px solid var(--pk-hair);
+}
+.pk-key-row:first-child { border-top: none; }
+.pk-key-cap { font: 600 9.5px/1.5 var(--pk-mono); letter-spacing: .12em; color: var(--pk-ink5); }
+.pk-key-cells { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.pk-key-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font: 400 12px/1.4 var(--pk-sans);
+    color: var(--pk-ink2);
+    white-space: nowrap;
+}
+.pk-key .pk-abc-ltr { display: inline-flex; }
+@media (max-width: 720px) {
+    .pk-key-row { grid-template-columns: 1fr; gap: 6px; }
+    .pk-key-cell { white-space: normal; }
+}
+
 /* ==================== Выдвижная карточка ==================== */
 
 .pk-backdrop {

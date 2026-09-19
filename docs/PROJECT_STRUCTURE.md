@@ -49,9 +49,8 @@ beer-abc-analysis/
 | `iiko_api.py` | Auth (SHA-1), cashshifts v2, attendance, POS-mapping |
 | `olap_reports.py` | OLAP v2 (all_sales, beer, draft, kitchen, **explorer_sales**), nomenclature, store_balances, store_operations |
 | `iiko_barcodes.py` | Парсер XML `/products` → `{gtin14: [iiko_pid]}` для стыковки с ЧЗ |
-| `data_processor.py` | Генерация недель ISO, бакетирование — с 2026-09-19 не импортируется никем |
 
-### Аналитика (14)
+### Аналитика (11)
 | Файл | Что делает |
 |---|---|
 | `dashboard_analysis.py` | 19 из 20 метрик дашборда (в т.ч. чеки с картой лояльности / без карты; активность кранов — в routes/dashboard.py) |
@@ -59,9 +58,6 @@ beer-abc-analysis/
 | `draft_loader.py` | Общий загрузчик сырья `/draft` (`load_draft_kegs`: проводки кегов + продажи + техкарты под одним ключом кэша) — для страницы и для карточек розлива |
 | `packaging_analysis.py` | **ABC/XYZ фасовки** для `/packaging`: сведение баров в «Общую», ABC по выручке и марже, наценка от сумм, XYZ по недельным окнам, все категории, корзины действий |
 | `abc_thresholds.py` | Пороги ABC/XYZ и подписи одним местом (Парето 80/95, наценка 1.2/1.0, CV 30/60, минимум 3 недели) |
-| `abc_analysis.py` | Прежний ABC (Парето) — с 2026-09-19 не импортируется никем |
-| `xyz_analysis.py` | Прежний XYZ (CV по календарным неделям) — с 2026-09-19 не импортируется никем |
-| `category_analysis.py` | Прежний анализ по категориям — с 2026-09-19 не импортируется никем |
 | `draft_kegs.py` | **Проливы** для `/draft`: литры из проводок iiko, деньги из продаж, связка и объём порции через техкарты, разрез по барменам |
 | `draft_analysis.py` | Разливное по названиям блюд (2-этапная нормализация) — месячный отчёт, меню, скрипты |
 | `trends_analyzer.py` | Тренды по неделям |

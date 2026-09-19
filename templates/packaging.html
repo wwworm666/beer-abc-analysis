@@ -143,11 +143,40 @@
         <div class="pk-table pk-pos">
           <div class="pk-table-in" id="pkPos"></div>
         </div>
-        <div class="pk-legend">Код из трёх букв: 1-я — место по выручке (Парето
-          80/15/5), 2-я — наценка по фиксированным порогам (A — от 120%, B — от 100%
-          до 120%, C — ниже 100%), 3-я — стабильность спроса XYZ по неделям
-          (X — разброс до 30%, Y — до 60%, Z — свыше 60%). Наценка считается от сумм:
+        <!-- Расшифровка букв кода. Пороги в тексте обязаны совпадать с
+             core/abc_thresholds.py — за этим следит tests/test_packaging_render.mjs. -->
+        <div class="pk-key" id="pkKey">
+          <div class="pk-key-row">
+            <span class="pk-key-cap">1-Я БУКВА · ВЫРУЧКА</span>
+            <span class="pk-key-cells">
+              <span class="pk-key-cell"><i class="pk-abc-ltr a">A</i>первые 80% накопленной выручки</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr b">B</i>следующие 15%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr c">C</i>последние 5%</span>
+            </span>
+          </div>
+          <div class="pk-key-row">
+            <span class="pk-key-cap">2-Я БУКВА · НАЦЕНКА</span>
+            <span class="pk-key-cells">
+              <span class="pk-key-cell"><i class="pk-abc-ltr a">A</i>от 120%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr b">B</i>от 100% до 120%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr c">C</i>ниже 100%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr none">?</i>себестоимость не задана</span>
+            </span>
+          </div>
+          <div class="pk-key-row">
+            <span class="pk-key-cap">3-Я БУКВА · СПРОС (XYZ)</span>
+            <span class="pk-key-cells">
+              <span class="pk-key-cell"><i class="pk-abc-ltr x">X</i>ровный: разброс по неделям до 30%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr y">Y</i>умеренный: от 30% до 60%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr z">Z</i>скачет: свыше 60%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr none">?</i>меньше 3 недель с продажами</span>
+            </span>
+          </div>
+        </div>
+        <div class="pk-legend">Наценка считается от сумм:
           (выручка − себестоимость) / себестоимость, как строка «Итого» в отчёте iiko.
+          Разброс спроса — коэффициент вариации недельных продаж по неделям, когда
+          позиция продавалась.
           Прочерк вместо буквы означает, что данных не хватило, а не «плохо».
           В разрезе «Общая» бары складываются в одну сеть: количества и деньги
           суммируются, наценка и буквы пересчитываются от сумм заново. Клик по

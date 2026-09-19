@@ -109,9 +109,9 @@ UI controls → fetch /api/explorer/pivot?...
 
 3. **Бакеты времени:**
    - `day` → `YYYY-MM-DD` (от `OpenDate.Typed`)
-   - `week` → `YYYY-Www` ISO-неделя (та же конвенция, что в
-     [core/data_processor.py](../core/data_processor.py), для согласованности
-     с дашбордом и employee-страницей)
+   - `week` → `YYYY-Www` ISO-неделя (та же конвенция, что у дашборда и
+     employee-страницы; прежний `core/data_processor.py`, где она жила
+     изначально, удалён 2026-09-19 вместе со старым расчётом фасовки)
    - `month` → `YYYY-MM`
 
 4. **Заполнение пропусков:** генерируется полный диапазон бакетов между
