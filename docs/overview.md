@@ -235,7 +235,7 @@ data/
 | Dashboard | `/api/plans/export` | GET (xlsx) | [venues-plans.md](venues-plans.md) |
 | Dashboard | `/api/venues`, `/api/weeks` | GET | overview |
 | Employee | `/api/employee-analytics`, `/api/bonus-calculate`, `/api/kpi-calculate` | POST | [employee.md](employee.md) |
-| Analysis | `/api/analyze`, `/api/draft-analyze`, `/api/discount-analyze` | POST | [abc-xyz-analysis.md](abc-xyz-analysis.md), [guests.md](guests.md) (§16 Акции) |
+| Analysis | `/api/packaging`, `/api/draft-kegs`, `/api/draft-analyze`, `/api/discount-analyze` | POST | [abc-xyz-analysis.md](abc-xyz-analysis.md), [draft.md](draft.md), [guests.md](guests.md) (§16 Акции) |
 | Taps | `/api/taps/<bar>`, `/api/taps/<bar>/start|stop|replace` | GET/POST | [taps.md](taps.md) |
 | Stocks | `/api/stocks/taplist|kitchen|bottles|order-board|expiry` | GET | [stocks.md](stocks.md) |
 | Stocks | `/api/chz/stock|refresh|refresh/status` | GET/POST | [chz-stock-integration.md](chz-stock-integration.md) |

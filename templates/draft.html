@@ -112,9 +112,50 @@
         <div class="dr-table dr-kegs">
           <div class="dr-table-in" id="drKegs"></div>
         </div>
-        <div class="dr-legend">ABC: 1-я буква — место по выручке, 2-я — по наценке,
-          3-я — по марже · XYZ — стабильность спроса по неделям, нужно не меньше 3 недель
-          на кране · клик по строке — карточка кега с разбивкой «кто наливал»</div>
+        <!-- Расшифровка букв. Здесь 2-я и 3-я буквы считаются по ТРЕТЯМ среди кегов
+             разреза (core/draft_kegs.py, _abc_by_percentile), а не по фиксированным
+             порогам, как у фасовки — легенды двух страниц потому и разные. XYZ —
+             отдельная колонка, пороги общие с /packaging (core/abc_thresholds.py). -->
+        <div class="dr-key" id="drKey">
+          <div class="dr-key-row">
+            <span class="dr-key-cap">1-Я БУКВА · ВЫРУЧКА</span>
+            <span class="dr-key-cells">
+              <span class="dr-key-cell"><i class="dr-abc-ltr a">A</i>первые 80% накопленной выручки</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr b">B</i>следующие 15%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr c">C</i>последние 5%</span>
+            </span>
+          </div>
+          <div class="dr-key-row">
+            <span class="dr-key-cap">2-Я БУКВА · НАЦЕНКА</span>
+            <span class="dr-key-cells">
+              <span class="dr-key-cell"><i class="dr-abc-ltr a">A</i>верхняя треть кегов по наценке</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr b">B</i>средняя треть</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr c">C</i>нижняя треть или наценка не определена</span>
+            </span>
+          </div>
+          <div class="dr-key-row">
+            <span class="dr-key-cap">3-Я БУКВА · МАРЖА</span>
+            <span class="dr-key-cells">
+              <span class="dr-key-cell"><i class="dr-abc-ltr a">A</i>верхняя треть кегов по марже в рублях</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr b">B</i>средняя треть</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr c">C</i>нижняя треть</span>
+            </span>
+          </div>
+          <div class="dr-key-row">
+            <span class="dr-key-cap">XYZ · СПРОС ПО НЕДЕЛЯМ</span>
+            <span class="dr-key-cells">
+              <span class="dr-key-cell"><i class="dr-abc-ltr x">X</i>ровный: разброс по неделям до 30%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr y">Y</i>умеренный: от 30% до 60%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr z">Z</i>скачет: свыше 60%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr none">—</i>меньше 3 недель на кране</span>
+            </span>
+          </div>
+        </div>
+        <div class="dr-legend">Наценка и маржа — по третям среди кегов разреза: буква
+          говорит, где кег стоит относительно соседей, а не относительно фиксированного
+          порога. Разброс спроса — коэффициент вариации недельных литров по неделям,
+          когда кег стоял на кране. Клик по строке — карточка кега с разбивкой «кто
+          наливал».</div>
 
         <div class="dr-band">
           <span class="dr-band-t">БАРМЕНЫ ПО ОБЪЁМУ</span>

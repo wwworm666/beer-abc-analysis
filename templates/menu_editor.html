@@ -153,6 +153,7 @@
           <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-033" onchange="onVolToggle(this)"><span>0,33 л</span></label><input class="me-in" id="f-p033" type="number" min="0" placeholder="цена" oninput="paint()"></div>
           <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-04" onchange="onVolToggle(this)"><span>0,4 л</span></label><input class="me-in" id="f-p04" type="number" min="0" placeholder="цена" oninput="paint()"></div>
           <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-05" onchange="onVolToggle(this)"><span>0,5 л</span></label><input class="me-in" id="f-p05" type="number" min="0" placeholder="цена" oninput="paint()"></div>
+          <div class="me-vol"><label class="me-vol-pick"><input type="checkbox" id="v-10" onchange="onVolToggle(this)"><span>1,0 л</span></label><input class="me-in" id="f-p10" type="number" min="0" placeholder="цена" oninput="paint()"></div>
           <div class="me-hint">Галка = объём на карточке (1–3 колонки, макет рассчитан на 3). Цена хранится и без галки.</div>
         </div>
 
@@ -190,8 +191,12 @@ const VOLUMES = [
   { key:"033", label:"0,33", field:"p033" },
   { key:"04",  label:"0,4",  field:"p04"  },
   { key:"05",  label:"0,5",  field:"p05"  },
+  { key:"10",  label:"1,0",  field:"p10"  },
 ];
 const DEFAULT_VOLS = ["025","04","05"], MAX_VOLS = 3;
+/* Цена от стольких знаков — «широкая»: класс .wide на секции цен (зеркало
+   WIDE_PRICE_DIGITS в routes/menu_editor.py). */
+const WIDE_PRICE_DIGITS = 4;
 
 function volsFromForm(){ return VOLUMES.filter(v=>$("v-"+v.key).checked).map(v=>v.key); }
 function setVols(vols){
@@ -224,7 +229,7 @@ function getForm(){
     style: styleValue(), abv: $("f-abv").value.trim(),
     tags, ratings: {...ratings},
     vols: volsFromForm(),
-    p025: num("f-p025"), p033: num("f-p033"), p04: num("f-p04"), p05: num("f-p05"),
+    p025: num("f-p025"), p033: num("f-p033"), p04: num("f-p04"), p05: num("f-p05"), p10: num("f-p10"),
   };
 }
 
@@ -302,6 +307,7 @@ function cardInner(it){
   const vset=new Set((it.vols&&it.vols.length?it.vols:DEFAULT_VOLS).map(String));
   const servings=VOLUMES.filter(v=>vset.has(v.key));
   const prices=servings.map(v=>`<div class="price"><span class="vol">${v.label}</span><span class="num">${fmt(it[v.field])}</span></div>`).join("");
+  const wide=servings.some(v=>fmt(it[v.field]).length>=WIDE_PRICE_DIGITS);
   return `<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
     <header class="eyebrow"><span class="num">№ ${pad2(num)}</span></header>
     <section class="hero">${trans}<h1 class="name ${nameClass(it.name)}">${esc(it.name)}</h1><div class="origin">${op.join(" · ")}</div></section>
@@ -311,7 +317,7 @@ function cardInner(it){
       <div class="meter"><span class="k">горечь</span><div class="scale">${dots(r.gor)}</div></div>
       <div class="meter"><span class="k">плотность</span><div class="scale">${dots(r.plot)}</div></div>
       <div class="meter"><span class="k">цвет</span><div class="scale">${dots(r.cvet)}</div></div></section>
-    <section class="prices n${servings.length}">${prices}</section>`;
+    <section class="prices n${servings.length}${wide?" wide":""}">${prices}</section>`;
 }
 function fitName(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollHeight>140&&s>36){s-=1;el.style.fontSize=s+"px";} }
 function fitTags(el){ if(!el)return; el.style.fontSize=""; let s=parseFloat(getComputedStyle(el).fontSize); while(el.scrollWidth>el.clientWidth+1&&s>12){s-=1;el.style.fontSize=s+"px";} }
@@ -337,7 +343,7 @@ function fill(it){
   $("f-style-custom").style.display="none"; $("f-style-custom").value="";
   ensureStyleOption(it.style||""); $("f-style").value=it.style||""; $("f-abv").value=it.abv||"";
   const t=it.tags||[]; $("f-tag1").value=t[0]||""; $("f-tag2").value=t[1]||""; $("f-tag3").value=t[2]||"";
-  $("f-p025").value=it.p025??""; $("f-p033").value=it.p033??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??"";
+  $("f-p025").value=it.p025??""; $("f-p033").value=it.p033??""; $("f-p04").value=it.p04??""; $("f-p05").value=it.p05??""; $("f-p10").value=it.p10??"";
   setVols(it.vols);
   const r=it.ratings||{}; ratings={ gor:+r.gor||0, plot:+r.plot||0, cvet:+r.cvet||0 };
   renderDots(); renderChips(); paint();
@@ -348,7 +354,7 @@ function meta(){ const el=$("meta");
 
 function newItem(){
   editingId=null; const used=new Set(items.map(i=>i.n||0)); let n=1; while(used.has(n))n++;
-  fill({ n, tap:null, name:"", latin:"", country:"", brewery:"", style:"", abv:"", tags:[], ratings:{gor:0,plot:0,cvet:0}, vols:[...DEFAULT_VOLS], p025:null, p033:null, p04:null, p05:null });
+  fill({ n, tap:null, name:"", latin:"", country:"", brewery:"", style:"", abv:"", tags:[], ratings:{gor:0,plot:0,cvet:0}, vols:[...DEFAULT_VOLS], p025:null, p033:null, p04:null, p05:null, p10:null });
   $("btn-del").style.display="none"; setUrlId(null); meta();
 }
 

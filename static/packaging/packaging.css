@@ -1,0 +1,819 @@
+/* Страница «ABC/XYZ анализ» фасовки (/packaging).
+
+   Оформление повторяет «Анализ проливов» (static/draft/draft.css) — это соседняя
+   страница про тот же товар, и разъезжаться им нельзя: те же поверхности, та же
+   типографика (числа IBM Plex Mono, текст IBM Plex Sans), те же радиусы и
+   отступы, та же тёмная тема. Отличается только содержимое секций.
+
+   Токены свои (`--pk-*`) на `body.packaging-page`, а не переопределение
+   глобальных: общую палитру дашборда трогать нельзя. Значения совпадают с
+   `--dr-*` намеренно — если владелец поменяет палитру проливов, эта страница
+   должна поменяться следом, и одинаковые значения делают это очевидным.
+
+   Правила: ни одного HEX вне блока токенов, без эмодзи, префикс `pk-`.
+   Имена `.metric-card` / `.metric-value` / `.stat-value` НЕ использовать —
+   глобальный mobile.css перебивает их на <=480px (урок со страниц /me и /draft).
+   Шрифт IBM Plex Sans объявлен в draft.css, который эта страница подключает
+   перед своим: повторять @font-face незачем. */
+
+/* ==================== Токены страницы ==================== */
+
+body.packaging-page {
+    /* поверхности */
+    --pk-bg: #F7F5F1;
+    --pk-card: #FFFFFF;
+    --pk-line: #EAE6DF;          /* граница карточки */
+    --pk-hair: #F1EDE6;          /* разделители строк внутри карточки */
+    --pk-rule: #E7E2D9;          /* линия в полосе-заголовке */
+    --pk-dot: #D8D2C6;           /* точечный лидер до итога */
+    --pk-hover: #FBFAF7;         /* подсветка строки под курсором */
+    --pk-soft: #F7F4EE;          /* плитка в карточке-выдвижке */
+    --pk-chip: #FCFBF9;          /* плашка «обновлено» */
+    --pk-track: #EFEBE3;         /* подложка шкалы доли */
+
+    /* текст */
+    --pk-ink: #1D1A16;
+    --pk-ink2: #57524A;
+    --pk-ink3: #6B665C;
+    --pk-ink4: #8A8578;
+    --pk-ink5: #9C968A;
+    --pk-ink6: #B3ADA1;
+    --pk-faint: #C4BFB4;         /* прочерк там, где значения нет */
+
+    /* акцент и статусы */
+    --pk-accent: #D97757;
+    --pk-accent-h: #C2664A;
+    --pk-on-accent: #FFFFFF;
+    /* Текст на цветной таблетке ABC. Пара, а не `color:#fff` на месте: в тёмной
+       теме статусные цвета светлеют, и белым по ним не прочитать. */
+    --pk-on-status: #FFFFFF;
+    --pk-ok: #059669;
+    --pk-ok-ink: #047857;
+    --pk-warn: #D97706;
+    --pk-warn-ink: #B45309;
+    --pk-bad: #DC2626;
+    --pk-bad-ink: #B91C1C;
+    --pk-calm: #57524A;
+
+    --pk-shadow: 0 1px 2px rgba(28, 25, 23, .04);
+    --pk-shadow-menu: 0 14px 36px rgba(28, 25, 23, .14);
+    --pk-shadow-drawer: -28px 0 60px rgba(28, 25, 23, .18);
+    --pk-backdrop: rgba(28, 25, 23, .34);
+
+    /* радиусы: шапка 18, карточка 16, меню 14, бургер 13, вложенное 10-12 */
+    --pk-r-head: 18px;
+    --pk-r-card: 16px;
+    --pk-r-menu: 14px;
+    --pk-r-burger: 13px;
+    --pk-r-in: 12px;
+    --pk-r-tile: 10px;
+    --pk-r-badge: 6px;
+
+    --pk-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, sans-serif;
+    --pk-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+    /* На теле — только фон. Типографика и цвет ссылок применяются внутри
+       .pk-wrap: сайдбар лежит в том же <body>, и правило `body a` перекрасило бы
+       всё меню в акцент (дефект, пойманный на /me). */
+    background: var(--pk-bg);
+}
+
+[data-theme="dark"] body.packaging-page,
+body.packaging-page[data-theme="dark"] {
+    --pk-bg: #1C1917;
+    --pk-card: #24211F;
+    --pk-line: #37332F;
+    --pk-hair: #302C29;
+    --pk-rule: #37332F;
+    --pk-dot: #453F3A;
+    --pk-hover: #2A2624;
+    --pk-soft: #2A2521;
+    --pk-chip: #221F1D;
+    --pk-track: #37332F;
+
+    --pk-ink: #F5F2ED;
+    --pk-ink2: #D5CEC4;
+    --pk-ink3: #B6AFA5;
+    --pk-ink4: #9A9388;
+    --pk-ink5: #8A837A;
+    --pk-ink6: #756E66;
+    --pk-faint: #5E5850;
+
+    --pk-accent: #E89779;
+    --pk-accent-h: #F0AB91;
+    --pk-on-accent: #241F1C;
+    --pk-on-status: #1C1917;
+    --pk-ok: #34D399;
+    --pk-ok-ink: #34D399;
+    --pk-warn: #FBBF24;
+    --pk-warn-ink: #FBBF24;
+    --pk-bad: #F87171;
+    --pk-bad-ink: #F87171;
+    --pk-calm: #B6AFA5;
+
+    --pk-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+    --pk-shadow-menu: 0 14px 36px rgba(0, 0, 0, .5);
+    --pk-shadow-drawer: -28px 0 60px rgba(0, 0, 0, .55);
+    --pk-backdrop: rgba(0, 0, 0, .55);
+}
+
+/* Общий каркас приложения на этой странице не нужен: своя шапка вместо
+   .header-bar, сайдбар открывается гамбургером из неё. */
+body.packaging-page .header-bar { display: none; }
+body.packaging-page .container { padding: 0; }
+
+.pk-wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 22px 20px calc(64px + env(safe-area-inset-bottom, 0px));
+    font-family: var(--pk-sans);
+    color: var(--pk-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+.pk-wrap ::selection { background: color-mix(in srgb, var(--pk-accent) 22%, transparent); }
+
+/* ==================== Шапка ==================== */
+
+.pk-head {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-head);
+    box-shadow: var(--pk-shadow);
+    padding: 11px 18px 11px 12px;
+}
+.pk-burger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3.5px;
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: var(--pk-r-burger);
+    background: var(--pk-accent);
+    cursor: pointer;
+    flex: none;
+    transition: background .15s ease;
+}
+.pk-burger:hover { background: var(--pk-accent-h); }
+.pk-burger span {
+    width: 16px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--pk-on-accent);
+}
+.pk-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
+.pk-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.pk-title-n {
+    font: 600 15px/1.2 var(--pk-sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pk-title-s {
+    font: 400 12px/1.2 var(--pk-sans);
+    color: var(--pk-ink4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pk-logo {
+    font: 600 15px/1 var(--pk-mono);
+    letter-spacing: .4px;
+    white-space: nowrap;
+    flex: none;
+}
+.pk-logo i { color: var(--pk-accent); font-style: normal; }
+.pk-logo b { color: var(--pk-accent); font-weight: 600; animation: pkBlink .9s step-end infinite; }
+@keyframes pkBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+@media (max-width: 640px) { .pk-logo-tail { display: none; } }
+
+/* ==================== Панель фильтров ==================== */
+
+.pk-filters {
+    position: relative;
+    z-index: 41;
+    display: flex;
+    align-items: stretch;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    min-height: 58px;
+}
+.pk-pick { position: relative; display: flex; }
+.pk-pick-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    border: none;
+    background: transparent;
+    padding: 9px 18px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--pk-sans);
+    transition: background .15s ease;
+}
+.pk-pick:first-child .pk-pick-btn { border-radius: var(--pk-r-card) 0 0 var(--pk-r-card); }
+.pk-pick-btn:hover { background: var(--pk-hover); }
+.pk-pick-cap {
+    font: 600 9.5px/1 var(--pk-mono);
+    letter-spacing: .14em;
+    color: var(--pk-ink5);
+}
+.pk-pick-val {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 13.5px/1 var(--pk-sans);
+    color: var(--pk-ink);
+}
+.pk-pick-hint { font: 500 11.5px/1 var(--pk-mono); color: var(--pk-ink5); }
+.pk-chev { flex: none; }
+.pk-chev path { stroke: var(--pk-ink6); }
+.pk-sep { width: 1px; background: var(--pk-line); margin: 13px 0; }
+.pk-grow { flex: 1; }
+
+.pk-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 10px;
+    width: 272px;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-menu);
+    box-shadow: var(--pk-shadow-menu);
+    padding: 6px;
+    z-index: 45;
+}
+.pk-menu[hidden] { display: none; }
+.pk-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    border: none;
+    background: transparent;
+    border-radius: 9px;
+    padding: 9px 12px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--pk-sans);
+    transition: background .12s ease;
+}
+.pk-menu-item:hover { background: var(--pk-soft); }
+.pk-menu-item.is-on { background: var(--pk-soft); }
+.pk-menu-item span:first-child { flex: 1; font: 500 13px/1.2 var(--pk-sans); color: var(--pk-ink); }
+.pk-menu-item span:last-child {
+    font: 500 10.5px/1 var(--pk-mono);
+    color: var(--pk-ink5);
+    white-space: nowrap;
+}
+.pk-menu-cap {
+    font: 600 9.5px/1 var(--pk-mono);
+    letter-spacing: .14em;
+    color: var(--pk-ink5);
+    margin-bottom: 7px;
+}
+.pk-menu-custom { display: block; cursor: default; }
+.pk-menu-dates { display: flex; gap: 6px; align-items: center; }
+.pk-menu-dates input {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    border: 1px solid var(--pk-line);
+    border-radius: 8px;
+    background: var(--pk-card);
+    color: var(--pk-ink);
+    padding: 0 8px;
+    font: 500 11.5px/1 var(--pk-mono);
+}
+.pk-run-wrap { display: flex; align-items: center; padding: 9px 10px 9px 18px; }
+.pk-run {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 40px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 999px;
+    background: var(--pk-accent);
+    color: var(--pk-on-accent);
+    font: 600 13px/1 var(--pk-sans);
+    cursor: pointer;
+    white-space: nowrap;
+    flex: none;
+    transition: background .15s ease;
+}
+.pk-run:hover { background: var(--pk-accent-h); }
+.pk-run:disabled { cursor: default; opacity: .8; }
+.pk-run.sm { height: 30px; padding: 0 14px; }
+.pk-spin {
+    width: 13px;
+    height: 13px;
+    border: 2px solid color-mix(in srgb, var(--pk-on-accent) 40%, transparent);
+    border-top-color: var(--pk-on-accent);
+    border-radius: 50%;
+    animation: pkSpin .7s linear infinite;
+}
+@keyframes pkSpin { to { transform: rotate(360deg); } }
+
+/* Перехватчик клика мимо открытого меню. */
+.pk-catch { position: fixed; inset: 0; z-index: 40; }
+.pk-catch[hidden] { display: none; }
+
+/* Строка контекста под фильтрами. */
+.pk-context {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 16px 2px 0;
+}
+.pk-context-t { font: 500 11px/1 var(--pk-mono); color: var(--pk-ink5); }
+.pk-context-chip {
+    font: 500 11px/1 var(--pk-mono);
+    color: var(--pk-ink6);
+    border: 1px solid var(--pk-line);
+    border-radius: 999px;
+    padding: 4px 9px;
+    background: var(--pk-chip);
+}
+
+/* ==================== Полоса-заголовок секции ==================== */
+
+.pk-band {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    min-height: 24px;
+    margin: 26px 2px 12px;
+}
+.pk-band-t { font: 600 11px/1 var(--pk-mono); letter-spacing: .16em; color: var(--pk-ink4); }
+.pk-band-line { flex: 1; min-width: 40px; height: 1px; background: var(--pk-rule); }
+.pk-band-s { font: 500 11px/1 var(--pk-mono); color: var(--pk-ink5); }
+.pk-search {
+    height: 32px;
+    width: 190px;
+    border: 1px solid var(--pk-line);
+    border-radius: 999px;
+    background: var(--pk-card);
+    padding: 0 14px;
+    font: 500 12px/1 var(--pk-mono);
+    color: var(--pk-ink);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.pk-search::placeholder { color: var(--pk-ink6); }
+.pk-search:focus {
+    border-color: var(--pk-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pk-accent) 14%, transparent);
+}
+
+/* ==================== Сводка ==================== */
+
+.pk-sum {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+    gap: 10px;
+}
+.pk-tile {
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    padding: 15px 17px 13px;
+}
+.pk-tile-cap { font: 600 10px/1 var(--pk-mono); letter-spacing: .14em; color: var(--pk-ink4); }
+.pk-tile-v {
+    margin-top: 10px;
+    font: 700 24px/1 var(--pk-mono);
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+}
+.pk-tile-v u { font: 600 12.5px/1 var(--pk-mono); color: var(--pk-ink5); text-decoration: none; }
+.pk-tile-s { margin-top: 8px; font: 400 11.5px/1.4 var(--pk-sans); color: var(--pk-ink5); }
+
+/* ==================== Корзины действий ==================== */
+
+.pk-buckets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
+    gap: 10px;
+}
+.pk-bucket {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    padding: 14px 16px 13px;
+    cursor: pointer;
+    font-family: var(--pk-sans);
+    transition: border-color .15s ease, background .12s ease;
+}
+.pk-bucket:hover { background: var(--pk-hover); border-color: var(--pk-accent); }
+.pk-bucket-top { display: flex; align-items: center; gap: 8px; }
+.pk-led { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--pk-calm); }
+.pk-led.ok { background: var(--pk-ok); }
+.pk-led.warn { background: var(--pk-warn); }
+.pk-led.bad { background: var(--pk-bad); }
+.pk-led.accent { background: var(--pk-accent); }
+.pk-bucket-n { font: 600 13px/1.2 var(--pk-sans); }
+.pk-bucket-v {
+    margin-top: 10px;
+    font: 700 21px/1 var(--pk-mono);
+    font-variant-numeric: tabular-nums;
+}
+.pk-bucket-v u { font: 600 11.5px/1 var(--pk-mono); color: var(--pk-ink5); text-decoration: none; }
+.pk-bucket-s { margin-top: 7px; font: 400 11.5px/1.4 var(--pk-sans); color: var(--pk-ink5); }
+
+/* ==================== Таблицы ==================== */
+
+.pk-table {
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    overflow-x: auto;
+}
+.pk-table-in { padding: 6px 18px 4px; }
+.pk-cats .pk-table-in { min-width: 980px; }
+.pk-pos .pk-table-in { min-width: 1080px; }
+
+.pk-row {
+    display: grid;
+    column-gap: 12px;
+    align-items: center;
+}
+.pk-cats .pk-row {
+    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 108px 104px 84px 46px;
+}
+.pk-pos .pk-row {
+    grid-template-columns: 30px minmax(215px, 1.7fr) minmax(130px, .9fr) 76px 108px 104px 84px 62px 44px;
+}
+.pk-row.is-head { padding: 10px 0 9px; }
+.pk-row.is-body {
+    padding: 10px 0;
+    border-top: 1px solid var(--pk-hair);
+    cursor: pointer;
+    transition: background .12s ease;
+}
+.pk-row.is-body:hover { background: var(--pk-hover); }
+.pk-row.is-total {
+    padding: 11px 0 12px;
+    border-top: 1px solid var(--pk-rule);
+}
+
+.pk-th {
+    font: 600 9.5px/1 var(--pk-mono);
+    letter-spacing: .12em;
+    color: var(--pk-ink5);
+}
+.pk-th.r { text-align: right; }
+.pk-th.c { text-align: center; }
+.pk-th.s { cursor: pointer; white-space: nowrap; transition: color .12s ease; }
+.pk-th.s:hover { color: var(--pk-ink2); }
+
+.pk-rank { font: 500 11.5px/1 var(--pk-mono); color: var(--pk-ink6); }
+.pk-name {
+    font: 500 13px/1.3 var(--pk-sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pk-sub {
+    font: 400 12px/1.3 var(--pk-sans);
+    color: var(--pk-ink5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.pk-num {
+    font: 500 12.5px/1 var(--pk-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--pk-ink3);
+}
+.pk-num.strong { font-weight: 600; color: var(--pk-ink); }
+.pk-num.dash { color: var(--pk-faint); }
+.pk-total-n { font: 600 12.5px/1.3 var(--pk-sans); }
+.pk-total-v {
+    font: 600 12.5px/1 var(--pk-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+.pk-total-v.strong { font-weight: 700; }
+
+/* Доля: мини-шкала плюс число. */
+.pk-share { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.pk-bar {
+    width: 44px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--pk-track);
+    overflow: hidden;
+    flex: none;
+}
+.pk-bar i { display: block; height: 100%; border-radius: 999px; background: var(--pk-accent); }
+.pk-share-v {
+    font: 500 12px/1 var(--pk-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--pk-ink3);
+}
+
+/* ABC: цвет по первой букве — месту в выручке. */
+.pk-abc {
+    display: inline-block;
+    min-width: 34px;
+    padding: 4px 6px;
+    border-radius: var(--pk-r-badge);
+    color: var(--pk-on-status);
+    font: 700 10px/1 var(--pk-mono);
+    letter-spacing: .06em;
+    text-align: center;
+}
+.pk-abc.a { background: var(--pk-ok); }
+.pk-abc.b { background: var(--pk-warn); }
+.pk-abc.c { background: var(--pk-bad); }
+.pk-cell-c { text-align: center; }
+.pk-xyz { font: 500 12px/1 var(--pk-mono); color: var(--pk-faint); text-align: center; }
+.pk-xyz.has { color: var(--pk-ink); font-weight: 600; }
+
+.pk-empty {
+    padding: 22px 0;
+    border-top: 1px solid var(--pk-hair);
+    font: 400 13px/1.4 var(--pk-sans);
+    color: var(--pk-ink5);
+    text-align: center;
+}
+.pk-legend { margin: 10px 4px 0; font: 400 11px/1.6 var(--pk-sans); color: var(--pk-ink5); }
+
+/* ==================== Что означают буквы ====================
+   Расшифровка кода — таблицей, а не абзацем: по строке на каждую букву кода,
+   в строке три таблетки с теми же цветами, что в таблице. Владелец просил
+   видеть значение букв прямо на экране, а не восстанавливать его из прозы. */
+.pk-key {
+    margin-top: 10px;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    padding: 4px 18px;
+}
+.pk-key-row {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 8px 14px;
+    align-items: center;
+    padding: 9px 0;
+    border-top: 1px solid var(--pk-hair);
+}
+.pk-key-row:first-child { border-top: none; }
+.pk-key-cap { font: 600 9.5px/1.5 var(--pk-mono); letter-spacing: .12em; color: var(--pk-ink5); }
+.pk-key-cells { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.pk-key-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font: 400 12px/1.4 var(--pk-sans);
+    color: var(--pk-ink2);
+    white-space: nowrap;
+}
+.pk-key .pk-abc-ltr { display: inline-flex; }
+@media (max-width: 720px) {
+    .pk-key-row { grid-template-columns: 1fr; gap: 6px; }
+    .pk-key-cell { white-space: normal; }
+}
+
+/* ==================== Выдвижная карточка ==================== */
+
+.pk-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--pk-backdrop);
+    z-index: 50;
+    animation: pkOv .2s ease;
+}
+.pk-backdrop[hidden] { display: none; }
+@keyframes pkOv { from { opacity: 0; } to { opacity: 1; } }
+
+.pk-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 620px;
+    max-width: 94vw;
+    background: var(--pk-card);
+    border-left: 1px solid var(--pk-line);
+    box-shadow: var(--pk-shadow-drawer);
+    z-index: 51;
+    overflow-y: auto;
+    animation: pkIn .24s cubic-bezier(.2, .7, .3, 1);
+    font-family: var(--pk-sans);
+    color: var(--pk-ink);
+}
+.pk-drawer[hidden] { display: none; }
+@keyframes pkIn {
+    from { opacity: 0; transform: translateX(26px); }
+    to { opacity: 1; transform: none; }
+}
+.pk-dr-in { padding: 22px 24px 30px; }
+.pk-dr-head { display: flex; align-items: flex-start; gap: 14px; }
+.pk-dr-t { font: 600 18px/1.25 var(--pk-sans); }
+.pk-dr-s { margin-top: 5px; font: 500 11px/1.4 var(--pk-mono); color: var(--pk-ink5); }
+.pk-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--pk-line);
+    border-radius: 999px;
+    background: var(--pk-card);
+    cursor: pointer;
+    flex: none;
+    transition: border-color .15s ease;
+}
+.pk-close:hover { border-color: var(--pk-accent); }
+.pk-close path { stroke: var(--pk-ink2); }
+
+.pk-sub-band {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0 10px;
+}
+.pk-sub-t { font: 600 10px/1 var(--pk-mono); letter-spacing: .16em; color: var(--pk-ink4); }
+.pk-sub-line { flex: 1; height: 1px; background: var(--pk-rule); }
+.pk-sub-s { font: 500 10.5px/1 var(--pk-mono); color: var(--pk-ink5); }
+
+.pk-cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.pk-cells.three { grid-template-columns: repeat(3, 1fr); }
+.pk-cells.two { grid-template-columns: repeat(2, 1fr); }
+.pk-cell { background: var(--pk-soft); border-radius: var(--pk-r-tile); padding: 11px 13px; }
+.pk-cell-cap { font: 600 9.5px/1 var(--pk-mono); letter-spacing: .12em; color: var(--pk-ink4); }
+.pk-cell-v {
+    margin-top: 7px;
+    font: 700 16px/1 var(--pk-mono);
+    font-variant-numeric: tabular-nums;
+}
+.pk-cell-v.dash { color: var(--pk-ink6); }
+
+/* Строка вложенной таблицы в карточке (позиции категории, бары позиции). */
+.pk-mini-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) 62px 96px 52px 88px;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--pk-hair);
+    cursor: pointer;
+    transition: background .12s ease;
+}
+/* Разбивка по барам: вместо узкой колонки под таблетку ABC здесь ещё одна
+   денежная колонка (маржа), и ей нужна та же ширина, что и выручке — иначе
+   «5 102 ₽» переносится на вторую строку. */
+.pk-mini-row.money {
+    grid-template-columns: minmax(110px, 1fr) 56px 92px 92px 84px;
+}
+.pk-mini-row.is-head { padding: 6px 0 7px; border-top: none; cursor: default; }
+.pk-mini-row.is-head:hover { background: transparent; }
+.pk-mini-row:hover { background: var(--pk-hover); }
+.pk-mini-bar { width: 36px; }
+
+/* Недельный ряд продаж: столбики прямо в карточке, без внешней библиотеки.
+   Высота считается, а не назначается: столбик до 54px плюс подпись значения
+   (10.5px), подпись недели (9.5px) и два зазора по 6px дают 86px. При
+   фиксированных 74px верхние столбики вылезали из контейнера и налезали на
+   плитки XYZ под ним. align-items: flex-end уже прижимает столбики к низу,
+   поэтому достаточно min-height. */
+.pk-weeks { display: flex; align-items: flex-end; gap: 6px; min-height: 86px; margin-top: 4px; }
+.pk-week { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.pk-week-bar {
+    width: 100%;
+    background: var(--pk-accent);
+    border-radius: 4px 4px 0 0;
+    min-height: 2px;
+}
+.pk-week-bar.zero { background: var(--pk-track); }
+.pk-week-cap { font: 500 9.5px/1 var(--pk-mono); color: var(--pk-ink5); }
+.pk-week-v { font: 600 10.5px/1 var(--pk-mono); color: var(--pk-ink3); }
+
+.pk-abc-box { background: var(--pk-soft); border-radius: var(--pk-r-in); padding: 14px 15px; }
+.pk-abc-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pk-abc-big {
+    display: inline-block;
+    padding: 8px 13px;
+    border-radius: 8px;
+    color: var(--pk-on-status);
+    font: 700 15px/1 var(--pk-mono);
+    letter-spacing: .08em;
+}
+.pk-abc-big.a { background: var(--pk-ok); }
+.pk-abc-big.b { background: var(--pk-warn); }
+.pk-abc-big.c { background: var(--pk-bad); }
+.pk-abc-meta { font: 500 12px/1.5 var(--pk-mono); color: var(--pk-ink2); }
+.pk-abc-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 0;
+    border-top: 1px solid var(--pk-line);
+}
+.pk-abc-lines { margin-top: 12px; }
+.pk-abc-ltr {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--pk-r-badge);
+    color: var(--pk-on-status);
+    font: 700 11px/1 var(--pk-mono);
+    flex: none;
+}
+.pk-abc-ltr.a { background: var(--pk-ok); }
+.pk-abc-ltr.b { background: var(--pk-warn); }
+.pk-abc-ltr.c { background: var(--pk-bad); }
+/* Буквы спроса по той же шкале «хорошо — средне — плохо»: X предсказуем,
+   Z скачет. Без этих правил строка «Спрос» оставалась единственной в разборе
+   без плашки и читалась как незаполненная. */
+.pk-abc-ltr.x { background: var(--pk-ok); }
+.pk-abc-ltr.y { background: var(--pk-warn); }
+.pk-abc-ltr.z { background: var(--pk-bad); }
+.pk-abc-ltr.none { background: var(--pk-faint); }
+.pk-abc-cat { font: 600 12.5px/1.5 var(--pk-sans); width: 74px; flex: none; }
+.pk-abc-txt { font: 400 12px/1.5 var(--pk-sans); color: var(--pk-ink3); }
+/* Формула, по которой получилась буква: требование .claude/CLAUDE.md пункт 1 —
+   расчёт должен быть виден пользователю, а не только в документации. */
+.pk-formula {
+    display: block;
+    margin-top: 3px;
+    font: 500 11px/1.5 var(--pk-mono);
+    color: var(--pk-ink5);
+}
+.pk-dr-note { margin-top: 10px; font: 400 11.5px/1.65 var(--pk-sans); color: var(--pk-ink4); }
+
+.pk-pill {
+    font: 600 10px/1.2 var(--pk-mono);
+    border-radius: 999px;
+    padding: 4px 8px;
+    text-align: center;
+    white-space: nowrap;
+    color: var(--pk-ink4);
+    background: var(--pk-soft);
+}
+.pk-pill.ok { color: var(--pk-ok-ink); background: color-mix(in srgb, var(--pk-ok) 10%, transparent); }
+.pk-pill.warn { color: var(--pk-warn-ink); background: color-mix(in srgb, var(--pk-warn) 10%, transparent); }
+.pk-pill.bad { color: var(--pk-bad-ink); background: color-mix(in srgb, var(--pk-bad) 10%, transparent); }
+
+/* ==================== Состояния ==================== */
+
+.pk-msg {
+    margin-top: 16px;
+    background: var(--pk-card);
+    border: 1px solid var(--pk-line);
+    border-radius: var(--pk-r-card);
+    box-shadow: var(--pk-shadow);
+    padding: 26px 22px;
+    text-align: center;
+    font: 400 13px/1.6 var(--pk-sans);
+    color: var(--pk-ink3);
+}
+.pk-msg[hidden] { display: none; }
+.pk-msg.err { color: var(--pk-bad-ink); }
+.pk-body[hidden] { display: none; }
+
+/* ==================== Телефон ==================== */
+
+@media (max-width: 720px) {
+    .pk-wrap { padding: 14px 12px 48px; }
+    .pk-filters { flex-wrap: wrap; }
+    .pk-pick { flex: 1 1 auto; }
+    .pk-pick-btn { width: 100%; }
+    .pk-sep { display: none; }
+    .pk-run-wrap { width: 100%; padding: 0 12px 12px; }
+    .pk-run { width: 100%; justify-content: center; }
+    .pk-run.sm { width: auto; }
+    .pk-context { justify-content: flex-start; }
+    .pk-search { width: 100%; }
+    .pk-tile-v { font-size: 21px; }
+    .pk-drawer { width: 100%; max-width: 100%; }
+    .pk-dr-in { padding: 18px 16px 26px; }
+    .pk-cells.three, .pk-cells.two { grid-template-columns: 1fr 1fr; }
+    .pk-abc-cat { width: 62px; }
+}

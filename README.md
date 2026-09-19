@@ -305,19 +305,17 @@ beer-abc-analysis/
 ├── requirements.txt            # Python зависимости
 ├── .gitignore                  # Игнорирование данных кранов
 │
-├── core/                       # Бизнес-логика (3,107 строк)
-│   ├── abc_analysis.py         # ABC-анализ (3 буквы)
-│   ├── xyz_analysis.py         # XYZ-анализ (вариация)
+├── core/                       # Бизнес-логика
+│   ├── packaging_analysis.py   # ABC/XYZ фасовки: сведение баров, категории, корзины
+│   ├── abc_thresholds.py       # Пороги ABC/XYZ одним местом
 │   ├── draft_analysis.py       # Анализ разливного
 │   ├── draft_kegs.py           # Проливы: кеги и бармены
-│   ├── category_analysis.py    # Анализ категорий
 │   ├── taps_manager.py         # Управление кранами
 │   ├── iiko_api.py             # Интеграция с iiko
-│   ├── olap_reports.py         # OLAP отчёты
-│   └── data_processor.py       # Обработка данных
+│   └── olap_reports.py         # OLAP отчёты
 │
-├── templates/                  # HTML шаблоны (10,468 строк)
-│   ├── index.html              # ABC/XYZ Фасовка
+├── templates/                  # HTML шаблоны
+│   ├── packaging.html          # ABC/XYZ Фасовка
 │   ├── draft.html              # ABC/XYZ Разливное
 │   ├── stocks.html             # Управление остатками
 │   ├── dashboard.html          # Дашборд "План vs Факт"
@@ -413,10 +411,10 @@ beer-abc-analysis/
 
 ### Аналитика:
 
-- `POST /api/analyze` - Запуск ABC/XYZ анализа фасовки
-- `POST /api/draft-analyze` - ABC/XYZ анализ разливного
-- `POST /api/categories` - Анализ по категориям
-- `GET /api/weekly-chart/<bar>/<beer>` - График продаж
+- `POST /api/packaging` - ABC/XYZ анализ фасовки: сводка, все категории, все позиции
+  одним ответом (разрез «Общая» сводит все бары в одну сеть)
+- `POST /api/draft-kegs` - Проливы по кегам: литры, бармены, баланс склада
+- `POST /api/draft-analyze` - ABC/XYZ разливного по названиям блюд (месячный отчёт, меню)
 
 ### Управление остатками:
 

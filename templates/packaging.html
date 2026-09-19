@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABC/XYZ анализ фасовки — Пивная культура</title>
+    <!-- Порядок важен: свой packaging.css последним, чтобы наши правила побеждали
+         при равной специфичности с общими стилями дашборда.
+         draft.css подключён ради @font-face IBM Plex Sans: объявление живёт там и
+         приезжает с ?v={{ app_version }}, то есть переживает кэш-бастинг. Его
+         собственные правила ничего здесь не трогают — они все под .draft-page. -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/draft/draft.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/packaging/packaging.css?v={{ app_version }}">
+</head>
+<body class="packaging-page">
+    <div class="container">
+        {% set page_title = "ABC/XYZ анализ" %}
+        {% set page_subtitle = "Классификация фасовки по выручке, наценке и стабильности спроса" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <div class="pk-wrap">
+
+      <!-- Шапка страницы вместо общей .header-bar (та скрыта на .packaging-page).
+           Гамбургер открывает тот же сайдбар: клик пробрасывается на скрытую
+           кнопку #sidebar-toggle из shared/nav.html — тот же приём, что на /draft. -->
+      <header class="pk-head">
+        <button type="button" class="pk-burger" id="pkBurger" aria-label="Меню">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="pk-title">
+          <span class="pk-title-n">ABC/XYZ анализ фасовки</span>
+          <span class="pk-title-s">что держать, что продвигать, что выводить</span>
+        </span>
+        <span class="pk-logo"><i>&gt;&nbsp;</i>k<span class="pk-logo-tail">ultura.os</span><b>_</b></span>
+      </header>
+
+      <!-- Перехватчик клика мимо открытого меню бара или периода. -->
+      <div class="pk-catch" id="pkCatch" hidden></div>
+
+      <div class="pk-filters">
+        <div class="pk-pick">
+          <button type="button" class="pk-pick-btn" id="pkBarBtn" aria-haspopup="listbox">
+            <span class="pk-pick-cap">БАР</span>
+            <span class="pk-pick-val">
+              <span id="pkBarLabel">Общая</span>
+              <svg class="pk-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="pk-menu" id="pkBarMenu" role="listbox" hidden></div>
+        </div>
+
+        <span class="pk-sep"></span>
+
+        <div class="pk-pick">
+          <button type="button" class="pk-pick-btn" id="pkPerBtn" aria-haspopup="listbox">
+            <span class="pk-pick-cap">ПЕРИОД</span>
+            <span class="pk-pick-val">
+              <span id="pkPerLabel">Последние 30 дней</span>
+              <span class="pk-pick-hint" id="pkPerHint"></span>
+              <svg class="pk-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="pk-menu" id="pkPerMenu" role="listbox" hidden></div>
+        </div>
+
+        <span class="pk-grow"></span>
+
+        <div class="pk-run-wrap">
+          <button type="button" class="pk-run" id="pkRun">
+            <span class="pk-spin" id="pkSpin" hidden></span>
+            <span id="pkRunLabel">Запустить анализ</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="pk-context">
+        <span class="pk-grow"></span>
+        <span class="pk-context-t" id="pkContext"></span>
+        <span class="pk-context-chip" id="pkXyzChip" hidden></span>
+      </div>
+
+      <!-- Загрузка, ошибка и пустой ответ: одно место, чтобы страница никогда не
+           оставалась молча пустой. -->
+      <div class="pk-msg" id="pkMsg" hidden></div>
+
+      <div class="pk-body" id="pkBody" hidden>
+
+        <div class="pk-band">
+          <span class="pk-band-t">СВОДКА</span>
+          <span class="pk-band-line"></span>
+          <span class="pk-band-s">фасовка, продажи по кассе iiko</span>
+        </div>
+        <div class="pk-sum" id="pkSum"></div>
+
+        <div class="pk-band">
+          <span class="pk-band-t">КОРЗИНЫ ДЕЙСТВИЙ</span>
+          <span class="pk-band-line"></span>
+          <span class="pk-band-s">по паре «выручка + наценка»</span>
+        </div>
+        <div class="pk-buckets" id="pkBuckets"></div>
+        <div class="pk-legend">Корзина определяется первыми двумя буквами кода:
+          выручка и наценка. Третья буква — стабильность спроса — говорит не что
+          делать с позицией, а как планировать под неё запас. Клик по корзине
+          открывает её состав.</div>
+
+        <div class="pk-band">
+          <span class="pk-band-t">КАТЕГОРИИ</span>
+          <span class="pk-band-line"></span>
+          <span class="pk-band-s" id="pkCatCount"></span>
+        </div>
+        <div class="pk-table pk-cats">
+          <div class="pk-table-in" id="pkCats"></div>
+        </div>
+        <div class="pk-legend">Категория — третий уровень дерева групп номенклатуры
+          iiko (стиль пива). Показаны все категории разреза, без отбора топа.
+          Позиции с незаполненным стилем собраны в «Без категории (Ф)» и участвуют
+          в расчёте наравне с остальными — иначе их выручка исчезала бы из итога.
+          ABC категории — место по выручке среди категорий: A — первые 80%
+          накопленной выручки, B — следующие 15%, C — последние 5%. Клик по строке
+          открывает карточку со всеми позициями категории.</div>
+
+        <div class="pk-band">
+          <span class="pk-band-t">ПОЗИЦИИ</span>
+          <span class="pk-band-line"></span>
+          <span class="pk-band-s" id="pkPosCount"></span>
+          <input type="search" class="pk-search" id="pkSearch" placeholder="найти фасовку…"
+                 autocomplete="off" aria-label="Поиск по фасовкам и категориям">
+        </div>
+        <div class="pk-table pk-pos">
+          <div class="pk-table-in" id="pkPos"></div>
+        </div>
+        <!-- Расшифровка букв кода. Пороги в тексте обязаны совпадать с
+             core/abc_thresholds.py — за этим следит tests/test_packaging_render.mjs. -->
+        <div class="pk-key" id="pkKey">
+          <div class="pk-key-row">
+            <span class="pk-key-cap">1-Я БУКВА · ВЫРУЧКА</span>
+            <span class="pk-key-cells">
+              <span class="pk-key-cell"><i class="pk-abc-ltr a">A</i>первые 80% накопленной выручки</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr b">B</i>следующие 15%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr c">C</i>последние 5%</span>
+            </span>
+          </div>
+          <div class="pk-key-row">
+            <span class="pk-key-cap">2-Я БУКВА · НАЦЕНКА</span>
+            <span class="pk-key-cells">
+              <span class="pk-key-cell"><i class="pk-abc-ltr a">A</i>от 120%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr b">B</i>от 100% до 120%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr c">C</i>ниже 100%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr none">?</i>себестоимость не задана</span>
+            </span>
+          </div>
+          <div class="pk-key-row">
+            <span class="pk-key-cap">3-Я БУКВА · СПРОС (XYZ)</span>
+            <span class="pk-key-cells">
+              <span class="pk-key-cell"><i class="pk-abc-ltr x">X</i>ровный: разброс по неделям до 30%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr y">Y</i>умеренный: от 30% до 60%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr z">Z</i>скачет: свыше 60%</span>
+              <span class="pk-key-cell"><i class="pk-abc-ltr none">?</i>меньше 3 недель с продажами</span>
+            </span>
+          </div>
+        </div>
+        <div class="pk-legend">Наценка считается от сумм:
+          (выручка − себестоимость) / себестоимость, как строка «Итого» в отчёте iiko.
+          Разброс спроса — коэффициент вариации недельных продаж по неделям, когда
+          позиция продавалась.
+          Прочерк вместо буквы означает, что данных не хватило, а не «плохо».
+          В разрезе «Общая» бары складываются в одну сеть: количества и деньги
+          суммируются, наценка и буквы пересчитываются от сумм заново. Клик по
+          строке — карточка позиции с разбором каждой буквы и разбивкой по барам.</div>
+      </div>
+    </div>
+
+    <div class="pk-backdrop" id="pkBackdrop" hidden></div>
+    <aside class="pk-drawer" id="pkDrawer" hidden aria-label="Карточка"></aside>
+
+    <!-- Список баров отдаёт сервер: меню фильтра строит JS, а BARS живут в
+         extensions.py и на клиенте иначе взяться неоткуда. -->
+    <script type="application/json" id="pkBars">{{ bars | tojson }}</script>
+    <script src="/static/js/packaging/packaging.js?v={{ app_version }}"></script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>
