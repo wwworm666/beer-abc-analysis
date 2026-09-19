@@ -35,7 +35,7 @@ passed = 0
 failed = 0
 
 
-def test(name, fn):
+def _run(name, fn):
     global passed, failed
     try:
         fn()
@@ -546,38 +546,38 @@ def test_response_is_json_serialisable():
 
 if __name__ == '__main__':
     print('ABC/XYZ фасовки — расчёт\n')
-    test('«Общая» не теряет ни рубля сырых строк', test_total_keeps_every_rouble)
-    test('«Общая» равна сумме разрезов по барам', test_total_equals_sum_of_bars)
-    test('позиции и категории складываются в итог', test_positions_and_categories_reconcile)
-    test('счётчик позиций в категории — уникальные фасовки', test_beers_count_is_unique_positions)
-    test('показаны все категории, включая «Без категории (Ф)»', test_all_categories_present)
-    test('категории отсортированы, накопленный доходит до 100%',
+    _run('«Общая» не теряет ни рубля сырых строк', test_total_keeps_every_rouble)
+    _run('«Общая» равна сумме разрезов по барам', test_total_equals_sum_of_bars)
+    _run('позиции и категории складываются в итог', test_positions_and_categories_reconcile)
+    _run('счётчик позиций в категории — уникальные фасовки', test_beers_count_is_unique_positions)
+    _run('показаны все категории, включая «Без категории (Ф)»', test_all_categories_present)
+    _run('категории отсортированы, накопленный доходит до 100%',
          test_categories_sorted_and_cumulative_reaches_100)
-    test('наценка сети взвешенная, а не максимум по барам', test_markup_is_weighted_not_max)
-    test('без себестоимости наценки нет, а не C', test_markup_undefined_when_no_cost)
-    test('порог наценки 120% включающий', test_markup_threshold_boundary)
-    test('себестоимость единицы от сумм, а не максимум', test_cost_per_unit_is_average_not_max)
-    test('XYZ меряет недели, а не разброс между барами', test_xyz_measures_weeks_not_bars)
-    test('разовая продажа буквы XYZ не получает', test_single_sale_gets_no_letter)
-    test('на коротком периоде XYZ не считается ни у кого', test_short_period_has_no_xyz_at_all)
-    test('границы XYZ включающие', test_xyz_thresholds_match_documented_bounds)
-    test('недельное окно прижато к концу периода', test_week_window_is_anchored_to_the_end)
-    test('продажи вне окна попадают в итог и помечены',
+    _run('наценка сети взвешенная, а не максимум по барам', test_markup_is_weighted_not_max)
+    _run('без себестоимости наценки нет, а не C', test_markup_undefined_when_no_cost)
+    _run('порог наценки 120% включающий', test_markup_threshold_boundary)
+    _run('себестоимость единицы от сумм, а не максимум', test_cost_per_unit_is_average_not_max)
+    _run('XYZ меряет недели, а не разброс между барами', test_xyz_measures_weeks_not_bars)
+    _run('разовая продажа буквы XYZ не получает', test_single_sale_gets_no_letter)
+    _run('на коротком периоде XYZ не считается ни у кого', test_short_period_has_no_xyz_at_all)
+    _run('границы XYZ включающие', test_xyz_thresholds_match_documented_bounds)
+    _run('недельное окно прижато к концу периода', test_week_window_is_anchored_to_the_end)
+    _run('продажи вне окна попадают в итог и помечены',
          test_sales_outside_window_are_counted_and_flagged)
-    test('базы долей отдаются, формула воспроизводится',
+    _run('базы долей отдаются, формула воспроизводится',
          test_abc_bases_are_reported_so_the_formula_reproduces)
-    test('категория и страна выбираются по выручке', test_category_and_country_follow_the_money)
-    test('порядок баров детерминирован', test_by_bar_order_is_deterministic)
-    test('перевёрнутый период отвергается', test_inverted_period_is_rejected)
-    test('недельный ряд отдаётся целиком', test_weekly_series_covers_whole_period)
-    test('первая буква следует Парето', test_abc_revenue_follows_pareto)
-    test('доминирующая позиция всегда A', test_dominant_position_is_always_a)
-    test('обе шкалы буквы по выручке приезжают в ответ', test_two_abc_scales_are_both_reported)
-    test('корзина определяется первыми двумя буквами', test_bucket_matches_first_two_letters)
-    test('код — выручка, наценка, спрос', test_combined_code_is_revenue_markup_demand)
-    test('разрез бара помечен и отфильтрован', test_bar_scope_is_labelled_and_filtered)
-    test('пустой ответ не роняет расчёт', test_empty_rows_do_not_crash)
-    test('расчёт детерминирован', test_deterministic_between_runs)
-    test('ответ сериализуется в JSON', test_response_is_json_serialisable)
+    _run('категория и страна выбираются по выручке', test_category_and_country_follow_the_money)
+    _run('порядок баров детерминирован', test_by_bar_order_is_deterministic)
+    _run('перевёрнутый период отвергается', test_inverted_period_is_rejected)
+    _run('недельный ряд отдаётся целиком', test_weekly_series_covers_whole_period)
+    _run('первая буква следует Парето', test_abc_revenue_follows_pareto)
+    _run('доминирующая позиция всегда A', test_dominant_position_is_always_a)
+    _run('обе шкалы буквы по выручке приезжают в ответ', test_two_abc_scales_are_both_reported)
+    _run('корзина определяется первыми двумя буквами', test_bucket_matches_first_two_letters)
+    _run('код — выручка, наценка, спрос', test_combined_code_is_revenue_markup_demand)
+    _run('разрез бара помечен и отфильтрован', test_bar_scope_is_labelled_and_filtered)
+    _run('пустой ответ не роняет расчёт', test_empty_rows_do_not_crash)
+    _run('расчёт детерминирован', test_deterministic_between_runs)
+    _run('ответ сериализуется в JSON', test_response_is_json_serialisable)
     print(f'\n{passed} passed, {failed} failed')
     sys.exit(0 if failed == 0 else 1)

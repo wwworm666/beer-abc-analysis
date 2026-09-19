@@ -32,6 +32,7 @@ beer-abc-analysis/
 ├── memory/                 # Persistent-память (auto-managed)
 ├── knowledge_graph/        # MCP knowledge graph
 ├── archive/                # Архив legacy-кода
+├── _archive_to_delete/     # Выведенный код на удаление владельцем (не в Docker-образе; README внутри)
 │
 ├── Dockerfile              # Production-сборка (Selectel VPS)
 ├── docker-compose.yml      # Сервис gunicorn (--workers 2) + Caddy

@@ -35,6 +35,7 @@ data/reports/
 chz_test/debug/
 tests/exports/
 archive/
+_archive_to_delete/
 
 docs/
 *.md
