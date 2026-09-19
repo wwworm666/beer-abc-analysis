@@ -33,9 +33,10 @@ def analyze_packaging():
     отдавал четыре отдельных блока по барам. Разбор: docs/abc-xyz-analysis.md.
     """
     try:
-        data = request.json or {}
+        # silent=True: кривой JSON — ошибка клиента, а не наша. Без него Flask
+        # бросает BadRequest, и запрос уходил в общий except как HTTP 500.
+        data = request.get_json(silent=True) or {}
         bar_name = data.get('bar') or None
-        days = int(data.get('days', 30))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
@@ -43,6 +44,12 @@ def analyze_packaging():
         print(f"   Bar: {bar_name if bar_name else 'VSE (Obschaya)'}")
 
         if not date_from or not date_to:
+            # days разбирается только здесь: при явно переданных датах это поле
+            # не используется, и мусор в нём не должен ронять валидный запрос.
+            try:
+                days = int(data.get('days', 30))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Поле days должно быть числом'}), 400
             # Московский день, а не UTC: иначе на UTC-хосте после 21:00 «сегодня»
             # уезжает на сутки назад (тот же дефолт, что у /api/draft-kegs).
             today = datetime.now(ZoneInfo('Europe/Moscow')).date()
@@ -52,7 +59,13 @@ def analyze_packaging():
         else:
             print(f"   Period: {date_from} - {date_to}")
 
-        olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+        try:
+            olap_date_to = (datetime.strptime(date_to, '%Y-%m-%d')
+                            + timedelta(days=1)).strftime('%Y-%m-%d')
+            if datetime.strptime(date_from, '%Y-%m-%d') > datetime.strptime(date_to, '%Y-%m-%d'):
+                return jsonify({'error': 'Начало периода позже конца'}), 400
+        except ValueError:
+            return jsonify({'error': 'Даты должны быть в формате YYYY-MM-DD'}), 400
 
         # Кэш по бару и периоду: страница пересчитывает разрезы часто, а отчёт
         # iiko за тот же период не меняется. Ключ включает бар, потому что

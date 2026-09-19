@@ -277,6 +277,63 @@ test('карточка позиции: разбор всех трёх букв �
         'не подписана база буквы по выручке');
 });
 
+test('формула в карточке ЧИСЛЕННО даёт показанный процент', () => {
+    // Требование .claude/CLAUDE.md пункт 1. Раньше в знаменатель подставлялся
+    // totals.margin, а доли считались от суммы положительных марж — деление на
+    // экране не давало написанного справа результата.
+    const t = BLOCK.totals;
+    assert.ok(typeof t.revenue_abc_base === 'number', 'сервер не отдаёт базу по выручке');
+    assert.ok(typeof t.margin_abc_base === 'number', 'сервер не отдаёт базу по марже');
+    BLOCK.positions.slice(0, 40).forEach((p) => {
+        assert.ok(Math.abs(p.TotalRevenue / t.revenue_abc_base * 100 -
+            p.RevenueSharePercent) < 1e-6, `доля выручки не сходится: ${p.Beer}`);
+        assert.ok(Math.abs(p.TotalMargin / t.margin_abc_base * 100 -
+            p.MarginSharePercent) < 1e-6, `доля маржи не сходится: ${p.Beer}`);
+        assert.ok(Math.abs(p.TotalRevenue / p.RevenueBaseInCategory * 100 -
+            p.RevenueShareInCategoryPercent) < 1e-6, `доля в категории: ${p.Beer}`);
+    });
+    // И то же самое в разметке: карточка печатает именно базу, а не итог.
+    api.openPosition(BLOCK.positions[0].Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes(api.money(t.revenue_abc_base)), 'в формуле не база по выручке');
+    assert.ok(html.includes(api.money(t.margin_abc_base)), 'в формуле не база по марже');
+});
+
+test('продажи вне недельного окна объяснены, а не показаны голым нулём', () => {
+    const outside = BLOCK.positions.find((p) => p.QtyOutsideWeeks > 0);
+    assert.ok(outside, 'в фикстуре нет позиций с продажами вне окна');
+    api.openPosition(outside.Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes('вне недельного окна'), 'нет объяснения про окно');
+    assert.ok(html.includes('учтены полностью'), 'не сказано, что деньги не потеряны');
+    // Недели всегда в форме «N из M», а не голым числом.
+    assert.ok(/НЕДЕЛЬ С ПРОДАЖАМИ<\/div>\s*<div class="pk-cell-v[^"]*">\d+ из \d+/.test(html),
+        'число недель показано без базы');
+});
+
+test('шапка называет границы недельного окна', () => {
+    const period = BLOCK.period;
+    assert.ok(period.weeks_from && period.weeks_to, 'сервер не отдаёт границы окна');
+    assert.notEqual(period.weeks_from, period.from,
+        'в фикстуре окно совпадает с периодом — тест ничего не доказывает');
+    assert.match(env.byId.pkContext.textContent, /\(\d\d\.\d\d — \d\d\.\d\d\.\d{4}\)/,
+        'границы окна не показаны в строке контекста');
+});
+
+test('сортировка по наценке не ставит «нет данных» впереди', () => {
+    const withoutMarkup = BLOCK.positions.filter((p) => p.MarkupPercent === null).length;
+    assert.ok(withoutMarkup > 0, 'в фикстуре нет позиций без наценки');
+    api.state.posSort = { key: 'MarkupPercent', dir: 1 };   // по возрастанию
+    api.render();
+    const html = env.byId.pkPos.innerHTML;
+    const firstDash = html.indexOf('class="pk-num dash"');
+    const firstValue = html.search(/class="pk-num">\d/);
+    assert.ok(firstDash > firstValue,
+        'позиции без наценки встали первыми, как будто их наценка худшая');
+    api.state.posSort = { key: 'TotalRevenue', dir: -1 };
+    api.render();
+});
+
 test('карточка позиции: разбивка по барам в разрезе «Общая»', () => {
     const top = BLOCK.positions[0];
     api.openPosition(top.Id);
@@ -332,24 +389,44 @@ test('карточка корзины: состав и что с ним дела
     assert.equal(rows, members, `строк ${rows}, позиций в корзине ${members}`);
 });
 
+// Ожидание вынесено ИЗ теста наружу: раннер синхронный и возвращённый промис не
+// ждёт, поэтому тест с отложенными проверками был зелёным всегда — что бы ни
+// случилось внутри. Сначала доводим сценарий до конца здесь, потом проверяем
+// синхронно.
+const failing = boot();
+// Сначала ДОЖДАТЬСЯ стартовой загрузки: init() сам зовёт run(), и пока её промис
+// не разрешился, state.loading === true — повторный клик молча игнорируется
+// (`if (state.loading) return`), а потом стартовый ответ дорисовывает страницу.
+await new Promise((resolve) => setTimeout(resolve, 0));
+failing.sandbox.fetch = () => Promise.resolve({
+    ok: false, status: 404,
+    json: () => Promise.resolve({ error: 'Нет данных за выбранный период' })
+});
+failing.byId.pkRun.click();
+await new Promise((resolve) => setTimeout(resolve, 0));
+
 test('ошибка сервера показывается словами, а не молчанием', () => {
-    const local = boot();
-    local.sandbox.fetch = () => Promise.resolve({
-        ok: false, status: 404,
-        json: () => Promise.resolve({ error: 'Нет данных за выбранный период' })
-    });
-    return new Promise((resolve) => {
-        local.sandbox.window.__packaging.state.data = null;
-        local.byId.pkRun.click();
-        setTimeout(() => {
-            assert.equal(local.byId.pkBody.hidden, true, 'тело осталось показанным');
-            assert.equal(local.byId.pkMsg.hidden, false, 'сообщение не показано');
-            assert.match(local.byId.pkMsg.textContent, /Нет данных/,
-                'причина от сервера не доехала до экрана');
-            assert.match(local.byId.pkMsg.className, /err/, 'сообщение не помечено ошибкой');
-            resolve();
-        }, 0);
-    });
+    assert.equal(failing.byId.pkBody.hidden, true, 'тело осталось показанным');
+    assert.equal(failing.byId.pkMsg.hidden, false, 'сообщение не показано');
+    assert.match(failing.byId.pkMsg.textContent, /Нет данных/,
+        'причина от сервера не доехала до экрана');
+    assert.match(failing.byId.pkMsg.className, /err/, 'сообщение не помечено ошибкой');
+});
+
+test('раннер действительно исполняет проверки (защита от вечнозелёного теста)', () => {
+    // Мета-проверка: если кто-то снова напишет тест, возвращающий промис,
+    // его проверки молча перестанут исполняться. Ловим это прямо здесь.
+    let ran = false;
+    test('__self_check__', () => { ran = true; });
+    assert.ok(ran, 'раннер не вызывает переданную функцию');
+    // Компенсируем счётчик служебного прогона.
+    passed--;
+    // Игла собирается из кусков, иначе проверка находит саму себя в исходнике.
+    const needle = new RegExp('return' + '\\s+new\\s+' + 'Promise');
+    const src = fs.readFileSync(path.join(ROOT, 'tests/test_packaging_runtime.mjs'), 'utf8')
+        .replace(/const needle[\s\S]*?;\n/, '');
+    assert.ok(!needle.test(src),
+        'тест возвращает промис — раннер синхронный и его проверки не исполнятся');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

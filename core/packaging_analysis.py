@@ -32,7 +32,7 @@ pandas 3, агрегаты `'max'` подменяли сетевую нацен�
 - routes/analysis.py — эндпоинт /api/packaging
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from core.abc_buckets import get_bucket_key
 from core.abc_thresholds import (
@@ -107,13 +107,30 @@ def _markup_share(revenue, cost):
     return (revenue - cost) / cost
 
 
+def _pick_by_revenue(weighted, fallback):
+    """Вариант с наибольшей выручкой; при равенстве — первый по алфавиту.
+
+    weighted: {значение: выручка}. Пустой словарь -> fallback.
+    """
+    if not weighted:
+        return fallback
+    return sorted(weighted.items(), key=lambda pair: (-pair[1], pair[0]))[0][0]
+
+
 def _assign_abc_by_cumulative(rows, value_key, letter_key, share_key, cum_key, base=None):
     """Проставить букву ABC по накопленной доле значения value_key.
 
-    rows меняются на месте. База — сумма ПОЛОЖИТЕЛЬНЫХ значений: возврат с
-    отрицательной выручкой не должен увеличивать целое, долей которого он якобы
-    является. Сортировка стабильная, тай-брейк по имени позиции, поэтому при
-    одинаковых суммах порядок и буквы воспроизводятся от запуска к запуску.
+    rows меняются на месте. ВОЗВРАЩАЕТ базу, от которой считались доли — она
+    нужна интерфейсу: карточка печатает формулу с подстановкой чисел, и если
+    показать в знаменателе другое число, деление не даст написанного результата.
+
+    База — сумма ПОЛОЖИТЕЛЬНЫХ значений: возврат с отрицательной выручкой не
+    должен увеличивать целое, долей которого он якобы является. Именно поэтому
+    база НЕ равна `totals.revenue` / `totals.margin`, где отрицательные значения
+    учтены, и подставлять их в формулу нельзя.
+
+    Сортировка стабильная, тай-брейк по имени позиции, поэтому при одинаковых
+    суммах порядок и буквы воспроизводятся от запуска к запуску.
     """
     total = base if base is not None else sum(max(_num(r.get(value_key)), 0.0) for r in rows)
     ordered = sorted(
@@ -131,7 +148,7 @@ def _assign_abc_by_cumulative(rows, value_key, letter_key, share_key, cum_key, b
         cumulative += share
         row[share_key] = share
         row[cum_key] = min(cumulative, 100.0)
-    return ordered
+    return total
 
 
 class PackagingAnalysis:
@@ -148,19 +165,44 @@ class PackagingAnalysis:
         self.date_to = _parse_day(date_to)
         if not self.date_from or not self.date_to:
             raise ValueError('date_from/date_to обязательны и должны быть YYYY-MM-DD')
+        if self.date_from > self.date_to:
+            # Иначе период уходит в ответ отрицательным, а недель в нём «минус
+            # две»: страница показывает бессмыслицу вместо ошибки.
+            raise ValueError('date_from позже date_to')
         self.period_days = (self.date_to - self.date_from).days + 1
         # Полных 7-дневных корзин в периоде — база для XYZ. Хвост короче недели
         # в расчёт не идёт: неполная неделя даёт заниженный объём и фиктивный
         # разброс, из-за которого ровная позиция получала бы Z.
         self.weeks_in_period = self.period_days // WEEK_DAYS
+        # Окно недель прижато к КОНЦУ периода, а не к началу. Ни один пресет
+        # страницы не делится на 7 нацело (30 дней = 4 недели + 2 дня, 90 = 12 + 6,
+        # 180 = 25 + 5), поэтому неполный кусок неизбежен — вопрос только в том,
+        # какой. При якоре к началу за бортом оставались САМЫЕ СВЕЖИЕ дни, и
+        # позиция, заведённая на последней неделе, получала «продавалась 0 недель
+        # из 4» и график из нулей рядом со своей же выручкой. XYZ отвечает на
+        # вопрос «насколько ровен спрос СЕЙЧАС», поэтому окно держится за конец
+        # периода, а отбрасываются самые старые дни.
+        #
+        # Выбор якоря не отменяет того, что часть продаж остаётся вне окна.
+        # Поэтому границы окна уходят в ответ (period.weeks_from/weeks_to), а у
+        # позиции есть QtyOutsideWeeks — страница обязана сказать об этом вслух,
+        # а не печатать голый ноль.
+        if self.weeks_in_period:
+            self.weeks_to = self.date_to
+            self.weeks_from = self.date_to - timedelta(
+                days=self.weeks_in_period * WEEK_DAYS - 1
+            )
+        else:
+            self.weeks_from = None
+            self.weeks_to = None
 
     # ---------- недельные корзины ----------
 
     def _bucket_index(self, day):
-        """Номер 7-дневной корзины от начала периода. None — вне периода или хвост."""
-        if not day:
+        """Номер 7-дневной корзины внутри недельного окна. None — вне окна."""
+        if not day or not self.weeks_from:
             return None
-        offset = (day - self.date_from).days
+        offset = (day - self.weeks_from).days
         if offset < 0:
             return None
         index = offset // WEEK_DAYS
@@ -189,21 +231,32 @@ class PackagingAnalysis:
             if item is None:
                 item = {
                     'Beer': name,
-                    # Пустой стиль получает подпись, а не None: иначе позиция
-                    # выпадала из группировки и терялась из анализа целиком.
-                    'Category': _text(row.get('DishGroup.ThirdParent'), UNCATEGORIZED),
-                    'Country': _text(row.get('DishForeignName'), '—'),
                     'TotalQty': 0.0,
                     'TotalRevenue': 0.0,
                     'TotalCost': 0.0,
                     '_weeks': {},
                     '_bars': {},
+                    # Стиль и страна копятся с выручкой, а не берутся из первой
+                    # встреченной строки: позицию могли переклассифицировать в
+                    # номенклатуре внутри периода, и тогда «первая строка» —
+                    # это просто порядок выгрузки OLAP, то есть результат
+                    # зависел бы от того, как iiko отсортировал ответ.
+                    '_categories': {},
+                    '_countries': {},
                 }
                 positions[name] = item
 
             qty = _num(row.get('DishAmountInt'))
             revenue = _num(row.get('DishDiscountSumInt'))
             cost = _num(row.get('ProductCostBase.ProductCost'))
+
+            # Пустой стиль получает подпись, а не None: иначе позиция выпадала
+            # из группировки и терялась из анализа целиком.
+            category = _text(row.get('DishGroup.ThirdParent'), UNCATEGORIZED)
+            item['_categories'][category] = item['_categories'].get(category, 0.0) + revenue
+            country = _text(row.get('DishForeignName'))
+            if country:
+                item['_countries'][country] = item['_countries'].get(country, 0.0) + revenue
 
             item['TotalQty'] += qty
             item['TotalRevenue'] += revenue
@@ -233,8 +286,9 @@ class PackagingAnalysis:
         та же методика, что на /draft, по той же причине: фасовка ротируется
         ещё сильнее разлива (450 SKU за месяц, у большинства единичные продажи),
         и если считать пустые недели нулями, «нестабильный спрос» получает
-        вообще всё — на живых данных при нулевом заполнении 80% ассортимента
-        уезжало в Z, и буква переставала что-либо различать.
+        вообще всё: на живых данных при нулевом заполнении букву получили бы 438
+        позиций из 450, и 414 из них (92% ассортимента) оказались бы в Z — буква
+        перестала бы что-либо различать.
 
         Буква не выдумывается. Нужно минимум MIN_XYZ_WEEKS недель С ПРОДАЖАМИ,
         иначе категории нет — прочерк, а не Z. Это и чинит главный дефект
@@ -244,9 +298,13 @@ class PackagingAnalysis:
         WeeksWithSales и WeeksInPeriod.
         """
         weeks = item.pop('_weeks', {})
-        # Ряд по всем неделям периода — для столбиков в карточке. Показать
-        # пустые недели важно: именно они объясняют, почему буквы может не быть.
+        # Ряд по всем неделям окна — для столбиков в карточке. Показать пустые
+        # недели важно: именно они объясняют, почему буквы может не быть.
         item['WeeklyQty'] = [weeks.get(index, 0.0) for index in range(self.weeks_in_period)]
+        # Штуки, проданные в периоде, но ВНЕ недельного окна (хвост короче
+        # недели). Без этого поля страница печатала бы «0 недель с продажами»
+        # у позиции, чья выручка показана строкой выше, и выглядела бы сломанной.
+        item['QtyOutsideWeeks'] = item['TotalQty'] - sum(item['WeeklyQty'])
         active = [value for value in weeks.values() if value > 0]
         item['WeeksWithSales'] = len(active)
         item['WeeksInPeriod'] = self.weeks_in_period
@@ -279,6 +337,12 @@ class PackagingAnalysis:
         positions = self._collect(bar_name)
 
         for item in positions.values():
+            # Побеждает вариант с наибольшей выручкой, при равенстве — первый по
+            # алфавиту. Детерминировано и осмысленно: позиция числится там, где
+            # на неё пришлись деньги, а не там, куда её случайно записали одной
+            # строкой.
+            item['Category'] = _pick_by_revenue(item.pop('_categories'), UNCATEGORIZED)
+            item['Country'] = _pick_by_revenue(item.pop('_countries'), '—')
             item['TotalMargin'] = item['TotalRevenue'] - item['TotalCost']
             item['MarkupPercent'] = self._as_percent(
                 _markup_share(item['TotalRevenue'], item['TotalCost'])
@@ -291,7 +355,9 @@ class PackagingAnalysis:
             )
             self._apply_xyz(item)
 
-            bars = sorted(item.pop('_bars').values(), key=lambda b: -b['Revenue'])
+            # Тай-брейк по имени бара: без него порядок при равной выручке
+            # определялся порядком строк OLAP и мог меняться между запусками.
+            bars = sorted(item.pop('_bars').values(), key=lambda b: (-b['Revenue'], b['Bar']))
             for entry in bars:
                 entry['Margin'] = entry['Revenue'] - entry['Cost']
                 entry['SharePercent'] = (
@@ -304,12 +370,12 @@ class PackagingAnalysis:
         rows = list(positions.values())
 
         # Первая буква — по всему ассортименту разреза.
-        _assign_abc_by_cumulative(
+        revenue_base = _assign_abc_by_cumulative(
             rows, 'TotalRevenue', 'ABC_Revenue', 'RevenueSharePercent', 'RevenueCumulativePercent'
         )
         # Отдельное поле для сортировки: маржа в рублях. В трёхбуквенный код не
         # входит — там третья буква это XYZ, спрос.
-        _assign_abc_by_cumulative(
+        margin_base = _assign_abc_by_cumulative(
             rows, 'TotalMargin', 'ABC_Margin', 'MarginSharePercent', 'MarginCumulativePercent'
         )
 
@@ -334,10 +400,13 @@ class PackagingAnalysis:
         # явно и подписаны в карточке.
         for category in categories:
             members = [r for r in rows if r['Category'] == category['Category']]
-            _assign_abc_by_cumulative(
+            base = _assign_abc_by_cumulative(
                 members, 'TotalRevenue', 'ABC_Revenue_InCategory',
                 'RevenueShareInCategoryPercent', 'RevenueCumulativeInCategoryPercent',
             )
+            category['RevenueAbcBase'] = base
+            for member in members:
+                member['RevenueBaseInCategory'] = base
 
         rows.sort(key=lambda r: (-r['TotalRevenue'], r['Beer']))
         for index, item in enumerate(rows):
@@ -355,8 +424,13 @@ class PackagingAnalysis:
                 'to': self.date_to.isoformat(),
                 'days': self.period_days,
                 'weeks': self.weeks_in_period,
+                # Границы недельного окна: какие именно дни попали в XYZ.
+                # Без них «30 дн. · 4 полные недели» читается как «весь период
+                # покрыт», хотя два дня остались снаружи.
+                'weeks_from': self.weeks_from.isoformat() if self.weeks_from else None,
+                'weeks_to': self.weeks_to.isoformat() if self.weeks_to else None,
             },
-            'totals': self._build_totals(rows, categories),
+            'totals': self._build_totals(rows, categories, revenue_base, margin_base),
             'bucket_stats': self._count(rows, 'ABC_Bucket'),
             'abc_stats': self._count(rows, 'ABC_Combined'),
             'xyz_stats': self._count(rows, 'XYZ_Category'),
@@ -448,8 +522,15 @@ class PackagingAnalysis:
         categories.sort(key=lambda c: (-c['TotalRevenue'], c['Category']))
         return categories
 
-    def _build_totals(self, rows, categories):
-        """Итоги разреза. Считаются от тех же строк, что показаны в таблицах."""
+    def _build_totals(self, rows, categories, revenue_base, margin_base):
+        """Итоги разреза. Считаются от тех же строк, что показаны в таблицах.
+
+        revenue_base / margin_base — базы, от которых считались доли ABC (суммы
+        только ПОЛОЖИТЕЛЬНЫХ значений). Они отдаются отдельно от revenue/margin
+        именно потому, что при наличии возвратов это разные числа, а карточка
+        печатает формулу с подстановкой: в знаменателе должна стоять та база,
+        от которой доля действительно посчитана.
+        """
         revenue = sum(r['TotalRevenue'] for r in rows)
         cost = sum(r['TotalCost'] for r in rows)
         qty = sum(r['TotalQty'] for r in rows)
@@ -462,4 +543,6 @@ class PackagingAnalysis:
             'sku': len(rows),
             'categories': len(categories),
             'price_per_unit': revenue / qty if qty > 0 else 0.0,
+            'revenue_abc_base': revenue_base,
+            'margin_abc_base': margin_base,
         }

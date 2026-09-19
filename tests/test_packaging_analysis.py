@@ -285,6 +285,114 @@ def test_xyz_thresholds_match_documented_bounds():
     assert xyz_letter(None) is None
 
 
+def test_week_window_is_anchored_to_the_end():
+    """Недельное окно прижато к КОНЦУ периода, а не к началу.
+
+    Ни один пресет страницы не делится на 7 нацело, поэтому кусок периода
+    всегда остаётся вне недель. При якоре к началу за бортом оказывались самые
+    СВЕЖИЕ дни, и позиция, заведённая на последней неделе, получала «продавалась
+    0 недель из 4» рядом со своей же выручкой.
+    """
+    # 30 дней -> 4 недели (28 дней), 2 дня остаются снаружи.
+    rows = [row('Бар А', 'Пиво', '2026-01-30', 5, 500, 200)]
+    block = PackagingAnalysis(rows, '2026-01-05', '2026-02-03').build(None)
+    period = block['period']
+    assert period['days'] == 30 and period['weeks'] == 4
+    assert period['weeks_to'] == '2026-02-03', 'окно не кончается вместе с периодом'
+    assert period['weeks_from'] == '2026-01-07', 'окно не прижато к концу'
+    # Продажа 30 января попадает в окно, а не выбрасывается как хвост.
+    item = block['positions'][0]
+    assert item['WeeksWithSales'] == 1, 'свежая продажа выпала из недель'
+    assert item['QtyOutsideWeeks'] == 0
+
+
+def test_sales_outside_window_are_counted_and_flagged():
+    """Продажи вне недельного окна попадают в итоги и помечены отдельно.
+
+    Деньги терять нельзя, но и молчать нельзя: без QtyOutsideWeeks страница
+    печатала «0 недель с продажами» под выручкой позиции и выглядела сломанной.
+    """
+    rows = [row('Бар А', 'Пиво', '2026-01-05', 7, 700, 300)]   # первый день, вне окна
+    block = PackagingAnalysis(rows, '2026-01-05', '2026-02-03').build(None)
+    item = block['positions'][0]
+    assert item['TotalQty'] == 7, 'штуки вне окна потерялись из итога'
+    assert block['totals']['revenue'] == 700, 'выручка вне окна потерялась из итога'
+    assert item['WeeksWithSales'] == 0
+    assert item['QtyOutsideWeeks'] == 7, 'продажи вне окна ничем не помечены'
+    assert sum(item['WeeklyQty']) == 0
+
+
+def test_abc_bases_are_reported_so_the_formula_reproduces():
+    """Базы долей отдаются отдельно от итогов — иначе формула в карточке врёт.
+
+    ABC считается от суммы ПОЛОЖИТЕЛЬНЫХ значений, а totals.margin включает
+    убыточные позиции. Подставив totals.margin в знаменатель, страница печатала
+    деление, которое не даёт показанный процент.
+    """
+    rows = [
+        row('Бар А', 'Прибыльное', '2026-01-05', 10, 3000, 1000),
+        row('Бар А', 'Убыточное', '2026-01-05', 10, 500, 900),
+    ]
+    block = PackagingAnalysis(rows, '2026-01-05', '2026-02-01').build(None)
+    totals = block['totals']
+    assert totals['margin'] == 1600, totals['margin']           # 2000 + (-400)
+    assert totals['margin_abc_base'] == 2000, 'база маржи включила убыток'
+    assert totals['margin'] != totals['margin_abc_base'], 'тест ничего не доказывает'
+    good = next(p for p in block['positions'] if p['Beer'] == 'Прибыльное')
+    # Ровно то деление, которое печатает карточка.
+    assert abs(good['TotalMargin'] / totals['margin_abc_base'] * 100
+               - good['MarginSharePercent']) < 1e-9
+    assert abs(good['TotalRevenue'] / totals['revenue_abc_base'] * 100
+               - good['RevenueSharePercent']) < 1e-9
+    assert abs(good['TotalRevenue'] / good['RevenueBaseInCategory'] * 100
+               - good['RevenueShareInCategoryPercent']) < 1e-9
+
+
+def test_category_and_country_follow_the_money():
+    """При переклассификации в номенклатуре побеждает вариант с большей выручкой.
+
+    Раньше бралась первая встреченная строка OLAP, то есть результат зависел от
+    того, как iiko отсортировал ответ.
+    """
+    rows = [
+        row('Бар А', 'Пиво', '2026-01-05', 1, 100, 40, 'Старый стиль (Ф)', ''),
+        row('Бар А', 'Пиво', '2026-01-12', 20, 9000, 4000, 'Новый стиль (Ф)', 'Бельгия'),
+    ]
+    block = PackagingAnalysis(rows, '2026-01-05', '2026-02-01').build(None)
+    item = block['positions'][0]
+    assert item['Category'] == 'Новый стиль (Ф)', item['Category']
+    # Пустая страна в первой строке не должна навсегда фиксировать прочерк.
+    assert item['Country'] == 'Бельгия', item['Country']
+    assert item['TotalRevenue'] == 9100, 'деньги при склейке потерялись'
+    # Порядок строк на результат не влияет.
+    other = PackagingAnalysis(list(reversed(rows)), '2026-01-05', '2026-02-01').build(None)
+    assert other['positions'][0]['Category'] == item['Category']
+    assert other['positions'][0]['Country'] == item['Country']
+
+
+def test_by_bar_order_is_deterministic():
+    """При равной выручке бары идут по алфавиту, а не по порядку строк OLAP."""
+    rows = [
+        row('Яблочный', 'Пиво', '2026-01-05', 5, 1000, 400),
+        row('Абрикосовый', 'Пиво', '2026-01-05', 5, 1000, 400),
+    ]
+    block = PackagingAnalysis(rows, '2026-01-05', '2026-02-01').build(None)
+    bars = [b['Bar'] for b in block['positions'][0]['ByBar']]
+    assert bars == ['Абрикосовый', 'Яблочный'], bars
+    other = PackagingAnalysis(list(reversed(rows)), '2026-01-05', '2026-02-01').build(None)
+    assert [b['Bar'] for b in other['positions'][0]['ByBar']] == bars
+
+
+def test_inverted_period_is_rejected():
+    """Перевёрнутый период — ошибка, а не отрицательное число дней в ответе."""
+    try:
+        PackagingAnalysis([], '2026-02-01', '2026-01-05')
+    except ValueError as exc:
+        assert 'позже' in str(exc), str(exc)
+    else:
+        raise AssertionError('перевёрнутый период принят без ошибки')
+
+
 def test_weekly_series_covers_whole_period():
     """Недельный ряд отдаётся целиком, включая недели без продаж.
 
@@ -453,6 +561,14 @@ if __name__ == '__main__':
     test('разовая продажа буквы XYZ не получает', test_single_sale_gets_no_letter)
     test('на коротком периоде XYZ не считается ни у кого', test_short_period_has_no_xyz_at_all)
     test('границы XYZ включающие', test_xyz_thresholds_match_documented_bounds)
+    test('недельное окно прижато к концу периода', test_week_window_is_anchored_to_the_end)
+    test('продажи вне окна попадают в итог и помечены',
+         test_sales_outside_window_are_counted_and_flagged)
+    test('базы долей отдаются, формула воспроизводится',
+         test_abc_bases_are_reported_so_the_formula_reproduces)
+    test('категория и страна выбираются по выручке', test_category_and_country_follow_the_money)
+    test('порядок баров детерминирован', test_by_bar_order_is_deterministic)
+    test('перевёрнутый период отвергается', test_inverted_period_is_rejected)
     test('недельный ряд отдаётся целиком', test_weekly_series_covers_whole_period)
     test('первая буква следует Парето', test_abc_revenue_follows_pareto)
     test('доминирующая позиция всегда A', test_dominant_position_is_always_a)

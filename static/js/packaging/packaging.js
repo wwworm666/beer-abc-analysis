@@ -32,12 +32,14 @@
 
     // ==================== формат ====================
 
+    // Типографский минус, а не дефис: в карточке рядом стоят деньги и проценты,
+    // и два разных знака в соседних строках читаются как опечатка.
     function num(value, digits) {
         if (value === null || value === undefined || isNaN(value)) return '—';
         return new Intl.NumberFormat('ru-RU', {
             minimumFractionDigits: 0,
             maximumFractionDigits: digits === undefined ? 2 : digits
-        }).format(value);
+        }).format(value).replace(/^-/, '−');
     }
     function fixed(value, digits) {
         if (value === null || value === undefined || isNaN(value)) return '—';
@@ -276,10 +278,15 @@
             ? ' (' + (data.bars_in_scope || []).length + ' ' +
               plural((data.bars_in_scope || []).length, 'бар', 'бара', 'баров') + ')'
             : '');
+        // Окно недель называется явно: период 30 дней не делится на 7, и без
+        // этой подписи «4 полные недели» читается как «весь период покрыт».
+        var weeksPart = period.weeks + ' ' +
+            plural(period.weeks, 'полная неделя', 'полные недели', 'полных недель');
+        if (period.weeks_from && period.weeks_from !== period.from) {
+            weeksPart += ' (' + rangeLabel(period.weeks_from, period.weeks_to) + ')';
+        }
         el.context.textContent = 'разрез: ' + scope + ' · ' +
-            rangeLabel(period.from, period.to) + ' · ' + period.days + ' дн. · ' +
-            period.weeks + ' ' + plural(period.weeks, 'полная неделя', 'полные недели',
-                'полных недель');
+            rangeLabel(period.from, period.to) + ' · ' + period.days + ' дн. · ' + weeksPart;
 
         if (data.xyz_available) {
             el.xyzChip.hidden = true;
@@ -360,8 +367,15 @@
         var copy = rows.slice();
         copy.sort(function (a, b) {
             var av = a[sort.key], bv = b[sort.key];
-            if (av === null || av === undefined) av = -Infinity;
-            if (bv === null || bv === undefined) bv = -Infinity;
+            // Позиции без значения («—», наценка не определена) всегда в конце,
+            // в обе стороны сортировки. Раньше они подменялись на -Infinity и
+            // при сортировке по возрастанию вставали первыми, как будто у них
+            // худшая наценка — а у них её просто нет.
+            var aMissing = av === null || av === undefined || isNaN(av);
+            var bMissing = bv === null || bv === undefined || isNaN(bv);
+            if (aMissing && bMissing) return 0;
+            if (aMissing) return 1;
+            if (bMissing) return -1;
             if (av === bv) return 0;
             return av > bv ? sort.dir : -sort.dir;
         });
@@ -407,7 +421,10 @@
                 sortMark(state.catSort, 'TotalQty') + '</span>' +
             '<span class="pk-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
                 sortMark(state.catSort, 'TotalRevenue') + '</span>' +
-            '<span class="pk-th r">ДОЛЯ · НАКОПЛ.</span>' +
+            // Только доля: накопленный процент в ячейку не влезает (108px), и
+            // заголовок, обещающий два числа при одном показанном, врёт.
+            // Накопленный итог есть в карточке категории.
+            '<span class="pk-th r">ДОЛЯ В ВЫРУЧКЕ</span>' +
             '<span class="pk-th r s" data-sort="TotalMargin">МАРЖА' +
                 sortMark(state.catSort, 'TotalMargin') + '</span>' +
             '<span class="pk-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
@@ -641,7 +658,7 @@
             '<div class="pk-abc-lines">' +
             abcLine('Выручка', cat.ABC_Category, revenueText(cat.ABC_Category),
                 money(cat.TotalRevenue) + ' / ' +
-                money((state.data.totals || {}).revenue) + ' = ' +
+                money((state.data.totals || {}).revenue_abc_base) + ' = ' +
                 pct(cat.RevenueSharePercent, 1) + ' · накоплено ' +
                 pct(cat.CumulativePercent, 1)) +
             abcLine('Наценка', cat.ABC_Markup, markupText(cat.ABC_Markup),
@@ -793,6 +810,7 @@
         var data = state.data;
         var p = positionById(id);
         if (!p || !data) return;
+        var period = data.period || {};
 
         var html = '<div class="pk-dr-in">';
         html += drawerHead(p.Beer, p.Category + ' · ' + p.Country + ' · ' + scopeLine());
@@ -804,6 +822,16 @@
             cell('НАКОПЛЕННЫМ ИТОГОМ', pct(p.RevenueCumulativePercent, 1)) +
             cell('НЕДЕЛЬ С ПРОДАЖАМИ', p.WeeksWithSales + ' из ' + p.WeeksInPeriod) +
             '</div>';
+        if (p.QtyOutsideWeeks > 0) {
+            // Иначе «0 недель с продажами» стоит прямо под собственной выручкой
+            // позиции и выглядит поломкой страницы.
+            html += '<div class="pk-dr-note">' + num(p.QtyOutsideWeeks, 0) +
+                ' ' + plural(p.QtyOutsideWeeks, 'штука продана', 'штуки проданы',
+                    'штук продано') +
+                ' вне недельного окна ' + rangeLabel(period.weeks_from, period.weeks_to) +
+                ': период не делится на целые недели, и остаток в XYZ не входит. ' +
+                'В выручке и количестве выше эти продажи учтены полностью.</div>';
+        }
 
         html += band('ДЕНЬГИ');
         html += '<div class="pk-cells three">' +
@@ -852,7 +880,7 @@
             '<span class="pk-abc-meta">' + esc(bucketNameOf(p.ABC_Bucket)) + '</span></div>' +
             '<div class="pk-abc-lines">' +
             abcLine('Выручка', p.ABC_Revenue, revenueText(p.ABC_Revenue),
-                money(p.TotalRevenue) + ' / ' + money(totals.revenue) + ' = ' +
+                money(p.TotalRevenue) + ' / ' + money(totals.revenue_abc_base) + ' = ' +
                 pct(p.RevenueSharePercent, 1) + ' · накоплено ' +
                 pct(p.RevenueCumulativePercent, 1) + ' · база: весь ассортимент разреза, ' +
                 totals.sku + ' поз.') +
@@ -874,16 +902,20 @@
         html += '<div class="pk-abc-box"><div class="pk-abc-lines" style="margin-top:0">' +
             abcLine('В категории', p.ABC_Revenue_InCategory,
                 revenueText(p.ABC_Revenue_InCategory),
-                money(p.TotalRevenue) + ' / выручка категории «' + p.Category + '» = ' +
+                money(p.TotalRevenue) + ' / ' + money(p.RevenueBaseInCategory) +
+                ' (категория «' + p.Category + '») = ' +
                 pct(p.RevenueShareInCategoryPercent, 1) + ' · накоплено ' +
                 pct(p.RevenueCumulativeInCategoryPercent, 1)) +
             abcLine('Маржа', p.ABC_Margin, marginText(p.ABC_Margin),
-                money(p.TotalMargin) + ' / ' + money(totals.margin) + ' = ' +
+                money(p.TotalMargin) + ' / ' + money(totals.margin_abc_base) + ' = ' +
                 pct(p.MarginSharePercent, 1)) +
             '</div></div>';
         html += '<div class="pk-dr-note">Буква по выручке считается дважды и от разных ' +
             'баз: по всему ассортименту разреза и внутри своей категории. Обе верные, ' +
-            'но означают разное — поэтому показаны обе, а не одна без пояснения.</div>';
+            'но означают разное — поэтому показаны обе, а не одна без пояснения. ' +
+            'В знаменателе долей стоит сумма только ПОЛОЖИТЕЛЬНЫХ значений: возврат не ' +
+            'увеличивает целое, долей которого он считается, поэтому база маржи может ' +
+            'отличаться от итоговой маржи разреза.</div>';
 
         html += band('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="pk-cells three">' +

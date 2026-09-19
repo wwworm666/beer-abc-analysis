@@ -413,10 +413,10 @@ beer-abc-analysis/
 
 ### Аналитика:
 
-- `POST /api/analyze` - Запуск ABC/XYZ анализа фасовки
-- `POST /api/draft-analyze` - ABC/XYZ анализ разливного
-- `POST /api/categories` - Анализ по категориям
-- `GET /api/weekly-chart/<bar>/<beer>` - График продаж
+- `POST /api/packaging` - ABC/XYZ анализ фасовки: сводка, все категории, все позиции
+  одним ответом (разрез «Общая» сводит все бары в одну сеть)
+- `POST /api/draft-kegs` - Проливы по кегам: литры, бармены, баланс склада
+- `POST /api/draft-analyze` - ABC/XYZ разливного по названиям блюд (месячный отчёт, меню)
 
 ### Управление остатками:
 
