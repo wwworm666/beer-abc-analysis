@@ -23,7 +23,8 @@ tests/test_stocks_routes.py (iiko не нужен), хранилища — вр�
 - минимальный заказ поставщика: минимум в заголовке группы, «до минимума не добрать»,
   живая сумма черновика и добор рекомендаций после смены минимума на /suppliers;
 - пустая полка: минус в остатке заказывается от нуля; кега заказывается целой бочкой
-  («Взять 1 кегу (30 л)»); позиция без строки остатка видна на доске.
+  («Взять 1 кегу (30 л)»); позиция без строки остатка видна на доске;
+- перемещение между барами не входит в расход и показано отдельной строкой.
 """
 
 import importlib.util
@@ -264,6 +265,16 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         page.select_option('#bar-select', fx.BAR_BOL)
         page.wait_for_function(f'() => document.querySelector("#ob-meta").textContent.includes("{fx.BAR_BOL}")')
         assert 'bar=' in page.url, page.url
+        # На Большом у позиции есть перемещение: в расход оно не входит и названо отдельно.
+        # Подробности могли остаться раскрытыми с шага 2 — открываем только если скрыты.
+        detail_sel = f'tr.ob-detail[data-detail-for="{fx.P_BOTTLE}"]'
+        if page.locator(detail_sel).first.get_attribute('hidden') is not None:
+            page.click(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_BOTTLE}"]) .ob-name')
+            page.wait_for_function(f'() => !document.querySelector(\'{detail_sel}\').hidden')
+        bol_detail = page.inner_text(detail_sel)
+        assert 'продажи 60 → 2 шт в день' in bol_detail, bol_detail
+        assert 'Передано в другие бары 30 шт за период (в расход не входит)' in bol_detail, bol_detail
+        assert 'перемещения' not in bol_detail.split('Передано')[0], bol_detail
         assert page.locator('#bottles-content').is_hidden()
         tab('Фасовка')
         page.wait_for_selector('#bottles-content', state='visible')

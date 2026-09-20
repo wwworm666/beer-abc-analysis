@@ -7,17 +7,21 @@
 
 Формулы (все константы именованы):
 
-    outgoing        = Σ |amount| по записям с incoming == 'false'
-                      (продажи, перемещения ИЗ бара, списания — по решению
-                      владельца 2026-09-10 перемещения входят в расход бара)
+    outgoing        = Σ |amount| по записям с incoming == 'false', КРОМЕ перемещений
+                      (продажи и списания). Перемещение в другой бар — редкая
+                      внутренняя ситуация, а не спрос: приравнивать его к продажам
+                      нельзя (решение владельца 2026-09-20, отменяет прежнее
+                      правило от 2026-09-10). Сколько ушло перемещениями, видно
+                      отдельно в transferred_out.
     days_in_period  = WINDOW_DAYS (30), либо для «новинки» — дней с первого
                       прихода по сегодня включительно (см. ниже)
     avg_per_day     = outgoing / days_in_period
 
 Скоуп по складу: запись считается, если её `primaryStore` равен складу бара;
-для «Общая» (target_store_id = None) считаются все склады, но перемещения между
-складами сети (documentType INTERNAL_TRANSFER) пропускаются целиком: товар сеть
-не покинул, а его продажа в баре-получателе посчитается отдельно.
+для «Общая» (target_store_id = None) считаются все склады. Перемещения между
+складами сети (documentType INTERNAL_TRANSFER) в расход не входят ни в одном
+режиме: товар сеть не покинул, а его продажа в баре-получателе посчитается
+отдельно. В режиме «Общая» такие записи пропускаются целиком (не идут и в приход).
 
 «Новинка» (укороченный знаменатель) — товар, которого в начале окна на складе
 не было: первый приход внутри окна (позже date_from и не позже today), до него
@@ -30,14 +34,12 @@
 записи без поля incoming (неизвестно направление) — их число в stats['skipped'].
 last_in / last_in_amount — дата и количество последнего прихода в окне
 («последний приход 03.09: 24 шт» на экране заказа).
-last_out — дата последнего расхода в окне (любого, включая перемещение).
+last_out — дата последнего расхода в окне (перемещения не в счёт).
 
-own_outgoing / last_own_out — расход самого бара: продажи и списания БЕЗ перемещений,
-и дата последнего такого расхода. Перемещение в другой бар — не признак того, что бар
-этим торгует: поставка нередко оформляется на один склад и сразу уезжает на другой
-(«приехало в другой бар»). По выгрузке за 30 дней на Варшавской так проходят 13 позиций,
-у части из них продаж нет вовсе. Такие позиции не должны попадать в заказ бара
-(docs/stocks.md, «Позиции без остатка»).
+transferred_out — сколько ушло перемещениями в другие бары за окно. В расход и в
+среднедневной темп не входит, показывается отдельной строкой: это внутреннее движение,
+а не спрос. Оно же участвует в балансе остатка на начало окна (opening_stock), иначе
+«новинка» определялась бы неверно.
 Первая дата прихода/расхода фиксируется только по записям с amount > 0 и
 читаемой датой; запись с нечитаемой датой в суммы входит, но порядок событий
 не меняет.
@@ -110,8 +112,7 @@ def new_stats(scope: str, window_days: int = WINDOW_DAYS) -> dict:
         'last_in': None,
         'last_in_amount': 0.0,
         'last_out': None,
-        'own_outgoing': 0.0,
-        'last_own_out': None,
+        'transferred_out': 0.0,
         'days_in_period': window_days,
         'avg_per_day': 0.0,
         'is_new': False,
@@ -172,16 +173,17 @@ def aggregate_consumption(operations: Iterable[dict],
         amount = _amount(record)
         op_date = parse_ops_date(record.get('date')) if amount > 0 else None
         if outgoing:
+            if doc_type == INTERNAL_TRANSFER:
+                # Перемещение в другой бар: не спрос, но остаток оно уменьшает —
+                # запоминаем отдельно (нужно для opening_stock и для показа).
+                st['transferred_out'] += amount
+                continue
             st['outgoing'] += amount
             st['by_document_type'][doc_type] = st['by_document_type'].get(doc_type, 0.0) + amount
             if op_date and (st['first_out'] is None or op_date < st['first_out']):
                 st['first_out'] = op_date
             if op_date and (st['last_out'] is None or op_date > st['last_out']):
                 st['last_out'] = op_date
-            if doc_type != INTERNAL_TRANSFER:
-                st['own_outgoing'] += amount
-                if op_date and (st['last_own_out'] is None or op_date > st['last_own_out']):
-                    st['last_own_out'] = op_date
         else:
             st['incoming'] += amount
             if op_date and (st['first_in'] is None or op_date < st['first_in']):
@@ -195,7 +197,10 @@ def aggregate_consumption(operations: Iterable[dict],
     for pid, st in stats.items():
         first_in, first_out = st['first_in'], st['first_out']
         if stock_now is not None:
-            st['opening_stock'] = float(stock_now.get(pid, 0.0) or 0.0) - st['incoming'] + st['outgoing']
+            # Баланс окна: остаток сейчас = остаток на начало + приход − весь расход,
+            # включая перемещения, иначе «новинкой» станет товар, который просто уехал.
+            st['opening_stock'] = (float(stock_now.get(pid, 0.0) or 0.0)
+                                   - st['incoming'] + st['outgoing'] + st['transferred_out'])
         is_new = (first_in is not None
                   and date_from < first_in <= today
                   and (first_out is None or first_in <= first_out)

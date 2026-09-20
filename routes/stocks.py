@@ -1292,8 +1292,9 @@ def get_order_board():
                            страница не просит второй раз то, что в пути (S-12)
         avg_sales        — расход/день по складу выбранного бара за окно
                            (core/stock_consumption.aggregate_consumption:
-                           продажи + перемещения из бара + списания; для
-                           новинок делитель — дни с первого прихода)
+                           продажи и списания; перемещения между барами в расход
+                           не входят — решение владельца 2026-09-20; для новинок
+                           делитель — дни с первого прихода)
         lead_time_days   — срок поставки в днях доставки (справочник поставщиков,
                            иначе DEFAULT_LEAD_TIME_DAYS с пометкой supplier_is_default)
         SAFETY_DAYS = 3  — страховой запас на колебания спроса
@@ -1384,8 +1385,9 @@ def get_order_board():
             days_left = (shelf_stock / avg_sales) if avg_sales > 0 else None
             # Сорт без строки остатка, у которого расхода давно не было, из ротации вышел:
             # показываем в свёрнутом блоке, но не заказываем сами.
-            # «Давно не расходовался» — по расходу самого бара (перемещения не в счёт)
-            last_out = st.get('last_own_out')
+            # «Давно не расходовался» — по расходу бара; перемещения в расход не входят
+            # (решение владельца 2026-09-20), поэтому берём обычный last_out
+            last_out = st.get('last_out')
             stale = bool(data.get('no_stock_row')) and (
                 last_out is None or (today - last_out).days > NO_STOCK_RECENT_DAYS)
             # Полка плюс то, что в пути: именно из этого считается дефицит.
@@ -1464,6 +1466,7 @@ def get_order_board():
                 'days_in_period': st['days_in_period'],
                 'is_new': st['is_new'],
                 'consumption_by_type': {k: round(v, 2) for k, v in st['by_document_type'].items()},
+                'transferred_out': round(st.get('transferred_out') or 0.0, 2),
                 'velocity': row['velocity'],
                 'days_left': round(row['days_left'], 1) if row['days_left'] is not None else None,
                 'lead_time_days': row['params']['lead_time_days'],

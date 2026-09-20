@@ -332,9 +332,10 @@ def test_nomenclature_none_503():
 def test_consumption_scope_store_vs_network():
     """Один товар на двух складах: Лиговский видит только свой primaryStore.
 
-    Лиговский: 30 + 15 = 45 / 30 дн = 1.5;  Большой: 60 + 30 (перемещение) = 90 / 30 = 3.0;
-    Общая: перемещения внутри сети не считаются вовсе → 105 / 30 = 3.5.
-    Приход перемещения на Кременчугскую расходом не считается.
+    Лиговский: 30 + 15 = 45 / 30 дн = 1.5; Большой: продажи 60 / 30 = 2.0, а уехавшие
+    перемещением 30 в расход не входят (решение владельца 2026-09-20) и показаны
+    отдельно; Общая: 105 / 30 = 3.5. Приход перемещения на Кременчугскую расходом
+    не считается.
     """
     with _patched() as c:
         code, lig = _get(c, 'order-board', BAR_LIG)
@@ -344,13 +345,15 @@ def test_consumption_scope_store_vs_network():
         assert it['stock'] == 4.0
         assert it['avg_sales'] == 1.5
         assert it['consumption_by_type'] == {'SALES_DOCUMENT': 45.0}
+        assert it['transferred_out'] == 0.0
 
         code, bol = _get(c, 'order-board', BAR_BOL)
         assert code == 200, bol
         it = _by_id(bol)[P_BOTTLE]
         assert it['stock'] == 9.0
-        assert it['avg_sales'] == 3.0
-        assert it['consumption_by_type'] == {'SALES_DOCUMENT': 60.0, 'INTERNAL_TRANSFER': 30.0}
+        assert it['avg_sales'] == 2.0                      # 60 продаж / 30 дн., без перемещения
+        assert it['consumption_by_type'] == {'SALES_DOCUMENT': 60.0}
+        assert it['transferred_out'] == 30.0               # уехало соседям, видно отдельно
 
         code, net = _get(c, 'order-board', BAR_ALL)
         assert code == 200, net
@@ -483,6 +486,7 @@ ORDER_ITEM_KEYS = {
     'supplier_raw', 'supplier_is_default', 'self_pickup', 'days_to_delivery', 'horizon_days',
     'expected_delivery', 'next_delivery', 'target_stock', 'last_incoming',
     'reason', 'reason_code', 'section',                          # этапы 2-3: экран «К заказу»
+    'transferred_out',                                           # уехало в другие бары, не расход
     'price', 'price_source', 'price_date', 'line_sum',           # минимальный заказ: цена и сумма
     'recommended_base', 'min_order_extra_days',
 }

@@ -84,7 +84,9 @@ def _build_bar_data(nomenclature, bar_id: str, fasovka_ids: set,
     `balances` и `ops` — общие списки по всей сети из снимка (core/stock_snapshot);
     остатки фильтруются по складу бара здесь, расход — по `primaryStore` записи в
     core/stock_consumption.aggregate_consumption (до 2026-09-10 расход считался по
-    всей сети — S-01 в docs/technical/audits/STOCKS_AUDIT_2026-09-10.md).
+    всей сети — S-01 в docs/technical/audits/STOCKS_AUDIT_2026-09-10.md). С 2026-09-20
+    расход — продажи и списания бара: перемещение в другой бар не спрос (решение
+    владельца, см. docs/stocks.md).
 
     price — себестоимость единицы (cost basis), считается как cost_sum / stock,
     где cost_sum — сумма из balances (поле `sum`), а stock — суммарный остаток.

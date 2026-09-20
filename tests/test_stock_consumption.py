@@ -193,8 +193,12 @@ def test_outgoing_uses_absolute_value_regardless_of_sign():
     assert abs(stats['outgoing'] - 3.0) < EPS
 
 
-def test_transfers_and_writeoffs_count_as_outgoing_for_store():
-    """Решение владельца 2026-09-10: перемещения ИЗ бара и списания входят в расход склада."""
+def test_writeoffs_count_as_outgoing_transfers_do_not():
+    """Решение владельца 2026-09-20: списания — расход, перемещение из бара — нет.
+
+    Перемещение между барами — редкая внутренняя ситуация, приравнивать её к
+    продажам нельзя (отменяет правило 2026-09-10). Сколько уехало, видно отдельно.
+    """
     ops = [
         _op(amount='-1.000000000', doc_type='SALES_DOCUMENT'),
         _op(amount='-2.000000000', doc_type='INTERNAL_TRANSFER'),
@@ -202,8 +206,9 @@ def test_transfers_and_writeoffs_count_as_outgoing_for_store():
         _op(amount='4.000000000', incoming='true', doc_type='INTERNAL_TRANSFER'),
     ]
     stats = aggregate_consumption(ops, None, STORE_A, TODAY)[PID]
-    assert abs(stats['outgoing'] - 6.0) < EPS
-    assert abs(stats['incoming'] - 4.0) < EPS
+    assert abs(stats['outgoing'] - 4.0) < EPS               # продажа 1 + списание 3
+    assert abs(stats['transferred_out'] - 2.0) < EPS        # уехало в другой бар
+    assert abs(stats['incoming'] - 4.0) < EPS               # приход перемещением остаётся приходом
 
 
 def test_network_scope_excludes_internal_transfers():
@@ -219,7 +224,8 @@ def test_network_scope_excludes_internal_transfers():
     assert abs(net['incoming'] - 0.0) < EPS
     assert net['by_document_type'] == {'SALES_DOCUMENT': 1.0}
     store_a = aggregate_consumption(ops, None, STORE_A, TODAY)[PID]
-    assert abs(store_a['outgoing'] - 2.0) < EPS
+    assert abs(store_a['outgoing'] - 0.0) < EPS             # у склада-донора расхода нет
+    assert abs(store_a['transferred_out'] - 2.0) < EPS
 
 
 # --- aggregate_consumption: by_document_type --------------------------------
@@ -232,11 +238,14 @@ def test_by_document_type_breakdown():
         _op(amount='-3.000000000', doc_type='WRITEOFF_DOCUMENT'),
         _op(amount='9.000000000', incoming='true', doc_type='INCOMING_INVOICE'),
     ]
-    by_type = aggregate_consumption(ops, None, STORE_A, TODAY)[PID]['by_document_type']
-    assert set(by_type) == {'SALES_DOCUMENT', 'INTERNAL_TRANSFER', 'WRITEOFF_DOCUMENT'}
+    stats = aggregate_consumption(ops, None, STORE_A, TODAY)[PID]
+    by_type = stats['by_document_type']
+    # разбивка объясняет ровно ту цифру, что стоит в расходе: перемещений в ней нет
+    assert set(by_type) == {'SALES_DOCUMENT', 'WRITEOFF_DOCUMENT'}
     assert abs(by_type['SALES_DOCUMENT'] - 1.5) < EPS
-    assert abs(by_type['INTERNAL_TRANSFER'] - 2.0) < EPS
     assert abs(by_type['WRITEOFF_DOCUMENT'] - 3.0) < EPS
+    assert abs(sum(by_type.values()) - stats['outgoing']) < EPS
+    assert abs(stats['transferred_out'] - 2.0) < EPS
     # приход в разбивку расхода не попадает
     assert 'INCOMING_INVOICE' not in by_type
 
@@ -483,30 +492,46 @@ def test_empty_operations_and_new_stats_shape():
     assert new_stats('store', 7)['days_in_period'] == 7
     assert set(new_stats('network')) == {'outgoing', 'incoming', 'by_document_type', 'first_in',
                                          'first_out', 'last_in', 'last_in_amount', 'last_out',
-                                         'own_outgoing', 'last_own_out', 'days_in_period',
-                                         'avg_per_day', 'is_new', 'opening_stock', 'skipped', 'scope'}
+                                         'transferred_out', 'days_in_period', 'avg_per_day',
+                                         'is_new', 'opening_stock', 'skipped', 'scope'}
 
 
-def test_own_outgoing_excludes_transfers():
-    """Расход самого бара: перемещение в другой бар в него не входит.
+def test_transit_through_the_store_is_not_consumption():
+    """Поставка приехала на склад и сразу уехала в другой бар: расхода у бара нет.
 
-    Поставка, оформленная на склад бара и сразу уехавшая в другой бар, не делает
-    товар ассортиментом этого бара (замечание владельца 2026-09-20).
+    Именно этот случай выдавал заказ «нет на остатках, взять семь штук» на бар,
+    который товар никогда не продавал (замечание владельца 2026-09-20).
     """
     ops = [
         _op(amount='10.000000000', op_date='10.10.2025', incoming='true', doc_type='INCOMING_INVOICE'),
         _op(amount='-10.000000000', op_date='11.10.2025', doc_type='INTERNAL_TRANSFER'),
     ]
     st = aggregate_consumption(ops, [PID], STORE_A, TODAY)[PID]
-    assert abs(st['outgoing'] - 10.0) < EPS          # для бара это расход (решение 2026-09-10)
-    assert st['own_outgoing'] == 0.0                 # но сам бар товар не продавал
-    assert st['last_out'] == date(2025, 10, 11) and st['last_own_out'] is None
+    assert st['outgoing'] == 0.0 and st['avg_per_day'] == 0.0
+    assert abs(st['transferred_out'] - 10.0) < EPS
+    assert st['last_out'] is None and st['by_document_type'] == {}
 
     ops += [_op(amount='-3.000000000', op_date='20.10.2025'),
             _op(amount='-1.000000000', op_date='22.10.2025', doc_type='WRITEOFF_DOCUMENT')]
     st = aggregate_consumption(ops, [PID], STORE_A, TODAY)[PID]
-    assert abs(st['own_outgoing'] - 4.0) < EPS       # продажи и списания — расход бара
-    assert st['last_own_out'] == date(2025, 10, 22)
+    assert abs(st['outgoing'] - 4.0) < EPS           # продажи и списания
+    assert st['last_out'] == date(2025, 10, 22)
+
+
+def test_transfer_keeps_opening_stock_balance():
+    """Уехавший товар не расход, но остаток он уменьшил: «новинка» считается верно.
+
+    Остаток на начало окна = остаток сейчас − приход + расход + перемещения.
+    Без последнего слагаемого товар, приехавший до окна и уехавший внутри него,
+    выглядел бы как новинка с коротким знаменателем.
+    """
+    ops = [
+        _op(amount='-6.000000000', op_date='12.10.2025', doc_type='INTERNAL_TRANSFER'),
+        _op(amount='-2.000000000', op_date='30.10.2025'),
+    ]
+    st = aggregate_consumption(ops, [PID], STORE_A, TODAY, stock_now={PID: 4.0})[PID]
+    assert abs(st['opening_stock'] - 12.0) < EPS     # 4 − 0 + 2 + 6
+    assert st['is_new'] is False and st['days_in_period'] == WINDOW_DAYS
 
 
 def test_last_outgoing_date():
