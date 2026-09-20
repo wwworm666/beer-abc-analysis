@@ -35,6 +35,11 @@ class TaplistV2Tests(unittest.TestCase):
         app = Flask(__name__)
         app.register_blueprint(self.routes.taps_bp)
         self.client = app.test_client()
+        prices = patch.object(self.routes, 'fetch_price_sources', return_value={
+            'date': '2026-09-20', 'checked_at': '2026-09-20T12:00:00+03:00',
+            'groups': '<groupDtoes/>', 'products': [], 'product_groups': [], 'prices': [], 'charts': [], 'scales': {}})
+        prices.start()
+        self.addCleanup(prices.stop)
 
     def connect(self, row=None, **extra):
         row = row or self.zubr
@@ -56,7 +61,10 @@ class TaplistV2Tests(unittest.TestCase):
         self.assertIn('Bumblebeer', row['iiko_name'])
         response = self.client.get('/api/taps/export-taplist-full?bar_id=bar1')
         rows = list(csv.reader(io.StringIO(response.data.decode('utf-8-sig'))))
-        self.assertEqual(rows[1][2:8], ['Zavod', 'Dopamine', row['untappd_url'], row['style'], '7.2', '95'])
+        self.assertEqual(rows[0][:6], ['Название', 'Цена, руб.', 'Порция, л', 'Бренд / производитель', 'Фото (ссылка)', 'Описание'])
+        self.assertEqual(rows[1][0], 'Dopamine')
+        self.assertEqual(rows[1][3], 'Zavod')
+        self.assertEqual(rows[1][9:13], [row['untappd_url'], row['style'], '7.2', '95'])
         self.assertIn('no-store', response.headers['Cache-Control'])
 
     def test_legacy_migration_is_persisted_without_restarting_or_changing_history(self):
@@ -123,8 +131,8 @@ class TaplistV2Tests(unittest.TestCase):
         self.manager.start_tap('bar1', 2, '=SUM(1,2)', 'AUTO-2')
         response = self.client.get('/api/taps/export-taplist-full?bar_id=bar1')
         rows = list(csv.reader(io.StringIO(response.data.decode('utf-8-sig'))))
-        self.assertEqual(rows[1][7], '')
-        self.assertEqual(rows[2][3], "'=SUM(1,2)")
+        self.assertEqual(rows[1][12], '')
+        self.assertEqual(rows[2][0], "'=SUM(1,2)")
         self.assertEqual(response.headers['X-Taplist-Unmapped-Count'], '1')
 
     def test_corrupt_state_is_not_overwritten_and_write_errors_are_reported(self):
@@ -152,6 +160,29 @@ class TaplistV2Tests(unittest.TestCase):
             bundled.write_text('{bad', encoding='utf8')
             with self.assertRaises(ValueError):
                 load_registry()
+
+    def test_csv_contains_exact_prices_portions_photo_and_description(self):
+        from test_taplist_pricing import sources
+        data = sources(self.dopamine['iiko_product_id'])
+        self.connect(self.dopamine)
+        with patch.object(self.routes, 'fetch_price_sources', return_value=data):
+            response = self.client.get('/api/taps/export-taplist-full?bar_id=bar1')
+            self.assertEqual(response.status_code, 200)
+            row = list(csv.DictReader(io.StringIO(response.data.decode('utf-8-sig'))))[0]
+            self.assertEqual(row['Цена, руб.'], '490.50')
+            self.assertEqual(row['Порция, л'], '0.5')
+            self.assertEqual(row['Бренд / производитель'], 'Zavod')
+            self.assertTrue(row['Фото (ссылка)'].startswith('https://assets.untappd.com/'))
+            self.assertIn('Cashmere', row['Описание'])
+
+    def test_live_price_failure_returns_error_instead_of_stale_download(self):
+        self.connect()
+        with patch.object(self.routes, 'fetch_price_sources', side_effect=RuntimeError('token=must-not-leak')):
+            for path in ('/api/taps/taplist-full', '/api/taps/export-taplist-full'):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 503)
+                self.assertNotIn('must-not-leak', response.get_data(as_text=True))
+                self.assertNotIn('Content-Disposition', response.headers)
 
 
 if __name__ == '__main__':

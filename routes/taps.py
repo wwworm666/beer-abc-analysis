@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 from extensions import taps_manager
 from core.untappd_registry import load_registry
 from core.taplist import product_catalog, tap_details, full_taplist
+from core.taplist_pricing import enrich_prices
 
 taps_bp = Blueprint('taps', __name__)
 
@@ -362,8 +363,24 @@ def identify_tap(bar_id):
 def reviewed_taplist():
     registry = load_registry()
     snapshot = taps_manager.get_snapshot(product_catalog(registry))
-    return full_taplist(snapshot, registry, request.args.get('bar_id'),
+    rows = full_taplist(snapshot, registry, request.args.get('bar_id'),
                         request.args.get('active_only', 'true').lower() == 'true')
+    if rows:
+        try:
+            sources = fetch_price_sources()
+        except Exception:
+            raise PriceUnavailable from None
+        enrich_prices(rows, registry, sources)
+    return rows
+
+
+class PriceUnavailable(Exception):
+    pass
+
+
+def fetch_price_sources():
+    from core.taplist_iiko import fetch_price_sources as fetch
+    return fetch()
 
 
 @taps_bp.route('/api/taps/taplist-full', methods=['GET'])
@@ -372,6 +389,8 @@ def get_taplist_full():
         rows = reviewed_taplist()
         return jsonify({'success': True, 'count': len(rows),
                         'mapped_count': sum(row['mapped'] for row in rows), 'taplist': rows})
+    except PriceUnavailable:
+        return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
     except KeyError:
         return jsonify({'success': False, 'error': 'Бар не найден'}), 404
     except Exception as error:
@@ -385,22 +404,44 @@ def export_taplist_full():
         rows = reviewed_taplist()
         output = StringIO()
         writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_ALL)
-        writer.writerow(['Бар', 'Кран', 'Пивоварня', 'Название пива', 'Untappd URL',
-                         'Стиль', 'ABV', 'IBU', 'Описание', 'Название iiko', 'Статус связи'])
-        fields = ('bar', 'tap_number', 'brewery', 'beer_name', 'untappd_url',
-                  'style', 'abv', 'ibu', 'description', 'iiko_name', 'mapping_message')
+        writer.writerow(['Название', 'Цена, руб.', 'Порция, л', 'Бренд / производитель',
+                         'Фото (ссылка)', 'Описание', 'Бар', 'Кран', 'Позиция iiko',
+                         'Untappd URL', 'Стиль', 'ABV', 'IBU', 'Статус связи',
+                         'Статус цены', 'Цены проверены', 'Статус фото и описания'])
         for row in rows:
-            values = [row.get(key) for key in fields]
-            # Spreadsheet applications must not execute imported product names.
-            writer.writerow(["'" + v if isinstance(v, str) and v.lstrip()[:1] in
-                             ('=', '+', '-', '@') else v for v in values])
+            media_status = []
+            if not row.get('photo_url'):
+                media_status.append('Фото отсутствует в источнике')
+            elif row.get('photo_kind') == 'community_photo':
+                media_status.append('Фото посетителя из карточки Untappd')
+            if not row.get('description'):
+                media_status.append('Описание отсутствует в источнике')
+            elif row.get('description_source') == 'verified_characteristics':
+                media_status.append('Описание по подтверждённым характеристикам')
+            elif row.get('description_is_excerpt'):
+                media_status.append('Краткая выдержка; полное описание по ссылке Untappd')
+            for serving in row.get('servings') or [{}]:
+                values = [row.get('beer_name'), serving.get('price_rub'), serving.get('portion_liters'),
+                          row.get('brewery'), row.get('photo_url'), row.get('description'),
+                          row['bar'], row['tap_number'],
+                          (serving['dish_name'] + (' / ' + serving['size_name'] if serving.get('size_name') else ''))
+                          if serving else row.get('iiko_name'),
+                          row.get('untappd_url'), row.get('style'), row.get('abv'), row.get('ibu'),
+                          row['mapping_message'], row.get('price_message'), row.get('prices_checked_at'),
+                          '; '.join(media_status) or 'Фото и описание из Untappd']
+                # Spreadsheet applications must not execute imported product names.
+                writer.writerow(["'" + v if isinstance(v, str) and v.lstrip()[:1] in
+                                 ('=', '+', '-', '@') else v for v in values])
         bar_id = request.args.get('bar_id')
         filename = f'taplist_full_{bar_id}.csv' if bar_id else 'taplist_full.csv'
         response = make_response('\ufeff' + output.getvalue())
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
         response.headers['Content-Disposition'] = f"attachment; filename={filename}; filename*=UTF-8''{quote(filename)}"
         response.headers['X-Taplist-Unmapped-Count'] = str(sum(not r['mapped'] for r in rows))
+        response.headers['X-Taplist-Unpriced-Count'] = str(sum(not r.get('servings') for r in rows))
         return response
+    except PriceUnavailable:
+        return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
     except KeyError:
         return jsonify({'success': False, 'error': 'Бар не найден'}), 404
     except Exception as error:

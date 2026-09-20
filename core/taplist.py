@@ -56,6 +56,18 @@ def tap_details(tap, registry):
     guid = tap.get('iiko_product_id')
     card = resolve_beer(registry, guid)
     status = 'verified' if card else ('missing_product' if not guid else 'unverified')
+    description = card.get('description') if card else None
+    description_source = 'untappd' if description else None
+    if card and not description:
+        facts = []
+        if card.get('style'):
+            facts.append('Стиль: ' + card['style'])
+        if card.get('abv_percent') is not None:
+            facts.append('Крепость: ' + str(card['abv_percent']).replace('.', ',') + '%')
+        if card.get('ibu') is not None:
+            facts.append('Горечь: ' + str(card['ibu']) + ' IBU')
+        description = '. '.join(facts) + '.' if facts else None
+        description_source = 'verified_characteristics' if facts else None
     return {'iiko_product_id': guid, 'iiko_name': tap.get('current_beer'),
             'beer_name': card['beer_name'] if card else tap.get('current_beer'),
             'brewery': card.get('brewery') if card else None,
@@ -64,7 +76,11 @@ def tap_details(tap, registry):
             'style': card.get('style') if card else None,
             'abv': card.get('abv_percent') if card else None,
             'ibu': card.get('ibu') if card else None,
-            'description': card.get('description') if card else None,
+            'description': description, 'description_source': description_source,
+            'photo_url': card.get('photo_url') if card else None,
+            'photo_kind': card.get('photo_kind') if card else None,
+            'description_is_excerpt': card.get('description_is_excerpt', False) if card else False,
+            'media_source_url': card.get('media_source_url') if card else None,
             'observed_at': card.get('observed_at') if card else None,
             'mapped': card is not None, 'mapping_status': status,
             'mapping_message': {'verified': 'Связь проверена',
