@@ -80,6 +80,15 @@ def test_newcomer_is_all_sales_in_last_week():
     assert d(abc='C', markup=1.5, sales=3, weeks=1, weekly=[3]) == 'few'
 
 
+def test_sales_without_any_weekly_movement_is_newcomer():
+    """Кег открыт в последний день: порции есть, списание легло за границу
+    периода — по неделям нули. Истории нет, это новинка, а не «слабые продажи»."""
+    assert d(abc='C', markup=2.5, sales=12, weeks=4, weekly=[0, 0, 0, 0], b_min=2.0) == 'new'
+    # А без продаж вовсе такой строки не бывает; на одной неделе — «мало данных» нет,
+    # решение по правилам ниже.
+    assert d(abc='C', markup=2.5, sales=12, weeks=1, weekly=[0], b_min=2.0) == 'weak'
+
+
 def test_few_sales_below_minimum():
     n = MIN_SALES_FOR_VERDICT
     assert d(abc='A', sales=n - 1) == 'few'
@@ -150,6 +159,7 @@ if __name__ == '__main__':
     _run('без себестоимости и ниже пола — сверить учёт', test_no_cost_or_below_floor_goes_to_check)
     _run('учёт побеждает остальные правила', test_check_wins_over_every_other_rule)
     _run('новинка — все продажи в последней неделе', test_newcomer_is_all_sales_in_last_week)
+    _run('продажи без движений по неделям — новинка', test_sales_without_any_weekly_movement_is_newcomer)
     _run('мало продаж — ниже минимума', test_few_sales_below_minimum)
     _run('слабые продажи — выручка C при достатке продаж', test_weak_is_revenue_c_with_enough_sales_whatever_the_markup)
     _run('низкая наценка против основы', test_low_markup_versus_core)

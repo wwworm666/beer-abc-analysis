@@ -907,9 +907,9 @@
         if (members.length) {
             html += miniPositions(members, 'ПОЗИЦИИ', 'маржа группы ' + money(margin));
         } else {
-            html += '<div class="pk-empty">' + (info.verdict_ready === false
-                ? 'на этом периоде группа не заполняется — посмотрите период от четырёх недель'
-                : 'в этой группе сейчас нет позиций') + '</div>';
+            html += '<div class="pk-empty">в этой группе сейчас нет позиций' +
+                (info.verdict_ready === false
+                    ? '; решение о выводе выносится по периоду от четырёх недель' : '') + '</div>';
         }
 
         html += '</div>';

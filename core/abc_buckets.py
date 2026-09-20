@@ -94,6 +94,11 @@ def _is_newcomer(weeks_in_period, weekly, outside_weeks):
         return False
     if outside_weeks and outside_weeks > 0:
         return False
+    if sum(weekly) == 0:
+        # Продажи есть (иначе сюда не попасть), а движений по неделям нет вовсе:
+        # у кега списание со склада легло за границу периода (кран открыт в
+        # последний день). Истории нет — это новинка, а не «слабые продажи».
+        return True
     return sum(weekly[:-1]) == 0 and weekly[-1] > 0
 
 
@@ -110,7 +115,7 @@ def decide_bucket(abc_revenue, markup_share, sales, weeks_in_period, weekly,
     """
     if markup_share is None or markup_share < b_min * MARKUP_AUDIT_FLOOR_FACTOR:
         return 'check'
-    if _is_newcomer(weeks_in_period, weekly, outside_weeks):
+    if sales > 0 and _is_newcomer(weeks_in_period, weekly, outside_weeks):
         return 'new'
     if sales < MIN_SALES_FOR_VERDICT:
         return 'few'
@@ -165,12 +170,14 @@ def bucket_cards(rows, period_days, unit='pieces', b_min=MARKUP_B_MIN,
     Считается на сервере целиком — страница только печатает. Действие и тон
     группы «weak» зависят от длины периода.
     """
-    total_revenue = sum(max(float(r.get(revenue_key) or 0.0), 0.0) for r in rows)
+    # База долей — та же выручка, что в сводке страницы (со знаком: возвраты
+    # её уменьшают), иначе доли карточек не сходились бы с плиткой «Выручка».
+    total_revenue = sum(float(r.get(revenue_key) or 0.0) for r in rows)
     ready = negative_verdict_ready(period_days)
     cards = []
     for key, info in sorted(BUCKETS.items(), key=lambda kv: kv[1]['order']):
         members = [r for r in rows if r.get(bucket_key) == key]
-        revenue = sum(max(float(r.get(revenue_key) or 0.0), 0.0) for r in members)
+        revenue = sum(float(r.get(revenue_key) or 0.0) for r in members)
         action = info['action']
         tone = info['tone']
         if key == 'weak' and not ready:

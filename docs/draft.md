@@ -32,10 +32,10 @@
 | [core/abc_buckets.py](../core/abc_buckets.py) | Решения по ассортименту: те же шесть групп, что на `/packaging`, продажи считаются порциями |
 | [core/abc_thresholds.py](../core/abc_thresholds.py) | Пороги наценки кегов `KEG_MARKUP_A_MIN` / `KEG_MARKUP_B_MIN` (250% / 200%) и константы решений |
 | [core/olap_reports.py](../core/olap_reports.py) | Три запроса к iiko: `get_draft_writeoff_report`, `get_draft_sales_by_dish`, `get_dish_ingredient_map` |
-| [tests/test_draft_kegs.py](../tests/test_draft_kegs.py) | 64 юнит-теста расчёта |
-| [tests/test_abc_buckets.py](../tests/test_abc_buckets.py) | 12 проверок правил решений (общие с фасовкой) |
-| [tests/test_draft_render.mjs](../tests/test_draft_render.mjs) | 11 текстовых проверок: шаблон, CSS и JS согласованы между собой |
-| [tests/test_draft_runtime.mjs](../tests/test_draft_runtime.mjs) | 14 исполняющих проверок: JS работает в Node на снятом с прода ответе API |
+| [tests/test_draft_kegs.py](../tests/test_draft_kegs.py) | 65 юнит-тестов расчёта |
+| [tests/test_abc_buckets.py](../tests/test_abc_buckets.py) | 13 проверок правил решений (общие с фасовкой) |
+| [tests/test_draft_render.mjs](../tests/test_draft_render.mjs) | 13 текстовых проверок: шаблон, CSS и JS согласованы между собой |
+| [tests/test_draft_runtime.mjs](../tests/test_draft_runtime.mjs) | 17 исполняющих проверок: JS работает в Node на снятом с прода ответе API |
 | [tests/fixtures/draft_kegs_sample.json](../tests/fixtures/draft_kegs_sample.json) | Ответ `/api/draft-kegs` за неделю 03-09.08.2026 (снят с боевого iiko) |
 
 Старый расчёт [core/draft_analysis.py](../core/draft_analysis.py) и эндпоинт
@@ -380,7 +380,7 @@ factor(кег)          = литры кега по проводкам SESSION_WR
 | XYZ на периоде по умолчанию (одна календарная неделя) выдавал всем CV=100 и раздавал X/Y/Z по порядку сортировки по литрам | При меньше чем 3 активных неделях категории нет; пороги абсолютные |
 | Подпись «% от выручки» показывала накопленный процент ABC: у последней позиции всегда «100%», у Ригеле 52,3% при своей доле 10,3% | Своя доля позиции; накопленный процент подписан отдельно |
 | Наценка — невзвешенное среднее построчных процентов, до +43,6 п.п. мимо (449,9% против 406,2%); она же задавала букву ABC | От сумм за период |
-| Недели календарные: 7 дней не с понедельника давали 2 недели и вдвое занижали «литров в неделю» (121,5 вместо 243) | 7-дневные окна от начала периода |
+| Недели календарные: 7 дней не с понедельника давали 2 недели и вдвое занижали «литров в неделю» (121,5 вместо 243) | 7-дневные окна, с 2026-09-20 прижатые к концу периода |
 | В сводном разрезе CV смешивал разброс между барами с разбросом по неделям (8 строк вместо 2 точек) | CV по недельным итогам разреза |
 | `onclick='showBeerDetails(${JSON.stringify(beer)})'` рвался на апострофе: строка «Gravity It's Mango» не открывалась | Передаётся индекс, названия экранируются |
 

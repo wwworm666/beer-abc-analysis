@@ -462,6 +462,21 @@ class TestXYZ:
         assert by_id['keg-new']['ABC_Bucket'] == 'new'
         assert by_id['keg-old']['ABC_Bucket'] == 'core'
 
+    def test_keg_tapped_on_last_day_is_newcomer_not_weak(self):
+        """Продажи есть, а списание кега легло за границу периода: по неделям
+        нули. Такой кег — «новинка», а не «слабые продажи · вывести»."""
+        rows = self._rows_for_weeks([40.0, 40.0, 40.0, 40.0], keg='keg-old')
+        sales = [sale('Лиговский', 'dish-old', '2026-08-04', 320, 160000.0, 40000.0),
+                 sale('Лиговский', 'dish-late', '2026-08-31', 12, 6000.0, 1500.0)]
+        dish_map = {'dish-old': [['keg-old', 0.5]], 'dish-late': [['keg-late', 0.5]]}
+        # keg-late в проводках есть (иначе блюдо не связать), но продажи со склада
+        # в периоде не списаны: только накладная.
+        rows.append(trans('Лиговский', 'keg-late', '2026-08-31', 'INVOICE', inc=20.0))
+        block = DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-31').build()
+        by_id = {k['KegId']: k for k in block['kegs']}
+        assert by_id['keg-late']['TotalLiters'] == 0.0 and by_id['keg-late']['TotalPortions'] == 12
+        assert by_id['keg-late']['ABC_Bucket'] == 'new'
+
     def test_cv_is_bar_independent(self):
         """Разброс между барами не должен влиять на CV. Дефект аудита 05."""
         rows = []
