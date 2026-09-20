@@ -639,7 +639,8 @@
 
         <!-- Taps Grid -->
         <div class="card">
-            <div class="taps-grid" id="taps-grid">
+            <p id="taps-error" role="alert" style="color: #b42318;"></p>
+        <div class="taps-grid" id="taps-grid">
                 <!-- Taps will be loaded here -->
             </div>
         </div>
@@ -684,6 +685,12 @@
         let tapsData = [];
         let beersData = [];
         let currentTap = null;
+        function escapeText(value) {
+            const span = document.createElement('span');
+            span.textContent = value == null ? '' : String(value);
+            return span.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+        }
+
 
         // API Connection Status Check
         window.dashboardCheckApi = async function() {
@@ -724,11 +731,15 @@
             try {
                 const response = await fetch(`/api/taps/${barId}`, { cache: 'no-store' });
                 const data = await response.json();
-                tapsData = data.taps || [];
+                if (!response.ok || !Array.isArray(data.taps)) throw new Error(data.error || 'Не удалось загрузить краны');
+                tapsData = data.taps;
+                document.getElementById('taps-error').textContent = '';
                 renderTaps();
                 updateStats();
             } catch (error) {
                 console.error('Error loading taps:', error);
+                document.getElementById('taps-error').textContent = error.message;
+                return;
             }
         }
 
@@ -737,9 +748,29 @@
             window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
         }
 
-        // Download full taplist with Untappd, style, ABV, IBU
-        function downloadBarTaplistFull() {
-            window.location.href = `/api/taps/export-taplist-full?bar_id=${barId}`;
+        // Download names, current prices and portions, producers, photos and descriptions.
+        async function downloadBarTaplistFull() {
+            const button = document.querySelector('[onclick="downloadBarTaplistFull()"]');
+            if (button) button.disabled = true;
+            try {
+                const response = await fetch(`/api/taps/export-taplist-full?bar_id=${barId}`, {cache: 'no-store'});
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Не удалось получить таплист');
+                }
+                const url = URL.createObjectURL(await response.blob());
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `taplist_full_${barId}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (error) {
+                alert(error.message || 'Не удалось получить актуальные цены. Повторите выгрузку.');
+            } finally {
+                if (button) button.disabled = false;
+            }
         }
 
         // Load beers list
@@ -782,11 +813,13 @@
 
         async function loadBeers() {
             try {
-                const response = await fetch('/api/beers/draft');
+                const response = await fetch('/api/beers/draft', { cache: 'no-store' });
                 const data = await response.json();
-                beersData = data.beers || [];
+                if (!response.ok || !Array.isArray(data.beers)) throw new Error(data.error || 'Не удалось загрузить список кег');
+                beersData = data.beers;
             } catch (error) {
                 console.error('Error loading beers:', error);
+                document.getElementById('taps-error').textContent = error.message;
             }
         }
 
@@ -816,8 +849,10 @@
                 card.innerHTML = `
                     <div class="tap-number">Кран #${tap.tap_number}</div>
                     <span class="tap-status ${tap.status}">${statusText[tap.status]}</span>
-                    <div class="tap-beer">${tap.current_beer || '—'}</div>
-                    <div class="tap-keg">${tap.current_keg_id || ''}</div>
+                    <div class="tap-beer">${escapeText(tap.current_beer || '—')}</div>
+                    <div class="tap-keg">${escapeText(tap.current_keg_id || '')}</div>
+                    ${tap.beer_info && !tap.beer_info.mapped ? `<div class="tap-keg">${escapeText(tap.beer_info.mapping_message)}</div>` : ''}
+                    ${tap.beer_info && tap.beer_info.mapped ? `<div class="tap-keg">${escapeText(tap.beer_info.style || '')} · ABV ${tap.beer_info.abv == null ? '—' : escapeText(tap.beer_info.abv) + '%'} · IBU ${tap.beer_info.ibu == null ? '—' : escapeText(tap.beer_info.ibu)}</div>` : ''}
                 `;
 
                 grid.appendChild(card);
@@ -870,8 +905,11 @@
                 actionButtons.innerHTML = `
                     <button class="btn warning" id="replace-btn">Заменить сорт</button>
                     <button class="btn danger" id="stop-btn">Остановить кран</button>
+                    <button class="btn" id="identify-btn">Уточнить сорт для таплиста</button>
                 `;
                 document.getElementById('form-container').innerHTML = '';
+
+                document.getElementById('identify-btn').addEventListener('click', showIdentifyForm);
 
                 // Add event handlers after creating buttons
                 setTimeout(() => {
@@ -903,109 +941,86 @@
             currentTap = null;
         }
 
-        // Autocomplete function
+        // Selection carries product identity; any subsequent typing clears it.
         function setupBeerAutocomplete(inputId) {
             const input = document.getElementById(inputId);
-            const listId = inputId + '-list';
-
-            // Create autocomplete list
             const listDiv = document.createElement('div');
-            listDiv.id = listId;
+            listDiv.id = inputId + '-list';
             listDiv.className = 'autocomplete-list';
             input.parentElement.style.position = 'relative';
             input.parentElement.appendChild(listDiv);
-
             let selectedIndex = -1;
-
-            input.addEventListener('input', function() {
-                const value = this.value.toLowerCase();
-                listDiv.innerHTML = '';
+            let filtered = [];
+            function choose(beer) {
+                input.value = beer.name;
+                input.dataset.productId = beer.id;
+                input.dataset.selectedName = beer.name;
+                document.getElementById('artikul').value = beer.num || '';
                 selectedIndex = -1;
-
-                if (!value) {
-                    listDiv.classList.remove('active');
-                    return;
-                }
-
-                const filtered = beersData.filter(beer =>
-                    beer.name.toLowerCase().includes(value)
-                ).slice(0, 10); // Show first 10 results
-
-                if (filtered.length === 0) {
-                    listDiv.classList.remove('active');
-                    return;
-                }
-
-                filtered.forEach((beer, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'autocomplete-item';
-
-                    // Highlight match
-                    const regex = new RegExp(`(${value})`, 'gi');
-                    const highlighted = beer.name.replace(regex, '<mark>$1</mark>');
-                    div.innerHTML = highlighted;
-
-                    div.addEventListener('click', function() {
-                        input.value = beer.name;
-                        input.dataset.beerNum = beer.num || ''; // Save article number
-                        listDiv.classList.remove('active');
-                        // Auto-fill article field
-                        const artikulInput = document.getElementById('artikul');
-                        if (artikulInput && beer.num) {
-                            artikulInput.value = beer.num;
-                        }
-                    });
-
-                    listDiv.appendChild(div);
-                });
-
-                listDiv.classList.add('active');
-            });
-
-            // Keyboard navigation
-            input.addEventListener('keydown', function(e) {
-                const items = listDiv.querySelectorAll('.autocomplete-item');
-
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
-                    updateSelection(items);
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    selectedIndex = Math.max(selectedIndex - 1, -1);
-                    updateSelection(items);
-                } else if (e.key === 'Enter' && selectedIndex >= 0) {
-                    e.preventDefault();
-                    const selectedBeer = filtered[selectedIndex];
-                    input.value = selectedBeer.name;
-                    input.dataset.beerNum = selectedBeer.num || ''; // Save article number
-                    // Auto-fill article field
-                    const artikulInput = document.getElementById('artikul');
-                    if (artikulInput && selectedBeer.num) {
-                        artikulInput.value = selectedBeer.num;
-                    }
-                    listDiv.classList.remove('active');
-                } else if (e.key === 'Escape') {
-                    listDiv.classList.remove('active');
-                }
-            });
-
-            function updateSelection(items) {
-                items.forEach((item, index) => {
-                    if (index === selectedIndex) {
-                        item.classList.add('selected');
-                        item.scrollIntoView({ block: 'nearest' });
-                    } else {
-                        item.classList.remove('selected');
-                    }
-                });
+                listDiv.classList.remove('active');
             }
-
-            // Close on click outside
-            document.addEventListener('click', function(e) {
-                if (e.target !== input) {
+            input.addEventListener('input', () => {
+                delete input.dataset.productId;
+                delete input.dataset.selectedName;
+                document.getElementById('artikul').value = '';
+                selectedIndex = -1;
+                listDiv.replaceChildren();
+                const value = input.value.trim().toLowerCase();
+                filtered = value ? beersData.filter(beer => beer.name.toLowerCase().includes(value)).slice(0, 10) : [];
+                filtered.forEach(beer => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.textContent = `${beer.name} · ${beer.num || 'без артикула'}${beer.mapped ? '' : ' · нет связи с Untappd'}`;
+                    item.addEventListener('click', () => choose(beer));
+                    listDiv.appendChild(item);
+                });
+                listDiv.classList.toggle('active', filtered.length > 0);
+            });
+            input.addEventListener('keydown', event => {
+                const items = listDiv.querySelectorAll('.autocomplete-item');
+                if (!listDiv.classList.contains('active')) return;
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    selectedIndex = event.key === 'ArrowDown' ? Math.min(selectedIndex + 1, items.length - 1) : Math.max(selectedIndex - 1, -1);
+                    items.forEach((item, index) => item.classList.toggle('selected', index === selectedIndex));
+                    if (items[selectedIndex]) items[selectedIndex].scrollIntoView({block: 'nearest'});
+                } else if (event.key === 'Enter' && selectedIndex >= 0) {
+                    event.preventDefault();
+                    choose(filtered[selectedIndex]);
+                } else if (event.key === 'Escape') {
                     listDiv.classList.remove('active');
                 }
+            });
+            input.addEventListener('blur', () => setTimeout(() => listDiv.classList.remove('active'), 150));
+        }
+
+        function showIdentifyForm() {
+            document.getElementById('form-container').innerHTML = `
+                <p>Выберите сорт, который уже подключён. Время подключения и история кеги сохранятся.</p>
+                <div class="form-group"><label for="beer-input">Сорт из iiko</label>
+                <input id="beer-input" type="text" autocomplete="off"></div>
+                <div class="form-group"><label for="artikul">Артикул</label><input id="artikul" readonly></div>
+                <button class="btn success" id="identify-submit-btn">Сохранить сорт</button>`;
+            setupBeerAutocomplete('beer-input');
+            document.getElementById('identify-submit-btn').addEventListener('click', async () => {
+                const input = document.getElementById('beer-input');
+                if (!input.dataset.productId || input.value !== input.dataset.selectedName) {
+                    alert('Выберите сорт из списка');
+                    return;
+                }
+                const expected = {};
+                ['current_beer', 'current_keg_id', 'started_at', 'iiko_product_id'].forEach(key => expected[key] = currentTap[key] ?? null);
+                try {
+                    const response = await fetch(`/api/taps/${barId}/identify`, {
+                        method: 'POST', headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({tap_number: currentTap.tap_number,
+                            iiko_product_id: input.dataset.productId, expected})
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'Не удалось сохранить сорт');
+                    closeModal();
+                    await loadTaps();
+                } catch (error) { alert(error.message); }
             });
         }
 
@@ -1053,7 +1068,7 @@
             container.innerHTML = `
                 <div class="form-group">
                     <label>Текущее пиво</label>
-                    <input type="text" value="${currentTap.current_beer}" disabled>
+                    <input type="text" value="${escapeText(currentTap.current_beer)}" disabled>
                 </div>
                 <div class="form-group">
                     <label>Новое пиво (начните печатать)</label>
@@ -1105,8 +1120,8 @@
             console.log('startTap - artikulValue:', artikulValue);
             console.log('startTap - artikul:', artikul);
 
-            if (!beerName) {
-                alert('Введите название пива');
+            if (!beerName || !beerInput.dataset.productId || beerName !== beerInput.dataset.selectedName) {
+                alert('Выберите пиво из списка');
                 return;
             }
 
@@ -1117,7 +1132,8 @@
                     body: JSON.stringify({
                         tap_number: currentTap.tap_number,
                         beer_name: beerName,
-                        keg_id: artikul
+                        keg_id: artikul,
+                        iiko_product_id: beerInput.dataset.productId
                     })
                 });
 
@@ -1126,7 +1142,8 @@
                     loadTaps();
                     loadHistory();
                 } else {
-                    alert('Ошибка при подключении кеги');
+                    const data = await response.json();
+                    alert(data.error || 'Ошибка при подключении кеги');
                 }
             } catch (error) {
                 console.error('Error starting tap:', error);
@@ -1158,8 +1175,8 @@
             console.log('artikul:', artikul);
             console.log('currentTap:', currentTap);
 
-            if (!beerName) {
-                alert('Введите название пива');
+            if (!beerName || !beerInput.dataset.productId || beerName !== beerInput.dataset.selectedName) {
+                alert('Выберите пиво из списка');
                 return;
             }
 
@@ -1167,7 +1184,8 @@
                 const requestData = {
                     tap_number: currentTap.tap_number,
                     beer_name: beerName,
-                    keg_id: artikul
+                    keg_id: artikul,
+                        iiko_product_id: beerInput.dataset.productId
                 };
 
                 console.log('Sending request:', requestData);
@@ -1276,15 +1294,15 @@
                 if (event.action === 'start') {
                     icon = '✅';
                     iconClass = 'start';
-                    text = `Подключена кега <span class="history-beer">${event.beer_name}</span>`;
+                    text = `Подключена кега <span class="history-beer">${escapeText(event.beer_name)}</span>`;
                 } else if (event.action === 'stop') {
                     icon = '⛔';
                     iconClass = 'stop';
-                    text = `Закончилась кега <span class="history-beer">${event.beer_name}</span>`;
+                    text = `Закончилась кега <span class="history-beer">${escapeText(event.beer_name)}</span>`;
                 } else if (event.action === 'replace') {
                     icon = '🔄';
                     iconClass = 'replace';
-                    text = `Замена <span class="history-beer">${event.old_beer || 'пиво'}</span> на <span class="history-beer">${event.beer_name}</span>`;
+                    text = `Замена <span class="history-beer">${escapeText(event.old_beer || 'пиво')}</span> на <span class="history-beer">${escapeText(event.beer_name)}</span>`;
                 }
 
                 return `
@@ -1295,7 +1313,7 @@
                             <div class="history-meta">
                                 <div class="history-time">🕐 ${formattedTime} ${formattedDate}</div>
                                 <div class="history-tap">🍺 Кран #${event.tap_number}</div>
-                                ${event.keg_id ? `<div>🏷️ ${event.keg_id}</div>` : ''}
+                                ${event.keg_id ? `<div>🏷️ ${escapeText(event.keg_id)}</div>` : ''}
                             </div>
                         </div>
                     </div>

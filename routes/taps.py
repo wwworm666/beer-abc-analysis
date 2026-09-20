@@ -8,6 +8,9 @@ from io import StringIO
 from urllib.parse import quote
 from difflib import SequenceMatcher
 from extensions import taps_manager
+from core.untappd_registry import load_registry
+from core.taplist import product_catalog, tap_details, full_taplist
+from core.taplist_pricing import enrich_prices
 
 taps_bp = Blueprint('taps', __name__)
 
@@ -16,7 +19,7 @@ taps_bp = Blueprint('taps', __name__)
 def add_taps_no_cache(response):
     """Запрет кэширования для API кранов — Safari на iOS агрессивно кэширует GET-ответы,
     из-за чего сотрудники видят устаревшие данные кранов"""
-    if request.path.startswith('/api/taps'):
+    if request.path.startswith('/api/taps') or request.path == '/api/beers/draft':
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
@@ -37,7 +40,11 @@ def get_bars_list():
 def get_bar_taps(bar_id):
     """Получить состояние кранов конкретного бара"""
     try:
-        result = taps_manager.get_bar_taps(bar_id)
+        registry = load_registry()
+        result = taps_manager.get_bar_taps(bar_id, product_catalog(registry))
+        if 'taps' in result:
+            for tap in result['taps']:
+                tap['beer_info'] = tap_details(tap, registry) if tap.get('current_beer') else None
         if 'error' in result:
             return jsonify(result), 404
         return jsonify(result)
@@ -62,7 +69,12 @@ def start_tap(bar_id):
         if not keg_id:
             keg_id = f'AUTO-{int(time.time() * 1000)}'
 
-        result = taps_manager.start_tap(bar_id, int(tap_number), beer_name, keg_id)
+        try:
+            product_id = selected_product(data)
+        except ValueError as error:
+            return jsonify({'success': False, 'error': str(error)}), 400
+        result = taps_manager.start_tap(bar_id, int(tap_number), beer_name, keg_id,
+                                          iiko_product_id=product_id)
 
         if result['success']:
             return jsonify(result)
@@ -117,7 +129,12 @@ def replace_tap(bar_id):
             print(f"[DEBUG] Generated auto keg_id: {keg_id}")
 
         print(f"[DEBUG] Calling taps_manager.replace_tap...")
-        result = taps_manager.replace_tap(bar_id, int(tap_number), beer_name, keg_id)
+        try:
+            product_id = selected_product(data)
+        except ValueError as error:
+            return jsonify({'success': False, 'error': str(error)}), 400
+        result = taps_manager.replace_tap(bar_id, int(tap_number), beer_name, keg_id,
+                                          iiko_product_id=product_id)
         print(f"[DEBUG] Result: {result}")
 
         if result['success']:
@@ -312,175 +329,124 @@ def find_beer_info(beer_name, mapping):
     return None
 
 
+def selected_product(data, required=False):
+    product_id = data.get('iiko_product_id')
+    if not product_id:
+        if required:
+            raise ValueError('Выберите сорт из списка')
+        return None
+    catalog = product_catalog(load_registry())
+    if not isinstance(product_id, str) or product_id not in catalog:
+        raise ValueError('Товар не найден. Обновите список кег и выберите сорт снова.')
+    if data.get('beer_name') and data['beer_name'].strip() not in catalog[product_id]['names']:
+        raise ValueError('Название изменилось после выбора. Выберите сорт из списка снова.')
+    return product_id
+
+
+@taps_bp.route('/api/taps/<bar_id>/identify', methods=['POST'])
+def identify_tap(bar_id):
+    try:
+        data = request.get_json() or {}
+        product_id = selected_product(data, required=True)
+        expected = data.get('expected')
+        if not isinstance(expected, dict) or not all(k in expected for k in
+                ('current_beer', 'current_keg_id', 'started_at', 'iiko_product_id')):
+            raise ValueError('Обновите страницу перед уточнением сорта')
+        result = taps_manager.identify_tap(bar_id, int(data['tap_number']), product_id, expected)
+        return jsonify(result), 200 if result['success'] else 409
+    except (ValueError, TypeError, KeyError) as error:
+        return jsonify({'success': False, 'error': str(error)}), 400
+    except Exception:
+        return jsonify({'success': False, 'error': 'Не удалось сохранить сорт'}), 500
+
+
+def reviewed_taplist():
+    registry = load_registry()
+    snapshot = taps_manager.get_snapshot(product_catalog(registry))
+    rows = full_taplist(snapshot, registry, request.args.get('bar_id'),
+                        request.args.get('active_only', 'true').lower() == 'true')
+    if rows:
+        try:
+            sources = fetch_price_sources()
+        except Exception:
+            raise PriceUnavailable from None
+        enrich_prices(rows, registry, sources)
+    return rows
+
+
+class PriceUnavailable(Exception):
+    pass
+
+
+def fetch_price_sources():
+    from core.taplist_iiko import fetch_price_sources as fetch
+    return fetch()
+
+
 @taps_bp.route('/api/taps/taplist-full', methods=['GET'])
 def get_taplist_full():
-    """
-    Получить полный таплист с расширенной информацией о пиве.
-    Возвращает JSON с данными: пивоварня, название, untappd URL, стиль, ABV, IBU, описание.
-
-    Параметры:
-    - bar_id: фильтр по конкретному бару (опционально)
-    - active_only: true - только активные краны (по умолчанию true)
-    """
     try:
-        bar_id_filter = request.args.get('bar_id', None)
-        active_only = request.args.get('active_only', 'true').lower() == 'true'
-
-        # Загружаем маппинг
-        beer_mapping = load_beer_info_mapping()
-
-        # Получаем список баров
-        bars = taps_manager.get_bars()
-
-        if bar_id_filter:
-            bars = [bar for bar in bars if bar['bar_id'] == bar_id_filter]
-
-        result = []
-
-        for bar in bars:
-            bar_id = bar['bar_id']
-            bar_name = bar['name']
-
-            bar_data = taps_manager.get_bar_taps(bar_id)
-            if 'error' in bar_data:
-                continue
-
-            for tap in bar_data.get('taps', []):
-                if active_only and tap['status'] != 'active':
-                    continue
-
-                beer_name = tap.get('current_beer')
-                if not beer_name:
-                    continue
-
-                # Ищем расширенную информацию
-                beer_info = find_beer_info(beer_name, beer_mapping)
-
-                tap_data = {
-                    'bar': bar_name,
-                    'bar_id': bar_id,
-                    'tap_number': tap['tap_number'],
-                    'iiko_name': beer_name,
-                    'started_at': tap.get('started_at'),
-                }
-
-                if beer_info:
-                    tap_data.update({
-                        'brewery': beer_info.get('brewery'),
-                        'beer_name': beer_info.get('beer_name'),
-                        'untappd_url': beer_info.get('untappd_url'),
-                        'style': beer_info.get('style'),
-                        'abv': beer_info.get('abv'),
-                        'ibu': beer_info.get('ibu'),
-                        'description': beer_info.get('description'),
-                        'mapped': True
-                    })
-                else:
-                    tap_data['mapped'] = False
-
-                result.append(tap_data)
-
-        return jsonify({
-            'success': True,
-            'count': len(result),
-            'taplist': result
-        })
-
-    except Exception as e:
-        print(f"[ERROR] Ошибка в /api/taps/taplist-full: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        rows = reviewed_taplist()
+        return jsonify({'success': True, 'count': len(rows),
+                        'mapped_count': sum(row['mapped'] for row in rows), 'taplist': rows})
+    except PriceUnavailable:
+        return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
+    except KeyError:
+        return jsonify({'success': False, 'error': 'Бар не найден'}), 404
+    except Exception as error:
+        print(f'[ERROR] Taplist V2: {error}')
+        return jsonify({'success': False, 'error': 'Не удалось загрузить проверенный таплист'}), 503
 
 
 @taps_bp.route('/api/taps/export-taplist-full', methods=['GET'])
 def export_taplist_full():
-    """
-    Экспортировать расширенный таплист в CSV формате.
-    Включает: Бар, Кран, Пивоварня, Название пива, Untappd URL, Стиль, ABV, IBU, Описание
-    """
     try:
-        bar_id_filter = request.args.get('bar_id', None)
-        active_only = request.args.get('active_only', 'true').lower() == 'true'
-
-        # Загружаем маппинг
-        beer_mapping = load_beer_info_mapping()
-
-        bars = taps_manager.get_bars()
-
-        if bar_id_filter:
-            bars = [bar for bar in bars if bar['bar_id'] == bar_id_filter]
-
+        rows = reviewed_taplist()
         output = StringIO()
         writer = csv.writer(output, delimiter=',', quoting=csv.QUOTE_ALL)
-
-        # Заголовок
-        writer.writerow(['Бар', 'Кран', 'Пивоварня', 'Название пива', 'Untappd URL', 'Стиль', 'ABV', 'IBU', 'Описание'])
-
-        for bar in bars:
-            bar_id = bar['bar_id']
-            bar_name = bar['name']
-
-            bar_data = taps_manager.get_bar_taps(bar_id)
-            if 'error' in bar_data:
-                continue
-
-            for tap in bar_data.get('taps', []):
-                if active_only and tap['status'] != 'active':
-                    continue
-
-                beer_name = tap.get('current_beer')
-                if not beer_name:
-                    continue
-
-                beer_info = find_beer_info(beer_name, beer_mapping)
-
-                if beer_info:
-                    writer.writerow([
-                        bar_name,
-                        tap['tap_number'],
-                        beer_info.get('brewery', ''),
-                        beer_info.get('beer_name', ''),
-                        beer_info.get('untappd_url', ''),
-                        beer_info.get('style', ''),
-                        beer_info.get('abv', ''),
-                        beer_info.get('ibu', ''),
-                        beer_info.get('description', '')
-                    ])
-                else:
-                    # Если нет маппинга - используем название из iiko
-                    writer.writerow([
-                        bar_name,
-                        tap['tap_number'],
-                        '',
-                        beer_name,
-                        '',
-                        '',
-                        '',
-                        '',
-                        ''
-                    ])
-
-        output.seek(0)
-        csv_content = output.getvalue()
-        output.close()
-
-        if bar_id_filter and bars:
-            filename = f"taplist_full_{bar_id_filter}.csv"
-        else:
-            filename = "taplist_full.csv"
-
-        response = make_response(csv_content)
+        writer.writerow(['Название', 'Цена, руб.', 'Порция, л', 'Бренд / производитель',
+                         'Фото (ссылка)', 'Описание', 'Бар', 'Кран', 'Позиция iiko',
+                         'Untappd URL', 'Стиль', 'ABV', 'IBU', 'Статус связи',
+                         'Статус цены', 'Цены проверены', 'Статус фото и описания'])
+        for row in rows:
+            media_status = []
+            if not row.get('photo_url'):
+                media_status.append('Фото отсутствует в источнике')
+            elif row.get('photo_kind') == 'community_photo':
+                media_status.append('Фото посетителя из карточки Untappd')
+            if not row.get('description'):
+                media_status.append('Описание отсутствует в источнике')
+            elif row.get('description_source') == 'verified_characteristics':
+                media_status.append('Описание по подтверждённым характеристикам')
+            elif row.get('description_is_excerpt'):
+                media_status.append('Краткая выдержка; полное описание по ссылке Untappd')
+            for serving in row.get('servings') or [{}]:
+                values = [row.get('beer_name'), serving.get('price_rub'), serving.get('portion_liters'),
+                          row.get('brewery'), row.get('photo_url'), row.get('description'),
+                          row['bar'], row['tap_number'],
+                          (serving['dish_name'] + (' / ' + serving['size_name'] if serving.get('size_name') else ''))
+                          if serving else row.get('iiko_name'),
+                          row.get('untappd_url'), row.get('style'), row.get('abv'), row.get('ibu'),
+                          row['mapping_message'], row.get('price_message'), row.get('prices_checked_at'),
+                          '; '.join(media_status) or 'Фото и описание из Untappd']
+                # Spreadsheet applications must not execute imported product names.
+                writer.writerow(["'" + v if isinstance(v, str) and v.lstrip()[:1] in
+                                 ('=', '+', '-', '@') else v for v in values])
+        bar_id = request.args.get('bar_id')
+        filename = f'taplist_full_{bar_id}.csv' if bar_id else 'taplist_full.csv'
+        response = make_response('\ufeff' + output.getvalue())
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
         response.headers['Content-Disposition'] = f"attachment; filename={filename}; filename*=UTF-8''{quote(filename)}"
-
+        response.headers['X-Taplist-Unmapped-Count'] = str(sum(not r['mapped'] for r in rows))
+        response.headers['X-Taplist-Unpriced-Count'] = str(sum(not r.get('servings') for r in rows))
         return response
-
-    except Exception as e:
-        print(f"[ERROR] Ошибка в /api/taps/export-taplist-full: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+    except PriceUnavailable:
+        return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
+    except KeyError:
+        return jsonify({'success': False, 'error': 'Бар не найден'}), 404
+    except Exception as error:
+        print(f'[ERROR] Taplist V2 export: {error}')
+        return jsonify({'success': False, 'error': 'Не удалось загрузить проверенный таплист'}), 503
 
 
 @taps_bp.route('/api/taps/<bar_id>/stats', methods=['GET'])
@@ -519,44 +485,16 @@ def get_bar_stats(bar_id):
 
 @taps_bp.route('/api/beers/draft', methods=['GET'])
 def get_draft_beers():
-    """Получить список разливного пива из номенклатуры"""
     try:
-        # Читаем файл с номенклатурой
-        products_file = os.path.join('data', 'all_products.json')
-
-        if not os.path.exists(products_file):
-            # Если файла нет, возвращаем пустой список
-            return jsonify({'beers': []})
-
-        with open(products_file, 'r', encoding='utf-8') as f:
-            products = json.load(f)
-
-        # Фильтруем только разливное пиво
-        # Разливное обычно содержит "кег", "KEG", "30L", "50L" в названии
-        draft_beers = []
-        seen_names = set()
-
-        for product in products:
-            name = product.get('name', '')
-            # Ищем признаки разливного пива
-            if any(keyword in name.upper() for keyword in ['КЕГ', 'KEG', '30L', '50L', 'DRAFT']):
-                # Убираем дубликаты по названию
-                clean_name = name.strip()
-                if clean_name and clean_name not in seen_names:
-                    draft_beers.append({
-                        'id': product.get('id'),
-                        'name': clean_name,
-                        'num': product.get('num')
-                    })
-                    seen_names.add(clean_name)
-
-        # Сортируем по названию
-        draft_beers.sort(key=lambda x: x['name'])
-
-        return jsonify({'beers': draft_beers})
-    except Exception as e:
-        print(f"[ERROR] Oshibka v /api/beers/draft: {e}")
-        return jsonify({'beers': []}), 200
+        registry = load_registry()
+        catalog = product_catalog(registry)
+        beers = [{'id': row['id'], 'name': row['name'], 'num': row['num'],
+                  'mapped': registry['products'].get(row['id'], {}).get('status') == 'verified'}
+                 for row in catalog.values()]
+        return jsonify({'beers': sorted(beers, key=lambda row: (row['name'], row['id']))})
+    except Exception as error:
+        print(f'[ERROR] Draft catalog: {error}')
+        return jsonify({'error': 'Не удалось загрузить список кег'}), 503
 
 @taps_bp.route('/api/update-nomenclature', methods=['POST'])
 def update_nomenclature():

@@ -47,3 +47,7 @@ Caddyfile
 
 Thumbs.db
 .DS_Store
+
+# Local research, exports and test environments are not application assets.
+output/
+outputs/
