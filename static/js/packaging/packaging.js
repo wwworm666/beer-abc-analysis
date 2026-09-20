@@ -533,7 +533,9 @@
         });
 
         if (!rows.length) {
-            html += '<div class="pk-empty">ничего не найдено — уточните запрос</div>';
+            html += '<div class="pk-empty">' + (total
+                ? 'ничего не найдено — уточните запрос'
+                : 'продаж фасовки за период нет — ниже только движения склада') + '</div>';
         } else {
             var sumQty = rows.reduce(function (a, p) { return a + p.TotalQty; }, 0);
             var sumRevenue = rows.reduce(function (a, p) { return a + p.TotalRevenue; }, 0);
@@ -630,11 +632,15 @@
             '<span class="pk-bal-lead"></span>' +
             '<span class="pk-bal-total-v">' +
             signed(losses.balance, losses.balance < 0 ? '−' : '+') + ' шт</span></div>' +
-            // Формула словами и числами — требование CLAUDE.md пункт 1.
-            '<div class="pk-note">приход ' + qty((losses.invoice_in || 0) + (losses.transfer_in || 0)) +
+            // Формула словами и числами — требование CLAUDE.md пункт 1. Оба
+            // итога (received, spent) приходят с сервера, здесь ничего не складывается.
+            '<div class="pk-note">приход ' + qty(losses.received) +
             ' − расход ' + qty(losses.spent) +
             ' (продано ' + qty(losses.sold) + ' + акты ' + qty(losses.writeoff) +
-            ' + недостача ' + qty(losses.inventory_net) + ' + перемещения ' + qty(losses.transfer_out) +
+            (losses.inventory_net < 0
+                ? ' − излишек ' + qty(-losses.inventory_net)
+                : ' + недостача ' + qty(losses.inventory_net)) +
+            ' + перемещения ' + qty(losses.transfer_out) +
             ') · товар фасовки списывается при продаже сам, без техкарты</div>';
         el.balance.innerHTML = html;
     }
@@ -671,6 +677,12 @@
             plural(rows.length, 'позиция', 'позиции', 'позиций') + ' · ' + qty(totalLoss) +
             ' шт потерь</span></div>';
 
+        if (!losses.diagnostics || !losses.diagnostics.has_transactions) {
+            html += '<div class="pk-empty" style="border-top:none">' +
+                'проводки склада за период не пришли — расхождений не видно</div>';
+            el.losses.innerHTML = html;
+            return;
+        }
         if (!rows.length) {
             html += '<div class="pk-empty" style="border-top:none">' +
                 'за период расхождений по фасовке не было</div>';
@@ -715,19 +727,24 @@
             parts.push('по кассе продано ' + qty(diag.sold_by_register) + ' шт, по складу списано ' +
                 qty(diag.sold_by_stock) + ' шт: разница ' +
                 signed(diag.sold_delta, diag.sold_delta < 0 ? '−' : '+') +
-                ' — граница учётного дня и наборы (в продажах набор — одна позиция, ' +
-                'на складе списываются бутылки из него)');
+                ' — граница учётного дня, наборы (в продажах набор — одна позиция, ' +
+                'на складе списываются бутылки из него) или позиции без карточки склада');
         }
         if ((diag.non_piece_products || []).length) {
             parts.push('не в штуках, в баланс не вошли: ' +
                 diag.non_piece_products.map(function (p) {
-                    return esc(p.ProductName) + ' (' + esc(p.Unit) + ')';
+                    return esc(p.ProductName) + ' (расход ' + qty(p.Out) + ' ' + esc(p.Unit) +
+                        (p.In ? ', приход ' + qty(p.In) + ' ' + esc(p.Unit) : '') + ')';
                 }).join(', '));
         }
         var ignored = Object.keys(diag.ignored_types || {});
         if (ignored.length) {
             parts.push('проводки других типов (возвраты и т.п.) в баланс не входят: ' +
-                ignored.map(function (k) { return esc(k) + ' × ' + diag.ignored_types[k]; }).join(', '));
+                ignored.map(function (k) {
+                    var t = diag.ignored_types[k] || {};
+                    return esc(k) + ' × ' + (t.rows || 0) + ' (расход ' + qty(t.out || 0) +
+                        ', приход ' + qty(t.in || 0) + ' шт)';
+                }).join(', '));
         }
         if (diag.unmatched_products) {
             parts.push(diag.unmatched_products + ' ' +
@@ -1068,35 +1085,51 @@
             });
         }
 
-        var writeoffPct = p.SoldQtyStock > 0 ? p.WriteoffQty / p.SoldQtyStock * 100 : null;
-        var shortPct = p.SoldQtyStock > 0 ? p.InventoryNetQty / p.SoldQtyStock * 100 : null;
+        // Проценты приходят с сервера (WriteoffPercentOfSold, InventoryPercentOfSold);
+        // излишек — не потеря: своя подпись, знак плюс и спокойная плашка, как в
+        // строке баланса, иначе «+3» рядом с «−25,0%» читалось бы двумя способами.
+        var surplus = p.InventoryNetQty < 0;
+        var hasPct = p.InventoryPercentOfSold !== null && p.InventoryPercentOfSold !== undefined;
         html += band('ПОТЕРИ', 'к проданному по складу');
         html += '<div class="pk-cells three">' +
             cell('ПРОДАНО ПО СКЛАДУ', qty(p.SoldQtyStock) + ' шт') +
             '<div class="pk-cell"><div class="pk-cell-cap">СПИСАНО АКТАМИ</div>' +
             '<div class="pk-cell-row"><span class="pk-cell-v">' + qty(p.WriteoffQty) +
-            '</span><span class="pk-pill ' + lossTone(writeoffPct) + '">' +
-            (writeoffPct === null ? '—' : pct(writeoffPct, 1)) + '</span></div></div>' +
-            '<div class="pk-cell"><div class="pk-cell-cap">НЕДОСТАЧА ИНВЕНТ.</div>' +
+            '</span><span class="pk-pill ' + lossTone(p.WriteoffPercentOfSold) + '">' +
+            (p.WriteoffPercentOfSold === null || p.WriteoffPercentOfSold === undefined
+                ? '—' : pct(p.WriteoffPercentOfSold, 1)) + '</span></div></div>' +
+            '<div class="pk-cell"><div class="pk-cell-cap">' +
+            (surplus ? 'ИЗЛИШЕК ИНВЕНТ.' : 'НЕДОСТАЧА ИНВЕНТ.') + '</div>' +
             '<div class="pk-cell-row"><span class="pk-cell-v">' +
-            signed(p.InventoryNetQty, p.InventoryNetQty < 0 ? '+' : '') +
-            '</span><span class="pk-pill ' + lossTone(shortPct) + '">' +
-            (shortPct === null ? '—' : pct(shortPct, 1)) + '</span></div></div>' +
+            signed(p.InventoryNetQty, surplus ? '+' : '') +
+            '</span><span class="pk-pill ' + (surplus ? 'ok' : lossTone(p.InventoryPercentOfSold)) + '">' +
+            (!hasPct ? '—' : (surplus ? '+' : '') + pct(Math.abs(p.InventoryPercentOfSold), 1)) +
+            '</span></div></div>' +
             '</div>';
-        html += '<div class="pk-dr-note">' +
-            (p.SoldQtyStock > 0
-                ? 'Потери ' + qty(p.LossQty) + ' шт = акты ' + qty(p.WriteoffQty) +
-                  ' + недостача ' + qty(Math.max(p.InventoryNetQty, 0)) + ' · ' +
-                  qty(p.LossQty) + ' / ' + qty(p.SoldQtyStock) + ' = ' +
-                  pct(p.LossPercentOfSold, 1) + ' от проданного по складу. ' +
-                  'По кассе продано ' + qty(p.TotalQty) + ' шт' +
-                  (Math.abs(p.TotalQty - p.SoldQtyStock) > 0.005
-                      ? ' — расходится со складом на ' +
-                        signed(p.SoldQtyStock - p.TotalQty, p.SoldQtyStock < p.TotalQty ? '−' : '+') +
-                        ' (граница учётного дня или набор).'
-                      : '.')
-                : 'Движений по складу за период у позиции нет: проводки не пришли или товар не сопоставлен с продажами.') +
-            '</div>';
+        var lossNote;
+        if (p.StockUnit && p.StockUnit !== 'шт') {
+            lossNote = 'На складе товар учитывается в единице «' + esc(p.StockUnit) +
+                '»: в баланс штук не входит, потери по нему не считаются.';
+        } else if (p.SoldQtyStock > 0) {
+            lossNote = 'Потери ' + qty(p.LossQty) + ' шт = акты ' + qty(p.WriteoffQty) +
+                ' + недостача ' + qty(Math.max(p.InventoryNetQty, 0)) + ' · ' +
+                qty(p.LossQty) + ' / ' + qty(p.SoldQtyStock) + ' = ' +
+                pct(p.LossPercentOfSold, 1) + ' от проданного по складу. ' +
+                'По кассе продано ' + qty(p.TotalQty) + ' шт' +
+                (Math.abs(p.TotalQty - p.SoldQtyStock) > 0.005
+                    ? ' — расходится со складом на ' +
+                      signed(p.SoldQtyStock - p.TotalQty, p.SoldQtyStock < p.TotalQty ? '−' : '+') +
+                      ' (граница учётного дня, набор или товар без карточки склада).'
+                    : '.');
+        } else if (p.WriteoffQty > 0 || Math.abs(p.InventoryNetQty) > 0.005) {
+            lossNote = 'По складу за период не продано, но движения есть: акты ' + qty(p.WriteoffQty) +
+                (surplus ? ', излишек ' + qty(-p.InventoryNetQty) : ' + недостача ' + qty(p.InventoryNetQty)) +
+                ' — потери ' + qty(p.LossQty) + ' шт, процент к проданному не определён.';
+        } else {
+            lossNote = 'Движений по складу за период у позиции нет: проводки не пришли ' +
+                'или товар не сопоставлен с продажами.';
+        }
+        html += '<div class="pk-dr-note">' + lossNote + '</div>';
 
         var totals = data.totals || {};
         html += band('ABC-АНАЛИЗ', 'три буквы: выручка, наценка, спрос');

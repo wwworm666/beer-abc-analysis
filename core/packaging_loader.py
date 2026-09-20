@@ -55,11 +55,13 @@ def load_packaging(bar_name, date_from, date_to):
             # Порядок важен: связь с iiko рвётся, и если упал первый запрос,
             # второй только жжёт бюджет gunicorn --timeout впустую. Частичный
             # ответ не кэшируется: страница либо целая, либо «ошибка iiko».
+            # Ответ без ключа data — не «пусто», а сбой: пустой период iiko
+            # отдаёт как {'data': []}. Иначе кривой ответ лёг бы в кэш нулями.
             transactions = olap.get_packaging_writeoff_report(date_from, olap_date_to, bar_name)
-            if transactions is None:
+            if not isinstance(transactions, dict) or 'data' not in transactions:
                 return None
             sales = olap.get_packaging_sales_report(date_from, olap_date_to, bar_name)
-            if sales is None:
+            if not isinstance(sales, dict) or 'data' not in sales:
                 return None
         finally:
             olap.disconnect()

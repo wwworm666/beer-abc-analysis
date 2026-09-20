@@ -6,8 +6,9 @@
    кэша, второй запрос за тот же период iiko не трогает.
 2. Сбой любого из двух отчётов — 502 и НИЧЕГО в кэше (половина данных не
    кэшируется), а не 200 с пустым балансом.
-3. «Нет данных» только когда пусто и в кассе, и на складе: период с приходом
-   без продаж — это данные.
+3. «Нет данных» только когда пусто и в кассе, и на складе: период с приходом,
+   актом или инвентаризацией без продаж — это данные.
+4. Ответ iiko без ключа data — сбой (502), а не пустой период.
 4. В ответе есть losses и generated_at — их читает страница.
 Сеть не трогается: OlapReports подменён.
 
@@ -93,6 +94,21 @@ class StockOnlyOlap(FakeOlap):
     sales = []
 
 
+class MovementsOnlyOlap(FakeOlap):
+    """Бар закрыт: только акт и инвентаризация, ни накладной, ни продаж."""
+    sales = []
+    transactions = [
+        trans_row("Лиговский", "dish-a", "2026-08-26", "WRITEOFF", out=1.0),
+        trans_row("Лиговский", "dish-a", "2026-08-27", "INVENTORY_CORRECTION", out=6.0),
+    ]
+
+
+class NoDataKeyOlap(FakeOlap):
+    def get_packaging_writeoff_report(self, date_from, date_to, bar_name=None):
+        FakeOlap.calls += 1
+        return {}
+
+
 class EmptyOlap(FakeOlap):
     sales = []
     transactions = []
@@ -167,6 +183,23 @@ class PackagingEndpoint(unittest.TestCase):
         # Товар с потерями, но без продаж — в расхождениях, не сопоставлен.
         self.assertIsNone(block["losses"]["by_item"][0]["PositionId"])
         self.assertEqual(1, block["losses"]["diagnostics"]["unmatched_products"])
+
+    def test_writeoff_and_inventory_without_sales_are_data_not_404(self):
+        client = make_client()
+        with patch("core.packaging_loader.OlapReports", MovementsOnlyOlap):
+            response = client.post("/api/packaging", json={"bar": "", **PERIOD})
+        self.assertEqual(200, response.status_code, response.get_data(as_text=True))
+        losses = response.get_json()["losses"]
+        self.assertEqual(0.0, losses["invoice_in"])
+        # 0 − 0 − 1 − 6 = −7: остаток уменьшился без единой продажи.
+        self.assertAlmostEqual(-7.0, losses["balance"])
+
+    def test_response_without_data_key_is_502_and_not_cached(self):
+        client = make_client()
+        with patch("core.packaging_loader.OlapReports", NoDataKeyOlap):
+            response = client.post("/api/packaging", json={"bar": "", **PERIOD})
+        self.assertEqual(502, response.status_code)
+        self.assertEqual({}, DASHBOARD_OLAP_CACHE)
 
     def test_empty_everything_is_404(self):
         client = make_client()

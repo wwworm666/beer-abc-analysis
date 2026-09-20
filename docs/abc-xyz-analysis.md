@@ -43,10 +43,10 @@ ABC/XYZ и потери» и «Розлив — ABC/XYZ и потери». Оф�
 | [`static/packaging/packaging.css`](../static/packaging/packaging.css) | токены `--pk-*`, оформление, тёмная тема |
 | [`static/js/packaging/packaging.js`](../static/js/packaging/packaging.js) | фильтры, таблицы, сортировка, поиск, карточки |
 | [`tests/test_packaging_analysis.py`](../tests/test_packaging_analysis.py) | 30 проверок расчёта, включая инварианты сведения |
-| [`tests/test_packaging_losses.py`](../tests/test_packaging_losses.py) | 19 проверок баланса: формула, связка по GUID и имени, диагностика, детерминизм |
-| [`tests/test_packaging_routes.py`](../tests/test_packaging_routes.py) | 7 проверок эндпоинта: один поход в iiko, 502 без кэша, 404 только при полной пустоте |
+| [`tests/test_packaging_losses.py`](../tests/test_packaging_losses.py) | 23 проверки баланса: формула, потери позиции от её сумм, связка по GUID и имени, весовой товар, диагностика, детерминизм |
+| [`tests/test_packaging_routes.py`](../tests/test_packaging_routes.py) | 9 проверок эндпоинта: один поход в iiko, 502 без кэша (и при ответе без `data`), 404 только без проводок и продаж |
 | [`tests/test_packaging_render.mjs`](../tests/test_packaging_render.mjs) | 26 проверок согласованности шаблон/CSS/JS |
-| [`tests/test_packaging_runtime.mjs`](../tests/test_packaging_runtime.mjs) | 32 проверки исполнения на живом ответе |
+| [`tests/test_packaging_runtime.mjs`](../tests/test_packaging_runtime.mjs) | 37 проверок исполнения на живом ответе |
 
 ---
 
@@ -115,30 +115,45 @@ Amount.Out / Amount.In  расход / приход, штук
 inventory_net = inventory_out − inventory_in                 недостача минус излишек
 balance       = invoice_in + transfer_in
               − sold − writeoff − inventory_net − transfer_out
+received      = invoice_in + transfer_in                       весь приход одним числом
 spent         = sold + writeoff + inventory_net + transfer_out  весь расход одним числом
 writeoff_percent_of_sold  = writeoff / sold × 100            0, если sold = 0
 inventory_percent_of_sold = inventory_net / sold × 100       0, если sold = 0
 
-по товару и по позиции:
+по товару (by_item) и по позиции — от её собственных сумм:
 LossQty           = writeoff + max(inventory_net, 0)   излишек потерей не считается
 LossPercentOfSold = LossQty / sold × 100               null, если по складу не продано
+WriteoffPercentOfSold  = writeoff / sold × 100         только у позиции
+InventoryPercentOfSold = inventory_net / sold × 100    только у позиции; минус = излишек
 ```
+
+У позиции с несколькими GUID (пересозданная карточка) `LossQty` считается от её
+суммарных `WriteoffQty` и `InventoryNetQty`, а не как сумма потерь по GUID:
+недостача по одному GUID и излишек по другому гасят друг друга, как в балансе
+сверху. В `by_item` каждый GUID остаётся отдельной строкой, как кег на `/draft`.
 
 **Чем отличается от розлива.** Товар фасовки списывается при продаже сам, техкарт
 нет, поэтому связка «товар склада — позиция таблицы» прямая: `Product.Id`
 проводки равен `DishId` продажи (один элемент номенклатуры). Если продажи пришли
-без `DishId` (старый кэш, фикстура), запасной путь — по имени с обрезкой
-пробелов; какой режим сработал, видно в диагностике (`match_mode`: `guid` или
-`name`), у каждого товара раскладки — `MatchedBy`. Строки не в «шт» (весовые
+без `DishId` (вызов в обход `get_packaging_sales_report`, старая фикстура),
+запасной путь — по имени с обрезкой пробелов; какой режим сработал, видно в
+диагностике (`match_mode`: `guid` или `name`), у каждого товара раскладки —
+`MatchedBy`. Строки не в «шт» (весовые
 закуски, попавшие в группу: 11 товаров из 4389 в выгрузке номенклатуры) и
 проводки других типов (возвраты поставщику, возвраты от гостя) в баланс не
-входят, но и не отбрасываются молча — их число и штуки печатаются в диагностике
-под блоком. У розлива такие строки терялись без следа.
+входят, но и не отбрасываются молча — число строк и штуки расхода и прихода
+печатаются в диагностике под блоком (`ignored_types`: `{тип: {rows, out, in}}`,
+`non_piece_products`: `[{ProductId, ProductName, Unit, Out, In}]`). У розлива
+такие строки терялись без следа.
 
 **Сверка кассы и склада.** Штук по чекам (`totals.qty`) и штук по
 `SESSION_WRITEOFF` должно быть поровну; разница `sold_delta = склад − касса`
-печатается в диагностике. Ненулевая разница — позиции без карточки склада или
-продажи вне группы «Напитки Фасовка» по дереву товаров.
+печатается в диагностике. Позиции не в штуках (весовые закуски) из кассовой
+суммы вычтены — они и в баланс не входят (`register_non_piece_qty`, у позиции
+`StockUnit`). Ненулевая разница — граница учётного дня (в продажах
+`OpenDate.Typed`, в проводках `DateTime.DateTyped`), наборы (в чеке набор —
+одна позиция, на складе списываются бутылки из него) или позиции без карточки
+склада; те же три причины называют строка диагностики и карточка позиции.
 
 **Раскладка по товарам** (`by_item`) — только товары, у которых есть акт
 списания или ненулевой итог инвентаризаций, без урезания. Сортировка по
@@ -148,8 +163,9 @@ LossPercentOfSold = LossQty / sold × 100               null, если по ск
 и считаются в `unmatched_products`.
 
 Каждая позиция таблицы получает `SoldQtyStock`, `WriteoffQty`,
-`InventoryNetQty`, `LossQty`, `LossPercentOfSold`; карточка позиции печатает
-их в разделе «Потери» с формулой.
+`InventoryNetQty`, `LossQty`, `LossPercentOfSold`, `WriteoffPercentOfSold`,
+`InventoryPercentOfSold` и `StockUnit`; карточка позиции печатает их в разделе
+«Потери» с формулой, ничего не пересчитывая.
 
 ### Категория
 
@@ -372,14 +388,14 @@ ABC_Combined = ABC_Revenue + ABC_Markup + XYZ_Category
   "generated_at": "12:34",       // время выгрузки из iiko (чип «обновлено»)
   "losses": {                   // баланс склада в штуках, см. «Проводки и потери»
     "unit": "шт",
-    "invoice_in", "transfer_in", "transfer_out", "sold", "writeoff",
+    "received", "invoice_in", "transfer_in", "transfer_out", "sold", "writeoff",
     "inventory_out", "inventory_in", "inventory_net", "balance", "spent",
     "writeoff_percent_of_sold", "inventory_percent_of_sold",
     "by_item": [ { "ProductId", "ProductName", "PositionId", "MatchedBy",
                    "SoldQty", "WriteoffQty", "InventoryNetQty",
                    "LossQty", "LossPercentOfSold" } ],
     "diagnostics": { "non_piece_products", "ignored_types",
-                     "sold_by_register", "sold_by_stock", "sold_delta",
+                     "sold_by_register", "register_non_piece_qty", "sold_by_stock", "sold_delta",
                      "unmatched_products", "match_mode", "has_transactions" }
   }
 }
@@ -409,12 +425,15 @@ XYZ_Category, CoefficientOfVariation, XYZ_Reason,
 WeeklyQty, WeeksWithSales, WeeksInPeriod, QtyOutsideWeeks,
 ByBar: [{ Bar, Qty, Revenue, Cost, Margin, SharePercent }], BarsPresent,
 DishId, DishIds,
-SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty, LossPercentOfSold
+SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty, LossPercentOfSold,
+WriteoffPercentOfSold, InventoryPercentOfSold, StockUnit
 ```
 
 `DishId` — GUID, на который пришлась наибольшая выручка позиции (одно название
 изредка живёт под двумя элементами номенклатуры), `DishIds` — все GUID позиции;
-склад связывается по любому из них.
+склад связывается по любому из них. `StockUnit` — единица товара на складе, если
+она не «шт» (весовая закуска в группе): такая позиция в баланс и в сверку
+касса/склад не входит, карточка говорит об этом вместо формулы.
 
 `BeersCount` — число **уникальных** фасовок. Прежний счётчик считал строки
 (бар × фасовка) и в сетевом разрезе завышал количество на 45%: «Хели (Ф)»
@@ -436,7 +455,7 @@ SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty, LossPercentOfSold
                     клик — карточка со всеми позициями категории
 ПОЗИЦИИ             ВСЕ фасовки, сортировка + поиск по названию и категории,
                     клик — карточка позиции; под таблицей расшифровка букв
-БАЛАНС И            две карточки: «Баланс склада» (приход, перемещения, продано,
+БАЛАНС И            две карточки: «Баланс фасовки за период» (приход, перемещения, продано,
 РАСХОЖДЕНИЯ         акты, инвентаризации, изменение остатка со шкалами) и «Где
                     именно расхождения» (первые 8 товаров + раскрывашка «ещё N»,
                     клик — карточка позиции); под ними строка диагностики
@@ -456,8 +475,11 @@ SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty, LossPercentOfSold
 **Карточка позиции** показывает продажи, деньги, разбивку по барам (только в
 «Общей»), разбор каждой из трёх букв с формулой, вторую шкалу (в категории + маржа),
 недельный ряд столбиками — тот самый, из которого получился CV — и раздел
-«Потери»: продано по складу, списано актами, недостача по инвентаризациям и
-формула `(акты + max(недостача, 0)) / продано по складу`.
+«Потери»: продано по складу, списано актами, недостача (или излишек — со знаком
+плюс и спокойной плашкой) по инвентаризациям, проценты с сервера и формула
+`(акты + max(недостача, 0)) / продано по складу`; при актах без продаж по складу
+потери названы, а процент — нет; у весового товара вместо формулы пометка, что
+в баланс штук он не входит.
 
 **Расшифровка букв — прямо под таблицей позиций** (блок `#pkKey`): по строке на
 каждую букву кода, в строке таблетки тех же цветов, что в колонке ABC, и словами,
@@ -512,7 +534,7 @@ SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty, LossPercentOfSold
   позиции. Формула баланса та же, что у кегов; связка товар — позиция по GUID
   (`DishId` = `Product.Id`) с запасным путём по имени. Страницы переименованы
   зеркально: «Фасовка — ABC/XYZ и потери» и «Розлив — ABC/XYZ и потери», в меню
-  «Фасовка» и «Розлив». Тесты: 19 на баланс, 7 на эндпоинт, +2 render, +8 runtime.
+  «Фасовка» и «Розлив». Тесты: 23 на баланс, 9 на эндпоинт, +2 render, +13 runtime.
 - **2026-09-19** — Страница пересобрана: единый разрез «Общая» по всем барам, все
   категории без урезаний, оформление «Анализа проливов». Новые
   `core/packaging_analysis.py` и `core/abc_thresholds.py`, эндпоинт

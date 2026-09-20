@@ -276,9 +276,10 @@ class OlapReports:
 
         Тот же отчёт, что get_beer_sales_report, плюс DishId в группировке:
         по нему проводки склада (Product.Id) связываются с позициями таблицы
-        без сопоставления по названиям (core/packaging_losses.py). Дублирования
-        строк DishId не даёт: у одного названия один GUID (проверено на
-        data/beer_report.json — 450 названий, 0 с двумя GUID).
+        без сопоставления по названиям (core/packaging_losses.py). Если у одного
+        названия окажется два GUID (пересозданная карточка), строки разойдутся
+        по DishId — PackagingAnalysis складывает их обратно по названию и
+        хранит все GUID позиции в DishIds.
         """
         return self.get_beer_sales_report(date_from, date_to, bar_name, include_dish_id=True)
 

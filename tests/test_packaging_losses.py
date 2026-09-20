@@ -164,11 +164,13 @@ def test_non_piece_units_excluded_but_reported():
     losses = build([], rows)['losses']
     assert losses['sold'] == 10.0, 'килограммы сложились со штуками'
     assert losses['diagnostics']['non_piece_products'] == [
-        {'ProductId': P2, 'ProductName': 'Орехи', 'Unit': 'кг'}]
+        {'ProductId': P2, 'ProductName': 'Орехи', 'Unit': 'кг', 'Out': 1.5, 'In': 0.0}]
 
 
 def test_corresponding_account_rows_add_nothing():
-    """Служебный счёт даёт строки с нулями — они ничего не приносят в баланс."""
+    """Строки служебных счетов приходят с нулями — допущение, взятое с /draft
+    (там оно сошлось с фактом по литрам); здесь фиксируется только то, что
+    нулевые строки не плодят расхождений. Проверить на живых проводках фасовки."""
     rows = [
         trans('Лиговский', P1, '2026-08-04', 'SESSION_WRITEOFF', out=10.0),
         trans('Расход продуктов', P1, '2026-08-04', 'SESSION_WRITEOFF', out=0.0),
@@ -187,7 +189,8 @@ def test_unknown_types_counted_not_summed():
     ]
     losses = build([], rows)['losses']
     assert losses['balance'] == 10.0
-    assert losses['diagnostics']['ignored_types'] == {'OUTGOING_INVOICE': 1}
+    assert losses['diagnostics']['ignored_types'] == {
+        'OUTGOING_INVOICE': {'rows': 1, 'out': 4.0, 'in': 0.0}}
 
 
 def test_bar_scope_filters_and_total_merges():
@@ -201,6 +204,65 @@ def test_bar_scope_filters_and_total_merges():
     total = build([], rows)['losses']
     assert total['invoice_in'] == 15.0
     assert len(total['by_item']) == 1 and total['by_item'][0]['WriteoffQty'] == 1.0
+
+
+def test_position_loss_from_own_totals_not_sum_over_guids():
+    """Пересозданная карточка: два GUID у одной позиции, недостача по одному и
+    излишек по другому гасят друг друга — потерь у позиции нет, как в балансе."""
+    sales = [sale('Лиговский', 'guid-x', '2026-08-04', 20, 2000, 1000, name='Пиво А'),
+             sale('Лиговский', 'guid-y', '2026-08-05', 10, 1000, 500, name='Пиво А')]
+    rows = [trans('Лиговский', 'guid-x', '2026-08-04', 'SESSION_WRITEOFF', out=20.0, name='Пиво А'),
+            trans('Лиговский', 'guid-y', '2026-08-05', 'SESSION_WRITEOFF', out=10.0, name='Пиво А'),
+            trans('Лиговский', 'guid-x', '2026-08-06', 'INVENTORY_CORRECTION', out=5.0, name='Пиво А'),
+            trans('Лиговский', 'guid-y', '2026-08-06', 'INVENTORY_CORRECTION', inc=5.0, name='Пиво А')]
+    block = build(sales, rows)
+    assert len(block['positions']) == 1
+    position = block['positions'][0]
+    assert position['DishIds'] == ['guid-x', 'guid-y']
+    assert position['SoldQtyStock'] == 30.0 and position['InventoryNetQty'] == 0.0
+    assert position['LossQty'] == 0.0 and position['LossPercentOfSold'] == 0.0
+    assert position['InventoryPercentOfSold'] == 0.0
+    assert block['losses']['inventory_net'] == 0.0
+    # Раскладка по товарам остаётся по GUID — по каждой карточке, как у кегов.
+    assert sorted(k['InventoryNetQty'] for k in block['losses']['by_item']) == [-5.0, 5.0]
+
+
+def test_percents_and_received_come_from_server():
+    block = build(REFERENCE_SALES, REFERENCE)
+    position = block['positions'][0]
+    sold = position['SoldQtyStock']
+    assert position['WriteoffPercentOfSold'] == position['WriteoffQty'] / sold * 100
+    assert position['InventoryPercentOfSold'] == position['InventoryNetQty'] / sold * 100
+    losses = block['losses']
+    assert losses['received'] == losses['invoice_in'] + losses['transfer_in']
+    assert losses['balance'] == losses['received'] - losses['spent']
+
+
+def test_losses_without_stock_sales_have_no_percent():
+    """Продаж по складу нет, а акт есть: потери считаются, процент — нет."""
+    sales = [sale('Лиговский', P1, '2026-08-04', 3, 300, 150)]
+    rows = [trans('Лиговский', P1, '2026-08-05', 'WRITEOFF', out=2.0)]
+    position = build(sales, rows)['positions'][0]
+    assert position['SoldQtyStock'] == 0.0 and position['WriteoffQty'] == 2.0
+    assert position['LossQty'] == 2.0
+    assert position['LossPercentOfSold'] is None and position['WriteoffPercentOfSold'] is None
+
+
+def test_non_piece_position_excluded_from_register_check():
+    """Весовая закуска в группе: в кассе есть, в баланс не входит — и из сверки
+    «касса против склада» выпадает, иначе разница была бы каждый период."""
+    sales = [sale('Лиговский', P1, '2026-08-04', 10, 1000, 500),
+             sale('Лиговский', P2, '2026-08-04', 1.5, 450, 200, name='Орехи')]
+    rows = [trans('Лиговский', P1, '2026-08-04', 'SESSION_WRITEOFF', out=10.0),
+            trans('Лиговский', P2, '2026-08-04', 'SESSION_WRITEOFF', out=1.5, unit='кг', name='Орехи')]
+    block = build(sales, rows)
+    diag = block['losses']['diagnostics']
+    assert diag['sold_by_register'] == 10.0 and diag['register_non_piece_qty'] == 1.5
+    assert diag['sold_delta'] == 0.0
+    nuts = next(p for p in block['positions'] if p['Beer'] == 'Орехи')
+    assert nuts['StockUnit'] == 'кг' and nuts['SoldQtyStock'] == 0.0
+    beer = next(p for p in block['positions'] if p['Beer'] != 'Орехи')
+    assert beer['StockUnit'] is None
 
 
 # ==================== связка со списком позиций ====================
@@ -295,6 +357,10 @@ if __name__ == '__main__':
     _run('служебный счёт ничего не приносит', test_corresponding_account_rows_add_nothing)
     _run('чужие типы проводок считаются, не суммируются', test_unknown_types_counted_not_summed)
     _run('разрез бара фильтрует, «Общая» схлопывает', test_bar_scope_filters_and_total_merges)
+    _run('потери позиции от её сумм, а не по GUID', test_position_loss_from_own_totals_not_sum_over_guids)
+    _run('проценты и приход считает сервер', test_percents_and_received_come_from_server)
+    _run('акт без продаж по складу — без процента', test_losses_without_stock_sales_have_no_percent)
+    _run('весовой товар вне сверки касса/склад', test_non_piece_position_excluded_from_register_check)
     _run('связка по DishId и поля на позиции', test_match_by_dish_id_and_fields_on_position)
     _run('связка по GUID переживает переименование', test_match_by_guid_survives_rename)
     _run('запасная связка по имени без DishId', test_fallback_by_name_when_sales_have_no_dish_id)

@@ -8,8 +8,9 @@
  * именно она страшнее всего: страница молча остаётся пустой.
  *
  * Здесь настоящий packaging.js исполняется на настоящем ответе /api/packaging
- * (tests/fixtures/packaging_sample.json — посчитан из data/beer_report.json,
- * 4 бара, 30 дней, все 28 категорий) и проверяется, что в узлы легла ожидаемая
+ * (tests/fixtures/packaging_sample.json — собран скриптом
+ * tests/fixtures/build_packaging_sample.py: продажи из data/beer_report.json,
+ * 4 бара, 30 дней, проводки склада синтетические) и проверяется, что в узлы легла ожидаемая
  * разметка: сводка, корзины, обе таблицы с итогами, карточки.
  *
  * Тот же приём, что у пары test_draft_render.mjs / test_draft_runtime.mjs.
@@ -319,6 +320,15 @@ test('диагностика склада называет всё, что вып
         'фикстура не покрывает диагностику');
     assert.ok(html.includes('не в штуках'), 'не названы товары не в штуках');
     assert.ok(html.includes('других типов'), 'не названы чужие типы проводок');
+    // Число строк само по себе не говорит, сколько бутылок ушло: штуки печатаются.
+    const type = Object.keys(d.ignored_types)[0];
+    assert.ok(html.includes(type + ' × ' + d.ignored_types[type].rows + ' (расход ' +
+        api.qty(d.ignored_types[type].out)), 'у чужих типов не напечатаны штуки');
+    assert.ok(html.includes('(расход ' + api.qty(d.non_piece_products[0].Out) + ' ' +
+        d.non_piece_products[0].Unit), 'у товара не в штуках не напечатано количество');
+    if (Math.abs(d.sold_delta) > 0.005) {
+        assert.ok(html.includes('без карточки склада'), 'причины разницы названы не те же, что в документе');
+    }
     assert.ok(html.includes('не сопоставлен'), 'не названы несопоставленные');
     if (Math.abs(d.sold_delta) > 0.005) {
         assert.ok(html.includes('по кассе продано'), 'разница касса/склад не показана');
@@ -340,7 +350,13 @@ test('карточка позиции: секция потерь с формул
 
 test('клик по строке расхождений открывает карточку той же позиции', () => {
     const linked = BLOCK.losses.by_item.find((k) => k.PositionId !== null);
-    api.openPosition(String(linked.PositionId));
+    const handlers = env.byId.pkLosses.listeners.click || [];
+    assert.ok(handlers.length, 'на блоке расхождений нет обработчика клика');
+    env.byId.pkDrawer.hidden = true;
+    // Делегирование: цель клика — потомок строки с data-pos.
+    handlers.forEach((fn) => fn({ target: { closest: (sel) =>
+        sel === '[data-pos]' ? { dataset: { pos: String(linked.PositionId) } } : null } }));
+    assert.equal(env.byId.pkDrawer.hidden, false, 'карточка не открылась по клику');
     const html = env.byId.pkDrawer.innerHTML;
     assert.ok(html.includes(api.esc(BLOCK.positions[linked.PositionId].Beer)),
         'карточка открылась не на той позиции');
@@ -354,7 +370,8 @@ test('страница переживает ответ без блока losses'
     api.render();
     assert.ok(env.byId.pkBalance.innerHTML.includes('проводки склада за период не пришли'),
         'без проводок баланс должен сказать об этом, а не молчать');
-    assert.ok(env.byId.pkLosses.innerHTML.includes('расхождений по фасовке не было'));
+    assert.ok(env.byId.pkLosses.innerHTML.includes('проводки склада за период не пришли'),
+        'без проводок блок расхождений не должен утверждать, что расхождений не было');
     assert.equal(env.byId.pkUpdated.hidden, true);
     api.state.data = BLOCK;
     api.render();
@@ -510,6 +527,77 @@ test('ошибка сервера показывается словами, а н
     assert.match(failing.byId.pkMsg.textContent, /Нет данных/,
         'причина от сервера не доехала до экрана');
     assert.match(failing.byId.pkMsg.className, /err/, 'сообщение не помечено ошибкой');
+});
+
+test('баланс: излишек по инвентаризациям — своя строка, плюс, спокойная плашка, минус в формуле', () => {
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    const l = data.losses;
+    l.inventory_in = l.inventory_out + 4;
+    l.inventory_net = l.inventory_out - l.inventory_in;
+    l.inventory_percent_of_sold = l.inventory_net / l.sold * 100;
+    api.state.data = data;
+    api.render();
+    const html = env.byId.pkBalance.innerHTML;
+    assert.ok(html.includes('Излишек по инвентаризациям'), 'нет строки излишка');
+    assert.ok(!html.includes('Недостача по инвентаризациям'), 'недостача и излишек одновременно');
+    assert.ok(html.includes('+' + api.qty(4)), 'излишек без знака плюс');
+    assert.match(html, /pk-pill ok">[\d,]+% от продаж/, 'плашка излишка не спокойная или с минусом');
+    assert.ok(html.includes('− излишек ' + api.qty(4)), 'в формуле излишек напечатан как «+ недостача −4»');
+    assert.ok(html.includes('приход ' + api.qty(l.received)), 'приход в формуле не с сервера');
+    api.state.data = BLOCK;
+    api.render();
+});
+
+test('карточка: излишек у позиции подписан излишком, процент со знаком плюс', () => {
+    const surplus = BLOCK.positions.find((p) => p.InventoryNetQty < 0 && p.SoldQtyStock > 0);
+    assert.ok(surplus, 'в фикстуре нет позиции с излишком и продажами по складу');
+    api.openPosition(surplus.Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes('ИЗЛИШЕК ИНВЕНТ.'), 'ячейка не переименована в излишек');
+    assert.ok(!html.includes('НЕДОСТАЧА ИНВЕНТ.'), 'у излишка осталась подпись недостачи');
+    const at = html.indexOf('ИЗЛИШЕК ИНВЕНТ.');
+    const cellHtml = html.slice(at, at + 400);
+    assert.match(cellHtml, /pk-pill ok">\+[\d,]+%/, 'процент излишка без плюса или не спокойный');
+    assert.ok(!/pk-pill (calm|warn|bad|ok)">−/.test(cellHtml), 'процент излишка с минусом');
+});
+
+test('карточка: весовой товар — пометка вместо формулы потерь', () => {
+    const nuts = BLOCK.positions.find((p) => p.StockUnit && p.StockUnit !== 'шт');
+    assert.ok(nuts, 'в фикстуре нет весовой позиции');
+    api.openPosition(nuts.Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes('в единице «' + nuts.StockUnit + '»'), 'нет пометки про единицу склада');
+    assert.ok(!html.includes('Движений по складу за период у позиции нет'),
+        'весовой товар выдан за отсутствие движений');
+});
+
+test('карточка: акт без продаж по складу — потери названы, процент не выдуман', () => {
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    const p = data.positions[1];
+    p.SoldQtyStock = 0; p.WriteoffQty = 3; p.InventoryNetQty = 2; p.LossQty = 5;
+    p.LossPercentOfSold = null; p.WriteoffPercentOfSold = null; p.InventoryPercentOfSold = null;
+    api.state.data = data;
+    api.render();
+    api.openPosition(p.Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    assert.ok(html.includes('не продано, но движения есть'), 'подпись не признаёт движений');
+    assert.ok(html.includes('потери ' + api.qty(5) + ' шт'), 'потери не названы');
+    assert.ok(!html.includes('Движений по складу за период у позиции нет'), 'сказано «движений нет» при акте');
+    assert.ok(!html.includes('% от проданного по складу'), 'процент выдуман при нуле продаж');
+    api.state.data = BLOCK;
+    api.render();
+});
+
+test('склад без продаж: таблица позиций говорит про отсутствие продаж, а не про поиск', () => {
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    data.positions = [];
+    data.categories = [];
+    api.state.data = data;
+    api.render();
+    assert.ok(env.byId.pkPos.innerHTML.includes('продаж фасовки за период нет'),
+        'пустая таблица просит уточнить запрос, хотя запроса не было');
+    api.state.data = BLOCK;
+    api.render();
 });
 
 test('раннер действительно исполняет проверки (защита от вечнозелёного теста)', () => {

@@ -180,6 +180,31 @@ class PackagingReportBuilders(unittest.TestCase):
         body = self._capture(lambda o: o.get_draft_writeoff_report("2026-03-01", "2026-04-01"))
         self.assertEqual(["Напитки Розлив"], body["filters"]["Product.TopParent"]["values"])
 
+    def test_packaging_sales_report_requests_dish_id_through_public_path(self):
+        """Публичный путь get_packaging_sales_report -> get_beer_sales_report ->
+        _build_olap_request: флаг должен доехать до тела запроса."""
+        olap = OlapReports()
+        olap.token = "test-token"
+        bodies = []
+
+        class FakeResponse:
+            status_code = 200
+
+            def json(self):
+                return {"data": []}
+
+        def fake_post(url, params=None, json=None, headers=None, timeout=None):
+            bodies.append(json)
+            return FakeResponse()
+
+        with patch("core.olap_reports.requests.post", fake_post):
+            olap.get_packaging_sales_report("2026-03-01", "2026-04-01")
+            olap.get_beer_sales_report("2026-03-01", "2026-04-01")
+        self.assertEqual(2, len(bodies))
+        self.assertEqual("SALES", bodies[0]["reportType"])
+        self.assertIn("DishId", bodies[0]["groupByRowFields"])
+        self.assertNotIn("DishId", bodies[1]["groupByRowFields"])
+
     def test_sales_builder_adds_dish_id_only_on_request(self):
         olap = OlapReports()
         plain = olap._build_olap_request("2026-03-01", "2026-04-01")

@@ -81,10 +81,10 @@ def analyze_packaging():
         block['generated_at'] = raw.get('fetched_at')
 
         # «Нет данных» — только когда пусто и в кассе, и на складе: период с
-        # приходом без продаж — это данные, их надо показать (тот же критерий,
-        # что у /api/draft-kegs).
+        # одним приходом, актом списания или инвентаризацией без продаж — это
+        # данные, их надо показать (тот же критерий, что у /api/draft-kegs).
         losses = block['losses']
-        if not block['positions'] and losses['invoice_in'] == 0 and losses['sold'] == 0:
+        if not block['positions'] and not losses['diagnostics']['has_transactions']:
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
 
         totals = block['totals']

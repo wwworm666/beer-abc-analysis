@@ -19,8 +19,8 @@ _build_losses), только единица — штуки, а не литры: 
 - Связь «товар склада <-> позиция таблицы продаж»: у розлива это техкарты по
   GUID, здесь товар и блюдо — один элемент номенклатуры, поэтому связка по
   DishId из продаж и Product.Id из проводок; если продажи пришли без DishId
-  (старый кэш, фикстура), запасной вариант — по имени с обрезкой пробелов, и
-  режим сопоставления печатается в диагностике.
+  (вызов без get_packaging_sales_report, старая фикстура), запасной вариант —
+  по имени с обрезкой пробелов, и режим сопоставления печатается в диагностике.
 - Проценты и суммы считаются здесь, а не в JS: по .claude/CLAUDE.md расчёт
   живёт на сервере, страница только печатает.
 
@@ -90,19 +90,28 @@ def collect_stock(transactions, bar_name=None):
 
         if unit != PIECE_UNIT:
             # Складывать штуки с килограммами нельзя, а переводить не по чему.
-            # Показываем, что именно выпало, вместо молчаливого нуля.
+            # Показываем, что именно выпало и сколько, вместо молчаливого нуля.
             if out or inc:
-                non_piece.setdefault(product_id, {
+                item = non_piece.setdefault(product_id, {
                     'ProductId': product_id,
                     'ProductName': name,
                     'Unit': unit or '',
+                    'Out': 0.0,
+                    'In': 0.0,
                 })
+                item['Out'] += out
+                item['In'] += inc
             continue
 
         kind = row.get('TransactionType')
         if kind not in BALANCE_TYPES:
+            # Не в балансе, но виден: сколько строк и сколько штук ушло и пришло.
+            # Одна строка «× 1» не отличала бы возврат одной бутылки от ста.
             if out or inc:
-                ignored_types[kind or ''] = ignored_types.get(kind or '', 0) + 1
+                item = ignored_types.setdefault(kind or '', {'rows': 0, 'out': 0.0, 'in': 0.0})
+                item['rows'] += 1
+                item['out'] += out
+                item['in'] += inc
             continue
 
         entry = stock.get((bar, product_id))
@@ -165,9 +174,14 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
     """Блок losses для ответа /api/packaging. Мутирует positions: добавляет
     каждой позиции поля движений склада.
 
-    positions — список позиций таблицы (у каждой есть Id, Beer, DishId/DishIds);
-    sold_by_register — сумма DishAmountInt из продаж (totals.qty), нужна для
-    диагностики «касса против склада».
+    positions — список позиций таблицы (у каждой есть Id, Beer, DishId/DishIds,
+    TotalQty); sold_by_register — сумма DishAmountInt из продаж (totals.qty),
+    нужна для диагностики «касса против склада».
+
+    Поля позиции после вызова: SoldQtyStock, WriteoffQty, InventoryNetQty,
+    LossQty, LossPercentOfSold, WriteoffPercentOfSold, InventoryPercentOfSold
+    (проценты None, если по складу не продано) и StockUnit — единица товара на
+    складе, если она не «шт» (такая позиция в баланс не входит).
     """
     for position in positions:
         position['SoldQtyStock'] = 0.0
@@ -175,12 +189,32 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
         position['InventoryNetQty'] = 0.0
         position['LossQty'] = 0.0
         position['LossPercentOfSold'] = None
+        position['WriteoffPercentOfSold'] = None
+        position['InventoryPercentOfSold'] = None
+        position['StockUnit'] = None
 
     stock, diagnostics = collect_stock(transactions, bar_name)
     merged = merge_by_product(stock)
     by_guid, by_name = _position_indexes(positions)
     by_id = {p['Id']: p for p in positions}
     has_guids = any(p.get('DishId') for p in positions)
+
+    # Товар не в штуках, у которого есть строка в кассе (весовые закуски в
+    # группе фасовки): в баланс не входит, поэтому и из сверки «касса против
+    # склада» выпадает — иначе разница была бы ненулевой каждый период, а
+    # причина называлась бы неверно. Позиция получает StockUnit для карточки.
+    register_non_piece = 0.0
+    non_piece_positions = set()
+    for product in diagnostics['non_piece_products']:
+        position_id = by_guid.get(product['ProductId'])
+        if position_id is None:
+            position_id = by_name.get(str(product['ProductName']).strip())
+        if position_id is None or position_id in non_piece_positions:
+            continue
+        non_piece_positions.add(position_id)
+        by_id[position_id]['StockUnit'] = product['Unit']
+        register_non_piece += _num(by_id[position_id].get('TotalQty'))
+    sold_by_register_pieces = sold_by_register - register_non_piece
 
     sold = sum(e['sold'] for e in merged.values())
     writeoff = sum(e['writeoff'] for e in merged.values())
@@ -208,7 +242,6 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
             position['SoldQtyStock'] += entry['sold']
             position['WriteoffQty'] += entry['writeoff']
             position['InventoryNetQty'] += net
-            position['LossQty'] += loss
 
         # Только товары с расхождениями, без обрезки: страница показывает первые
         # восемь, остальные прячет под «ещё N» — но решает это интерфейс.
@@ -228,8 +261,15 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
             })
 
     for position in positions:
-        if position['SoldQtyStock'] > 0:
-            position['LossPercentOfSold'] = position['LossQty'] / position['SoldQtyStock'] * 100
+        # Потери позиции — от её собственных сумм, а не сумма потерь по GUID:
+        # у пересозданной карточки (два DishId) недостача по одному GUID и
+        # излишек по другому гасят друг друга, как в балансе сверху.
+        position['LossQty'] = position['WriteoffQty'] + max(position['InventoryNetQty'], 0.0)
+        stock_sold = position['SoldQtyStock']
+        if stock_sold > 0:
+            position['LossPercentOfSold'] = position['LossQty'] / stock_sold * 100
+            position['WriteoffPercentOfSold'] = position['WriteoffQty'] / stock_sold * 100
+            position['InventoryPercentOfSold'] = position['InventoryNetQty'] / stock_sold * 100
 
     # Сортировка как у кегов — по величине расхождения; тай-брейк по имени,
     # чтобы порядок не зависел от порядка строк OLAP.
@@ -237,9 +277,11 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
                                 k['ProductName'], k['ProductId']))
 
     diagnostics.update({
-        'sold_by_register': sold_by_register,
+        # Касса без позиций не в штуках: их продажи в баланс не входят.
+        'sold_by_register': sold_by_register_pieces,
+        'register_non_piece_qty': register_non_piece,
         'sold_by_stock': sold,
-        'sold_delta': sold - sold_by_register,
+        'sold_delta': sold - sold_by_register_pieces,
         'unmatched_products': unmatched,
         'match_mode': 'guid' if has_guids else 'name',
         'has_transactions': bool(transactions),
@@ -247,6 +289,9 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
 
     return {
         'unit': PIECE_UNIT,
+        # Приход одним числом — для подписи «приход X − расход Y» под итогом;
+        # страница ничего не складывает сама.
+        'received': invoice_in + transfer_in,
         'invoice_in': invoice_in,
         'transfer_in': transfer_in,
         'transfer_out': transfer_out,
