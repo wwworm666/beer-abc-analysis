@@ -11,7 +11,8 @@ from pathlib import Path
 from datetime import date, datetime
 from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from core.dashboard_analysis import DashboardMetrics
-from core.stock_consumption import INTERNAL_TRANSFER as INTERNAL_TRANSFER_TYPE, aggregate_consumption
+from core.stock_consumption import (INTERNAL_TRANSFER as INTERNAL_TRANSFER_TYPE,
+                                    aggregate_consumption, is_outgoing)
 from core.purchase_price import line_sum, resolve_prices
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from core.order_store import get_order_store
@@ -648,26 +649,45 @@ def _collect_stock(balances, nomenclature, target_store_id, fasovka_ids, kinds):
 
 def _products_from_operations(operations, nomenclature, target_store_id, fasovka_ids, kinds,
                              known_ids):
-    """Товары без строки остатка, но с движением по складу за окно → {product_id: {...}}.
+    """Товары без строки остатка, но с РАСХОДОМ САМОГО БАРА за окно → {product_id: {...}}.
 
     Зачем. Доска строилась только по `balance/stores`, а iiko не присылает строку
     для товара, которого на складе нет. Позиция, кончившаяся вчера, исчезала с
     экрана заказа ровно тогда, когда её надо заказывать (замечание владельца
     2026-09-19). Такие товары добавляются с остатком 0 и пометкой `no_stock_row`.
 
-    Считаются только операции нужного склада (для «Общей» — все, кроме
-    перемещений внутри сети, как в core/stock_consumption). Классификация и
-    единицы — те же, что у остатков; товара нет в номенклатуре — пропускаем.
+    Что считается признаком ассортимента. Только продажи и списания по этому
+    складу: перемещение в другой бар — НЕ признак (замечание владельца 2026-09-20).
+    Поставка часто оформляется на склад одного бара и сразу уезжает в другой:
+    по выгрузке за 30 дней на Варшавской так проходят 13 позиций, у части из них
+    продаж нет вовсе. Без этого правила экран предлагал Варшавской заказать пиво,
+    которое она никогда не заказывала и не продавала, — оно лишь проехало через
+    её склад. Приход без расхода тоже не признак: товар мог прийти по ошибке.
+
+    Классификация и единицы — те же, что у остатков; товара нет в номенклатуре —
+    пропускаем. Для «Общей» перемещения внутри сети не считаются вовсе, как в
+    core/stock_consumption.
     """
-    products = {}
+    used = set()
     for record in operations:
         product_id = record.get('product')
-        if not product_id or product_id in known_ids or product_id in products:
+        if not product_id or product_id in known_ids:
             continue
         if target_store_id and record.get('primaryStore') != target_store_id:
             continue
-        if not target_store_id and record.get('documentType') == INTERNAL_TRANSFER_TYPE:
+        if record.get('documentType') == INTERNAL_TRANSFER_TYPE:
             continue
+        if is_outgoing(record) is not True:
+            continue
+        try:
+            amount = abs(float(record.get('amount') or 0))
+        except (TypeError, ValueError):
+            continue
+        if amount > 0:                   # строка с нулевым количеством — не расход
+            used.add(product_id)
+
+    products = {}
+    for product_id in sorted(used):      # порядок обхода множества — детерминированный
         info = nomenclature.get(product_id)
         kind = _classify(product_id, info, fasovka_ids)
         if kind not in kinds:
@@ -1272,8 +1292,9 @@ def get_order_board():
                            страница не просит второй раз то, что в пути (S-12)
         avg_sales        — расход/день по складу выбранного бара за окно
                            (core/stock_consumption.aggregate_consumption:
-                           продажи + перемещения из бара + списания; для
-                           новинок делитель — дни с первого прихода)
+                           продажи и списания; перемещения между барами в расход
+                           не входят — решение владельца 2026-09-20; для новинок
+                           делитель — дни с первого прихода)
         lead_time_days   — срок поставки в днях доставки (справочник поставщиков,
                            иначе DEFAULT_LEAD_TIME_DAYS с пометкой supplier_is_default)
         SAFETY_DAYS = 3  — страховой запас на колебания спроса
@@ -1364,6 +1385,8 @@ def get_order_board():
             days_left = (shelf_stock / avg_sales) if avg_sales > 0 else None
             # Сорт без строки остатка, у которого расхода давно не было, из ротации вышел:
             # показываем в свёрнутом блоке, но не заказываем сами.
+            # «Давно не расходовался» — по расходу бара; перемещения в расход не входят
+            # (решение владельца 2026-09-20), поэтому берём обычный last_out
             last_out = st.get('last_out')
             stale = bool(data.get('no_stock_row')) and (
                 last_out is None or (today - last_out).days > NO_STOCK_RECENT_DAYS)
@@ -1443,6 +1466,7 @@ def get_order_board():
                 'days_in_period': st['days_in_period'],
                 'is_new': st['is_new'],
                 'consumption_by_type': {k: round(v, 2) for k, v in st['by_document_type'].items()},
+                'transferred_out': round(st.get('transferred_out') or 0.0, 2),
                 'velocity': row['velocity'],
                 'days_left': round(row['days_left'], 1) if row['days_left'] is not None else None,
                 'lead_time_days': row['params']['lead_time_days'],

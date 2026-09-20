@@ -209,7 +209,8 @@ def test_avg_sales_per_bar_by_primary_store():
         lig = idx[(BAR_LIG, P_BOTTLE)]
         bol = idx[(BAR_BOL, P_BOTTLE)]
         assert lig['stock'] == 4.0 and lig['avg_sales'] == 1.5     # 45 / 30
-        assert bol['stock'] == 9.0 and bol['avg_sales'] == 3.0     # 90 / 30
+        # Перемещение 30 шт в расход не входит (решение владельца 2026-09-20): 60 / 30
+        assert bol['stock'] == 9.0 and bol['avg_sales'] == 2.0
         assert lig['avg_sales'] != bol['avg_sales']
         # Себестоимость единицы = sum / stock.
         assert lig['price'] == 100.0 and bol['price'] == 100.0
