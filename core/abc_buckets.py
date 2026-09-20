@@ -18,8 +18,9 @@
   weak        — выручка C (последние 5% накопленной выручки) при достаточных
                 продажах; «вывести» — только на периоде от 28 дней, иначе
                 группа показывается, но действие «смотреть за 4 недели»
-  low_markup  — выручка A/B, наценка ниже порога B (фасовка 100%, кеги 200%)
-  core        — выручка A/B, наценка не ниже B: основа выручки
+  low_markup  — выручка A/B, наценка ниже минимума владельца (порог A: фасовка
+                120%, кеги 250%; «120 и 250 это минималка», 2026-09-20)
+  core        — выручка A/B, наценка не ниже минимума: основа выручки
 
 Буквы ABC остаются как есть (Парето 80/95 и пороги наценки из
 core/abc_thresholds.py); XYZ и складские поля в решениях не участвуют.
@@ -33,6 +34,7 @@ core/abc_thresholds.py); XYZ и складские поля в решениях 
 """
 
 from core.abc_thresholds import (
+    MARKUP_A_MIN,
     MARKUP_AUDIT_FLOOR_FACTOR,
     MARKUP_B_MIN,
     MIN_DAYS_FOR_NEGATIVE_VERDICT,
@@ -49,9 +51,9 @@ BUCKETS = {
                            'прямая потеря.'},
     'low_markup': {'name': 'Низкая наценка',  'action': 'Поднять цену',
                    'tone': 'warn',   'order': 2,
-                   'hint': 'Спрос доказан продажами, а наценка ниже нормы: позиция '
-                           'приносит меньше, чем могла бы. Пересмотреть цену или '
-                           'закупочные условия.'},
+                   'hint': 'Спрос доказан продажами, а наценка ниже минимума сети: '
+                           'позиция приносит меньше, чем должна. Пересмотреть цену '
+                           'или закупочные условия.'},
     'weak':       {'name': 'Слабые продажи',  'action': 'Вывести из ассортимента',
                    'tone': 'bad',    'order': 3,
                    # На коротком периоде отрицательное решение не выносится.
@@ -103,7 +105,7 @@ def _is_newcomer(weeks_in_period, weekly, outside_weeks):
 
 
 def decide_bucket(abc_revenue, markup_share, sales, weeks_in_period, weekly,
-                  outside_weeks=0.0, b_min=MARKUP_B_MIN):
+                  outside_weeks=0.0, a_min=MARKUP_A_MIN, b_min=MARKUP_B_MIN):
     """Ключ группы по правилам из докстроки модуля.
 
     abc_revenue   — 'A' | 'B' | 'C' (Парето по выручке)
@@ -111,7 +113,10 @@ def decide_bucket(abc_revenue, markup_share, sales, weeks_in_period, weekly,
     sales         — число продаж: штук у фасовки, порций у кегов
     weeks_in_period, weekly, outside_weeks — полных недель, продажи по
                     недельным корзинам (список), продажи вне окна недель
-    b_min         — порог B по наценке долей (фасовка 1.0, кеги 2.0)
+    a_min         — минимальная наценка владельца долей (фасовка 1.2, кеги 2.5):
+                    ниже неё — «Низкая наценка»
+    b_min         — порог B долей (фасовка 1.0, кеги 2.0): от него считается пол
+                    правдоподобия для «Сверить учёт»
     """
     if markup_share is None or markup_share < b_min * MARKUP_AUDIT_FLOOR_FACTOR:
         return 'check'
@@ -121,7 +126,7 @@ def decide_bucket(abc_revenue, markup_share, sales, weeks_in_period, weekly,
         return 'few'
     if abc_revenue == 'C':
         return 'weak'
-    if markup_share < b_min:
+    if markup_share < a_min:
         return 'low_markup'
     return 'core'
 
@@ -131,18 +136,18 @@ def negative_verdict_ready(period_days):
     return period_days >= MIN_DAYS_FOR_NEGATIVE_VERDICT
 
 
-def bucket_rule_text(key, b_min, unit, period_days):
+def bucket_rule_text(key, a_min, b_min, unit, period_days):
     """Правило группы словами и числами — печатается на экране (CLAUDE.md п. 1)."""
     sales_word, _ = UNIT_WORDS[unit]
-    b_pct = f'{b_min * 100:.0f}%'
+    a_pct = f'{a_min * 100:.0f}%'
     floor_pct = f'{b_min * MARKUP_AUDIT_FLOOR_FACTOR * 100:.0f}%'
     n = MIN_SALES_FOR_VERDICT
     days = MIN_DAYS_FOR_NEGATIVE_VERDICT
     if key == 'core':
-        return (f'выручка A или B (первые 95% накопленной выручки), наценка от {b_pct}, '
-                f'{sales_word} не меньше {n}')
+        return (f'выручка A или B (первые 95% накопленной выручки), наценка от {a_pct} '
+                f'(минимум сети), {sales_word} не меньше {n}')
     if key == 'low_markup':
-        return (f'выручка A или B, наценка от {floor_pct} до {b_pct}, '
+        return (f'выручка A или B, наценка от {floor_pct} до {a_pct} (ниже минимума сети), '
                 f'{sales_word} не меньше {n}: спрос есть, цена ниже нормы')
     if key == 'weak':
         base = (f'выручка C (последние 5% накопленной выручки) при {sales_word} '
@@ -163,7 +168,7 @@ def bucket_rule_text(key, b_min, unit, period_days):
     return ''
 
 
-def bucket_cards(rows, period_days, unit='pieces', b_min=MARKUP_B_MIN,
+def bucket_cards(rows, period_days, unit='pieces', a_min=MARKUP_A_MIN, b_min=MARKUP_B_MIN,
                  revenue_key='TotalRevenue', bucket_key='ABC_Bucket'):
     """Карточки групп для ответа: счётчики, выручка, доля, действие, правило.
 
@@ -192,7 +197,7 @@ def bucket_cards(rows, period_days, unit='pieces', b_min=MARKUP_B_MIN,
             'count': len(members),
             'revenue': revenue,
             'revenue_share_percent': (revenue / total_revenue * 100) if total_revenue > 0 else 0.0,
-            'rule': bucket_rule_text(key, b_min, unit, period_days),
+            'rule': bucket_rule_text(key, a_min, b_min, unit, period_days),
             'hint': info['hint'],
             'verdict_ready': ready if key == 'weak' else True,
         })

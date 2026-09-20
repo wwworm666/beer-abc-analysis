@@ -680,7 +680,8 @@ class DraftKegAnalysis:
             share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
             row['ABC_Bucket'] = decide_bucket(
                 row['ABC_Revenue'], share, row['TotalPortions'], row['WeeksInPeriod'],
-                row['WeeklyLiters'], row['LitersOutsideWeeks'], KEG_MARKUP_B_MIN,
+                row['WeeklyLiters'], row['LitersOutsideWeeks'],
+                KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN,
             )
 
         rows.sort(key=lambda r: r['TotalLiters'], reverse=True)
@@ -709,7 +710,8 @@ class DraftKegAnalysis:
             'losses': self._build_losses(merged, total_liters),
             'unmapped_dishes': self.unmapped_dishes[:10],
             # Карточки решений по ассортименту — с сервера, страница печатает.
-            'buckets': bucket_cards(rows, self.period_days, 'portions', KEG_MARKUP_B_MIN),
+            'buckets': bucket_cards(rows, self.period_days, 'portions',
+                                    KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN),
             'bucket_stats': _count_by(rows, 'ABC_Bucket'),
             'kegs': rows,
             'total_bartenders': len(bartenders),

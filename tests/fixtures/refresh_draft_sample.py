@@ -46,8 +46,10 @@ def refresh(block):
         share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
         row['ABC_Bucket'] = decide_bucket(row['ABC_Revenue'], share, row['TotalPortions'],
                                           row['WeeksInPeriod'], row['WeeklyLiters'],
-                                          row['LitersOutsideWeeks'], KEG_MARKUP_B_MIN)
-    block['buckets'] = bucket_cards(rows, int(block['period']['days']), 'portions', KEG_MARKUP_B_MIN)
+                                          row['LitersOutsideWeeks'],
+                                          KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
+    block['buckets'] = bucket_cards(rows, int(block['period']['days']), 'portions',
+                                    KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
     block['bucket_stats'] = _count_by(rows, 'ABC_Bucket')
 
 

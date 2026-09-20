@@ -1216,7 +1216,7 @@
           86.69999999999999
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "AAA",
@@ -1472,7 +1472,7 @@
           37.45
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "ACA",
@@ -1707,7 +1707,7 @@
           26.25
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "ABA",
@@ -1769,7 +1769,7 @@
           18.200000000000003
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "BBB",
@@ -1817,7 +1817,7 @@
           15.45
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "ABA",
@@ -1872,7 +1872,7 @@
           15.15
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "BAB",
@@ -2016,7 +2016,7 @@
           13.65
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "ACA",
@@ -2202,7 +2202,7 @@
           8.5
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "BAB",
@@ -2305,7 +2305,7 @@
           7.55
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "CBC",
@@ -2401,7 +2401,7 @@
           5.5
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "low_markup"
       },
       {
         "ABC_Combined": "CCC",
@@ -3278,10 +3278,10 @@
         "action": "Держать в наличии",
         "tone": "ok",
         "order": 1,
-        "count": 14,
-        "revenue": 602990.4999999999,
-        "revenue_share_percent": 73.63137030065712,
-        "rule": "выручка A или B (первые 95% накопленной выручки), наценка от 200%, порций не меньше 5",
+        "count": 4,
+        "revenue": 319269.36000000004,
+        "revenue_share_percent": 38.98608762793745,
+        "rule": "выручка A или B (первые 95% накопленной выручки), наценка от 250% (минимум сети), порций не меньше 5",
         "hint": "Эти позиции делают выручку при нормальной наценке. Из наличия выпадать не должны: каждый день без них — прямая потеря.",
         "verdict_ready": true
       },
@@ -3291,11 +3291,11 @@
         "action": "Поднять цену",
         "tone": "warn",
         "order": 2,
-        "count": 8,
-        "revenue": 181361.07000000004,
-        "revenue_share_percent": 22.146060515536153,
-        "rule": "выручка A или B, наценка от 100% до 200%, порций не меньше 5: спрос есть, цена ниже нормы",
-        "hint": "Спрос доказан продажами, а наценка ниже нормы: позиция приносит меньше, чем могла бы. Пересмотреть цену или закупочные условия.",
+        "count": 18,
+        "revenue": 465082.2099999999,
+        "revenue_share_percent": 56.79134318825584,
+        "rule": "выручка A или B, наценка от 100% до 250% (ниже минимума сети), порций не меньше 5: спрос есть, цена ниже нормы",
+        "hint": "Спрос доказан продажами, а наценка ниже минимума сети: позиция приносит меньше, чем должна. Пересмотреть цену или закупочные условия.",
         "verdict_ready": true
       },
       {
@@ -3352,9 +3352,9 @@
       }
     ],
     "bucket_stats": {
-      "core": 14,
+      "core": 4,
       "few": 4,
-      "low_markup": 8,
+      "low_markup": 18,
       "weak": 7
     }
   }

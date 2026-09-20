@@ -263,8 +263,8 @@ test('карточка группы: правило в порциях, подс�
     assert.ok(html.includes(dapi.esc(card.name)) && html.includes(dapi.esc(card.action)),
         'нет названия или действия группы');
     assert.ok(html.includes('Правило: ' + dapi.esc(card.rule)), 'правило не напечатано');
-    assert.ok(/порций/.test(card.rule) && /200%/.test(card.rule),
-        'правило кегов не в порциях или без порога 200%');
+    assert.ok(/порций/.test(card.rule) && /250%/.test(card.rule),
+        'правило кегов не в порциях или без минимума 250%');
     assert.ok(html.includes(dapi.esc(card.hint)), 'нет подсказки');
     const rows = (html.match(/class="dr-who-row" data-keg=/g) || []).length;
     assert.equal(rows, card.count, `строк ${rows}, кегов в группе ${card.count}`);

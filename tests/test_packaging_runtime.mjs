@@ -503,7 +503,7 @@ test('карточка группы: правило с числами, подс�
     assert.ok(html.includes(api.esc(card.name)), 'нет названия группы');
     assert.ok(html.includes(api.esc(card.action)), 'нет действия');
     assert.ok(html.includes('правило: ' + api.esc(card.rule)), 'правило группы не напечатано');
-    assert.ok(/100%/.test(card.rule) && / 5\b/.test(card.rule), 'в правиле нет порогов');
+    assert.ok(/120%/.test(card.rule) && / 5\b/.test(card.rule), 'в правиле нет порогов');
     assert.ok(html.includes(api.esc(card.hint)), 'нет подсказки, что делать');
     const rows = (html.match(/class="pk-mini-row(?! is-head)[^"]*"/g) || []).length;
     const members = BLOCK.positions.filter((p) => p.ABC_Bucket === 'low_markup').length;
