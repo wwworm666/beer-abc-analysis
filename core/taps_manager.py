@@ -8,6 +8,9 @@ from enum import Enum
 import json
 import os
 import threading
+from copy import deepcopy
+
+from core.taplist import legacy_product_id
 
 from core.json_store import file_lock
 
@@ -40,6 +43,8 @@ class Tap:
         self.status = TapStatus.EMPTY
         self.current_beer: Optional[str] = None
         self.current_keg_id: Optional[str] = None
+        self.iiko_product_id: Optional[str] = None
+        self.product_identity = None
         self.started_at: Optional[str] = None
         self.history: List[Dict] = []
 
@@ -50,6 +55,8 @@ class Tap:
             'status': self.status.value,
             'current_beer': self.current_beer,
             'current_keg_id': self.current_keg_id,
+            'iiko_product_id': self.iiko_product_id,
+            'product_identity': self.product_identity,
             'started_at': self.started_at,
             'history': self.history
         }
@@ -121,10 +128,12 @@ class TapsManager:
                             tap.status = TapStatus(tap_data.get('status', 'empty'))
                             tap.current_beer = tap_data.get('current_beer')
                             tap.current_keg_id = tap_data.get('current_keg_id')
+                            tap.iiko_product_id = tap_data.get('iiko_product_id')
+                            tap.product_identity = tap_data.get('product_identity')
                             tap.started_at = tap_data.get('started_at')
                             tap.history = tap_data.get('history', [])
         except Exception as e:
-            print(f"[ERROR] Ошибка загрузки данных о кранах: {e}")
+            raise RuntimeError("Не удалось прочитать состояние кранов") from e
 
     def _save_data(self):
         """
@@ -162,40 +171,68 @@ class TapsManager:
                     pass  # на некоторых FS (например, network mount) fsync не поддерживается
             os.replace(tmp_path, self.data_file)
         except Exception as e:
-            print(f"[ERROR] Ошибка сохранения данных о кранах: {e}")
+            raise RuntimeError("Не удалось сохранить состояние кранов") from e
 
     def get_bars(self) -> List[Dict]:
         """Получить список всех баров"""
-        return [
-            {
-                'bar_id': bar_id,
-                'name': bar.name,
-                'tap_count': bar.tap_count,
-                'active_taps': sum(1 for t in bar.taps.values() if t.status == TapStatus.ACTIVE)
-            }
-            for bar_id, bar in self.bars.items()
-        ]
+        snapshot = self.get_snapshot()
+        return [{'bar_id': bid, 'name': bar['name'], 'tap_count': len(bar['taps']),
+                 'active_taps': sum(t['status'] == 'active' for t in bar['taps'])}
+                for bid, bar in snapshot.items()]
 
-    def get_bar_taps(self, bar_id: str) -> Dict:
-        """Получить информацию о кранах конкретного бара"""
-        if bar_id not in self.bars:
+    def get_snapshot(self, catalog=None):
+        """Read the current cross-worker state; persist only unambiguous legacy IDs."""
+        with self._lock, file_lock(self._lock_path):
+            self._reload()
+            changed = False
+            if catalog is not None:
+                for bar in self.bars.values():
+                    for tap in bar.taps.values():
+                        if tap.status != TapStatus.ACTIVE or tap.iiko_product_id:
+                            continue
+                        guid = legacy_product_id(tap.to_dict(), catalog)
+                        if guid:
+                            tap.iiko_product_id = guid
+                            tap.product_identity = {'origin': 'legacy_exact_name_article',
+                                                    'recorded_at': self._now().isoformat()}
+                            changed = True
+                if changed:
+                    self._save_data()
+            return deepcopy({bid: {'name': bar.name,
+                                   'taps': [tap.to_dict() for tap in bar.taps.values()]}
+                             for bid, bar in self.bars.items()})
+
+    def get_bar_taps(self, bar_id: str, catalog=None) -> Dict:
+        snapshot = self.get_snapshot(catalog)
+        if bar_id not in snapshot:
             return {'error': f'Бар {bar_id} не найден'}
+        bar = snapshot[bar_id]
+        taps = bar['taps']
+        active = sum(t['status'] == 'active' for t in taps)
+        return {'bar_id': bar_id, 'bar_name': bar['name'], 'total_taps': len(taps),
+                'taps': taps, 'active_count': active,
+                'empty_count': sum(t['status'] == 'empty' for t in taps),
+                'changing_count': sum(t['status'] == 'changing' for t in taps),
+                'active_percentage': round(active / len(taps) * 100) if taps else 0}
 
-        bar = self.bars[bar_id]
-        return {
-            'bar_id': bar_id,
-            'bar_name': bar.name,
-            'total_taps': bar.tap_count,
-            'taps': [tap.to_dict() for tap in bar.taps.values()],
-            'active_count': sum(1 for t in bar.taps.values() if t.status == TapStatus.ACTIVE),
-            'empty_count': sum(1 for t in bar.taps.values() if t.status == TapStatus.EMPTY),
-            'changing_count': sum(1 for t in bar.taps.values() if t.status == TapStatus.CHANGING),
-            'active_percentage': round(
-                sum(1 for t in bar.taps.values() if t.status == TapStatus.ACTIVE) / bar.tap_count * 100
-            )
-        }
+    def identify_tap(self, bar_id, tap_number, product_id, expected):
+        """Correct identity without restarting the keg or inventing a replacement."""
+        with self._lock, file_lock(self._lock_path):
+            self._reload()
+            bar = self.bars.get(bar_id)
+            tap = bar.taps.get(tap_number) if bar else None
+            if tap is None:
+                return {'success': False, 'error': 'Кран не найден'}
+            current = tap.to_dict()
+            fields = ('current_beer', 'current_keg_id', 'started_at', 'iiko_product_id')
+            if tap.status != TapStatus.ACTIVE or any(expected.get(k) != current.get(k) for k in fields):
+                return {'success': False, 'error': 'Кран уже изменился. Обновите страницу.'}
+            tap.iiko_product_id = product_id
+            tap.product_identity = {'origin': 'manual_selection', 'recorded_at': self._now().isoformat()}
+            self._save_data()
+            return {'success': True, 'iiko_product_id': product_id}
 
-    def start_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str) -> Dict:
+    def start_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str, iiko_product_id: Optional[str] = None) -> Dict:
         """
         Подключить кегу (начать работу крана)
 
@@ -225,6 +262,7 @@ class TapsManager:
                     'timestamp': self._now().isoformat(),
                     'action': ActionType.STOP.value,
                     'beer_name': tap.current_beer,
+                    'iiko_product_id': tap.iiko_product_id,
                     'keg_id': tap.current_keg_id
                 }
                 tap.history.append(event)
@@ -232,12 +270,15 @@ class TapsManager:
             tap.status = TapStatus.ACTIVE
             tap.current_beer = beer_name
             tap.current_keg_id = keg_id
+            tap.iiko_product_id = iiko_product_id
+            tap.product_identity = {"origin": "selection", "recorded_at": self._now().isoformat()} if iiko_product_id else None
             tap.started_at = self._now().isoformat()
 
             event = {
                 'timestamp': self._now().isoformat(),
                 'action': ActionType.START.value,
                 'beer_name': beer_name,
+                'iiko_product_id': iiko_product_id,
                 'keg_id': keg_id
             }
             tap.history.append(event)
@@ -280,13 +321,16 @@ class TapsManager:
                 'timestamp': self._now().isoformat(),
                 'action': ActionType.STOP.value,
                 'beer_name': tap.current_beer,
-                'keg_id': tap.current_keg_id
+                'iiko_product_id': tap.iiko_product_id,
+                    'keg_id': tap.current_keg_id
             }
             tap.history.append(event)
 
             tap.status = TapStatus.EMPTY
             tap.current_beer = None
             tap.current_keg_id = None
+            tap.iiko_product_id = None
+            tap.product_identity = None
             tap.started_at = None
 
             self._save_data()
@@ -297,7 +341,7 @@ class TapsManager:
                 'status': 'stopped'
             }
 
-    def replace_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str) -> Dict:
+    def replace_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str, iiko_product_id: Optional[str] = None) -> Dict:
         """
         Заменить кегу (смена сорта пива)
 
@@ -327,6 +371,7 @@ class TapsManager:
                     'timestamp': self._now().isoformat(),
                     'action': ActionType.STOP.value,
                     'beer_name': tap.current_beer,
+                    'iiko_product_id': tap.iiko_product_id,
                     'keg_id': tap.current_keg_id
                 }
                 tap.history.append(event)
@@ -335,12 +380,15 @@ class TapsManager:
             tap.status = TapStatus.ACTIVE
             tap.current_beer = beer_name
             tap.current_keg_id = keg_id
+            tap.iiko_product_id = iiko_product_id
+            tap.product_identity = {"origin": "selection", "recorded_at": self._now().isoformat()} if iiko_product_id else None
             tap.started_at = self._now().isoformat()
 
             event = {
                 'timestamp': self._now().isoformat(),
                 'action': ActionType.REPLACE.value,
                 'beer_name': beer_name,
+                'iiko_product_id': iiko_product_id,
                 'keg_id': keg_id
             }
             tap.history.append(event)

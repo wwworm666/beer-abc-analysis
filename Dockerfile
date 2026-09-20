@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Reviewed reference data stays outside the mutable /app/data volume.
+COPY resources/iiko_untappd_registry.json /app/resources/iiko_untappd_registry.json
+
 ARG BEER_COMMIT=unknown
 LABEL org.opencontainers.image.revision=$BEER_COMMIT
 
