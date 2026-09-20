@@ -21,7 +21,9 @@ tests/test_stocks_routes.py (iiko не нужен), хранилища — вр�
 - справочник: несохранённые правки переживают сохранение соседней карточки,
   срок и написание меняют доску, новый поставщик, ошибка проверки строкой;
 - минимальный заказ поставщика: минимум в заголовке группы, «до минимума не добрать»,
-  живая сумма черновика и добор рекомендаций после смены минимума на /suppliers.
+  живая сумма черновика и добор рекомендаций после смены минимума на /suppliers;
+- пустая полка: минус в остатке заказывается от нуля; кега заказывается целой бочкой
+  («Взять 1 кегу (30 л)»); позиция без строки остатка видна на доске.
 """
 
 import importlib.util
@@ -176,9 +178,9 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         page.click('#ob-note button')
         assert page.locator('#ob-note').is_hidden()
         assert row.locator('.ob-take').inner_text() == 'Взять 8'
-        # отрицательный остаток — фраза «проверить учёт», в decide
+        # отрицательный остаток: полка пустая, про учёт сказано, заказывать нечего (расхода нет)
         neg = page.locator(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_NEG}"])')
-        assert 'проверить учёт' in neg.inner_text()
+        assert 'проверьте учёт' in neg.inner_text() and 'заказывать нечего' in neg.inner_text()
         # блок «без движения» свёрнут и содержит P_IDLE
         idle_summary = page.inner_text('#ob-idle-summary')
         assert idle_summary.startswith('Без движения или редко (2)'), idle_summary
@@ -196,6 +198,16 @@ def _scenario(sync_playwright, BASE, MAI_EXPECTED, store, directory):
         assert 'Нужно 12 шт = 1.5 в день × (5 дн.' in dt and 'Последний приход пн 06.10: 20 шт' in dt and 'продажи 45' in dt, dt
         # цена единицы и сумма строки — из накладной iiko, а не «оценочно»
         assert 'Цена 120 руб. за шт по накладной пн 06.10 → на 8 шт это 960 руб.' in dt, dt
+
+        # 2а. Разливное заказывается целой бочкой, а не «8 л»
+        page.check('#ob-show-all')
+        page.wait_for_selector(f'#ob-groups input[data-product-id="{fx.P_KEG_LAGER}"]', state='attached')
+        keg_row = page.locator(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_KEG_LAGER}"])')
+        page.click(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_KEG_LAGER}"]) .ob-name')
+        keg_detail = page.inner_text(f'tr.ob-detail[data-detail-for="{fx.P_KEG_LAGER}"]')
+        assert 'Кега 30 л (объём из названия)' in keg_detail, keg_detail
+        page.click(f'#ob-groups tr.ob-row:has(input[data-product-id="{fx.P_KEG_LAGER}"]) .ob-name')
+        page.uncheck('#ob-show-all')
 
         # 3. «Взять 8» → черновик, липкая панель, счётчик на вкладке, кнопка «Взять» прячется
         row.locator('.ob-take').click()

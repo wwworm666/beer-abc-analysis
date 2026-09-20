@@ -862,13 +862,15 @@
                             Дней до следующей поставки: заказ, отправленный сегодня, приедет в ближайший день доставки поставщика
                             по его сроку, а дожить должен до поставки, следующей за ней (заказ в четверг с поставкой в пятницу
                             покрывает выходные до понедельника). Срок и дни доставки — в <a href="/suppliers">справочнике поставщиков</a>.
-                            <br><strong>Заказать</strong> = нужно − остаток − в пути, вверх до кратности упаковки. Кеги в литрах, без кратности.
+                            <br><strong>Заказать</strong> = нужно − остаток − в пути, вверх до кратности упаковки. Кеги — целыми бочками (объём из названия, иначе 30 л). Минус в остатке считается пустой полкой.
                             <br><strong>Расход</strong> = продажи + перемещения из бара + списания по складу выбранного бара за 30 дней;
                             для товара, которого в начале окна не было, — с первого прихода.
                             <br><strong>В пути</strong> = отправленные поставщику заказы, ещё не оприходованные в iiko (вкладка «К отправке»).
                             <br><strong>Не заказываем</strong>: партия истекает раньше 14 дней; без движения 30 дней; реже одной продажи в неделю;
-                            отрицательный остаток — проверить учёт.
-                            <br><strong>Хватит дн.</strong> = остаток на полке ÷ расход в день (без учёта «в пути»).
+                            сорт, которого нет в остатках и расхода по нему больше недели не было (вышел из ротации).
+                            <br><strong>Минус в остатке</strong> — товара на полке нет: заказываем полную цель от нуля, а сам минус проверяем в учёте.
+                            <br><strong>Нет строки остатка в iiko</strong> — позиция всё равно на доске, если движение за 30 дней было: кончилась, значит пора заказывать.
+                            <br><strong>Хватит дн.</strong> = остаток на полке (минус считается нулём) ÷ расход в день, без учёта «в пути».
                         </div>
                     </details>
                 </div>
@@ -1317,10 +1319,16 @@
                     minLine = '<div class="ob-min-order filled">Набрано до минимума: считаем запас на '
                         + ms.extra_days + ' дн. вперёд, рекомендации на ' + fmtMoney(ms.sum)
                         + ' (без минимума хватило бы ' + fmtMoney(ms.base_sum) + ')</div>';
+                } else if (ms.reachable === false && !ms.priced_count) {
+                    // Считать нечего: ни у одной позиции поставщика нет ни прихода, ни себестоимости
+                    minLine = '<div class="ob-min-order">Сумму заказа не проверить: цены нет ни у одной позиции'
+                        + ' этого поставщика (не было прихода за 30 дн. и остатка со стоимостью).</div>';
                 } else if (ms.reachable === false) {
                     minLine = '<div class="ob-min-order short">До минимума не добрать: рекомендаций на '
                         + fmtMoney(ms.base_sum) + ', даже с запасом на ' + ms.max_extra_days + ' дн. — '
-                        + fmtMoney(ms.max_sum || 0) + '. Добавьте позиции руками или закажите позже.</div>';
+                        + fmtMoney(ms.max_sum || 0)
+                        + (ms.no_price_count ? ' (у ' + ms.no_price_count + ' поз. нет цены)' : '')
+                        + '. Добавьте позиции руками или закажите позже.</div>';
                 } else if (ms.other_bars_sum > 0 && ms.min_order_scope === 'order') {
                     minLine = '<div class="ob-min-order">В заказе по другим барам уже '
                         + fmtMoney(ms.other_bars_sum) + '</div>';
@@ -1382,6 +1390,10 @@
                 row.className = 'ob-row ' + (item.section === 'decide' ? item.urgency : '');
                 const onOrder = item.on_order > 0
                     ? `<div class="ob-sub" title="${escapeHtml(openOrdersTitle(item))}">в пути ${fmtQty(item.on_order)}</div>` : '';
+                // iiko не присылает строку остатка для того, чего на складе нет: это не «ровно 0»
+                const stockCell = item.no_stock_row
+                    ? `<span style="white-space: nowrap;" title="iiko не прислал строку остатка по этому складу: на складе ноль">нет остатка</span>`
+                    : `${item.stock < 0 ? '<span style="color: #991b1b; font-weight: 700;">' : ''}${fmtQty(item.stock)} ${escapeHtml(item.unit)}${item.stock < 0 ? '</span>' : ''}`;
                 const sub = [KIND_LABELS[item.type] || item.type];
                 if (idle) sub.push(item.supplier);
                 if (item.is_new) sub.push('новинка, ' + item.days_in_period + ' дн.');
@@ -1394,7 +1406,7 @@
                         <button class="ob-name" type="button" title="Подробнее: формула, расход, приходы">${escapeHtml(item.name)}</button>
                         <div class="ob-sub">${escapeHtml(sub.join(' · '))}</div>
                     </td>
-                    <td data-label="Остаток">${item.stock < 0 ? '<span style="color: #991b1b; font-weight: 700;">' : ''}${fmtQty(item.stock)} ${escapeHtml(item.unit)}${item.stock < 0 ? '</span>' : ''}${onOrder}</td>
+                    <td data-label="Остаток">${stockCell}${onOrder}</td>
                     <td data-label="Хватит дн.">${daysLeft}</td>
                     <td data-label="Почему"><span class="ob-reason ${escapeHtml(item.reason_code || '')}">${escapeHtml(item.reason || '')}</span></td>
                     <td data-label="Заказ">
@@ -1403,7 +1415,7 @@
                                 data-product-id="${escapeHtml(item.product_id)}" data-bar="${escapeHtml(bar)}"
                                 data-recommended="${item.recommended}" aria-label="Заказать ${escapeHtml(item.name)}">
                             <span style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(item.unit)}</span>
-                            ${canTake ? `<button class="btn btn-secondary btn-small ob-take" type="button" data-take="${item.recommended}">Взять ${fmtQty(item.recommended)}</button>` : ''}
+                            ${canTake ? `<button class="btn btn-secondary btn-small ob-take" type="button" data-take="${item.recommended}">Взять ${escapeHtml(takeLabel(item))}</button>` : ''}
                         </div>
                     </td>
                 `;
@@ -1432,6 +1444,29 @@
         }
 
         function fmtDateHtml(iso) { return escapeHtml(fmtDate(iso)); }   // для innerHTML: дата из внешних данных экранируется
+
+        // «1 кега» / «3 кеги» / «5 кег» — та же форма, что в фразе-причине сервера
+        function kegWord(n) {
+            const tail = n % 10;
+            if (n % 100 >= 11 && n % 100 <= 14) return 'кег';
+            if (tail === 1) return 'кега';
+            if (tail >= 2 && tail <= 4) return 'кеги';
+            return 'кег';
+        }
+
+        // Подпись кнопки «Взять»: у разливного — бочками («Взять 1 кегу (30 л)»),
+        // у остального — числом, единица и так стоит рядом с полем ввода
+        function takeLabel(item) {
+            if (!item.keg_liters || !item.kegs) return fmtQty(item.recommended);
+            const n = item.kegs;
+            const tail = n % 10;
+            let word = 'кег';
+            if (!(n % 100 >= 11 && n % 100 <= 14)) {
+                if (tail === 1) word = 'кегу';
+                else if (tail >= 2 && tail <= 4) word = 'кеги';
+            }
+            return n + ' ' + word + ' (' + fmtQty(item.recommended) + ' л)';
+        }
 
         // Рубли без копеек, разряды через пробел: 10240.4 → «10 240 руб.» (как в ответе сервера)
         function fmtMoney(value) {
@@ -1472,8 +1507,17 @@
             const extraDays = item.min_order_extra_days > 0
                 ? ` + ${item.min_order_extra_days} дн. до минимального заказа` : '';
             lines.push(`<strong>Нужно</strong> ${fmtQty(item.target_stock)} ${u} = ${fmtQty(item.avg_sales)} в день × (${item.horizon_days} дн. до следующей поставки ${fmtDateHtml(item.next_delivery)}${extraDays} + ${safety} дн. запаса)`);
-            lines.push(`<strong>Есть</strong> ${fmtQty(item.stock)} ${u}` + (item.on_order > 0 ? ` + в пути ${fmtQty(item.on_order)} = ${fmtQty(item.effective_stock)}` : '')
-                + (item.recommended > 0 ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>` + (item.pack_size > 1 ? ` (упаковка ${item.pack_size})` : '') + `, приедет ${fmtDateHtml(item.expected_delivery)}` : ' → заказывать не нужно'));
+            const shelfNote = item.stock < 0
+                ? ` (в iiko ${fmtQty(item.stock)}: полка пустая, проверьте учёт)`
+                : (item.no_stock_row ? ' (строки остатка в iiko нет)' : '');
+            lines.push(`<strong>Есть</strong> ${fmtQty(item.shelf_stock)} ${u}${shelfNote}` + (item.on_order > 0 ? ` + в пути ${fmtQty(item.on_order)} = ${fmtQty(item.effective_stock)}` : '')
+                + (item.recommended > 0
+                    ? ` → <strong>заказать ${fmtQty(item.recommended)}</strong>`
+                      + (item.keg_liters && item.kegs
+                          ? ` (${item.kegs} ${kegWord(item.kegs)} по ${fmtQty(item.keg_liters)} л)`
+                          : (item.pack_size > 1 ? ` (упаковка ${fmtQty(item.pack_size)})` : ''))
+                      + `, приедет ${fmtDateHtml(item.expected_delivery)}`
+                    : ' → заказывать не нужно'));
             const byType = Object.entries(item.consumption_by_type || {});
             const breakdown = byType.length
                 ? byType.map(([k, v]) => (DOC_TYPE_LABELS[k] || k) + ' ' + fmtQty(v)).join(', ')
@@ -1492,6 +1536,15 @@
                     + (item.line_sum ? ` → на ${fmtQty(item.recommended)} ${u} это ${fmtMoney(item.line_sum)}` : ''));
             } else {
                 lines.push('<strong>Цена</strong> неизвестна: нет прихода за период и себестоимости остатка, в сумму заказа не входит');
+            }
+            if (item.keg_liters) {
+                lines.push(`<strong>Кега</strong> ${fmtQty(item.keg_liters)} л `
+                    + (item.keg_source === 'name' ? '(объём из названия)' : '(объём в названии не указан, берём по умолчанию)')
+                    + (item.recommended > 0 ? ` → заказ ${item.kegs} ${kegWord(item.kegs)}` : ''));
+            }
+            if (item.no_stock_row) {
+                lines.push('<strong>Нет в остатках iiko</strong>: позиция попала на доску по расходу за период'
+                    + (item.last_outgoing ? `, последний расход ${fmtDateHtml(item.last_outgoing)}` : ''));
             }
             if (item.last_incoming) lines.push(`<strong>Последний приход</strong> ${fmtDateHtml(item.last_incoming.date)}: ${fmtQty(item.last_incoming.amount)} ${u}`);
             if (item.open_orders && item.open_orders.length) {

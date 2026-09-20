@@ -700,17 +700,40 @@ def test_order_board_on_order_reduces_recommendation():
         assert d['on_order_count'] == 0
 
 
-def test_order_board_negative_stock_stays_critical_with_on_order():
+def test_order_board_negative_stock_orders_from_empty_shelf():
+    """Минус в остатке = товара на полке нет: заказываем полную цель, полка — ноль."""
     store = _temp_order_store()
     store.set_draft_items('Лента', [_order_item(P_NEG, BAR_LIG, 5)], USER)
     store.send('Лента', USER)
     with _patched(order_store=store) as c:
         code, d = _get(c, 'order-board', BAR_LIG)
         it = _by_id(d)[P_NEG]
-        assert it['stock'] == -1.0 and it['on_order'] == 5.0 and it['effective_stock'] == 4.0
-        assert it['urgency'] == 'critical'                 # учётная ошибка не лечится заказом
-        assert it['reason_code'] == 'negative_stock' and it['section'] == 'decide'
+        # полка считается пустой: −1 не вычитается ещё раз, в пути 5 → 0 + 5
+        assert it['stock'] == -1.0 and it['shelf_stock'] == 0.0
+        assert it['on_order'] == 5.0 and it['effective_stock'] == 5.0
+        assert it['days_left'] is None                     # расхода нет — считать не из чего
+        assert it['urgency'] == 'critical'                 # учётная ошибка всё равно наверху
+        assert it['section'] == 'decide'
         assert d['items'][0]['product_id'] == P_NEG
+        # у P_NEG расхода в окне нет (velocity dead) — заказывать нечего, но минус назван
+        assert it['recommended'] == 0 and it['reason_code'] == 'negative_stock'
+        assert 'проверьте учёт' in it['reason']
+
+
+def test_order_board_negative_stock_with_consumption_is_ordered():
+    """Минус у расходуемого товара: рекомендация считается от нуля, а не от минуса."""
+    balances = [b for b in _balances() if b['product'] != P_BOTTLE]
+    balances.append(_bal(STORE_LIG, P_BOTTLE, -2.0, 0.0))
+    with _patched(snapshot=_snapshot(balances=balances)) as c:
+        code, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_BOTTLE]
+        assert it['stock'] == -2.0 and it['shelf_stock'] == 0.0
+        # нужно 12 шт (1.5 в день × 8 дн.), на полке ноль → заказать 12, а не 14
+        assert it['target_stock'] == 12.0 and it['recommended'] == 12
+        assert it['urgency'] == 'critical' and it['section'] == 'decide'
+        assert it['reason_code'] == 'order' and 'остаток -2 шт' in it['reason']
+        assert 'проверьте учёт' in it['reason'] and 'полка пустая' in it['reason']
+        assert 'есть 0: заказать 12' in it['reason']
 
 
 def test_order_board_draft_qty_per_bar():
@@ -784,10 +807,12 @@ def test_order_board_uses_supplier_directory():
         idle = _by_id(d)[P_IDLE]
         assert idle['supplier'] == 'Лента' and idle['supplier_is_default'] is True
         assert idle['lead_time_days'] == DEFAULT_LEAD_TIME_DAYS
-        # кеги: кратность всегда 1, даже если у поставщика задана
-        directory.upsert('ООО "Арбореал"', {'pack_size': 30}, USER)
+        # кеги: кратность — объём бочки из названия, а не упаковка поставщика
+        directory.upsert('ООО "Арбореал"', {'pack_size': 6}, USER)
         code, d = _get(c, 'order-board', BAR_LIG)
-        assert _by_id(d)[P_KEG_LAGER]['pack_size'] == 1
+        keg = _by_id(d)[P_KEG_LAGER]
+        assert keg['pack_size'] == 30.0 and keg['keg_liters'] == 30.0
+        assert keg['keg_source'] == 'name'                  # «Кег Лагер Домашний, 30 л»
 
 
 def test_order_board_reason_phrases():
@@ -1026,6 +1051,88 @@ def test_stock_tabs_carry_price_for_order_sum():
         assert _by_id(bottles)[P_BOTTLE]['price'] == 120.0
         assert _by_id(bottles)[P_BOTTLE]['price_source'] == 'invoice'
         assert _by_id(kitchen)[P_SAUCE]['price'] == 100.0
+
+
+# --- кеги целыми бочками и позиции без остатка (2026-09-19) ------------------------
+
+def test_keg_recommendation_is_whole_kegs():
+    """Разливное заказывается бочками: 8 л превращаются в одну кегу 30 л."""
+    # расход 0.4 л/день (12 л за 30 дн.), остаток 18 л, горизонт 6 + 3 запаса = 9 дн.
+    balances = [b for b in _balances() if b['product'] != P_KEG_LAGER]
+    balances.append(_bal(STORE_LIG, P_KEG_LAGER, 1.0, 200.0))
+    with _patched(snapshot=_snapshot(balances=balances)) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        keg = _by_id(d)[P_KEG_LAGER]
+        assert keg['keg_liters'] == 30.0 and keg['keg_source'] == 'name'
+        assert keg['pack_size'] == 30.0
+        assert keg['recommended'] == 30 and keg['kegs'] == 1     # 2.6 л дефицита → одна кега
+        assert 'заказать 30 к' in keg['reason'] and '(1 кега по 30 л)' in keg['reason']
+
+
+def test_keg_without_volume_in_name_uses_default():
+    """Объёма в названии нет — берём 30 л по умолчанию (решение владельца)."""
+    nom = _nomenclature()
+    nom[P_KEG_LAGER] = dict(nom[P_KEG_LAGER], name='Кег Лагер Домашний')
+    balances = [b for b in _balances() if b['product'] != P_KEG_LAGER]
+    balances.append(_bal(STORE_LIG, P_KEG_LAGER, 0.0, 0.0))
+    with _patched(snapshot=_snapshot(balances=balances), nomenclature=nom) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        keg = _by_id(d)[P_KEG_LAGER]
+        assert keg['keg_liters'] == float(rs.DEFAULT_KEG_LITERS) and keg['keg_source'] == 'default'
+        assert keg['recommended'] == 30 and keg['kegs'] == 1
+        assert d['default_keg_liters'] == rs.DEFAULT_KEG_LITERS
+
+
+def test_keg_many_kegs_label():
+    """Три бочки названы тремя: 20 л из названия, дефицит больше двух кег."""
+    nom = _nomenclature()
+    nom[P_KEG_LAGER] = dict(nom[P_KEG_LAGER], name='Кег Лагер Домашний, 20 л')
+    ops = _operations() + [_op(P_KEG_LAGER, STORE_LIG, '-150.000000000', '25.10.2025')]
+    balances = [b for b in _balances() if b['product'] != P_KEG_LAGER]
+    balances.append(_bal(STORE_LIG, P_KEG_LAGER, 0.0, 0.0))
+    with _patched(snapshot=_snapshot(balances=balances, operations=ops), nomenclature=nom) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        keg = _by_id(d)[P_KEG_LAGER]
+        assert keg['keg_liters'] == 20.0 and keg['recommended'] % 20 == 0
+        assert keg['kegs'] == keg['recommended'] / 20
+        assert f'({keg["kegs"]} кеги по 20 л)' in keg['reason'] or f'({keg["kegs"]} кег по 20 л)' in keg['reason']
+
+
+def test_product_without_stock_row_appears_when_it_moved_recently():
+    """Позиция кончилась и пропала из остатков iiko — на доске она всё равно есть."""
+    balances = [b for b in _balances() if b['product'] != P_BOTTLE]      # строки остатка нет вовсе
+    ops = _operations() + [_op(P_BOTTLE, STORE_LIG, '-2.000000000', '03.11.2025')]
+    with _patched(snapshot=_snapshot(balances=balances, operations=ops)) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_BOTTLE]
+        assert it['no_stock_row'] is True and it['out_of_rotation'] is False
+        assert it['stock'] == 0.0 and it['shelf_stock'] == 0.0
+        assert it['last_outgoing'] == '2025-11-03'
+        assert it['recommended'] > 0 and it['section'] == 'decide'
+        assert d['no_stock_count'] == 1
+
+
+def test_product_without_stock_row_and_old_movement_is_not_ordered():
+    """Расход был давно — сорт вышел из ротации: показываем, но не заказываем."""
+    balances = [b for b in _balances() if b['product'] != P_KEG_LAGER]
+    with _patched(snapshot=_snapshot(balances=balances)) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_KEG_LAGER]          # последний расход 20.10, сегодня 05.11 → 16 дн.
+        assert it['no_stock_row'] is True and it['out_of_rotation'] is True
+        assert it['recommended'] == 0 and it['section'] == 'idle'
+        assert it['reason_code'] == 'out_of_rotation'
+        assert 'последний расход пн 20.10' in it['reason']
+        assert d['no_stock_recent_days'] == rs.NO_STOCK_RECENT_DAYS
+
+
+def test_out_of_rotation_is_not_revived_by_minimum_order():
+    """Добор до минимума не поднимает сорт, ушедший из ротации."""
+    directory = _temp_directory()
+    directory.upsert('ООО "Арбореал"', {'min_order_sum': 5000}, USER)
+    balances = [b for b in _balances() if b['product'] != P_KEG_LAGER]
+    with _patched(snapshot=_snapshot(balances=balances), directory=directory) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        assert _by_id(d)[P_KEG_LAGER]['recommended'] == 0
 
 
 if __name__ == '__main__':

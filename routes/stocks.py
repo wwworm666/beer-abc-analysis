@@ -11,7 +11,7 @@ from pathlib import Path
 from datetime import date, datetime
 from core.iiko_barcodes import get_barcode_map, invert_to_product_gtins
 from core.dashboard_analysis import DashboardMetrics
-from core.stock_consumption import aggregate_consumption
+from core.stock_consumption import INTERNAL_TRANSFER as INTERNAL_TRANSFER_TYPE, aggregate_consumption
 from core.purchase_price import line_sum, resolve_prices
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from core.order_store import get_order_store
@@ -69,6 +69,15 @@ STOCK_ZERO_EPS = 0.05            # |остаток| меньше этого — 
 # растягивается не больше чем на столько дней сверх расчётного. 30 дней — окно расхода:
 # дальше средний расход уже ничего не гарантирует, а товар месяц стоит на складе.
 MIN_ORDER_MAX_EXTRA_DAYS = 30
+# Кеги заказывают целыми бочками, а не литрами: «заказать 8 л» исполнить нельзя
+# (решение владельца 2026-09-19). Объём берётся из названия номенклатуры
+# («КЕГ Фуллерс ИПА 30 л»), а где его нет — DEFAULT_KEG_LITERS.
+DEFAULT_KEG_LITERS = 30          # объём кеги по умолчанию (решение владельца 2026-09-19)
+MIN_KEG_LITERS = 5               # меньше этого в названии — не объём кеги (0,5 л — это порция)
+MAX_KEG_LITERS = 200             # больше этого — тоже не кега, а опечатка в названии
+# Позиция без строки остатка в iiko попадает на доску по расходу за окно. Если
+# последний расход был давно, сорт из ротации вышел: показываем, но не заказываем.
+NO_STOCK_RECENT_DAYS = 7
 
 
 def _supplier_params(supplier_name, view=None):
@@ -81,6 +90,31 @@ def _supplier_params(supplier_name, view=None):
     if view is None:
         view = get_supplier_directory().view()
     return dict(view.params(supplier_name))
+
+
+_KEG_VOLUME_RE = re.compile(r'(\d+(?:[.,]\d+)?)\s*л\b', re.IGNORECASE)
+
+
+def _keg_liters(name):
+    """Объём кеги из названия номенклатуры; нет в названии — (DEFAULT_KEG_LITERS, 'default').
+
+    «КЕГ Фуллерс ИПА 30 л» → (30.0, 'name'). Берётся последнее число перед «л»:
+    в названии может стоять и крепость, и год. Значения вне
+    MIN_KEG_LITERS..MAX_KEG_LITERS игнорируются — это не объём бочки.
+    По номенклатуре на 2026-09: объём указан у 65 % разливных позиций, из них
+    30 л и 20 л — почти все.
+    """
+    found = None
+    for match in _KEG_VOLUME_RE.finditer(name or ''):
+        try:
+            value = float(match.group(1).replace(',', '.'))
+        except ValueError:
+            continue
+        if MIN_KEG_LITERS <= value <= MAX_KEG_LITERS:
+            found = value
+    if found is None:
+        return float(DEFAULT_KEG_LITERS), 'default'
+    return found, 'name'
 
 
 def _velocity(avg_sales, unit='шт'):
@@ -116,6 +150,10 @@ def _calc_recommendation(stock, avg_sales, cover_days, pack_size, days_to_expiry
     в пятницу должен дожить до понедельника: 4 дня, а не 1 (с 2026-09-11, этап 2;
     раньше здесь был константный lead_time_days).
 
+    pack_size — кратность заказа: упаковка для фасовки и кухни, объём кеги в
+    литрах для разливного (может быть дробным: «29,3 л»). Целая кратность даёт
+    целый результат, дробная — литры до сотых.
+
     Спецслучаи (рекомендация принудительно 0):
         velocity in ('dead', 'slow')       → не пополняем редко-продаваемые позиции
         0 <= days_to_expiry < 14           → расходуем то что есть на полке
@@ -130,18 +168,30 @@ def _calc_recommendation(stock, avg_sales, cover_days, pack_size, days_to_expiry
     deficit = target_stock - stock
     if deficit <= 0:
         return 0
-    pack = max(1, int(pack_size))
-    return int(math.ceil(deficit / pack) * pack)
+    try:
+        pack = float(pack_size)
+    except (TypeError, ValueError):
+        pack = 1.0
+    if not math.isfinite(pack) or pack <= 0:
+        pack = 1.0
+    packs = math.ceil(deficit / pack)
+    return int(packs * pack) if float(pack).is_integer() else round(packs * pack, 2)
 
 
 def _recommend_at(row, extra_days):
     """Рекомендация позиции, если считать на extra_days дней дальше её горизонта.
 
-    Те же правила, что у базового расчёта (_calc_recommendation): отрицательный
-    остаток, dead/slow и истекающая партия остаются нулём на любом горизонте —
-    добор до минимального заказа не оживляет то, что заказывать нельзя.
+    Те же правила, что у базового расчёта (_calc_recommendation): dead/slow и
+    истекающая партия остаются нулём на любом горизонте — добор до минимального
+    заказа не оживляет то, что заказывать нельзя. Сюда же попадает сорт, ушедший
+    из ротации (row['blocked']): его нет в остатках и расхода давно не было.
+
+    Отрицательный остаток заказ НЕ блокирует (решение владельца 2026-09-19):
+    минус означает, что товара на полке точно нет, и заказать надо полную цель.
+    Полка при этом считается пустой, а не «минус три»: недостачу заказом не
+    закрывают, её ищут в учёте.
     """
-    if row['is_negative']:
+    if row['blocked']:
         return 0
     return _calc_recommendation(row['effective_stock'], row['avg_sales'],
                                 row['horizon_days'] + extra_days, row['pack_size'],
@@ -195,6 +245,7 @@ def _min_order_state(rows, params, other_bars_sum=0.0, apply_fill=True,
         'reachable': True,
         'other_bars_sum': round(other_bars_sum, 2),
         'no_price_count': sum(1 for r in rows if r['price'] is None),
+        'priced_count': sum(1 for r in rows if r['price'] is not None),
         'max_extra_days': max_extra_days,
         'applies': bool(apply_fill),
         'need_sum': float(min_sum),      # сколько нужно набрать этому бару (уточняется ниже)
@@ -284,6 +335,23 @@ def _fmt_money(value):
     return f'{n:,}'.replace(',', ' ') + ' руб.'
 
 
+def _kegs_label(liters, keg_liters):
+    """«1 кега по 30 л» / «3 кеги по 20 л» — сколько бочек в рекомендации."""
+    if not keg_liters or keg_liters <= 0:
+        return ''
+    kegs = int(round(liters / keg_liters))
+    if kegs <= 0:
+        return ''
+    tail = kegs % 10
+    if kegs % 100 in (11, 12, 13, 14) or tail == 0 or tail >= 5:
+        word = 'кег'
+    elif tail == 1:
+        word = 'кега'
+    else:
+        word = 'кеги'
+    return f'{kegs} {word} по {_fmt_num(keg_liters)} л'
+
+
 def _reason(calc, window_days):
     """Фраза-причина и код: одно объяснение = одно действие (S-14, S-15).
 
@@ -293,7 +361,8 @@ def _reason(calc, window_days):
     Порядок проверок повторяет расчёт рекомендации, чтобы фраза никогда не
     расходилась с числом; все числа в фразе — те же, что в формуле, до двух
     знаков, чтобы «нужно − есть − в пути = заказать» сходилось на калькуляторе:
-        negative_stock  остаток < −STOCK_ZERO_EPS — проверить учёт, заказом не лечится
+        out_of_rotation позиции нет в остатках iiko и расхода давно не было — сорт ушёл
+        negative_stock  остаток < −STOCK_ZERO_EPS и заказывать нечего — проверить учёт
         near_expiry     партия истекает < NEAR_EXPIRY_BLOCK_DAYS — не заказываем
         no_movement     расхода нет (velocity dead)
         slow            редко расходится (velocity slow, только штучные) — не пополняем
@@ -304,9 +373,29 @@ def _reason(calc, window_days):
     """
     unit = calc['unit']
     stock, on_order = calc['stock'], calc['on_order']
-    if calc['is_negative']:
-        return 'negative_stock', f'остаток {_fmt_num(stock)} {unit}: проверить учёт в iiko, заказом не лечится'
+    shelf = calc.get('shelf', stock)
     d = calc['days_to_expiry']
+    if calc.get('blocked'):
+        last_out = calc.get('last_out')
+        when = f'последний расход {_fmt_day(last_out)}' if last_out else 'расхода за период нет'
+        return 'out_of_rotation', (f'нет в остатках iiko, {when}: сорт вышел из ротации, '
+                                   f'если вернулся — впишите количество руками')
+    # Минус в остатке: товара на полке нет (решение владельца 2026-09-19). Если
+    # заказывать нечего (нет расхода, редкий, истекает срок) — говорим только про учёт.
+    negative_note = (f'остаток {_fmt_num(stock)} {unit}: проверьте учёт в iiko'
+                     if calc['is_negative'] else '')
+    if negative_note and calc['recommended'] <= 0:
+        if d is not None and 0 <= d < NEAR_EXPIRY_BLOCK_DAYS:
+            tail = f', партия истекает {_fmt_day(calc["nearest_expiry"])} — заказ не нужен'
+        elif calc['velocity'] == 'dead':
+            tail = f', расхода за {window_days} дн. нет — заказывать нечего'
+        elif calc['velocity'] == 'slow':
+            tail = ', расходится редко — не пополняем автоматически'
+        elif on_order > 0:
+            tail = f', в пути {_fmt_num(on_order)} {unit} — хватит до поставки'
+        else:
+            tail = ''
+        return 'negative_stock', negative_note + tail
     if d is not None and 0 <= d < NEAR_EXPIRY_BLOCK_DAYS:
         return 'near_expiry', f'партия истекает {_fmt_day(calc["nearest_expiry"])} ({d} дн.): не заказываем, продаём что есть'
     if calc['velocity'] == 'dead':
@@ -326,12 +415,17 @@ def _reason(calc, window_days):
                     f' ({_fmt_num(calc["avg"])} в день), есть {_fmt_num(stock)}')
         else:
             text = (f'до поставки {_fmt_day(calc["next_delivery"])} нужно {_fmt_num(calc["target"])} {unit}'
-                    f' ({_fmt_num(calc["avg"])} в день × {cover} дн. с запасом), есть {_fmt_num(stock)}')
+                    f' ({_fmt_num(calc["avg"])} в день × {cover} дн. с запасом), есть {_fmt_num(shelf)}')
+        if negative_note:
+            text = f'{negative_note}, полка пустая — ' + text
         if on_order > 0:
             text += f', в пути {_fmt_num(on_order)}'
         text += f': заказать {_fmt_num(calc["recommended"])} к {_fmt_day(calc["first_delivery"])}'
-        if calc['pack_size'] > 1:
-            text += f' (упаковка {calc["pack_size"]})'
+        kegs = _kegs_label(calc['recommended'], calc.get('keg_liters'))
+        if kegs:
+            text += f' ({kegs})'
+        elif calc['pack_size'] > 1:
+            text += f' (упаковка {_fmt_num(calc["pack_size"])})'
         return ('min_order' if extra else 'order'), text
     if on_order > 0:
         return 'in_transit', f'в пути {_fmt_num(on_order)} {unit}: с ним хватит до поставки {_fmt_day(calc["next_delivery"])}'
@@ -549,6 +643,43 @@ def _collect_stock(balances, nomenclature, target_store_id, fasovka_ids, kinds):
             entry['stock'] += float(balance.get('amount', 0) or 0)
         except (TypeError, ValueError):
             pass
+    return products
+
+
+def _products_from_operations(operations, nomenclature, target_store_id, fasovka_ids, kinds,
+                             known_ids):
+    """Товары без строки остатка, но с движением по складу за окно → {product_id: {...}}.
+
+    Зачем. Доска строилась только по `balance/stores`, а iiko не присылает строку
+    для товара, которого на складе нет. Позиция, кончившаяся вчера, исчезала с
+    экрана заказа ровно тогда, когда её надо заказывать (замечание владельца
+    2026-09-19). Такие товары добавляются с остатком 0 и пометкой `no_stock_row`.
+
+    Считаются только операции нужного склада (для «Общей» — все, кроме
+    перемещений внутри сети, как в core/stock_consumption). Классификация и
+    единицы — те же, что у остатков; товара нет в номенклатуре — пропускаем.
+    """
+    products = {}
+    for record in operations:
+        product_id = record.get('product')
+        if not product_id or product_id in known_ids or product_id in products:
+            continue
+        if target_store_id and record.get('primaryStore') != target_store_id:
+            continue
+        if not target_store_id and record.get('documentType') == INTERNAL_TRANSFER_TYPE:
+            continue
+        info = nomenclature.get(product_id)
+        kind = _classify(product_id, info, fasovka_ids)
+        if kind not in kinds:
+            continue
+        products[product_id] = {
+            'name': info.get('name') or product_id,
+            'category': info.get('category') or 'Без поставщика',
+            'unit': info.get('mainUnit') or 'шт',
+            'kind': kind,
+            'stock': 0.0,
+            'no_stock_row': True,
+        }
     return products
 
 
@@ -1171,8 +1302,14 @@ def get_order_board():
             return err
 
         fasovka_ids = _fasovka_ids(nomenclature)
+        kinds = {'bottle', 'draft', 'kitchen'}
         products = _collect_stock(snapshot['balances'], nomenclature, target_store_id,
-                                  fasovka_ids, {'bottle', 'draft', 'kitchen'})
+                                  fasovka_ids, kinds)
+        # Позиция, которой нет в остатках iiko, но по которой было движение за окно:
+        # кончилась — значит её и надо заказывать (замечание владельца 2026-09-19).
+        products.update(_products_from_operations(snapshot['operations'], nomenclature,
+                                                  target_store_id, fasovka_ids, kinds,
+                                                  set(products)))
         today = _snapshot_today(snapshot)
         stats = aggregate_consumption(snapshot['operations'], products.keys(),
                                       target_store_id, today, snapshot['window_days'],
@@ -1195,7 +1332,6 @@ def get_order_board():
             st = stats[product_id]
             avg_sales = st['avg_per_day']
             on_order = float(on_order_map.get(product_id, 0.0))
-            effective_stock = stock + on_order
 
             nearest_expiry = None
             days_to_expiry = None
@@ -1211,23 +1347,37 @@ def get_order_board():
             params = _supplier_params(data['category'], directory)
             supplier = params['name']
             params_by_supplier.setdefault(supplier, params)
-            # Кратность — для фасовки и кухни; кеги считаем в литрах без кратности (решение владельца).
-            pack_size = 1 if data['kind'] == 'draft' else params['pack_size']
+            # Кратность: упаковка поставщика для фасовки и кухни, объём кеги для
+            # разливного — целую бочку не разлить на «8 л» (решение владельца 2026-09-19).
+            keg_liters, keg_source = (_keg_liters(data['name']) if data['kind'] == 'draft'
+                                      else (None, None))
+            pack_size = keg_liters if data['kind'] == 'draft' else params['pack_size']
             if supplier not in plans:
                 plans[supplier] = _delivery_plan(today, params)
             first_delivery, next_delivery, days_to_delivery, horizon_days = plans[supplier]
             velocity = _velocity(avg_sales, data['unit'])
-            days_left = (stock / avg_sales) if avg_sales > 0 else None
-            # Отрицательный физический остаток (за вычетом учётного нуля) — ошибка учёта:
-            # рекомендация 0 и critical, заказом не лечится; управляющий может ввести
-            # количество руками (S-14).
+            # Отрицательный остаток — ошибка учёта, но полка при этом точно пуста:
+            # считаем её нулём и заказываем полную цель (решение владельца 2026-09-19).
+            # Сам минус остаётся пометкой «проверьте учёт»: недостачу заказом не закрыть.
             is_negative = stock < -STOCK_ZERO_EPS
+            shelf_stock = max(0.0, stock)
+            days_left = (shelf_stock / avg_sales) if avg_sales > 0 else None
+            # Сорт без строки остатка, у которого расхода давно не было, из ротации вышел:
+            # показываем в свёрнутом блоке, но не заказываем сами.
+            last_out = st.get('last_out')
+            stale = bool(data.get('no_stock_row')) and (
+                last_out is None or (today - last_out).days > NO_STOCK_RECENT_DAYS)
+            # Полка плюс то, что в пути: именно из этого считается дефицит.
+            effective_stock = shelf_stock + on_order
             price_info = prices.get(product_id) or {}
             row = {
                 'product_id': product_id, 'data': data, 'st': st, 'supplier': supplier,
                 'params': params, 'stock': stock, 'on_order': on_order,
                 'effective_stock': effective_stock, 'avg_sales': avg_sales,
                 'velocity': velocity, 'days_left': days_left, 'pack_size': pack_size,
+                'shelf_stock': shelf_stock, 'keg_liters': keg_liters, 'keg_source': keg_source,
+                'no_stock_row': bool(data.get('no_stock_row')), 'last_out': last_out,
+                'blocked': stale,
                 'horizon_days': horizon_days, 'days_to_delivery': days_to_delivery,
                 'first_delivery': first_delivery, 'next_delivery': next_delivery,
                 'days_to_expiry': days_to_expiry, 'nearest_expiry': nearest_expiry,
@@ -1276,8 +1426,16 @@ def get_order_board():
                 'self_pickup': row['params']['self_pickup'],
                 'unit': data['unit'],
                 'stock': round(row['stock'], 2),
+                'shelf_stock': round(row['shelf_stock'], 2),
                 'on_order': round(row['on_order'], 2),
                 'effective_stock': round(row['effective_stock'], 2),
+                'no_stock_row': row['no_stock_row'],
+                'out_of_rotation': row['blocked'],
+                'last_outgoing': row['last_out'].isoformat() if row['last_out'] else None,
+                'keg_liters': row['keg_liters'],
+                'keg_source': row['keg_source'],
+                'kegs': (int(round(recommended / row['keg_liters']))
+                         if row['keg_liters'] and recommended else None),
                 'open_orders': open_orders_map.get(row['product_id'], []),
                 'draft_qty': draft_map.get(row['product_id'], 0.0),
                 'avg_sales': round(row['avg_sales'], 2),
@@ -1309,7 +1467,9 @@ def get_order_board():
             })
             it = items[-1]
             it['reason_code'], it['reason'] = _reason({
-                'unit': data['unit'], 'stock': row['stock'], 'on_order': row['on_order'],
+                'unit': data['unit'], 'stock': row['stock'], 'shelf': row['shelf_stock'],
+                'on_order': row['on_order'], 'blocked': row['blocked'], 'last_out': row['last_out'],
+                'keg_liters': row['keg_liters'],
                 'avg': row['avg_sales'], 'target': target_stock, 'recommended': recommended,
                 'horizon_days': row['horizon_days'], 'first_delivery': row['first_delivery'],
                 'next_delivery': row['next_delivery'], 'pack_size': row['pack_size'],
@@ -1324,7 +1484,9 @@ def get_order_board():
             # учётная ошибка или полка опустеет раньше поставки, даже если заказ
             # заблокирован сроком годности); idle — без движения / редко; ok — хватает.
             # Черновик показывается всегда (решает фронт).
-            if recommended > 0 or row['is_negative'] or row['urgency'] in ('critical', 'high'):
+            if row['blocked']:
+                it['section'] = 'idle'      # нет в остатках и расхода давно не было
+            elif recommended > 0 or row['is_negative'] or row['urgency'] in ('critical', 'high'):
                 it['section'] = 'decide'
             elif row['velocity'] in ('dead', 'slow'):
                 it['section'] = 'idle'
@@ -1365,6 +1527,9 @@ def get_order_board():
             'draft_count': sum(1 for i in items if i['draft_qty'] > 0),
             'decide_count': sum(1 for i in items if i['section'] == 'decide'),
             'idle_count': sum(1 for i in items if i['section'] == 'idle'),
+            'no_stock_count': sum(1 for i in items if i['no_stock_row']),
+            'no_stock_recent_days': NO_STOCK_RECENT_DAYS,
+            'default_keg_liters': DEFAULT_KEG_LITERS,
             'orders_available': orders_error is None,
             'orders_error': orders_error,
             'suppliers': supplier_states,
