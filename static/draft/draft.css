@@ -424,6 +424,44 @@ body.draft-page .container { padding: 0; }
 .dr-tile-v u { font: 600 12.5px/1 var(--dr-mono); color: var(--dr-ink5); text-decoration: none; }
 .dr-tile-s { margin-top: 8px; font: 400 11.5px/1.4 var(--dr-sans); color: var(--dr-ink5); }
 
+/* ==================== Решения по ассортименту ==================== */
+/* Те же карточки, что на /packaging (.pk-bucket): группа, счётчик, действие. */
+
+.dr-buckets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
+    gap: 10px;
+}
+.dr-bucket {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--dr-card);
+    border: 1px solid var(--dr-line);
+    border-radius: var(--dr-r-card);
+    box-shadow: var(--dr-shadow);
+    padding: 14px 16px 13px;
+    cursor: pointer;
+    font-family: var(--dr-sans);
+    color: inherit;
+    transition: border-color .15s ease, background .12s ease;
+}
+.dr-bucket:hover { background: var(--dr-hover); border-color: var(--dr-accent); }
+.dr-bucket-top { display: flex; align-items: center; gap: 8px; }
+.dr-led { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--dr-ink4); }
+.dr-led.ok { background: var(--dr-ok); }
+.dr-led.warn { background: var(--dr-warn); }
+.dr-led.bad { background: var(--dr-bad); }
+.dr-led.accent { background: var(--dr-accent); }
+.dr-bucket-n { font: 600 13px/1.2 var(--dr-sans); }
+.dr-bucket-v {
+    margin-top: 10px;
+    font: 700 21px/1 var(--dr-mono);
+    font-variant-numeric: tabular-nums;
+}
+.dr-bucket-v u { font: 600 11.5px/1 var(--dr-mono); color: var(--dr-ink5); text-decoration: none; }
+.dr-bucket-s { margin-top: 7px; font: 400 11.5px/1.4 var(--dr-sans); color: var(--dr-ink5); }
+
 /* ==================== Таблицы ==================== */
 
 .dr-table {

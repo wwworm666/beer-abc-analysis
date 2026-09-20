@@ -341,34 +341,27 @@
 
     // Корзины действий: порядок и подписи повторяют core/abc_buckets.py.
     // Держать их синхронно важно — сервер присылает только ключ.
-    var BUCKETS = [
-        { key: 'stars', name: 'Звёзды', action: 'Держать всегда', led: 'ok' },
-        { key: 'workhorses', name: 'Рабочие лошадки', action: 'Оставить', led: 'ok' },
-        { key: 'price_up', name: 'Недооценённые', action: 'Поднять наценку', led: 'warn' },
-        { key: 'premium', name: 'Премиум-ниша', action: 'Продвигать', led: 'accent' },
-        { key: 'background', name: 'Фон', action: 'Не трогать', led: '' },
-        { key: 'remove', name: 'Удалить', action: 'Рассмотреть удаление', led: 'bad' }
-    ];
+    // Группы решений приходят с сервера целиком (core/abc_buckets.py): имя,
+    // действие, тон, счётчик, доля выручки, правило словами. Страница только
+    // печатает — раньше долю выручки складывал JS, а имена жили в двух местах.
+    function bucketCard(key) {
+        var cards = (state.data && state.data.buckets) || [];
+        for (var i = 0; i < cards.length; i++) {
+            if (cards[i].key === key) return cards[i];
+        }
+        return null;
+    }
 
     function renderBuckets(data) {
-        var stats = data.bucket_stats || {};
-        var positions = data.positions || [];
-        var totalRevenue = (data.totals || {}).revenue || 0;
-
         var html = '';
-        BUCKETS.forEach(function (bucket) {
-            var count = stats[bucket.key] || 0;
-            var revenue = positions.reduce(function (acc, p) {
-                return p.ABC_Bucket === bucket.key ? acc + p.TotalRevenue : acc;
-            }, 0);
-            var share = totalRevenue > 0 ? revenue / totalRevenue * 100 : 0;
-            html += '<button type="button" class="pk-bucket" data-bucket="' + bucket.key + '">' +
-                '<span class="pk-bucket-top"><span class="pk-led ' + bucket.led + '"></span>' +
+        (data.buckets || []).forEach(function (bucket) {
+            html += '<button type="button" class="pk-bucket" data-bucket="' + esc(bucket.key) + '">' +
+                '<span class="pk-bucket-top"><span class="pk-led ' + esc(bucket.tone) + '"></span>' +
                 '<span class="pk-bucket-n">' + esc(bucket.name) + '</span></span>' +
-                '<div class="pk-bucket-v">' + count +
-                '<u> ' + plural(count, 'позиция', 'позиции', 'позиций') + '</u></div>' +
+                '<div class="pk-bucket-v">' + bucket.count +
+                '<u> ' + plural(bucket.count, 'позиция', 'позиции', 'позиций') + '</u></div>' +
                 '<div class="pk-bucket-s">' + esc(bucket.action) + ' · ' +
-                pct(share, 1) + ' выручки</div></button>';
+                pct(bucket.revenue_share_percent, 1) + ' выручки</div></button>';
         });
         el.buckets.innerHTML = html;
     }
@@ -892,61 +885,35 @@
     function openBucket(key) {
         var data = state.data;
         if (!data) return;
-        var info = null;
-        BUCKETS.forEach(function (b) { if (b.key === key) info = b; });
+        var info = bucketCard(key);
         if (!info) return;
 
         var members = (data.positions || []).filter(function (p) { return p.ABC_Bucket === key; });
-        var revenue = members.reduce(function (a, p) { return a + p.TotalRevenue; }, 0);
         var margin = members.reduce(function (a, p) { return a + p.TotalMargin; }, 0);
-        var totalRevenue = (data.totals || {}).revenue || 0;
 
         var html = '<div class="pk-dr-in">';
         html += drawerHead(info.name + ' — ' + info.action, scopeLine());
 
-        html += band('ЧТО В КОРЗИНЕ');
+        html += band('ЧТО В ГРУППЕ');
         html += '<div class="pk-cells three">' +
-            cell('ПОЗИЦИЙ', members.length) +
-            cell('ВЫРУЧКА', money(revenue)) +
-            cell('ДОЛЯ В ВЫРУЧКЕ',
-                pct(totalRevenue > 0 ? revenue / totalRevenue * 100 : 0, 1)) +
+            cell('ПОЗИЦИЙ', info.count) +
+            cell('ВЫРУЧКА', money(info.revenue)) +
+            cell('ДОЛЯ В ВЫРУЧКЕ', pct(info.revenue_share_percent, 1)) +
             '</div>';
-        html += '<div class="pk-dr-note">' + esc(bucketNote(key)) + '</div>';
+        // Правило с числами и подсказка — с сервера (CLAUDE.md пункт 1).
+        html += '<div class="pk-dr-note">' + esc(info.hint) + '</div>';
+        html += '<div class="pk-formula">правило: ' + esc(info.rule) + '</div>';
 
         if (members.length) {
-            html += miniPositions(members, 'ПОЗИЦИИ', 'маржа корзины ' + money(margin));
+            html += miniPositions(members, 'ПОЗИЦИИ', 'маржа группы ' + money(margin));
         } else {
-            html += '<div class="pk-empty">в этой корзине сейчас нет позиций</div>';
+            html += '<div class="pk-empty">' + (info.verdict_ready === false
+                ? 'на этом периоде группа не заполняется — посмотрите период от четырёх недель'
+                : 'в этой группе сейчас нет позиций') + '</div>';
         }
 
         html += '</div>';
         openDrawer(html);
-    }
-
-    // Что означает корзина словами. Тексты повторяют core/abc_buckets.py —
-    // сервер присылает только ключ, а объяснять решение надо на экране.
-    function bucketNote(key) {
-        if (key === 'stars') {
-            return 'Верх и по выручке, и по наценке. Из наличия выпадать не должны: ' +
-                'каждый день без них — прямая потеря.';
-        }
-        if (key === 'workhorses') {
-            return 'Хорошая пара выручка и наценка. Ассортимент держится на них, ' +
-                'трогать нечего.';
-        }
-        if (key === 'price_up') {
-            return 'Спрос есть, а наценка ниже 100%: позиция продаётся, но приносит ' +
-                'меньше, чем стоила. Кандидат на пересмотр цены или закупочных условий.';
-        }
-        if (key === 'premium') {
-            return 'Наценка высокая, спрос низкий. Деньги с каждой продажи хорошие — ' +
-                'имеет смысл продвигать: витрина, рекомендация, дегустация.';
-        }
-        if (key === 'remove') {
-            return 'Плохо и по выручке, и по наценке. Занимает полку и оборотные ' +
-                'средства — кандидат на вывод из ассортимента.';
-        }
-        return 'Середина по обоим показателям. Отдельного решения не требует.';
     }
 
     function revenueText(letter) {
@@ -1200,9 +1167,8 @@
     }
 
     function bucketNameOf(key) {
-        var found = '';
-        BUCKETS.forEach(function (b) { if (b.key === key) found = b.name + ' · ' + b.action; });
-        return found || 'наценка не определена — корзина не присвоена';
+        var card = bucketCard(key);
+        return card ? card.name + ' · ' + card.action : 'группа не определена';
     }
 
     // ==================== события ====================
@@ -1361,14 +1327,14 @@
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = { num: num, fixed: fixed, money: money, pct: pct, esc: esc,
                            plural: plural, presetRange: presetRange, weeksIn: weeksIn,
-                           abcClass: abcClass, bucketNote: bucketNote, xyzNote: xyzNote,
-                           lossTone: lossTone, signed: signed, qty: qty, BUCKETS: BUCKETS };
+                           abcClass: abcClass, xyzNote: xyzNote,
+                           lossTone: lossTone, signed: signed, qty: qty };
     }
     if (typeof window !== 'undefined') {
         window.__packaging = { state: state, render: render, openPosition: openPosition,
                                openCategory: openCategory, openBucket: openBucket,
                                num: num, money: money, pct: pct, esc: esc, plural: plural,
                                abcClass: abcClass, weeksIn: weeksIn, lossTone: lossTone,
-                               signed: signed, qty: qty, BUCKETS: BUCKETS };
+                               signed: signed, qty: qty, openBucket: openBucket };
     }
 })();

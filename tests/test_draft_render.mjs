@@ -134,22 +134,30 @@ test('на странице объяснено, что такое бармен �
 
 test('расшифровка букв на экране и честна про методику /draft', () => {
     // Владелец просил видеть значение каждой буквы на обеих страницах. Здесь
-    // 2-я и 3-я буквы считаются по ТРЕТЯМ среди кегов (core/draft_kegs.py,
-    // _abc_by_percentile), а не по фиксированным порогам, как у фасовки —
-    // расшифровка обязана говорить именно это, а не копировать /packaging.
+    // 2-я буква (наценка) — по порогам розлива (core/abc_thresholds.py,
+    // KEG_MARKUP_*; до 2026-09-20 — по третям), 3-я (маржа) — по ТРЕТЯМ среди
+    // кегов (core/draft_kegs.py, _abc_by_percentile). Расшифровка обязана
+    // говорить именно это, а не копировать /packaging.
     const kegs = read('core/draft_kegs.py');
+    const thresholds = read('core/abc_thresholds.py');
     const key = html.match(/<div class="dr-key" id="drKey">([\s\S]*?)<\/div>\s*<div class="dr-legend">/);
     assert.ok(key, 'нет блока расшифровки букв под таблицей кегов');
     const rows = (key[1].match(/class="dr-key-row"/g) || []).length;
     assert.equal(rows, 4, `три буквы ABC плюс XYZ, строк расшифровки ${rows}`);
-    assert.match(kegs, /_abc_by_percentile\(rows, 'MarkupPercent', 'ABC_Markup'\)/,
-        'наценка на /draft больше не по третям — расшифровка устарела');
+    assert.match(kegs, /markup_letter\(share, KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN\)/,
+        'наценка на /draft считается не по порогам кегов — расшифровка устарела');
     assert.match(kegs, /_abc_by_percentile\(rows, 'TotalMargin', 'ABC_Margin'\)/,
         'маржа на /draft больше не по третям — расшифровка устарела');
-    assert.ok(key[1].includes('верхняя треть кегов по наценке'), 'наценка не объяснена третями');
+    const a = Math.round(parseFloat(thresholds.match(/KEG_MARKUP_A_MIN = ([\d.]+)/)[1]) * 100);
+    const b = Math.round(parseFloat(thresholds.match(/KEG_MARKUP_B_MIN = ([\d.]+)/)[1]) * 100);
+    assert.ok(key[1].includes(`от ${a}%`), `порог A наценки не ${a}%`);
+    assert.ok(key[1].includes(`от ${b}% до ${a}%`), `порог B наценки не ${b}–${a}%`);
+    assert.ok(key[1].includes(`ниже ${b}%`), `порог C наценки не ${b}%`);
+    assert.ok(key[1].includes('себестоимость не задана'), 'нет подписи для «?»');
+    assert.ok(!/верхняя треть кегов по наценке/.test(key[1]), 'наценка всё ещё объяснена третями');
     assert.ok(key[1].includes('верхняя треть кегов по марже'), 'маржа не объяснена третями');
     assert.ok(!/от 120%|ниже 100%/.test(key[1]),
-        'в расшифровку /draft попали фиксированные пороги наценки с /packaging');
+        'в расшифровку /draft попали пороги наценки фасовки');
     const x = Math.round(parseFloat(kegs.match(/XYZ_X_MAX_CV = ([\d.]+)/)[1]));
     const y = Math.round(parseFloat(kegs.match(/XYZ_Y_MAX_CV = ([\d.]+)/)[1]));
     assert.ok(key[1].includes(`до ${x}%`), `порог X не ${x}%`);
@@ -162,6 +170,19 @@ test('расшифровка букв на экране и честна про �
         assert.ok(css.includes(`.dr-abc-ltr.${letter} {`), `нет цвета для буквы ${letter}`);
     }
     for (const cls of ['dr-key', 'dr-key-row', 'dr-key-cap', 'dr-key-cells', 'dr-key-cell']) {
+        assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
+    }
+});
+
+test('решения по ассортименту: секция на /draft печатает карточки с сервера', () => {
+    assert.match(html, /РЕШЕНИЯ ПО АССОРТИМЕНТУ/, 'нет секции решений');
+    assert.match(html, /id="drBuckets"/, 'нет узла карточек');
+    assert.match(js, /data\.buckets/, 'карточки не читаются из ответа');
+    assert.match(js, /info\.rule/, 'правило группы не печатается');
+    assert.match(js, /info\.hint/, 'подсказка группы не печатается');
+    assert.ok(!/Звёзды|Рабочие лошадки|Премиум-ниша/.test(js), 'на /draft старый словарь корзин');
+    for (const cls of ['dr-buckets', 'dr-bucket', 'dr-bucket-top', 'dr-led', 'dr-bucket-n',
+                       'dr-bucket-v', 'dr-bucket-s']) {
         assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
     }
 });

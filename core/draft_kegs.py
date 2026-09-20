@@ -51,7 +51,9 @@
 
 Что здесь сознательно иначе, чем в старом расчёте (дефекты аудита 2026-08-13)
 ----------------------------------------------------------------------------
-1. XYZ не выдумывается. Корзины — 7-дневные окна ОТ НАЧАЛА ПЕРИОДА, а не календарные
+1. XYZ не выдумывается. Корзины — 7-дневные окна, прижатые К КОНЦУ ПЕРИОДА (с
+   2026-09-20, как у фасовки: отбрасывается огрызок старых дней, а не свежих, иначе кег,
+   поставленный на последней неделе, «продавался 0 недель»), а не календарные
    недели; берутся только полные окна; при меньше чем 3 окнах категория не присваивается
    (раньше на периоде «прошлая неделя» у всех позиций CV выходил 100 и X/Y/Z раздавались
    по порядку сортировки).
@@ -73,6 +75,14 @@ routes/analysis.py — эндпоинт /api/draft-kegs. Страница: templ
 """
 
 from datetime import date, datetime, timedelta
+
+from core.abc_buckets import bucket_cards, decide_bucket
+from core.abc_thresholds import (
+    KEG_MARKUP_A_MIN,
+    KEG_MARKUP_B_MIN,
+    abc_letter_by_cumulative,
+    markup_letter,
+)
 
 
 LITER_UNIT = 'л'
@@ -149,20 +159,35 @@ def _cv_percent(values):
     return (variance ** 0.5) / mean * 100
 
 
+def _count_by(rows, key):
+    """Счётчик значений поля по строкам — детерминированный порядок ключей."""
+    counts = {}
+    for row in rows:
+        value = row.get(key)
+        if value is None:
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def _abc_by_cumulative(rows, value_key, letter_key, cum_key):
-    """ABC по накопленной доле: A до 80%, B до 95%, остальное C.
+    """ABC по накопленной доле: A — первые 80%, B — до 95%, остальное C.
 
     Классический порог Парето. Строки сортируются по значению убыв., накопленный
-    процент пишется в cum_key — он нужен и для буквы, и для прозрачности в UI.
+    процент (ВМЕСТЕ с позицией) пишется в cum_key для карточки, а буква берётся
+    по накопленному ДО позиции — как у фасовки (core/abc_thresholds.py,
+    abc_letter_by_cumulative): единственный флагман с долей 90% — это A, а не B.
+    До 2026-09-20 здесь стояло «<= 80 вместе с позицией», и кег, пересекающий
+    порог, уезжал в младшую группу.
     """
     total = sum(max(_num(r.get(value_key)), 0) for r in rows)
     ordered = sorted(rows, key=lambda r: _num(r.get(value_key)), reverse=True)
     cumulative = 0.0
     for row in ordered:
+        before = (cumulative / total * 100) if total > 0 else 0.0
         cumulative += max(_num(row.get(value_key)), 0)
-        percent = (cumulative / total * 100) if total > 0 else 0.0
-        row[cum_key] = percent
-        row[letter_key] = 'A' if percent <= 80 else ('B' if percent <= 95 else 'C')
+        row[cum_key] = (cumulative / total * 100) if total > 0 else 0.0
+        row[letter_key] = abc_letter_by_cumulative(before)
 
 
 def _abc_by_percentile(rows, value_key, letter_key):
@@ -204,8 +229,11 @@ class DraftKegAnalysis:
         if not self.date_from or not self.date_to:
             raise ValueError('date_from/date_to обязательны и должны быть YYYY-MM-DD')
         self.period_days = (self.date_to - self.date_from).days + 1
-        # Полных 7-дневных корзин в периоде — база для XYZ.
+        # Полных 7-дневных корзин в периоде — база для XYZ. Окно прижато к концу
+        # периода: weeks_from — первый день первой полной корзины.
         self.full_buckets = self.period_days // WEEK_DAYS
+        self.weeks_from = (self.date_to - timedelta(days=self.full_buckets * WEEK_DAYS - 1)
+                           if self.full_buckets else None)
         self.unmapped_dishes = []   # блюда, которым не нашёлся кег: диагностика в ответе
         self.bartender_notes = {}   # как разложились литры по барменам: тоже диагностика
         self.keg_bartenders = {}    # кег -> кто его наливал (для карточки кега)
@@ -232,11 +260,11 @@ class DraftKegAnalysis:
             yield row
 
     def _bucket_index(self, day):
-        """Номер 7-дневной корзины от начала периода. None — день вне периода
-        или попал в незавершённый хвост."""
-        if not day:
+        """Номер 7-дневной корзины внутри недельного окна, прижатого к концу
+        периода. None — день вне окна (старый огрызок в начале периода)."""
+        if not day or not self.weeks_from:
             return None
-        offset = (day - self.date_from).days
+        offset = (day - self.weeks_from).days
         if offset < 0:
             return None
         index = offset // WEEK_DAYS
@@ -633,13 +661,26 @@ class DraftKegAnalysis:
                                           if total_revenue > 0 else 0.0)
 
         _abc_by_cumulative(rows, 'TotalRevenue', 'ABC_Revenue', 'RevenueCumulativePercent')
-        _abc_by_percentile(rows, 'MarkupPercent', 'ABC_Markup')
+        # Наценка — по фиксированным порогам кегов (core/abc_thresholds.py,
+        # KEG_MARKUP_*), а не по третям: трети всегда объявляли треть кегов «C»
+        # при наценке 141-183%. Без себестоимости буквы нет — «?», а не C.
+        for row in rows:
+            share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
+            row['ABC_Markup'] = markup_letter(share, KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
         _abc_by_percentile(rows, 'TotalMargin', 'ABC_Margin')
         self._assign_xyz(rows)
         for row in rows:
-            row['ABC_Combined'] = row['ABC_Revenue'] + row['ABC_Markup'] + row['ABC_Margin']
+            row['ABC_Combined'] = (row['ABC_Revenue'] + (row['ABC_Markup'] or '?')
+                                   + row['ABC_Margin'])
             if row['XYZ_Category']:
                 row['ABCXYZ_Combined'] = f"{row['ABC_Combined']}-{row['XYZ_Category']}"
+            # Группа решения: продажи считаются порциями (одно событие продажи,
+            # как штука у фасовки). Правила — core/abc_buckets.py.
+            share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
+            row['ABC_Bucket'] = decide_bucket(
+                row['ABC_Revenue'], share, row['TotalPortions'], row['WeeksInPeriod'],
+                row['WeeklyLiters'], row['LitersOutsideWeeks'], KEG_MARKUP_B_MIN,
+            )
 
         rows.sort(key=lambda r: r['TotalLiters'], reverse=True)
 
@@ -666,6 +707,9 @@ class DraftKegAnalysis:
             'xyz_available': self.full_buckets >= MIN_XYZ_WEEKS,
             'losses': self._build_losses(merged, total_liters),
             'unmapped_dishes': self.unmapped_dishes[:10],
+            # Карточки решений по ассортименту — с сервера, страница печатает.
+            'buckets': bucket_cards(rows, self.period_days, 'portions', KEG_MARKUP_B_MIN),
+            'bucket_stats': _count_by(rows, 'ABC_Bucket'),
             'kegs': rows,
             'total_bartenders': len(bartenders),
             'bartenders': bartenders,
@@ -705,6 +749,12 @@ class DraftKegAnalysis:
             'WeeksWithSales': len([index for index, value in entry['buckets'].items()
                                    if index < self.full_buckets and value > 0]),
             'WeeksInPeriod': self.full_buckets,
+            # Ряд по неделям окна и литры вне окна (огрызок в начале периода):
+            # нужны решению «новинка» и карточке кега.
+            'WeeklyLiters': [entry['buckets'].get(index, 0.0)
+                             for index in range(self.full_buckets)],
+            'LitersOutsideWeeks': liters - sum(entry['buckets'].get(index, 0.0)
+                                               for index in range(self.full_buckets)),
             'WriteoffLiters': entry['writeoff'],
             'InventoryNetLiters': entry['inventory_out'] - entry['inventory_in'],
             'XYZ_Category': None,

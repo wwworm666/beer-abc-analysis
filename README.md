@@ -306,8 +306,9 @@ beer-abc-analysis/
 ├── .gitignore                  # Игнорирование данных кранов
 │
 ├── core/                       # Бизнес-логика
-│   ├── packaging_analysis.py   # ABC/XYZ фасовки: сведение баров, категории, корзины
-│   ├── abc_thresholds.py       # Пороги ABC/XYZ одним местом
+│   ├── packaging_analysis.py   # ABC/XYZ фасовки: сведение баров, категории, решения
+│   ├── abc_buckets.py          # Решения по ассортименту: 6 групп для фасовки и кегов
+│   ├── abc_thresholds.py       # Пороги ABC/XYZ и константы решений одним местом
 │   ├── draft_analysis.py       # Анализ разливного
 │   ├── draft_kegs.py           # Проливы: кеги и бармены
 │   ├── taps_manager.py         # Управление кранами

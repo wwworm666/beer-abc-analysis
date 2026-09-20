@@ -152,19 +152,22 @@ test('сводка: семь плиток с числами из ответа', 
         'формула наценки не показана на экране');
 });
 
-test('корзины действий: все шесть, с долей выручки', () => {
+test('решения по ассортименту: шесть групп с сервера, с долей выручки', () => {
     const html = env.byId.pkBuckets.innerHTML;
     const cards = (html.match(/class="pk-bucket"/g) || []).length;
-    assert.equal(cards, 6, `корзин должно быть 6, найдено ${cards}`);
-    for (const name of ['Звёзды', 'Рабочие лошадки', 'Недооценённые', 'Премиум-ниша',
-                        'Фон', 'Удалить']) {
-        assert.ok(html.includes(name), `нет корзины «${name}»`);
+    assert.equal(cards, 6, `групп должно быть 6, найдено ${cards}`);
+    for (const card of BLOCK.buckets) {
+        assert.ok(html.includes(api.esc(card.name)), `нет группы «${card.name}»`);
+        assert.ok(html.includes(api.esc(card.action)), `нет действия «${card.action}»`);
     }
-    assert.match(html, /% выручки/, 'не показана доля выручки корзины');
-    // Сумма по корзинам должна сойтись с числом позиций, у которых есть наценка.
-    const withMarkup = BLOCK.positions.filter((p) => p.ABC_Bucket).length;
-    const shown = Object.values(BLOCK.bucket_stats).reduce((a, v) => a + v, 0);
-    assert.equal(shown, withMarkup, 'корзины не покрывают все позиции с наценкой');
+    assert.match(html, /% выручки/, 'не показана доля выручки группы');
+    // Каждая позиция ровно в одной группе: сумма карточек равна числу позиций,
+    // и позиций без группы нет (раньше без себестоимости позиция исчезала).
+    assert.equal(BLOCK.buckets.reduce((a, c) => a + c.count, 0), BLOCK.positions.length,
+        'группы не покрывают все позиции');
+    assert.ok(BLOCK.positions.every((p) => p.ABC_Bucket), 'есть позиция без группы');
+    assert.ok(Math.abs(BLOCK.buckets.reduce((a, c) => a + c.revenue_share_percent, 0) - 100) < 1e-6,
+        'доли групп не складываются в 100%');
 });
 
 test('таблица категорий: ВСЕ категории, без урезания до топ-10', () => {
@@ -493,16 +496,27 @@ test('карточка категории: все её позиции внутр
     assert.equal(rows, members, `строк ${rows}, позиций в категории ${members}`);
 });
 
-test('карточка корзины: состав и что с ним делать', () => {
-    api.openBucket('price_up');
+test('карточка группы: правило с числами, подсказка и состав', () => {
+    api.openBucket('low_markup');
     const html = env.byId.pkDrawer.innerHTML;
-    assert.ok(html.includes('Недооценённые'), 'нет названия корзины');
-    assert.ok(html.includes('Поднять наценку'), 'нет действия');
-    assert.ok(html.includes('наценка ниже 100%') || html.includes('ниже 100%'),
-        'не объяснено, почему позиция сюда попала');
+    const card = BLOCK.buckets.find((c) => c.key === 'low_markup');
+    assert.ok(html.includes(api.esc(card.name)), 'нет названия группы');
+    assert.ok(html.includes(api.esc(card.action)), 'нет действия');
+    assert.ok(html.includes('правило: ' + api.esc(card.rule)), 'правило группы не напечатано');
+    assert.ok(/100%/.test(card.rule) && / 5\b/.test(card.rule), 'в правиле нет порогов');
+    assert.ok(html.includes(api.esc(card.hint)), 'нет подсказки, что делать');
     const rows = (html.match(/class="pk-mini-row(?! is-head)[^"]*"/g) || []).length;
-    const members = BLOCK.positions.filter((p) => p.ABC_Bucket === 'price_up').length;
-    assert.equal(rows, members, `строк ${rows}, позиций в корзине ${members}`);
+    const members = BLOCK.positions.filter((p) => p.ABC_Bucket === 'low_markup').length;
+    assert.equal(rows, members, `строк ${rows}, позиций в группе ${members}`);
+    assert.equal(rows, card.count, 'счётчик карточки не совпал с составом');
+});
+
+test('карточка позиции называет её группу решения', () => {
+    const p = BLOCK.positions.find((x) => x.ABC_Bucket === 'core');
+    api.openPosition(p.Id);
+    const html = env.byId.pkDrawer.innerHTML;
+    const card = BLOCK.buckets.find((c) => c.key === 'core');
+    assert.ok(html.includes(api.esc(card.name + ' · ' + card.action)), 'в карточке позиции нет группы');
 });
 
 // Ожидание вынесено ИЗ теста наружу: раннер синхронный и возвращённый промис не

@@ -199,7 +199,7 @@ def test_markup_undefined_when_no_cost():
     item = block['positions'][0]
     assert item['MarkupPercent'] is None, 'наценка выдумана из нулевой себестоимости'
     assert item['ABC_Markup'] is None, 'буква наценки выдумана'
-    assert item['ABC_Bucket'] is None, 'корзина присвоена без наценки'
+    assert item['ABC_Bucket'] == 'check', 'без себестоимости позиция должна попасть в «Сверить учёт»'
     assert item['ABC_Combined'].endswith('?'), 'в коде нет отметки о нехватке данных'
 
 
@@ -462,25 +462,26 @@ def test_two_abc_scales_are_both_reported():
     assert stout['ABC_Revenue'] == 'B', stout['ABC_Revenue']
 
 
-def test_bucket_matches_first_two_letters():
-    """Корзина действий определяется парой (выручка, наценка), и только ею."""
+def test_bucket_decisions_follow_rules_and_cover_everything():
+    """Группа решения воспроизводится из полей позиции правилами
+    core/abc_buckets.py; каждая позиция ровно в одной группе, карточки с сервера."""
+    from core.abc_buckets import BUCKETS, decide_bucket
     _, block = build_total()
-    pairs = {
-        ('A', 'A'): 'stars', ('A', 'B'): 'workhorses', ('A', 'C'): 'price_up',
-        ('B', 'A'): 'workhorses', ('B', 'B'): 'background', ('B', 'C'): 'price_up',
-        ('C', 'A'): 'premium', ('C', 'B'): 'background', ('C', 'C'): 'remove',
-    }
-    checked = 0
     for item in block['positions']:
-        if not item['ABC_Markup']:
-            continue
-        expected = pairs[(item['ABC_Revenue'], item['ABC_Markup'])]
+        share = None if item['MarkupPercent'] is None else item['MarkupPercent'] / 100
+        expected = decide_bucket(item['ABC_Revenue'], share, item['TotalQty'],
+                                 item['WeeksInPeriod'], item['WeeklyQty'],
+                                 item['QtyOutsideWeeks'])
         assert item['ABC_Bucket'] == expected, \
-            f"{item['Beer']}: {item['ABC_Revenue']}{item['ABC_Markup']} -> " \
-            f"{item['ABC_Bucket']}, ждали {expected}"
-        checked += 1
-    assert checked > 0, 'не на чем было проверить корзины'
-    assert sum(block['bucket_stats'].values()) == checked
+            f"{item['Beer']}: {item['ABC_Bucket']}, ждали {expected}"
+        assert item['ABC_Bucket'] in BUCKETS
+    assert sum(block['bucket_stats'].values()) == len(block['positions'])
+    cards = block['buckets']
+    assert [c['key'] for c in cards] == [k for k, _ in sorted(BUCKETS.items(), key=lambda kv: kv[1]['order'])]
+    assert sum(c['count'] for c in cards) == len(block['positions'])
+    assert abs(sum(c['revenue_share_percent'] for c in cards) - 100.0) < 1e-6
+    for card in cards:
+        assert card['rule'] and card['hint'] and card['action']
 
 
 def test_combined_code_is_revenue_markup_demand():
@@ -573,7 +574,7 @@ if __name__ == '__main__':
     _run('первая буква следует Парето', test_abc_revenue_follows_pareto)
     _run('доминирующая позиция всегда A', test_dominant_position_is_always_a)
     _run('обе шкалы буквы по выручке приезжают в ответ', test_two_abc_scales_are_both_reported)
-    _run('корзина определяется первыми двумя буквами', test_bucket_matches_first_two_letters)
+    _run('группы решений по правилам, все позиции покрыты', test_bucket_decisions_follow_rules_and_cover_everything)
     _run('код — выручка, наценка, спрос', test_combined_code_is_revenue_markup_demand)
     _run('разрез бара помечен и отфильтрован', test_bar_scope_is_labelled_and_filtered)
     _run('пустой ответ не роняет расчёт', test_empty_rows_do_not_crash)

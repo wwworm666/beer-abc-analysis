@@ -189,8 +189,10 @@ class TestMoney:
         sales = [sale('Лиговский', DISH_A_05, '2026-08-04', 20, 10000.0, 0.0)]
         block = DraftKegAnalysis(rows, sales, DISH_MAP, '2026-08-04', '2026-08-10').build()
         assert block['kegs'][0]['MarkupPercent'] is None
-        # Позиция с неизвестной наценкой не должна ломать ABC
-        assert block['kegs'][0]['ABC_Markup'] == 'C'
+        # Без себестоимости буквы наценки нет: «?» в коде, а не выдуманная C.
+        assert block['kegs'][0]['ABC_Markup'] is None
+        assert block['kegs'][0]['ABC_Combined'][1] == '?'
+        assert block['kegs'][0]['ABC_Bucket'] == 'check'
 
     def test_price_per_liter_and_avg_portion(self):
         block = self._analysis().build()
@@ -283,6 +285,49 @@ class TestRevenueShareAndABC:
         block = self._block()
         for keg in block['kegs']:
             assert len(keg['ABC_Combined']) == 3, keg['ABC_Combined']
+
+    def test_flagship_crossing_pareto_threshold_is_A(self):
+        """Буква — по накопленному ДО позиции: флагман с 90% выручки — A, не B."""
+        rows, sales, dish_map = [], [], {}
+        for index, (keg, revenue) in enumerate([('keg-1', 900.0), ('keg-2', 100.0)]):
+            dish = f'dish-{index}'
+            rows.append(trans('Лиговский', keg, '2026-08-04', 'SESSION_WRITEOFF', out=revenue / 100))
+            sales.append(sale('Лиговский', dish, '2026-08-04', 10, revenue, revenue / 4))
+            dish_map[dish] = [[keg, 0.5]]
+        block = DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-10').build()
+        letters = {k['TotalRevenue']: k for k in block['kegs']}
+        assert letters[900.0]['ABC_Revenue'] == 'A'
+        assert abs(letters[900.0]['RevenueCumulativePercent'] - 90.0) < 1e-9
+        assert letters[100.0]['ABC_Revenue'] == 'B'
+
+    def test_markup_letter_by_fixed_keg_thresholds(self):
+        """Наценка — по порогам розлива (250/200), не по третям среди кегов."""
+        from core.abc_thresholds import KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN
+        rows, sales, dish_map = [], [], {}
+        # Три кега с одинаковой выручкой и наценкой 300%, 220%, 150%.
+        for index, cost in enumerate([250.0, 312.5, 400.0]):
+            keg, dish = f'keg-{index}', f'dish-{index}'
+            rows.append(trans('Лиговский', keg, '2026-08-04', 'SESSION_WRITEOFF', out=10.0))
+            sales.append(sale('Лиговский', dish, '2026-08-04', 20, 1000.0, cost))
+            dish_map[dish] = [[keg, 0.5]]
+        block = DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-10').build()
+        letters = {round(k['MarkupPercent']): k['ABC_Markup'] for k in block['kegs']}
+        assert letters == {300: 'A', 220: 'B', 150: 'C'}, letters
+        assert KEG_MARKUP_A_MIN == 2.5 and KEG_MARKUP_B_MIN == 2.0
+        # Все три с одинаковой выручкой: буквы наценки не зависят от соседей —
+        # у третей здесь вышло бы ровно A/B/C при любых числах.
+
+    def test_block_has_bucket_cards_and_every_keg_in_one(self):
+        from core.abc_buckets import BUCKETS
+        block = self._block()
+        assert all(k['ABC_Bucket'] in BUCKETS for k in block['kegs'])
+        cards = block['buckets']
+        assert sum(c['count'] for c in cards) == len(block['kegs'])
+        assert sum(block['bucket_stats'].values()) == len(block['kegs'])
+        # Неделя: отрицательное решение не выносится, карточка говорит об этом.
+        weak = next(c for c in cards if c['key'] == 'weak')
+        assert weak['action'] == 'Смотреть за 4 недели' and weak['verdict_ready'] is False
+        assert 'порций' in weak['rule']
 
 
 class TestXYZ:
@@ -390,11 +435,32 @@ class TestXYZ:
         assert by_id['keg-three']['XYZ_Category'] == 'X'
 
     def test_cv_ignores_partial_tail_week(self):
-        """Огрызок недели в CV не попадает: 10 дней -> одна полная корзина."""
+        """Огрызок недели в CV не попадает: 10 дней -> одна полная корзина.
+
+        Окно прижато к концу периода: полная корзина — 07.08-13.08, продажа
+        04.08 остаётся снаружи (LitersOutsideWeeks), как QtyOutsideWeeks у фасовки.
+        """
         rows = self._rows_for_weeks([10.0, 3.0])
         block = DraftKegAnalysis(rows, [], DISH_MAP, '2026-08-04', '2026-08-13').build()
         assert block['xyz_buckets'] == 1
-        assert block['kegs'][0]['XYZ_Category'] is None
+        keg = block['kegs'][0]
+        assert keg['XYZ_Category'] is None
+        assert keg['WeeklyLiters'] == [3.0]
+        assert keg['LitersOutsideWeeks'] == 10.0
+        assert keg['WeeksWithSales'] == 1
+
+    def test_newcomer_keg_only_in_last_week(self):
+        """Кег, поставленный на последней неделе месяца, — «новинка», не «вывести»."""
+        rows = self._rows_for_weeks([0.0, 0.0, 0.0, 12.0], keg='keg-new')
+        rows += self._rows_for_weeks([40.0, 40.0, 40.0, 40.0], keg='keg-old')
+        sales = [sale('Лиговский', 'dish-new', '2026-08-25', 24, 12000.0, 3000.0),
+                 sale('Лиговский', 'dish-old', '2026-08-04', 320, 160000.0, 40000.0)]
+        dish_map = {'dish-new': [['keg-new', 0.5]], 'dish-old': [['keg-old', 0.5]]}
+        block = DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-31').build()
+        by_id = {k['KegId']: k for k in block['kegs']}
+        assert by_id['keg-new']['WeeklyLiters'] == [0.0, 0.0, 0.0, 12.0]
+        assert by_id['keg-new']['ABC_Bucket'] == 'new'
+        assert by_id['keg-old']['ABC_Bucket'] == 'core'
 
     def test_cv_is_bar_independent(self):
         """Разброс между барами не должен влиять на CV. Дефект аудита 05."""

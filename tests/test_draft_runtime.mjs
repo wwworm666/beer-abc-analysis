@@ -70,7 +70,7 @@ function makeEl(id) {
 
 const IDS = ['drBurger', 'drBarBtn', 'drBarMenu', 'drBarLabel', 'drPerBtn', 'drPerMenu',
              'drPerLabel', 'drPerHint', 'drCatch', 'drRun', 'drRunLabel', 'drSpin',
-             'drContext', 'drUpdated', 'drMsg', 'drBody', 'drSum', 'drKegCount',
+             'drContext', 'drUpdated', 'drMsg', 'drBody', 'drSum', 'drBuckets', 'drKegCount',
              'drSearch', 'drKegs', 'drBts', 'drBalance', 'drLosses', 'drDiag',
              'drDrawer', 'drBackdrop', 'drBars'];
 
@@ -234,6 +234,54 @@ test('карточка бармена: налив, деньги и что нал
     assert.match(html, /поле «Авторизовал» в iiko/, 'нет оговорки об источнике имени');
     const kegs = (html.match(/class="dr-who-row" data-keg=/g) || []).length;
     assert.equal(kegs, person.kegs.length, 'разбивка «что наливал» не совпала');
+});
+
+test('решения по ассортименту: шесть групп с сервера, каждый кег в одной', () => {
+    const html = env.byId.drBuckets.innerHTML;
+    const dapi = env.sandbox.window.__draft;
+    const cards = (html.match(/class="dr-bucket"/g) || []).length;
+    assert.equal(cards, 6, `групп должно быть 6, найдено ${cards}`);
+    for (const card of BLOCK.buckets) {
+        assert.ok(html.includes(dapi.esc(card.name)), `нет группы «${card.name}»`);
+    }
+    assert.equal(BLOCK.buckets.reduce((a, c) => a + c.count, 0), BLOCK.kegs.length,
+        'группы не покрывают все кеги');
+    assert.ok(BLOCK.kegs.every((k) => k.ABC_Bucket), 'есть кег без группы');
+    assert.match(html, /кег(а|ов)?<\/u>/, 'счётчик не в кегах');
+    // Неделя: «вывести» не выносится, карточка честно говорит «смотреть за 4 недели».
+    const weak = BLOCK.buckets.find((c) => c.key === 'weak');
+    assert.equal(weak.verdict_ready, false, 'на неделе решение о выводе не должно выноситься');
+    assert.ok(html.includes('Смотреть за 4 недели'), 'нет отложенного действия');
+    assert.ok(!html.includes('Вывести из ассортимента'), 'на неделе показано «вывести»');
+});
+
+test('карточка группы: правило в порциях, подсказка и кеги', () => {
+    const dapi = env.sandbox.window.__draft;
+    dapi.openBucket('low_markup');
+    const html = env.byId.drDrawer.innerHTML;
+    const card = BLOCK.buckets.find((c) => c.key === 'low_markup');
+    assert.ok(html.includes(dapi.esc(card.name)) && html.includes(dapi.esc(card.action)),
+        'нет названия или действия группы');
+    assert.ok(html.includes('Правило: ' + dapi.esc(card.rule)), 'правило не напечатано');
+    assert.ok(/порций/.test(card.rule) && /200%/.test(card.rule),
+        'правило кегов не в порциях или без порога 200%');
+    assert.ok(html.includes(dapi.esc(card.hint)), 'нет подсказки');
+    const rows = (html.match(/class="dr-who-row" data-keg=/g) || []).length;
+    assert.equal(rows, card.count, `строк ${rows}, кегов в группе ${card.count}`);
+    assert.ok(card.count > 0, 'в фикстуре нет кегов с низкой наценкой');
+});
+
+test('карточка кега повторяет решение по ассортименту и не выдумывает букву наценки', () => {
+    const dapi = env.sandbox.window.__draft;
+    const keg = BLOCK.kegs[0];
+    dapi.openKeg(keg.KegId);
+    const html = env.byId.drDrawer.innerHTML;
+    const card = BLOCK.buckets.find((c) => c.key === keg.ABC_Bucket);
+    assert.ok(html.includes('Решение по ассортименту: ' + dapi.esc(card.name)),
+        'в карточке кега нет решения');
+    assert.ok(/наценка 250% и выше|от 200% до 250%|ниже 200%/.test(html),
+        'буква наценки не объяснена порогами');
+    assert.ok(!/треть по наценке/.test(html), 'наценка всё ещё объяснена третями');
 });
 
 test('опасные символы в данных экранируются', () => {

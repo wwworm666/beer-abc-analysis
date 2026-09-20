@@ -301,6 +301,7 @@
         }
 
         renderSummary(data);
+        renderBuckets(data);
         renderKegs();
         renderBartenders();
         renderBalance(data);
@@ -333,6 +334,87 @@
         var people = data.total_bartenders || 0;
         html += tile('БАРМЕНОВ', num(people, 0), '', 'пробивали проливы');
         el.sum.innerHTML = html;
+    }
+
+    // ---------- решения по ассортименту ----------
+    // Группы приходят с сервера целиком (core/abc_buckets.py): имя, действие, тон,
+    // счётчик, доля выручки, правило словами. Те же карточки, что на /packaging.
+
+    function bucketCard(key) {
+        var cards = (state.data && state.data.buckets) || [];
+        for (var i = 0; i < cards.length; i++) {
+            if (cards[i].key === key) return cards[i];
+        }
+        return null;
+    }
+
+    function bucketNameOf(key) {
+        var card = bucketCard(key);
+        return card ? card.name + ' · ' + card.action : 'группа не определена';
+    }
+
+    function renderBuckets(data) {
+        var html = '';
+        (data.buckets || []).forEach(function (bucket) {
+            html += '<button type="button" class="dr-bucket" data-bucket="' + esc(bucket.key) + '">' +
+                '<span class="dr-bucket-top"><span class="dr-led ' + esc(bucket.tone) + '"></span>' +
+                '<span class="dr-bucket-n">' + esc(bucket.name) + '</span></span>' +
+                '<div class="dr-bucket-v">' + bucket.count +
+                '<u> ' + plural(bucket.count, 'кег', 'кега', 'кегов') + '</u></div>' +
+                '<div class="dr-bucket-s">' + esc(bucket.action) + ' · ' +
+                pct(bucket.revenue_share_percent, 1) + ' выручки</div></button>';
+        });
+        el.buckets.innerHTML = html;
+    }
+
+    function openBucket(key) {
+        var data = state.data;
+        if (!data) return;
+        var info = bucketCard(key);
+        if (!info) return;
+        var period = data.period || {};
+        var members = (data.kegs || []).filter(function (k) { return k.ABC_Bucket === key; });
+        members.sort(function (a, b) { return b.TotalRevenue - a.TotalRevenue; });
+
+        var html = '<div class="dr-dr-in">';
+        html += drawerHead(info.name + ' — ' + info.action,
+            'разрез: ' + (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
+
+        html += sub('ЧТО В ГРУППЕ');
+        html += '<div class="dr-cells three">' +
+            cell('КЕГОВ', info.count) +
+            cell('ВЫРУЧКА', money(info.revenue)) +
+            cell('ДОЛЯ В ВЫРУЧКЕ', pct(info.revenue_share_percent, 1)) +
+            '</div>';
+        // Подсказка и правило с числами — с сервера (CLAUDE.md пункт 1).
+        html += '<div class="dr-dr-note">' + esc(info.hint) + '</div>';
+        html += '<div class="dr-dr-note">Правило: ' + esc(info.rule) + '</div>';
+
+        if (members.length) {
+            html += sub('КЕГИ', 'клик — карточка кега');
+            html += '<div class="dr-who-row is-head">' +
+                '<span class="dr-th">КЕГ</span>' +
+                '<span class="dr-th r">ЛИТРЫ</span>' +
+                '<span class="dr-th r">ПОРЦ.</span>' +
+                '<span class="dr-th r">ВЫРУЧКА</span>' +
+                '<span class="dr-th r">НАЦЕНКА</span></div>';
+            members.forEach(function (keg) {
+                html += '<div class="dr-who-row" data-keg="' + esc(keg.KegId) + '">' +
+                    '<span class="dr-name">' + esc(keg.KegName) + '</span>' +
+                    '<span class="dr-num strong">' + num(keg.TotalLiters) + '</span>' +
+                    '<span class="dr-num">' + num(keg.TotalPortions) + '</span>' +
+                    '<span class="dr-num">' + money(keg.TotalRevenue) + '</span>' +
+                    '<span class="dr-num">' + (keg.MarkupPercent === null ? '—' : pct(keg.MarkupPercent, 0)) +
+                    '</span></div>';
+            });
+        } else {
+            html += '<div class="dr-empty">' + (info.verdict_ready === false
+                ? 'на этом периоде группа не заполняется — посмотрите период от четырёх недель'
+                : 'в этой группе сейчас нет кегов') + '</div>';
+        }
+
+        html += '</div>';
+        openDrawer(html);
     }
 
     function sortRows(rows, sort) {
@@ -710,7 +792,8 @@
             B: 'следующие 15% выручки',
             C: 'последние 5% выручки'
         },
-        Markup: { A: 'верхняя треть по наценке', B: 'середина', C: 'нижняя треть' },
+        Markup: { A: 'наценка 250% и выше', B: 'от 200% до 250%', C: 'ниже 200%',
+                  '?': 'себестоимость не задана' },
         Margin: { A: 'верхняя треть по марже', B: 'середина', C: 'нижняя треть' }
     };
 
@@ -797,11 +880,13 @@
             pct(keg.RevenueCumulativePercent, 1) + '</span></div>' +
             '<div class="dr-abc-lines">' +
             abcLine('Выручка', keg.ABC_Revenue, ABC_TEXT.Revenue[keg.ABC_Revenue]) +
-            abcLine('Наценка', keg.ABC_Markup, ABC_TEXT.Markup[keg.ABC_Markup] +
+            abcLine('Наценка', keg.ABC_Markup || '?', ABC_TEXT.Markup[keg.ABC_Markup || '?'] +
                 (keg.MarkupPercent === null ? '' : ' (' + pct(keg.MarkupPercent, 1) + ')')) +
             abcLine('Маржа', keg.ABC_Margin, ABC_TEXT.Margin[keg.ABC_Margin] +
                 ' (' + money(keg.TotalMargin) + ')') +
             '</div></div>';
+        html += '<div class="dr-dr-note">Решение по ассортименту: ' +
+            esc(bucketNameOf(keg.ABC_Bucket)) + '.</div>';
 
         html += sub('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="dr-cells three">' +
@@ -818,8 +903,10 @@
     }
 
     function abcLine(category, letter, text) {
+        // «?» — буквы нет (себестоимость не задана): серая таблетка, как у XYZ.
+        var cls = letter === '?' ? 'none' : abcClass(letter);
         return '<div class="dr-abc-line">' +
-            '<span class="dr-abc-ltr ' + abcClass(letter) + '">' + esc(letter) + '</span>' +
+            '<span class="dr-abc-ltr ' + cls + '">' + esc(letter) + '</span>' +
             '<span class="dr-abc-cat">' + esc(category) + '</span>' +
             '<span class="dr-abc-txt">' + esc(text || '') + '</span></div>';
     }
@@ -982,6 +1069,10 @@
             if (state.data) renderKegs();
         });
 
+        el.buckets.addEventListener('click', function (event) {
+            var card = event.target.closest('[data-bucket]');
+            if (card) openBucket(card.dataset.bucket);
+        });
         el.kegs.addEventListener('click', onTableClick);
         el.bts.addEventListener('click', onTableClick);
         el.losses.addEventListener('click', function (event) {
@@ -1021,6 +1112,7 @@
             msg: document.getElementById('drMsg'),
             body: document.getElementById('drBody'),
             sum: document.getElementById('drSum'),
+            buckets: document.getElementById('drBuckets'),
             kegCount: document.getElementById('drKegCount'),
             search: document.getElementById('drSearch'),
             kegs: document.getElementById('drKegs'),
@@ -1059,7 +1151,8 @@
     }
     if (typeof window !== 'undefined') {
         window.__draft = { state: state, render: render, openKeg: openKeg,
-                           openBartender: openBartender, num: num, fixed: fixed,
+                           openBartender: openBartender, openBucket: openBucket,
+                           num: num, fixed: fixed,
                            money: money, pct: pct,
                            signed: signed, esc: esc, plural: plural, lossTone: lossTone,
                            initials: initials, presetRange: presetRange };

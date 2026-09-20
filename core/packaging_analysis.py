@@ -28,13 +28,13 @@ pandas 3, агрегаты `'max'` подменяли сетевую нацен�
 Файлы
 -----
 - core/abc_thresholds.py — пороги и подписи
-- core/abc_buckets.py — 6 корзин действий по паре (выручка, наценка)
+- core/abc_buckets.py — решения по ассортименту (6 групп с защитой от малых выборок)
 - routes/analysis.py — эндпоинт /api/packaging
 """
 
 from datetime import date, datetime, timedelta
 
-from core.abc_buckets import get_bucket_key
+from core.abc_buckets import bucket_cards, decide_bucket
 from core.packaging_losses import build_losses_block
 from core.abc_thresholds import (
     MIN_XYZ_WEEKS,
@@ -399,9 +399,16 @@ class PackagingAnalysis:
             item['ABC_Markup'] = markup_letter(
                 _markup_share(item['TotalRevenue'], item['TotalCost'])
             )
-            item['ABC_Bucket'] = (
-                get_bucket_key(item['ABC_Revenue'], item['ABC_Markup'])
-                if item['ABC_Markup'] else None
+            # Группа решения — по правилам с защитой от малых выборок, а не по
+            # паре букв: см. core/abc_buckets.py. Без себестоимости — «сверить
+            # учёт», а не пропуск: раньше такие позиции не попадали никуда.
+            item['ABC_Bucket'] = decide_bucket(
+                item['ABC_Revenue'],
+                _markup_share(item['TotalRevenue'], item['TotalCost']),
+                item['TotalQty'],
+                item['WeeksInPeriod'],
+                item['WeeklyQty'],
+                item['QtyOutsideWeeks'],
             )
             item['ABC_Combined'] = '{}{}{}'.format(
                 item['ABC_Revenue'],
@@ -453,6 +460,8 @@ class PackagingAnalysis:
             },
             'totals': totals,
             'losses': losses,
+            # Карточки решений: счётчики, доли и правила словами — с сервера.
+            'buckets': bucket_cards(rows, self.period_days, 'pieces'),
             'bucket_stats': self._count(rows, 'ABC_Bucket'),
             'abc_stats': self._count(rows, 'ABC_Combined'),
             'xyz_stats': self._count(rows, 'XYZ_Category'),

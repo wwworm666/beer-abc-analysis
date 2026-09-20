@@ -33,7 +33,7 @@
         </button>
         <span class="dr-title">
           <span class="dr-title-n">Розлив — ABC/XYZ и потери</span>
-          <span class="dr-title-s">что держать, что продвигать, где теряются литры</span>
+          <span class="dr-title-s">что держать, где поднять цену, где теряются литры</span>
         </span>
         <span class="dr-logo"><i>&gt;&nbsp;</i>k<span class="dr-logo-tail">ultura.os</span><b>_</b></span>
       </header>
@@ -103,6 +103,17 @@
         <div class="dr-sum" id="drSum"></div>
 
         <div class="dr-band">
+          <span class="dr-band-t">РЕШЕНИЯ ПО АССОРТИМЕНТУ</span>
+          <span class="dr-band-line"></span>
+          <span class="dr-band-s">выручка, наценка и число порций за период</span>
+        </div>
+        <div class="dr-buckets" id="drBuckets"></div>
+        <div class="dr-legend">Каждый кег ровно в одной группе. Правило группы и её
+          состав открываются кликом по карточке. Решение «вывести» выносится только по
+          периоду от четырёх недель: на пресете «неделя» группа показана, но действие
+          отложено. Продажи считаются порциями, как штуки у фасовки.</div>
+
+        <div class="dr-band">
           <span class="dr-band-t">ПОЗИЦИИ ПО КЕГАМ</span>
           <span class="dr-band-line"></span>
           <span class="dr-band-s" id="drKegCount"></span>
@@ -112,10 +123,11 @@
         <div class="dr-table dr-kegs">
           <div class="dr-table-in" id="drKegs"></div>
         </div>
-        <!-- Расшифровка букв. Здесь 2-я и 3-я буквы считаются по ТРЕТЯМ среди кегов
-             разреза (core/draft_kegs.py, _abc_by_percentile), а не по фиксированным
-             порогам, как у фасовки — легенды двух страниц потому и разные. XYZ —
-             отдельная колонка, пороги общие с /packaging (core/abc_thresholds.py). -->
+        <!-- Расшифровка букв. 2-я буква (наценка) — по фиксированным порогам розлива
+             (core/abc_thresholds.py, KEG_MARKUP_A_MIN / KEG_MARKUP_B_MIN; до 2026-09-20
+             считалась по третям), 3-я (маржа) — по ТРЕТЯМ среди кегов разреза
+             (core/draft_kegs.py, _abc_by_percentile). XYZ — отдельная колонка, пороги
+             общие с /packaging. -->
         <div class="dr-key" id="drKey">
           <div class="dr-key-row">
             <span class="dr-key-cap">1-Я БУКВА · ВЫРУЧКА</span>
@@ -128,9 +140,10 @@
           <div class="dr-key-row">
             <span class="dr-key-cap">2-Я БУКВА · НАЦЕНКА</span>
             <span class="dr-key-cells">
-              <span class="dr-key-cell"><i class="dr-abc-ltr a">A</i>верхняя треть кегов по наценке</span>
-              <span class="dr-key-cell"><i class="dr-abc-ltr b">B</i>средняя треть</span>
-              <span class="dr-key-cell"><i class="dr-abc-ltr c">C</i>нижняя треть или наценка не определена</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr a">A</i>от 250%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr b">B</i>от 200% до 250%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr c">C</i>ниже 200%</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr none">?</i>себестоимость не задана</span>
             </span>
           </div>
           <div class="dr-key-row">
@@ -151,11 +164,11 @@
             </span>
           </div>
         </div>
-        <div class="dr-legend">Наценка и маржа — по третям среди кегов разреза: буква
-          говорит, где кег стоит относительно соседей, а не относительно фиксированного
-          порога. Разброс спроса — коэффициент вариации недельных литров по неделям,
-          когда кег стоял на кране. Клик по строке — карточка кега с разбивкой «кто
-          наливал».</div>
+        <div class="dr-legend">Наценка — по порогам розлива: 200% значит цена втрое
+          выше себестоимости, 250% — средняя наценка сети по разливу. Маржа — по третям
+          среди кегов разреза: буква говорит, где кег стоит относительно соседей.
+          Разброс спроса — коэффициент вариации недельных литров по неделям, когда кег
+          стоял на кране. Клик по строке — карточка кега с разбивкой «кто наливал».</div>
 
         <div class="dr-band">
           <span class="dr-band-t">БАРМЕНЫ ПО ОБЪЁМУ</span>
