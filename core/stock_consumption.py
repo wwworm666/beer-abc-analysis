@@ -30,9 +30,14 @@
 записи без поля incoming (неизвестно направление) — их число в stats['skipped'].
 last_in / last_in_amount — дата и количество последнего прихода в окне
 («последний приход 03.09: 24 шт» на экране заказа).
-last_out — дата последнего расхода в окне. Нужна позициям, которых нет в остатках
-iiko: товар, проданный вчера и упавший в ноль, заказывают сейчас, а тот, чей расход
-был три недели назад, из ротации вышел (docs/stocks.md, «Позиции без остатка»).
+last_out — дата последнего расхода в окне (любого, включая перемещение).
+
+own_outgoing / last_own_out — расход самого бара: продажи и списания БЕЗ перемещений,
+и дата последнего такого расхода. Перемещение в другой бар — не признак того, что бар
+этим торгует: поставка нередко оформляется на один склад и сразу уезжает на другой
+(«приехало в другой бар»). По выгрузке за 30 дней на Варшавской так проходят 13 позиций,
+у части из них продаж нет вовсе. Такие позиции не должны попадать в заказ бара
+(docs/stocks.md, «Позиции без остатка»).
 Первая дата прихода/расхода фиксируется только по записям с amount > 0 и
 читаемой датой; запись с нечитаемой датой в суммы входит, но порядок событий
 не меняет.
@@ -105,6 +110,8 @@ def new_stats(scope: str, window_days: int = WINDOW_DAYS) -> dict:
         'last_in': None,
         'last_in_amount': 0.0,
         'last_out': None,
+        'own_outgoing': 0.0,
+        'last_own_out': None,
         'days_in_period': window_days,
         'avg_per_day': 0.0,
         'is_new': False,
@@ -171,6 +178,10 @@ def aggregate_consumption(operations: Iterable[dict],
                 st['first_out'] = op_date
             if op_date and (st['last_out'] is None or op_date > st['last_out']):
                 st['last_out'] = op_date
+            if doc_type != INTERNAL_TRANSFER:
+                st['own_outgoing'] += amount
+                if op_date and (st['last_own_out'] is None or op_date > st['last_own_out']):
+                    st['last_own_out'] = op_date
         else:
             st['incoming'] += amount
             if op_date and (st['first_in'] is None or op_date < st['first_in']):

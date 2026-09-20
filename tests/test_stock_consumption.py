@@ -483,8 +483,30 @@ def test_empty_operations_and_new_stats_shape():
     assert new_stats('store', 7)['days_in_period'] == 7
     assert set(new_stats('network')) == {'outgoing', 'incoming', 'by_document_type', 'first_in',
                                          'first_out', 'last_in', 'last_in_amount', 'last_out',
-                                         'days_in_period', 'avg_per_day', 'is_new', 'opening_stock',
-                                         'skipped', 'scope'}
+                                         'own_outgoing', 'last_own_out', 'days_in_period',
+                                         'avg_per_day', 'is_new', 'opening_stock', 'skipped', 'scope'}
+
+
+def test_own_outgoing_excludes_transfers():
+    """Расход самого бара: перемещение в другой бар в него не входит.
+
+    Поставка, оформленная на склад бара и сразу уехавшая в другой бар, не делает
+    товар ассортиментом этого бара (замечание владельца 2026-09-20).
+    """
+    ops = [
+        _op(amount='10.000000000', op_date='10.10.2025', incoming='true', doc_type='INCOMING_INVOICE'),
+        _op(amount='-10.000000000', op_date='11.10.2025', doc_type='INTERNAL_TRANSFER'),
+    ]
+    st = aggregate_consumption(ops, [PID], STORE_A, TODAY)[PID]
+    assert abs(st['outgoing'] - 10.0) < EPS          # для бара это расход (решение 2026-09-10)
+    assert st['own_outgoing'] == 0.0                 # но сам бар товар не продавал
+    assert st['last_out'] == date(2025, 10, 11) and st['last_own_out'] is None
+
+    ops += [_op(amount='-3.000000000', op_date='20.10.2025'),
+            _op(amount='-1.000000000', op_date='22.10.2025', doc_type='WRITEOFF_DOCUMENT')]
+    st = aggregate_consumption(ops, [PID], STORE_A, TODAY)[PID]
+    assert abs(st['own_outgoing'] - 4.0) < EPS       # продажи и списания — расход бара
+    assert st['last_own_out'] == date(2025, 10, 22)
 
 
 def test_last_outgoing_date():

@@ -1135,5 +1135,62 @@ def test_out_of_rotation_is_not_revived_by_minimum_order():
         assert _by_id(d)[P_KEG_LAGER]['recommended'] == 0
 
 
+# --- чужая поставка, проехавшая через склад бара (2026-09-20) ---------------------
+
+def test_pass_through_transfer_does_not_reach_the_board():
+    """Приход на склад бара и сразу перемещение в другой бар — это не ассортимент бара.
+
+    Случай владельца: на Варшавской предлагалось заказать пиво, которого там никогда
+    не было; поставка оформлена на её склад и уехала в другой бар.
+    """
+    P_PASS = 'p-pass-through'
+    nom = _nomenclature()
+    nom[P_PASS] = {'name': 'Килкенни Драфт 0.44 ж/б', 'category': 'ЕГАИС',
+                   'parentId': 'Напитки Фасовка', 'type': 'GOODS', 'mainUnit': 'шт'}
+    ops = _operations() + [
+        _op(P_PASS, STORE_LIG, '7.000000000', '01.11.2025', 'INCOMING_INVOICE', 'true', total='2100.000000000'),
+        _op(P_PASS, STORE_LIG, '-7.000000000', '02.11.2025', 'INTERNAL_TRANSFER'),
+        _op(P_PASS, STORE_BOL, '7.000000000', '02.11.2025', 'INTERNAL_TRANSFER', 'true'),
+    ]
+    with _patched(snapshot=_snapshot(operations=ops)) as c:
+        _, lig = _get(c, 'order-board', BAR_LIG)
+        assert P_PASS not in _by_id(lig)              # проехало насквозь — на доске не нужно
+        _, bol = _get(c, 'order-board', BAR_BOL)
+        assert P_PASS not in _by_id(bol)              # приход перемещением — тоже не признак
+
+
+def test_sold_at_the_bar_still_appears_without_stock_row():
+    """Тот же товар, но бар его продавал: позиция нужна, её заказывают."""
+    P_PASS = 'p-pass-through'
+    nom = _nomenclature()
+    nom[P_PASS] = {'name': 'Килкенни Драфт 0.44 ж/б', 'category': 'ЕГАИС',
+                   'parentId': 'Напитки Фасовка', 'type': 'GOODS', 'mainUnit': 'шт'}
+    ops = _operations() + [
+        _op(P_PASS, STORE_LIG, '12.000000000', '20.10.2025', 'INCOMING_INVOICE', 'true', total='3600.000000000'),
+        _op(P_PASS, STORE_LIG, '-4.000000000', '25.10.2025', 'INTERNAL_TRANSFER'),
+        _op(P_PASS, STORE_LIG, '-8.000000000', '03.11.2025'),          # продажи бара
+    ]
+    with _patched(snapshot=_snapshot(operations=ops), nomenclature=nom) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        it = _by_id(d)[P_PASS]
+        assert it['no_stock_row'] is True and it['out_of_rotation'] is False
+        assert it['last_outgoing'] == '2025-11-03'    # дата продажи, а не перемещения
+        assert it['recommended'] > 0 and it['section'] == 'decide'
+
+
+def test_only_incoming_invoice_is_not_enough():
+    """Приход без расхода — не ассортимент: товар мог приехать по ошибке."""
+    P_ONLY_IN = 'p-only-in'
+    nom = _nomenclature()
+    nom[P_ONLY_IN] = {'name': 'Гиннесс Драфт 0.44 ж/б', 'category': 'ЕГАИС',
+                      'parentId': 'Напитки Фасовка', 'type': 'GOODS', 'mainUnit': 'шт'}
+    ops = _operations() + [
+        _op(P_ONLY_IN, STORE_LIG, '10.000000000', '02.11.2025', 'INCOMING_INVOICE', 'true', total='3000.000000000'),
+    ]
+    with _patched(snapshot=_snapshot(operations=ops), nomenclature=nom) as c:
+        _, d = _get(c, 'order-board', BAR_LIG)
+        assert P_ONLY_IN not in _by_id(d)
+
+
 if __name__ == '__main__':
     sys.exit(_run())
