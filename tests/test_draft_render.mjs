@@ -187,5 +187,44 @@ test('решения по ассортименту: секция на /draft п�
     }
 });
 
+test('категории: секция, таблица и стиль берутся с блюда, а не с кега', () => {
+    assert.match(html, /КАТЕГОРИИ/, 'нет полосы-заголовка категорий');
+    assert.match(html, /id="drCats"/, 'нет узла таблицы категорий');
+    assert.match(html, /id="drCatCount"/, 'нет счётчика категорий');
+    assert.match(js, /function renderCategories/, 'нет рендера категорий');
+    assert.match(js, /function openCategory/, 'нет карточки категории');
+    // Легенда обязана объяснять, что у кега своей группы стиля нет.
+    const legend = html.match(/<div class="dr-legend">Категория([\s\S]*?)<\/div>/);
+    assert.ok(legend, 'нет пояснения под таблицей категорий');
+    assert.ok(/блюда-порции/.test(legend[1]), 'не сказано, что стиль берётся с блюда');
+    assert.ok(/Без категории \(Р\)/.test(legend[1]), 'не названа группа без категории');
+    // И расчёт делает ровно это.
+    const kegs = read('core/draft_kegs.py');
+    assert.match(kegs, /DishGroup\.ThirdParent/, 'стиль блюда в расчёте не читается');
+    assert.match(kegs, /def _pick_style/, 'нет выбора стиля по выручке');
+    assert.match(read('core/abc_thresholds.py'), /UNCATEGORIZED_KEGS = 'Без категории \(Р\)'/,
+        'подпись «без категории» для розлива живёт не в порогах');
+    for (const cls of ['dr-cats']) {
+        assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
+    }
+});
+
+test('карточка кега: разрез по барам, вторая шкала и недельные столбики', () => {
+    assert.match(js, /sub\('ПО БАРАМ'/, 'нет секции «по барам»');
+    assert.match(js, /sub\('ВТОРАЯ ШКАЛА'/, 'нет второй шкалы');
+    assert.match(js, /function weeksChart/, 'нет недельных столбиков');
+    assert.match(js, /weeksChart\(keg\.WeeklyLiters\)/, 'столбики не строятся из литров по неделям');
+    for (const cls of ['dr-weeks', 'dr-week', 'dr-week-bar', 'dr-week-cap', 'dr-week-v',
+                       'dr-who-row.is-static']) {
+        assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
+    }
+});
+
+test('плашка «XYZ не считается» есть в шапке, а не только в диагностике', () => {
+    assert.match(html, /id="drXyzChip"/, 'нет узла плашки');
+    assert.match(js, /xyz_available === false/, 'плашка не привязана к ответу сервера');
+    assert.ok(css.includes('.dr-context-chip'), 'класс плашки не описан в CSS');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

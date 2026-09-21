@@ -70,7 +70,8 @@ function makeEl(id) {
 
 const IDS = ['drBurger', 'drBarBtn', 'drBarMenu', 'drBarLabel', 'drPerBtn', 'drPerMenu',
              'drPerLabel', 'drPerHint', 'drCatch', 'drRun', 'drRunLabel', 'drSpin',
-             'drContext', 'drUpdated', 'drMsg', 'drBody', 'drSum', 'drBuckets', 'drKegCount',
+             'drContext', 'drXyzChip', 'drUpdated', 'drMsg', 'drBody', 'drSum', 'drBuckets',
+             'drCatCount', 'drCats', 'drKegCount',
              'drSearch', 'drKegs', 'drBts', 'drBalance', 'drLosses', 'drDiag',
              'drDrawer', 'drBackdrop', 'drBars'];
 
@@ -282,6 +283,108 @@ test('карточка кега повторяет решение по ассо�
     assert.ok(/наценка 250% и выше|от 200% до 250%|ниже 200%/.test(html),
         'буква наценки не объяснена порогами');
     assert.ok(!/треть по наценке/.test(html), 'наценка всё ещё объяснена третями');
+});
+
+test('категории: таблица со всеми стилями, итог и доли', () => {
+    const html = env.byId.drCats.innerHTML;
+    const dapi = env.sandbox.window.__draft;
+    const rows = (html.match(/class="dr-row is-body"/g) || []).length;
+    assert.equal(rows, BLOCK.categories.length, `строк ${rows}, категорий ${BLOCK.categories.length}`);
+    assert.ok(BLOCK.categories.length > 1, 'в фикстуре одна категория — таблица не проверяется');
+    assert.ok(html.includes(dapi.esc(BLOCK.categories[0].Category)), 'нет первой категории');
+    assert.match(html, /Итого · \d+ категор/, 'нет строки итога');
+    assert.match(env.byId.drCatCount.textContent, /категор/, 'нет счётчика категорий');
+    // Каждый кег ровно в одной категории, суммы сходятся с разрезом.
+    assert.equal(BLOCK.categories.reduce((a, c) => a + c.KegsCount, 0), BLOCK.kegs.length,
+        'категории не покрывают все кеги');
+    const liters = BLOCK.categories.reduce((a, c) => a + c.TotalLiters, 0);
+    assert.ok(Math.abs(liters - BLOCK.total_liters) < 1e-6, 'литры категорий не равны литрам разреза');
+    assert.ok(Math.abs(BLOCK.categories.reduce((a, c) => a + c.RevenueSharePercent, 0) - 100) < 1e-6,
+        'доли категорий не складываются в 100%');
+});
+
+test('категории: сортировка кликом, пустая наценка уходит вниз', () => {
+    const dapi = env.sandbox.window.__draft;
+    const withoutMarkup = BLOCK.categories.filter((c) => c.MarkupPercent === null).length;
+    dapi.state.catSort = { key: 'MarkupPercent', dir: 1 };
+    env.sandbox.window.__draft.render();
+    const names = [...env.byId.drCats.innerHTML.matchAll(/class="dr-name">([^<]*)</g)].map((m) => m[1]);
+    if (withoutMarkup) {
+        const tail = names.slice(-withoutMarkup);
+        const expected = BLOCK.categories.filter((c) => c.MarkupPercent === null)
+            .map((c) => dapi.esc(c.Category));
+        assert.deepEqual(tail.slice().sort(), expected.slice().sort(),
+            'категории без наценки не в конце при сортировке по возрастанию');
+    }
+    dapi.state.catSort = { key: 'TotalRevenue', dir: -1 };
+    dapi.render();
+});
+
+test('карточка категории: итоги, ABC и состав', () => {
+    const dapi = env.sandbox.window.__draft;
+    const cat = BLOCK.categories[0];
+    dapi.openCategory(cat.Category);
+    const html = env.byId.drDrawer.innerHTML;
+    assert.equal(env.byId.drDrawer.hidden, false, 'карточка категории не открылась');
+    assert.ok(html.includes(dapi.esc(cat.Category)), 'нет названия категории');
+    for (const band of ['ИТОГИ КАТЕГОРИИ', 'ABC КАТЕГОРИИ', 'КЕГИ КАТЕГОРИИ']) {
+        assert.ok(html.includes(band), `нет секции ${band}`);
+    }
+    const rows = (html.match(/class="dr-who-row" data-keg=/g) || []).length;
+    assert.equal(rows, cat.KegsCount, `кегов в карточке ${rows}, в категории ${cat.KegsCount}`);
+    assert.ok(html.includes(dapi.pct(cat.CumulativePercent, 1)), 'нет накопленного итога');
+});
+
+test('клик по строке категории открывает её карточку', () => {
+    const dapi = env.sandbox.window.__draft;
+    const cat = BLOCK.categories[1] || BLOCK.categories[0];
+    const handlers = env.byId.drCats.listeners.click || [];
+    assert.ok(handlers.length, 'на таблице категорий нет обработчика');
+    env.byId.drDrawer.hidden = true;
+    handlers.forEach((fn) => fn({ target: { closest: (sel) =>
+        sel === '.dr-th.s' ? null
+            : (sel.includes('data-cat') ? { dataset: { cat: cat.Category } } : null) } }));
+    assert.equal(env.byId.drDrawer.hidden, false, 'карточка не открылась по клику');
+    assert.ok(env.byId.drDrawer.innerHTML.includes(dapi.esc(cat.Category)), 'открылась не та категория');
+});
+
+test('карточка кега: разрез по барам, вторая шкала и недельные столбики', () => {
+    const dapi = env.sandbox.window.__draft;
+    const keg = BLOCK.kegs.find((k) => (k.ByBar || []).length > 1);
+    assert.ok(keg, 'в фикстуре нет кега с двумя барами');
+    dapi.openKeg(keg.KegId);
+    const html = env.byId.drDrawer.innerHTML;
+    assert.ok(html.includes('ПО БАРАМ'), 'нет секции «по барам»');
+    for (const bar of keg.ByBar) {
+        assert.ok(html.includes(dapi.esc(bar.Bar)), `нет бара ${bar.Bar}`);
+    }
+    // Строки баров не кликабельны: карточки бара на странице нет.
+    assert.ok(html.includes('dr-who-row is-static'), 'строки баров кликабельны');
+    assert.ok(html.includes('ВТОРАЯ ШКАЛА'), 'нет второй шкалы');
+    assert.ok(html.includes(dapi.esc(keg.Category)), 'в карточке не названа категория кега');
+    assert.ok(html.includes(dapi.money(keg.RevenueBaseInCategory)), 'нет базы доли в категории');
+    // Ряд рисуется от двух недель: один столбик на весь период ничего не значит.
+    const weeks = (keg.WeeklyLiters || []).length;
+    const bars = (html.match(/class="dr-week-bar/g) || []).length;
+    assert.equal(bars, weeks > 1 ? weeks : 0,
+        `столбиков ${bars} при ${weeks} неделях в периоде`);
+});
+
+test('карточка кега одного бара: секции «по барам» нет', () => {
+    const dapi = env.sandbox.window.__draft;
+    const keg = BLOCK.kegs.find((k) => (k.ByBar || []).length === 1);
+    assert.ok(keg, 'в фикстуре нет кега из одного бара');
+    dapi.openKeg(keg.KegId);
+    assert.ok(!env.byId.drDrawer.innerHTML.includes('ПО БАРАМ'),
+        'разрез по барам показан там, где бар один');
+});
+
+test('плашка «XYZ не считается» на коротком периоде', () => {
+    // Фикстура — неделя: третьей буквы нет ни у одного кега.
+    assert.equal(BLOCK.xyz_available, false, 'фикстура не проверяет плашку');
+    assert.equal(env.byId.drXyzChip.hidden, false, 'плашка скрыта, хотя XYZ не считается');
+    assert.match(env.byId.drXyzChip.textContent, /XYZ не считается/, 'плашка без текста');
+    assert.match(env.byId.drXyzChip.textContent, /нужно от 3/, 'в плашке нет порога');
 });
 
 test('опасные символы в данных экранируются', () => {

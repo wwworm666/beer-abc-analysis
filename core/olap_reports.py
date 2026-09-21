@@ -488,7 +488,10 @@ class OlapReports:
         месячный отчёт и старый эндпоинт):
         - в группировке есть DishId, чтобы связывать блюдо с кегом по GUID;
         - есть AuthUser — разрез «по барменам» на той же странице;
-        - нет DishGroup.ThirdParent и DishForeignName — они на странице не нужны;
+        - есть DishGroup.ThirdParent: стиль блюда, из которого страница строит
+          категорию кега (с 2026-09-21; до этого поля не было — «на странице не
+          нужны»). Строк не добавляет: у блюда ровно один третий уровень;
+        - нет DishForeignName — страна на странице не показывается;
         - агрегаты только те, что реально используются (без UniqOrderId, DiscountSum,
           ProductCostBase.OneItem и MarkUp: наценка считается от сумм, а не средним
           по строкам, см. docs/draft.md).
@@ -518,7 +521,8 @@ class OlapReports:
         request_body = {
             "reportType": "SALES",
             "buildSummary": "false",
-            "groupByRowFields": ["Store.Name", "AuthUser", "DishId", "DishName"],
+            "groupByRowFields": ["Store.Name", "AuthUser", "DishId", "DishName",
+                                 "DishGroup.ThirdParent"],
             "groupByColFields": [],
             "aggregateFields": [
                 "DishAmountInt",

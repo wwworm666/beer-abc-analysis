@@ -1133,7 +1133,35 @@
           252.32999999999998
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "core",
+        "Category": "Хели (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 176.63099999999997,
+            "Portions": 336.231,
+            "Revenue": 158890.466,
+            "Cost": 33559.93826315789,
+            "Margin": 125330.5277368421,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Варшавская",
+            "Liters": 75.699,
+            "Portions": 144.099,
+            "Revenue": 68095.914,
+            "Cost": 14382.830684210527,
+            "Margin": 53713.08331578948,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 226986.38
       },
       {
         "ABC_Combined": "ABA",
@@ -1216,7 +1244,25 @@
           86.69999999999999
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Пилснеры (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 86.69999999999999,
+            "Portions": 163.0,
+            "Revenue": 101200.12,
+            "Cost": 30952.63,
+            "Margin": 70247.48999999999,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 101200.12
       },
       {
         "ABC_Combined": "AAA",
@@ -1306,7 +1352,25 @@
           77.05
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "core",
+        "Category": "Вайсс (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 77.05,
+            "Portions": 144.0,
+            "Revenue": 70394.12,
+            "Cost": 14640.934000000001,
+            "Margin": 55753.185999999994,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 70394.12
       },
       {
         "ABC_Combined": "ACA",
@@ -1382,7 +1446,35 @@
           41.14999999999999
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Темные эли (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 28.804999999999993,
+            "Portions": 60.199999999999996,
+            "Revenue": 24682.195999999996,
+            "Cost": 9505.65,
+            "Margin": 15176.545999999997,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Лиговский",
+            "Liters": 12.344999999999997,
+            "Portions": 25.8,
+            "Revenue": 10578.083999999999,
+            "Cost": 4073.85,
+            "Margin": 6504.233999999999,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 71.86252071177162,
+        "RevenueCumulativeInCategoryPercent": 71.86252071177162,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 49066.3
       },
       {
         "ABC_Combined": "ABA",
@@ -1472,7 +1564,25 @@
           37.45
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Бланш (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 37.45,
+            "Portions": 78.0,
+            "Revenue": 50862.43,
+            "Cost": 15730.380000000001,
+            "Margin": 35132.05,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 50862.43
       },
       {
         "ABC_Combined": "ACA",
@@ -1562,7 +1672,25 @@
           32.1
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Янтраные эли (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 32.1,
+            "Portions": 70.0,
+            "Revenue": 42115.380000000005,
+            "Cost": 14783.49,
+            "Margin": 27331.890000000007,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 42115.380000000005
       },
       {
         "ABC_Combined": "ACA",
@@ -1638,7 +1766,35 @@
           31.800000000000004
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Крепкая вишня и персик (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 22.26,
+            "Portions": 46.199999999999996,
+            "Revenue": 25830.839999999997,
+            "Cost": 8681.4,
+            "Margin": 17149.439999999995,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 9.540000000000001,
+            "Portions": 19.8,
+            "Revenue": 11070.359999999999,
+            "Cost": 3720.6,
+            "Margin": 7349.759999999998,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 82.4680061359565,
+        "RevenueCumulativeInCategoryPercent": 82.4680061359565,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 44746.079999999994
       },
       {
         "ABC_Combined": "ABA",
@@ -1707,7 +1863,25 @@
           26.25
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "ИПА (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 26.25,
+            "Portions": 50.0,
+            "Revenue": 23869.879999999997,
+            "Cost": 7104.210000000001,
+            "Margin": 16765.67,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 90.35193903730602,
+        "RevenueCumulativeInCategoryPercent": 90.35193903730602,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 26418.78
       },
       {
         "ABC_Combined": "ABA",
@@ -1769,7 +1943,25 @@
           18.200000000000003
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 18.200000000000003,
+            "Portions": 33.0,
+            "Revenue": 26877.61,
+            "Cost": 8626.77,
+            "Margin": 18250.84,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 16.973878238222536,
+        "RevenueCumulativeInCategoryPercent": 16.973878238222536,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BBB",
@@ -1817,7 +2009,35 @@
           15.45
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 10.815,
+            "Portions": 23.099999999999998,
+            "Revenue": 12902.05,
+            "Cost": 3836.4059999999995,
+            "Margin": 9065.644,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Кременчугская",
+            "Liters": 4.635,
+            "Portions": 9.9,
+            "Revenue": 5529.45,
+            "Cost": 1644.174,
+            "Margin": 3885.276,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 11.63995000849401,
+        "RevenueCumulativeInCategoryPercent": 42.21105054787937,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "ABA",
@@ -1872,7 +2092,25 @@
           15.15
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 15.15,
+            "Portions": 32.0,
+            "Revenue": 21530.78,
+            "Cost": 7120.5,
+            "Margin": 14410.279999999999,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 13.597222301162827,
+        "RevenueCumulativeInCategoryPercent": 30.571100539385366,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BAB",
@@ -1920,7 +2158,25 @@
           14.3
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "core",
+        "Category": "Темные эли (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 14.3,
+            "Portions": 30.0,
+            "Revenue": 13806.02,
+            "Cost": 3535.69,
+            "Margin": 10270.33,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 28.137479288228377,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 49066.3
       },
       {
         "ABC_Combined": "BCB",
@@ -1968,7 +2224,35 @@
           14.3
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 10.01,
+            "Portions": 23.099999999999998,
+            "Revenue": 11336.009999999998,
+            "Cost": 4213.986,
+            "Margin": 7122.0239999999985,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Варшавская",
+            "Liters": 4.29,
+            "Portions": 9.9,
+            "Revenue": 4858.29,
+            "Cost": 1805.994,
+            "Margin": 3052.2960000000003,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 10.227102646152215,
+        "RevenueCumulativeInCategoryPercent": 62.93409596272488,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BBB",
@@ -2016,7 +2300,25 @@
           13.65
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 13.65,
+            "Portions": 33.0,
+            "Revenue": 16620.0,
+            "Cost": 5220.715,
+            "Margin": 11399.285,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 10.495942768693293,
+        "RevenueCumulativeInCategoryPercent": 52.70699331657267,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "ACA",
@@ -2092,7 +2394,25 @@
           12.45
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Флемиш - кислые эли (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 12.45,
+            "Portions": 26.0,
+            "Revenue": 20810.75,
+            "Cost": 7345.5,
+            "Margin": 13465.25,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 20810.75
       },
       {
         "ABC_Combined": "BCB",
@@ -2154,7 +2474,35 @@
           12.3
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Сидры и пуарэ 2 ур. (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 8.61,
+            "Portions": 17.5,
+            "Revenue": 8941.002,
+            "Cost": 3098.739,
+            "Margin": 5842.263000000001,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Лиговский",
+            "Liters": 3.69,
+            "Portions": 7.5,
+            "Revenue": 3831.858,
+            "Cost": 1328.0310000000002,
+            "Margin": 2503.827,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 12772.86
       },
       {
         "ABC_Combined": "BBB",
@@ -2202,7 +2550,25 @@
           8.5
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 8.5,
+            "Portions": 20.0,
+            "Revenue": 8766.69,
+            "Cost": 2631.21,
+            "Margin": 6135.4800000000005,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 5.536382461544875,
+        "RevenueCumulativeInCategoryPercent": 68.47047842426976,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BAB",
@@ -2250,7 +2616,25 @@
           8.0
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "core"
+        "ABC_Bucket": "core",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 8.0,
+            "Portions": 19.0,
+            "Revenue": 8082.84,
+            "Cost": 2185.92,
+            "Margin": 5896.92,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 5.104514202677792,
+        "RevenueCumulativeInCategoryPercent": 73.57499262694755,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BBB",
@@ -2305,7 +2689,35 @@
           7.55
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 5.284999999999999,
+            "Portions": 11.2,
+            "Revenue": 5541.564,
+            "Cost": 1838.6479999999997,
+            "Margin": 3702.9160000000006,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 2.2649999999999997,
+            "Portions": 4.8,
+            "Revenue": 2374.956,
+            "Cost": 787.992,
+            "Margin": 1586.9640000000002,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 4.999478992010579,
+        "RevenueCumulativeInCategoryPercent": 78.57447161895813,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CBC",
@@ -2353,7 +2765,25 @@
           6.1
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 6.1,
+            "Portions": 14.0,
+            "Revenue": 6001.71,
+            "Cost": 1818.54,
+            "Margin": 4183.17,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 3.7902289214376794,
+        "RevenueCumulativeInCategoryPercent": 87.19309313917734,
+        "ABC_Revenue_InCategory": "B",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BBB",
@@ -2401,7 +2831,25 @@
           5.5
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 5.5,
+            "Portions": 13.0,
+            "Revenue": 7645.610000000001,
+            "Cost": 2533.3,
+            "Margin": 5112.31,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 4.828392598781536,
+        "RevenueCumulativeInCategoryPercent": 83.40286421773968,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CCC",
@@ -2449,7 +2897,35 @@
           5.25
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 3.675,
+            "Portions": 7.699999999999999,
+            "Revenue": 3493.0,
+            "Cost": 1176.0,
+            "Margin": 2317.0,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Кременчугская",
+            "Liters": 1.575,
+            "Portions": 3.3,
+            "Revenue": 1497.0,
+            "Cost": 504.0,
+            "Margin": 993.0,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 3.1513089299506336,
+        "RevenueCumulativeInCategoryPercent": 90.34440206912797,
+        "ABC_Revenue_InCategory": "B",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CAC",
@@ -2497,7 +2973,25 @@
           5.05
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 5.05,
+            "Portions": 11.0,
+            "Revenue": 4990.0,
+            "Cost": 1395.99,
+            "Margin": 3594.01,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 3.1513089299506336,
+        "RevenueCumulativeInCategoryPercent": 93.49571099907861,
+        "ABC_Revenue_InCategory": "B",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "BCB",
@@ -2545,7 +3039,25 @@
           4.75
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Крепкая бельгия 8+ (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 4.75,
+            "Portions": 11.0,
+            "Revenue": 9461.42,
+            "Cost": 3491.25,
+            "Margin": 5970.17,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 63.66430664095356,
+        "RevenueCumulativeInCategoryPercent": 63.66430664095356,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 14861.42
       },
       {
         "ABC_Combined": "BCB",
@@ -2593,7 +3105,35 @@
           4.4
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "low_markup"
+        "ABC_Bucket": "low_markup",
+        "Category": "Крепкая вишня и персик (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 3.08,
+            "Portions": 6.3,
+            "Revenue": 5491.416,
+            "Cost": 2279.2,
+            "Margin": 3212.2160000000003,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Варшавская",
+            "Liters": 1.32,
+            "Portions": 2.6999999999999997,
+            "Revenue": 2353.464,
+            "Cost": 976.8,
+            "Margin": 1376.664,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 17.531993864043514,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "B",
+        "RevenueBaseInCategory": 44746.079999999994
       },
       {
         "ABC_Combined": "CBC",
@@ -2641,7 +3181,25 @@
           3.25
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 3.25,
+            "Portions": 6.0,
+            "Revenue": 4113.49,
+            "Cost": 1365.0,
+            "Margin": 2748.49,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 2.5977710962450167,
+        "RevenueCumulativeInCategoryPercent": 96.09348209532361,
+        "ABC_Revenue_InCategory": "B",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CCC",
@@ -2689,7 +3247,25 @@
           2.9
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "ИПА (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 2.9,
+            "Portions": 6.0,
+            "Revenue": 2548.9,
+            "Cost": 938.35,
+            "Margin": 1610.5500000000002,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 9.648060962693963,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "B",
+        "RevenueBaseInCategory": 26418.78
       },
       {
         "ABC_Combined": "CBC",
@@ -2737,7 +3313,35 @@
           2.65
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "Крепкая бельгия 8+ (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 1.8549999999999998,
+            "Portions": 4.199999999999999,
+            "Revenue": 3779.9999999999995,
+            "Cost": 1224.3,
+            "Margin": 2555.7,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Лиговский",
+            "Liters": 0.7949999999999999,
+            "Portions": 1.7999999999999998,
+            "Revenue": 1620.0,
+            "Cost": 524.6999999999999,
+            "Margin": 1095.3000000000002,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 36.335693359046445,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 14861.42
       },
       {
         "ABC_Combined": "CBC",
@@ -2778,7 +3382,25 @@
           2.5
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "weak"
+        "ABC_Bucket": "weak",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 2.5,
+            "Portions": 5.0,
+            "Revenue": 2859.59,
+            "Cost": 867.35,
+            "Margin": 1992.2400000000002,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 1.8059021048091248,
+        "RevenueCumulativeInCategoryPercent": 97.89938420013274,
+        "ABC_Revenue_InCategory": "C",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CCC",
@@ -2826,7 +3448,25 @@
           1.5
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "few"
+        "ABC_Bucket": "few",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Варшавская",
+            "Liters": 1.5,
+            "Portions": 4.0,
+            "Revenue": 1375.76,
+            "Cost": 489.0,
+            "Margin": 886.76,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 0.8688266079095959,
+        "RevenueCumulativeInCategoryPercent": 98.76821080804234,
+        "ABC_Revenue_InCategory": "C",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CAC",
@@ -2874,7 +3514,35 @@
           0.9
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "few"
+        "ABC_Bucket": "few",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Кременчугская",
+            "Liters": 0.63,
+            "Portions": 1.4,
+            "Revenue": 840.0,
+            "Cost": 220.185,
+            "Margin": 619.815,
+            "SharePercent": 70.0,
+            "RevenueSharePercent": 70.0
+          },
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 0.27,
+            "Portions": 0.6,
+            "Revenue": 360.0,
+            "Cost": 94.365,
+            "Margin": 265.635,
+            "SharePercent": 30.0,
+            "RevenueSharePercent": 30.0
+          }
+        ],
+        "BarsPresent": 2,
+        "RevenueShareInCategoryPercent": 0.7578298027937396,
+        "RevenueCumulativeInCategoryPercent": 99.52604061083609,
+        "ABC_Revenue_InCategory": "C",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CAC",
@@ -2915,7 +3583,25 @@
           0.33
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "few"
+        "ABC_Bucket": "few",
+        "Category": "Без категории (Р)",
+        "ByBar": [
+          {
+            "Bar": "Большой пр. В.О",
+            "Liters": 0.33,
+            "Portions": 1.0,
+            "Revenue": 750.5,
+            "Cost": 201.63,
+            "Margin": 548.87,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 0.47395938916391794,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "C",
+        "RevenueBaseInCategory": 158346.9
       },
       {
         "ABC_Combined": "CAC",
@@ -2956,7 +3642,25 @@
           0.25
         ],
         "LitersOutsideWeeks": 0.0,
-        "ABC_Bucket": "few"
+        "ABC_Bucket": "few",
+        "Category": "Дабл ИПА + (Р)",
+        "ByBar": [
+          {
+            "Bar": "Лиговский",
+            "Liters": 0.25,
+            "Portions": 1.0,
+            "Revenue": 350.0,
+            "Cost": 76.97,
+            "Margin": 273.03,
+            "SharePercent": 100.0,
+            "RevenueSharePercent": 100.0
+          }
+        ],
+        "BarsPresent": 1,
+        "RevenueShareInCategoryPercent": 100.0,
+        "RevenueCumulativeInCategoryPercent": 100.0,
+        "ABC_Revenue_InCategory": "A",
+        "RevenueBaseInCategory": 350.0
       }
     ],
     "losses": {
@@ -3356,6 +4060,395 @@
       "few": 4,
       "low_markup": 18,
       "weak": 7
-    }
+    },
+    "categories": [
+      {
+        "Category": "Хели (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 252.32999999999998,
+        "TotalPortions": 480.33,
+        "TotalRevenue": 226986.38,
+        "TotalCost": 47942.76894736842,
+        "TotalMargin": 179043.61105263158,
+        "MarkupPercent": 373.4527958724822,
+        "ABC_Markup": "A",
+        "LitersSharePercent": 32.76970428955469,
+        "RevenueSharePercent": 27.717382278801526,
+        "RevenueAbcBase": 226986.38,
+        "abc_stats": {
+          "AAA": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "core": 1
+        },
+        "KegIds": [
+          "ba7ede81-1cf1-4155-a756-e100d51df438"
+        ],
+        "CumulativePercent": 27.717382278801526,
+        "ABC_Category": "A"
+      },
+      {
+        "Category": "Без категории (Р)",
+        "KegsCount": 17,
+        "TotalLiters": 131.18,
+        "TotalPortions": 286.0,
+        "TotalRevenue": 158346.9,
+        "TotalCost": 50577.674999999996,
+        "TotalMargin": 107769.225,
+        "MarkupPercent": 213.07666870808123,
+        "ABC_Markup": "B",
+        "LitersSharePercent": 17.036142387761203,
+        "RevenueSharePercent": 19.335792570299407,
+        "RevenueAbcBase": 158346.9,
+        "abc_stats": {
+          "ABA": 2,
+          "BAB": 1,
+          "BBB": 5,
+          "BCB": 1,
+          "CAC": 3,
+          "CBC": 3,
+          "CCC": 2
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "core": 1,
+          "few": 3,
+          "low_markup": 8,
+          "weak": 5
+        },
+        "KegIds": [
+          "c6b3ccae-7a0e-42b0-8812-dcea1c6de881",
+          "0573df01-cc01-46e5-81e7-44fe82d6495e",
+          "c47e9f3e-8ba7-4c59-b600-250eb365bc00",
+          "9687abfe-47a9-4856-b455-b3264c13930a",
+          "0aba5343-0495-490e-a1d8-69ddb4f03c4b",
+          "75bfbed4-a555-4434-a56f-93aea3cf45b8",
+          "2392342e-09d2-46c8-88fe-352a73d04327",
+          "efa9396b-5365-4b02-a836-5f48bcf034af",
+          "05e208e1-742d-4707-bcfb-37f7bf11db62",
+          "2c26889d-e98d-4748-afd6-69c788534e04",
+          "3d71ccf2-439a-45dc-8707-2aa56d5a11e3",
+          "66f434b5-8dd7-4013-8ff5-cfe1a836d0bc",
+          "0b00a95c-44b7-4c94-98c6-60d3831e6f11",
+          "feee99ef-74fb-451b-87d1-95db1e97b884",
+          "87881f2c-556d-447f-a474-fff0bc38c2f0",
+          "83468676-ae29-4625-9516-296e6c421e47",
+          "7755e9f7-ed05-4b94-9c54-f2e0618c7033"
+        ],
+        "CumulativePercent": 47.053174849100934,
+        "ABC_Category": "A"
+      },
+      {
+        "Category": "Пилснеры (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 86.69999999999999,
+        "TotalPortions": 163.0,
+        "TotalRevenue": 101200.12,
+        "TotalCost": 30952.63,
+        "TotalMargin": 70247.48999999999,
+        "MarkupPercent": 226.95160314325466,
+        "ABC_Markup": "B",
+        "LitersSharePercent": 11.259594031246348,
+        "RevenueSharePercent": 12.35758027728619,
+        "RevenueAbcBase": 101200.12,
+        "abc_stats": {
+          "ABA": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1
+        },
+        "KegIds": [
+          "d9eb2c76-3b8e-4f57-8205-7351d95f7cda"
+        ],
+        "CumulativePercent": 59.410755126387116,
+        "ABC_Category": "A"
+      },
+      {
+        "Category": "Вайсс (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 77.05,
+        "TotalPortions": 144.0,
+        "TotalRevenue": 70394.12,
+        "TotalCost": 14640.934000000001,
+        "TotalMargin": 55753.185999999994,
+        "MarkupPercent": 380.8034787944539,
+        "ABC_Markup": "A",
+        "LitersSharePercent": 10.006363553720082,
+        "RevenueSharePercent": 8.595849381887266,
+        "RevenueAbcBase": 70394.12,
+        "abc_stats": {
+          "AAA": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "core": 1
+        },
+        "KegIds": [
+          "187da644-32ed-4da6-9a03-ba8b7ed57988"
+        ],
+        "CumulativePercent": 68.00660450827438,
+        "ABC_Category": "A"
+      },
+      {
+        "Category": "Бланш (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 37.45,
+        "TotalPortions": 78.0,
+        "TotalRevenue": 50862.43,
+        "TotalCost": 15730.380000000001,
+        "TotalMargin": 35132.05,
+        "MarkupPercent": 223.3388513182771,
+        "ABC_Markup": "B",
+        "LitersSharePercent": 4.863573200348049,
+        "RevenueSharePercent": 6.2108282265164245,
+        "RevenueAbcBase": 50862.43,
+        "abc_stats": {
+          "ABA": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1
+        },
+        "KegIds": [
+          "cca6a13c-e37e-4c39-8a37-8aeca590e9af"
+        ],
+        "CumulativePercent": 74.2174327347908,
+        "ABC_Category": "A"
+      },
+      {
+        "Category": "Темные эли (Р)",
+        "KegsCount": 2,
+        "TotalLiters": 55.44999999999999,
+        "TotalPortions": 116.0,
+        "TotalRevenue": 49066.3,
+        "TotalCost": 17115.19,
+        "TotalMargin": 31951.110000000004,
+        "MarkupPercent": 186.68276542650128,
+        "ABC_Markup": "C",
+        "LitersSharePercent": 7.201205179153518,
+        "RevenueSharePercent": 5.991502195446086,
+        "RevenueAbcBase": 49066.3,
+        "abc_stats": {
+          "ACA": 1,
+          "BAB": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "core": 1,
+          "low_markup": 1
+        },
+        "KegIds": [
+          "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
+          "07d76d5f-38ff-4ff3-9453-b735fdd84fa2"
+        ],
+        "CumulativePercent": 80.20893493023691,
+        "ABC_Category": "A"
+      },
+      {
+        "Category": "Крепкая вишня и персик (Р)",
+        "KegsCount": 2,
+        "TotalLiters": 36.2,
+        "TotalPortions": 75.0,
+        "TotalRevenue": 44746.079999999994,
+        "TotalCost": 15658.0,
+        "TotalMargin": 29088.079999999994,
+        "MarkupPercent": 185.77136288159403,
+        "ABC_Markup": "C",
+        "LitersSharePercent": 4.701237646264335,
+        "RevenueSharePercent": 5.463958695838206,
+        "RevenueAbcBase": 44746.079999999994,
+        "abc_stats": {
+          "ACA": 1,
+          "BCB": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 2
+        },
+        "KegIds": [
+          "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
+          "432fc9e7-d190-41d9-96f7-94d0ea627b02"
+        ],
+        "CumulativePercent": 85.67289362607511,
+        "ABC_Category": "B"
+      },
+      {
+        "Category": "Янтраные эли (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 32.1,
+        "TotalPortions": 70.0,
+        "TotalRevenue": 42115.380000000005,
+        "TotalCost": 14783.49,
+        "TotalMargin": 27331.890000000007,
+        "MarkupPercent": 184.88117487819187,
+        "ABC_Markup": "C",
+        "LitersSharePercent": 4.168777028869756,
+        "RevenueSharePercent": 5.14272304477913,
+        "RevenueAbcBase": 42115.380000000005,
+        "abc_stats": {
+          "ACA": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1
+        },
+        "KegIds": [
+          "252096ff-d05a-4932-a1a6-61d26c7734f2"
+        ],
+        "CumulativePercent": 90.81561667085423,
+        "ABC_Category": "B"
+      },
+      {
+        "Category": "ИПА (Р)",
+        "KegsCount": 2,
+        "TotalLiters": 29.15,
+        "TotalPortions": 56.0,
+        "TotalRevenue": 26418.78,
+        "TotalCost": 8042.560000000001,
+        "TotalMargin": 18376.219999999998,
+        "MarkupPercent": 228.4871981060756,
+        "ABC_Markup": "B",
+        "LitersSharePercent": 3.785665121232192,
+        "RevenueSharePercent": 3.2260060035300633,
+        "RevenueAbcBase": 26418.78,
+        "abc_stats": {
+          "ABA": 1,
+          "CCC": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1,
+          "weak": 1
+        },
+        "KegIds": [
+          "9963ae82-d3b3-438e-aa1c-48e75935ef16",
+          "3cd79006-ccde-4759-941a-7179053b3909"
+        ],
+        "CumulativePercent": 94.0416226743843,
+        "ABC_Category": "B"
+      },
+      {
+        "Category": "Флемиш - кислые эли (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 12.45,
+        "TotalPortions": 26.0,
+        "TotalRevenue": 20810.75,
+        "TotalCost": 7345.5,
+        "TotalMargin": 13465.25,
+        "MarkupPercent": 183.31291266761963,
+        "ABC_Markup": "C",
+        "LitersSharePercent": 1.6168621186737835,
+        "RevenueSharePercent": 2.5412075969429044,
+        "RevenueAbcBase": 20810.75,
+        "abc_stats": {
+          "ACA": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1
+        },
+        "KegIds": [
+          "cacc62b5-a12f-4479-9d3a-70546615159b"
+        ],
+        "CumulativePercent": 96.5828302713272,
+        "ABC_Category": "B"
+      },
+      {
+        "Category": "Крепкая бельгия 8+ (Р)",
+        "KegsCount": 2,
+        "TotalLiters": 7.4,
+        "TotalPortions": 17.0,
+        "TotalRevenue": 14861.42,
+        "TotalCost": 5240.25,
+        "TotalMargin": 9621.17,
+        "MarkupPercent": 183.60135489719002,
+        "ABC_Markup": "C",
+        "LitersSharePercent": 0.9610264801755823,
+        "RevenueSharePercent": 1.8147329339576523,
+        "RevenueAbcBase": 14861.42,
+        "abc_stats": {
+          "BCB": 1,
+          "CBC": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1,
+          "weak": 1
+        },
+        "KegIds": [
+          "2fce9b39-1ee6-48f3-b3f5-202e76787f39",
+          "69639867-b0d8-4e74-bc6f-78ac3c22328f"
+        ],
+        "CumulativePercent": 98.39756320528485,
+        "ABC_Category": "C"
+      },
+      {
+        "Category": "Сидры и пуарэ 2 ур. (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 12.3,
+        "TotalPortions": 25.0,
+        "TotalRevenue": 12772.86,
+        "TotalCost": 4426.77,
+        "TotalMargin": 8346.09,
+        "MarkupPercent": 188.53678867436074,
+        "ABC_Markup": "C",
+        "LitersSharePercent": 1.5973818521837384,
+        "RevenueSharePercent": 1.5596981784264452,
+        "RevenueAbcBase": 12772.86,
+        "abc_stats": {
+          "BCB": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "low_markup": 1
+        },
+        "KegIds": [
+          "b4cf62a0-c58d-448f-87a0-dde3f97359b1"
+        ],
+        "CumulativePercent": 99.9572613837113,
+        "ABC_Category": "C"
+      },
+      {
+        "Category": "Дабл ИПА + (Р)",
+        "KegsCount": 1,
+        "TotalLiters": 0.25,
+        "TotalPortions": 1.0,
+        "TotalRevenue": 350.0,
+        "TotalCost": 76.97,
+        "TotalMargin": 273.03,
+        "MarkupPercent": 354.7226192022866,
+        "ABC_Markup": "A",
+        "LitersSharePercent": 0.032467110816742646,
+        "RevenueSharePercent": 0.04273861628869774,
+        "RevenueAbcBase": 350.0,
+        "abc_stats": {
+          "CAC": 1
+        },
+        "xyz_stats": {},
+        "bucket_stats": {
+          "few": 1
+        },
+        "KegIds": [
+          "e08b4353-f66a-4d9d-b779-28f8a2ec743e"
+        ],
+        "CumulativePercent": 100.0,
+        "ABC_Category": "C"
+      }
+    ],
+    "total_categories": 13,
+    "abc_stats": {
+      "AAA": 2,
+      "ABA": 5,
+      "ACA": 4,
+      "BAB": 2,
+      "BBB": 5,
+      "BCB": 4,
+      "CAC": 4,
+      "CBC": 4,
+      "CCC": 3
+    },
+    "xyz_stats": {}
   }
 }

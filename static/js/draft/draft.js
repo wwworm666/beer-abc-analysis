@@ -22,6 +22,7 @@
         to: null,
         data: null,              // блок ответа /api/draft-kegs
         query: '',
+        catSort: { key: 'TotalRevenue', dir: -1 },
         kegSort: { key: 'TotalLiters', dir: -1 },
         btSort: { key: 'TotalLiters', dir: -1 },
         loading: false
@@ -300,8 +301,21 @@
             el.updated.hidden = true;
         }
 
+        // Плашка «XYZ не считается»: на неделе третьей буквы нет ни у кого,
+        // и колонка XYZ без объяснения выглядит сломанной.
+        if (data.xyz_available === false) {
+            el.xyzChip.hidden = false;
+            el.xyzChip.textContent = 'XYZ не считается: в периоде ' +
+                (period.weeks || 0) + ' ' +
+                plural(period.weeks || 0, 'полная неделя', 'полные недели', 'полных недель') +
+                ', нужно от 3';
+        } else {
+            el.xyzChip.hidden = true;
+        }
+
         renderSummary(data);
         renderBuckets(data);
+        renderCategories();
         renderKegs();
         renderBartenders();
         renderBalance(data);
@@ -417,12 +431,172 @@
         openDrawer(html);
     }
 
+    // ---------- категории ----------
+    // Стиль у кега берётся с блюда-порции (core/draft_kegs.py, _pick_style):
+    // у самого кега группы стиля в номенклатуре нет.
+
+    function renderCategories() {
+        var data = state.data;
+        var rows = sortRows(data.categories || [], state.catSort);
+        var maxShare = rows.reduce(function (acc, c) {
+            return Math.max(acc, c.RevenueSharePercent || 0);
+        }, 0);
+
+        el.catCount.textContent = rows.length + ' ' +
+            plural(rows.length, 'категория', 'категории', 'категорий') + ' · все';
+
+        var html = '<div class="dr-row is-head">' +
+            '<span class="dr-th">#</span>' +
+            '<span class="dr-th">КАТЕГОРИЯ</span>' +
+            '<span class="dr-th r s" data-sort="KegsCount">КЕГОВ' +
+                sortMark(state.catSort, 'KegsCount') + '</span>' +
+            '<span class="dr-th r s" data-sort="TotalLiters">ЛИТРЫ' +
+                sortMark(state.catSort, 'TotalLiters') + '</span>' +
+            '<span class="dr-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
+                sortMark(state.catSort, 'TotalRevenue') + '</span>' +
+            '<span class="dr-th r">ДОЛЯ В ВЫРУЧКЕ</span>' +
+            '<span class="dr-th r s" data-sort="TotalMargin">МАРЖА' +
+                sortMark(state.catSort, 'TotalMargin') + '</span>' +
+            '<span class="dr-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
+                sortMark(state.catSort, 'MarkupPercent') + '</span>' +
+            '<span class="dr-th c">ABC</span>' +
+            '</div>';
+
+        rows.forEach(function (cat, index) {
+            html += '<div class="dr-row is-body" data-cat="' + esc(cat.Category) + '">' +
+                '<span class="dr-rank">' + (index + 1) + '</span>' +
+                '<span class="dr-name">' + esc(cat.Category) + '</span>' +
+                '<span class="dr-num">' + cat.KegsCount + '</span>' +
+                '<span class="dr-num strong">' + num(cat.TotalLiters) + '</span>' +
+                '<span class="dr-num strong">' + money(cat.TotalRevenue) + '</span>' +
+                shareCell(cat.RevenueSharePercent, maxShare) +
+                '<span class="dr-num">' + money(cat.TotalMargin) + '</span>' +
+                '<span class="dr-num">' +
+                    (cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 0)) + '</span>' +
+                '<span class="dr-cell-c"><span class="dr-abc ' + abcClass(cat.ABC_Category) +
+                    '">' + esc(cat.ABC_Category) + '</span></span>' +
+                '</div>';
+        });
+
+        if (!rows.length) {
+            html += '<div class="dr-empty">за период проливов не было</div>';
+        } else {
+            html += '<div class="dr-row is-total">' +
+                '<span></span>' +
+                '<span class="dr-total-n">Итого · ' + rows.length + ' ' +
+                    plural(rows.length, 'категория', 'категории', 'категорий') + '</span>' +
+                '<span class="dr-total-v">' + (data.total_kegs || 0) + '</span>' +
+                '<span class="dr-total-v strong">' + num(data.total_liters) + '</span>' +
+                '<span class="dr-total-v strong">' + money(data.total_revenue) + '</span>' +
+                '<span class="dr-total-v">100,0%</span>' +
+                '<span class="dr-total-v">' + money(data.total_margin) + '</span>' +
+                '<span class="dr-total-v">' +
+                    (data.markup_percent === null ? '—' : pct(data.markup_percent, 0)) + '</span>' +
+                '<span></span></div>';
+        }
+        el.cats.innerHTML = html;
+    }
+
+    function openCategory(name) {
+        var data = state.data;
+        if (!data) return;
+        var cat = null;
+        (data.categories || []).forEach(function (c) { if (c.Category === name) cat = c; });
+        if (!cat) return;
+        var period = data.period || {};
+        var members = (data.kegs || []).filter(function (k) { return k.Category === name; });
+        members.sort(function (a, b) { return b.TotalRevenue - a.TotalRevenue; });
+
+        var html = '<div class="dr-dr-in">';
+        html += drawerHead(cat.Category,
+            'разрез: ' + (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
+
+        html += sub('ИТОГИ КАТЕГОРИИ');
+        html += '<div class="dr-cells">' +
+            cell('ВЫРУЧКА', money(cat.TotalRevenue)) +
+            cell('ДОЛЯ В ВЫРУЧКЕ', pct(cat.RevenueSharePercent, 1)) +
+            cell('НАКОПЛЕННЫМ ИТОГОМ', pct(cat.CumulativePercent, 1)) +
+            cell('ПРОЛИТО', num(cat.TotalLiters) + ' л') +
+            cell('ПОРЦИЙ', num(cat.TotalPortions)) +
+            cell('ДОЛЯ ПО ЛИТРАМ', pct(cat.LitersSharePercent, 1)) +
+            cell('МАРЖА', money(cat.TotalMargin)) +
+            cell('НАЦЕНКА', cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 1),
+                cat.MarkupPercent === null ? 'dash' : '') +
+            '</div>';
+
+        html += sub('ABC КАТЕГОРИИ', 'место среди категорий разреза');
+        html += '<div class="dr-abc-box"><div class="dr-abc-top">' +
+            '<span class="dr-abc-big ' + abcClass(cat.ABC_Category) + '">' +
+            esc(cat.ABC_Category) + '</span>' +
+            '<span class="dr-abc-meta">' + pct(cat.RevenueSharePercent, 1) +
+            ' от выручки разреза, накопленным итогом ' + pct(cat.CumulativePercent, 1) +
+            '</span></div>' +
+            '<div class="dr-abc-lines">' +
+            abcLine('Выручка', cat.ABC_Category, ABC_TEXT.Revenue[cat.ABC_Category]) +
+            abcLine('Наценка', cat.ABC_Markup || '?', ABC_TEXT.Markup[cat.ABC_Markup || '?'] +
+                (cat.MarkupPercent === null ? '' : ' (' + pct(cat.MarkupPercent, 1) + ')')) +
+            '</div></div>';
+
+        if (members.length) {
+            html += sub('КЕГИ КАТЕГОРИИ', 'клик — карточка кега');
+            html += '<div class="dr-who-row is-head">' +
+                '<span class="dr-th">КЕГ</span>' +
+                '<span class="dr-th r">ЛИТРЫ</span>' +
+                '<span class="dr-th r">ПОРЦ.</span>' +
+                '<span class="dr-th r">ВЫРУЧКА</span>' +
+                '<span class="dr-th r">В КАТЕГОРИИ</span></div>';
+            var maxShare = members.reduce(function (acc, k) {
+                return Math.max(acc, k.RevenueShareInCategoryPercent || 0);
+            }, 0);
+            members.forEach(function (keg) {
+                var width = maxShare > 0
+                    ? Math.max(4, (keg.RevenueShareInCategoryPercent || 0) / maxShare * 100) : 0;
+                html += '<div class="dr-who-row" data-keg="' + esc(keg.KegId) + '">' +
+                    '<span class="dr-name">' + esc(keg.KegName) + '</span>' +
+                    '<span class="dr-num strong">' + num(keg.TotalLiters) + '</span>' +
+                    '<span class="dr-num">' + num(keg.TotalPortions) + '</span>' +
+                    '<span class="dr-num">' + money(keg.TotalRevenue) + '</span>' +
+                    '<span class="dr-share"><span class="dr-bar dr-who-bar">' +
+                    '<i style="width:' + width.toFixed(1) + '%"></i></span>' +
+                    '<span class="dr-share-v">' + pct(keg.RevenueShareInCategoryPercent, 1) +
+                    '</span></span></div>';
+            });
+        } else {
+            html += '<div class="dr-empty">в этой категории сейчас нет кегов</div>';
+        }
+
+        html += '</div>';
+        openDrawer(html);
+    }
+
+    function weeksChart(series) {
+        if (!series || !series.length) return '';
+        var max = series.reduce(function (a, v) { return Math.max(a, v); }, 0);
+        var html = '<div class="dr-weeks">';
+        series.forEach(function (value, index) {
+            var height = max > 0 ? Math.max(2, value / max * 54) : 2;
+            html += '<div class="dr-week">' +
+                '<span class="dr-week-v">' + (value ? num(value, 0) : '') + '</span>' +
+                '<span class="dr-week-bar' + (value ? '' : ' zero') +
+                '" style="height:' + height.toFixed(0) + 'px"></span>' +
+                '<span class="dr-week-cap">н' + (index + 1) + '</span></div>';
+        });
+        return html + '</div>';
+    }
+
     function sortRows(rows, sort) {
         var copy = rows.slice();
+        // Строки без значения («—» у наценки: себестоимость не задана) всегда в
+        // конце, в обе стороны сортировки. Раньше они подменялись на -Infinity и
+        // при сортировке по возрастанию вставали первыми, как будто у них худшая
+        // наценка. Та же правка сделана на /packaging.
         copy.sort(function (a, b) {
             var av = a[sort.key], bv = b[sort.key];
-            if (av === null || av === undefined) av = -Infinity;
-            if (bv === null || bv === undefined) bv = -Infinity;
+            var aMissing = av === null || av === undefined || isNaN(av);
+            var bMissing = bv === null || bv === undefined || isNaN(bv);
+            if (aMissing && bMissing) return 0;
+            if (aMissing) return 1;
+            if (bMissing) return -1;
             if (av === bv) return 0;
             return av > bv ? sort.dir : -sort.dir;
         });
@@ -807,8 +981,8 @@
 
         var period = state.data.period || {};
         var html = '<div class="dr-dr-in">';
-        html += drawerHead(keg.KegName, 'разрез: ' + (state.bar || 'Общая') + ' · ' +
-            rangeLabel(period.from, period.to));
+        html += drawerHead(keg.KegName, esc(keg.Category || '') + ' · разрез: ' +
+            (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
 
         html += sub('ПРОДАЖИ');
         html += '<div class="dr-cells">' +
@@ -827,6 +1001,34 @@
             cell('НАЦЕНКА', keg.MarkupPercent === null ? '—' : pct(keg.MarkupPercent, 1),
                 keg.MarkupPercent === null ? 'dash' : '') +
             '</div>';
+
+        var bars = keg.ByBar || [];
+        if (bars.length > 1) {
+            // Разрез по барам показывается только в сводном разрезе: в разрезе
+            // одного бара строка была бы одна и повторяла бы таблицу выше.
+            html += sub('ПО БАРАМ', keg.BarsPresent + ' из ' + (state.bars || []).length);
+            html += '<div class="dr-who-row is-head">' +
+                '<span class="dr-th">БАР</span>' +
+                '<span class="dr-th r">ЛИТРЫ</span>' +
+                '<span class="dr-th r">ПОРЦ.</span>' +
+                '<span class="dr-th r">ВЫРУЧКА</span>' +
+                '<span class="dr-th r">ДОЛЯ КЕГА</span></div>';
+            var maxBar = bars.reduce(function (acc, b) {
+                return Math.max(acc, b.SharePercent || 0);
+            }, 0);
+            bars.forEach(function (bar) {
+                var width = maxBar > 0 ? Math.max(4, bar.SharePercent / maxBar * 100) : 0;
+                html += '<div class="dr-who-row is-static">' +
+                    '<span class="dr-name">' + esc(bar.Bar) + '</span>' +
+                    '<span class="dr-num strong">' + num(bar.Liters) + '</span>' +
+                    '<span class="dr-num">' + num(bar.Portions) + '</span>' +
+                    '<span class="dr-num">' + money(bar.Revenue) + '</span>' +
+                    '<span class="dr-share"><span class="dr-bar dr-who-bar">' +
+                    '<i style="width:' + width.toFixed(1) + '%"></i></span>' +
+                    '<span class="dr-share-v">' + pct(bar.SharePercent, 1) +
+                    '</span></span></div>';
+            });
+        }
 
         var people = keg.Bartenders || [];
         if (people.length) {
@@ -888,6 +1090,19 @@
         html += '<div class="dr-dr-note">Решение по ассортименту: ' +
             esc(bucketNameOf(keg.ABC_Bucket)) + '.</div>';
 
+        html += sub('ВТОРАЯ ШКАЛА', 'место внутри своей категории');
+        html += '<div class="dr-abc-box"><div class="dr-abc-lines" style="margin-top:0">' +
+            abcLine('В категории', keg.ABC_Revenue_InCategory,
+                ABC_TEXT.Revenue[keg.ABC_Revenue_InCategory] + ' · ' +
+                money(keg.TotalRevenue) + ' / ' + money(keg.RevenueBaseInCategory) +
+                ' (категория «' + (keg.Category || '') + '») = ' +
+                pct(keg.RevenueShareInCategoryPercent, 1) + ', накоплено ' +
+                pct(keg.RevenueCumulativeInCategoryPercent, 1)) +
+            '</div></div>';
+        html += '<div class="dr-dr-note">Буква по выручке считается дважды и от разных ' +
+            'баз: по всему разрезу и внутри своей категории. Обе верные, но означают ' +
+            'разное, поэтому показаны обе.</div>';
+
         html += sub('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="dr-cells three">' +
             cell('КАТЕГОРИЯ', keg.XYZ_Category || '—', keg.XYZ_Category ? '' : 'dash') +
@@ -896,6 +1111,11 @@
                 keg.CoefficientOfVariation === null ? 'dash' : '') +
             cell('НЕДЕЛЬ С ПРОДАЖАМИ', keg.WeeksWithSales) +
             '</div>';
+        // Один столбик на весь период ничего не показывает: ряд рисуется от двух
+        // недель, иначе в карточке стоит просто прямоугольник шириной в экран.
+        if ((keg.WeeklyLiters || []).length > 1) {
+            html += weeksChart(keg.WeeklyLiters);
+        }
         html += '<div class="dr-dr-note">' + xyzNote(keg) + '</div>';
 
         html += '</div>';
@@ -932,8 +1152,9 @@
                 'в полтора раза.' + tail;
         }
         if (keg.WeeksInPeriod < 3) {
-            return 'Категория не присвоена: в периоде ' + keg.WeeksInPeriod +
-                ' полных недель, нужно минимум 3.' + tail;
+            return 'Категория не присвоена: в периоде ' + keg.WeeksInPeriod + ' ' +
+                plural(keg.WeeksInPeriod, 'полная неделя', 'полные недели', 'полных недель') +
+                ', нужно минимум 3.' + tail;
         }
         return 'Категория не присвоена: позиция была на кране ' + keg.WeeksWithSales +
             ' нед. из ' + keg.WeeksInPeriod + ', для оценки стабильности нужно минимум 3.' +
@@ -1008,16 +1229,22 @@
     function onTableClick(event) {
         var head = event.target.closest('.dr-th.s');
         if (head) {
-            var table = head.closest('.dr-kegs') ? 'keg' : 'bt';
-            var sort = table === 'keg' ? state.kegSort : state.btSort;
+            var table = head.closest('.dr-cats') ? 'cat'
+                : (head.closest('.dr-kegs') ? 'keg' : 'bt');
+            var sort = table === 'cat' ? state.catSort
+                : (table === 'keg' ? state.kegSort : state.btSort);
             var key = head.dataset.sort;
             if (sort.key === key) { sort.dir = -sort.dir; } else { sort.key = key; sort.dir = -1; }
-            if (table === 'keg') { renderKegs(); } else { renderBartenders(); }
+            if (table === 'cat') { renderCategories(); }
+            else if (table === 'keg') { renderKegs(); }
+            else { renderBartenders(); }
             return;
         }
-        var row = event.target.closest('[data-keg],[data-bt]');
+        var row = event.target.closest('[data-keg],[data-bt],[data-cat]');
         if (!row) return;
-        if (row.dataset.keg) { openKeg(row.dataset.keg); } else { openBartender(row.dataset.bt); }
+        if (row.dataset.keg) { openKeg(row.dataset.keg); }
+        else if (row.dataset.cat) { openCategory(row.dataset.cat); }
+        else { openBartender(row.dataset.bt); }
     }
 
     function bind() {
@@ -1080,6 +1307,7 @@
             var card = event.target.closest('[data-bucket]');
             if (card) openBucket(card.dataset.bucket);
         });
+        el.cats.addEventListener('click', onTableClick);
         el.kegs.addEventListener('click', onTableClick);
         el.bts.addEventListener('click', onTableClick);
         el.losses.addEventListener('click', function (event) {
@@ -1088,9 +1316,11 @@
         });
         el.drawer.addEventListener('click', function (event) {
             if (event.target.closest('[data-close]')) { closeDrawer(); return; }
-            var row = event.target.closest('[data-keg],[data-bt]');
+            var row = event.target.closest('[data-keg],[data-bt],[data-cat]');
             if (!row) return;
-            if (row.dataset.keg) { openKeg(row.dataset.keg); } else { openBartender(row.dataset.bt); }
+            if (row.dataset.keg) { openKeg(row.dataset.keg); }
+            else if (row.dataset.cat) { openCategory(row.dataset.cat); }
+            else { openBartender(row.dataset.bt); }
         });
         el.backdrop.addEventListener('click', closeDrawer);
         document.addEventListener('keydown', function (event) {
@@ -1120,6 +1350,9 @@
             body: document.getElementById('drBody'),
             sum: document.getElementById('drSum'),
             buckets: document.getElementById('drBuckets'),
+            xyzChip: document.getElementById('drXyzChip'),
+            catCount: document.getElementById('drCatCount'),
+            cats: document.getElementById('drCats'),
             kegCount: document.getElementById('drKegCount'),
             search: document.getElementById('drSearch'),
             kegs: document.getElementById('drKegs'),
@@ -1159,6 +1392,7 @@
     if (typeof window !== 'undefined') {
         window.__draft = { state: state, render: render, openKeg: openKeg,
                            openBartender: openBartender, openBucket: openBucket,
+                           openCategory: openCategory,
                            num: num, fixed: fixed,
                            money: money, pct: pct,
                            signed: signed, esc: esc, plural: plural, lossTone: lossTone,

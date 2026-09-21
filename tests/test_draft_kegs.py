@@ -47,7 +47,7 @@ def trans(bar, keg_id, day, kind, out=0.0, inc=0.0, cost=0.0, name=None, unit='�
     }
 
 
-def sale(bar, dish_id, day, portions, revenue, cost, name=None, author=None):
+def sale(bar, dish_id, day, portions, revenue, cost, name=None, author=None, style=None):
     """Строка ответа get_draft_sales_by_dish().
 
     Даты в ответе нет: группировка идёт без OpenDate.Typed (деньги нигде не разбиваются
@@ -65,7 +65,125 @@ def sale(bar, dish_id, day, portions, revenue, cost, name=None, author=None):
     }
     if author is not None:
         row['AuthUser'] = author
+    if style is not None:
+        row['DishGroup.ThirdParent'] = style
     return row
+
+
+class TestCategories:
+    """Категория кега — стиль блюда, которым он продаётся: своей группы стиля у
+    кега в номенклатуре нет (все кеги лежат плоско в «Напитки Розлив / Kеги»)."""
+
+    @staticmethod
+    def _block(sales, rows=None, dish_map=None):
+        rows = rows or [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=40.0),
+            trans('Лиговский', KEG_B, '2026-08-05', 'SESSION_WRITEOFF', out=10.0),
+        ]
+        dish_map = dish_map or {DISH_A_05: [[KEG_A, 0.5]], DISH_B_05: [[KEG_B, 0.5]]}
+        return DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-31').build()
+
+    def test_category_comes_from_the_dish_style(self):
+        block = self._block([
+            sale('Лиговский', DISH_A_05, '2026-08-04', 80, 80000.0, 20000.0, style='ИПА (Р)'),
+            sale('Лиговский', DISH_B_05, '2026-08-05', 20, 20000.0, 5000.0, style='Хели (Р)'),
+        ])
+        by_id = {k['KegId']: k for k in block['kegs']}
+        assert by_id[KEG_A]['Category'] == 'ИПА (Р)'
+        assert by_id[KEG_B]['Category'] == 'Хели (Р)'
+        assert block['total_categories'] == 2
+        assert [c['Category'] for c in block['categories']] == ['ИПА (Р)', 'Хели (Р)']
+
+    def test_keg_without_sales_rows_has_no_category(self):
+        """Литры списаны, а строки продаж нет (граница учётного дня): блюда нет,
+        стиля взять неоткуда — кег остаётся без категории, но из таблицы не пропадает."""
+        rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=12.0),
+                trans('Лиговский', KEG_A, '2026-08-05', 'WRITEOFF', out=2.0)]
+        block = DraftKegAnalysis(rows, [], DISH_MAP, '2026-08-04', '2026-08-31').build()
+        assert len(block['kegs']) == 1
+        assert block['kegs'][0]['Category'] == 'Без категории (Р)'
+        assert block['categories'][0]['Category'] == 'Без категории (Р)'
+        assert block['categories'][0]['MarkupPercent'] is None
+
+    def test_empty_style_does_not_win(self):
+        """Блюдо без третьего уровня («НОВЫЕ АЛКОГОЛЬНЫЕ БЛЮДА») стиль не задаёт."""
+        block = self._block(
+            [sale('Лиговский', DISH_A_05, '2026-08-04', 10, 5000.0, 1000.0, style='Хели (Р)'),
+             sale('Лиговский', DISH_A_10, '2026-08-04', 40, 40000.0, 9000.0, style=None)],
+            dish_map={DISH_A_05: [[KEG_A, 0.5]], DISH_A_10: [[KEG_A, 1.0]]})
+        assert block['kegs'][0]['Category'] == 'Хели (Р)'
+
+    def test_two_styles_resolved_by_revenue(self):
+        """Кег кормит блюда двух стилей: побеждает тот, где больше выручки."""
+        block = self._block(
+            [sale('Лиговский', DISH_A_05, '2026-08-04', 10, 1000.0, 200.0, style='Хели (Р)'),
+             sale('Лиговский', DISH_A_10, '2026-08-04', 10, 9000.0, 2000.0, style='ИПА (Р)')],
+            dish_map={DISH_A_05: [[KEG_A, 0.5]], DISH_A_10: [[KEG_A, 1.0]]})
+        assert block['kegs'][0]['Category'] == 'ИПА (Р)'
+
+    def test_category_totals_match_the_scope(self):
+        block = self._block([
+            sale('Лиговский', DISH_A_05, '2026-08-04', 80, 80000.0, 20000.0, style='ИПА (Р)'),
+            sale('Лиговский', DISH_B_05, '2026-08-05', 20, 20000.0, 5000.0, style='Хели (Р)'),
+        ])
+        cats = block['categories']
+        assert sum(c['KegsCount'] for c in cats) == len(block['kegs'])
+        assert abs(sum(c['TotalLiters'] for c in cats) - block['total_liters']) < 1e-9
+        assert abs(sum(c['TotalRevenue'] for c in cats) - block['total_revenue']) < 1e-9
+        assert abs(sum(c['RevenueSharePercent'] for c in cats) - 100.0) < 1e-9
+        top = cats[0]
+        assert top['ABC_Category'] == 'A' and top['CumulativePercent'] == 80.0
+        assert top['MarkupPercent'] == 300.0
+
+    def test_place_inside_category_has_its_own_base(self):
+        """Вторая шкала: доля кега внутри категории считается от выручки категории."""
+        rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=40.0),
+                trans('Лиговский', KEG_B, '2026-08-05', 'SESSION_WRITEOFF', out=10.0)]
+        dish_map = {DISH_A_05: [[KEG_A, 0.5]], DISH_B_05: [[KEG_B, 0.5]]}
+        block = DraftKegAnalysis(rows, [
+            sale('Лиговский', DISH_A_05, '2026-08-04', 80, 75000.0, 20000.0, style='ИПА (Р)'),
+            sale('Лиговский', DISH_B_05, '2026-08-05', 20, 25000.0, 5000.0, style='ИПА (Р)'),
+        ], dish_map, '2026-08-04', '2026-08-31').build()
+        by_id = {k['KegId']: k for k in block['kegs']}
+        assert block['total_categories'] == 1
+        assert by_id[KEG_A]['RevenueBaseInCategory'] == 100000.0
+        assert by_id[KEG_A]['RevenueShareInCategoryPercent'] == 75.0
+        assert by_id[KEG_A]['ABC_Revenue_InCategory'] == 'A'
+        assert by_id[KEG_B]['RevenueCumulativeInCategoryPercent'] == 100.0
+
+
+class TestByBar:
+    """Разрез кега по барам: в сводном разрезе видно, где кег наливают."""
+
+    @staticmethod
+    def _block(bar_name=None):
+        rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=40.0),
+                trans('Варшавская', KEG_A, '2026-08-05', 'SESSION_WRITEOFF', out=10.0)]
+        sales = [sale('Лиговский', DISH_A_05, '2026-08-04', 80, 80000.0, 20000.0, style='ИПА (Р)'),
+                 sale('Варшавская', DISH_A_05, '2026-08-05', 20, 20000.0, 5000.0, style='ИПА (Р)')]
+        return DraftKegAnalysis(rows, sales, {DISH_A_05: [[KEG_A, 0.5]]},
+                                '2026-08-04', '2026-08-31').build(bar_name)
+
+    def test_bars_sorted_by_liters_with_shares(self):
+        keg = self._block()['kegs'][0]
+        assert [b['Bar'] for b in keg['ByBar']] == ['Лиговский', 'Варшавская']
+        assert keg['BarsPresent'] == 2
+        assert keg['ByBar'][0]['Liters'] == 40.0 and keg['ByBar'][0]['SharePercent'] == 80.0
+        assert keg['ByBar'][1]['SharePercent'] == 20.0
+        assert abs(sum(b['SharePercent'] for b in keg['ByBar']) - 100.0) < 1e-9
+        assert abs(sum(b['Liters'] for b in keg['ByBar']) - keg['TotalLiters']) < 1e-9
+        assert abs(sum(b['Revenue'] for b in keg['ByBar']) - keg['TotalRevenue']) < 1e-9
+        assert keg['ByBar'][0]['Margin'] == 80000.0 - 20000.0
+
+    def test_single_bar_scope_has_one_row(self):
+        keg = self._block('Лиговский')['kegs'][0]
+        assert len(keg['ByBar']) == 1 and keg['ByBar'][0]['Bar'] == 'Лиговский'
+        assert keg['ByBar'][0]['SharePercent'] == 100.0
+
+    def test_service_fields_are_not_leaked(self):
+        block = strip_service_fields(self._block())
+        for row in block['kegs']:
+            assert '_styles' not in row and '_bars' not in row and '_buckets' not in row
 
 
 # Техкарта: у литровой позиции кроме кега лежит ПЭТ-бутылка — она не кег и должна

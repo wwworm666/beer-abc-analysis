@@ -81,6 +81,7 @@ from core.abc_buckets import bucket_cards, decide_bucket
 from core.abc_thresholds import (
     KEG_MARKUP_A_MIN,
     KEG_MARKUP_B_MIN,
+    UNCATEGORIZED_KEGS,
     abc_letter_by_cumulative,
     markup_letter,
 )
@@ -209,6 +210,44 @@ def _abc_by_percentile(rows, value_key, letter_key):
     for index, row in enumerate(ordered):
         rank = (index + 1) / total * 100
         row[letter_key] = 'A' if rank <= 100 / 3 else ('B' if rank <= 200 / 3 else 'C')
+
+
+def _text(value):
+    """Строка из ответа OLAP: None и пустое значение -> пустая строка."""
+    return str(value).strip() if value is not None else ''
+
+
+def _pick_style(styles):
+    """Категория кега: стиль блюда с наибольшей выручкой.
+
+    Тай-брейк по порциям, затем по имени — порядок строк OLAP на результат не
+    влияет. Продаж в периоде не было, или у блюда нет третьего уровня дерева —
+    категории нет (UNCATEGORIZED_KEGS), позиция всё равно видна в таблице.
+    """
+    if not styles:
+        return UNCATEGORIZED_KEGS
+    best = sorted(styles.items(), key=lambda kv: (-kv[1][0], -kv[1][1], kv[0]))
+    return best[0][0]
+
+
+def _format_bars(bars, keg_liters, keg_revenue):
+    """Разрез кега по барам, по убыванию литров. Пустые бары отбрасываются."""
+    rows = []
+    for bar in bars or []:
+        if bar['Liters'] <= 0 and bar['Revenue'] <= 0:
+            continue
+        rows.append({
+            'Bar': bar['Bar'],
+            'Liters': bar['Liters'],
+            'Portions': bar['Portions'],
+            'Revenue': bar['Revenue'],
+            'Cost': bar['Cost'],
+            'Margin': bar['Revenue'] - bar['Cost'],
+            'SharePercent': (bar['Liters'] / keg_liters * 100) if keg_liters > 0 else 0.0,
+            'RevenueSharePercent': (bar['Revenue'] / keg_revenue * 100) if keg_revenue > 0 else 0.0,
+        })
+    rows.sort(key=lambda b: (-b['Liters'], -b['Revenue'], b['Bar'] or ''))
+    return rows
 
 
 class DraftKegAnalysis:
@@ -414,6 +453,16 @@ class DraftKegAnalysis:
                 entry['revenue'] = entry.get('revenue', 0.0) + revenue * share
                 entry['cost'] = entry.get('cost', 0.0) + cost * share
                 entry['portions'] = entry.get('portions', 0.0) + portions * share
+                # Стиль у кега свой группой не задан: все кеги лежат плоско в
+                # «Напитки Розлив / Kеги». Он берётся с блюда, которым кег
+                # продаётся (третий уровень дерева, «Хели (Р)»), и копится по
+                # деньгам: если кег кормит блюда двух стилей, побеждает тот,
+                # на который пришлось больше выручки.
+                style = _text(row.get('DishGroup.ThirdParent'))
+                if style:
+                    weights = entry.setdefault('_styles', {}).setdefault(style, [0.0, 0.0])
+                    weights[0] += max(revenue * share, 0.0)
+                    weights[1] += max(portions * share, 0.0)
 
         self.unmapped_dishes = sorted(unmapped.values(),
                                       key=lambda s: -s['Revenue'])
@@ -633,13 +682,28 @@ class DraftKegAnalysis:
 
         # Схлопываем бары, если разрез сводный: ключ строки — кег.
         merged = {}
-        for entry in kegs.values():
+        for entry in sorted(kegs.values(), key=lambda e: (e['keg_id'], e['bar'] or '')):
             key = entry['keg_id']
+            bar_row = {
+                'Bar': entry['bar'],
+                'Liters': entry.get('sold', 0.0),
+                'Portions': entry.get('portions', 0.0),
+                'Revenue': entry.get('revenue', 0.0),
+                'Cost': entry.get('cost', 0.0),
+            }
             target = merged.get(key)
             if target is None:
                 target = merged[key] = dict(entry)
                 target['buckets'] = dict(entry['buckets'])
+                # Копии, иначе разрез и стили одного бара утекли бы в общий кег.
+                target['_styles'] = {s: list(w) for s, w in (entry.get('_styles') or {}).items()}
+                target['_bars'] = [bar_row]
                 continue
+            target['_bars'].append(bar_row)
+            for style, weights in (entry.get('_styles') or {}).items():
+                total = target.setdefault('_styles', {}).setdefault(style, [0.0, 0.0])
+                total[0] += weights[0]
+                total[1] += weights[1]
             for field in ('sold', 'writeoff', 'inventory_out', 'inventory_in',
                           'invoice_in', 'transfer_in', 'transfer_out', 'sold_cost',
                           'revenue', 'cost', 'portions'):
@@ -684,6 +748,10 @@ class DraftKegAnalysis:
                 KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN,
             )
 
+        # Категории считаются после букв и групп: их счётчики складываются из
+        # уже проставленных полей кегов.
+        categories = self._build_categories(rows)
+
         rows.sort(key=lambda r: r['TotalLiters'], reverse=True)
 
         total_portions = sum(r['TotalPortions'] for r in rows)
@@ -713,6 +781,10 @@ class DraftKegAnalysis:
             'buckets': bucket_cards(rows, self.period_days, 'portions',
                                     KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN),
             'bucket_stats': _count_by(rows, 'ABC_Bucket'),
+            'abc_stats': _count_by(rows, 'ABC_Combined'),
+            'xyz_stats': _count_by(rows, 'XYZ_Category'),
+            'total_categories': len(categories),
+            'categories': categories,
             'kegs': rows,
             'total_bartenders': len(bartenders),
             'bartenders': bartenders,
@@ -760,6 +832,12 @@ class DraftKegAnalysis:
                                                for index in range(self.full_buckets)),
             'WriteoffLiters': entry['writeoff'],
             'InventoryNetLiters': entry['inventory_out'] - entry['inventory_in'],
+            'Category': _pick_style(entry.get('_styles')),
+            # Разрез по барам: в сводном разрезе показывает, где кег реально
+            # наливают. Доли проставляются ниже, когда известны литры кега.
+            'ByBar': _format_bars(entry.get('_bars'), liters, revenue),
+            'BarsPresent': len([b for b in (entry.get('_bars') or [])
+                                if b['Liters'] > 0 or b['Revenue'] > 0]),
             'XYZ_Category': None,
             'CoefficientOfVariation': None,
             # Кто наливал этот кег: карточка кега показывает разбивку по людям.
@@ -810,6 +888,68 @@ class DraftKegAnalysis:
             row['XYZ_Category'] = ('X' if cv <= XYZ_X_MAX_CV
                                    else ('Y' if cv <= XYZ_Y_MAX_CV else 'Z'))
 
+    def _build_categories(self, rows):
+        """Категории (стили) разреза: те же колонки, что у фасовки, но в литрах.
+
+        Категория кега — стиль блюда, которым он продаётся (см. _pick_style).
+        Заодно каждому кегу проставляется его место ВНУТРИ категории: на экране
+        это вторая шкала карточки, и база у неё своя, отличная от базы разреза.
+        """
+        groups = {}
+        for row in rows:
+            entry = groups.get(row['Category'])
+            if entry is None:
+                entry = groups[row['Category']] = {
+                    'Category': row['Category'],
+                    'KegsCount': 0, 'TotalLiters': 0.0, 'TotalPortions': 0.0,
+                    'TotalRevenue': 0.0, 'TotalCost': 0.0, '_rows': [],
+                }
+            entry['KegsCount'] += 1
+            entry['TotalLiters'] += row['TotalLiters']
+            entry['TotalPortions'] += row['TotalPortions']
+            entry['TotalRevenue'] += row['TotalRevenue']
+            entry['TotalCost'] += row['TotalCost']
+            entry['_rows'].append(row)
+
+        total_liters = sum(e['TotalLiters'] for e in groups.values())
+        total_revenue = sum(e['TotalRevenue'] for e in groups.values())
+
+        for entry in groups.values():
+            members = entry.pop('_rows')
+            entry['TotalMargin'] = entry['TotalRevenue'] - entry['TotalCost']
+            entry['MarkupPercent'] = ((entry['TotalMargin'] / entry['TotalCost'] * 100)
+                                      if entry['TotalCost'] > 0 else None)
+            share = None if entry['MarkupPercent'] is None else entry['MarkupPercent'] / 100
+            entry['ABC_Markup'] = markup_letter(share, KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
+            entry['LitersSharePercent'] = (entry['TotalLiters'] / total_liters * 100
+                                           if total_liters > 0 else 0.0)
+            entry['RevenueSharePercent'] = (entry['TotalRevenue'] / total_revenue * 100
+                                            if total_revenue > 0 else 0.0)
+            # Место кега внутри своей категории: база — выручка этой категории.
+            base = sum(max(r['TotalRevenue'], 0.0) for r in members)
+            ordered = sorted(members, key=lambda r: (-r['TotalRevenue'], r['KegName']))
+            cumulative = 0.0
+            for member in ordered:
+                before = (cumulative / base * 100) if base > 0 else 0.0
+                cumulative += max(member['TotalRevenue'], 0.0)
+                member['RevenueShareInCategoryPercent'] = (
+                    member['TotalRevenue'] / base * 100 if base > 0 else 0.0)
+                member['RevenueCumulativeInCategoryPercent'] = (
+                    cumulative / base * 100 if base > 0 else 0.0)
+                member['ABC_Revenue_InCategory'] = abc_letter_by_cumulative(before)
+                member['RevenueBaseInCategory'] = base
+            entry['RevenueAbcBase'] = base
+            entry['abc_stats'] = _count_by(members, 'ABC_Combined')
+            entry['xyz_stats'] = _count_by(members, 'XYZ_Category')
+            entry['bucket_stats'] = _count_by(members, 'ABC_Bucket')
+            entry['KegIds'] = [r['KegId'] for r in ordered]
+
+        categories = sorted(groups.values(),
+                            key=lambda c: (-c['TotalRevenue'], c['Category']))
+        # Буква категории — Парето по выручке среди категорий, как у фасовки.
+        _abc_by_cumulative(categories, 'TotalRevenue', 'ABC_Category', 'CumulativePercent')
+        return categories
+
     def _build_losses(self, merged, total_liters):
         """Баланс кегов за период: приход, расход и то, что не продано.
 
@@ -858,7 +998,9 @@ class DraftKegAnalysis:
 
 
 def strip_service_fields(block):
-    """Убрать из строк служебные поля перед отдачей в JSON (корзины XYZ)."""
+    """Убрать служебные поля перед отдачей в JSON: недельные корзины, накопленные
+    стили и разрез по барам до форматирования."""
     for row in block.get('kegs', []):
-        row.pop('_buckets', None)
+        for field in ('_buckets', '_styles', '_bars'):
+            row.pop(field, None)
     return block

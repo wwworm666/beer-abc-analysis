@@ -473,6 +473,7 @@ body.draft-page .container { padding: 0; }
 }
 .dr-table-in { padding: 6px 18px 4px; }
 .dr-kegs .dr-table-in { min-width: 1020px; }
+.dr-cats .dr-table-in { min-width: 980px; }
 .dr-bts .dr-table-in { min-width: 980px; }
 
 .dr-row {
@@ -482,6 +483,9 @@ body.draft-page .container { padding: 0; }
 }
 .dr-kegs .dr-row {
     grid-template-columns: 30px minmax(215px, 1.6fr) 88px 76px 108px 106px 90px 78px 62px 44px;
+}
+.dr-cats .dr-row {
+    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 108px 104px 84px 46px;
 }
 .dr-bts .dr-row {
     grid-template-columns: 30px minmax(175px, 1.4fr) 100px 92px 84px 60px 106px 102px 78px 90px;
@@ -802,6 +806,9 @@ body.draft-page .container { padding: 0; }
     transition: background .12s ease;
 }
 .dr-who-row.is-head { padding: 6px 0 7px; border-top: none; cursor: default; }
+/* Разрез по барам: строка не открывает карточку — карточки бара нет. */
+.dr-who-row.is-static { cursor: default; }
+.dr-who-row.is-static:hover { background: transparent; }
 .dr-who-row.is-head:hover { background: transparent; }
 .dr-who-row:hover { background: var(--dr-hover); }
 .dr-who-bar { width: 36px; }
@@ -885,6 +892,19 @@ body.draft-page .container { padding: 0; }
     .dr-key-row { grid-template-columns: 1fr; gap: 6px; }
     .dr-key-cell { white-space: normal; }
 }
+/* Недельные столбики спроса в карточке кега: зеркало .pk-weeks на фасовке. */
+.dr-weeks { display: flex; align-items: flex-end; gap: 6px; min-height: 86px; margin-top: 4px; }
+.dr-week { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.dr-week-bar {
+    width: 100%;
+    background: var(--dr-accent);
+    border-radius: 4px 4px 0 0;
+    min-height: 2px;
+}
+.dr-week-bar.zero { background: var(--dr-track); }
+.dr-week-cap { font: 500 9.5px/1 var(--dr-mono); color: var(--dr-ink5); }
+.dr-week-v { font: 600 10.5px/1 var(--dr-mono); color: var(--dr-ink3); }
+
 .dr-abc-cat { font: 600 12.5px/1.3 var(--dr-sans); width: 74px; flex: none; }
 .dr-abc-txt { font: 400 12px/1.5 var(--dr-sans); color: var(--dr-ink3); }
 .dr-dr-note { margin-top: 10px; font: 400 11.5px/1.65 var(--dr-sans); color: var(--dr-ink4); }
