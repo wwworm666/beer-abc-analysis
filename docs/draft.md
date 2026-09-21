@@ -26,7 +26,7 @@
 | [static/draft/draft.css](../static/draft/draft.css) | Оформление по макету: токены `--dr-*`, тёмная тема, телефон |
 | [static/js/draft/draft.js](../static/js/draft/draft.js) | Сборка экрана: фильтры, таблицы, сортировка, поиск, карточки |
 | [routes/analysis.py](../routes/analysis.py) | Эндпоинт `/api/draft-kegs` — весь экран одним ответом |
-| [core/draft_loader.py](../core/draft_loader.py) | `load_draft_kegs(bar_name, date_from, date_to)` — три запроса к iiko и кэш `cached_olap` (10 мин, ключ `draft_kegs_{бар\|ALL}_{from}_{to+1}`). С 2026-09-04 общий для `/api/draft-kegs` и вкладки «Литры» карточек розлива дашборда ([dashboard.md](dashboard.md), «Детали внутри карточки»): при совпадении бара и периода оба экрана читают одну запись кэша, и цифры у них равны по построению |
+| [core/draft_loader.py](../core/draft_loader.py) | `load_draft_kegs(bar_name, date_from, date_to)` — три запроса к iiko и кэш `cached_olap` (10 мин, ключ `draft_kegs_v2_{бар\|ALL}_{from}_{to+1}`; версия в ключе меняется вместе с набором полей в запросах, иначе первые 10 минут после выкатки читался бы старый кэш). С 2026-09-04 общий для `/api/draft-kegs` и вкладки «Литры» карточек розлива дашборда ([dashboard.md](dashboard.md), «Детали внутри карточки»): при совпадении бара и периода оба экрана читают одну запись кэша, и цифры у них равны по построению |
 | [routes/pages.py](../routes/pages.py) | `/draft`, а также `/waiters` -> 301 на `/draft` |
 | [core/draft_kegs.py](../core/draft_kegs.py) | Расчёт: `DraftKegAnalysis`, все формулы |
 | [core/abc_buckets.py](../core/abc_buckets.py) | Решения по ассортименту: те же шесть групп, что на `/packaging`, продажи считаются порциями |

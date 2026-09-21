@@ -1090,6 +1090,9 @@
         html += '<div class="dr-dr-note">Решение по ассортименту: ' +
             esc(bucketNameOf(keg.ABC_Bucket)) + '.</div>';
 
+        // Вторая шкала рисуется только когда категории пришли: на ответе без них
+        // (старый кэш) в формуле стояло бы «NaN ₽».
+        if (typeof keg.RevenueBaseInCategory === 'number') {
         html += sub('ВТОРАЯ ШКАЛА', 'место внутри своей категории');
         html += '<div class="dr-abc-box"><div class="dr-abc-lines" style="margin-top:0">' +
             abcLine('В категории', keg.ABC_Revenue_InCategory,
@@ -1102,6 +1105,7 @@
         html += '<div class="dr-dr-note">Буква по выручке считается дважды и от разных ' +
             'баз: по всему разрезу и внутри своей категории. Обе верные, но означают ' +
             'разное, поэтому показаны обе.</div>';
+        }
 
         html += sub('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="dr-cells three">' +

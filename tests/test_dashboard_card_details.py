@@ -652,7 +652,7 @@ class DraftLoaderSharesCache(unittest.TestCase):
         with patch("core.draft_loader.OlapReports", self.DraftOlap):
             raw = load_draft_kegs(None, PERIOD["date_from"], PERIOD["date_to"])
             self.assertEqual({"transactions", "sales", "dish_map", "fetched_at"}, set(raw))
-            self.assertIn("draft_kegs_ALL_2026-08-24_2026-08-31", DASHBOARD_OLAP_CACHE)
+            self.assertIn("draft_kegs_v2_ALL_2026-08-24_2026-08-31", DASHBOARD_OLAP_CACHE)
             client = make_client()
             response = client.post("/api/draft-kegs", json={"bar": "", **PERIOD})
             # Пустые проводки: страница честно отдаёт 404 «Нет данных», но в iiko не ходит -
