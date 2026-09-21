@@ -73,6 +73,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 | [docs/me.md](../docs/me.md) | **Личный кабинет `/me`** — всё про одного человека: смена, месяц, показатели, KPI, деньги. Живое из графика + ночной снимок на томе; деньги совпадают с `/salary` — инвариант закреплён тестом с 24.08.2026, до того расходились; резолвер личности и три закрытых дефекта «чужая зарплата» | ✅ |
 | [docs/cleanliness.md](../docs/cleanliness.md) | **Чистота — приёмка бара** `/cleanliness`: вопрос «Как принял бар?» на `/me` (чисто / замечания / плохо+фото), журнал месяца для владельца, схема `shifts.db` v11, хранилище фото | ✅ |
 | [docs/goals.md](../docs/goals.md) | Цели месяца `/goals` — памятка персоналу: план выручки по дням + KPI-цели месяца по каждой точке, разбивка Все/Крем/Варш/ВО/Лиг, печать/PDF. Сборка из готовых данных, без нового расчёта | ✅ |
+| [docs/guides/secrets-rotation.md](../docs/guides/secrets-rotation.md) | **Обновление секретов** — два места хранения (`/opt/beer/.env` и GitHub Secrets), пошагово с ноутбука на Windows, таблица «какой секрет где нужен», порядок действий при утечке | ✅ |
 | [docs/guides/deploy.md](../docs/guides/deploy.md) | **Деплой на прод** — GitHub Actions после обновления `main` и кнопка Run workflow; однократное подключение VPS, тесты, сборка конкретного SHA, проверка HTTPS, восстановление прежнего образа; ограничения маунтов данных | ✅ |
 | [docs/auth.md](../docs/auth.md) | Авторизация: вход один раз (долгая сессия), глобальный гейт, личные аккаунты, /admin/users, стабильный SECRET_KEY | ✅ |
 | [docs/ai-agent-concept.md](../docs/ai-agent-concept.md) | Концепт ИИ-агента NL-вопрос -> детерминированный ответ из iiko: gap-матрица 15 вопросов, лимиты API, архитектура | Концепт |
@@ -95,7 +96,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 | Папка | Что внутри |
 |---|---|
-| [docs/guides/](../docs/guides/) | DEPLOYMENT_GUIDE, BACKUP_SETUP, TAPS_*.md, TELEGRAM_BOT_GUIDE (токены — только места хранения, ротация), ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ |
+| [docs/guides/](../docs/guides/) | DEPLOYMENT_GUIDE, BACKUP_SETUP, TAPS_*.md, TELEGRAM_BOT_GUIDE (токены — только места хранения), secrets-rotation (обновление секретов), ИНСТРУКЦИЯ_ДЛЯ_БАРМЕНОВ |
 | [docs/technical/](../docs/technical/) | IIKO_API_REFERENCE, MAPPING_*, SYNC_FLOW_VISUAL, CODE_ANALYSIS_COMPLETE, ORDERIA_CASHAPI |
 | [docs/changelog/](../docs/changelog/) | Исторические фиксы (BEER_SHARE_CALCULATION_BUG, FIX_DATE_HANDLING, etc.) |
 | [docs/iiko-api/](../docs/iiko-api/) | Локальная копия всех статей API-документации портала `ru.iiko.help` (153 шт., оглавление в INDEX.md папки). Синк: `py -3 scripts/fetch_iiko_api_docs.py` |

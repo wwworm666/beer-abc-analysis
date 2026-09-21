@@ -330,10 +330,11 @@ Workflow берёт значение из секрета `TELEGRAM_BOT_TOKEN` р
 | `TELEGRAM_BOT_TOKEN` | `.env` на сервере (подключается через `env_file` в `docker-compose.yml`); копия — в GitHub Secrets репозитория для workflow «Telegram webhook» |
 | `TELEGRAM_GROUP_CHAT_ID` | там же, в `.env` сервера |
 
-Ротация токена: `@BotFather` → `/revoke` для старого, затем новое значение
-записать в `.env` сервера, перезапустить `docker compose up -d app` и обновить
-секрет `TELEGRAM_BOT_TOKEN` в Settings → Secrets and variables → Actions.
-Список переменных проекта — в [.env.example](../../.env.example).
+Ротация токена по шагам, с командами для Windows — в
+[secrets-rotation.md](secrets-rotation.md). Коротко: `@BotFather` → `/revoke`,
+новое значение в `/opt/beer/.env` на сервере, `docker compose up -d --no-build app`,
+затем обновить секрет `TELEGRAM_BOT_TOKEN` в Settings → Secrets and variables →
+Actions. Список переменных проекта — в [.env.example](../../.env.example).
 
 ---
 

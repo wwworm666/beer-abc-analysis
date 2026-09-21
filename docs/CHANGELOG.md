@@ -46,6 +46,14 @@ GitHub — только ради workflow «Telegram webhook», чтобы ве�
   рендерится ни одним маршрутом, внутри старая кнопка V2 и формы подключения без GUID) и
   `git rm --cached chz_test/debug/token.json`.
 
+**Дополнение того же дня.** Владелец: «дай мне нормальную инструкцию как обновить
+секреты, я не знаю как это сделать с ноутбука». Выяснилось, что порядок ротации нигде не
+описан: где источник истины (`/opt/beer/.env`, а не GitHub), чем от него отличается копия
+в Secrets, почему изменение применяется пересозданием контейнера без пересборки образа.
+Добавлен [docs/guides/secrets-rotation.md](guides/secrets-rotation.md) — шаги с командами
+для PowerShell, таблица «какой секрет где нужен», порядок действий при утечке (сначала
+отзыв значения, удаление строки — последним). Гайд бота и INDEX ссылаются на него.
+
 **Файлы.** `.github/workflows/telegram-webhook.yml`, `tests/test_no_committed_secrets.py`,
 `static/js/taps/taplist.js`, `routes/taps.py`, `core/taplist.py`, `telegram_bot.py`,
 `templates/taps_main.html`, `templates/taps_bar.html`, `tests/test_taplist_v2.py`,
