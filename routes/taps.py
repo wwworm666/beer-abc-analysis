@@ -238,8 +238,10 @@ def export_taplist():
         else:
             filename = "taplist.csv"
 
-        # Создаём response с правильными заголовками
-        response = make_response(csv_content)
+        # BOM обязателен: Excel на Windows без него читает кириллицу как мусор.
+        # V2 его ставит, и раз обе кнопки теперь стоят рядом на /taps, они
+        # должны вести себя одинаково.
+        response = make_response('\ufeff' + csv_content)
         response.headers['Content-Type'] = 'text/csv; charset=utf-8'
         # Используем RFC 5987 для корректной работы с кириллицей
         response.headers['Content-Disposition'] = f"attachment; filename={filename}; filename*=UTF-8''{quote(filename)}"

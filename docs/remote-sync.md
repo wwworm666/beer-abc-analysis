@@ -65,7 +65,7 @@ Set-Service -Name sshd -StartupType Automatic
 
 ```cmd
 net user sshuser /add
-net user sshuser chz2026
+net user sshuser <пароль sshuser, см. менеджер паролей>
 ```
 
 ### 3. Настройка SSH-ключа

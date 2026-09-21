@@ -326,8 +326,8 @@ CV = (Стандартное отклонение / Среднее) × 100
 ```python
 IIKO_SERVER = "first-federation.iiko.it"
 IIKO_PORT = "443"
-IIKO_LOGIN = "claude544"
-IIKO_PASSWORD = "ApiPass2024!"
+IIKO_LOGIN = "<IIKO_LOGIN из .env>"
+IIKO_PASSWORD = "<IIKO_PASSWORD из .env>"
 IIKO_BASE_URL = f"https://{IIKO_SERVER}:{IIKO_PORT}/resto/api"
 ```
 **Важно:** В production переместить в переменные окружения

@@ -75,7 +75,15 @@ jobs:
               printf 'data-urlencode = "url=%s"\n' "$WEBHOOK_URL"
             fi
           }
-          status=$(config | curl --config - --output response.json --write-out '%{http_code}')
+          # Присваивание не должно валить шаг: при HTTP >= 400 curl с
+          # fail-with-body выходит с кодом 22, и под set -e скрипт умирал бы
+          # прямо здесь — ровно там, где нужно показать причину отказа.
+          rc=0
+          status=$(config | curl --config - --output response.json --write-out '%{http_code}') || rc=$?
+          [[ -f response.json ]] || : > response.json
+          if [[ "$rc" != 0 && -z "$status" ]]; then
+            echo "curl завершился с кодом $rc, ответа нет" >&2
+          fi
 
           # Ответ печатаем только после вычистки значения: штатные ответы Bot API
           # токена не содержат, но полагаться на это для секрета нельзя, а

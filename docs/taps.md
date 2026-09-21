@@ -45,8 +45,6 @@
 - [templates/taps_main.html](../templates/taps_main.html) — выбор бара.
 - [templates/taps_bar.html](../templates/taps_bar.html) — рабочая страница бара;
   JavaScript встроен в шаблон.
-- [templates/taps.html](../templates/taps.html) — прежний шаблон; текущие маршруты
-  его не рендерят, его интерфейс и таймеры не описывают актуальную страницу.
 - [routes/stocks.py](../routes/stocks.py), [templates/stocks.html](../templates/stocks.html)
   — соединение активных сортов со складскими остатками.
 - [data/taps_data.json](../data/taps_data.json) — локальное состояние кранов.

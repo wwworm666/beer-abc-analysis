@@ -103,19 +103,18 @@
 
 ### Этап 3: Загрузка при старте приложения
 
-**Файл:** `app.py` (строки 50-65)
+**Файл:** `extensions.py` (строки 147-157). Вход вебхука — `routes/misc.py:164`.
 
 ```python
-# Инициализируем Telegram бота (webhook режим)
 import telegram_webhook
-
-# Загружаем маппинг пива для бота
-beer_mapping_file = 'data/beer_info_mapping.json'
-with open(beer_mapping_file, 'r', encoding='utf-8') as f:
-    beer_mapping_for_bot = json.load(f)
-
-# Передаем источники данных в telegram модуль
+beer_mapping_file = os.path.join(os.path.dirname(__file__), 'data', 'beer_info_mapping.json')
+beer_mapping_for_bot = {}
+if os.path.exists(beer_mapping_file):
+    with open(beer_mapping_file, 'r', encoding='utf-8') as f:
+        beer_mapping_for_bot = json.load(f)
+    print(f"[TELEGRAM] Загружен маппинг пива: {len(beer_mapping_for_bot)} записей")
 telegram_webhook.set_data_sources(taps_manager, beer_mapping_for_bot)
+TELEGRAM_BOT_ENABLED = True
 ```
 
 **Маппинг загружается один раз** при старте Flask приложения.

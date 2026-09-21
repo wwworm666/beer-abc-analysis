@@ -229,7 +229,7 @@ beer-abc-analysis/
 
 **Код:**
 ```python
-IIKO_PASSWORD = "ApiPass2024!"  # ⚠️ ХРАНИТСЯ В РЕПОЗИТОРИИ!
+IIKO_PASSWORD = "<IIKO_PASSWORD из .env>"  # ⚠️ ХРАНИТСЯ В РЕПОЗИТОРИИ!
 ```
 
 **Проблема:** Учетные данные iiko API хранятся в открытом виде и могут быть скомпрометированы.
@@ -247,7 +247,7 @@ if not IIKO_PASSWORD:
 **Render deployment:**
 ```bash
 # В настройках Render добавить Environment Variable:
-IIKO_PASSWORD = ApiPass2024!
+IIKO_PASSWORD = <IIKO_PASSWORD из .env>
 ```
 
 ---
