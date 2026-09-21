@@ -305,9 +305,11 @@
         // и колонка XYZ без объяснения выглядит сломанной.
         if (data.xyz_available === false) {
             el.xyzChip.hidden = false;
-            el.xyzChip.textContent = 'XYZ не считается: в периоде ' +
-                (period.weeks || 0) + ' ' +
-                plural(period.weeks || 0, 'полная неделя', 'полные недели', 'полных недель') +
+            // Полных недель — целое xyz_buckets, а не period.weeks (там дробь
+            // дней/7: на трёхдневном периоде получалось «0.42857142857142855»).
+            var fullWeeks = data.xyz_buckets || 0;
+            el.xyzChip.textContent = 'XYZ не считается: в периоде ' + fullWeeks + ' ' +
+                plural(fullWeeks, 'полная неделя', 'полные недели', 'полных недель') +
                 ', нужно от 3';
         } else {
             el.xyzChip.hidden = true;
@@ -981,7 +983,9 @@
 
         var period = state.data.period || {};
         var html = '<div class="dr-dr-in">';
-        html += drawerHead(keg.KegName, esc(keg.Category || '') + ' · разрез: ' +
+        // Без esc(): drawerHead экранирует подзаголовок целиком, иначе «&» в
+        // названии стиля показался бы как «&amp;».
+        html += drawerHead(keg.KegName, (keg.Category || '') + ' · разрез: ' +
             (state.bar || 'Общая') + ' · ' + rangeLabel(period.from, period.to));
 
         html += sub('ПРОДАЖИ');
@@ -1003,9 +1007,10 @@
             '</div>';
 
         var bars = keg.ByBar || [];
-        if (bars.length > 1) {
-            // Разрез по барам показывается только в сводном разрезе: в разрезе
-            // одного бара строка была бы одна и повторяла бы таблицу выше.
+        if (bars.length && !state.bar) {
+            // Только в сводном разрезе: в разрезе одного бара строка была бы одна
+            // и повторяла бы таблицу выше. Кег из одного бара показывается тоже —
+            // «в каком баре он стоит» и есть главный вопрос к этой секции.
             html += sub('ПО БАРАМ', keg.BarsPresent + ' из ' + (state.bars || []).length);
             html += '<div class="dr-who-row is-head">' +
                 '<span class="dr-th">БАР</span>' +

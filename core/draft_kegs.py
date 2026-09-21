@@ -936,7 +936,11 @@ class DraftKegAnalysis:
                     member['TotalRevenue'] / base * 100 if base > 0 else 0.0)
                 member['RevenueCumulativeInCategoryPercent'] = (
                     cumulative / base * 100 if base > 0 else 0.0)
-                member['ABC_Revenue_InCategory'] = abc_letter_by_cumulative(before)
+                # При нулевой базе (вся категория без выручки) буквы нет смысла
+                # раздавать: иначе кег, не заработавший ничего, объявляется
+                # лидером категории. Та же оговорка у фасовки.
+                member['ABC_Revenue_InCategory'] = (
+                    abc_letter_by_cumulative(before) if base > 0 else 'C')
                 member['RevenueBaseInCategory'] = base
             entry['RevenueAbcBase'] = base
             entry['abc_stats'] = _count_by(members, 'ABC_Combined')

@@ -135,6 +135,19 @@ class TestCategories:
         assert top['ABC_Category'] == 'A' and top['CumulativePercent'] == 80.0
         assert top['MarkupPercent'] == 300.0
 
+    def test_zero_revenue_category_gets_no_leader(self):
+        """Вся категория без выручки: буквы внутри категории нет смысла раздавать,
+        иначе кег, не заработавший ничего, объявляется лидером. Как на фасовке — C."""
+        rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=12.0),
+                trans('Лиговский', KEG_B, '2026-08-04', 'SESSION_WRITEOFF', out=8.0)]
+        block = DraftKegAnalysis(rows, [], DISH_MAP, '2026-08-04', '2026-08-31').build()
+        assert block['total_categories'] == 1
+        assert block['categories'][0]['RevenueAbcBase'] == 0.0
+        for keg in block['kegs']:
+            assert keg['TotalRevenue'] == 0.0
+            assert keg['ABC_Revenue_InCategory'] == 'C', keg['KegId']
+            assert keg['RevenueShareInCategoryPercent'] == 0.0
+
     def test_place_inside_category_has_its_own_base(self):
         """Вторая шкала: доля кега внутри категории считается от выручки категории."""
         rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=40.0),

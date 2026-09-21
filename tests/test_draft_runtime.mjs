@@ -370,13 +370,22 @@ test('карточка кега: разрез по барам, вторая шк
         `столбиков ${bars} при ${weeks} неделях в периоде`);
 });
 
-test('карточка кега одного бара: секции «по барам» нет', () => {
+test('разрез по барам: в «Общей» есть даже у кега из одного бара, в разрезе бара нет', () => {
     const dapi = env.sandbox.window.__draft;
     const keg = BLOCK.kegs.find((k) => (k.ByBar || []).length === 1);
     assert.ok(keg, 'в фикстуре нет кега из одного бара');
+    // «Общая»: вопрос «в каком баре стоит этот кег» — главный, секция нужна.
+    dapi.state.bar = '';
+    dapi.openKeg(keg.KegId);
+    assert.ok(env.byId.drDrawer.innerHTML.includes('ПО БАРАМ'),
+        'в сводном разрезе не видно, в каком баре кег');
+    assert.ok(env.byId.drDrawer.innerHTML.includes(dapi.esc(keg.ByBar[0].Bar)), 'нет имени бара');
+    // Разрез одного бара: строка повторяла бы таблицу выше.
+    dapi.state.bar = keg.ByBar[0].Bar;
     dapi.openKeg(keg.KegId);
     assert.ok(!env.byId.drDrawer.innerHTML.includes('ПО БАРАМ'),
-        'разрез по барам показан там, где бар один');
+        'разрез по барам показан в разрезе одного бара');
+    dapi.state.bar = '';
 });
 
 test('плашка «XYZ не считается» на коротком периоде', () => {
@@ -385,6 +394,25 @@ test('плашка «XYZ не считается» на коротком пер�
     assert.equal(env.byId.drXyzChip.hidden, false, 'плашка скрыта, хотя XYZ не считается');
     assert.match(env.byId.drXyzChip.textContent, /XYZ не считается/, 'плашка без текста');
     assert.match(env.byId.drXyzChip.textContent, /нужно от 3/, 'в плашке нет порога');
+    assert.ok(env.byId.drXyzChip.textContent.includes(' ' + BLOCK.xyz_buckets + ' полн'),
+        'число полных недель в плашке не из xyz_buckets');
+});
+
+test('плашка считает полные недели целым, а не дробью дней на семь', () => {
+    // period.weeks — это дни/7: на трёхдневном периоде из него выходило
+    // «в периоде 0.42857142857142855 полных недель».
+    const dapi = env.sandbox.window.__draft;
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    data.period = Object.assign({}, data.period, { days: 3, weeks: 3 / 7 });
+    data.xyz_buckets = 0;
+    data.xyz_available = false;
+    dapi.state.data = data;
+    dapi.render();
+    const text = env.byId.drXyzChip.textContent;
+    assert.ok(!/\d\.\d/.test(text), `в плашке дробное число недель: ${text}`);
+    assert.ok(text.includes('в периоде 0 полных недель'), `плашка говорит «${text}»`);
+    dapi.state.data = BLOCK;
+    dapi.render();
 });
 
 test('опасные символы в данных экранируются', () => {
