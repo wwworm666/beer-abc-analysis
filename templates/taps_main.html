@@ -93,6 +93,40 @@
             color: var(--text-tertiary);
         }
 
+        /* Выгрузки по всем барам */
+        .header-controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .export-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .export-btn:hover:not(:disabled) {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        /* Выгрузка V2 ждёт живой прайс iiko: показываем, что кнопка занята */
+        .export-btn.loading,
+        .export-btn:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .bars-grid {
@@ -120,13 +154,32 @@
         {% set page_subtitle = "Активность и простои по барам" %}
         {% include 'shared/nav.html' %}
 
+        <!-- Выгрузки по всем четырём барам сразу; по одному бару — на его странице -->
+        <div class="header-controls">
+            <button class="export-btn" onclick="downloadAllTaplist(this)"
+                    title="Бар, номер крана, название пива">Таплист (все бары)</button>
+            <button class="export-btn" onclick="downloadAllTaplistFull(this)"
+                    title="Название, цена и порция из iiko, производитель, фото, описание">Таплист V2 (все бары)</button>
+        </div>
+
         <!-- Bars Grid -->
         <div class="bars-grid" id="bars-grid">
             <!-- Bars will be loaded here -->
         </div>
     </div>
 
+    <script src="/static/js/taps/taplist.js?v={{ app_version }}"></script>
     <script>
+        // Бар, кран, название пива по всем барам.
+        function downloadAllTaplist(button) {
+            downloadTaplistFile(button, '/api/taps/export-taplist', 'taplist.csv');
+        }
+
+        // То же плюс действующая цена и порция из iiko, производитель, фото, описание.
+        function downloadAllTaplistFull(button) {
+            downloadTaplistFile(button, '/api/taps/export-taplist-full', 'taplist_full.csv');
+        }
+
         const bars = [
             { id: 'bar1', name: 'Большой пр. В.О', taps: 24 },
             { id: 'bar2', name: 'Лиговский', taps: 12 },

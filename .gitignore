@@ -105,5 +105,10 @@ data/*.db.backup_v*
 data/secret_key
 secret_key
 
+# Кэш токена «Честного знака»: chz_test/chz.py пишет его в debug/ при каждом
+# запуске. Внутри — access token с ИНН, ФИО и номером доверенности, в репо
+# такому файлу не место. На проде каталог смонтирован из /srv/beer/chz_debug.
+chz_test/debug/token.json
+
 # Архив скриптов
 archive/

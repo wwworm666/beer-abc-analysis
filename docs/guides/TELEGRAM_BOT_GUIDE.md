@@ -162,11 +162,16 @@ telegram_webhook.set_data_sources(taps_manager, beer_mapping_for_bot)
 
 | # | Место | Файл | Функция |
 |---|-------|------|---------|
-| 1 | Telegram бот | `telegram_webhook.py` | `find_beer_info_local()` |
-| 2 | API `/api/taps/taplist-full` | `app.py` | `find_beer_info()` |
-| 3 | CSV экспорт `/api/taps/export-taplist-full` | `app.py` | `find_beer_info()` |
+| 1 | Telegram бот (webhook) | `telegram_webhook.py` | `find_beer_info_local()` |
 
-**Все три используют одинаковый алгоритм fuzzy matching.**
+**Осталось одно место.** Таплист V2 (`/api/taps/taplist-full` и CSV-экспорт) с
+20.09.2026 работает не по названиям, а по явной связи GUID товара iiko → ID
+Untappd из проверенного реестра. Fuzzy matching оттуда удалён вместе с функцией
+`find_beer_info()`: подбор по похожему названию подставлял гостю чужой сорт.
+Описанный ниже алгоритм относится только к `telegram_webhook.py`.
+
+Бот `telegram_bot.py` запрашивает таплист с `prices=false` — цены он не выводит,
+а живой прайс стоил бы шести обращений к iiko на каждый запрос.
 
 ---
 
@@ -287,9 +292,16 @@ curl "https://api.telegram.org/bot<TOKEN>/deleteWebhook"
 
 ## Локальная разработка
 
+Токен никогда не пишем в команду буквально: значение остаётся в истории shell,
+в списке процессов и в любом тексте, который потом попадёт в репозиторий. Читаем
+его из окружения.
+
 ```bash
+# Ввести токен скрыто: символы не отображаются и не попадают в history.
+read -rs TELEGRAM_BOT_TOKEN && export TELEGRAM_BOT_TOKEN
+
 # 1. Удалить webhook
-curl "https://api.telegram.org/bot8261982160:AAFu1YfpSQBB1lRC_gDxobwBfSL5kI0UKK8/deleteWebhook"
+curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook"
 
 # 2. Запустить polling режим
 python telegram_bot.py
@@ -297,17 +309,31 @@ python telegram_bot.py
 # 3. Тестировать бота
 
 # 4. После тестирования - вернуть webhook
-curl "https://api.telegram.org/bot8261982160:AAFu1YfpSQBB1lRC_gDxobwBfSL5kI0UKK8/setWebhook?url=https://www.beerkultura.ru/telegram/webhook"
+curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=https://www.beerkultura.ru/telegram/webhook"
+
+# 5. Убрать токен из окружения текущей сессии
+unset TELEGRAM_BOT_TOKEN
 ```
+
+Переставить вебхук можно и не держа токен у себя вовсе: Actions →
+«Telegram webhook» → Run workflow, действие `setWebhook` или `deleteWebhook`.
+Workflow берёт значение из секрета `TELEGRAM_BOT_TOKEN` репозитория.
 
 ---
 
-## Переменные окружения (Render)
+## Переменные окружения
 
-| Переменная | Значение |
-|------------|----------|
-| `TELEGRAM_BOT_TOKEN` | `8261982160:AAFu...` |
-| `PYTHON_VERSION` | `3.11.0` |
+Значения токенов в документации не приводятся — только места хранения.
+
+| Переменная | Где лежит значение |
+|------------|--------------------|
+| `TELEGRAM_BOT_TOKEN` | `.env` на сервере (подключается через `env_file` в `docker-compose.yml`); копия — в GitHub Secrets репозитория для workflow «Telegram webhook» |
+| `TELEGRAM_GROUP_CHAT_ID` | там же, в `.env` сервера |
+
+Ротация токена: `@BotFather` → `/revoke` для старого, затем новое значение
+записать в `.env` сервера, перезапустить `docker compose up -d app` и обновить
+секрет `TELEGRAM_BOT_TOKEN` в Settings → Secrets and variables → Actions.
+Список переменных проекта — в [.env.example](../../.env.example).
 
 ---
 

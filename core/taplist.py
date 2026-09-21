@@ -88,9 +88,19 @@ def tap_details(tap, registry):
                                 'unverified': 'Нет проверенной связи с Untappd'}[status]}
 
 
+class UnknownBar(KeyError):
+    """Запрошен бар, которого нет в снимке кранов.
+
+    Отдельный тип, потому что маршрут отвечает на него 404. Обычный KeyError
+    прилетает и из разбора ответа iiko, и выдавать его за неизвестный бар —
+    значит показывать владельцу «Бар не найден» вместо настоящей причины.
+    Наследуется от KeyError: прежние обработчики продолжают работать.
+    """
+
+
 def full_taplist(snapshot, registry, bar_id=None, active_only=True):
     if bar_id is not None and bar_id not in snapshot:
-        raise KeyError('Бар не найден')
+        raise UnknownBar('Бар не найден')
     result = []
     for bid, bar in snapshot.items():
         if bar_id is not None and bar_id != bid:

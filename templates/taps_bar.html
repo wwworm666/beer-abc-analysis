@@ -599,11 +599,11 @@
 
         <!-- Header Controls -->
         <div class="header-controls">
-            <button class="refresh-btn" onclick="downloadBarTaplist()" style="margin-right: 5px;">
+            <button class="refresh-btn" onclick="downloadBarTaplist(this)" style="margin-right: 5px;">
                 <span>📥</span>
                 <span>Таплист</span>
             </button>
-            <button class="refresh-btn" onclick="downloadBarTaplistFull()" style="margin-right: 10px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);">
+            <button class="refresh-btn" onclick="downloadBarTaplistFull(this)" style="margin-right: 10px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);">
                 <span>📥</span>
                 <span>Таплист V2</span>
             </button>
@@ -678,6 +678,7 @@
         </div>
     </div>
 
+    <script src="/static/js/taps/taplist.js?v={{ app_version }}"></script>
     <script>
         const barName = "{{ bar_name }}";
         const barId = "{{ bar_id }}";
@@ -743,34 +744,16 @@
             }
         }
 
-        // Download taplist for this bar
-        function downloadBarTaplist() {
-            window.location.href = `/api/taps/export-taplist?bar_id=${barId}`;
+        // Бар, кран, название пива.
+        function downloadBarTaplist(button) {
+            downloadTaplistFile(button, `/api/taps/export-taplist?bar_id=${barId}`,
+                                `taplist_${barId}.csv`);
         }
 
-        // Download names, current prices and portions, producers, photos and descriptions.
-        async function downloadBarTaplistFull() {
-            const button = document.querySelector('[onclick="downloadBarTaplistFull()"]');
-            if (button) button.disabled = true;
-            try {
-                const response = await fetch(`/api/taps/export-taplist-full?bar_id=${barId}`, {cache: 'no-store'});
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Не удалось получить таплист');
-                }
-                const url = URL.createObjectURL(await response.blob());
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `taplist_full_${barId}.csv`;
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
-            } catch (error) {
-                alert(error.message || 'Не удалось получить актуальные цены. Повторите выгрузку.');
-            } finally {
-                if (button) button.disabled = false;
-            }
+        // Название, действующая цена и порция, производитель, фото и описание.
+        function downloadBarTaplistFull(button) {
+            downloadTaplistFile(button, `/api/taps/export-taplist-full?bar_id=${barId}`,
+                                `taplist_full_${barId}.csv`);
         }
 
         // Load beers list

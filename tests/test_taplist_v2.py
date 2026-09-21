@@ -175,6 +175,30 @@ class TaplistV2Tests(unittest.TestCase):
             self.assertTrue(row['Фото (ссылка)'].startswith('https://assets.untappd.com/'))
             self.assertIn('Cashmere', row['Описание'])
 
+    def test_consumer_without_prices_does_not_pay_for_iiko_request(self):
+        """Бот показывает сорт и характеристики: шесть запросов к iiko ему ни к чему."""
+        self.connect(self.dopamine)
+        with patch.object(self.routes, 'fetch_price_sources',
+                          side_effect=AssertionError('прайс не должны запрашивать')):
+            response = self.client.get('/api/taps/taplist-full?prices=false')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json['prices'])
+        row = response.json['taplist'][0]
+        self.assertEqual(row['brewery'], 'Zavod')
+        # Полей цены нет вовсе: пустой список читался бы как «цена не найдена».
+        self.assertNotIn('servings', row)
+        self.assertNotIn('price_status', row)
+
+    def test_broken_iiko_payload_is_not_reported_as_unknown_bar(self):
+        self.connect()
+        broken = {'date': '2026-09-20', 'checked_at': '2026-09-20T12:00:00+03:00',
+                  'groups': '<groupDtoes/>', 'products': [], 'product_groups': [],
+                  'charts': [], 'scales': {}}  # без ключа prices
+        with patch.object(self.routes, 'fetch_price_sources', return_value=broken):
+            for path in ('/api/taps/taplist-full', '/api/taps/export-taplist-full'):
+                self.assertEqual(self.client.get(path).status_code, 503)
+        self.assertEqual(self.client.get('/api/taps/taplist-full?bar_id=unknown').status_code, 404)
+
     def test_live_price_failure_returns_error_instead_of_stale_download(self):
         self.connect()
         with patch.object(self.routes, 'fetch_price_sources', side_effect=RuntimeError('token=must-not-leak')):

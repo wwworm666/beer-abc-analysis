@@ -3,13 +3,11 @@ import time
 import json
 import os
 import csv
-import re
 from io import StringIO
 from urllib.parse import quote
-from difflib import SequenceMatcher
 from extensions import taps_manager
 from core.untappd_registry import load_registry
-from core.taplist import product_catalog, tap_details, full_taplist
+from core.taplist import product_catalog, tap_details, full_taplist, UnknownBar
 from core.taplist_pricing import enrich_prices
 
 taps_bp = Blueprint('taps', __name__)
@@ -255,80 +253,6 @@ def export_taplist():
         return jsonify({'error': str(e)}), 500
 
 
-def load_beer_info_mapping():
-    """Загружает маппинг информации о пиве из JSON файла"""
-    mapping_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'beer_info_mapping.json')
-    if os.path.exists(mapping_file):
-        try:
-            with open(mapping_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"[ERROR] Ошибка загрузки beer_info_mapping.json: {e}")
-    return {}
-
-
-def find_beer_info(beer_name, mapping):
-    """
-    Ищет информацию о пиве в маппинге с fuzzy matching.
-    Использует difflib для нечёткого сравнения строк.
-    """
-    if not beer_name or not mapping:
-        return None
-
-    def normalize(name):
-        """Нормализует название для сравнения"""
-        name = name.lower()
-        # Убираем "кег "
-        name = name.replace('кег ', '')
-        # Заменяем тире на пробел
-        name = name.replace(' — ', ' ').replace('—', ' ').replace('-', ' ')
-        # Убираем запятые и точки
-        name = name.replace(',', '').replace('.', '')
-        # Убираем объёмы и единицы измерения
-        name = re.sub(r'\d+\s*(л|l|кг|kg|ml|мл)', '', name)
-        # Убираем типичные суффиксы
-        for suffix in ['светлое', 'темное', 'тёмное', 'нефильтрованное', 'фильтрованное', 'пшеничное', 'полусухой', 'полусладкий']:
-            name = name.replace(suffix, '')
-        # Убираем лишние пробелы
-        name = ' '.join(name.split())
-        return name.strip()
-
-    def similarity(a, b):
-        """Возвращает степень схожести двух строк (0-1)"""
-        return SequenceMatcher(None, a, b).ratio()
-
-    # Прямое совпадение
-    if beer_name in mapping:
-        return mapping[beer_name]
-
-    # Нормализуем искомое название
-    normalized_search = normalize(beer_name)
-
-    # Ищем лучшее совпадение
-    best_match = None
-    best_score = 0
-    threshold = 0.75  # Минимальная схожесть 75%
-
-    for key in mapping:
-        normalized_key = normalize(key)
-
-        # Точное совпадение после нормализации
-        if normalized_search == normalized_key:
-            return mapping[key]
-
-        # Fuzzy matching
-        score = similarity(normalized_search, normalized_key)
-        if score > best_score:
-            best_score = score
-            best_match = key
-
-    # Возвращаем лучшее совпадение если оно выше порога
-    if best_match and best_score >= threshold:
-        return mapping[best_match]
-
-    return None
-
-
 def selected_product(data, required=False):
     product_id = data.get('iiko_product_id')
     if not product_id:
@@ -360,12 +284,19 @@ def identify_tap(bar_id):
         return jsonify({'success': False, 'error': 'Не удалось сохранить сорт'}), 500
 
 
-def reviewed_taplist():
+def reviewed_taplist(with_prices=True):
+    """Проверенный таплист; цены запрашиваются у iiko только когда нужны.
+
+    Живой прайс — это шесть запросов к iiko на каждый вызов и 503 при любом
+    сбое. Потребителю, которому нужны только сорт и характеристики (бот в
+    Telegram), эта цена не нужна: он платил бы ожиданием и терял таплист
+    целиком, когда iiko недоступен.
+    """
     registry = load_registry()
     snapshot = taps_manager.get_snapshot(product_catalog(registry))
     rows = full_taplist(snapshot, registry, request.args.get('bar_id'),
                         request.args.get('active_only', 'true').lower() == 'true')
-    if rows:
+    if rows and with_prices:
         try:
             sources = fetch_price_sources()
         except Exception:
@@ -386,12 +317,15 @@ def fetch_price_sources():
 @taps_bp.route('/api/taps/taplist-full', methods=['GET'])
 def get_taplist_full():
     try:
-        rows = reviewed_taplist()
-        return jsonify({'success': True, 'count': len(rows),
+        # prices=false — ответ без полей servings/price_*: их отсутствие честно
+        # говорит «цены не спрашивали», пустой список сказал бы «цен нет».
+        with_prices = request.args.get('prices', 'true').lower() != 'false'
+        rows = reviewed_taplist(with_prices)
+        return jsonify({'success': True, 'count': len(rows), 'prices': with_prices,
                         'mapped_count': sum(row['mapped'] for row in rows), 'taplist': rows})
     except PriceUnavailable:
         return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
-    except KeyError:
+    except UnknownBar:
         return jsonify({'success': False, 'error': 'Бар не найден'}), 404
     except Exception as error:
         print(f'[ERROR] Taplist V2: {error}')
@@ -442,7 +376,7 @@ def export_taplist_full():
         return response
     except PriceUnavailable:
         return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
-    except KeyError:
+    except UnknownBar:
         return jsonify({'success': False, 'error': 'Бар не найден'}), 404
     except Exception as error:
         print(f'[ERROR] Taplist V2 export: {error}')

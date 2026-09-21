@@ -148,6 +148,7 @@ beer-abc-analysis/
 templates/
 ├── dashboard.html       # Дашборд /dashboard: 4 точки + Общая, 17 карточек (20 метрик в API), AI
 ├── employee.html        # Дашборд сотрудника, KPI, бонусы
+├── taps_main.html       # /taps: выбор бара + выгрузки таплиста по всем барам
 ├── taps_bar.html        # Краны одного бара
 ├── stocks.html          # 6 вкладок: К заказу / К отправке / Таплист / Фасовка / Сроки / Меню кухни
 ├── suppliers.html       # Справочник поставщиков (/suppliers)
@@ -178,7 +179,7 @@ static/
 │   ├── guests/
 │   ├── me/
 │   ├── schedule/
-│   ├── taps/
+│   ├── taps/            # taplist.js — скачивание выгрузок с показом ошибки
 │   └── stocks/
 ├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
 ├── packaging/           # packaging.css — оформление /packaging как /draft (токены --pk-*)

@@ -1,0 +1,93 @@
+name: Telegram webhook
+run-name: ${{ inputs.action }} by @${{ github.actor }}
+
+# Переставить вебхук бота, ни разу не вставив токен в терминал руками: значение
+# живёт в секрете TELEGRAM_BOT_TOKEN и передаётся curl через stdin. Источник
+# истины для прода — .env на сервере; здесь лежит копия только для этих трёх
+# служебных вызовов. Ротация описана в docs/guides/TELEGRAM_BOT_GUIDE.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Метод Bot API
+        required: true
+        default: getWebhookInfo
+        type: choice
+        options:
+          - getWebhookInfo
+          - setWebhook
+          - deleteWebhook
+      url:
+        description: Адрес вебхука (только для setWebhook)
+        required: false
+        default: https://www.beerkultura.ru/telegram/webhook
+        type: string
+
+permissions:
+  contents: read
+
+# Два одновременных setWebhook оставили бы бота в непредсказуемом состоянии.
+concurrency:
+  group: telegram-webhook
+  cancel-in-progress: false
+
+jobs:
+  call:
+    name: Вызов Bot API
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Выполнить метод без раскрытия токена
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          METHOD: ${{ inputs.action }}
+          WEBHOOK_URL: ${{ inputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${BOT_TOKEN:-}" ]]; then
+            echo "Секрет TELEGRAM_BOT_TOKEN не задан: Settings -> Secrets and variables -> Actions" >&2
+            exit 1
+          fi
+          # Проверяем форму токена заранее: иначе ошибка придёт от Telegram
+          # уже после того, как значение уйдёт в запрос.
+          if [[ ! "$BOT_TOKEN" =~ ^[0-9]{6,12}:[A-Za-z0-9_-]{30,}$ ]]; then
+            echo "Секрет TELEGRAM_BOT_TOKEN не похож на токен @BotFather" >&2
+            exit 1
+          fi
+          if [[ ! "$METHOD" =~ ^(getWebhookInfo|setWebhook|deleteWebhook)$ ]]; then
+            echo "Неизвестный метод: $METHOD" >&2
+            exit 1
+          fi
+          if [[ "$METHOD" == setWebhook && ! "$WEBHOOK_URL" =~ ^https://[A-Za-z0-9.-]+/[A-Za-z0-9._~/-]*$ ]]; then
+            echo "Адрес вебхука должен быть https-ссылкой: $WEBHOOK_URL" >&2
+            exit 1
+          fi
+
+          # curl читает конфигурацию со stdin: токен не попадает ни в argv
+          # (виден в списке процессов), ни в лог шага.
+          config() {
+            printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$BOT_TOKEN" "$METHOD"
+            printf 'silent\nshow-error\nfail-with-body\nmax-time = 30\nretry = 2\n'
+            if [[ "$METHOD" == setWebhook ]]; then
+              printf 'data-urlencode = "url=%s"\n' "$WEBHOOK_URL"
+            fi
+          }
+          status=$(config | curl --config - --output response.json --write-out '%{http_code}')
+
+          # Ответ печатаем только после вычистки значения: штатные ответы Bot API
+          # токена не содержат, но полагаться на это для секрета нельзя, а
+          # маскирование GitHub — последний рубеж, а не первый. Токен приходит в
+          # python из окружения, поэтому в argv тоже не появляется.
+          redact() {
+            python3 -c 'import os, sys; sys.stdout.write(sys.stdin.read().replace(os.environ["BOT_TOKEN"], "<TELEGRAM_BOT_TOKEN>"))'
+          }
+          body=$({ jq . response.json 2>/dev/null || cat response.json; } | redact)
+
+          echo "HTTP $status"
+          printf '%s\n' "$body"
+          printf '### Telegram %s\n\nHTTP `%s`\n\n```json\n%s\n```\n' \
+            "$METHOD" "$status" "$body" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$status" == 200 ]]

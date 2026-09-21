@@ -36,7 +36,10 @@ dp = Dispatcher()
 async def fetch_taplist(bar_id: str = None) -> dict:
     """Получить таплист через API"""
     url = f"{API_BASE_URL}/api/taps/taplist-full"
-    params = {'active_only': 'true'}
+    # prices=false: бот показывает сорт, стиль, ABV и IBU, цены не выводит.
+    # С ценами каждый запрос тянул бы шесть обращений к iiko — дольше нашего
+    # таймаута в 30 секунд, и таплист пропадал бы целиком при сбое iiko.
+    params = {'active_only': 'true', 'prices': 'false'}
     if bar_id:
         params['bar_id'] = bar_id
 
