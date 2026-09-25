@@ -251,6 +251,7 @@
         <price>490</price>
         <currencyId>RUB</currencyId>
         <categoryId>7</categoryId>
+        <picture>https://beerkultura.ru/static/kitchen-menu/dessert-brownie.jpg</picture>
         <name>Брауни Рокслайд</name>
         <vendor>Культура</vendor>
         <description>Брауни Рокслайд с насыщенным шоколадным вкусом и нежной плотной текстурой. Сладкий финал для настоящих любителей шоколада.</description>
@@ -259,6 +260,7 @@
         <price>290</price>
         <currencyId>RUB</currencyId>
         <categoryId>7</categoryId>
+        <picture>https://beerkultura.ru/static/kitchen-menu/dessert-muffin.jpg</picture>
         <name>Маффин</name>
         <vendor>Культура</vendor>
         <description>Мягкий маффин с нежным мякишем — небольшое сладкое удовольствие к чаю или кофе. Для уютной паузы в течение дня.</description>
@@ -267,6 +269,7 @@
         <price>290</price>
         <currencyId>RUB</currencyId>
         <categoryId>7</categoryId>
+        <picture>https://beerkultura.ru/static/kitchen-menu/dessert-pie.jpg</picture>
         <name>Яблочный пирог</name>
         <vendor>Культура</vendor>
         <description>Яблочный пирог с нежной фруктовой начинкой. Знакомый вкус любимого десерта для уютного чаепития или сладкого завершения ужина.</description>

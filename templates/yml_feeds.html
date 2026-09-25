@@ -40,6 +40,18 @@
         .thumb span { font-size: 11px; line-height: 1.2; color: var(--text-secondary); text-align: center; padding: 6px; }
         tr.off { opacity: .55; }
         .scroll { overflow-x: auto; }
+        .maps-wrap { margin-top: 20px; }
+        .maps-wrap h2 { font-size: 18px; margin: 0 0 4px; color: var(--text-primary); }
+        .maps-card { max-width: 560px; background: #fff; color: #1a1a1a; border-radius: 16px; padding: 6px 0 12px; border: 1px solid #e6e6e6; }
+        .maps-cat { font-size: 20px; font-weight: 700; margin: 16px 16px 4px; }
+        .maps-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 16px; }
+        .maps-photo, .maps-empty { width: 96px; height: 96px; border-radius: 12px; flex: none; background: #f3f3f3; object-fit: cover; }
+        .maps-empty { display: flex; align-items: center; justify-content: center; font-size: 11px; color: #8a8a8a; text-align: center; }
+        .maps-main { flex: 1; min-width: 0; }
+        .maps-top { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+        .maps-name { font-size: 16px; font-weight: 650; line-height: 1.3; }
+        .maps-price { font-size: 16px; font-weight: 650; white-space: nowrap; }
+        .maps-desc { margin-top: 4px; font-size: 13px; line-height: 1.35; color: #6b6b6b; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -76,6 +88,11 @@
                     </table>
                 </div>
             </div>
+        </div>
+        <div class="card maps-wrap">
+            <h2>Как на Картах</h2>
+            <p class="hint">Кухня и розлив выбранного бара в том порядке, в каком они идут в файле. Скрытые позиции сюда не попадают.</p>
+            <div class="maps-card" id="maps-list"></div>
         </div>
     </div>
     <script src="/static/logo.js"></script>
@@ -181,10 +198,77 @@
                 row.querySelector('[data-field="description"]').value = offer.description || '';
                 row.querySelector('[data-field="shown"]').addEventListener('change', event => {
                     row.classList.toggle('off', !event.target.checked);
+                    renderPreview();
                 });
+                row.querySelector('[data-field="name"]').addEventListener('input', renderPreview);
+                row.querySelector('[data-field="price"]').addEventListener('input', renderPreview);
+                row.querySelector('[data-field="description"]').addEventListener('input', renderPreview);
                 row.dataset.id = offer.id;
                 body.appendChild(row);
             }
+            renderPreview();
+        }
+
+        function money(value) {
+            const number = Number(String(value || '').replace(',', '.').replace(/\s/g, ''));
+            if (!number) return '';
+            return (Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')) + ' ₽';
+        }
+
+        function renderPreview() {
+            const box = document.getElementById('maps-list');
+            box.innerHTML = '';
+            let lastCategory = null;
+            let shown = 0;
+            document.querySelectorAll('#rows tr').forEach(row => {
+                if (!row.querySelector('[data-field="shown"]').checked) return;
+                const offer = currentOffers.find(item => item.id === row.dataset.id) || {};
+                const category = offer.category_name || 'Меню';
+                if (category !== lastCategory) {
+                    lastCategory = category;
+                    const title = document.createElement('h3');
+                    title.className = 'maps-cat';
+                    title.textContent = category;
+                    box.appendChild(title);
+                }
+                const card = document.createElement('article');
+                card.className = 'maps-item';
+                const picture = /^https?:\/\//i.test(offer.picture || '') ? offer.picture : '';
+                if (picture) {
+                    const image = document.createElement('img');
+                    image.className = 'maps-photo';
+                    image.src = picture;
+                    image.alt = '';
+                    image.referrerPolicy = 'no-referrer';
+                    card.appendChild(image);
+                } else {
+                    const empty = document.createElement('div');
+                    empty.className = 'maps-empty';
+                    empty.textContent = 'нет фото';
+                    card.appendChild(empty);
+                }
+                const main = document.createElement('div');
+                main.className = 'maps-main';
+                const top = document.createElement('div');
+                top.className = 'maps-top';
+                const name = document.createElement('div');
+                name.className = 'maps-name';
+                name.textContent = row.querySelector('[data-field="name"]').value;
+                const price = document.createElement('div');
+                price.className = 'maps-price';
+                price.textContent = money(row.querySelector('[data-field="price"]').value);
+                top.appendChild(name);
+                top.appendChild(price);
+                main.appendChild(top);
+                const description = document.createElement('div');
+                description.className = 'maps-desc';
+                description.textContent = row.querySelector('[data-field="description"]').value;
+                main.appendChild(description);
+                card.appendChild(main);
+                box.appendChild(card);
+                shown += 1;
+            });
+            if (!shown) box.textContent = 'В файле пока нет позиций.';
         }
 
         function collect() {

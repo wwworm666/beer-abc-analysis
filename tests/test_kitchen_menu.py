@@ -32,7 +32,9 @@ def test_catalog_photos_are_served_from_our_site():
     assert fries.findtext('picture') == 'https://beerkultura.ru/static/kitchen-menu/Z8A_1318.jpg'
     assert 'storage.yandexcloud.net' not in xml
     pictures = [offer.findtext('picture') for offer in offers if offer.find('picture') is not None]
-    assert len(pictures) == 24
+    assert len(pictures) == 27
+    brownie = next(offer for offer in offers if offer.get('id') == 'menu-dessert-001')
+    assert brownie.findtext('picture') == 'https://beerkultura.ru/static/kitchen-menu/dessert-brownie.jpg'
     assert all(url.startswith('https://beerkultura.ru/static/kitchen-menu/') for url in pictures)
 
 
@@ -44,7 +46,7 @@ def test_every_referenced_photo_exists():
         assert name
         assert (PHOTO_DIR / name).is_file()
         names.append(name)
-    assert len(names) == 24
+    assert len(names) == 27
 
 
 def test_missing_or_foreign_picture_is_dropped(tmp_path):
