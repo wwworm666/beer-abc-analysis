@@ -79,7 +79,10 @@ def _description(row, portion):
 
 
 def offers_for(rows):
-    """Порции с ценой. Ключ дедупликации — бар, название и объём."""
+    """Порции 0,5 л с ценой. Остальные объёмы в фид Яндекса не попадают.
+
+    Ключ дедупликации — бар и название: на двух кранах один сорт даёт одну строку.
+    """
     seen = set()
     result = []
     for row in rows:
@@ -90,7 +93,7 @@ def offers_for(rows):
         for serving in row.get('servings') or []:
             portion = _portion(serving.get('portion_liters'))
             price = _price(serving.get('price_rub'))
-            if not beer or portion is None or price is None:
+            if not beer or portion is None or price is None or Decimal(portion) != Decimal('0.5'):
                 continue
             key = (bar_id, beer, portion)
             if key in seen:

@@ -43,7 +43,8 @@ def test_feed_lists_priced_portions_with_required_fields():
     assert shop.findtext('delivery') == 'false'
     assert shop.findtext('pickup') == 'true'
     offers = _offers(xml)
-    assert [offer.findtext('price') for offer in offers] == ['310.00', '220.00']
+    assert [offer.findtext('price') for offer in offers] == ['310.00']
+    assert '0,3' not in xml
     half = offers[0]
     assert half.get('available') == 'true'
     assert half.findtext('currencyId') == 'RUR'
@@ -62,7 +63,7 @@ def test_unpriced_duplicate_and_http_photo_are_dropped():
         'photo_url': 'http://insecure.example/a.jpg', 'servings': [],
     }
     items = offers_for([ROW, second, bare])
-    assert len(items) == 2
+    assert len(items) == 1
     assert all(item['picture'].startswith('https://') for item in items)
     assert bare['beer_name'] not in {item['name'] for item in items}
 
@@ -112,11 +113,11 @@ def test_override_roundtrip_keeps_feeds_separate(tmp_path):
 
 
 def test_hidden_and_renamed_offer_changes_the_file():
-    items = offers_for([ROW])
+    other = dict(ROW, beer_name='Другое', tap_number=2)
+    items = offers_for([ROW, other])
     items[0]['hidden'] = True
-    items[1]['name'] = 'Своё имя'
+    items[1]['name'] = 'Своё имя, 0,4 л'
     xml = build_yml(items=items, when='2026-09-25T12:00:00+03:00')
     offers = _offers(xml)
     assert len(offers) == 1
-    assert offers[0].findtext('name') == 'Своё имя'
-    assert '0,5' not in offers[0].findtext('name')
+    assert offers[0].findtext('name') == 'Своё имя, 0,4 л'
