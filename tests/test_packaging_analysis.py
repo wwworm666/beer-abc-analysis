@@ -123,6 +123,12 @@ def test_positions_and_categories_reconcile():
     assert abs(by_categories - total) < 0.01, 'категории не складываются в итог'
     shares = sum(p['RevenueSharePercent'] for p in block['positions'])
     assert abs(shares - 100.0) < 0.01, f'доли позиций дают {shares:.4f}%, а не 100%'
+    qty_shares = sum(p['QtySharePercent'] for p in block['positions'])
+    assert abs(qty_shares - 100.0) < 0.01, f'доли штук позиций дают {qty_shares:.4f}%'
+    cat_qty = sum(c['QtySharePercent'] for c in block['categories'])
+    assert abs(cat_qty - 100.0) < 0.01, f'доли штук категорий дают {cat_qty:.4f}%'
+    top = max(block['positions'], key=lambda p: p['TotalQty'])
+    assert abs(top['QtySharePercent'] - top['TotalQty'] / block['totals']['qty'] * 100) < 1e-9
 
 
 def test_beers_count_is_unique_positions():

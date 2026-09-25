@@ -176,6 +176,9 @@ test('таблица категорий: ВСЕ категории, без ур�
     assert.equal(rows, BLOCK.categories.length,
         `строк ${rows}, категорий ${BLOCK.categories.length} — список урезан`);
     assert.ok(rows > 10, 'в фикстуре меньше 11 категорий — тест ничего не доказывает');
+    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
+    const qtyAt = html.indexOf('ДОЛЯ В ШТУКАХ');
+    assert.ok(revAt >= 0 && qtyAt > revAt, 'в категориях нет доли выручки и доли штук');
     assert.match(html, /Итого · \d+ категор/, 'нет строки итога');
     assert.match(env.byId.pkCatCount.textContent, /· все$/, 'не подписано, что показаны все');
 });
@@ -198,6 +201,10 @@ test('таблица позиций: все позиции, итог и напр
     const html = env.byId.pkPos.innerHTML;
     const rows = (html.match(/class="pk-row is-body"/g) || []).length;
     assert.equal(rows, BLOCK.positions.length, `строк ${rows}, позиций ${BLOCK.positions.length}`);
+    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
+    const qtyAt = html.indexOf('ДОЛЯ В ШТУКАХ');
+    assert.ok(revAt >= 0 && qtyAt > revAt, 'в позициях нет доли выручки и доли штук');
+    assert.ok(!/>ДОЛЯ</.test(html), 'старая колонка «ДОЛЯ» ещё в таблице позиций');
     assert.match(html, /ВЫРУЧКА ↓/, 'не показано направление сортировки');
     assert.match(html, /Итого · \d+ позиц/, 'нет строки итога');
     // Первая строка — самая выручная позиция.

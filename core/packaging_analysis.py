@@ -417,6 +417,9 @@ class PackagingAnalysis:
             )
 
         categories = self._build_categories(rows)
+        total_qty = sum(r['TotalQty'] for r in rows)
+        self._assign_qty_share(rows, total_qty)
+        self._assign_qty_share(categories, total_qty)
         # Вторая шкала первой буквы: место позиции ВНУТРИ своей категории.
         # Обе базы верные, но разные, и на одном экране под одинаковым значком
         # A/B/C они расходились у каждой пятой позиции. Теперь обе посчитаны
@@ -472,6 +475,17 @@ class PackagingAnalysis:
         }
 
     # ---------- части ответа ----------
+
+    @staticmethod
+    def _assign_qty_share(rows, total_qty):
+        """Доля штук позиции или категории в штуках всего разреза.
+
+        Та же формула, что доля литров на /draft: количество / сумма количеств
+        разреза × 100. Считается от сумм, отдельно для позиций и для категорий.
+        """
+        for row in rows:
+            qty = row.get('TotalQty') or 0.0
+            row['QtySharePercent'] = (qty / total_qty * 100) if total_qty > 0 else 0.0
 
     @staticmethod
     def _as_percent(share):

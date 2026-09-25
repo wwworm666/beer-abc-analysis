@@ -450,8 +450,8 @@ body.packaging-page .container { padding: 0; }
     overflow-x: auto;
 }
 .pk-table-in { padding: 6px 18px 4px; }
-.pk-cats .pk-table-in { min-width: 980px; }
-.pk-pos .pk-table-in { min-width: 1080px; }
+.pk-cats .pk-table-in { min-width: 1140px; }
+.pk-pos .pk-table-in { min-width: 1280px; }
 
 .pk-row {
     display: grid;
@@ -459,10 +459,10 @@ body.packaging-page .container { padding: 0; }
     align-items: center;
 }
 .pk-cats .pk-row {
-    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 108px 104px 84px 46px;
+    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 128px 128px 104px 84px 46px;
 }
 .pk-pos .pk-row {
-    grid-template-columns: 30px minmax(215px, 1.7fr) minmax(130px, .9fr) 76px 108px 104px 84px 62px 44px;
+    grid-template-columns: 30px minmax(200px, 1.6fr) minmax(120px, .8fr) 72px 100px 128px 128px 78px 62px 44px;
 }
 .pk-row.is-head { padding: 10px 0 9px; }
 .pk-row.is-body {

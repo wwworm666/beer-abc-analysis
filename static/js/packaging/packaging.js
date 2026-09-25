@@ -411,6 +411,9 @@
         var maxShare = rows.reduce(function (acc, c) {
             return Math.max(acc, c.RevenueSharePercent || 0);
         }, 0);
+        var maxQtyShare = rows.reduce(function (acc, c) {
+            return Math.max(acc, c.QtySharePercent || 0);
+        }, 0);
 
         el.catCount.textContent = rows.length + ' ' +
             plural(rows.length, 'категория', 'категории', 'категорий') + ' · все';
@@ -424,10 +427,13 @@
                 sortMark(state.catSort, 'TotalQty') + '</span>' +
             '<span class="pk-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
                 sortMark(state.catSort, 'TotalRevenue') + '</span>' +
-            // Только доля: накопленный процент в ячейку не влезает (108px), и
+            // Только доля: накопленный процент в ячейку не влезает, и
             // заголовок, обещающий два числа при одном показанном, врёт.
             // Накопленный итог есть в карточке категории.
-            '<span class="pk-th r">ДОЛЯ В ВЫРУЧКЕ</span>' +
+            '<span class="pk-th r s" data-sort="RevenueSharePercent">ДОЛЯ В ВЫРУЧКЕ' +
+                sortMark(state.catSort, 'RevenueSharePercent') + '</span>' +
+            '<span class="pk-th r s" data-sort="QtySharePercent">ДОЛЯ В ШТУКАХ' +
+                sortMark(state.catSort, 'QtySharePercent') + '</span>' +
             '<span class="pk-th r s" data-sort="TotalMargin">МАРЖА' +
                 sortMark(state.catSort, 'TotalMargin') + '</span>' +
             '<span class="pk-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
@@ -443,6 +449,7 @@
                 '<span class="pk-num">' + num(cat.TotalQty, 0) + '</span>' +
                 '<span class="pk-num strong">' + money(cat.TotalRevenue) + '</span>' +
                 shareCell(cat.RevenueSharePercent, maxShare) +
+                shareCell(cat.QtySharePercent, maxQtyShare) +
                 '<span class="pk-num">' + money(cat.TotalMargin) + '</span>' +
                 '<span class="pk-num">' +
                     (cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 0)) + '</span>' +
@@ -462,6 +469,7 @@
                 '<span class="pk-total-v">' + t.sku + '</span>' +
                 '<span class="pk-total-v">' + num(t.qty, 0) + '</span>' +
                 '<span class="pk-total-v strong">' + money(t.revenue) + '</span>' +
+                '<span class="pk-total-v">100,0%</span>' +
                 '<span class="pk-total-v">100,0%</span>' +
                 '<span class="pk-total-v">' + money(t.margin) + '</span>' +
                 '<span class="pk-total-v">' +
@@ -487,6 +495,9 @@
         var maxShare = rows.reduce(function (acc, p) {
             return Math.max(acc, p.RevenueSharePercent || 0);
         }, 0);
+        var maxQtyShare = rows.reduce(function (acc, p) {
+            return Math.max(acc, p.QtySharePercent || 0);
+        }, 0);
 
         var total = (data.positions || []).length;
         el.posCount.textContent = query
@@ -501,7 +512,10 @@
                 sortMark(state.posSort, 'TotalQty') + '</span>' +
             '<span class="pk-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
                 sortMark(state.posSort, 'TotalRevenue') + '</span>' +
-            '<span class="pk-th r">ДОЛЯ</span>' +
+            '<span class="pk-th r s" data-sort="RevenueSharePercent">ДОЛЯ В ВЫРУЧКЕ' +
+                sortMark(state.posSort, 'RevenueSharePercent') + '</span>' +
+            '<span class="pk-th r s" data-sort="QtySharePercent">ДОЛЯ В ШТУКАХ' +
+                sortMark(state.posSort, 'QtySharePercent') + '</span>' +
             '<span class="pk-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
                 sortMark(state.posSort, 'MarkupPercent') + '</span>' +
             '<span class="pk-th c">ABC</span>' +
@@ -516,6 +530,7 @@
                 '<span class="pk-num">' + num(p.TotalQty, 0) + '</span>' +
                 '<span class="pk-num strong">' + money(p.TotalRevenue) + '</span>' +
                 shareCell(p.RevenueSharePercent, maxShare) +
+                shareCell(p.QtySharePercent, maxQtyShare) +
                 '<span class="pk-num' + (p.MarkupPercent === null ? ' dash' : '') + '">' +
                     (p.MarkupPercent === null ? '—' : pct(p.MarkupPercent, 0)) + '</span>' +
                 '<span class="pk-cell-c"><span class="pk-abc ' + abcClass(p.ABC_Revenue) +
@@ -534,6 +549,7 @@
             var sumRevenue = rows.reduce(function (a, p) { return a + p.TotalRevenue; }, 0);
             var sumCost = rows.reduce(function (a, p) { return a + p.TotalCost; }, 0);
             var sumShare = rows.reduce(function (a, p) { return a + p.RevenueSharePercent; }, 0);
+            var sumQtyShare = rows.reduce(function (a, p) { return a + (p.QtySharePercent || 0); }, 0);
             html += '<div class="pk-row is-total">' +
                 '<span></span>' +
                 '<span class="pk-total-n">Итого · ' + rows.length + ' ' +
@@ -542,6 +558,7 @@
                 '<span class="pk-total-v">' + num(sumQty, 0) + '</span>' +
                 '<span class="pk-total-v strong">' + money(sumRevenue) + '</span>' +
                 '<span class="pk-total-v">' + pct(sumShare, 1) + '</span>' +
+                '<span class="pk-total-v">' + pct(sumQtyShare, 1) + '</span>' +
                 '<span class="pk-total-v">' +
                     (sumCost > 0 ? pct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
                     '</span>' +
