@@ -30,9 +30,14 @@
         th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--border-color); font-size: 13px; }
         th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
         input[type="text"], textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font: inherit; font-size: 13px; }
-        textarea { min-height: 64px; resize: vertical; }
+        textarea { min-height: 72px; resize: vertical; }
         .price { width: 90px; }
         .muted { color: var(--text-secondary); font-size: 12px; }
+        .desc-row { display: flex; gap: 10px; align-items: flex-start; }
+        .desc-row textarea { flex: 1; min-width: 0; }
+        .thumb { flex: none; width: 84px; height: 84px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; }
+        .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .thumb span { font-size: 11px; line-height: 1.2; color: var(--text-secondary); text-align: center; padding: 6px; }
         tr.off { opacity: .55; }
         .scroll { overflow-x: auto; }
         @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
@@ -146,7 +151,27 @@
                     </td>
                     <td><input class="price" type="text" data-field="price" value=""></td>
                     <td class="muted"></td>
-                    <td><textarea data-field="description"></textarea></td>`;
+                    <td>
+                        <div class="desc-row">
+                            <textarea data-field="description"></textarea>
+                            <a class="thumb" target="_blank" rel="noopener noreferrer"></a>
+                        </div>
+                    </td>`;
+                const picture = /^https?:\/\//i.test(offer.picture || '') ? offer.picture : '';
+                const thumb = row.querySelector('.thumb');
+                if (picture) {
+                    thumb.href = picture;
+                    const image = document.createElement('img');
+                    image.src = picture;
+                    image.alt = offer.name || 'Фото';
+                    image.referrerPolicy = 'no-referrer';
+                    thumb.appendChild(image);
+                } else {
+                    thumb.removeAttribute('href');
+                    const empty = document.createElement('span');
+                    empty.textContent = 'нет фото';
+                    thumb.appendChild(empty);
+                }
                 row.querySelector('[data-field="name"]').value = offer.name || '';
                 row.querySelector('.muted').textContent = offer.edited && offer.source_name !== offer.name
                     ? ('было: ' + offer.source_name) : (offer.portion ? offer.portion + ' л' : '');
