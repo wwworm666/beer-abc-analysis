@@ -1,11 +1,10 @@
 """Страница управления YML-фидами Яндекс Карт и публичный фид кухни."""
 from flask import Blueprint, jsonify, make_response, render_template, request
 
-from core.kitchen_menu import render_for_bar
 from core.kitchen_yml import offers_for_bar
 from core.taplist import BAR_NAMES
-from core.taplist_yml import offers_for
-from core.yml_feeds import feed_by_id, feed_catalog
+from core.taplist_yml import SHOP_COMPANY, build_yml, offers_for
+from core.yml_feeds import combine_offers, feed_by_id, feed_catalog, overrides_for_bar
 from core.yml_overrides import load_overrides, merge_offers, save_overrides
 
 yml_bp = Blueprint('yml_feeds', __name__)
@@ -31,13 +30,18 @@ def list_feeds():
     return jsonify({'feeds': feeds})
 
 
-def _taplist_items(bar_id):
-    from routes.taps import PriceUnavailable, load_reviewed_taplist
-    try:
-        rows = load_reviewed_taplist(bar_id, True)
-    except PriceUnavailable:
-        raise
-    return offers_for(rows)
+def bar_items(bar_id):
+    """Кухня и пиво 0,5 л одной точки. Без прайса iiko поднимает PriceUnavailable."""
+    from routes.taps import load_reviewed_taplist
+    kitchen = offers_for_bar(bar_id)
+    drinks = offers_for(load_reviewed_taplist(bar_id, True))
+    return combine_offers(kitchen, drinks)
+
+
+def render_bar_feed(bar_id):
+    items = merge_offers(bar_items(bar_id), overrides_for_bar(load_overrides(), bar_id))
+    shop = f'{SHOP_COMPANY}, {BAR_NAMES[bar_id]}'
+    return build_yml(items=items, shop_name=shop)
 
 
 @yml_bp.route('/api/yml/feeds/<feed_id>', methods=['GET'])
@@ -45,20 +49,18 @@ def feed_detail(feed_id):
     feed = feed_by_id(feed_id)
     if feed is None:
         return jsonify({'error': 'Фид не найден'}), 404
+    note = 'Одна ссылка на бар: кухня и пиво 0,5 л. Её вставляйте в Карты.'
     try:
-        if feed['kind'] == 'taplist':
-            source = _taplist_items(feed['bar_id'])
-            note = ''
-        else:
-            source = offers_for_bar(feed['bar_id'])
-            note = 'Меню кухни общее, а правки — у этой точки. Ссылка ниже ведёт в её карточку на Картах.'
+        source = bar_items(feed['bar_id'])
     except Exception as error:
         from routes.taps import PriceUnavailable
         if isinstance(error, PriceUnavailable):
-            return jsonify({'error': 'Не удалось получить актуальный прайс iiko'}), 503
-        print(f'[ERROR] YML feed {feed_id}: {error}')
-        return jsonify({'error': 'Не удалось прочитать фид'}), 503
-    items = merge_offers(source, (load_overrides().get(feed_id) or {}))
+            source = combine_offers(offers_for_bar(feed['bar_id']), [])
+            note = 'Прайс пива сейчас недоступен, в списке только кухня. Файл для Яндекса не обновится, пока iiko не ответит.'
+        else:
+            print(f'[ERROR] YML feed {feed_id}: {error}')
+            return jsonify({'error': 'Не удалось прочитать фид'}), 503
+    items = merge_offers(source, overrides_for_bar(load_overrides(), feed['bar_id']))
     return jsonify({
         'feed': {**feed, 'public_url': _public_url(feed['public_path'])},
         'note': note,
@@ -78,6 +80,8 @@ def save_feed(feed_id):
         return jsonify({'error': 'Нет списка правок'}), 400
     try:
         save_overrides(feed_id, changes)
+        for legacy in (f'kitchen-{feed_id}', f'taplist-{feed_id}'):
+            save_overrides(legacy, {offer_id: {} for offer_id in changes})
     except ValueError as error:
         return jsonify({'error': str(error)}), 400
     except Exception as error:
@@ -88,11 +92,17 @@ def save_feed(feed_id):
 
 @yml_bp.route('/feeds/kitchen/<bar_id>', methods=['GET'])
 def kitchen_yml(bar_id):
-    """YML кухни одной точки. Состав меню общий, правки имени и цены — свои."""
+    """Один файл на бар: кухня и пиво 0,5 л. В Картах на это место только одна ссылка."""
     if bar_id not in BAR_NAMES:
         return jsonify({'error': 'Бар не найден'}), 404
-    response = make_response(render_for_bar(
-        request.url_root, bar_id, load_overrides().get(f'kitchen-{bar_id}') or {}))
+    try:
+        xml = render_bar_feed(bar_id)
+    except Exception as error:
+        from routes.taps import PriceUnavailable
+        if not isinstance(error, PriceUnavailable):
+            print(f'[ERROR] YML bar {bar_id}: {error}')
+        return jsonify({'error': 'Не удалось собрать фид'}), 503
+    response = make_response(xml)
     response.headers['Content-Type'] = 'application/xml; charset=utf-8'
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response

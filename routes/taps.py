@@ -464,7 +464,18 @@ def taplist_yml():
     if bar_id is not None and bar_id not in BAR_NAMES:
         return jsonify({'error': 'Бар не найден'}), 404
     try:
-        rows = load_reviewed_taplist(bar_id, True)
+        if bar_id:
+            from routes.yml_feeds import render_bar_feed
+            body = render_bar_feed(bar_id)
+        else:
+            from core.yml_feeds import overrides_for_bar
+            rows = load_reviewed_taplist(None, True)
+            stored = load_overrides()
+            items = [
+                merge_offers([item], overrides_for_bar(stored, item.get('bar_id')))[0]
+                for item in offers_for(rows)
+            ]
+            body = build_yml(items=items)
     except PriceUnavailable:
         return jsonify({'error': 'Не удалось получить актуальный прайс iiko'}), 503
     except KeyError:
@@ -472,15 +483,7 @@ def taplist_yml():
     except Exception as error:
         print(f'[ERROR] Taplist YML: {error}')
         return jsonify({'error': 'Не удалось собрать фид'}), 503
-    stored = load_overrides()
-    if bar_id:
-        items = merge_offers(offers_for(rows), stored.get(f'taplist-{bar_id}') or {})
-    else:
-        items = []
-        for item in offers_for(rows):
-            bucket = stored.get(f"taplist-{item.get('bar_id')}") or {}
-            items.append(merge_offers([item], bucket)[0])
-    response = make_response(build_yml(items=items))
+    response = make_response(body)
     response.headers['Content-Type'] = 'application/xml; charset=utf-8'
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response

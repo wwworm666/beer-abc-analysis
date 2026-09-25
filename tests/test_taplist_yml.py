@@ -86,13 +86,19 @@ def test_yml_route_is_public():
     assert 'taps.taplist_yml' in PUBLIC_ENDPOINTS
 
 
-def test_page_lists_taplist_and_kitchen_for_every_bar():
+def test_page_lists_one_combined_feed_per_bar():
+    from core.yml_feeds import combine_offers, overrides_for_bar
     feeds = feed_catalog()
-    assert [feed['id'] for feed in feeds] == [
-        'taplist-bar1', 'taplist-bar2', 'taplist-bar3', 'taplist-bar4',
-        'kitchen-bar1', 'kitchen-bar2', 'kitchen-bar3', 'kitchen-bar4',
-    ]
-    assert feeds[-1]['public_path'] == '/feeds/kitchen/bar4'
+    assert [feed['id'] for feed in feeds] == ['bar1', 'bar2', 'bar3', 'bar4']
+    assert feeds[1]['public_path'] == '/feeds/kitchen/bar2'
+    combined = combine_offers(
+        [{'id': 'ttk-s02', 'name': 'Фри', 'price': '370', 'category_id': '2', 'category_name': 'Горячее'}],
+        [{'id': 'bar2-tap1-p05', 'name': 'Стаут, 0,5 л', 'price': '290.00', 'category_id': '2', 'category_name': 'Лиговский'}],
+    )
+    assert [item['category_name'] for item in combined] == ['Горячее', 'Напитки']
+    assert combined[1]['category_id'] == '100'
+    stored = {'kitchen-bar2': {'ttk-s02': {'hidden': True}}, 'bar2': {'ttk-s02': {'name': 'Картофель'}}}
+    assert overrides_for_bar(stored, 'bar2')['ttk-s02']['name'] == 'Картофель'
 
 
 def test_override_roundtrip_keeps_feeds_separate(tmp_path):
