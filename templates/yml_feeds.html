@@ -235,7 +235,24 @@
             }
         });
 
+        function msUntilFiveMsk() {
+            const now = new Date();
+            const target = new Date(Date.UTC(
+                now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 2, 0, 30
+            ));
+            if (target <= now) target.setUTCDate(target.getUTCDate() + 1);
+            return target - now;
+        }
+
+        function scheduleMorningReload() {
+            setTimeout(() => {
+                if (currentId) openFeed(currentId);
+                scheduleMorningReload();
+            }, msUntilFiveMsk());
+        }
+
         loadFeeds().catch(() => setStatus('Не удалось загрузить список фидов', 'err'));
+        scheduleMorningReload();
     </script>
 </body>
 </html>

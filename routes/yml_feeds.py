@@ -38,8 +38,20 @@ def bar_items(bar_id):
     return combine_offers(kitchen, drinks)
 
 
+def stored_bar(bar_id):
+    """Снимок 05:00, если он уже есть. Иначе None — собирать краны прямо сейчас."""
+    from core.yml_scheduler import load_snapshot
+    snapshot = load_snapshot() or {}
+    bar = (snapshot.get('bars') or {}).get(bar_id)
+    if not isinstance(bar, dict) or not isinstance(bar.get('items'), list):
+        return None
+    return snapshot.get('updated_at'), bar
+
+
 def render_bar_feed(bar_id):
-    items = merge_offers(bar_items(bar_id), overrides_for_bar(load_overrides(), bar_id))
+    stored = stored_bar(bar_id)
+    items = stored[1]['items'] if stored else bar_items(bar_id)
+    items = merge_offers(items, overrides_for_bar(load_overrides(), bar_id))
     shop = f'{SHOP_COMPANY}, {BAR_NAMES[bar_id]}'
     return build_yml(items=items, shop_name=shop)
 
@@ -49,17 +61,26 @@ def feed_detail(feed_id):
     feed = feed_by_id(feed_id)
     if feed is None:
         return jsonify({'error': 'Фид не найден'}), 404
-    note = 'Одна ссылка на бар: кухня и пиво 0,5 л. Её вставляйте в Карты.'
-    try:
-        source = bar_items(feed['bar_id'])
-    except Exception as error:
-        from routes.taps import PriceUnavailable
-        if isinstance(error, PriceUnavailable):
-            source = combine_offers(offers_for_bar(feed['bar_id']), [])
-            note = 'Прайс пива сейчас недоступен, в списке только кухня. Файл для Яндекса не обновится, пока iiko не ответит.'
-        else:
-            print(f'[ERROR] YML feed {feed_id}: {error}')
-            return jsonify({'error': 'Не удалось прочитать фид'}), 503
+    note = 'Одна ссылка на бар: кухня и пиво 0,5 л. Список фиксируется каждый день в 05:00 МСК.'
+    stored = stored_bar(feed['bar_id'])
+    if stored:
+        updated_at, bar = stored
+        source = bar['items']
+        note = f'Снимок от {updated_at}. Следующее обновление в 05:00 МСК.'
+        if bar.get('error'):
+            note += ' ' + bar['error']
+    else:
+        try:
+            source = bar_items(feed['bar_id'])
+            note = 'Снимок ещё не снят, показаны краны на сейчас. Дальше список фиксируется каждый день в 05:00 МСК.'
+        except Exception as error:
+            from routes.taps import PriceUnavailable
+            if isinstance(error, PriceUnavailable):
+                source = combine_offers(offers_for_bar(feed['bar_id']), [])
+                note = 'Прайс пива сейчас недоступен, в списке только кухня.'
+            else:
+                print(f'[ERROR] YML feed {feed_id}: {error}')
+                return jsonify({'error': 'Не удалось прочитать фид'}), 503
     items = merge_offers(source, overrides_for_bar(load_overrides(), feed['bar_id']))
     return jsonify({
         'feed': {**feed, 'public_url': _public_url(feed['public_path'])},
