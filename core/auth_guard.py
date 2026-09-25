@@ -35,6 +35,7 @@ PUBLIC_ENDPOINTS = {
     'serve_manifest',                  # app.py: /static/manifest.json
     'misc.telegram_webhook_handler',   # Telegram POST'ит сюда без cookie
     'taps.taplist_yml',                # Яндекс забирает YML-фид таплиста без cookie
+    'taps.kitchen_yml',                # Яндекс забирает YML кухонного меню без cookie
 }
 
 

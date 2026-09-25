@@ -1,0 +1,276 @@
+<?xml version='1.0' encoding='utf-8'?>
+<yml_catalog date="2026-09-20T22:50:51+03:00">
+  <shop>
+    <name>Культура</name>
+    <currencies>
+      <currency id="RUB" rate="1" />
+    </currencies>
+    <categories>
+      <category id="1">Пицца</category>
+      <category id="2">Горячее</category>
+      <category id="3">Колбаски</category>
+      <category id="4">Смокер</category>
+      <category id="5">Орехи</category>
+      <category id="6">Вяленое</category>
+      <category id="7">Десерты</category>
+    </categories>
+    <offers>
+      <offer id="ttk-s02">
+        <price>370</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1318.jpg</picture>
+        <name>Картофель фри</name>
+        <vendor>Культура</vendor>
+        <description>Золотистый картофель фри: хрустящая корочка и мягкая серединка. Любимая классика для быстрого перекуса или в дополнение к горячему.</description>
+      </offer>
+      <offer id="ttk-s04">
+        <price>290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1327.jpg</picture>
+        <name>Ржаные гренки с чесночным соусом</name>
+        <vendor>Культура</vendor>
+        <description>Хрустящие гренки из бородинского хлеба с ароматным чесночным маслом. Насыщенный ржаной вкус дополняет чесночный соус.</description>
+      </offer>
+      <offer id="ttk-s05">
+        <price>490</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1314.jpg</picture>
+        <name>Сырные медальоны с халапеньо и ягодным джемом</name>
+        <vendor>Культура</vendor>
+        <description>Сырные медальоны с пикантным халапеньо и ягодным джемом. Нежный сыр, приятная острота и сладкий ягодный акцент.</description>
+      </offer>
+      <offer id="ttk-s06">
+        <price>490</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1311.jpg</picture>
+        <name>Куриные стрипсы</name>
+        <vendor>Культура</vendor>
+        <description>Полоски куриной грудки в хрустящей панировке: нежное мясо внутри и золотистая корочка снаружи. Подаются с соусом.</description>
+      </offer>
+      <offer id="ttk-s07">
+        <price>490</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1325.jpg</picture>
+        <name>Луковые кольца</name>
+        <vendor>Культура</vendor>
+        <description>Золотистые луковые кольца в панировке — хрустящие снаружи и нежные внутри. С соусом, в который хочется обмакнуть ещё одно колечко.</description>
+      </offer>
+      <offer id="ttk-s14">
+        <price>370</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>2</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1316.jpg</picture>
+        <name>Картофель айдахо в острой паприке</name>
+        <vendor>Культура</vendor>
+        <description>Румяные картофельные дольки с острой паприкой, чесноком и луком. Пряный аромат и выразительный вкус в каждом кусочке.</description>
+      </offer>
+      <offer id="ttk-s08">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>3</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1387.jpg</picture>
+        <name>Колбаски Охотничьи</name>
+        <vendor>Культура</vendor>
+        <description>Пряные подкопчённые колбаски из говядины и свинины с кусочками шпика, чесноком и чёрным перцем. Насыщенный мясной вкус с дымными нотами.</description>
+      </offer>
+      <offer id="ttk-s11">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>3</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1375.jpg</picture>
+        <name>Колбаски Бараньи</name>
+        <vendor>Культура</vendor>
+        <description>Подкопчённые колбаски из баранины с красным перцем. Выразительный мясной вкус, дымный аромат и приятная перечная остринка.</description>
+      </offer>
+      <offer id="ttk-s12">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>3</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1368.jpg</picture>
+        <name>Колбаски Пражская</name>
+        <vendor>Культура</vendor>
+        <description>Подкопчённые свиные колбаски с кусочками сыра, кориандром и чёрным перцем. Красное вино мерло добавляет вкусу особый оттенок.</description>
+      </offer>
+      <offer id="ttk-s13">
+        <price>1890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>3</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1408.jpg</picture>
+        <name>Сет немецких колбас</name>
+        <vendor>Культура</vendor>
+        <description>Ассорти колбасок с разными оттенками вкуса. Сытный сет, чтобы попробовать несколько видов и поделиться с компанией.</description>
+      </offer>
+      <offer id="ttk-s16">
+        <price>1790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>4</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1444.jpg</picture>
+        <name>Техасский брискет 16 часов томления</name>
+        <vendor>Культура</vendor>
+        <description>Говяжья грудинка, томлённая 16 часов: нежное мясо с насыщенным вкусом и аппетитным ароматом копчения. Для тех, кто ценит настоящий брискет.</description>
+      </offer>
+      <offer id="menu-pizza-001">
+        <price>890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1508.jpg</picture>
+        <name>Пицца Индейка ранч</name>
+        <vendor>Культура</vendor>
+        <description>Пицца с индейкой и соусом ранч — нежное мясо и мягкий сливочный вкус в каждом кусочке. Аппетитное сочетание для сытного обеда или ужина.</description>
+      </offer>
+      <offer id="ttk-s19-r08">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1476.jpg</picture>
+        <name>Пицца Пепперони</name>
+        <vendor>Культура</vendor>
+        <description>Римская пицца с пепперони — пряная колбаса на воздушной основе. Насыщенный вкус и пикантный характер любимой классики.</description>
+      </offer>
+      <offer id="ttk-s19-r07">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1485.jpg</picture>
+        <name>Пицца Ветчина и грибы</name>
+        <vendor>Культура</vendor>
+        <description>Римская пицца с ветчиной и грибами. Нежный мясной вкус и грибной аромат — знакомое сочетание, к которому хочется вернуться.</description>
+      </offer>
+      <offer id="ttk-s19-r05">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <name>Пицца Маргарита со страчателлой</name>
+        <vendor>Культура</vendor>
+        <description>Римская пицца со страчателлой — нежным сыром со сливочным вкусом. Мягкий сырный акцент в любимой классике «Маргарита».</description>
+      </offer>
+      <offer id="ttk-s19-r06">
+        <price>790</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1495.jpg</picture>
+        <name>Пицца Четыре сыра</name>
+        <vendor>Культура</vendor>
+        <description>Четыре сыра на римской основе — насыщенное сочетание сырных вкусов и нежная текстура. Для тех, кто всегда выбирает побольше сыра.</description>
+      </offer>
+      <offer id="menu-pizza-002">
+        <price>890</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1475.jpg</picture>
+        <name>Пицца Мясная</name>
+        <vendor>Культура</vendor>
+        <description>Пицца с мясной начинкой и насыщенным вкусом. Сытный выбор, когда хочется основательно подкрепиться и насладиться каждым кусочком.</description>
+      </offer>
+      <offer id="menu-nuts-001">
+        <price>190</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>5</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1459.jpg</picture>
+        <name>Солёный арахис</name>
+        <vendor>Культура</vendor>
+        <description>Хрустящий солёный арахис с ярким ореховым вкусом. Простая закуска, за которой рука так и тянется во время беседы.</description>
+      </offer>
+      <offer id="menu-nuts-002">
+        <price>390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>5</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1521.jpg</picture>
+        <name>Миндаль копчёный или солёный</name>
+        <vendor>Культура</vendor>
+        <description>Хрустящий миндаль на ваш вкус: с ароматом копчения или в солёном варианте. Выразительная ореховая закуска для неспешного вечера.</description>
+      </offer>
+      <offer id="menu-nuts-003">
+        <price>390</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>5</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1523.jpg</picture>
+        <name>Кешью</name>
+        <vendor>Культура</vendor>
+        <description>Кешью с нежным ореховым вкусом, лёгкой сладостью и приятным хрустом. Небольшая закуска, которую хочется растянуть подольше.</description>
+      </offer>
+      <offer id="menu-nuts-004">
+        <price>420</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>5</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1461.jpg</picture>
+        <name>Фисташки</name>
+        <vendor>Культура</vendor>
+        <description>Фисташки с узнаваемым насыщенным вкусом и приятным хрустом. Отличный повод замедлиться и продолжить разговор.</description>
+      </offer>
+      <offer id="menu-meat-001">
+        <price>470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>6</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1213.jpg</picture>
+        <name>Джерки из курицы или говядины</name>
+        <vendor>Культура</vendor>
+        <description>Вяленые ломтики курицы или говядины с насыщенным мясным вкусом. Выберите свой вариант сытной закуски для долгой беседы.</description>
+      </offer>
+      <offer id="menu-meat-002">
+        <price>320</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>6</categoryId>
+        <name>Классические свиные чипсы</name>
+        <vendor>Культура</vendor>
+        <description>Тонкие свиные чипсы с концентрированным мясным вкусом. Небольшие ломтики для тех, кто любит основательные мясные закуски.</description>
+      </offer>
+      <offer id="menu-meat-003">
+        <price>570</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>6</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1220.jpg</picture>
+        <name>Бастурма</name>
+        <vendor>Культура</vendor>
+        <description>Бастурма с насыщенным мясным вкусом и пряным ароматом. Выразительная закуска, которую приятно смаковать тонкими ломтиками.</description>
+      </offer>
+      <offer id="menu-meat-004">
+        <price>570</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>6</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1227.jpg</picture>
+        <name>Оленина холодного копчения</name>
+        <vendor>Культура</vendor>
+        <description>Оленина холодного копчения с насыщенным вкусом и дымным ароматом. Мясной деликатес для тех, кто хочет попробовать что-то особенное.</description>
+      </offer>
+      <offer id="menu-meat-005">
+        <price>470</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>6</categoryId>
+        <picture>https://storage.yandexcloud.net/kultura-menu/photos/Z8A_1204.jpg</picture>
+        <name>Сальсичча</name>
+        <vendor>Культура</vendor>
+        <description>Тонкие ломтики сальсиччи с выразительным мясным вкусом. Аппетитная закуска для неспешной беседы и небольшого перекуса.</description>
+      </offer>
+      <offer id="menu-dessert-001">
+        <price>490</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>7</categoryId>
+        <name>Брауни Рокслайд</name>
+        <vendor>Культура</vendor>
+        <description>Брауни Рокслайд с насыщенным шоколадным вкусом и нежной плотной текстурой. Сладкий финал для настоящих любителей шоколада.</description>
+      </offer>
+      <offer id="menu-dessert-002">
+        <price>290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>7</categoryId>
+        <name>Маффин</name>
+        <vendor>Культура</vendor>
+        <description>Мягкий маффин с нежным мякишем — небольшое сладкое удовольствие к чаю или кофе. Для уютной паузы в течение дня.</description>
+      </offer>
+      <offer id="menu-dessert-003">
+        <price>290</price>
+        <currencyId>RUB</currencyId>
+        <categoryId>7</categoryId>
+        <name>Яблочный пирог</name>
+        <vendor>Культура</vendor>
+        <description>Яблочный пирог с нежной фруктовой начинкой. Знакомый вкус любимого десерта для уютного чаепития или сладкого завершения ужина.</description>
+      </offer>
+    </offers>
+  </shop>
+</yml_catalog>

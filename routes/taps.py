@@ -11,7 +11,8 @@ from extensions import taps_manager
 from core.untappd_registry import load_registry
 from core.taplist import product_catalog, tap_details, full_taplist, BAR_NAMES
 from core.taplist_pricing import enrich_prices
-from core.taplist_yml import build_yml
+from core.kitchen_menu import render_kitchen_menu
+from core.taplist_yml import SHOP_URL, build_yml
 
 taps_bp = Blueprint('taps', __name__)
 
@@ -470,7 +471,17 @@ def taplist_yml():
     except Exception as error:
         print(f'[ERROR] Taplist YML: {error}')
         return jsonify({'error': 'Не удалось собрать фид'}), 503
-    response = make_response(build_yml(rows))
+    items = merge_offers(offers_for(rows), load_overrides())
+    response = make_response(build_yml(items=items))
+    response.headers['Content-Type'] = 'application/xml; charset=utf-8'
+    response.headers['Cache-Control'] = 'public, max-age=300'
+    return response
+
+
+@taps_bp.route('/feeds/kitchen.yml', methods=['GET'])
+def kitchen_yml():
+    """Публичный YML кухонного меню для Яндекс Карт. Фото отдаёт сам сайт."""
+    response = make_response(render_kitchen_menu(SHOP_URL + '/'))
     response.headers['Content-Type'] = 'application/xml; charset=utf-8'
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response
