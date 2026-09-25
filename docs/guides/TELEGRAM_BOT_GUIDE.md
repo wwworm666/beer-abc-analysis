@@ -8,13 +8,18 @@
 
 | Команда | Описание |
 |---------|----------|
-| `/start` | Приветствие и список команд |
+| `/start` | Кнопки баров |
 | `/taplist` | Меню выбора бара (кнопки) |
 | `/taplist1` | Большой пр. В.О |
 | `/taplist2` | Лиговский |
 | `/taplist3` | Кременчугская |
 | `/taplist4` | Варшавская |
 | `/taplistall` | Все бары |
+
+Команды бот забирает сам (`core/taplist_polling.py`, long-polling `getUpdates`).
+Входящий webhook Telegram до сервера не доходит, а отзыв токена в BotFather
+ещё и стирает сохранённый webhook. `TAPLIST_POLLING=0` выключает приём.
+`/telegram/setup-webhook` с polling спорит: следующий ответ 409 снимает webhook обратно.
 
 ---
 

@@ -191,7 +191,8 @@ def telegram_webhook_handler():
 def setup_telegram_webhook():
     """
     Установить webhook URL для Telegram бота.
-    Вызывается один раз после деплоя на Render.
+    На проде команды забирает core/taplist_polling.py: входящие от Telegram
+    не доходят, и polling снимет этот webhook при первом 409.
     """
     if not TELEGRAM_BOT_ENABLED:
         return jsonify({'error': 'Telegram bot not enabled'}), 503

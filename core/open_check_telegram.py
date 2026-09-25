@@ -104,12 +104,14 @@ def _token():
     return os.environ.get("TELEGRAM_OPEN_CHECK_BOT_TOKEN")
 
 
-def _scrub(e) -> str:
+def _scrub(e, token: str = None) -> str:
     """Убрать токен из текста перед логированием: исключения requests
     содержат полный URL вида /bot<token>/<method>."""
     s = str(e)
-    t = _token()
-    return s.replace(t, "<TOKEN>") if t else s
+    for t in (token, _token(), os.environ.get("TELEGRAM_BOT_TOKEN")):
+        if t:
+            s = s.replace(t, "<TOKEN>")
+    return s
 
 
 def webhook_secret() -> str:
@@ -121,13 +123,14 @@ def webhook_secret() -> str:
     return hashlib.sha256(("ocwh:" + (_token() or "")).encode()).hexdigest()[:40]
 
 
-def api_call(method: str, payload: dict = None, timeout: int = 8):
+def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str = None):
     # timeout=8 (было 20): webhook-хендлер вызывает api_call синхронно, а воркеров
     # всего 2 — долгий ответ Telegram не должен надолго занимать воркер.
     # timeout трактуется как read-timeout; на connect всегда 5с — заблокированный
     # IP отваливается на connect, и длинный read-timeout getUpdates его не ждёт.
+    # token — чужой бот (таплист). Без аргумента используется open-check токен.
     global _primary_dead_until, _working_ip
-    token = _token()
+    token = token or _token()
     if not token:
         log.error("TELEGRAM_OPEN_CHECK_BOT_TOKEN не задан")
         return None
@@ -143,13 +146,13 @@ def api_call(method: str, payload: dict = None, timeout: int = 8):
         except Exception as e:
             _primary_dead_until = time.time() + _PRIMARY_COOLDOWN
             log.warning("TG %s: основной путь не работает (%s) — пробуем запасные IP",
-                        method, _scrub(e))
+                        method, _scrub(e, token))
 
     for ip in _iter_candidate_ips():
         try:
             data = _post_via_ip(ip, method, token, payload, (5, timeout))
         except Exception as e:
-            log.warning("TG %s via %s failed: %s", method, ip, _scrub(e))
+            log.warning("TG %s via %s failed: %s", method, ip, _scrub(e, token))
             continue
         if _working_ip != ip:
             log.warning("TG: переключился на запасной IP %s", ip)
