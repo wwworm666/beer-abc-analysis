@@ -154,6 +154,14 @@ test('таблица кегов: все позиции, итог и сортир
     assert.equal(rows, BLOCK.kegs.length, `строк ${rows}, кегов ${BLOCK.kegs.length}`);
     assert.match(html, /Итого · 33 кега/, 'нет строки итога');
     assert.match(html, /ЛИТРЫ ↓/, 'не показано направление сортировки');
+    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
+    const litAt = html.indexOf('ДОЛЯ В ЛИТРАХ');
+    assert.ok(revAt >= 0 && litAt > revAt, 'доли кега стоят не в порядке выручка, затем литры');
+    assert.ok(!html.includes('ДОЛЯ ПО Л'), 'старая колонка «доля по л» ещё в таблице кегов');
+    assert.ok(html.includes(env.sandbox.window.__draft.pct(BLOCK.kegs[0].LitersSharePercent, 1)),
+        'доля кега по литрам не выведена');
+    assert.ok(html.includes(env.sandbox.window.__draft.pct(BLOCK.kegs[0].RevenueSharePercent, 1)),
+        'доля кега в выручке не выведена');
     // Первая строка — самый объёмный кег.
     const first = html.indexOf(BLOCK.kegs[0].KegName);
     const second = html.indexOf(BLOCK.kegs[1].KegName);

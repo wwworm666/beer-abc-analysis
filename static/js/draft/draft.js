@@ -653,8 +653,11 @@
             });
         }
         rows = sortRows(rows, state.kegSort);
-        var maxShare = rows.reduce(function (acc, keg) {
+        var maxLitersShare = rows.reduce(function (acc, keg) {
             return Math.max(acc, keg.LitersSharePercent || 0);
+        }, 0);
+        var maxRevenueShare = rows.reduce(function (acc, keg) {
+            return Math.max(acc, keg.RevenueSharePercent || 0);
         }, 0);
 
         var total = data.total_kegs || 0;
@@ -669,9 +672,12 @@
                 sortMark(state.kegSort, 'TotalLiters') + '</span>' +
             '<span class="dr-th r s" data-sort="TotalPortions">ПОРЦИИ' +
                 sortMark(state.kegSort, 'TotalPortions') + '</span>' +
-            '<span class="dr-th r">ДОЛЯ ПО Л</span>' +
             '<span class="dr-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
                 sortMark(state.kegSort, 'TotalRevenue') + '</span>' +
+            '<span class="dr-th r s" data-sort="RevenueSharePercent">ДОЛЯ В ВЫРУЧКЕ' +
+                sortMark(state.kegSort, 'RevenueSharePercent') + '</span>' +
+            '<span class="dr-th r s" data-sort="LitersSharePercent">ДОЛЯ В ЛИТРАХ' +
+                sortMark(state.kegSort, 'LitersSharePercent') + '</span>' +
             '<span class="dr-th r s" data-sort="PricePerLiter">ЦЕНА/Л' +
                 sortMark(state.kegSort, 'PricePerLiter') + '</span>' +
             '<span class="dr-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
@@ -686,8 +692,9 @@
                 '<span class="dr-name">' + esc(keg.KegName) + '</span>' +
                 '<span class="dr-num strong">' + num(keg.TotalLiters) + '</span>' +
                 '<span class="dr-num">' + num(keg.TotalPortions) + '</span>' +
-                shareCell(keg.LitersSharePercent, maxShare) +
                 '<span class="dr-num strong">' + money(keg.TotalRevenue) + '</span>' +
+                shareCell(keg.RevenueSharePercent, maxRevenueShare) +
+                shareCell(keg.LitersSharePercent, maxLitersShare) +
                 '<span class="dr-num">' + money(keg.PricePerLiter) + '</span>' +
                 '<span class="dr-num">' +
                     (keg.MarkupPercent === null ? '—' : pct(keg.MarkupPercent, 0)) + '</span>' +
@@ -705,15 +712,17 @@
             var sumPortions = rows.reduce(function (a, k) { return a + k.TotalPortions; }, 0);
             var sumRevenue = rows.reduce(function (a, k) { return a + k.TotalRevenue; }, 0);
             var sumCost = rows.reduce(function (a, k) { return a + k.TotalCost; }, 0);
-            var sumShare = rows.reduce(function (a, k) { return a + k.LitersSharePercent; }, 0);
+            var sumLitersShare = rows.reduce(function (a, k) { return a + k.LitersSharePercent; }, 0);
+            var sumRevenueShare = rows.reduce(function (a, k) { return a + k.RevenueSharePercent; }, 0);
             html += '<div class="dr-row is-total">' +
                 '<span></span>' +
                 '<span class="dr-total-n">Итого · ' + rows.length + ' ' +
                     plural(rows.length, 'кег', 'кега', 'кегов') + '</span>' +
                 '<span class="dr-total-v strong">' + num(sumLiters) + '</span>' +
                 '<span class="dr-total-v">' + num(sumPortions) + '</span>' +
-                '<span class="dr-total-v">' + pct(sumShare, 0) + '</span>' +
                 '<span class="dr-total-v strong">' + money(sumRevenue) + '</span>' +
+                '<span class="dr-total-v">' + pct(sumRevenueShare, 0) + '</span>' +
+                '<span class="dr-total-v">' + pct(sumLitersShare, 0) + '</span>' +
                 '<span class="dr-total-v">' +
                     money(sumLiters > 0 ? sumRevenue / sumLiters : 0) + '</span>' +
                 '<span class="dr-total-v">' +
