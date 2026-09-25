@@ -36,6 +36,7 @@ PUBLIC_ENDPOINTS = {
     'misc.telegram_webhook_handler',   # Telegram POST'ит сюда без cookie
     'taps.taplist_yml',                # Яндекс забирает YML-фид таплиста без cookie
     'taps.kitchen_yml',                # Яндекс забирает YML кухонного меню без cookie
+    'yml_feeds.kitchen_yml',           # тот же фид, если его отдаёт страница фидов
 }
 
 

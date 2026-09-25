@@ -2,7 +2,8 @@
 import xml.etree.ElementTree as ET
 
 from core.auth_guard import PUBLIC_ENDPOINTS
-from core.kitchen_menu import PHOTO_DIR, SOURCE, picture_filename, render_kitchen_menu
+from core.kitchen_menu import PHOTO_DIR, SOURCE, catalog_offers, picture_filename, render_kitchen_menu
+from core.kitchen_yml import offers_for_bar
 
 
 def _offers(xml):
@@ -82,6 +83,21 @@ def test_missing_or_foreign_picture_is_dropped(tmp_path):
     assert 'evil.example' not in xml
 
 
+def test_same_kitchen_menu_is_available_for_each_bar():
+    first = offers_for_bar('bar1')
+    second = offers_for_bar('bar4')
+    assert len(first) == 29
+    assert [item['id'] for item in first] == [item['id'] for item in second]
+    assert first[0]['bar_id'] == 'bar1'
+    assert second[0]['bar_id'] == 'bar4'
+    fries = next(item for item in first if item['id'] == 'ttk-s02')
+    assert fries['category_name'] == 'Горячее'
+    assert fries['picture'].endswith('/static/kitchen-menu/Z8A_1318.jpg')
+    assert offers_for_bar('bar9') == []
+    assert len(catalog_offers()) == 29
+
+
 def test_kitchen_route_is_public():
     assert 'taps.kitchen_yml' in PUBLIC_ENDPOINTS
+    assert 'yml_feeds.kitchen_yml' in PUBLIC_ENDPOINTS
     assert (PHOTO_DIR / 'Z8A_1318.jpg').is_file()

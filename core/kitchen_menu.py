@@ -20,20 +20,103 @@ def picture_filename(url):
     return name if _PHOTO_NAME.fullmatch(name) else ''
 
 
+def _base(public_base):
+    return str(public_base or '').rstrip('/') + '/'
+
+
+def _local_picture(url, public_base, photo_dir):
+    name = picture_filename(url)
+    if not name or not (photo_dir / name).is_file():
+        return ''
+    return f'{_base(public_base)}static/kitchen-menu/{name}'
+
+
+def catalog_offers(public_base='https://beerkultura.ru/', source=None, photo_dir=None):
+    """Позиции меню: id, цена, категория, фото с нашего сайта."""
+    source = Path(source or SOURCE)
+    photo_dir = Path(photo_dir or PHOTO_DIR)
+    root = ET.parse(source).getroot()
+    categories = {
+        node.get('id'): (node.text or '').strip()
+        for node in root.findall('./shop/categories/category')
+    }
+    items = []
+    for offer in root.findall('./shop/offers/offer'):
+        category_id = (offer.findtext('categoryId') or '').strip()
+        items.append({
+            'id': offer.get('id') or '',
+            'name': (offer.findtext('name') or '').strip(),
+            'price': (offer.findtext('price') or '').strip(),
+            'category_id': category_id,
+            'category_name': categories.get(category_id) or 'Меню',
+            'picture': _local_picture(offer.findtext('picture'), public_base, photo_dir),
+            'vendor': (offer.findtext('vendor') or '').strip(),
+            'description': (offer.findtext('description') or '').strip(),
+        })
+    return items
+
+
 def render_kitchen_menu(public_base, source=None, photo_dir=None):
     """XML-фид. public_base — корень сайта, например https://beerkultura.ru/."""
     source = Path(source or SOURCE)
     photo_dir = Path(photo_dir or PHOTO_DIR)
-    base = str(public_base or '').rstrip('/') + '/'
     root = ET.parse(source).getroot()
     for offer in root.findall('./shop/offers/offer'):
         picture = offer.find('picture')
         if picture is None:
             continue
-        name = picture_filename(picture.text)
-        if not name or not (photo_dir / name).is_file():
+        local = _local_picture(picture.text, public_base, photo_dir)
+        if not local:
             offer.remove(picture)
             continue
-        picture.text = f'{base}static/kitchen-menu/{name}'
+        picture.text = local
+    body = ET.tostring(root, encoding='unicode')
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + body
+
+
+def offer_rows(public_base, source=None, photo_dir=None):
+    """Позиции уже с локальными адресами фото — те же, что уйдут в Яндекс."""
+    xml = render_kitchen_menu(public_base, source=source, photo_dir=photo_dir)
+    root = ET.fromstring(xml)
+    categories = {node.get('id'): (node.text or '') for node in root.findall('./shop/categories/category')}
+    rows = []
+    for offer in root.findall('./shop/offers/offer'):
+        category_id = offer.findtext('categoryId') or ''
+        rows.append({
+            'id': offer.get('id'),
+            'bar_id': '',
+            'name': offer.findtext('name') or '',
+            'price': offer.findtext('price') or '',
+            'portion': '',
+            'vendor': offer.findtext('vendor') or '',
+            'picture': offer.findtext('picture') or '',
+            'description': offer.findtext('description') or '',
+            'category_id': category_id,
+            'category_name': categories.get(category_id, ''),
+        })
+    return rows
+
+
+def apply_overrides(xml, overrides):
+    """Скрыть позицию или подменить имя, цену и описание. Остальной файл не трогаем."""
+    overrides = overrides or {}
+    root = ET.fromstring(xml)
+    box = root.find('./shop/offers')
+    if box is None:
+        return xml
+    for offer in list(box.findall('offer')):
+        change = overrides.get(offer.get('id')) or {}
+        if change.get('hidden'):
+            box.remove(offer)
+            continue
+        if change.get('name') and offer.find('name') is not None:
+            offer.find('name').text = change['name']
+        if change.get('price') and offer.find('price') is not None:
+            offer.find('price').text = change['price']
+        if change.get('description'):
+            node = offer.find('description')
+            if node is None:
+                node = ET.SubElement(offer, 'description')
+            node.text = change['description']
     body = ET.tostring(root, encoding='unicode')
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + body
