@@ -6,7 +6,21 @@ from core.taplist import BAR_NAMES
 
 FEED_ORDER = ('bar1', 'bar2', 'bar3', 'bar4')
 DRINKS_CATEGORY_ID = '100'
-DRINKS_CATEGORY_NAME = 'Напитки'
+DRINKS_CATEGORY_NAME = 'Пиво'
+
+# Порядок на Картах: пиво, горячие закуски (с пиццей в конце раздела),
+# горячее мясо, холодные закуски, десерты.
+# (ранг, id раздела в файле, заголовок)
+_SECTIONS = {
+    '100': (0, '100', 'Пиво'),
+    '2': (1, '2', 'Горячие закуски'),
+    '1': (1, '2', 'Горячие закуски'),
+    '3': (2, '3', 'Горячее мясо'),
+    '4': (2, '3', 'Горячее мясо'),
+    '5': (3, '5', 'Закуски'),
+    '6': (3, '5', 'Закуски'),
+    '7': (4, '7', 'Десерты'),
+}
 
 
 def feed_catalog():
@@ -22,18 +36,24 @@ def feed_catalog():
 
 
 def combine_offers(kitchen, drinks):
-    """Кухня сохраняет свои разделы. Пиво садится в отдельный раздел «Напитки»."""
+    """Пиво первым, затем кухня по заданным разделам. Внутри раздела порядок меню сохраняется."""
     rows = []
     for item in kitchen or []:
         row = dict(item)
-        row['category_id'] = str(row.get('category_id') or '1')
-        row['category_name'] = row.get('category_name') or 'Кухня'
+        row['category_id'] = str(row.get('category_id') or '7')
         rows.append(row)
     for item in drinks or []:
         row = dict(item)
         row['category_id'] = DRINKS_CATEGORY_ID
-        row['category_name'] = DRINKS_CATEGORY_NAME
         rows.append(row)
+    rows.sort(key=lambda item: _SECTIONS.get(str(item.get('category_id')), (9, '9', 'Меню'))[0])
+    for item in rows:
+        rank = _SECTIONS.get(str(item.get('category_id')))
+        if rank:
+            item['category_id'] = rank[1]
+            item['category_name'] = rank[2]
+        else:
+            item['category_name'] = item.get('category_name') or 'Меню'
     return rows
 
 

@@ -92,11 +92,21 @@ def test_page_lists_one_combined_feed_per_bar():
     assert [feed['id'] for feed in feeds] == ['bar1', 'bar2', 'bar3', 'bar4']
     assert feeds[1]['public_path'] == '/feeds/kitchen/bar2'
     combined = combine_offers(
-        [{'id': 'ttk-s02', 'name': 'Фри', 'price': '370', 'category_id': '2', 'category_name': 'Горячее'}],
-        [{'id': 'bar2-tap1-p05', 'name': 'Стаут, 0,5 л', 'price': '290.00', 'category_id': '2', 'category_name': 'Лиговский'}],
+        [
+            {'id': 'fries', 'name': 'Фри', 'price': '370', 'category_id': '2'},
+            {'id': 'sausage', 'name': 'Охотничьи', 'price': '790', 'category_id': '3'},
+            {'id': 'pizza', 'name': 'Маргарита', 'price': '690', 'category_id': '1'},
+            {'id': 'nuts', 'name': 'Арахис', 'price': '250', 'category_id': '5'},
+            {'id': 'brownie', 'name': 'Брауни', 'price': '490', 'category_id': '7'},
+        ],
+        [{'id': 'bar2-tap1-p05', 'name': 'Стаут, 0,5 л', 'price': '290.00', 'category_id': '2'}],
     )
-    assert [item['category_name'] for item in combined] == ['Горячее', 'Напитки']
-    assert combined[1]['category_id'] == '100'
+    assert [item['category_name'] for item in combined] == [
+        'Пиво', 'Горячие закуски', 'Горячие закуски', 'Горячее мясо', 'Закуски', 'Десерты',
+    ]
+    assert [item['id'] for item in combined] == [
+        'bar2-tap1-p05', 'fries', 'pizza', 'sausage', 'nuts', 'brownie',
+    ]
     stored = {'kitchen-bar2': {'ttk-s02': {'hidden': True}}, 'bar2': {'ttk-s02': {'name': 'Картофель'}}}
     assert overrides_for_bar(stored, 'bar2')['ttk-s02']['name'] == 'Картофель'
 
