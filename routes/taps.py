@@ -9,8 +9,9 @@ from urllib.parse import quote
 from difflib import SequenceMatcher
 from extensions import taps_manager
 from core.untappd_registry import load_registry
-from core.taplist import product_catalog, tap_details, full_taplist
+from core.taplist import product_catalog, tap_details, full_taplist, BAR_NAMES
 from core.taplist_pricing import enrich_prices
+from core.taplist_yml import build_yml
 
 taps_bp = Blueprint('taps', __name__)
 
@@ -360,11 +361,10 @@ def identify_tap(bar_id):
         return jsonify({'success': False, 'error': 'Не удалось сохранить сорт'}), 500
 
 
-def reviewed_taplist():
+def load_reviewed_taplist(bar_id=None, active_only=True):
     registry = load_registry()
     snapshot = taps_manager.get_snapshot(product_catalog(registry))
-    rows = full_taplist(snapshot, registry, request.args.get('bar_id'),
-                        request.args.get('active_only', 'true').lower() == 'true')
+    rows = full_taplist(snapshot, registry, bar_id, active_only)
     if rows:
         try:
             sources = fetch_price_sources()
@@ -372,6 +372,12 @@ def reviewed_taplist():
             raise PriceUnavailable from None
         enrich_prices(rows, registry, sources)
     return rows
+
+
+def reviewed_taplist():
+    return load_reviewed_taplist(
+        request.args.get('bar_id'),
+        request.args.get('active_only', 'true').lower() == 'true')
 
 
 class PriceUnavailable(Exception):
@@ -447,6 +453,27 @@ def export_taplist_full():
     except Exception as error:
         print(f'[ERROR] Taplist V2 export: {error}')
         return jsonify({'success': False, 'error': 'Не удалось загрузить проверенный таплист'}), 503
+
+
+@taps_bp.route('/feeds/taplist.yml', methods=['GET'])
+def taplist_yml():
+    """Публичный YML текущего таплиста для Яндекс Карт. bar=bar1…bar4 или все бары."""
+    bar_id = request.args.get('bar') or request.args.get('bar_id') or None
+    if bar_id is not None and bar_id not in BAR_NAMES:
+        return jsonify({'error': 'Бар не найден'}), 404
+    try:
+        rows = load_reviewed_taplist(bar_id, True)
+    except PriceUnavailable:
+        return jsonify({'error': 'Не удалось получить актуальный прайс iiko'}), 503
+    except KeyError:
+        return jsonify({'error': 'Бар не найден'}), 404
+    except Exception as error:
+        print(f'[ERROR] Taplist YML: {error}')
+        return jsonify({'error': 'Не удалось собрать фид'}), 503
+    response = make_response(build_yml(rows))
+    response.headers['Content-Type'] = 'application/xml; charset=utf-8'
+    response.headers['Cache-Control'] = 'public, max-age=300'
+    return response
 
 
 @taps_bp.route('/api/taps/<bar_id>/stats', methods=['GET'])
