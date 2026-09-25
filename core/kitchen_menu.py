@@ -74,27 +74,17 @@ def render_kitchen_menu(public_base, source=None, photo_dir=None):
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + body
 
 
-def offer_rows(public_base, source=None, photo_dir=None):
-    """Позиции уже с локальными адресами фото — те же, что уйдут в Яндекс."""
+def render_for_bar(public_base, bar_id, overrides=None, source=None, photo_dir=None):
+    """Тот же каталог, в названии магазина — конкретная точка, плюс её правки."""
+    from core.taplist import BAR_NAMES
     xml = render_kitchen_menu(public_base, source=source, photo_dir=photo_dir)
     root = ET.fromstring(xml)
-    categories = {node.get('id'): (node.text or '') for node in root.findall('./shop/categories/category')}
-    rows = []
-    for offer in root.findall('./shop/offers/offer'):
-        category_id = offer.findtext('categoryId') or ''
-        rows.append({
-            'id': offer.get('id'),
-            'bar_id': '',
-            'name': offer.findtext('name') or '',
-            'price': offer.findtext('price') or '',
-            'portion': '',
-            'vendor': offer.findtext('vendor') or '',
-            'picture': offer.findtext('picture') or '',
-            'description': offer.findtext('description') or '',
-            'category_id': category_id,
-            'category_name': categories.get(category_id, ''),
-        })
-    return rows
+    name = root.find('./shop/name')
+    if name is not None and bar_id in BAR_NAMES:
+        name.text = f'Культура, {BAR_NAMES[bar_id]}'
+    body = ET.tostring(root, encoding='unicode')
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + body
+    return apply_overrides(xml, overrides or {})
 
 
 def apply_overrides(xml, overrides):

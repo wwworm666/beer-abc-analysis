@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 
 from core.auth_guard import PUBLIC_ENDPOINTS
 from core.taplist_yml import build_yml, offers_for
+from core.yml_feeds import feed_catalog
+from core.yml_overrides import normalize_override, save_overrides
 
 
 ROW = {
@@ -81,3 +83,40 @@ def test_clock_uses_moscow_offset():
 
 def test_yml_route_is_public():
     assert 'taps.taplist_yml' in PUBLIC_ENDPOINTS
+
+
+def test_page_lists_taplist_and_kitchen_for_every_bar():
+    feeds = feed_catalog()
+    assert [feed['id'] for feed in feeds] == [
+        'taplist-bar1', 'taplist-bar2', 'taplist-bar3', 'taplist-bar4',
+        'kitchen-bar1', 'kitchen-bar2', 'kitchen-bar3', 'kitchen-bar4',
+    ]
+    assert feeds[-1]['public_path'] == '/feeds/kitchen/bar4'
+
+
+def test_override_roundtrip_keeps_feeds_separate(tmp_path):
+    path = tmp_path / 'yml_overrides.json'
+    save_overrides('kitchen-bar1', {'ttk-s02': {'hidden': True, 'name': 'Фри'}}, path)
+    save_overrides('kitchen-bar2', {'ttk-s02': {'price': '10'}}, path)
+    from core.yml_overrides import load_overrides
+    stored = load_overrides(path)
+    assert stored['kitchen-bar1']['ttk-s02']['hidden'] is True
+    assert stored['kitchen-bar1']['ttk-s02']['name'] == 'Фри'
+    assert stored['kitchen-bar2']['ttk-s02']['price'] == '10.00'
+    assert 'name' not in stored['kitchen-bar2']['ttk-s02']
+    try:
+        normalize_override({'price': 'нет'})
+    except ValueError:
+        return
+    raise AssertionError('bad price must be rejected')
+
+
+def test_hidden_and_renamed_offer_changes_the_file():
+    items = offers_for([ROW])
+    items[0]['hidden'] = True
+    items[1]['name'] = 'Своё имя'
+    xml = build_yml(items=items, when='2026-09-25T12:00:00+03:00')
+    offers = _offers(xml)
+    assert len(offers) == 1
+    assert offers[0].findtext('name') == 'Своё имя'
+    assert '0,5' not in offers[0].findtext('name')

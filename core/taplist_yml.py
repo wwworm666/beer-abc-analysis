@@ -105,21 +105,31 @@ def offers_for(rows):
                 'vendor': _text(row.get('brewery'), 80),
                 'picture': _picture(row.get('photo_url')),
                 'description': _description(row, portion),
+                'category_id': CATEGORY_IDS[bar_id],
+                'category_name': BAR_NAMES[bar_id],
             })
     return result
 
 
-def build_yml(rows, when=None, shop_url=SHOP_URL):
-    """Собрать XML. Пустой список порций даёт валидный фид без товаров."""
+def build_yml(rows=None, when=None, shop_url=SHOP_URL, items=None, shop_name=None):
+    """Собрать XML. Скрытые позиции (hidden) в файл не попадают."""
     when = when or generated_at()
+    source = list(items if items is not None else offers_for(rows or []))
+    visible = [item for item in source if not item.get('hidden')]
     bars = []
-    for row in rows:
-        bar_id = row.get('bar_id')
+    categories = []
+    for item in visible:
+        bar_id = item.get('bar_id')
         if bar_id in BAR_NAMES and bar_id not in bars:
             bars.append(bar_id)
-    shop_name = SHOP_COMPANY
-    if len(bars) == 1:
-        shop_name = f'{SHOP_COMPANY}, {BAR_NAMES[bars[0]]}'
+        category_id = str(item.get('category_id') or CATEGORY_IDS.get(bar_id) or '')
+        category_name = item.get('category_name') or BAR_NAMES.get(bar_id) or 'Меню'
+        if category_id and (category_id, category_name) not in categories:
+            categories.append((category_id, category_name))
+    if shop_name is None:
+        shop_name = SHOP_COMPANY
+        if len(bars) == 1:
+            shop_name = f'{SHOP_COMPANY}, {BAR_NAMES[bars[0]]}'
 
     catalog = ET.Element('yml_catalog', date=when)
     shop = ET.SubElement(catalog, 'shop')
@@ -128,24 +138,26 @@ def build_yml(rows, when=None, shop_url=SHOP_URL):
     ET.SubElement(shop, 'url').text = shop_url
     currencies = ET.SubElement(shop, 'currencies')
     ET.SubElement(currencies, 'currency', id='RUR', rate='1')
-    categories = ET.SubElement(shop, 'categories')
-    for bar_id in bars:
-        ET.SubElement(categories, 'category', id=CATEGORY_IDS[bar_id]).text = BAR_NAMES[bar_id]
+    category_box = ET.SubElement(shop, 'categories')
+    for category_id, category_name in categories:
+        ET.SubElement(category_box, 'category', id=category_id).text = category_name
     ET.SubElement(shop, 'delivery').text = 'false'
     ET.SubElement(shop, 'pickup').text = 'true'
     offers = ET.SubElement(shop, 'offers')
-    for item in offers_for(rows):
-        offer = ET.SubElement(offers, 'offer', id=item['id'], available='true')
+    for item in visible:
+        offer = ET.SubElement(offers, 'offer', id=str(item['id']), available='true')
         ET.SubElement(offer, 'url').text = shop_url
-        ET.SubElement(offer, 'price').text = item['price']
+        ET.SubElement(offer, 'price').text = str(item['price'])
         ET.SubElement(offer, 'currencyId').text = 'RUR'
-        ET.SubElement(offer, 'categoryId').text = CATEGORY_IDS[item['bar_id']]
-        if item['picture']:
+        ET.SubElement(offer, 'categoryId').text = str(
+            item.get('category_id') or CATEGORY_IDS.get(item.get('bar_id')))
+        if item.get('picture'):
             ET.SubElement(offer, 'picture').text = item['picture']
         ET.SubElement(offer, 'name').text = item['name']
-        if item['vendor']:
+        if item.get('vendor'):
             ET.SubElement(offer, 'vendor').text = item['vendor']
-        ET.SubElement(offer, 'description').text = item['description']
-        ET.SubElement(offer, 'param', name='Объём', unit='л').text = item['portion']
+        ET.SubElement(offer, 'description').text = item.get('description') or ''
+        if item.get('portion'):
+            ET.SubElement(offer, 'param', name='Объём', unit='л').text = str(item['portion'])
     body = ET.tostring(catalog, encoding='unicode')
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + body

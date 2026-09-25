@@ -18,6 +18,7 @@ from .guests import guests_bp
 from .salary import salary_bp
 from .me import me_bp
 from .cleanliness import cleanliness_bp
+from .yml_feeds import yml_bp
 
 # Редактор меню (/menu) перенесён из локального menu_tool/ в основное приложение:
 # данные на постоянном диске (/kultura), Chromium для PDF есть в прод-образе
@@ -45,3 +46,4 @@ def register_blueprints(app):
     app.register_blueprint(salary_bp)
     app.register_blueprint(me_bp)
     app.register_blueprint(cleanliness_bp)
+    app.register_blueprint(yml_bp)

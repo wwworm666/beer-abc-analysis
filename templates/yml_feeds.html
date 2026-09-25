@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фиды Яндекса - Beer Analysis</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <style>
+        .layout { display: grid; grid-template-columns: 240px 1fr; gap: 20px; align-items: start; }
+        .card { background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; }
+        .hint { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 14px; }
+        .group { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-secondary); margin: 14px 0 6px; }
+        .feed-btn { display: block; width: 100%; text-align: left; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; font: inherit; font-size: 14px; }
+        .feed-btn.active { border-color: var(--accent); color: var(--accent); }
+        .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+        .url { flex: 1; min-width: 220px; font-size: 12px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-tertiary); color: var(--text-primary); }
+        .btn { background: var(--accent); color: white; border: none; border-radius: 6px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; text-decoration: none; }
+        .btn.sec { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .status { font-size: 12px; color: var(--text-secondary); }
+        .status.ok { color: #047857; }
+        .status.err { color: #991b1b; }
+        .note { font-size: 13px; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid var(--border-color); font-size: 13px; }
+        th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-secondary); }
+        input[type="text"], textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font: inherit; font-size: 13px; }
+        textarea { min-height: 64px; resize: vertical; }
+        .price { width: 90px; }
+        .muted { color: var(--text-secondary); font-size: 12px; }
+        tr.off { opacity: .55; }
+        .scroll { overflow-x: auto; }
+        @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% set page_title = "Фиды Яндекса" %}
+        {% set page_subtitle = "Таплист и меню кухни" %}
+        {% include 'shared/nav.html' %}
+
+        <p class="hint">Здесь собраны файлы, которые Яндекс забирает в карточки баров. Розлив строится из кранов, кухня — из общего меню. Снятие галочки убирает позицию из файла. Своё название, цена или описание заменяют то, что пришло из источника. Пустое поле возвращает исходное значение.</p>
+        <div class="layout">
+            <div class="card" id="feed-list">Загрузка…</div>
+            <div class="card">
+                <div class="toolbar">
+                    <input class="url" id="public-url" readonly value="">
+                    <button class="btn sec" id="copy-url" type="button">Копировать ссылку</button>
+                    <a class="btn sec" id="open-url" href="#" target="_blank" rel="noopener">Открыть файл</a>
+                    <button class="btn" id="save" type="button">Сохранить</button>
+                    <span class="status" id="status"></span>
+                </div>
+                <div class="note" id="note"></div>
+                <div class="scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>В фиде</th>
+                                <th>Название</th>
+                                <th>Цена</th>
+                                <th>Раздел</th>
+                                <th>Описание</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rows"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/logo.js"></script>
+    <script>
+        let currentId = null;
+        let currentOffers = [];
+
+        function setStatus(text, kind) {
+            const node = document.getElementById('status');
+            node.textContent = text || '';
+            node.className = 'status' + (kind ? ' ' + kind : '');
+        }
+
+        async function loadFeeds() {
+            const response = await fetch('/api/yml/feeds');
+            const data = await response.json();
+            const box = document.getElementById('feed-list');
+            box.innerHTML = '';
+            let group = '';
+            for (const feed of data.feeds) {
+                if (feed.group !== group) {
+                    group = feed.group;
+                    const label = document.createElement('div');
+                    label.className = 'group';
+                    label.textContent = group;
+                    box.appendChild(label);
+                }
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'feed-btn';
+                button.dataset.id = feed.id;
+                button.textContent = feed.title;
+                button.addEventListener('click', () => openFeed(feed.id));
+                box.appendChild(button);
+            }
+            if (data.feeds.length) openFeed(data.feeds[0].id);
+        }
+
+        async function openFeed(id) {
+            currentId = id;
+            document.querySelectorAll('.feed-btn').forEach(button => {
+                button.classList.toggle('active', button.dataset.id === id);
+            });
+            setStatus('Читаю фид…');
+            document.getElementById('rows').innerHTML = '';
+            const response = await fetch('/api/yml/feeds/' + encodeURIComponent(id));
+            const data = await response.json();
+            if (!response.ok) {
+                setStatus(data.error || 'Не удалось прочитать фид', 'err');
+                return;
+            }
+            document.getElementById('public-url').value = data.feed.public_url;
+            document.getElementById('open-url').href = data.feed.public_url;
+            document.getElementById('note').textContent = data.note
+                ? data.note
+                : ('В файле ' + data.shown + ', скрыто ' + data.hidden);
+            currentOffers = data.offers;
+            renderRows();
+            setStatus('');
+        }
+
+        function renderRows() {
+            const body = document.getElementById('rows');
+            body.innerHTML = '';
+            for (const offer of currentOffers) {
+                const row = document.createElement('tr');
+                if (offer.hidden) row.className = 'off';
+                row.innerHTML = `
+                    <td><input type="checkbox" data-field="shown" ${offer.hidden ? '' : 'checked'}></td>
+                    <td>
+                        <input type="text" data-field="name" value="">
+                        <div class="muted"></div>
+                    </td>
+                    <td><input class="price" type="text" data-field="price" value=""></td>
+                    <td class="muted"></td>
+                    <td><textarea data-field="description"></textarea></td>`;
+                row.querySelector('[data-field="name"]').value = offer.name || '';
+                row.querySelector('.muted').textContent = offer.edited && offer.source_name !== offer.name
+                    ? ('было: ' + offer.source_name) : (offer.portion ? offer.portion + ' л' : '');
+                row.querySelector('[data-field="price"]').value = offer.price || '';
+                row.querySelector('[data-field="price"]').placeholder = offer.source_price || '';
+                row.children[3].textContent = offer.category_name || '';
+                row.querySelector('[data-field="description"]').value = offer.description || '';
+                row.querySelector('[data-field="shown"]').addEventListener('change', event => {
+                    row.classList.toggle('off', !event.target.checked);
+                });
+                row.dataset.id = offer.id;
+                body.appendChild(row);
+            }
+        }
+
+        function collect() {
+            const offers = {};
+            for (const row of document.querySelectorAll('#rows tr')) {
+                const source = currentOffers.find(item => item.id === row.dataset.id);
+                const name = row.querySelector('[data-field="name"]').value.trim();
+                const price = row.querySelector('[data-field="price"]').value.trim();
+                const description = row.querySelector('[data-field="description"]').value.trim();
+                offers[row.dataset.id] = {
+                    hidden: !row.querySelector('[data-field="shown"]').checked,
+                    name: name === (source.source_name || '') ? '' : name,
+                    price: price === String(source.source_price || '') ? '' : price,
+                    description: description === (source.source_description || '') ? '' : description,
+                };
+            }
+            return offers;
+        }
+
+        document.getElementById('save').addEventListener('click', async () => {
+            if (!currentId) return;
+            setStatus('Сохраняю…');
+            const response = await fetch('/api/yml/feeds/' + encodeURIComponent(currentId), {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({offers: collect()}),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                setStatus(data.error || 'Не сохранилось', 'err');
+                return;
+            }
+            currentOffers = data.offers;
+            document.getElementById('note').textContent = data.note
+                ? data.note
+                : ('В файле ' + data.shown + ', скрыто ' + data.hidden);
+            renderRows();
+            setStatus('Сохранено. Яндекс увидит правки при следующем чтении файла.', 'ok');
+        });
+
+        document.getElementById('copy-url').addEventListener('click', async () => {
+            const url = document.getElementById('public-url').value;
+            try {
+                await navigator.clipboard.writeText(url);
+                setStatus('Ссылка скопирована', 'ok');
+            } catch (error) {
+                setStatus('Скопируйте ссылку из поля вручную', 'err');
+            }
+        });
+
+        loadFeeds().catch(() => setStatus('Не удалось загрузить список фидов', 'err'));
+    </script>
+</body>
+</html>

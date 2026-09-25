@@ -2,7 +2,9 @@
 import xml.etree.ElementTree as ET
 
 from core.auth_guard import PUBLIC_ENDPOINTS
-from core.kitchen_menu import PHOTO_DIR, SOURCE, catalog_offers, picture_filename, render_kitchen_menu
+from core.kitchen_menu import (
+    PHOTO_DIR, SOURCE, apply_overrides, catalog_offers, picture_filename, render_kitchen_menu,
+)
 from core.kitchen_yml import offers_for_bar
 
 
@@ -95,6 +97,18 @@ def test_same_kitchen_menu_is_available_for_each_bar():
     assert fries['picture'].endswith('/static/kitchen-menu/Z8A_1318.jpg')
     assert offers_for_bar('bar9') == []
     assert len(catalog_offers()) == 29
+
+
+def test_override_hides_and_renames_without_touching_other_dishes():
+    xml = apply_overrides(render_kitchen_menu('https://beerkultura.ru/'), {
+        'ttk-s02': {'hidden': True},
+        'ttk-s04': {'name': 'Гренки', 'price': '310.00'},
+    })
+    offers = {offer.get('id'): offer for offer in _offers(xml)}
+    assert 'ttk-s02' not in offers
+    assert offers['ttk-s04'].findtext('name') == 'Гренки'
+    assert offers['ttk-s04'].findtext('price') == '310.00'
+    assert len(offers) == 28
 
 
 def test_kitchen_route_is_public():
