@@ -363,15 +363,17 @@ def identify_tap(bar_id):
         return jsonify({'success': False, 'error': 'Не удалось сохранить сорт'}), 500
 
 
-def load_reviewed_taplist(bar_id=None, active_only=True):
+def load_reviewed_taplist(bar_id=None, active_only=True, sources=None):
+    """sources — уже снятый прайс iiko. Без него запрос уходит в iiko один раз."""
     registry = load_registry()
     snapshot = taps_manager.get_snapshot(product_catalog(registry))
     rows = full_taplist(snapshot, registry, bar_id, active_only)
     if rows:
-        try:
-            sources = fetch_price_sources()
-        except Exception:
-            raise PriceUnavailable from None
+        if sources is None:
+            try:
+                sources = fetch_price_sources()
+            except Exception:
+                raise PriceUnavailable from None
         enrich_prices(rows, registry, sources)
     return rows
 

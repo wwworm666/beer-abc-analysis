@@ -81,18 +81,20 @@ def save_snapshot(data, path=None) -> None:
 
 
 def refresh_snapshot(path=None) -> dict:
-    """Снять кухню и пиво 0,5 л по всем барам. Сбой одного бара не стирает вчерашний список."""
+    """Снять кухню и пиво 0,5 л по всем барам. Прайс iiko запрашивается один раз."""
     from core.kitchen_yml import offers_for_bar
     from core.yml_feeds import combine_offers
+    from routes.taps import fetch_price_sources
     from routes.yml_feeds import bar_items
 
     path = path or snapshot_path()
     previous = load_snapshot(path) or {}
     old_bars = previous.get('bars') if isinstance(previous.get('bars'), dict) else {}
+    sources = fetch_price_sources()
     bars = {}
     for bar_id in FEED_ORDER:
         try:
-            bars[bar_id] = {'items': bar_items(bar_id), 'error': None}
+            bars[bar_id] = {'items': bar_items(bar_id, sources=sources), 'error': None}
             print(f'[YML] снимок {bar_id}: {len(bars[bar_id]["items"])} позиций')
         except Exception as error:
             old = old_bars.get(bar_id) if isinstance(old_bars.get(bar_id), dict) else None

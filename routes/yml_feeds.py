@@ -30,11 +30,11 @@ def list_feeds():
     return jsonify({'feeds': feeds})
 
 
-def bar_items(bar_id):
-    """Кухня и пиво 0,5 л одной точки. Без прайса iiko поднимает PriceUnavailable."""
+def bar_items(bar_id, sources=None):
+    """Кухня и пиво 0,5 л одной точки. sources — общий прайс, чтобы не ходить в iiko по бару."""
     from routes.taps import load_reviewed_taplist
     kitchen = offers_for_bar(bar_id)
-    drinks = offers_for(load_reviewed_taplist(bar_id, True))
+    drinks = offers_for(load_reviewed_taplist(bar_id, True, sources=sources))
     return combine_offers(kitchen, drinks)
 
 

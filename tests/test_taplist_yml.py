@@ -102,7 +102,7 @@ def test_page_lists_one_combined_feed_per_bar():
         [{'id': 'bar2-tap1-p05', 'name': 'Стаут, 0,5 л', 'price': '290.00', 'category_id': '2'}],
     )
     assert [item['category_name'] for item in combined] == [
-        'Пиво', 'Горячие закуски', 'Горячие закуски', 'Горячее мясо', 'Закуски', 'Десерты',
+        'Пиво', 'Горячие закуски', 'Пицца', 'Горячее мясо', 'Закуски', 'Десерты',
     ]
     assert [item['id'] for item in combined] == [
         'bar2-tap1-p05', 'fries', 'pizza', 'sausage', 'nuts', 'brownie',
