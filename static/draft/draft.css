@@ -473,7 +473,7 @@ body.draft-page .container { padding: 0; }
 }
 .dr-table-in { padding: 6px 18px 4px; }
 .dr-kegs .dr-table-in { min-width: 1020px; }
-.dr-cats .dr-table-in { min-width: 980px; }
+.dr-cats .dr-table-in { min-width: 1140px; }
 .dr-bts .dr-table-in { min-width: 980px; }
 
 .dr-row {
@@ -485,7 +485,7 @@ body.draft-page .container { padding: 0; }
     grid-template-columns: 30px minmax(215px, 1.6fr) 88px 76px 108px 106px 90px 78px 62px 44px;
 }
 .dr-cats .dr-row {
-    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 108px 104px 84px 46px;
+    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 128px 128px 104px 84px 56px;
 }
 .dr-bts .dr-row {
     grid-template-columns: 30px minmax(175px, 1.4fr) 100px 92px 84px 60px 106px 102px 78px 90px;

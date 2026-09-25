@@ -301,7 +301,39 @@ test('категории: таблица со всеми стилями, ито�
     assert.ok(Math.abs(liters - BLOCK.total_liters) < 1e-6, 'литры категорий не равны литрам разреза');
     assert.ok(Math.abs(BLOCK.categories.reduce((a, c) => a + c.RevenueSharePercent, 0) - 100) < 1e-6,
         'доли категорий не складываются в 100%');
+    assert.ok(Math.abs(BLOCK.categories.reduce((a, c) => a + c.LitersSharePercent, 0) - 100) < 1e-6,
+        'доли по литрам не складываются в 100%');
+    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
+    const litAt = html.indexOf('ДОЛЯ В ЛИТРАХ');
+    assert.ok(revAt >= 0 && litAt > revAt, 'колонка «доля в литрах» стоит не после доли в выручке');
+    const shown = BLOCK.categories[0];
+    assert.ok(html.includes(dapi.pct(shown.LitersSharePercent, 1)),
+        'доля категории по литрам не выведена');
+    const total = html.match(/class="dr-row is-total"[\s\S]*?<\/div>/);
+    assert.equal((total[0].match(/100,0%/g) || []).length, 2,
+        'в итоге должны быть две стопроцентные доли');
+    for (const key of ['Category', 'KegsCount', 'TotalLiters', 'TotalRevenue',
+                       'RevenueSharePercent', 'LitersSharePercent', 'TotalMargin',
+                       'MarkupPercent', 'ABC_Category']) {
+        assert.ok(html.includes(`data-sort="${key}"`), `нет сортировки столбца ${key}`);
+    }
 });
+
+function catNames() {
+    return [...env.byId.drCats.innerHTML.matchAll(/class="dr-name">([^<]*)</g)].map((m) => m[1]);
+}
+
+function clickCatSort(key) {
+    const head = {
+        dataset: { sort: key },
+        closest: (sel) => (sel === '.dr-cats' ? head : null)
+    };
+    const handlers = env.byId.drCats.listeners.click || [];
+    assert.ok(handlers.length, 'на таблице категорий нет обработчика');
+    handlers.forEach((fn) => fn({
+        target: { closest: (sel) => (sel === '.dr-th.s' ? head : null) }
+    }));
+}
 
 test('категории: сортировка кликом, пустая наценка уходит вниз', () => {
     const dapi = env.sandbox.window.__draft;
@@ -316,6 +348,33 @@ test('категории: сортировка кликом, пустая нац
         assert.deepEqual(tail.slice().sort(), expected.slice().sort(),
             'категории без наценки не в конце при сортировке по возрастанию');
     }
+    dapi.state.catSort = { key: 'TotalRevenue', dir: -1 };
+    dapi.render();
+});
+
+test('категории: клик сортирует название, доли и букву ABC', () => {
+    const dapi = env.sandbox.window.__draft;
+    const byLiters = BLOCK.categories.slice()
+        .sort((a, b) => b.LitersSharePercent - a.LitersSharePercent);
+    clickCatSort('LitersSharePercent');
+    assert.equal(catNames()[0], dapi.esc(byLiters[0].Category),
+        'первая строка не лидер по литрам');
+    assert.match(env.byId.drCats.innerHTML, /ДОЛЯ В ЛИТРАХ ↓/);
+
+    const byName = BLOCK.categories.map((c) => dapi.esc(c.Category))
+        .sort((a, b) => b.localeCompare(a, 'ru'));
+    clickCatSort('Category');
+    assert.deepEqual(catNames(), byName, 'убывание по названию не совпало');
+    clickCatSort('Category');
+    assert.deepEqual(catNames(), byName.slice().reverse(), 'возрастание по названию не совпало');
+    assert.match(env.byId.drCats.innerHTML, /КАТЕГОРИЯ ↑/);
+
+    const byAbc = BLOCK.categories.slice()
+        .sort((a, b) => b.ABC_Category.localeCompare(a.ABC_Category, 'ru'));
+    clickCatSort('ABC_Category');
+    assert.equal(catNames()[0], dapi.esc(byAbc[0].Category), 'первая строка не с буквой C');
+    assert.match(env.byId.drCats.innerHTML, /ABC ↓/);
+
     dapi.state.catSort = { key: 'TotalRevenue', dir: -1 };
     dapi.render();
 });

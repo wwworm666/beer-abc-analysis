@@ -447,21 +447,21 @@
         el.catCount.textContent = rows.length + ' ' +
             plural(rows.length, 'категория', 'категории', 'категорий') + ' · все';
 
+        var maxLiters = rows.reduce(function (acc, c) {
+            return Math.max(acc, c.LitersSharePercent || 0);
+        }, 0);
+
         var html = '<div class="dr-row is-head">' +
             '<span class="dr-th">#</span>' +
-            '<span class="dr-th">КАТЕГОРИЯ</span>' +
-            '<span class="dr-th r s" data-sort="KegsCount">КЕГОВ' +
-                sortMark(state.catSort, 'KegsCount') + '</span>' +
-            '<span class="dr-th r s" data-sort="TotalLiters">ЛИТРЫ' +
-                sortMark(state.catSort, 'TotalLiters') + '</span>' +
-            '<span class="dr-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
-                sortMark(state.catSort, 'TotalRevenue') + '</span>' +
-            '<span class="dr-th r">ДОЛЯ В ВЫРУЧКЕ</span>' +
-            '<span class="dr-th r s" data-sort="TotalMargin">МАРЖА' +
-                sortMark(state.catSort, 'TotalMargin') + '</span>' +
-            '<span class="dr-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
-                sortMark(state.catSort, 'MarkupPercent') + '</span>' +
-            '<span class="dr-th c">ABC</span>' +
+            catHead('', 'КАТЕГОРИЯ', 'Category') +
+            catHead('r', 'КЕГОВ', 'KegsCount') +
+            catHead('r', 'ЛИТРЫ', 'TotalLiters') +
+            catHead('r', 'ВЫРУЧКА', 'TotalRevenue') +
+            catHead('r', 'ДОЛЯ В ВЫРУЧКЕ', 'RevenueSharePercent') +
+            catHead('r', 'ДОЛЯ В ЛИТРАХ', 'LitersSharePercent') +
+            catHead('r', 'МАРЖА', 'TotalMargin') +
+            catHead('r', 'НАЦЕНКА', 'MarkupPercent') +
+            catHead('c', 'ABC', 'ABC_Category') +
             '</div>';
 
         rows.forEach(function (cat, index) {
@@ -472,6 +472,7 @@
                 '<span class="dr-num strong">' + num(cat.TotalLiters) + '</span>' +
                 '<span class="dr-num strong">' + money(cat.TotalRevenue) + '</span>' +
                 shareCell(cat.RevenueSharePercent, maxShare) +
+                shareCell(cat.LitersSharePercent, maxLiters) +
                 '<span class="dr-num">' + money(cat.TotalMargin) + '</span>' +
                 '<span class="dr-num">' +
                     (cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 0)) + '</span>' +
@@ -490,6 +491,7 @@
                 '<span class="dr-total-v">' + (data.total_kegs || 0) + '</span>' +
                 '<span class="dr-total-v strong">' + num(data.total_liters) + '</span>' +
                 '<span class="dr-total-v strong">' + money(data.total_revenue) + '</span>' +
+                '<span class="dr-total-v">100,0%</span>' +
                 '<span class="dr-total-v">100,0%</span>' +
                 '<span class="dr-total-v">' + money(data.total_margin) + '</span>' +
                 '<span class="dr-total-v">' +
@@ -586,14 +588,34 @@
         return html + '</div>';
     }
 
+    function catHead(align, label, key) {
+        return '<span class="dr-th' + (align ? ' ' + align : '') + ' s" data-sort="' + key + '">' +
+            label + sortMark(state.catSort, key) + '</span>';
+    }
+
     function sortRows(rows, sort) {
         var copy = rows.slice();
         // Строки без значения («—» у наценки: себестоимость не задана) всегда в
         // конце, в обе стороны сортировки. Раньше они подменялись на -Infinity и
         // при сортировке по возрастанию вставали первыми, как будто у них худшая
         // наценка. Та же правка сделана на /packaging.
+        // Строки (название категории, буква ABC) сравниваются по алфавиту.
+        // isNaN('Хели') даёт true, поэтому текст нельзя пускать в числовую ветку:
+        // иначе все названия считались бы пустыми и порядок не менялся бы.
         copy.sort(function (a, b) {
             var av = a[sort.key], bv = b[sort.key];
+            var aText = typeof av === 'string';
+            var bText = typeof bv === 'string';
+            if (aText || bText) {
+                var as = aText ? av : '';
+                var bs = bText ? bv : '';
+                if (!as && !bs) return 0;
+                if (!as) return 1;
+                if (!bs) return -1;
+                var cmp = as.localeCompare(bs, 'ru');
+                if (cmp === 0) return 0;
+                return sort.dir < 0 ? -cmp : cmp;
+            }
             var aMissing = av === null || av === undefined || isNaN(av);
             var bMissing = bv === null || bv === undefined || isNaN(bv);
             if (aMissing && bMissing) return 0;
