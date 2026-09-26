@@ -94,6 +94,7 @@ body.me-page {
     --me-bad: #DC2626;
     --me-today: #57524A;         /* рамка «сегодня» в календаре */
     --me-off: #D8D3CA;           /* выходной по заявке */
+    --me-bar-past: .45;          /* непрозрачность плашки прошедшей смены (как done на /schedule) */
     --me-wknd: #C0937B;          /* сб/вс в шапке календаря */
     --me-bar2: #E0B183;          /* вторая и далее полосы в топе сортов */
 
@@ -150,6 +151,8 @@ body.me-page[data-theme="dark"] {
     --me-bad: #F87171;
     --me-today: #B6AFA5;
     --me-off: #4A443E;
+    /* На тёмной ячейке .45 цвета точки почти сливается с фоном — выше. */
+    --me-bar-past: .6;
     --me-wknd: #C79A78;
     --me-bar2: #A9754F;
 
@@ -795,6 +798,26 @@ body.me-page .ms-cell.is-sel {
     background: color-mix(in srgb, var(--me-accent) 9%, var(--me-card));
     border-color: var(--me-accent);
 }
+/* Выбранный день по умолчанию — сегодня. Акцентная рамка выбора перекрывала
+   рамку «сегодня», и легенда «кольцо — сегодня» не совпадала с тем, что видно
+   на экране. Сегодня остаётся в своей рамке; выбор читается подложкой. */
+body.me-page .ms-cell.is-today.is-sel { border-color: var(--me-today); }
+
+/* Статус смены — кольцо ячейки: плашка на /me плоская, без рамки (макет), и
+   без кольца «ждёт факт» не отличить от отработанной. Кольцо сильнее выбора —
+   выбранный день и так виден по подложке и по карточке дня над календарём.
+   Второй пиксель — inset-тенью, чтобы ячейка не сдвигала содержимое. */
+body.me-page .ms-cell.st-nofact {
+    border-color: var(--me-warn);
+    box-shadow: inset 0 0 0 1px var(--me-warn);
+}
+body.me-page .ms-cell.st-conflict {
+    border-color: var(--me-bad);
+    box-shadow: inset 0 0 0 1px var(--me-bad);
+}
+/* Яркость — время, как на /schedule: предстоящая плашка сплошная, прошедшая
+   бледнее. Статус сюда не примешивается, его несёт кольцо. */
+body.me-page .ms-cell.is-past .ms-cbar { opacity: var(--me-bar-past); }
 body.me-page .ms-blank { background: none; border: none; min-height: 46px; }
 body.me-page .ms-cnum { font: 500 10.5px/1 var(--me-mono); color: var(--me-faint); }
 body.me-page .ms-cell.is-today .ms-cnum { font-weight: 700; color: var(--me-ink); }
@@ -833,6 +856,21 @@ body.me-page .ms-lgoff {
     width: 10px; height: 10px; border-radius: 3px;
     background: var(--me-off);
 }
+/* «кольцо — …»: образец кольца того же цвета, что в ячейке, а текст обычный.
+   Цветной текст с /schedule здесь врал бы: кольца /me в своей палитре. */
+body.me-page .ms-lg-today,
+body.me-page .ms-lg-nofact,
+body.me-page .ms-lg-conflict { color: var(--me-ink4); }
+body.me-page .ms-lg-today::before,
+body.me-page .ms-lg-nofact::before,
+body.me-page .ms-lg-conflict::before {
+    content: '';
+    width: 10px; height: 10px; border-radius: 3px;
+    box-sizing: border-box;
+    border: 2px solid var(--me-today);
+}
+body.me-page .ms-lg-nofact::before { border-color: var(--me-warn); }
+body.me-page .ms-lg-conflict::before { border-color: var(--me-bad); }
 
 /* Карточка выбранного дня и действия */
 body.me-page .ms-lbl {

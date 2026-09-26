@@ -340,13 +340,14 @@
     // Блок-смена внутри ячейки календаря (px, не %): высота — день/вечер,
     // ширина — день/вечер, рамка-кольцо — статус (сегодня/ждёт факт/конфликт).
     function calBarStyle(col, st, eve, flat) {
-        // flat — вид личной страницы /me: плотная плашка цвета точки без рамки и
-        // без полупрозрачности (макет владельца). Статус там читается кольцом
-        // ячейки, а не оттенком плашки, поэтому оттенки здесь не нужны.
+        // flat — вид личной страницы /me: плотная плашка цвета точки без рамки
+        // (макет владельца). Здесь только цвет и размер. Остальное делает CSS
+        // страницы по классам ячейки (calendarHtml): прошедшая смена (.is-past)
+        // бледнее, как на /schedule, а статус (.st-nofact / .st-conflict) —
+        // кольцо ячейки. Прозрачность в CSS, а не инлайном: у тёмной темы своя.
         if (flat) {
             return 'width:100%;height:' + (eve ? '9px' : '17px')
-                + ';border-radius:5px;background:' + col
-                + (st === 'soon' ? ';opacity:.55' : '');
+                + ';border-radius:5px;background:' + col;
         }
         // Яркость: предстоящее (soon) — ярко, отработанное (done) — приглушённо.
         // В тёмной теме все прозрачности поднимаются множителем: 18% цвета на
@@ -452,10 +453,17 @@
             return '<span class="ms-lgi"><span class="ms-lgsq" style="background:' + locColor(loc, i)
                 + '"></span>' + esc(loc.short_name || loc.name) + '</span>';
         }).join('');
+        // Цвет колец — классами, не инлайном: у /me свои цвета колец (me.css),
+        // и легенда обязана совпадать с тем, что нарисовано в ячейках.
+        // Конфликт — только если он в месяце есть: редкий пункт не должен
+        // постоянно занимать строку.
+        var hasConflict = mine.some(function (s) { return shiftStatus(s, today) === 'conflict'; });
         var legendHtml = '<div class="ms-leg">' + legVenues
             + '<span class="ms-lgi">высота — день/вечер</span>'
-            + '<span class="ms-lgi" style="color:' + TH.today + '">кольцо — сегодня</span>'
-            + '<span class="ms-lgi" style="color:' + TH.nofact + '">кольцо — ждёт факт</span>'
+            + '<span class="ms-lgi">бледная — прошла</span>'
+            + '<span class="ms-lgi ms-lg-today">кольцо — сегодня</span>'
+            + '<span class="ms-lgi ms-lg-nofact">кольцо — ждёт факт</span>'
+            + (hasConflict ? '<span class="ms-lgi ms-lg-conflict">кольцо — конфликт с выходным</span>' : '')
             + '<span class="ms-lgi"><span class="ms-lgoff"></span>выходной по заявке</span>'
             + '</div>';
 
@@ -487,11 +495,16 @@
                 var isSel = n === sel;
                 var s = byDate[ds];
                 var off = !s && offReqOn(ds);
-                var cls = 'ms-cell' + (isToday ? ' is-today' : '') + (isSel ? ' is-sel' : '');
+                var st = s ? shiftStatus(s, today) : '';
+                // st-<статус> и is-past — для CSS личной страницы (кольцо ячейки
+                // и бледность прошедшей плашки). На /schedule статус рисует сама
+                // плашка, правил для этих классов там нет.
+                var cls = 'ms-cell' + (isToday ? ' is-today' : '') + (isSel ? ' is-sel' : '')
+                    + (st ? ' st-' + st : '') + (s && ds < today ? ' is-past' : '');
                 var numCls = 'ms-cnum' + (isToday ? ' is-today' : (wknd ? ' is-wknd' : ''));
                 var inner;
                 if (s) {
-                    var st = shiftStatus(s, today), col = colorById(s.location_id), eve = isEvening(s);
+                    var col = colorById(s.location_id), eve = isEvening(s);
                     inner = '<span class="ms-cbar" style="' + calBarStyle(col, st, eve, opts.flatBars) + '"></span>';
                 } else if (off) {
                     inner = '<span class="ms-coff"></span>';

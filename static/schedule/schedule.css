@@ -1336,6 +1336,12 @@ body.eraser-mode .chip-person { cursor: not-allowed; }
 .ms-lgsq { width: 9px; height: 9px; border-radius: 2px; }
 .ms-lgoff { width: 12px; height: 8px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, .06);
     background: repeating-linear-gradient(45deg, #d8d1c4, #d8d1c4 3px, #c5bdac 3px, #c5bdac 6px); }
+/* Пункты «кольцо — …» окрашены цветом своего кольца (те же токены, что у
+   рамок плашек). Классами, а не инлайном из JS: /me перекрашивает их под свои
+   кольца ячеек в me.css. */
+.ms-lg-today { color: var(--sh-ring-today); }
+.ms-lg-nofact { color: var(--sh-ring-nofact); }
+.ms-lg-conflict { color: var(--sh-ring-conflict); }
 
 /* карточка выбранного дня */
 .ms-lbl { font-size: 0.62rem; font-weight: 600; letter-spacing: .06em; color: var(--text-tertiary); margin: 13px 0 7px; }
