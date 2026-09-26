@@ -488,9 +488,11 @@ def analyze_draft_kegs():
     к iiko уходит date_to + 1 день (правая граница DateRange эксклюзивная).
     """
     try:
-        data = request.json or {}
+        # Разбор входа — как у /api/packaging (с 2026-09-26): до этого кривой JSON
+        # и мусор в days при валидных датах давали 500, а период «конец раньше
+        # начала» уходил в iiko и возвращался как «Нет данных» (404).
+        data = request.get_json(silent=True) or {}
         bar_name = data.get('bar') or None
-        days = int(data.get('days', 30))
         date_from = data.get('date_from')
         date_to = data.get('date_to')
 
@@ -498,6 +500,12 @@ def analyze_draft_kegs():
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
         if not date_from or not date_to:
+            # days разбирается только здесь: при явно переданных датах это поле
+            # не используется, и мусор в нём не должен ронять валидный запрос.
+            try:
+                days = int(data.get('days', 30))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Поле days должно быть числом'}), 400
             # Тот же дефолт, что у остальных страниц: московский день, иначе на
             # UTC-хосте после 21:00 «сегодня» уезжает на сутки назад.
             today = datetime.now(ZoneInfo('Europe/Moscow')).date()
@@ -506,6 +514,12 @@ def analyze_draft_kegs():
             print(f"   Period: {days} dney (computed: {date_from} - {date_to})")
         else:
             print(f"   Period: {date_from} - {date_to}")
+
+        try:
+            if datetime.strptime(date_from, '%Y-%m-%d') > datetime.strptime(date_to, '%Y-%m-%d'):
+                return jsonify({'error': 'Начало периода позже конца'}), 400
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Даты должны быть в формате YYYY-MM-DD'}), 400
 
         # Три запроса к iiko и ключ кэша живут в core/draft_loader.py (с 2026-09-04):
         # тот же загрузчик кормит вкладку «Литры» в карточках розлива дашборда, и при
@@ -524,7 +538,14 @@ def analyze_draft_kegs():
         block = strip_service_fields(analyzer.build(bar_name))
         block['generated_at'] = raw.get('fetched_at')
 
-        if not block['kegs'] and block['losses']['invoice_in'] == 0:
+        # «Нет данных» — только когда нет ни продаж, ни движения кегов: период с
+        # одним актом списания, инвентаризацией или перемещением — это данные, их
+        # надо показать (тот же критерий, что у /api/packaging). До 2026-09-26
+        # хватало отсутствия прихода по накладным.
+        losses = block['losses']
+        has_movement = bool(losses['by_keg']) or any(
+            losses[field] for field in ('invoice_in', 'transfer_in', 'transfer_out', 'sold'))
+        if not block['kegs'] and not has_movement:
             return jsonify({'error': 'Нет данных за выбранный период'}), 404
 
         print(f"   [OK] Kegov: {block['total_kegs']}, litrov: {block['total_liters']:.2f}, "

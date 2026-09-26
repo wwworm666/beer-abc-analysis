@@ -62,7 +62,7 @@
           <button type="button" class="dr-pick-btn" id="drPerBtn" aria-haspopup="listbox">
             <span class="dr-pick-cap">ПЕРИОД</span>
             <span class="dr-pick-val">
-              <span id="drPerLabel">Прошлая неделя</span>
+              <span id="drPerLabel">Последние 30 дней</span>
               <span class="dr-pick-hint" id="drPerHint"></span>
               <svg class="dr-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
                 <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
@@ -115,7 +115,9 @@
         <div class="dr-legend">Каждый кег ровно в одной группе. Правило группы и её
           состав открываются кликом по карточке. Решение «вывести» выносится только по
           периоду от четырёх недель: на пресете «неделя» группа показана, но действие
-          отложено. Продажи считаются порциями, как штуки у фасовки.</div>
+          отложено. Продажи считаются порциями, как штуки у фасовки. Третья буква
+          кода — стабильность спроса — в решении не участвует: она говорит, как
+          планировать закупку кегов, а не что делать с позицией.</div>
 
         <div class="dr-band">
           <span class="dr-band-t">КАТЕГОРИИ</span>
@@ -144,11 +146,11 @@
         <div class="dr-table dr-kegs">
           <div class="dr-table-in" id="drKegs"></div>
         </div>
-        <!-- Расшифровка букв. 2-я буква (наценка) — по фиксированным порогам розлива
-             (core/abc_thresholds.py, KEG_MARKUP_A_MIN / KEG_MARKUP_B_MIN; до 2026-09-20
-             считалась по третям), 3-я (маржа) — по ТРЕТЯМ среди кегов разреза
-             (core/draft_kegs.py, _abc_by_percentile). XYZ — отдельная колонка, пороги
-             общие с /packaging. -->
+        <!-- Расшифровка букв кода. Код тот же, что на /packaging (core/abc_thresholds.py,
+             abc_code): 1-я — выручка, 2-я — наценка по фиксированным порогам розлива
+             (KEG_MARKUP_A_MIN / KEG_MARKUP_B_MIN), 3-я — спрос (XYZ), пороги общие с
+             /packaging. До 2026-09-26 третьей буквой была маржа по третям, а XYZ стоял
+             отдельной колонкой; маржа теперь в карточке кега. -->
         <div class="dr-key" id="drKey">
           <div class="dr-key-row">
             <span class="dr-key-cap">1-Я БУКВА · ВЫРУЧКА</span>
@@ -168,29 +170,23 @@
             </span>
           </div>
           <div class="dr-key-row">
-            <span class="dr-key-cap">3-Я БУКВА · МАРЖА</span>
-            <span class="dr-key-cells">
-              <span class="dr-key-cell"><i class="dr-abc-ltr a">A</i>верхняя треть кегов по марже в рублях</span>
-              <span class="dr-key-cell"><i class="dr-abc-ltr b">B</i>средняя треть</span>
-              <span class="dr-key-cell"><i class="dr-abc-ltr c">C</i>нижняя треть</span>
-            </span>
-          </div>
-          <div class="dr-key-row">
-            <span class="dr-key-cap">XYZ · СПРОС ПО НЕДЕЛЯМ</span>
+            <span class="dr-key-cap">3-Я БУКВА · СПРОС (XYZ)</span>
             <span class="dr-key-cells">
               <span class="dr-key-cell"><i class="dr-abc-ltr x">X</i>ровный: разброс по неделям до 30%</span>
               <span class="dr-key-cell"><i class="dr-abc-ltr y">Y</i>умеренный: от 30% до 60%</span>
               <span class="dr-key-cell"><i class="dr-abc-ltr z">Z</i>скачет: свыше 60%</span>
-              <span class="dr-key-cell"><i class="dr-abc-ltr none">—</i>меньше 3 недель на кране</span>
+              <span class="dr-key-cell"><i class="dr-abc-ltr none">?</i>меньше 3 недель на кране</span>
             </span>
           </div>
         </div>
-        <div class="dr-legend">Наценка — по порогам розлива: 250% — минимальная наценка
+        <div class="dr-legend">Код тот же, что у фасовки: выручка, наценка, спрос.
+          Наценка — по порогам розлива: 250% — минимальная наценка
           сети, ниже неё кег с продажами попадает в «Низкую наценку»; 200% — граница между B и C
-          (цена втрое выше себестоимости). Маржа — по третям
-          среди кегов разреза: буква говорит, где кег стоит относительно соседей.
-          Разброс спроса — коэффициент вариации недельных литров по неделям, когда кег
-          стоял на кране. Клик по строке — карточка кега с разбивкой «кто наливал».</div>
+          (цена втрое выше себестоимости). Разброс спроса — коэффициент вариации недельных
+          литров по неделям, когда кег стоял на кране; «?» вместо буквы означает, что
+          данных не хватило, а не «плохо». Маржа в код не входит: её буква — Парето
+          по марже в рублях (80/15/5, как у фасовки) — в карточке кега. Клик по
+          строке — карточка кега с разбивкой «кто наливал».</div>
 
         <div class="dr-band">
           <span class="dr-band-t">БАРМЕНЫ ПО ОБЪЁМУ</span>

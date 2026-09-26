@@ -133,31 +133,31 @@ test('на странице объяснено, что такое бармен �
 });
 
 test('расшифровка букв на экране и честна про методику /draft', () => {
-    // Владелец просил видеть значение каждой буквы на обеих страницах. Здесь
-    // 2-я буква (наценка) — по порогам розлива (core/abc_thresholds.py,
-    // KEG_MARKUP_*; до 2026-09-20 — по третям), 3-я (маржа) — по ТРЕТЯМ среди
-    // кегов (core/draft_kegs.py, _abc_by_percentile). Расшифровка обязана
-    // говорить именно это, а не копировать /packaging.
+    // Владелец просил видеть значение каждой буквы на обеих страницах. С 2026-09-26
+    // код на /draft тот же, что на /packaging: выручка, наценка, спрос (XYZ),
+    // собирается общей функцией abc_code. Наценка — по порогам РОЗЛИВА
+    // (KEG_MARKUP_*), не фасовки. Маржа в код не входит и объяснена отдельно.
     const kegs = read('core/draft_kegs.py');
     const thresholds = read('core/abc_thresholds.py');
-    const key = html.match(/<div class="dr-key" id="drKey">([\s\S]*?)<\/div>\s*<div class="dr-legend">/);
+    const key = html.match(/<div class="dr-key" id="drKey">([\s\S]*?)<\/div>\s*<div class="dr-legend">([\s\S]*?)<\/div>/);
     assert.ok(key, 'нет блока расшифровки букв под таблицей кегов');
     const rows = (key[1].match(/class="dr-key-row"/g) || []).length;
-    assert.equal(rows, 4, `три буквы ABC плюс XYZ, строк расшифровки ${rows}`);
+    assert.equal(rows, 3, `три буквы кода, строк расшифровки ${rows}`);
+    assert.match(kegs, /abc_code\(row\['ABC_Revenue'\], row\['ABC_Markup'\],\s*row\['XYZ_Category'\]\)/,
+        'код на /draft собирается не из выручки, наценки и спроса — расшифровка устарела');
+    assert.match(thresholds, /def abc_code\(revenue, markup, demand\)/, 'нет общей функции кода');
     assert.match(kegs, /markup_letter\(share, KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN\)/,
         'наценка на /draft считается не по порогам кегов — расшифровка устарела');
-    assert.match(kegs, /_abc_by_percentile\(rows, 'TotalMargin', 'ABC_Margin'\)/,
-        'маржа на /draft больше не по третям — расшифровка устарела');
     const a = Math.round(parseFloat(thresholds.match(/KEG_MARKUP_A_MIN = ([\d.]+)/)[1]) * 100);
     const b = Math.round(parseFloat(thresholds.match(/KEG_MARKUP_B_MIN = ([\d.]+)/)[1]) * 100);
     assert.ok(key[1].includes(`от ${a}%`), `порог A наценки не ${a}%`);
     assert.ok(key[1].includes(`от ${b}% до ${a}%`), `порог B наценки не ${b}–${a}%`);
     assert.ok(key[1].includes(`ниже ${b}%`), `порог C наценки не ${b}%`);
-    assert.ok(key[1].includes('себестоимость не задана'), 'нет подписи для «?»');
-    assert.ok(!/верхняя треть кегов по наценке/.test(key[1]), 'наценка всё ещё объяснена третями');
-    assert.ok(key[1].includes('верхняя треть кегов по марже'), 'маржа не объяснена третями');
+    assert.ok(key[1].includes('себестоимость не задана'), 'нет подписи для «?» у наценки');
     assert.ok(!/от 120%|ниже 100%/.test(key[1]),
         'в расшифровку /draft попали пороги наценки фасовки');
+    assert.ok(key[1].includes('3-Я БУКВА · СПРОС (XYZ)'), 'третья буква подписана не как спрос');
+    assert.ok(!/3-Я БУКВА · МАРЖА/.test(key[1]), 'в расшифровке осталась маржа третьей буквой');
     const x = Math.round(parseFloat(kegs.match(/XYZ_X_MAX_CV = ([\d.]+)/)[1]));
     const y = Math.round(parseFloat(kegs.match(/XYZ_Y_MAX_CV = ([\d.]+)/)[1]));
     assert.ok(key[1].includes(`до ${x}%`), `порог X не ${x}%`);
@@ -165,6 +165,8 @@ test('расшифровка букв на экране и честна про �
     assert.ok(key[1].includes(`свыше ${y}%`), `порог Z не ${y}%`);
     const minWeeks = kegs.match(/MIN_XYZ_WEEKS = (\d+)/)[1];
     assert.ok(key[1].includes(`меньше ${minWeeks} недель`), `минимум недель не ${minWeeks}`);
+    assert.ok(key[1].includes('dr-abc-ltr none">?</i>меньше'),
+        'нехватка недель подписана не тем знаком, что в коде («?»)');
     for (const letter of ['a', 'b', 'c', 'x', 'y', 'z', 'none']) {
         assert.ok(key[1].includes(`dr-abc-ltr ${letter}"`), `нет таблетки для ${letter}`);
         assert.ok(css.includes(`.dr-abc-ltr.${letter} {`), `нет цвета для буквы ${letter}`);
@@ -172,6 +174,27 @@ test('расшифровка букв на экране и честна про �
     for (const cls of ['dr-key', 'dr-key-row', 'dr-key-cap', 'dr-key-cells', 'dr-key-cell']) {
         assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
     }
+    // Маржа в код не входит, но честно объяснена: Парето, как у фасовки, в карточке
+    // кега (с 2026-09-26; до этого — трети среди кегов разреза).
+    assert.match(kegs, /margin_base = _assign_margin_letters\(rows\)/,
+        'маржа на /draft считается не общей функцией Парето — пояснение устарело');
+    assert.match(kegs, /_abc_by_cumulative\(rows, 'TotalMargin', 'ABC_Margin'/,
+        'маржа на /draft не по Парето');
+    assert.ok(!/_abc_by_percentile/.test(kegs), 'трети по марже остались в расчёте');
+    assert.ok(/Маржа в код не входит/.test(key[2]) && /Парето/.test(key[2]) && /80\/15\/5/.test(key[2]),
+        'под расшифровкой не сказано, где теперь маржа и как она считается');
+    assert.ok(!/по третям/.test(key[2]), 'в пояснении осталась маржа по третям');
+});
+
+test('в таблице кегов нет колонки XYZ, и таблица влезает в страницу', () => {
+    // Колонка XYZ повторяла третью букву кода и при min-width 1240px не влезала
+    // в контент страницы (max-width 1240px минус отступы = 1198px).
+    assert.ok(!/'XYZ'|>XYZ</.test(js.match(/function renderKegs[\s\S]*?\n    }\n/)[0]),
+        'в таблице кегов осталась колонка XYZ');
+    assert.ok(!js.includes('dr-xyz'), 'в разметке осталась ячейка XYZ');
+    const minWidth = parseInt(css.match(/\.dr-kegs \.dr-table-in \{ min-width: (\d+)px; \}/)[1], 10);
+    const wrap = parseInt(css.match(/\.dr-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
+    assert.ok(minWidth <= wrap - 2 * 20 - 2, `таблица кегов ${minWidth}px шире контента ${wrap - 42}px`);
 });
 
 test('решения по ассортименту: секция на /draft печатает карточки с сервера', () => {

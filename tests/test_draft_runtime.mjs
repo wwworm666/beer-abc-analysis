@@ -120,13 +120,30 @@ test('скрипт исполняется и сам запрашивает да�
     assert.equal(body.bar, '', 'по умолчанию должен быть сводный разрез');
 });
 
-test('период по умолчанию — прошлая неделя, понедельник-воскресенье', () => {
+test('период по умолчанию — последние 30 дней, на них считается спрос', () => {
+    // До 2026-09-26 страница открывалась на прошлой неделе, где третья буква
+    // кода (спрос, XYZ) не считается ни у одного кега. Теперь как на /packaging.
     const body = env.fetchCalls[0].body;
-    const from = new Date(body.date_from);
-    const to = new Date(body.date_to);
-    assert.equal(from.getDay(), 1, 'период начинается не с понедельника');
-    assert.equal(to.getDay(), 0, 'период кончается не воскресеньем');
-    assert.equal(Math.round((to - from) / 86400000) + 1, 7, 'в периоде не 7 дней');
+    const dapi = env.sandbox.window.__draft;
+    const days = Math.round((new Date(body.date_to) - new Date(body.date_from)) / 86400000) + 1;
+    assert.equal(days, 30, `в периоде по умолчанию ${days} дней`);
+    assert.ok(dapi.weeksIn(body.date_from, body.date_to) >= 3, 'на периоде по умолчанию нет XYZ');
+    assert.equal(dapi.state.preset, 'd30');
+});
+
+test('меню периодов: короткие пресеты подписаны «без XYZ»', () => {
+    env.byId.drPerMenu.hidden = true;          // в стабе узлы по умолчанию видимы
+    env.byId.drPerBtn.listeners.click[0]({});
+    assert.equal(env.byId.drPerMenu.hidden, false, 'меню периодов не открылось');
+    const html = env.byId.drPerMenu.innerHTML;
+    const items = [...html.matchAll(/data-preset="([^"]+)"><span>[^<]*<\/span><span>([^<]*)<\/span>/g)];
+    assert.ok(items.length >= 8, `пресетов в меню ${items.length}`);
+    assert.equal(items[0][1], 'd30', 'первым в меню стоит не «Последние 30 дней»');
+    const short = items.filter((m) => ['week', 'prev_week', 'yesterday', 'today'].includes(m[1]));
+    assert.ok(short.every((m) => m[2] === 'без XYZ'), 'неделя и дни не помечены «без XYZ»');
+    const long = items.filter((m) => ['d30', 'd90', 'prev_month'].includes(m[1]));
+    assert.ok(long.every((m) => m[2] !== 'без XYZ'), 'длинный период помечен «без XYZ»');
+    env.byId.drCatch.listeners.click[0]({});
 });
 
 test('после ответа тело страницы показано, сообщение убрано', () => {
@@ -192,7 +209,8 @@ test('баланс: строки со знаками и итог изменен�
 
 test('расхождения: восемь строк и раскрывашка на остальные', () => {
     const html = env.byId.drLosses.innerHTML;
-    const visible = (html.match(/class="dr-loss-row"/g) || []).length;
+    // Серые строки (кеги без продаж) — тоже строки расхождений.
+    const visible = (html.match(/class="dr-loss-row( is-static)?"/g) || []).length;
     const total = BLOCK.losses.by_keg.length;
     assert.equal(visible, total, 'строки под <details> тоже должны быть в разметке');
     assert.match(html, /<details class="dr-more">/, 'нет раскрывашки «ещё N кегов»');
@@ -230,6 +248,62 @@ test('карточка кега: продажи, деньги, кто налив
     const people = (html.match(/class="dr-who-row" data-bt=/g) || []).length;
     assert.equal(people, keg.Bartenders.length, 'разбивка «кто наливал» не совпала');
     assert.match(html, /накопленным итогом/, 'накопленная доля не подписана отдельно');
+});
+
+test('карточка кега: три буквы кода — выручка, наценка, спрос; маржа отдельно', () => {
+    const dapi = env.sandbox.window.__draft;
+    const keg = BLOCK.kegs[0];
+    dapi.openKeg(keg.KegId);
+    const html = env.byId.drDrawer.innerHTML;
+    const box = html.slice(html.indexOf('ABC-АНАЛИЗ'), html.indexOf('ВТОРАЯ ШКАЛА'));
+    const lines = [...box.matchAll(/class="dr-abc-cat">([^<]*)</g)].map((m) => m[1]);
+    assert.deepEqual(lines, ['Выручка', 'Наценка', 'Спрос'], `строки разбора кода: ${lines}`);
+    assert.ok(box.includes('>' + dapi.esc(keg.ABC_Combined) + '<'), 'нет самого кода');
+    assert.equal(keg.ABC_Combined.charAt(2), keg.XYZ_Category || '?', 'третья буква кода не спрос');
+    // Фикстура — неделя: буквы спроса нет, строка объясняет почему, а не молчит.
+    assert.ok(/не считается: в периоде 1 полная неделя, нужно от 3/.test(box),
+        'не объяснено, почему у спроса «?»');
+    const second = html.slice(html.indexOf('ВТОРАЯ ШКАЛА'));
+    assert.ok(/class="dr-abc-cat">Маржа</.test(second), 'буква маржи пропала из карточки');
+    assert.ok(second.includes(dapi.money(keg.TotalMargin)), 'нет маржи в рублях');
+    assert.match(second, /Маржа в код не входит/, 'не сказано, что маржа вне кода');
+});
+
+test('карточка кега: спрос с буквой печатает коэффициент вариации', () => {
+    const dapi = env.sandbox.window.__draft;
+    const keg = JSON.parse(JSON.stringify(BLOCK.kegs[0]));
+    keg.XYZ_Category = 'Y';
+    keg.CoefficientOfVariation = 42.5;
+    keg.WeeksInPeriod = 4;
+    keg.WeeksWithSales = 4;
+    keg.ABC_Combined = keg.ABC_Combined.slice(0, 2) + 'Y';
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    data.kegs[0] = keg;
+    dapi.state.data = data;
+    dapi.openKeg(keg.KegId);
+    const html = env.byId.drDrawer.innerHTML;
+    assert.ok(html.includes('умеренный разброс: от 30% до 60% (42,5%)'), 'спрос Y не расшифрован');
+    assert.ok(html.includes('dr-abc-ltr y">Y<'), 'у буквы спроса нет цвета');
+    dapi.state.data = BLOCK;
+    dapi.render();
+});
+
+test('таблица кегов: колонки XYZ нет, ячеек в строке столько же, сколько колонок', () => {
+    const html = env.byId.drKegs.innerHTML;
+    const head = html.match(/class="dr-row is-head"[\s\S]*?<\/div>/)[0];
+    assert.ok(!/>XYZ</.test(head), 'в шапке осталась колонка XYZ');
+    const css = read('static/draft/draft.css');
+    const grid = css.match(/\.dr-kegs \.dr-row \{[^}]*grid-template-columns:([^;]+);/)[1];
+    const columns = grid.trim().replace(/\([^)]*\)/g, '()').split(/\s+/).length;
+    const parts = html.split(/<div class="dr-row/).slice(1);
+    const counts = parts.map((part) => {
+        const body = part.split(/<\/div>/)[0];
+        return (body.match(/<span/g) || []).length -
+               (body.match(/<span class="dr-bar/g) || []).length * 2 -
+               (body.match(/<span class="dr-abc /g) || []).length;
+    });
+    const wrong = counts.filter((n) => n !== columns);
+    assert.deepEqual(wrong, [], `колонок ${columns}, строки с ${[...new Set(wrong)].join(', ')} ячейками`);
 });
 
 test('карточка бармена: налив, деньги и что наливал', () => {
@@ -518,6 +592,180 @@ test('шкала потерь: у излишка полосы нет, цвет �
     assert.equal(f.lossTone(12), 'warn');
     assert.equal(f.lossTone(40), 'bad');
     assert.equal(f.lossTone(null), 'calm', 'кег без продаж не должен краснеть');
+});
+
+test('баланс: излишек отдельной строкой, приход в подписи — вместе с перемещениями', () => {
+    // До 2026-09-26 излишек печатался как «Недостача −25», а в «приход» подписи
+    // не входили перемещения: строки баланса не складывались в итог.
+    const dapi = env.sandbox.window.__draft;
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    const L = data.losses;
+    L.transfer_in = 50;
+    L.inventory_out = 0;
+    L.inventory_in = 25;
+    L.inventory_net = -25;
+    L.inventory_percent_of_sold = -25 / L.sold * 100;
+    L.received = L.invoice_in + L.transfer_in;
+    L.spent = L.sold + L.writeoff + L.inventory_net + L.transfer_out;
+    L.balance = L.received - L.spent;
+    dapi.state.data = data;
+    dapi.render();
+    const html = env.byId.drBalance.innerHTML;
+    assert.ok(html.includes('Излишек по инвентаризациям'), 'нет строки излишка');
+    assert.ok(!html.includes('Недостача по инвентаризациям'), 'излишек подписан недостачей');
+    assert.ok(html.includes('+25,00'), 'излишек не со знаком плюс');
+    assert.ok(html.includes('приход ' + dapi.fixed(L.received, 2) + ' − расход ' +
+        dapi.fixed(L.spent, 2)), 'подпись «приход − расход» не с сервера');
+    assert.ok(html.includes('− излишек 25,00'), 'в расшифровке расхода нет излишка');
+    // Проверка арифметики подписи: приход − расход = итог.
+    assert.ok(Math.abs(L.received - L.spent - L.balance) < 1e-9);
+    dapi.state.data = BLOCK;
+    dapi.render();
+});
+
+test('баланс на фикстуре: подпись сходится с итогом', () => {
+    const html = env.byId.drBalance.innerHTML;
+    const dapi = env.sandbox.window.__draft;
+    const L = BLOCK.losses;
+    assert.ok(typeof L.received === 'number' && typeof L.spent === 'number',
+        'в ответе нет received/spent — подпись опять складывала бы страница');
+    assert.ok(Math.abs(L.received - L.spent - L.balance) < 1e-9, 'сервер: приход − расход ≠ итог');
+    assert.ok(html.includes('приход ' + dapi.fixed(L.received, 2)), 'приход в подписи не с сервера');
+});
+
+test('расхождения: кеги без продаж серые и не кликаются', () => {
+    const html = env.byId.drLosses.innerHTML;
+    const ids = new Set(BLOCK.kegs.map((k) => k.KegId));
+    const outside = BLOCK.losses.by_keg.filter((r) => !ids.has(r.KegId)).length;
+    assert.ok(outside > 0, 'в фикстуре нет кегов с расхождениями вне таблицы');
+    assert.equal((html.match(/class="dr-loss-row is-static"/g) || []).length, outside,
+        'кеги вне таблицы не помечены');
+    assert.equal((html.match(/class="dr-loss-row" data-keg=/g) || []).length,
+        BLOCK.losses.by_keg.length - outside, 'кликабельных строк не столько, сколько кегов в таблице');
+    assert.match(html, /излишек одного бара не гасит недостачу/,
+        'не объяснено, почему шапка больше баланса');
+});
+
+test('наценка округляется вниз и не спорит с буквой', () => {
+    // 249,6% — это буква B и «Низкая наценка»; печатать «250%» нельзя.
+    const f = env.sandbox.window.__draft;
+    assert.equal(f.markupPct(249.6, 0), '249%');
+    assert.equal(f.markupPct(250, 0), '250%');
+    assert.equal(f.markupPct(199.96, 1), '199,9%');
+    assert.equal(f.markupPct(373.49, 1), '373,4%');
+    assert.equal(f.markupPct(null, 0), '—');
+    const dapi = env.sandbox.window.__draft;
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    data.kegs[0].MarkupPercent = 249.6;
+    dapi.state.data = data;
+    dapi.render();
+    assert.ok(env.byId.drKegs.innerHTML.includes('>249%<'), 'в таблице наценка округлена вверх');
+    assert.ok(!env.byId.drKegs.innerHTML.includes('>250%<'));
+    dapi.state.data = BLOCK;
+    dapi.render();
+});
+
+test('скользящие пресеты заканчиваются вчера, «сегодня» и текущие — сегодня', () => {
+    const f = env.sandbox.window.__draft;
+    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+        '-' + String(d.getDate()).padStart(2, '0');
+    const today = new Date();
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    for (const [key, days] of [['d30', 30], ['d90', 90]]) {
+        const range = f.presetRange(key);
+        assert.equal(range.to, iso(yesterday), `${key} кончается не вчера`);
+        const span = Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1;
+        assert.equal(span, days, `${key}: ${span} дней`);
+    }
+    assert.equal(f.presetRange('today').to, iso(today));
+    assert.equal(f.presetRange('week').to, iso(today));
+    assert.equal(f.presetRange('month').to, iso(today));
+    assert.equal(env.fetchCalls[0].body.date_to, iso(yesterday), 'по умолчанию уходит не по вчера');
+});
+
+test('карточка кега: литры в неделю на кране и формула маржи по Парето', () => {
+    const dapi = env.sandbox.window.__draft;
+    const keg = BLOCK.kegs[0];
+    dapi.openKeg(keg.KegId);
+    const html = env.byId.drDrawer.innerHTML;
+    assert.ok(html.includes('Л В НЕДЕЛЮ НА КРАНЕ'), 'нет литров в неделю на кране');
+    assert.ok(html.includes('>' + dapi.num(keg.AvgLitersPerActiveWeek) + '<'), 'не то число');
+    assert.ok(!html.includes('>ЛИТРОВ В НЕДЕЛЮ<'), 'осталось среднее за весь период');
+    assert.ok(html.includes(dapi.money(keg.TotalMargin) + ' / ' + dapi.money(BLOCK.margin_abc_base) +
+        ' = ' + dapi.pct(keg.MarginSharePercent, 1)), 'нет формулы доли маржи');
+    assert.ok(/первые 80% накопленной маржи|следующие 15% маржи|последние 5% маржи/.test(html),
+        'буква маржи объяснена не Парето');
+    assert.ok(!/треть/.test(html), 'в карточке осталась маржа по третям');
+});
+
+test('расхождения в «Общей»: недостача одного бара не гасится излишком другого', () => {
+    const dapi = env.sandbox.window.__draft;
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    const row = data.losses.by_keg[0];
+    row.InventoryNetLiters = 0;
+    row.InventoryShortLiters = 10;
+    row.InventorySurplusLiters = 10;
+    row.WriteoffLiters = 0;
+    row.LossLiters = 10;
+    const keg = data.kegs.find((k) => k.KegId === row.KegId);
+    keg.InventoryNetLiters = 0;
+    keg.InventoryShortLiters = 10;
+    keg.InventorySurplusLiters = 10;
+    dapi.state.data = data;
+    dapi.render();
+    const html = env.byId.drLosses.innerHTML;
+    assert.ok(html.includes('10,00<i class="dr-loss-plus"> +10,00</i>'),
+        'в строке нет недостачи с излишком рядом');
+    dapi.openKeg(keg.KegId);
+    const card = env.byId.drDrawer.innerHTML;
+    assert.ok(card.includes('НЕДОСТАЧА ИНВЕНТ.') && card.includes('Ещё излишек 10,00 л в других барах'),
+        'карточка кега не показывает недостачу по барам');
+    dapi.state.data = BLOCK;
+    dapi.render();
+});
+
+async function asyncTest(name, fn) {
+    try {
+        await fn();
+        passed++;
+        console.log(`  ok  ${name}`);
+    } catch (e) {
+        failed++;
+        console.log(`FAIL  ${name}`);
+        console.log(`      ${e && e.message}`);
+    }
+}
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+await asyncTest('смена бара во время загрузки: старый ответ выброшен, новый запрос ушёл', async () => {
+    // До 2026-09-26 run() молча выходил, пока шёл запрос: страница показывала
+    // данные «Общей» под подписью выбранного бара.
+    const calls = [];
+    const pending = [];
+    env.sandbox.fetch = (url, opts) => {
+        calls.push(JSON.parse(opts.body));
+        let resolve;
+        const promise = new Promise((r) => { resolve = r; });
+        pending.push(resolve);
+        return promise;
+    };
+    const reply = (bar) => ({ ok: true, status: 200,
+                              json: () => Promise.resolve({ [bar]: BLOCK }) });
+    const pick = (bar) => env.byId.drBarMenu.listeners.click[0](
+        { target: { closest: () => ({ dataset: { bar } }) } });
+    pick('Лиговский');
+    pick('Варшавская');
+    assert.equal(calls.length, 1, 'второй запрос ушёл, не дождавшись первого');
+    pending[0](reply('Лиговский'));
+    for (let i = 0; i < 5; i++) await flush();
+    assert.equal(calls.length, 2, 'новый выбор потерян: запрос по нему не ушёл');
+    assert.equal(calls[1].bar, 'Варшавская');
+    assert.equal(env.byId.drBody.hidden, true, 'устаревший ответ лёг на экран');
+    pending[1](reply('Варшавская'));
+    for (let i = 0; i < 5; i++) await flush();
+    assert.equal(env.byId.drBody.hidden, false, 'ответ по новому выбору не показан');
+    assert.match(env.byId.drContext.textContent, /разрез: Варшавская/);
+    assert.equal(env.byId.drBarLabel.textContent, 'Варшавская');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

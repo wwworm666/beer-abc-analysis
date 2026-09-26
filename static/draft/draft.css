@@ -472,7 +472,9 @@ body.draft-page .container { padding: 0; }
     overflow-x: auto;
 }
 .dr-table-in { padding: 6px 18px 4px; }
-.dr-kegs .dr-table-in { min-width: 1240px; }
+/* Без колонки XYZ (с 2026-09-26 спрос — третья буква кода) таблица кегов
+   влезает в страницу: раньше min-width 1240px при контенте 1198px срезал XYZ. */
+.dr-kegs .dr-table-in { min-width: 1140px; }
 .dr-cats .dr-table-in { min-width: 1140px; }
 .dr-bts .dr-table-in { min-width: 980px; }
 
@@ -482,7 +484,7 @@ body.draft-page .container { padding: 0; }
     align-items: center;
 }
 .dr-kegs .dr-row {
-    grid-template-columns: 30px minmax(200px, 1.5fr) 80px 72px 100px 128px 128px 84px 72px 62px 44px;
+    grid-template-columns: 30px minmax(200px, 1.5fr) 80px 72px 100px 128px 128px 84px 72px 62px;
 }
 .dr-cats .dr-row {
     grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 128px 128px 104px 84px 56px;
@@ -570,8 +572,6 @@ body.draft-page .container { padding: 0; }
 .dr-abc.b { background: var(--dr-warn); }
 .dr-abc.c { background: var(--dr-bad); }
 .dr-cell-c { text-align: center; }
-.dr-xyz { font: 500 12px/1 var(--dr-mono); color: var(--dr-faint); text-align: center; }
-.dr-xyz.has { color: var(--dr-ink); font-weight: 600; }
 
 .dr-empty {
     padding: 22px 0;
@@ -645,6 +645,11 @@ body.draft-page .container { padding: 0; }
     color: var(--dr-ink4);
     background: var(--dr-soft);
 }
+/* Излишек по инвентаризации — не потеря: спокойный зелёный, как у фасовки. */
+.dr-pill.ok {
+    color: var(--dr-ok-ink);
+    background: color-mix(in srgb, var(--dr-ok) 10%, transparent);
+}
 
 .dr-bal-total {
     display: flex;
@@ -676,6 +681,10 @@ body.draft-page .container { padding: 0; }
 .dr-loss-row.is-head { padding: 6px 0 8px; border-top: none; cursor: default; }
 .dr-loss-row.is-head:hover { background: transparent; }
 .dr-loss-row:hover { background: var(--dr-hover); }
+/* Кег без продаж в периоде: в таблице его нет, карточку открыть нечем (как у фасовки). */
+.dr-loss-row.is-static { cursor: default; }
+.dr-loss-row.is-static:hover { background: transparent; }
+.dr-loss-row.is-static .dr-loss-n { color: var(--dr-ink5); }
 .dr-loss-n {
     font: 500 12.5px/1.3 var(--dr-sans);
     white-space: nowrap;
@@ -688,6 +697,8 @@ body.draft-page .container { padding: 0; }
     font: 600 12px/1 var(--dr-mono);
     font-variant-numeric: tabular-nums;
 }
+/* Излишек рядом с недостачей того же кега в «Общей»: другой бар, недостачу не гасит. */
+.dr-loss-plus { font-style: normal; font-weight: 500; color: var(--dr-ok-ink); margin-left: 4px; }
 
 .dr-more { border: none; }
 .dr-more summary {

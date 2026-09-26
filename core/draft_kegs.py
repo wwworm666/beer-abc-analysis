@@ -35,6 +35,9 @@
                               периода, берутся только полные окна, нужно минимум 3 активных
     XYZ                     = X при CV <= 30%, Y при CV <= 60%, Z свыше; при меньше чем
                               3 активных неделях категория не присваивается
+    Код ABC                 = буква выручки + буква наценки + буква XYZ, «?» — буквы
+                              нет (как у фасовки, core/abc_thresholds.py::abc_code);
+                              буква маржи — отдельное поле ABC_Margin для карточки
 
 Разрез по барменам (та же страница, вторая таблица)
 ---------------------------------------------------------
@@ -82,6 +85,7 @@ from core.abc_thresholds import (
     KEG_MARKUP_A_MIN,
     KEG_MARKUP_B_MIN,
     UNCATEGORIZED_KEGS,
+    abc_code,
     abc_letter_by_cumulative,
     markup_letter,
 )
@@ -189,27 +193,29 @@ def _abc_by_cumulative(rows, value_key, letter_key, cum_key):
         before = (cumulative / total * 100) if total > 0 else 0.0
         cumulative += max(_num(row.get(value_key)), 0)
         row[cum_key] = (cumulative / total * 100) if total > 0 else 0.0
-        row[letter_key] = abc_letter_by_cumulative(before)
+        # Нулевая база (ни у кого нет положительного значения) — буква C, а не
+        # A всем подряд: иначе кег, не заработавший ничего, объявлялся лидером.
+        # Та же оговорка у фасовки (_assign_abc_by_cumulative).
+        row[letter_key] = abc_letter_by_cumulative(before) if total > 0 else 'C'
+    return total
 
 
-def _abc_by_percentile(rows, value_key, letter_key):
-    """ABC по перцентилям: верхняя треть A, средняя B, нижняя C.
+def _assign_margin_letters(rows):
+    """Буква маржи — Парето 80/15/5 по марже в рублях, как у фасовки.
 
-    Для наценки и маржи порог Парето не подходит (это не доли целого), поэтому
-    делим ранжированный список на три равные части. Позиции с неизвестным
-    значением (None) получают C и в ранжировании не участвуют.
+    До 2026-09-26 здесь были трети среди кегов разреза: единственный кег в
+    разрезе получал C, при двух кегах буквы A не было ни у кого, а одна и та же
+    буква значила на /draft и /packaging разное. Теперь метод один. В код
+    позиции буква не входит (там спрос), она показывается в карточке кега.
+
+    Возвращает базу — сумму ПОЛОЖИТЕЛЬНЫХ маржей разреза: карточка печатает
+    формулу «маржа / база = доля», и в знаменателе должна стоять именно она.
     """
-    known = [r for r in rows if r.get(value_key) is not None]
-    unknown = [r for r in rows if r.get(value_key) is None]
-    for row in unknown:
-        row[letter_key] = 'C'
-    if not known:
-        return
-    ordered = sorted(known, key=lambda r: _num(r.get(value_key)), reverse=True)
-    total = len(ordered)
-    for index, row in enumerate(ordered):
-        rank = (index + 1) / total * 100
-        row[letter_key] = 'A' if rank <= 100 / 3 else ('B' if rank <= 200 / 3 else 'C')
+    base = _abc_by_cumulative(rows, 'TotalMargin', 'ABC_Margin', 'MarginCumulativePercent')
+    for row in rows:
+        row['MarginSharePercent'] = (max(_num(row.get('TotalMargin')), 0) / base * 100
+                                     if base > 0 else 0.0)
+    return base
 
 
 def _text(value):
@@ -684,6 +690,13 @@ class DraftKegAnalysis:
         merged = {}
         for entry in sorted(kegs.values(), key=lambda e: (e['keg_id'], e['bar'] or '')):
             key = entry['keg_id']
+            # Недостача и излишек — по КАЖДОМУ бару, до сведения: инвентаризация —
+            # пересчёт одного склада, и излишек в баре B не отменяет пропажу в
+            # баре A (до 2026-09-26 они гасили друг друга, и кег с -10 л в одном
+            # баре и +10 л в другом пропадал из «где именно расхождения»).
+            bar_net = entry['inventory_out'] - entry['inventory_in']
+            bar_short = max(bar_net, 0.0)
+            bar_surplus = max(-bar_net, 0.0)
             bar_row = {
                 'Bar': entry['bar'],
                 'Liters': entry.get('sold', 0.0),
@@ -698,8 +711,12 @@ class DraftKegAnalysis:
                 # Копии, иначе разрез и стили одного бара утекли бы в общий кег.
                 target['_styles'] = {s: list(w) for s, w in (entry.get('_styles') or {}).items()}
                 target['_bars'] = [bar_row]
+                target['inventory_short'] = bar_short
+                target['inventory_surplus'] = bar_surplus
                 continue
             target['_bars'].append(bar_row)
+            target['inventory_short'] += bar_short
+            target['inventory_surplus'] += bar_surplus
             for style, weights in (entry.get('_styles') or {}).items():
                 total = target.setdefault('_styles', {}).setdefault(style, [0.0, 0.0])
                 total[0] += weights[0]
@@ -732,13 +749,15 @@ class DraftKegAnalysis:
         for row in rows:
             share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
             row['ABC_Markup'] = markup_letter(share, KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
-        _abc_by_percentile(rows, 'TotalMargin', 'ABC_Margin')
+        # Маржа — отдельная буква для карточки кега, в код не входит.
+        margin_base = _assign_margin_letters(rows)
         self._assign_xyz(rows)
         for row in rows:
-            row['ABC_Combined'] = (row['ABC_Revenue'] + (row['ABC_Markup'] or '?')
-                                   + row['ABC_Margin'])
-            if row['XYZ_Category']:
-                row['ABCXYZ_Combined'] = f"{row['ABC_Combined']}-{row['XYZ_Category']}"
+            # Код тот же, что у фасовки: выручка, наценка, спрос (XYZ), «?» —
+            # буквы нет (core/abc_thresholds.py, abc_code). До 2026-09-26 третьей
+            # буквой была маржа, а спрос стоял отдельной колонкой.
+            row['ABC_Combined'] = abc_code(row['ABC_Revenue'], row['ABC_Markup'],
+                                           row['XYZ_Category'])
             # Группа решения: продажи считаются порциями (одно событие продажи,
             # как штука у фасовки). Правила — core/abc_buckets.py.
             share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
@@ -773,6 +792,9 @@ class DraftKegAnalysis:
             'avg_portion_liters': total_liters / total_portions if total_portions > 0 else 0.0,
             'markup_percent': ((total_revenue - total_cost) / total_cost * 100
                                if total_cost > 0 else None),
+            # База доли маржи (сумма положительных маржей) — знаменатель формулы
+            # буквы маржи в карточке кега.
+            'margin_abc_base': margin_base,
             'xyz_buckets': self.full_buckets,
             'xyz_available': self.full_buckets >= MIN_XYZ_WEEKS,
             'losses': self._build_losses(merged, total_liters),
@@ -830,8 +852,15 @@ class DraftKegAnalysis:
                              for index in range(self.full_buckets)],
             'LitersOutsideWeeks': liters - sum(entry['buckets'].get(index, 0.0)
                                                for index in range(self.full_buckets)),
+            # Литров в неделю НА КРАНЕ: литры недель с продажами / число таких
+            # недель (с 2026-09-26 это число в карточке кега). AvgLitersPerWeek
+            # делит на весь период и у ротационного кега (1 неделя из 12) даёт
+            # 4,7 л вместо 60. None — полных недель с продажами нет.
+            'AvgLitersPerActiveWeek': self._liters_per_active_week(entry['buckets']),
             'WriteoffLiters': entry['writeoff'],
             'InventoryNetLiters': entry['inventory_out'] - entry['inventory_in'],
+            'InventoryShortLiters': entry.get('inventory_short', 0.0),
+            'InventorySurplusLiters': entry.get('inventory_surplus', 0.0),
             'Category': _pick_style(entry.get('_styles')),
             # Разрез по барам: в сводном разрезе показывает, где кег реально
             # наливают. Доли проставляются ниже, когда известны литры кега.
@@ -844,6 +873,12 @@ class DraftKegAnalysis:
             'Bartenders': self._keg_people(entry['keg_id'], liters),
             '_buckets': entry['buckets'],
         }
+
+    def _liters_per_active_week(self, buckets):
+        """Средние литры за неделю, когда кег был на кране (недели с продажами)."""
+        active = [liters for index, liters in buckets.items()
+                  if index < self.full_buckets and liters > 0]
+        return sum(active) / len(active) if active else None
 
     def _keg_people(self, keg_id, keg_liters):
         """Кто наливал этот кег — строки для карточки, отсортированные по литрам."""
@@ -973,18 +1008,36 @@ class DraftKegAnalysis:
 
         # Все кеги с расхождениями, без обрезки: страница показывает первые восемь,
         # остальные прячет под «ещё N кегов» — но решает это интерфейс, а не расчёт.
-        by_keg = [{
-            'KegId': e['keg_id'],
-            'KegName': e['keg_name'],
-            'WriteoffLiters': e['writeoff'],
-            'InventoryNetLiters': e['inventory_out'] - e['inventory_in'],
-            'SoldLiters': e['sold'],
-            'LossLiters': e['writeoff'] + max(e['inventory_out'] - e['inventory_in'], 0.0),
-        } for e in merged.values()
-            if e['writeoff'] > 0 or abs(e['inventory_out'] - e['inventory_in']) > 0]
-        by_keg.sort(key=lambda k: -(k['WriteoffLiters'] + abs(k['InventoryNetLiters'])))
+        # Недостача и излишек — суммы ПО БАРАМ (см. build): в разрезе одного бара
+        # это max(нетто, 0) и max(-нетто, 0), в «Общей» излишек одного бара не
+        # гасит недостачу другого. Потери = акты + недостача по барам.
+        by_keg = []
+        for e in merged.values():
+            net = e['inventory_out'] - e['inventory_in']
+            short = e.get('inventory_short', max(net, 0.0))
+            surplus = e.get('inventory_surplus', max(-net, 0.0))
+            if not (e['writeoff'] > 0 or short > 0 or surplus > 0):
+                continue
+            by_keg.append({
+                'KegId': e['keg_id'],
+                'KegName': e['keg_name'],
+                'WriteoffLiters': e['writeoff'],
+                'InventoryNetLiters': net,
+                'InventoryShortLiters': short,
+                'InventorySurplusLiters': surplus,
+                'SoldLiters': e['sold'],
+                'LossLiters': e['writeoff'] + short,
+            })
+        by_keg.sort(key=lambda k: (-(k['WriteoffLiters'] + k['InventoryShortLiters']
+                                     + k['InventorySurplusLiters']), k['KegName'] or ''))
 
         return {
+            # Приход и расход одним числом — для подписи «приход X − расход Y» под
+            # итогом (с 2026-09-26, как у фасовки). Раньше подпись складывал JS и
+            # брал в приход только накладные: при перемещениях в бар подпись не
+            # сходилась с «изменением остатка».
+            'received': invoice_in + transfer_in,
+            'spent': sold + writeoff + inventory_net + transfer_out,
             'invoice_in': invoice_in,
             'transfer_in': transfer_in,
             'sold': sold,

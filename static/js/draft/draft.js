@@ -17,7 +17,9 @@
 
     var state = {
         bar: '',                 // '' = все бары («Общая»)
-        preset: 'prev_week',
+        // 30 дней, а не прошлая неделя (с 2026-09-26, как на /packaging): на
+        // неделе третья буква кода (спрос) не считается ни у одного кега.
+        preset: 'd30',
         from: null,
         to: null,
         data: null,              // блок ответа /api/draft-kegs
@@ -62,6 +64,17 @@
         if (value === null || value === undefined || isNaN(value)) return '—';
         var d = digits === undefined ? 1 : digits;
         return fixed(value, d) + '%';
+    }
+    // Наценка округляется ВНИЗ до показанного знака: буква и решение считаются от
+    // точного числа, и 249,6% не должно печататься как «250%» рядом с буквой B и
+    // группой «Низкая наценка» (пороги 250/200 целые, поэтому округление вниз
+    // никогда не переводит число через порог). Эпсилон гасит хвосты float вроде
+    // 250 → 249,99999999999997.
+    function markupPct(value, digits) {
+        if (value === null || value === undefined || isNaN(value)) return '—';
+        var d = digits === undefined ? 1 : digits;
+        var f = Math.pow(10, d);
+        return pct(Math.floor(value * f + 1e-9) / f, d);
     }
     // Знак ставим сами: минус из Intl выглядит как дефис, а в балансе важно, что
     // строка расходная — даже когда сумма нулевая («−0,00» у перемещений).
@@ -140,26 +153,41 @@
         } else if (key === 'prev_month') {
             from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             to = new Date(today.getFullYear(), today.getMonth(), 0);
-        } else if (key === 'd30') {
-            from.setDate(today.getDate() - 29);
-        } else if (key === 'd90') {
-            from.setDate(today.getDate() - 89);
+        } else if (key === 'd30' || key === 'd90') {
+            // Скользящие «N дней» заканчиваются ВЧЕРА (с 2026-09-26): сегодняшний
+            // день неполный, и с ним последняя неделя XYZ и её столбик в карточке
+            // были занижены. «Сегодня», «текущая неделя» и «текущий месяц»
+            // включают сегодня по смыслу и остаются как есть.
+            var span = key === 'd30' ? 30 : 90;
+            to.setDate(today.getDate() - 1);
+            from = new Date(to);
+            from.setDate(to.getDate() - (span - 1));
         } else {
             return null;
         }
         return { from: dateISO(from), to: dateISO(to) };
     }
 
+    // Сверху периоды, на которых считается спрос (XYZ, третья буква кода), —
+    // тот же порядок, что на /packaging. Короткие стоят ниже и подписаны в меню
+    // «без XYZ»: на них у всех кегов третья буква «?».
     var PRESETS = [
-        { key: 'prev_week', label: 'Прошлая неделя' },
-        { key: 'week', label: 'Текущая неделя' },
-        { key: 'yesterday', label: 'Вчера' },
-        { key: 'today', label: 'Сегодня' },
+        { key: 'd30', label: 'Последние 30 дней' },
         { key: 'prev_month', label: 'Прошлый месяц' },
         { key: 'month', label: 'Текущий месяц' },
-        { key: 'd30', label: 'Последние 30 дней' },
-        { key: 'd90', label: 'Последние 90 дней' }
+        { key: 'd90', label: 'Последние 90 дней' },
+        { key: 'week', label: 'Текущая неделя' },
+        { key: 'prev_week', label: 'Прошлая неделя' },
+        { key: 'yesterday', label: 'Вчера' },
+        { key: 'today', label: 'Сегодня' }
     ];
+
+    // Полных 7-дневных недель в периоде — та же арифметика, что на сервере
+    // (core/draft_kegs.py, full_buckets): нужна только подписи «без XYZ» в меню.
+    function weeksIn(from, to) {
+        if (!from || !to) return 0;
+        return Math.floor(daysBetween(from, to) / 7);
+    }
 
     function presetLabel(key) {
         for (var i = 0; i < PRESETS.length; i++) {
@@ -210,11 +238,13 @@
         var html = '';
         PRESETS.forEach(function (preset) {
             var range = presetRange(preset.key);
+            var weeks = weeksIn(range.from, range.to);
             html += '<button type="button" class="dr-menu-item' +
                 (state.preset === preset.key ? ' is-on' : '') +
                 '" data-preset="' + preset.key + '">' +
                 '<span>' + esc(preset.label) + '</span>' +
-                '<span>' + esc(rangeLabel(range.from, range.to)) + '</span></button>';
+                '<span>' + (weeks < 3 ? 'без XYZ' : esc(rangeLabel(range.from, range.to))) +
+                '</span></button>';
         });
         // Свой период: пресеты закрывают обычные вопросы, но расчёт умеет любой
         // диапазон, и отнимать эту возможность у страницы нельзя.
@@ -237,12 +267,23 @@
         el.msg.textContent = text;
     }
 
+    // Что именно запрошено: бар и период. Нужен, чтобы ответ, пришедший после
+    // смены фильтра, не лёг на экран под новой подписью.
+    function requestKey() {
+        return [state.bar, state.from, state.to].join('|');
+    }
+
     function run() {
+        // Идёт запрос — не теряем новый выбор: ответ старого запроса будет
+        // выброшен, а новый запустится сразу по его завершении (см. ниже).
+        // До 2026-09-26 run() молча выходил, и страница показывала данные
+        // «Общей» с подписью выбранного бара.
         if (state.loading) return;
         if (!state.from || !state.to) {
             showMessage('Выберите период', true);
             return;
         }
+        var key = requestKey();
         state.loading = true;
         el.spin.hidden = false;
         el.runLabel.textContent = 'Считаю…';
@@ -259,6 +300,7 @@
                 return { ok: response.ok, status: response.status, payload: payload };
             });
         }).then(function (result) {
+            if (key !== requestKey()) return;       // фильтр сменился, ответ устарел
             if (!result.ok) {
                 // Сервер присылает причину («Нет данных за выбранный период») —
                 // показываем её, а не общее «ошибка запроса».
@@ -272,6 +314,7 @@
             el.search.value = '';
             render();
         }).catch(function (error) {
+            if (key !== requestKey()) return;
             state.data = null;
             el.body.hidden = true;
             showMessage(error.message, true);
@@ -280,6 +323,7 @@
             el.spin.hidden = true;
             el.runLabel.textContent = 'Запустить анализ';
             el.run.disabled = false;
+            if (key !== requestKey()) run();        // пока ждали, выбрали другое
         });
     }
 
@@ -345,7 +389,8 @@
             'выручка / литры');
         html += tile('ОБЪЁМ ПОРЦИИ', num(data.avg_portion_liters, 3), 'л', 'литры / порции');
         html += tile('НАЦЕНКА',
-            data.markup_percent === null ? '—' : num(data.markup_percent, 1), '%',
+            data.markup_percent === null ? '—'
+                : markupPct(data.markup_percent, 1).replace('%', ''), '%',
             'средняя по разрезу');
         var people = data.total_bartenders || 0;
         html += tile('БАРМЕНОВ', num(people, 0), '', 'пробивали проливы');
@@ -420,7 +465,7 @@
                     '<span class="dr-num strong">' + num(keg.TotalLiters) + '</span>' +
                     '<span class="dr-num">' + num(keg.TotalPortions) + '</span>' +
                     '<span class="dr-num">' + money(keg.TotalRevenue) + '</span>' +
-                    '<span class="dr-num">' + (keg.MarkupPercent === null ? '—' : pct(keg.MarkupPercent, 0)) +
+                    '<span class="dr-num">' + markupPct(keg.MarkupPercent, 0) +
                     '</span></div>';
             });
         } else {
@@ -475,7 +520,7 @@
                 shareCell(cat.LitersSharePercent, maxLiters) +
                 '<span class="dr-num">' + money(cat.TotalMargin) + '</span>' +
                 '<span class="dr-num">' +
-                    (cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 0)) + '</span>' +
+                    markupPct(cat.MarkupPercent, 0) + '</span>' +
                 '<span class="dr-cell-c"><span class="dr-abc ' + abcClass(cat.ABC_Category) +
                     '">' + esc(cat.ABC_Category) + '</span></span>' +
                 '</div>';
@@ -495,7 +540,7 @@
                 '<span class="dr-total-v">100,0%</span>' +
                 '<span class="dr-total-v">' + money(data.total_margin) + '</span>' +
                 '<span class="dr-total-v">' +
-                    (data.markup_percent === null ? '—' : pct(data.markup_percent, 0)) + '</span>' +
+                    markupPct(data.markup_percent, 0) + '</span>' +
                 '<span></span></div>';
         }
         el.cats.innerHTML = html;
@@ -524,7 +569,7 @@
             cell('ПОРЦИЙ', num(cat.TotalPortions)) +
             cell('ДОЛЯ ПО ЛИТРАМ', pct(cat.LitersSharePercent, 1)) +
             cell('МАРЖА', money(cat.TotalMargin)) +
-            cell('НАЦЕНКА', cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 1),
+            cell('НАЦЕНКА', markupPct(cat.MarkupPercent, 1),
                 cat.MarkupPercent === null ? 'dash' : '') +
             '</div>';
 
@@ -538,7 +583,7 @@
             '<div class="dr-abc-lines">' +
             abcLine('Выручка', cat.ABC_Category, ABC_TEXT.Revenue[cat.ABC_Category]) +
             abcLine('Наценка', cat.ABC_Markup || '?', ABC_TEXT.Markup[cat.ABC_Markup || '?'] +
-                (cat.MarkupPercent === null ? '' : ' (' + pct(cat.MarkupPercent, 1) + ')')) +
+                (cat.MarkupPercent === null ? '' : ' (' + markupPct(cat.MarkupPercent, 1) + ')')) +
             '</div></div>';
 
         if (members.length) {
@@ -682,8 +727,8 @@
                 sortMark(state.kegSort, 'PricePerLiter') + '</span>' +
             '<span class="dr-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
                 sortMark(state.kegSort, 'MarkupPercent') + '</span>' +
+            // Колонки XYZ нет (с 2026-09-26): спрос — третья буква кода ABC.
             '<span class="dr-th c">ABC</span>' +
-            '<span class="dr-th c">XYZ</span>' +
             '</div>';
 
         rows.forEach(function (keg, index) {
@@ -697,11 +742,9 @@
                 shareCell(keg.LitersSharePercent, maxLitersShare) +
                 '<span class="dr-num">' + money(keg.PricePerLiter) + '</span>' +
                 '<span class="dr-num">' +
-                    (keg.MarkupPercent === null ? '—' : pct(keg.MarkupPercent, 0)) + '</span>' +
+                    markupPct(keg.MarkupPercent, 0) + '</span>' +
                 '<span class="dr-cell-c"><span class="dr-abc ' + abcClass(keg.ABC_Combined) +
                     '">' + esc(keg.ABC_Combined) + '</span></span>' +
-                '<span class="dr-xyz' + (keg.XYZ_Category ? ' has' : '') + '">' +
-                    (keg.XYZ_Category ? esc(keg.XYZ_Category) : '—') + '</span>' +
                 '</div>';
         });
 
@@ -726,9 +769,9 @@
                 '<span class="dr-total-v">' +
                     money(sumLiters > 0 ? sumRevenue / sumLiters : 0) + '</span>' +
                 '<span class="dr-total-v">' +
-                    (sumCost > 0 ? pct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
+                    (sumCost > 0 ? markupPct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
                     '</span>' +
-                '<span></span><span></span></div>';
+                '<span></span></div>';
         }
         el.kegs.innerHTML = html;
     }
@@ -770,7 +813,7 @@
                 '<span class="dr-num strong">' + money(person.TotalRevenue) + '</span>' +
                 '<span class="dr-num">' + money(person.TotalMargin) + '</span>' +
                 '<span class="dr-num">' +
-                    (person.MarkupPercent === null ? '—' : pct(person.MarkupPercent, 0)) +
+                    markupPct(person.MarkupPercent, 0) +
                     '</span>' +
                 '<span class="dr-num">' + money(person.PricePerLiter) + '</span>' +
                 '</div>';
@@ -791,7 +834,7 @@
                 '<span class="dr-total-v strong">' + money(data.total_revenue) + '</span>' +
                 '<span class="dr-total-v">' + money(data.total_margin) + '</span>' +
                 '<span class="dr-total-v">' +
-                    (data.markup_percent === null ? '—' : pct(data.markup_percent, 0)) +
+                    markupPct(data.markup_percent, 0) +
                     '</span>' +
                 '<span class="dr-total-v">' + money(data.avg_price_per_liter) + '</span>' +
                 '</div>';
@@ -825,19 +868,35 @@
         html += balanceRow('Списано актами', losses.writeoff, '−', scale, 'warn',
             losses.sold > 0 ? '<span class="dr-pill warn">' +
                 pct(losses.writeoff_percent_of_sold, 1) + ' от продаж</span>' : '');
-        html += balanceRow('Недостача по инвентаризациям', losses.inventory_net, '−', scale, 'bad',
-            losses.sold > 0 ? '<span class="dr-pill bad">' +
-                pct(losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+        // Нетто-излишек — не потеря: своя подпись, знак плюс и спокойный цвет, как
+        // на /packaging. До 2026-09-26 излишек печатался строкой «Недостача −25»,
+        // и строки баланса не складывались в итог.
+        if (losses.inventory_net < 0) {
+            html += balanceRow('Излишек по инвентаризациям', losses.inventory_net, '+', scale, 'ok',
+                losses.sold > 0 ? '<span class="dr-pill ok">' +
+                    pct(-losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+        } else {
+            html += balanceRow('Недостача по инвентаризациям', losses.inventory_net, '−', scale, 'bad',
+                losses.sold > 0 ? '<span class="dr-pill bad">' +
+                    pct(losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+        }
 
-        var spent = (losses.sold || 0) + (losses.writeoff || 0) +
-                    (losses.inventory_net || 0) + (losses.transfer_out || 0);
+        // Приход и расход приходят с сервера (core/draft_kegs.py, _build_losses):
+        // в приход входят и перемещения, иначе подпись не сходится с итогом.
+        // Страница ничего не складывает сама (CLAUDE.md, пункт 1).
         html += '<div class="dr-bal-total">' +
             '<span class="dr-bal-total-n">Изменение остатка кегов</span>' +
             '<span class="dr-bal-lead"></span>' +
             '<span class="dr-bal-total-v">' +
             signed(losses.balance, losses.balance < 0 ? '−' : '+') + ' л</span></div>' +
-            '<div class="dr-note">приход ' + fixed(losses.invoice_in, 2) + ' − расход ' +
-            fixed(spent, 2) + ' · списание по техкарте при продаже</div>';
+            '<div class="dr-note">приход ' + fixed(losses.received, 2) + ' − расход ' +
+            fixed(losses.spent, 2) + ' (продано ' + fixed(losses.sold, 2) + ' + акты ' +
+            fixed(losses.writeoff, 2) +
+            (losses.inventory_net < 0
+                ? ' − излишек ' + fixed(-losses.inventory_net, 2)
+                : ' + недостача ' + fixed(losses.inventory_net, 2)) +
+            ' + перемещения ' + fixed(losses.transfer_out, 2) +
+            ') · списание по техкарте при продаже</div>';
         el.balance.innerHTML = html;
     }
 
@@ -851,20 +910,38 @@
         return 'calm';
     }
 
-    function lossRow(row, maxLoss) {
-        var loss = (row.WriteoffLiters || 0) + Math.max(row.InventoryNetLiters || 0, 0);
+    // Недостача строки: по барам (сервер, с 2026-09-26) — в «Общей» излишек
+    // одного бара не гасит недостачу другого. Показываем недостачу; если её нет,
+    // а излишек есть — излишек со знаком плюс.
+    function shortageCell(short, surplus) {
+        if (short > 0) {
+            return fixed(short, 2) + (surplus > 0
+                ? '<i class="dr-loss-plus"> +' + fixed(surplus, 2) + '</i>' : '');
+        }
+        return surplus > 0 ? signed(surplus, '+') : fixed(0, 2);
+    }
+
+    function lossRow(row, maxLoss, inTable) {
+        var loss = row.LossLiters || 0;             // акты + недостача по барам, сервер
         var percent = row.SoldLiters > 0 ? loss / row.SoldLiters * 100 : null;
         // Излишек (недостача с минусом) — не потеря: полосы у такой строки нет,
         // иначе красная засечка читалась бы как «тут пропало».
         var width = (maxLoss > 0 && loss > 0) ? Math.max(4, loss / maxLoss * 100) : 0;
-        return '<div class="dr-loss-row" data-keg="' + esc(row.KegId) + '">' +
+        // Кег без продаж в периоде (есть только акты или инвентаризация) в таблице
+        // кегов отсутствует — карточку открыть нечем, строка серая и не кликается.
+        // До 2026-09-26 такие строки выглядели кликабельными и ничего не делали.
+        var linked = !inTable || inTable[row.KegId];
+        return '<div class="dr-loss-row' + (linked ? '' : ' is-static') + '"' +
+            (linked ? ' data-keg="' + esc(row.KegId) + '"' : '') + '>' +
             '<span class="dr-loss-n">' + esc(row.KegName) + '</span>' +
             '<span class="dr-num">' +
                 (row.WriteoffLiters ? fixed(row.WriteoffLiters, 2) : '0') + '</span>' +
             '<span class="dr-share">' +
                 '<span class="dr-bar dr-loss-bar"><i style="width:' + width.toFixed(1) +
                 '%"></i></span>' +
-                '<span class="dr-loss-v">' + fixed(row.InventoryNetLiters, 2) + '</span></span>' +
+                '<span class="dr-loss-v">' +
+                shortageCell(row.InventoryShortLiters || 0, row.InventorySurplusLiters || 0) +
+                '</span></span>' +
             '<span class="dr-pill ' + lossTone(percent) + '">' +
                 (percent === null ? '—' : pct(percent, 1)) + '</span>' +
             '</div>';
@@ -872,12 +949,9 @@
 
     function renderLosses(data) {
         var rows = (data.losses && data.losses.by_keg) || [];
-        var totalLoss = rows.reduce(function (acc, row) {
-            return acc + (row.WriteoffLiters || 0) + Math.max(row.InventoryNetLiters || 0, 0);
-        }, 0);
+        var totalLoss = rows.reduce(function (acc, row) { return acc + (row.LossLiters || 0); }, 0);
         var maxLoss = rows.reduce(function (acc, row) {
-            return Math.max(acc, (row.WriteoffLiters || 0) +
-                Math.max(row.InventoryNetLiters || 0, 0));
+            return Math.max(acc, row.LossLiters || 0);
         }, 0);
 
         var html = '<div class="dr-card-h"><span class="dr-card-t">Где именно расхождения</span>' +
@@ -898,26 +972,29 @@
             '<span class="dr-th r">НЕДОСТАЧА</span>' +
             '<span class="dr-th r">% ОТ ПРОДАЖ</span></div>';
 
+        var inTable = {};
+        (data.kegs || []).forEach(function (keg) { inTable[keg.KegId] = true; });
         var head = rows.slice(0, 8), tail = rows.slice(8);
-        head.forEach(function (row) { html += lossRow(row, maxLoss); });
+        head.forEach(function (row) { html += lossRow(row, maxLoss, inTable); });
 
         if (tail.length) {
-            var tailLoss = tail.reduce(function (acc, row) {
-                return acc + (row.WriteoffLiters || 0) +
-                    Math.max(row.InventoryNetLiters || 0, 0);
-            }, 0);
+            var tailLoss = tail.reduce(function (acc, row) { return acc + (row.LossLiters || 0); }, 0);
             html += '<details class="dr-more"><summary>ещё ' + tail.length + ' ' +
                 plural(tail.length, 'кег', 'кега', 'кегов') + ' · ' + num(tailLoss) +
                 ' л потерь' +
                 '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">' +
                 '<path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" ' +
                 'stroke-linecap="round" stroke-linejoin="round"/></svg></summary>';
-            tail.forEach(function (row) { html += lossRow(row, maxLoss); });
+            tail.forEach(function (row) { html += lossRow(row, maxLoss, inTable); });
             html += '</details>';
         }
 
         html += '<div class="dr-note">% — потери (акты + недостача) к проданному по кегу · ' +
-            '«—» — кег не продавался · клик по строке открывает карточку</div>';
+            'недостача считается по каждому бару: излишек одного бара не гасит недостачу ' +
+            'другого, поэтому потери в шапке больше, чем акты + недостача в балансе, где ' +
+            'излишек её уменьшает · «+N» — излишек · «—» — кег не продавался · серые ' +
+            'строки — кеги без продаж в периоде, их нет в таблице · клик по строке ' +
+            'открывает карточку</div>';
         el.losses.innerHTML = html;
     }
 
@@ -1001,8 +1078,29 @@
         },
         Markup: { A: 'наценка 250% и выше', B: 'от 200% до 250%', C: 'ниже 200%',
                   '?': 'себестоимость не задана' },
-        Margin: { A: 'верхняя треть по марже', B: 'середина', C: 'нижняя треть' }
+        Demand: { X: 'ровный спрос: разброс по неделям до 30%',
+                  Y: 'умеренный разброс: от 30% до 60%',
+                  Z: 'спрос скачет: разброс свыше 60%' },
+        Margin: { A: 'входит в первые 80% накопленной маржи', B: 'следующие 15% маржи',
+                  C: 'последние 5% маржи' }
     };
+
+    // Третья буква кода словами. «?» объясняется причиной: короткий период или
+    // кег мало стоял на кране — та же развилка, что в xyzNote.
+    function demandText(keg) {
+        if (keg.XYZ_Category) {
+            return ABC_TEXT.Demand[keg.XYZ_Category] +
+                (keg.CoefficientOfVariation === null ? ''
+                    : ' (' + pct(keg.CoefficientOfVariation, 1) + ')');
+        }
+        if (keg.WeeksInPeriod < 3) {
+            return 'не считается: в периоде ' + keg.WeeksInPeriod + ' ' +
+                plural(keg.WeeksInPeriod, 'полная неделя', 'полные недели', 'полных недель') +
+                ', нужно от 3';
+        }
+        return 'не считается: на кране ' + keg.WeeksWithSales + ' нед. из ' +
+            keg.WeeksInPeriod + ', нужно от 3';
+    }
 
     function openKeg(kegId) {
         var kegs = (state.data && state.data.kegs) || [];
@@ -1026,14 +1124,18 @@
             cell('ДОЛЯ ПО ЛИТРАМ', pct(keg.LitersSharePercent, 1)) +
             cell('ДОЛЯ В ВЫРУЧКЕ', pct(keg.RevenueSharePercent, 1)) +
             cell('НА КРАНЕ', keg.WeeksWithSales + ' из ' + keg.WeeksInPeriod + ' нед.') +
-            cell('ЛИТРОВ В НЕДЕЛЮ', num(keg.AvgLitersPerWeek)) +
+            // Среднее за недели на кране, а не за весь период (с 2026-09-26): кег,
+            // простоявший 1 неделю из 12, не должен показывать 4,7 л вместо 60.
+            cell('Л В НЕДЕЛЮ НА КРАНЕ', keg.AvgLitersPerActiveWeek === null ||
+                keg.AvgLitersPerActiveWeek === undefined ? '—' : num(keg.AvgLitersPerActiveWeek),
+                keg.AvgLitersPerActiveWeek === null ? 'dash' : '') +
             '</div>';
 
         html += sub('ДЕНЬГИ');
         html += '<div class="dr-cells three">' +
             cell('ВЫРУЧКА', money(keg.TotalRevenue)) +
             cell('МАРЖА', money(keg.TotalMargin)) +
-            cell('НАЦЕНКА', keg.MarkupPercent === null ? '—' : pct(keg.MarkupPercent, 1),
+            cell('НАЦЕНКА', markupPct(keg.MarkupPercent, 1),
                 keg.MarkupPercent === null ? 'dash' : '') +
             '</div>';
 
@@ -1093,8 +1195,14 @@
         }
 
         var writeoffPct = keg.TotalLiters > 0 ? keg.WriteoffLiters / keg.TotalLiters * 100 : null;
-        var shortPct = keg.TotalLiters > 0
-            ? keg.InventoryNetLiters / keg.TotalLiters * 100 : null;
+        // Недостача и излишек — по барам (сервер): в «Общей» излишек одного бара не
+        // гасит недостачу другого. Ячейка показывает недостачу, а если её нет —
+        // излишек; при обоих излишек назван строкой ниже.
+        var short = keg.InventoryShortLiters || 0;
+        var surplusLiters = keg.InventorySurplusLiters || 0;
+        var surplus = short <= 0 && surplusLiters > 0;
+        var invValue = surplus ? surplusLiters : short;
+        var shortPct = keg.TotalLiters > 0 ? invValue / keg.TotalLiters * 100 : null;
         html += sub('ПОТЕРИ', 'к проданному по кегу');
         html += '<div class="dr-cells two">' +
             '<div class="dr-cell"><div class="dr-cell-cap">СПИСАНО АКТАМИ</div>' +
@@ -1102,14 +1210,23 @@
             fixed(keg.WriteoffLiters, 2) + '</span><span class="dr-pill ' +
             lossTone(writeoffPct) + '">' +
             (writeoffPct === null ? '—' : pct(writeoffPct, 1)) + '</span></div></div>' +
-            '<div class="dr-cell"><div class="dr-cell-cap">НЕДОСТАЧА ИНВЕНТ.</div>' +
+            // Излишек — не потеря: своя подпись, плюс и спокойная плашка, как в
+            // балансе и в карточке позиции фасовки.
+            '<div class="dr-cell"><div class="dr-cell-cap">' +
+            (surplus ? 'ИЗЛИШЕК ИНВЕНТ.' : 'НЕДОСТАЧА ИНВЕНТ.') + '</div>' +
             '<div class="dr-cell-row"><span class="dr-cell-v">' +
-            fixed(keg.InventoryNetLiters, 2) + '</span><span class="dr-pill ' +
-            lossTone(shortPct) + '">' +
-            (shortPct === null ? '—' : pct(shortPct, 1)) + '</span></div></div>' +
+            (surplus ? signed(invValue, '+') : fixed(invValue, 2)) +
+            '</span><span class="dr-pill ' + (surplus ? 'ok' : lossTone(shortPct)) + '">' +
+            (shortPct === null ? '—' : (surplus ? '+' : '') + pct(shortPct, 1)) +
+            '</span></div></div>' +
             '</div>';
+        if (short > 0 && surplusLiters > 0) {
+            html += '<div class="dr-dr-note">Ещё излишек ' + fixed(surplusLiters, 2) +
+                ' л в других барах: недостачу он не гасит — инвентаризация каждого бара ' +
+                'отдельный пересчёт. В балансе сети излишек вычтен из недостачи.</div>';
+        }
 
-        html += sub('ABC-АНАЛИЗ');
+        html += sub('ABC-АНАЛИЗ', 'три буквы: выручка, наценка, спрос');
         html += '<div class="dr-abc-box"><div class="dr-abc-top">' +
             '<span class="dr-abc-big ' + abcClass(keg.ABC_Combined) + '">' +
             esc(keg.ABC_Combined) + '</span>' +
@@ -1119,29 +1236,37 @@
             '<div class="dr-abc-lines">' +
             abcLine('Выручка', keg.ABC_Revenue, ABC_TEXT.Revenue[keg.ABC_Revenue]) +
             abcLine('Наценка', keg.ABC_Markup || '?', ABC_TEXT.Markup[keg.ABC_Markup || '?'] +
-                (keg.MarkupPercent === null ? '' : ' (' + pct(keg.MarkupPercent, 1) + ')')) +
-            abcLine('Маржа', keg.ABC_Margin, ABC_TEXT.Margin[keg.ABC_Margin] +
-                ' (' + money(keg.TotalMargin) + ')') +
+                (keg.MarkupPercent === null ? '' : ' (' + markupPct(keg.MarkupPercent, 1) + ')')) +
+            abcLine('Спрос', keg.XYZ_Category || '?', demandText(keg)) +
             '</div></div>';
         html += '<div class="dr-dr-note">Решение по ассортименту: ' +
             esc(bucketNameOf(keg.ABC_Bucket)) + '.</div>';
 
-        // Вторая шкала рисуется только когда категории пришли: на ответе без них
-        // (старый кэш) в формуле стояло бы «NaN ₽».
-        if (typeof keg.RevenueBaseInCategory === 'number') {
-        html += sub('ВТОРАЯ ШКАЛА', 'место внутри своей категории');
+        // Вторая шкала: место внутри категории и маржа — буквы, которые в код не
+        // входят (как на /packaging). Строка категории рисуется только когда
+        // категории пришли: на ответе без них (старый кэш) в формуле стояло бы
+        // «NaN ₽». Маржа есть всегда.
+        var inCategory = typeof keg.RevenueBaseInCategory === 'number';
+        html += sub('ВТОРАЯ ШКАЛА', 'место в категории и маржа');
         html += '<div class="dr-abc-box"><div class="dr-abc-lines" style="margin-top:0">' +
-            abcLine('В категории', keg.ABC_Revenue_InCategory,
+            (inCategory ? abcLine('В категории', keg.ABC_Revenue_InCategory,
                 ABC_TEXT.Revenue[keg.ABC_Revenue_InCategory] + ' · ' +
                 money(keg.TotalRevenue) + ' / ' + money(keg.RevenueBaseInCategory) +
                 ' (категория «' + (keg.Category || '') + '») = ' +
                 pct(keg.RevenueShareInCategoryPercent, 1) + ', накоплено ' +
-                pct(keg.RevenueCumulativeInCategoryPercent, 1)) +
+                pct(keg.RevenueCumulativeInCategoryPercent, 1)) : '') +
+            abcLine('Маржа', keg.ABC_Margin, ABC_TEXT.Margin[keg.ABC_Margin] + ' · ' +
+                money(keg.TotalMargin) + ' / ' + money(state.data.margin_abc_base) + ' = ' +
+                pct(keg.MarginSharePercent, 1) + ', накоплено ' +
+                pct(keg.MarginCumulativePercent, 1)) +
             '</div></div>';
-        html += '<div class="dr-dr-note">Буква по выручке считается дважды и от разных ' +
-            'баз: по всему разрезу и внутри своей категории. Обе верные, но означают ' +
-            'разное, поэтому показаны обе.</div>';
-        }
+        html += '<div class="dr-dr-note">' +
+            (inCategory ? 'Буква по выручке считается дважды и от разных баз: по ' +
+                'всему разрезу и внутри своей категории. Обе верные, но означают ' +
+                'разное, поэтому показаны обе. ' : '') +
+            'Маржа в код не входит: её буква — Парето по марже в рублях среди кегов ' +
+            'разреза (80/15/5, как у фасовки). В знаменателе — сумма только положительных ' +
+            'маржей.</div>';
 
         html += sub('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="dr-cells three">' +
@@ -1229,7 +1354,7 @@
         html += '<div class="dr-cells two">' +
             cell('ВЫРУЧКА', money(person.TotalRevenue)) +
             cell('МАРЖА', money(person.TotalMargin)) +
-            cell('НАЦЕНКА', person.MarkupPercent === null ? '—' : pct(person.MarkupPercent, 1),
+            cell('НАЦЕНКА', markupPct(person.MarkupPercent, 1),
                 person.MarkupPercent === null ? 'dash' : '') +
             cell('ЦЕНА ЗА ЛИТР', money(person.PricePerLiter)) +
             '</div>';
@@ -1427,7 +1552,7 @@
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = { num: num, fixed: fixed, money: money, pct: pct, signed: signed, esc: esc,
                            plural: plural, presetRange: presetRange, lossTone: lossTone,
-                           initials: initials };
+                           initials: initials, weeksIn: weeksIn, markupPct: markupPct };
     }
     if (typeof window !== 'undefined') {
         window.__draft = { state: state, render: render, openKeg: openKeg,
@@ -1436,6 +1561,7 @@
                            num: num, fixed: fixed,
                            money: money, pct: pct,
                            signed: signed, esc: esc, plural: plural, lossTone: lossTone,
-                           initials: initials, presetRange: presetRange };
+                           initials: initials, presetRange: presetRange,
+                           weeksIn: weeksIn, markupPct: markupPct };
     }
 })();

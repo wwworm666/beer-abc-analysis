@@ -451,7 +451,9 @@ body.packaging-page .container { padding: 0; }
 }
 .pk-table-in { padding: 6px 18px 4px; }
 .pk-cats .pk-table-in { min-width: 1140px; }
-.pk-pos .pk-table-in { min-width: 1280px; }
+/* Колонки XYZ нет с 2026-09-26: она повторяла третью букву кода и при min-width
+   1280px не влезала в контент страницы (1198px). */
+.pk-pos .pk-table-in { min-width: 1140px; }
 
 .pk-row {
     display: grid;
@@ -462,7 +464,7 @@ body.packaging-page .container { padding: 0; }
     grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 128px 128px 104px 84px 46px;
 }
 .pk-pos .pk-row {
-    grid-template-columns: 30px minmax(200px, 1.6fr) minmax(120px, .8fr) 72px 100px 128px 128px 78px 62px 44px;
+    grid-template-columns: 30px minmax(200px, 1.6fr) minmax(120px, .8fr) 72px 100px 128px 128px 78px 62px;
 }
 .pk-row.is-head { padding: 10px 0 9px; }
 .pk-row.is-body {
@@ -549,8 +551,6 @@ body.packaging-page .container { padding: 0; }
 .pk-abc.b { background: var(--pk-warn); }
 .pk-abc.c { background: var(--pk-bad); }
 .pk-cell-c { text-align: center; }
-.pk-xyz { font: 500 12px/1 var(--pk-mono); color: var(--pk-faint); text-align: center; }
-.pk-xyz.has { color: var(--pk-ink); font-weight: 600; }
 
 .pk-empty {
     padding: 22px 0;
@@ -690,6 +690,8 @@ body.packaging-page .container { padding: 0; }
     font: 600 12px/1 var(--pk-mono);
     font-variant-numeric: tabular-nums;
 }
+/* Излишек рядом с недостачей той же позиции в «Общей»: другой бар, недостачу не гасит. */
+.pk-loss-plus { font-style: normal; font-weight: 500; color: var(--pk-ok-ink); margin-left: 4px; }
 
 .pk-more { border: none; }
 .pk-more summary {

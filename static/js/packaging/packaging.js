@@ -58,6 +58,16 @@
         if (value === null || value === undefined || isNaN(value)) return '—';
         return fixed(value, digits === undefined ? 1 : digits) + '%';
     }
+    // Наценка округляется ВНИЗ до показанного знака: буква и решение считаются от
+    // точного числа, и 119,5% не должно печататься как «120%» рядом с буквой B и
+    // группой «Низкая наценка» (пороги 120/100 целые, поэтому округление вниз
+    // никогда не переводит число через порог). Эпсилон гасит хвосты float.
+    function markupPct(value, digits) {
+        if (value === null || value === undefined || isNaN(value)) return '—';
+        var d = digits === undefined ? 1 : digits;
+        var f = Math.pow(10, d);
+        return pct(Math.floor(value * f + 1e-9) / f, d);
+    }
     function esc(text) {
         return String(text === null || text === undefined ? '' : text)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -115,12 +125,15 @@
         } else if (key === 'prev_month') {
             from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             to = new Date(today.getFullYear(), today.getMonth(), 0);
-        } else if (key === 'd30') {
-            from.setDate(today.getDate() - 29);
-        } else if (key === 'd90') {
-            from.setDate(today.getDate() - 89);
-        } else if (key === 'd180') {
-            from.setDate(today.getDate() - 179);
+        } else if (key === 'd30' || key === 'd90' || key === 'd180') {
+            // Скользящие «N дней» заканчиваются ВЧЕРА (с 2026-09-26): сегодняшний
+            // день неполный, и с ним последняя неделя XYZ и её столбик в карточке
+            // были занижены. «Текущая неделя» и «текущий месяц» включают сегодня
+            // по смыслу и остаются как есть.
+            var span = key === 'd30' ? 30 : (key === 'd90' ? 90 : 180);
+            to.setDate(today.getDate() - 1);
+            from = new Date(to);
+            from.setDate(to.getDate() - (span - 1));
         } else {
             return null;
         }
@@ -221,12 +234,22 @@
         el.msg.textContent = text;
     }
 
+    // Что именно запрошено: бар и период. Ответ, пришедший после смены фильтра,
+    // выбрасывается, и сразу уходит запрос по новому выбору.
+    function requestKey() {
+        return [state.bar, state.from, state.to].join('|');
+    }
+
     function run() {
+        // Идёт запрос — новый выбор не теряется: он запустится по завершении
+        // текущего (см. ниже). До 2026-09-26 run() молча выходил, и кнопка бара
+        // показывала одно, а таблицы — другое.
         if (state.loading) return;
         if (!state.from || !state.to) {
             showMessage('Выберите период', true);
             return;
         }
+        var key = requestKey();
         state.loading = true;
         el.spin.hidden = false;
         el.runLabel.textContent = 'Считаю…';
@@ -243,6 +266,7 @@
                 return { ok: response.ok, payload: payload, status: response.status };
             });
         }).then(function (result) {
+            if (key !== requestKey()) return;       // фильтр сменился, ответ устарел
             if (!result.ok) {
                 // Сервер присылает причину («Нет данных за выбранный период») —
                 // показываем её, а не общее «ошибка запроса».
@@ -254,6 +278,7 @@
             el.search.value = '';
             render();
         }).catch(function (error) {
+            if (key !== requestKey()) return;
             state.data = null;
             el.body.hidden = true;
             showMessage(error.message, true);
@@ -262,6 +287,7 @@
             el.spin.hidden = true;
             el.runLabel.textContent = 'Запустить анализ';
             el.run.disabled = false;
+            if (key !== requestKey()) run();        // пока ждали, выбрали другое
         });
     }
 
@@ -330,7 +356,8 @@
             t.sku + ' ' + plural(t.sku, 'фасовка', 'фасовки', 'фасовок') + ' в продаже');
         html += tile('КАТЕГОРИЙ', num(t.categories, 0), '',
             'все показаны ниже');
-        html += tile('НАЦЕНКА', t.markup_percent === null ? '—' : num(t.markup_percent, 1), '%',
+        html += tile('НАЦЕНКА', t.markup_percent === null ? '—'
+                : markupPct(t.markup_percent, 1).replace('%', ''), '%',
             '(выручка − себестоимость) / себестоимость');
         html += tile('МАРЖА', num(Math.round(t.margin), 0), '₽',
             'выручка минус себестоимость');
@@ -452,7 +479,7 @@
                 shareCell(cat.QtySharePercent, maxQtyShare) +
                 '<span class="pk-num">' + money(cat.TotalMargin) + '</span>' +
                 '<span class="pk-num">' +
-                    (cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 0)) + '</span>' +
+                    markupPct(cat.MarkupPercent, 0) + '</span>' +
                 '<span class="pk-cell-c"><span class="pk-abc ' + abcClass(cat.ABC_Category) +
                     '">' + esc(cat.ABC_Category) + '</span></span>' +
                 '</div>';
@@ -473,7 +500,7 @@
                 '<span class="pk-total-v">100,0%</span>' +
                 '<span class="pk-total-v">' + money(t.margin) + '</span>' +
                 '<span class="pk-total-v">' +
-                    (t.markup_percent === null ? '—' : pct(t.markup_percent, 0)) + '</span>' +
+                    markupPct(t.markup_percent, 0) + '</span>' +
                 '<span></span></div>';
         }
         el.cats.innerHTML = html;
@@ -518,8 +545,8 @@
                 sortMark(state.posSort, 'QtySharePercent') + '</span>' +
             '<span class="pk-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
                 sortMark(state.posSort, 'MarkupPercent') + '</span>' +
+            // Колонки XYZ нет (с 2026-09-26): она повторяла третью букву кода.
             '<span class="pk-th c">ABC</span>' +
-            '<span class="pk-th c">XYZ</span>' +
             '</div>';
 
         rows.forEach(function (p, index) {
@@ -532,11 +559,9 @@
                 shareCell(p.RevenueSharePercent, maxShare) +
                 shareCell(p.QtySharePercent, maxQtyShare) +
                 '<span class="pk-num' + (p.MarkupPercent === null ? ' dash' : '') + '">' +
-                    (p.MarkupPercent === null ? '—' : pct(p.MarkupPercent, 0)) + '</span>' +
+                    markupPct(p.MarkupPercent, 0) + '</span>' +
                 '<span class="pk-cell-c"><span class="pk-abc ' + abcClass(p.ABC_Revenue) +
                     '">' + esc(p.ABC_Combined) + '</span></span>' +
-                '<span class="pk-xyz' + (p.XYZ_Category ? ' has' : '') + '">' +
-                    (p.XYZ_Category ? esc(p.XYZ_Category) : '—') + '</span>' +
                 '</div>';
         });
 
@@ -560,9 +585,9 @@
                 '<span class="pk-total-v">' + pct(sumShare, 1) + '</span>' +
                 '<span class="pk-total-v">' + pct(sumQtyShare, 1) + '</span>' +
                 '<span class="pk-total-v">' +
-                    (sumCost > 0 ? pct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
+                    (sumCost > 0 ? markupPct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
                     '</span>' +
-                '<span></span><span></span></div>';
+                '<span></span></div>';
         }
         el.pos.innerHTML = html;
     }
@@ -655,6 +680,17 @@
         el.balance.innerHTML = html;
     }
 
+    // Недостача строки: по барам (сервер, с 2026-09-26) — в «Общей» излишек
+    // одного бара не гасит недостачу другого. Показываем недостачу; если её нет,
+    // а излишек есть — излишек со знаком плюс.
+    function shortageCell(short, surplus) {
+        if (short > 0) {
+            return qty(short) + (surplus > 0
+                ? '<i class="pk-loss-plus"> +' + qty(surplus) + '</i>' : '');
+        }
+        return surplus > 0 ? signed(surplus, '+') : '0';
+    }
+
     function lossRow(row, maxLoss) {
         var loss = row.LossQty || 0;
         // Излишек (недостача с минусом) — не потеря: полосы у такой строки нет,
@@ -668,8 +704,9 @@
             '<span class="pk-share">' +
                 '<span class="pk-bar pk-loss-bar"><i style="width:' + width.toFixed(1) +
                 '%"></i></span>' +
-                '<span class="pk-loss-v">' + signed(row.InventoryNetQty,
-                    row.InventoryNetQty < 0 ? '+' : '') + '</span></span>' +
+                '<span class="pk-loss-v">' +
+                shortageCell(row.InventoryShortQty || 0, row.InventorySurplusQty || 0) +
+                '</span></span>' +
             '<span class="pk-pill ' + lossTone(row.LossPercentOfSold) + '">' +
                 (row.LossPercentOfSold === null || row.LossPercentOfSold === undefined
                     ? '—' : pct(row.LossPercentOfSold, 1)) + '</span>' +
@@ -723,6 +760,8 @@
         }
 
         html += '<div class="pk-note">% — потери (акты + недостача) к проданному по складу · ' +
+            'недостача считается по каждому бару: излишек одного бара не гасит недостачу ' +
+            'другого · «+N» — излишек · ' +
             '«—» — позиция не продавалась · серые строки — товар склада, которого нет ' +
             'среди проданных позиций периода (нет продаж или другое имя в номенклатуре) · ' +
             'клик по строке открывает карточку</div>';
@@ -848,6 +887,16 @@
         return html;
     }
 
+    // База, от которой посчитаны доли категорий. Сервер отдаёт её с 2026-09-26;
+    // на старом ответе — та же сумма положительных выручек категорий здесь.
+    function categoryBase() {
+        var t = (state.data && state.data.totals) || {};
+        if (typeof t.category_revenue_abc_base === 'number') return t.category_revenue_abc_base;
+        return ((state.data && state.data.categories) || []).reduce(function (a, c) {
+            return a + Math.max(c.TotalRevenue || 0, 0);
+        }, 0);
+    }
+
     function openCategory(name) {
         var data = state.data;
         if (!data) return;
@@ -867,7 +916,7 @@
             cell('НАКОПЛЕННЫМ ИТОГОМ', pct(cat.CumulativePercent, 1)) +
             cell('ПРОДАНО', num(cat.TotalQty, 0) + ' шт') +
             cell('МАРЖА', money(cat.TotalMargin)) +
-            cell('НАЦЕНКА', cat.MarkupPercent === null ? '—' : pct(cat.MarkupPercent, 1),
+            cell('НАЦЕНКА', markupPct(cat.MarkupPercent, 1),
                 cat.MarkupPercent === null ? 'dash' : '') +
             '</div>';
 
@@ -881,18 +930,21 @@
             '<div class="pk-abc-lines">' +
             abcLine('Выручка', cat.ABC_Category, revenueText(cat.ABC_Category),
                 money(cat.TotalRevenue) + ' / ' +
-                money((state.data.totals || {}).revenue_abc_base) + ' = ' +
+                // База долей категорий — сумма положительных выручек КАТЕГОРИЙ, а
+                // не позиций: при возврате внутри категории они разные, и деление
+                // на базу позиций не давало напечатанный процент.
+                money(categoryBase()) + ' = ' +
                 pct(cat.RevenueSharePercent, 1) + ' · накоплено ' +
                 pct(cat.CumulativePercent, 1)) +
             abcLine('Наценка', cat.ABC_Markup, markupText(cat.ABC_Markup),
                 cat.MarkupPercent === null ? 'себестоимость нулевая — наценка не определена'
                     : '(' + money(cat.TotalRevenue) + ' − ' + money(cat.TotalRevenue - cat.TotalMargin) +
                       ') / ' + money(cat.TotalRevenue - cat.TotalMargin) + ' = ' +
-                      pct(cat.MarkupPercent, 1)) +
+                      markupPct(cat.MarkupPercent, 1)) +
             '</div></div>';
 
         html += miniPositions(members, 'ВСЕ ПОЗИЦИИ КАТЕГОРИИ',
-            members.length + ' ' + plural(members.length, 'штука', 'штуки', 'штук') +
+            members.length + ' ' + plural(members.length, 'позиция', 'позиции', 'позиций') +
             ' · клик — карточка');
 
         html += '</div>';
@@ -1034,7 +1086,7 @@
         html += '<div class="pk-cells three">' +
             cell('ВЫРУЧКА', money(p.TotalRevenue)) +
             cell('МАРЖА', money(p.TotalMargin)) +
-            cell('НАЦЕНКА', p.MarkupPercent === null ? '—' : pct(p.MarkupPercent, 1),
+            cell('НАЦЕНКА', markupPct(p.MarkupPercent, 1),
                 p.MarkupPercent === null ? 'dash' : '') +
             cell('ЦЕНА ЗА ШТУКУ', money(p.PricePerUnit)) +
             cell('СЕБЕС. ЗА ШТУКУ', money(p.CostPerUnit)) +
@@ -1072,8 +1124,13 @@
         // Проценты приходят с сервера (WriteoffPercentOfSold, InventoryPercentOfSold);
         // излишек — не потеря: своя подпись, знак плюс и спокойная плашка, как в
         // строке баланса, иначе «+3» рядом с «−25,0%» читалось бы двумя способами.
-        var surplus = p.InventoryNetQty < 0;
-        var hasPct = p.InventoryPercentOfSold !== null && p.InventoryPercentOfSold !== undefined;
+        // Недостача и излишек — по барам (сервер): ячейка показывает недостачу, а
+        // если её нет — излишек; при обоих излишек назван в пояснении ниже.
+        var shortQty = p.InventoryShortQty || 0;
+        var surplusQty = p.InventorySurplusQty || 0;
+        var surplus = shortQty <= 0 && surplusQty > 0;
+        var invPct = surplus ? p.InventorySurplusPercentOfSold : p.InventoryShortPercentOfSold;
+        var hasPct = invPct !== null && invPct !== undefined;
         html += band('ПОТЕРИ', 'к проданному по складу');
         html += '<div class="pk-cells three">' +
             cell('ПРОДАНО ПО СКЛАДУ', qty(p.SoldQtyStock) + ' шт') +
@@ -1085,9 +1142,9 @@
             '<div class="pk-cell"><div class="pk-cell-cap">' +
             (surplus ? 'ИЗЛИШЕК ИНВЕНТ.' : 'НЕДОСТАЧА ИНВЕНТ.') + '</div>' +
             '<div class="pk-cell-row"><span class="pk-cell-v">' +
-            signed(p.InventoryNetQty, surplus ? '+' : '') +
-            '</span><span class="pk-pill ' + (surplus ? 'ok' : lossTone(p.InventoryPercentOfSold)) + '">' +
-            (!hasPct ? '—' : (surplus ? '+' : '') + pct(Math.abs(p.InventoryPercentOfSold), 1)) +
+            (surplus ? signed(surplusQty, '+') : qty(shortQty)) +
+            '</span><span class="pk-pill ' + (surplus ? 'ok' : lossTone(invPct)) + '">' +
+            (!hasPct ? '—' : (surplus ? '+' : '') + pct(invPct, 1)) +
             '</span></div></div>' +
             '</div>';
         var lossNote;
@@ -1096,7 +1153,7 @@
                 '»: в баланс штук не входит, потери по нему не считаются.';
         } else if (p.SoldQtyStock > 0) {
             lossNote = 'Потери ' + qty(p.LossQty) + ' шт = акты ' + qty(p.WriteoffQty) +
-                ' + недостача ' + qty(Math.max(p.InventoryNetQty, 0)) + ' · ' +
+                ' + недостача ' + qty(shortQty) + ' · ' +
                 qty(p.LossQty) + ' / ' + qty(p.SoldQtyStock) + ' = ' +
                 pct(p.LossPercentOfSold, 1) + ' от проданного по складу. ' +
                 'По кассе продано ' + qty(p.TotalQty) + ' шт' +
@@ -1104,10 +1161,14 @@
                     ? ' — расходится со складом на ' +
                       signed(p.SoldQtyStock - p.TotalQty, p.SoldQtyStock < p.TotalQty ? '−' : '+') +
                       ' (граница учётного дня, набор или товар без карточки склада).'
-                    : '.');
-        } else if (p.WriteoffQty > 0 || Math.abs(p.InventoryNetQty) > 0.005) {
+                    : '.') +
+                (shortQty > 0 && surplusQty > 0
+                    ? ' Ещё излишек ' + qty(surplusQty) + ' шт в других барах: недостачу он ' +
+                      'не гасит — инвентаризация каждого бара отдельный пересчёт.'
+                    : '');
+        } else if (p.WriteoffQty > 0 || shortQty > 0 || surplusQty > 0) {
             lossNote = 'По складу за период не продано, но движения есть: акты ' + qty(p.WriteoffQty) +
-                (surplus ? ', излишек ' + qty(-p.InventoryNetQty) : ' + недостача ' + qty(p.InventoryNetQty)) +
+                (surplus ? ', излишек ' + qty(surplusQty) : ' + недостача ' + qty(shortQty)) +
                 ' — потери ' + qty(p.LossQty) + ' шт, процент к проданному не определён.';
         } else {
             lossNote = 'Движений по складу за период у позиции нет: проводки не пришли ' +
@@ -1131,7 +1192,7 @@
                 p.MarkupPercent === null
                     ? 'себестоимость нулевая — наценка не определена, буквы нет'
                     : '(' + money(p.TotalRevenue) + ' − ' + money(p.TotalCost) + ') / ' +
-                      money(p.TotalCost) + ' = ' + pct(p.MarkupPercent, 1)) +
+                      money(p.TotalCost) + ' = ' + markupPct(p.MarkupPercent, 1)) +
             abcLine('Спрос', p.XYZ_Category,
                 p.XYZ_Category ? xyzShort(p.XYZ_Category) : 'данных не хватило',
                 p.CoefficientOfVariation === null
@@ -1345,13 +1406,15 @@
         module.exports = { num: num, fixed: fixed, money: money, pct: pct, esc: esc,
                            plural: plural, presetRange: presetRange, weeksIn: weeksIn,
                            abcClass: abcClass, xyzNote: xyzNote,
-                           lossTone: lossTone, signed: signed, qty: qty };
+                           lossTone: lossTone, signed: signed, qty: qty,
+                           markupPct: markupPct };
     }
     if (typeof window !== 'undefined') {
         window.__packaging = { state: state, render: render, openPosition: openPosition,
                                openCategory: openCategory, openBucket: openBucket,
                                num: num, money: money, pct: pct, esc: esc, plural: plural,
                                abcClass: abcClass, weeksIn: weeksIn, lossTone: lossTone,
-                               signed: signed, qty: qty, openBucket: openBucket };
+                               signed: signed, qty: qty, openBucket: openBucket,
+                               markupPct: markupPct, presetRange: presetRange };
     }
 })();
