@@ -724,6 +724,24 @@ test('расхождения в «Общей»: недостача одного 
     dapi.render();
 });
 
+test('карточка кега: отрицательная маржа в формуле Парето считается нулём', () => {
+    const dapi = env.sandbox.window.__draft;
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    const keg = data.kegs[data.kegs.length - 1];
+    keg.TotalMargin = -1200;
+    keg.MarginSharePercent = 0;
+    dapi.state.data = data;
+    dapi.render();
+    dapi.openKeg(keg.KegId);
+    const html = env.byId.drDrawer.innerHTML;
+    assert.ok(html.includes(' · ' + dapi.money(0) + ' / ' + dapi.money(data.margin_abc_base) + ' = ' +
+        dapi.pct(0, 1)), 'в числителе не ноль');
+    assert.ok(html.includes('маржа ' + dapi.money(-1200) + ' — в Парето считается нулём'),
+        'отрицательная маржа не названа');
+    dapi.state.data = BLOCK;
+    dapi.render();
+});
+
 async function asyncTest(name, fn) {
     try {
         await fn();

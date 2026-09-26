@@ -68,8 +68,10 @@
     // Наценка округляется ВНИЗ до показанного знака: буква и решение считаются от
     // точного числа, и 249,6% не должно печататься как «250%» рядом с буквой B и
     // группой «Низкая наценка» (пороги 250/200 целые, поэтому округление вниз
-    // никогда не переводит число через порог). Эпсилон гасит хвосты float вроде
-    // 250 → 249,99999999999997.
+    // никогда не переводит число через порог). Эпсилон 1e-9 процента — тот же
+    // допуск, с которым сервер сравнивает наценку с порогом (snap_markup в
+    // core/abc_thresholds.py): цена ровно на пороге печатается порогом и
+    // получает старшую букву, а не «250%» рядом с B.
     function markupPct(value, digits) {
         if (value === null || value === undefined || isNaN(value)) return '—';
         var d = digits === undefined ? 1 : digits;
@@ -345,8 +347,9 @@
             el.updated.hidden = true;
         }
 
-        // Плашка «XYZ не считается»: на неделе третьей буквы нет ни у кого,
-        // и колонка XYZ без объяснения выглядит сломанной.
+        // Плашка «XYZ не считается»: на неделе третьей буквы (спрос) нет ни у
+        // кого, код каждого кега кончается на «?», и без объяснения это
+        // выглядит сломанным.
         if (data.xyz_available === false) {
             el.xyzChip.hidden = false;
             // Полных недель — целое xyz_buckets, а не period.weeks (там дробь
@@ -1255,10 +1258,15 @@
                 ' (категория «' + (keg.Category || '') + '») = ' +
                 pct(keg.RevenueShareInCategoryPercent, 1) + ', накоплено ' +
                 pct(keg.RevenueCumulativeInCategoryPercent, 1)) : '') +
+            // В числителе — маржа, с которой кег вошёл в Парето: отрицательная
+            // считается нулём (как в знаменателе), иначе «−1 200 ₽ / … = 0,0%»
+            // читается как ошибка расчёта. Сама отрицательная маржа — отдельно.
             abcLine('Маржа', keg.ABC_Margin, ABC_TEXT.Margin[keg.ABC_Margin] + ' · ' +
-                money(keg.TotalMargin) + ' / ' + money(state.data.margin_abc_base) + ' = ' +
-                pct(keg.MarginSharePercent, 1) + ', накоплено ' +
-                pct(keg.MarginCumulativePercent, 1)) +
+                money(Math.max(keg.TotalMargin, 0)) + ' / ' + money(state.data.margin_abc_base) +
+                ' = ' + pct(keg.MarginSharePercent, 1) + ', накоплено ' +
+                pct(keg.MarginCumulativePercent, 1) +
+                (keg.TotalMargin < 0 ? ' (маржа ' + money(keg.TotalMargin) +
+                    ' — в Парето считается нулём)' : '')) +
             '</div></div>';
         html += '<div class="dr-dr-note">' +
             (inCategory ? 'Буква по выручке считается дважды и от разных баз: по ' +
@@ -1288,7 +1296,8 @@
     }
 
     function abcLine(category, letter, text) {
-        // «?» — буквы нет (себестоимость не задана): серая таблетка, как у XYZ.
+        // «?» — буквы нет: у наценки не задана себестоимость, у спроса меньше
+        // трёх недель с продажами. Серая таблетка, как «?» в коде таблицы.
         var cls = letter === '?' ? 'none' : abcClass(letter);
         return '<div class="dr-abc-line">' +
             '<span class="dr-abc-ltr ' + cls + '">' + esc(letter) + '</span>' +

@@ -61,7 +61,10 @@
     // Наценка округляется ВНИЗ до показанного знака: буква и решение считаются от
     // точного числа, и 119,5% не должно печататься как «120%» рядом с буквой B и
     // группой «Низкая наценка» (пороги 120/100 целые, поэтому округление вниз
-    // никогда не переводит число через порог). Эпсилон гасит хвосты float.
+    // никогда не переводит число через порог). Эпсилон 1e-9 процента — тот же
+    // допуск, с которым сервер сравнивает наценку с порогом (snap_markup в
+    // core/abc_thresholds.py): цена ровно на пороге печатается порогом и
+    // получает старшую букву, а не «120%» рядом с B.
     function markupPct(value, digits) {
         if (value === null || value === undefined || isNaN(value)) return '—';
         var d = digits === undefined ? 1 : digits;
@@ -1005,9 +1008,11 @@
     }
 
     function abcLine(category, letter, text, formula) {
+        // Буквы нет — «?», как в коде таблицы (NO_LETTER в core/abc_thresholds.py),
+        // а не прочерк: прочерк читается как «пусто», а пусто одно место из трёх.
         return '<div class="pk-abc-line">' +
             '<span class="pk-abc-ltr ' + (letter ? abcClass(letter) : 'none') + '">' +
-            esc(letter || '—') + '</span>' +
+            esc(letter || '?') + '</span>' +
             '<span class="pk-abc-cat">' + esc(category) + '</span>' +
             '<span class="pk-abc-txt">' + esc(text || '') +
             (formula ? '<span class="pk-formula">' + esc(formula) + '</span>' : '') +

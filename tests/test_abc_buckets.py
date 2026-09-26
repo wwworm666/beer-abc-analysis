@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.abc_buckets import BUCKETS, bucket_cards, bucket_rule_text, decide_bucket  # noqa: E402
 from core.abc_thresholds import (  # noqa: E402
+    markup_letter,
     KEG_MARKUP_A_MIN,
     KEG_MARKUP_B_MIN,
     MARKUP_A_MIN,
@@ -117,6 +118,23 @@ def test_low_markup_is_below_owner_minimum_not_below_b():
     assert d(abc='A', markup=2.0, **kegs) == 'low_markup'
 
 
+def test_price_exactly_on_threshold_is_not_lost_to_float():
+    """Цена ровно 3,5 себестоимости (кег) и 2,2 (фасовка) в float даёт
+    2,4999999999999996 и 1,1999999999999997. Без snap_markup такая позиция
+    получала B и «Низкую наценку», а страница печатала рядом «250%» / «120%»."""
+    keg = ((0.35 - 0.10) / 0.10 * 100) / 100          # как в core/draft_kegs.py
+    bottle = (2.42 - 1.10) / 1.10                      # 2,2 себестоимости
+    assert keg < KEG_MARKUP_A_MIN and bottle < MARKUP_A_MIN   # хвост float на месте
+    kegs = dict(a_min=KEG_MARKUP_A_MIN, b_min=KEG_MARKUP_B_MIN)
+    assert markup_letter(keg, **kegs) == 'A'
+    assert markup_letter(bottle) == 'A'
+    assert d(abc='A', markup=keg, **kegs) == 'core'
+    assert d(abc='A', markup=bottle) == 'core'
+    # Настоящая разница в сотую долю процента остаётся ниже порога.
+    assert markup_letter(2.4999, **kegs) == 'B'
+    assert d(abc='A', markup=2.4999, **kegs) == 'low_markup'
+
+
 def _rows():
     rows = []
     for index, (key, revenue) in enumerate([('core', 500.0), ('core', 300.0), ('weak', 50.0),
@@ -171,6 +189,7 @@ if __name__ == '__main__':
     _run('мало продаж — ниже минимума', test_few_sales_below_minimum)
     _run('слабые продажи — выручка C при достатке продаж', test_weak_is_revenue_c_with_enough_sales_whatever_the_markup)
     _run('«поднять цену» ниже минимума владельца', test_low_markup_is_below_owner_minimum_not_below_b)
+    _run('цена ровно на пороге — не жертва float', test_price_exactly_on_threshold_is_not_lost_to_float)
     _run('карточки покрывают все строки', test_cards_cover_all_rows_in_order_with_shares)
     _run('«вывести» только от четырёх недель', test_weak_verdict_only_from_four_weeks)
     _run('в правилах напечатаны пороги', test_rule_texts_carry_the_thresholds)
