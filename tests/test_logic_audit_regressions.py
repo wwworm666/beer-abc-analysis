@@ -179,6 +179,25 @@ class PackagingReportBuilders(unittest.TestCase):
     def test_draft_writeoff_report_unchanged_after_refactor(self):
         body = self._capture(lambda o: o.get_draft_writeoff_report("2026-03-01", "2026-04-01"))
         self.assertEqual(["Напитки Розлив"], body["filters"]["Product.TopParent"]["values"])
+        # Розливу день нужен: недельные корзины XYZ строятся из проводок.
+        self.assertIn("DateTime.DateTyped", body["groupByRowFields"])
+
+    def test_packaging_writeoff_report_has_no_day(self):
+        """Фасовке день проводки не нужен (баланс — суммы за период, XYZ — из
+        продаж), а в группировке он умножал строки на число дней (2026-09-26)."""
+        body = self._capture(lambda o: o.get_packaging_writeoff_report("2026-03-01", "2026-04-01"))
+        self.assertNotIn("DateTime.DateTyped", body["groupByRowFields"])
+        self.assertIn("TransactionType", body["groupByRowFields"])
+
+    def test_packaging_sales_report_is_lean_and_interactive(self):
+        """Продажи фасовки: только три агрегата, которые читает расчёт, и путь с
+        повтором (_post_olap_interactive), а не одна попытка на 30 с."""
+        body = self._capture(lambda o: o.get_packaging_sales_report("2026-03-01", "2026-04-01"))
+        self.assertEqual(["DishAmountInt", "DishDiscountSumInt", "ProductCostBase.ProductCost"],
+                         body["aggregateFields"])
+        for field in ("Store.Name", "DishName", "DishGroup.ThirdParent", "DishForeignName",
+                      "OpenDate.Typed", "DishId"):
+            self.assertIn(field, body["groupByRowFields"])
 
     def test_packaging_sales_report_requests_dish_id_through_public_path(self):
         """Публичный путь get_packaging_sales_report -> get_beer_sales_report ->
@@ -213,6 +232,34 @@ class PackagingReportBuilders(unittest.TestCase):
         with_id = olap._build_olap_request("2026-03-01", "2026-04-01", include_dish_id=True)
         self.assertIn("DishId", with_id["groupByRowFields"])
         self.assertEqual(plain["aggregateFields"], with_id["aggregateFields"])
+
+
+class AssemblyCachePruneTests(unittest.TestCase):
+    """Кэш связки «блюдо -> кег» заводит файл на каждый период; до 2026-09-26
+    файлы копились без конца. Чистка удаляет только старые файлы связки."""
+
+    def test_old_files_removed_fresh_and_foreign_kept(self):
+        import tempfile
+        import time
+        directory = tempfile.mkdtemp()
+        olap = OlapReports()
+        olap._assembly_cache_dir = lambda: directory
+        old = os.path.join(directory, "assembly_map_v2_2026-01-01_2026-01-08.json")
+        fresh = os.path.join(directory, "assembly_map_v2_2026-09-01_2026-09-08.json")
+        foreign = os.path.join(directory, "nomenclature_full.json")
+        for path in (old, fresh, foreign):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("{}")
+        past = time.time() - (OlapReports.ASSEMBLY_CACHE_KEEP_DAYS + 1) * 86400
+        os.utime(old, (past, past))
+        os.utime(foreign, (past, past))
+        target = olap._assembly_cache_path("2026-09-20", "2026-09-27")
+        olap._write_assembly_cache(target, {"dish": [["keg", 0.5]]})
+        names = set(os.listdir(directory))
+        self.assertNotIn(os.path.basename(old), names)
+        self.assertIn(os.path.basename(fresh), names)
+        self.assertIn(os.path.basename(foreign), names)
+        self.assertIn(os.path.basename(target), names)
 
 
 class AuditExpectedFailures(unittest.TestCase):

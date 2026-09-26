@@ -227,6 +227,35 @@ def test_position_loss_from_own_totals_not_sum_over_guids():
     assert sorted(k['InventoryNetQty'] for k in block['losses']['by_item']) == [-5.0, 5.0]
 
 
+def test_network_does_not_net_shortage_against_other_bar_surplus():
+    """«Общая»: −5 в одном баре и +5 в другом не гасят друг друга (2026-09-26).
+
+    Инвентаризация — пересчёт одного склада. Баланс сети остаётся нетто.
+    """
+    sales = [sale('Лиговский', P1, '2026-08-04', 20, 2000, 1000),
+             sale('Варшавская', P1, '2026-08-04', 20, 2000, 1000)]
+    rows = [trans('Лиговский', P1, '2026-08-04', 'SESSION_WRITEOFF', out=20.0),
+            trans('Варшавская', P1, '2026-08-04', 'SESSION_WRITEOFF', out=20.0),
+            trans('Лиговский', P1, '2026-08-06', 'INVENTORY_CORRECTION', out=5.0),
+            trans('Варшавская', P1, '2026-08-06', 'INVENTORY_CORRECTION', inc=5.0)]
+    block = build(sales, rows)
+    assert block['losses']['inventory_net'] == 0.0
+    item = block['losses']['by_item'][0]
+    assert item['InventoryNetQty'] == 0.0
+    assert item['InventoryShortQty'] == 5.0 and item['InventorySurplusQty'] == 5.0
+    assert item['LossQty'] == 5.0
+    position = block['positions'][0]
+    assert position['InventoryShortQty'] == 5.0 and position['InventorySurplusQty'] == 5.0
+    assert position['LossQty'] == 5.0
+    assert abs(position['LossPercentOfSold'] - 12.5) < 1e-9
+    assert abs(position['InventoryShortPercentOfSold'] - 12.5) < 1e-9
+    # Разрез одного бара — его собственное нетто.
+    alone = build(sales, rows, 'Варшавская')
+    assert alone['positions'][0]['InventoryShortQty'] == 0.0
+    assert alone['positions'][0]['InventorySurplusQty'] == 5.0
+    assert alone['positions'][0]['LossQty'] == 0.0
+
+
 def test_percents_and_received_come_from_server():
     block = build(REFERENCE_SALES, REFERENCE)
     position = block['positions'][0]
@@ -358,6 +387,8 @@ if __name__ == '__main__':
     _run('чужие типы проводок считаются, не суммируются', test_unknown_types_counted_not_summed)
     _run('разрез бара фильтрует, «Общая» схлопывает', test_bar_scope_filters_and_total_merges)
     _run('потери позиции от её сумм, а не по GUID', test_position_loss_from_own_totals_not_sum_over_guids)
+    _run('«Общая» не гасит недостачу бара излишком другого',
+         test_network_does_not_net_shortage_against_other_bar_surplus)
     _run('проценты и приход считает сервер', test_percents_and_received_come_from_server)
     _run('акт без продаж по складу — без процента', test_losses_without_stock_sales_have_no_percent)
     _run('весовой товар вне сверки касса/склад', test_non_piece_position_excluded_from_register_check)

@@ -24,12 +24,13 @@ from core.abc_thresholds import (  # noqa: E402
     KEG_MARKUP_A_MIN,
     KEG_MARKUP_B_MIN,
     UNCATEGORIZED_KEGS,
+    abc_code,
     markup_letter,
 )
 from core.draft_kegs import (  # noqa: E402
     DraftKegAnalysis,
     _abc_by_cumulative,
-    _abc_by_percentile,
+    _assign_margin_letters,
     _count_by,
     _format_bars,
 )
@@ -123,7 +124,8 @@ def refresh(block):
     for row in rows:
         share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
         row['ABC_Markup'] = markup_letter(share, KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
-    _abc_by_percentile(rows, 'TotalMargin', 'ABC_Margin')
+    # Маржа — Парето, как у фасовки (с 2026-09-26; раньше трети).
+    block['margin_abc_base'] = _assign_margin_letters(rows)
     for row in rows:
         row['WeeksInPeriod'] = weeks
         # Недельного ряда в снятом ответе нет; на одной полной неделе он равен
@@ -134,7 +136,9 @@ def refresh(block):
         else:
             row.setdefault('WeeklyLiters', [])
             row.setdefault('LitersOutsideWeeks', row['TotalLiters'] - sum(row['WeeklyLiters']))
-        row['ABC_Combined'] = row['ABC_Revenue'] + (row['ABC_Markup'] or '?') + row['ABC_Margin']
+        # Код как в core/draft_kegs.py: выручка, наценка, спрос (XYZ).
+        row['ABC_Combined'] = abc_code(row['ABC_Revenue'], row['ABC_Markup'],
+                                       row.get('XYZ_Category'))
         share = None if row['MarkupPercent'] is None else row['MarkupPercent'] / 100
         row['ABC_Bucket'] = decide_bucket(row['ABC_Revenue'], share, row['TotalPortions'],
                                           row['WeeksInPeriod'], row['WeeklyLiters'],
@@ -150,6 +154,29 @@ def refresh(block):
     block['total_categories'] = len(categories)
     block['buckets'] = bucket_cards(rows, int(block['period']['days']), 'portions',
                                     KEG_MARKUP_A_MIN, KEG_MARKUP_B_MIN)
+    # Недостача и излишек по барам (с 2026-09-26). Разреза по барам у проводок в
+    # снятом ответе нет, поэтому здесь это max(нетто, 0) и max(-нетто, 0) — ровно
+    # то, что _build_losses даёт для одного склада.
+    for row in rows:
+        net = row['InventoryNetLiters']
+        row['InventoryShortLiters'] = max(net, 0.0)
+        row['InventorySurplusLiters'] = max(-net, 0.0)
+        weekly = [v for v in row.get('WeeklyLiters') or [] if v > 0]
+        row['AvgLitersPerActiveWeek'] = sum(weekly) / len(weekly) if weekly else None
+    for item in block['losses']['by_keg']:
+        net = item['InventoryNetLiters']
+        item['InventoryShortLiters'] = max(net, 0.0)
+        item['InventorySurplusLiters'] = max(-net, 0.0)
+        item['LossLiters'] = item['WriteoffLiters'] + item['InventoryShortLiters']
+    block['losses']['by_keg'].sort(
+        key=lambda k: (-(k['WriteoffLiters'] + k['InventoryShortLiters']
+                         + k['InventorySurplusLiters']), k['KegName'] or ''))
+    # Приход и расход одним числом для подписи баланса — как в _build_losses
+    # (с 2026-09-26; раньше их складывал JS и терял перемещения в приходе).
+    losses = block['losses']
+    losses['received'] = losses['invoice_in'] + losses['transfer_in']
+    losses['spent'] = (losses['sold'] + losses['writeoff'] + losses['inventory_net']
+                       + losses['transfer_out'])
     block['bucket_stats'] = _count_by(rows, 'ABC_Bucket')
     block['abc_stats'] = _count_by(rows, 'ABC_Combined')
     block['xyz_stats'] = _count_by(rows, 'XYZ_Category')

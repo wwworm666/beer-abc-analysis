@@ -41,6 +41,7 @@ from core.abc_thresholds import (
     TOTAL_LABEL,
     UNCATEGORIZED,
     WEEK_DAYS,
+    abc_code,
     abc_letter_by_cumulative,
     markup_letter,
     xyz_letter,
@@ -410,10 +411,9 @@ class PackagingAnalysis:
                 item['WeeklyQty'],
                 item['QtyOutsideWeeks'],
             )
-            item['ABC_Combined'] = '{}{}{}'.format(
-                item['ABC_Revenue'],
-                item['ABC_Markup'] or '?',
-                item['XYZ_Category'] or '?',
+            # Код один на обе страницы: core/abc_thresholds.py, abc_code.
+            item['ABC_Combined'] = abc_code(
+                item['ABC_Revenue'], item['ABC_Markup'], item['XYZ_Category'],
             )
 
         categories = self._build_categories(rows)
@@ -560,7 +560,12 @@ class PackagingAnalysis:
                 _markup_share(entry['TotalRevenue'], entry['TotalCost'])
             )
 
-        _assign_abc_by_cumulative(
+        # База долей категорий нужна карточке категории для формулы «выручка /
+        # база = доля». Она НЕ равна базе позиций (revenue_abc_base): возврат,
+        # ставший отдельной позицией, в базе позиций обнулён, а в категории он
+        # уменьшает её выручку. Раньше карточка делила на базу позиций, и деление
+        # не давало напечатанный процент.
+        self.category_revenue_base = _assign_abc_by_cumulative(
             categories, 'TotalRevenue', 'ABC_Category',
             'RevenueSharePercent', 'CumulativePercent',
         )
@@ -590,4 +595,5 @@ class PackagingAnalysis:
             'price_per_unit': revenue / qty if qty > 0 else 0.0,
             'revenue_abc_base': revenue_base,
             'margin_abc_base': margin_base,
+            'category_revenue_abc_base': getattr(self, 'category_revenue_base', 0.0),
         }

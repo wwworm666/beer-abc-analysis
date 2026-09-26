@@ -34,6 +34,7 @@ core/abc_thresholds.py); XYZ и складские поля в решениях 
 """
 
 from core.abc_thresholds import (
+    snap_markup,
     MARKUP_A_MIN,
     MARKUP_AUDIT_FLOOR_FACTOR,
     MARKUP_B_MIN,
@@ -118,6 +119,9 @@ def decide_bucket(abc_revenue, markup_share, sales, weeks_in_period, weekly,
     b_min         — порог B долей (фасовка 1.0, кеги 2.0): от него считается пол
                     правдоподобия для «Сверить учёт»
     """
+    # Та же точность, что у буквы наценки (snap_markup): иначе кег ровно на
+    # пороге получал бы букву A и группу «Низкая наценка» одновременно.
+    markup_share = snap_markup(markup_share)
     if markup_share is None or markup_share < b_min * MARKUP_AUDIT_FLOOR_FACTOR:
         return 'check'
     if sales > 0 and _is_newcomer(weeks_in_period, weekly, outside_weeks):

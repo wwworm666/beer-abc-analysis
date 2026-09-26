@@ -1046,7 +1046,7 @@
     "generated_at": "02:29",
     "kegs": [
       {
-        "ABC_Combined": "AAA",
+        "ABC_Combined": "AA?",
         "ABC_Margin": "A",
         "ABC_Markup": "A",
         "ABC_Revenue": "A",
@@ -1161,10 +1161,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 226986.38
+        "RevenueBaseInCategory": 226986.38,
+        "MarginCumulativePercent": 30.532759029681266,
+        "MarginSharePercent": 30.532759029681266,
+        "InventoryShortLiters": 36.21,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 252.32999999999998
       },
       {
-        "ABC_Combined": "ABA",
+        "ABC_Combined": "AB?",
         "ABC_Margin": "A",
         "ABC_Markup": "B",
         "ABC_Revenue": "A",
@@ -1262,10 +1267,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 101200.12
+        "RevenueBaseInCategory": 101200.12,
+        "MarginCumulativePercent": 42.51224085536588,
+        "MarginSharePercent": 11.97948182568461,
+        "InventoryShortLiters": 20.82,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 86.69999999999999
       },
       {
-        "ABC_Combined": "AAA",
+        "ABC_Combined": "AA?",
         "ABC_Margin": "A",
         "ABC_Markup": "A",
         "ABC_Revenue": "A",
@@ -1370,10 +1380,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 70394.12
+        "RevenueBaseInCategory": 70394.12,
+        "MarginCumulativePercent": 52.019972425718265,
+        "MarginSharePercent": 9.507731570352389,
+        "InventoryShortLiters": 23.1,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 77.05
       },
       {
-        "ABC_Combined": "ACA",
+        "ABC_Combined": "AC?",
         "ABC_Margin": "A",
         "ABC_Markup": "C",
         "ABC_Revenue": "A",
@@ -1474,10 +1489,15 @@
         "RevenueShareInCategoryPercent": 71.86252071177162,
         "RevenueCumulativeInCategoryPercent": 71.86252071177162,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 49066.3
+        "RevenueBaseInCategory": 49066.3,
+        "MarginCumulativePercent": 70.54729439994301,
+        "MarginSharePercent": 3.697278151527783,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": 0.05,
+        "AvgLitersPerActiveWeek": 41.14999999999999
       },
       {
-        "ABC_Combined": "ABA",
+        "ABC_Combined": "AB?",
         "ABC_Margin": "A",
         "ABC_Markup": "B",
         "ABC_Revenue": "A",
@@ -1582,10 +1602,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 50862.43
+        "RevenueBaseInCategory": 50862.43,
+        "MarginCumulativePercent": 58.01112961117846,
+        "MarginSharePercent": 5.991157185460194,
+        "InventoryShortLiters": 13.6,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 37.45
       },
       {
-        "ABC_Combined": "ACA",
+        "ABC_Combined": "AC?",
         "ABC_Margin": "A",
         "ABC_Markup": "C",
         "ABC_Revenue": "A",
@@ -1690,10 +1715,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 42115.380000000005
+        "RevenueBaseInCategory": 42115.380000000005,
+        "MarginCumulativePercent": 62.67210581853635,
+        "MarginSharePercent": 4.660976207357887,
+        "InventoryShortLiters": 8.17,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 32.1
       },
       {
-        "ABC_Combined": "ACA",
+        "ABC_Combined": "AC?",
         "ABC_Margin": "A",
         "ABC_Markup": "C",
         "ABC_Revenue": "A",
@@ -1794,10 +1824,15 @@
         "RevenueShareInCategoryPercent": 82.4680061359565,
         "RevenueCumulativeInCategoryPercent": 82.4680061359565,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 44746.079999999994
+        "RevenueBaseInCategory": 44746.079999999994,
+        "MarginCumulativePercent": 66.85001624841523,
+        "MarginSharePercent": 4.177910429878881,
+        "InventoryShortLiters": 12.9,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 31.800000000000004
       },
       {
-        "ABC_Combined": "ABA",
+        "ABC_Combined": "AB?",
         "ABC_Margin": "A",
         "ABC_Markup": "B",
         "ABC_Revenue": "A",
@@ -1881,10 +1916,15 @@
         "RevenueShareInCategoryPercent": 90.35193903730602,
         "RevenueCumulativeInCategoryPercent": 90.35193903730602,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 26418.78
+        "RevenueBaseInCategory": 26418.78,
+        "MarginCumulativePercent": 76.51874825749584,
+        "MarginSharePercent": 2.859092033899371,
+        "InventoryShortLiters": 39.9,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 26.25
       },
       {
-        "ABC_Combined": "ABA",
+        "ABC_Combined": "AB?",
         "ABC_Margin": "A",
         "ABC_Markup": "B",
         "ABC_Revenue": "A",
@@ -1961,10 +2001,15 @@
         "RevenueShareInCategoryPercent": 16.973878238222536,
         "RevenueCumulativeInCategoryPercent": 16.973878238222536,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 73.65965622359647,
+        "MarginSharePercent": 3.112361823653454,
+        "InventoryShortLiters": 8.719999999999999,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 18.200000000000003
       },
       {
-        "ABC_Combined": "BBB",
+        "ABC_Combined": "BB?",
         "ABC_Margin": "B",
         "ABC_Markup": "B",
         "ABC_Revenue": "B",
@@ -2037,10 +2082,15 @@
         "RevenueShareInCategoryPercent": 11.63995000849401,
         "RevenueCumulativeInCategoryPercent": 42.21105054787937,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 83.48098585178172,
+        "MarginSharePercent": 2.2085530851834756,
+        "InventoryShortLiters": 3.7,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 15.45
       },
       {
-        "ABC_Combined": "ABA",
+        "ABC_Combined": "AB?",
         "ABC_Margin": "A",
         "ABC_Markup": "B",
         "ABC_Revenue": "A",
@@ -2110,10 +2160,15 @@
         "RevenueShareInCategoryPercent": 13.597222301162827,
         "RevenueCumulativeInCategoryPercent": 30.571100539385366,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 78.9761696879701,
+        "MarginSharePercent": 2.4574214304742625,
+        "InventoryShortLiters": 2.2,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 15.15
       },
       {
-        "ABC_Combined": "BAB",
+        "ABC_Combined": "BA?",
         "ABC_Margin": "B",
         "ABC_Markup": "A",
         "ABC_Revenue": "B",
@@ -2176,10 +2231,15 @@
         "RevenueShareInCategoryPercent": 28.137479288228377,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 49066.3
+        "RevenueBaseInCategory": 49066.3,
+        "MarginCumulativePercent": 87.17636000767088,
+        "MarginSharePercent": 1.7514253047159898,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": 11.5,
+        "AvgLitersPerActiveWeek": 14.3
       },
       {
-        "ABC_Combined": "BCB",
+        "ABC_Combined": "BC?",
         "ABC_Margin": "B",
         "ABC_Markup": "C",
         "ABC_Revenue": "B",
@@ -2252,10 +2312,15 @@
         "RevenueShareInCategoryPercent": 10.227102646152215,
         "RevenueCumulativeInCategoryPercent": 62.93409596272488,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 88.91141248468749,
+        "MarginSharePercent": 1.735052477016609,
+        "InventoryShortLiters": 1.75,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 14.3
       },
       {
-        "ABC_Combined": "BBB",
+        "ABC_Combined": "BB?",
         "ABC_Margin": "B",
         "ABC_Markup": "B",
         "ABC_Revenue": "B",
@@ -2318,10 +2383,15 @@
         "RevenueShareInCategoryPercent": 10.495942768693293,
         "RevenueCumulativeInCategoryPercent": 52.70699331657267,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 85.42493470295489,
+        "MarginSharePercent": 1.9439488511731766,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": 0.3,
+        "AvgLitersPerActiveWeek": 13.65
       },
       {
-        "ABC_Combined": "ACA",
+        "ABC_Combined": "AC?",
         "ABC_Margin": "A",
         "ABC_Markup": "C",
         "ABC_Revenue": "A",
@@ -2412,10 +2482,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 20810.75
+        "RevenueBaseInCategory": 20810.75,
+        "MarginCumulativePercent": 81.27243276659824,
+        "MarginSharePercent": 2.2962630786281437,
+        "InventoryShortLiters": 3.95,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 12.45
       },
       {
-        "ABC_Combined": "BCB",
+        "ABC_Combined": "BC?",
         "ABC_Margin": "B",
         "ABC_Markup": "C",
         "ABC_Revenue": "B",
@@ -2502,10 +2577,15 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 12772.86
+        "RevenueBaseInCategory": 12772.86,
+        "MarginCumulativePercent": 90.33469228401594,
+        "MarginSharePercent": 1.4232797993284612,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 12.3
       },
       {
-        "ABC_Combined": "BBB",
+        "ABC_Combined": "BB?",
         "ABC_Margin": "B",
         "ABC_Markup": "B",
         "ABC_Revenue": "B",
@@ -2568,10 +2648,15 @@
         "RevenueShareInCategoryPercent": 5.536382461544875,
         "RevenueCumulativeInCategoryPercent": 68.47047842426976,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 91.3809911788498,
+        "MarginSharePercent": 1.046298894833843,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": 0.2,
+        "AvgLitersPerActiveWeek": 8.5
       },
       {
-        "ABC_Combined": "BAB",
+        "ABC_Combined": "BA?",
         "ABC_Margin": "B",
         "ABC_Markup": "A",
         "ABC_Revenue": "B",
@@ -2634,10 +2719,15 @@
         "RevenueShareInCategoryPercent": 5.104514202677792,
         "RevenueCumulativeInCategoryPercent": 73.57499262694755,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 93.40471599775456,
+        "MarginSharePercent": 1.005616655734121,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 8.0
       },
       {
-        "ABC_Combined": "BBB",
+        "ABC_Combined": "BB?",
         "ABC_Margin": "B",
         "ABC_Markup": "B",
         "ABC_Revenue": "B",
@@ -2717,10 +2807,15 @@
         "RevenueShareInCategoryPercent": 4.999478992010579,
         "RevenueCumulativeInCategoryPercent": 78.57447161895813,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 94.30681258967624,
+        "MarginSharePercent": 0.9020965919216833,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 7.55
       },
       {
-        "ABC_Combined": "CBC",
+        "ABC_Combined": "CB?",
         "ABC_Margin": "C",
         "ABC_Markup": "B",
         "ABC_Revenue": "C",
@@ -2783,10 +2878,15 @@
         "RevenueShareInCategoryPercent": 3.7902289214376794,
         "RevenueCumulativeInCategoryPercent": 87.19309313917734,
         "ABC_Revenue_InCategory": "B",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 96.67454755474422,
+        "MarginSharePercent": 0.7133665414771275,
+        "InventoryShortLiters": 1.5,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 6.1
       },
       {
-        "ABC_Combined": "BBB",
+        "ABC_Combined": "BB?",
         "ABC_Margin": "B",
         "ABC_Markup": "B",
         "ABC_Revenue": "B",
@@ -2849,10 +2949,15 @@
         "RevenueShareInCategoryPercent": 4.828392598781536,
         "RevenueCumulativeInCategoryPercent": 83.40286421773968,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 95.17862772118153,
+        "MarginSharePercent": 0.8718151315052781,
+        "InventoryShortLiters": 1.7,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 5.5
       },
       {
-        "ABC_Combined": "CCC",
+        "ABC_Combined": "CC?",
         "ABC_Margin": "C",
         "ABC_Markup": "C",
         "ABC_Revenue": "C",
@@ -2925,10 +3030,15 @@
         "RevenueShareInCategoryPercent": 3.1513089299506336,
         "RevenueCumulativeInCategoryPercent": 90.34440206912797,
         "ABC_Revenue_InCategory": "B",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 98.47452005860052,
+        "MarginSharePercent": 0.5644626568581463,
+        "InventoryShortLiters": 2.95,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 5.25
       },
       {
-        "ABC_Combined": "CAC",
+        "ABC_Combined": "CA?",
         "ABC_Margin": "C",
         "ABC_Markup": "A",
         "ABC_Revenue": "C",
@@ -2991,10 +3101,15 @@
         "RevenueShareInCategoryPercent": 3.1513089299506336,
         "RevenueCumulativeInCategoryPercent": 93.49571099907861,
         "ABC_Revenue_InCategory": "B",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 97.91005740174236,
+        "MarginSharePercent": 0.6128955992068721,
+        "InventoryShortLiters": 1.65,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 5.05
       },
       {
-        "ABC_Combined": "BCB",
+        "ABC_Combined": "BC?",
         "ABC_Margin": "B",
         "ABC_Markup": "C",
         "ABC_Revenue": "B",
@@ -3057,11 +3172,16 @@
         "RevenueShareInCategoryPercent": 63.66430664095356,
         "RevenueCumulativeInCategoryPercent": 63.66430664095356,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 14861.42
+        "RevenueBaseInCategory": 14861.42,
+        "MarginCumulativePercent": 92.39909934202043,
+        "MarginSharePercent": 1.0181081631706344,
+        "InventoryShortLiters": 3.55,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 4.75
       },
       {
-        "ABC_Combined": "BCB",
-        "ABC_Margin": "B",
+        "ABC_Combined": "BC?",
+        "ABC_Margin": "C",
         "ABC_Markup": "C",
         "ABC_Revenue": "B",
         "AvgLitersPerWeek": 4.4,
@@ -3133,10 +3253,15 @@
         "RevenueShareInCategoryPercent": 17.531993864043514,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "B",
-        "RevenueBaseInCategory": 44746.079999999994
+        "RevenueBaseInCategory": 44746.079999999994,
+        "MarginCumulativePercent": 95.9611810132671,
+        "MarginSharePercent": 0.782553292085562,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 4.4
       },
       {
-        "ABC_Combined": "CBC",
+        "ABC_Combined": "CB?",
         "ABC_Margin": "C",
         "ABC_Markup": "B",
         "ABC_Revenue": "C",
@@ -3199,10 +3324,15 @@
         "RevenueShareInCategoryPercent": 2.5977710962450167,
         "RevenueCumulativeInCategoryPercent": 96.09348209532361,
         "ABC_Revenue_InCategory": "B",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 98.9432269974972,
+        "MarginSharePercent": 0.46870693889669074,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 3.25
       },
       {
-        "ABC_Combined": "CCC",
+        "ABC_Combined": "CC?",
         "ABC_Margin": "C",
         "ABC_Markup": "C",
         "ABC_Revenue": "C",
@@ -3265,10 +3395,15 @@
         "RevenueShareInCategoryPercent": 9.648060962693963,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "B",
-        "RevenueBaseInCategory": 26418.78
+        "RevenueBaseInCategory": 26418.78,
+        "MarginCumulativePercent": 99.55761987227122,
+        "MarginSharePercent": 0.2746511577047999,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 2.9
       },
       {
-        "ABC_Combined": "CBC",
+        "ABC_Combined": "CB?",
         "ABC_Margin": "C",
         "ABC_Markup": "B",
         "ABC_Revenue": "C",
@@ -3341,10 +3476,15 @@
         "RevenueShareInCategoryPercent": 36.335693359046445,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 14861.42
+        "RevenueBaseInCategory": 14861.42,
+        "MarginCumulativePercent": 97.2971618025355,
+        "MarginSharePercent": 0.6226142477912666,
+        "InventoryShortLiters": 3.8,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 2.65
       },
       {
-        "ABC_Combined": "CBC",
+        "ABC_Combined": "CB?",
         "ABC_Margin": "C",
         "ABC_Markup": "B",
         "ABC_Revenue": "C",
@@ -3400,10 +3540,15 @@
         "RevenueShareInCategoryPercent": 1.8059021048091248,
         "RevenueCumulativeInCategoryPercent": 97.89938420013274,
         "ABC_Revenue_InCategory": "C",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 99.28296871456641,
+        "MarginSharePercent": 0.33974171706920653,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 2.5
       },
       {
-        "ABC_Combined": "CCC",
+        "ABC_Combined": "CC?",
         "ABC_Margin": "C",
         "ABC_Markup": "C",
         "ABC_Revenue": "C",
@@ -3466,10 +3611,15 @@
         "RevenueShareInCategoryPercent": 0.8688266079095959,
         "RevenueCumulativeInCategoryPercent": 98.76821080804234,
         "ABC_Revenue_InCategory": "C",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 99.70884129390129,
+        "MarginSharePercent": 0.15122142163006944,
+        "InventoryShortLiters": 3.82,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 1.5
       },
       {
-        "ABC_Combined": "CAC",
+        "ABC_Combined": "CA?",
         "ABC_Margin": "C",
         "ABC_Markup": "A",
         "ABC_Revenue": "C",
@@ -3542,10 +3692,15 @@
         "RevenueShareInCategoryPercent": 0.7578298027937396,
         "RevenueCumulativeInCategoryPercent": 99.52604061083609,
         "ABC_Revenue_InCategory": "C",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 99.85983931792394,
+        "MarginSharePercent": 0.1509980240226724,
+        "InventoryShortLiters": 0.3,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 0.9
       },
       {
-        "ABC_Combined": "CAC",
+        "ABC_Combined": "CA?",
         "ABC_Margin": "C",
         "ABC_Markup": "A",
         "ABC_Revenue": "C",
@@ -3601,10 +3756,15 @@
         "RevenueShareInCategoryPercent": 0.47395938916391794,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "C",
-        "RevenueBaseInCategory": 158346.9
+        "RevenueBaseInCategory": 158346.9,
+        "MarginCumulativePercent": 99.95343950477282,
+        "MarginSharePercent": 0.09360018684886126,
+        "InventoryShortLiters": 0.0,
+        "InventorySurplusLiters": -0.0,
+        "AvgLitersPerActiveWeek": 0.33
       },
       {
-        "ABC_Combined": "CAC",
+        "ABC_Combined": "CA?",
         "ABC_Margin": "C",
         "ABC_Markup": "A",
         "ABC_Revenue": "C",
@@ -3660,7 +3820,12 @@
         "RevenueShareInCategoryPercent": 100.0,
         "RevenueCumulativeInCategoryPercent": 100.0,
         "ABC_Revenue_InCategory": "A",
-        "RevenueBaseInCategory": 350.0
+        "RevenueBaseInCategory": 350.0,
+        "MarginCumulativePercent": 100.0,
+        "MarginSharePercent": 0.046560495227184195,
+        "InventoryShortLiters": 11.45,
+        "InventorySurplusLiters": 0.0,
+        "AvgLitersPerActiveWeek": 0.25
       }
     ],
     "losses": {
@@ -3672,7 +3837,9 @@
           "KegName": "КЕГ Brewlok IPA 20 л",
           "LossLiters": 39.9,
           "SoldLiters": 26.25,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 39.9,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 36.21,
@@ -3680,7 +3847,9 @@
           "KegName": "КЕГ ФестХаус Хеллес",
           "LossLiters": 38.21,
           "SoldLiters": 252.32999999999998,
-          "WriteoffLiters": 2.0
+          "WriteoffLiters": 2.0,
+          "InventoryShortLiters": 36.21,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 23.1,
@@ -3688,7 +3857,9 @@
           "KegName": "КЕГ ФестХаус Вайцен",
           "LossLiters": 25.1,
           "SoldLiters": 77.05,
-          "WriteoffLiters": 2.0
+          "WriteoffLiters": 2.0,
+          "InventoryShortLiters": 23.1,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 20.82,
@@ -3696,7 +3867,9 @@
           "KegName": "КЕГ Зубр 30 л",
           "LossLiters": 20.82,
           "SoldLiters": 86.69999999999999,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 20.82,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 13.6,
@@ -3704,7 +3877,9 @@
           "KegName": "КЕГ Стинбрюгге Бланш 20 л",
           "LossLiters": 13.6,
           "SoldLiters": 37.45,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 13.6,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 12.9,
@@ -3712,7 +3887,9 @@
           "KegName": "КЕГ Коникс Черри Руби 20 л",
           "LossLiters": 12.9,
           "SoldLiters": 31.800000000000004,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 12.9,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": -11.5,
@@ -3720,7 +3897,9 @@
           "KegName": "КЕГ Brewlok Stout",
           "LossLiters": 0.0,
           "SoldLiters": 14.3,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.0,
+          "InventorySurplusLiters": 11.5
         },
         {
           "InventoryNetLiters": 11.45,
@@ -3728,7 +3907,9 @@
           "KegName": "КЕГ Островица Холи ДИПА 20 л",
           "LossLiters": 11.45,
           "SoldLiters": 0.25,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 11.45,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 8.719999999999999,
@@ -3736,7 +3917,9 @@
           "KegName": "КЕГ Ригеле Файнес Урхелль, светлое ",
           "LossLiters": 8.719999999999999,
           "SoldLiters": 18.200000000000003,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 8.719999999999999,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 8.17,
@@ -3744,7 +3927,9 @@
           "KegName": "КЕГ Палм 20 л",
           "LossLiters": 8.17,
           "SoldLiters": 32.1,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 8.17,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 4.95,
@@ -3752,7 +3937,9 @@
           "KegName": "КЕГ Степь и Ветер Мёд и Смородина 20л",
           "LossLiters": 4.95,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 4.95,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 4.0,
@@ -3760,7 +3947,9 @@
           "KegName": "КЕГ Монкс Кафе 20 л",
           "LossLiters": 4.0,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 4.0,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 3.95,
@@ -3768,7 +3957,9 @@
           "KegName": "КЕГ Роденбах Гранд Крю 20 л",
           "LossLiters": 3.95,
           "SoldLiters": 12.45,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 3.95,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 3.82,
@@ -3776,7 +3967,9 @@
           "KegName": "КЕГ Бюльви Рустик полусухой  л",
           "LossLiters": 3.82,
           "SoldLiters": 1.5,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 3.82,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 3.8,
@@ -3784,7 +3977,9 @@
           "KegName": "КЕГ ЛеФорт Трипель, 20л",
           "LossLiters": 3.8,
           "SoldLiters": 2.65,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 3.8,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 3.7,
@@ -3792,7 +3987,9 @@
           "KegName": "КЕГ Plan B Static Cloud",
           "LossLiters": 3.7,
           "SoldLiters": 15.45,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 3.7,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 3.55,
@@ -3800,7 +3997,9 @@
           "KegName": "КЕГ Гулден Драк 708, 20 л",
           "LossLiters": 3.55,
           "SoldLiters": 4.75,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 3.55,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 3.35,
@@ -3808,7 +4007,9 @@
           "KegName": "КЕГ Rewort  Nutty Nut 20 л",
           "LossLiters": 3.35,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 3.35,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 2.95,
@@ -3816,7 +4017,9 @@
           "KegName": "КЕГ Zavod Morning Manya",
           "LossLiters": 2.95,
           "SoldLiters": 5.25,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 2.95,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 2.35,
@@ -3824,7 +4027,9 @@
           "KegName": "КЕГ Gravity Project Heartless Bitch 2.0",
           "LossLiters": 2.35,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 2.35,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 1.75,
@@ -3832,7 +4037,9 @@
           "KegName": "КЕГ Rebel Apple Дикий Крест ",
           "LossLiters": 2.25,
           "SoldLiters": 14.3,
-          "WriteoffLiters": 0.5
+          "WriteoffLiters": 0.5,
+          "InventoryShortLiters": 1.75,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 2.2,
@@ -3840,7 +4047,9 @@
           "KegName": "КЕГ Ригеле Коммерциенрат Приват, светлое ",
           "LossLiters": 2.2,
           "SoldLiters": 15.15,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 2.2,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 1.85,
@@ -3848,7 +4057,9 @@
           "KegName": "КЕГ Блэк Шип Паб Лагер",
           "LossLiters": 1.85,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 1.85,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 1.7,
@@ -3856,7 +4067,9 @@
           "KegName": "КЕГ Red Button Noisless",
           "LossLiters": 1.7,
           "SoldLiters": 5.5,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 1.7,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 1.65,
@@ -3864,7 +4077,9 @@
           "KegName": "КЕГ Островица Гозе",
           "LossLiters": 1.65,
           "SoldLiters": 5.05,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 1.65,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 1.5,
@@ -3872,7 +4087,9 @@
           "KegName": "КЕГ Степь и Ветер Мёд и Абрикос",
           "LossLiters": 1.5,
           "SoldLiters": 6.1,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 1.5,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": -0.3,
@@ -3880,7 +4097,9 @@
           "KegName": "КЕГ Gravity It's Mango",
           "LossLiters": 0.5,
           "SoldLiters": 13.65,
-          "WriteoffLiters": 0.5
+          "WriteoffLiters": 0.5,
+          "InventoryShortLiters": 0.0,
+          "InventorySurplusLiters": 0.3
         },
         {
           "InventoryNetLiters": 0.6,
@@ -3888,7 +4107,9 @@
           "KegName": "КЕГ Zavod Образец Мутный",
           "LossLiters": 0.6,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.6,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": -0.05,
@@ -3896,7 +4117,9 @@
           "KegName": "КЕГ Блек Шип",
           "LossLiters": 0.5,
           "SoldLiters": 41.14999999999999,
-          "WriteoffLiters": 0.5
+          "WriteoffLiters": 0.5,
+          "InventoryShortLiters": 0.0,
+          "InventorySurplusLiters": 0.05
         },
         {
           "InventoryNetLiters": 0.0,
@@ -3904,7 +4127,9 @@
           "KegName": "КЕГ План Б Тропикал Пэйнкиллер 20",
           "LossLiters": 0.5,
           "SoldLiters": 2.5,
-          "WriteoffLiters": 0.5
+          "WriteoffLiters": 0.5,
+          "InventoryShortLiters": 0.0,
+          "InventorySurplusLiters": -0.0
         },
         {
           "InventoryNetLiters": -0.4,
@@ -3912,7 +4137,9 @@
           "KegName": "КЕГ Femme Fatale Rouge",
           "LossLiters": 0.0,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.0,
+          "InventorySurplusLiters": 0.4
         },
         {
           "InventoryNetLiters": 0.3,
@@ -3920,7 +4147,9 @@
           "KegName": "КЕГ Gas Brew Pleiades",
           "LossLiters": 0.3,
           "SoldLiters": 0.9,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.3,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": -0.2,
@@ -3928,7 +4157,9 @@
           "KegName": "КЕГ Atmosphere Brew Летний Вайб Черная Смородина",
           "LossLiters": 0.0,
           "SoldLiters": 8.5,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.0,
+          "InventorySurplusLiters": 0.2
         },
         {
           "InventoryNetLiters": 0.15,
@@ -3936,7 +4167,9 @@
           "KegName": "КЕГ Polnochnyj Project Signal Fire",
           "LossLiters": 0.15,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.15,
+          "InventorySurplusLiters": 0.0
         },
         {
           "InventoryNetLiters": 0.05,
@@ -3944,7 +4177,9 @@
           "KegName": "КЕГ Хен Кок Энд Пиджен Рок Ред Эль Нитро",
           "LossLiters": 0.05,
           "SoldLiters": 0.0,
-          "WriteoffLiters": 0.0
+          "WriteoffLiters": 0.0,
+          "InventoryShortLiters": 0.05,
+          "InventorySurplusLiters": 0.0
         }
       ],
       "inventory_in": 16.75,
@@ -3956,7 +4191,9 @@
       "transfer_in": 0.0,
       "transfer_out": 0.0,
       "writeoff": 6.0,
-      "writeoff_percent_of_sold": 0.7792106596018233
+      "writeoff_percent_of_sold": 0.7792106596018233,
+      "received": 620.0,
+      "spent": 986.6
     },
     "markup_percent": 252.1784454743161,
     "period": {
@@ -4076,7 +4313,7 @@
         "RevenueSharePercent": 27.717382278801526,
         "RevenueAbcBase": 226986.38,
         "abc_stats": {
-          "AAA": 1
+          "AA?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4102,13 +4339,13 @@
         "RevenueSharePercent": 19.335792570299407,
         "RevenueAbcBase": 158346.9,
         "abc_stats": {
-          "ABA": 2,
-          "BAB": 1,
-          "BBB": 5,
-          "BCB": 1,
-          "CAC": 3,
-          "CBC": 3,
-          "CCC": 2
+          "AB?": 2,
+          "BA?": 1,
+          "BB?": 5,
+          "BC?": 1,
+          "CA?": 3,
+          "CB?": 3,
+          "CC?": 2
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4153,7 +4390,7 @@
         "RevenueSharePercent": 12.35758027728619,
         "RevenueAbcBase": 101200.12,
         "abc_stats": {
-          "ABA": 1
+          "AB?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4179,7 +4416,7 @@
         "RevenueSharePercent": 8.595849381887266,
         "RevenueAbcBase": 70394.12,
         "abc_stats": {
-          "AAA": 1
+          "AA?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4205,7 +4442,7 @@
         "RevenueSharePercent": 6.2108282265164245,
         "RevenueAbcBase": 50862.43,
         "abc_stats": {
-          "ABA": 1
+          "AB?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4231,8 +4468,8 @@
         "RevenueSharePercent": 5.991502195446086,
         "RevenueAbcBase": 49066.3,
         "abc_stats": {
-          "ACA": 1,
-          "BAB": 1
+          "AC?": 1,
+          "BA?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4260,8 +4497,8 @@
         "RevenueSharePercent": 5.463958695838206,
         "RevenueAbcBase": 44746.079999999994,
         "abc_stats": {
-          "ACA": 1,
-          "BCB": 1
+          "AC?": 1,
+          "BC?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4288,7 +4525,7 @@
         "RevenueSharePercent": 5.14272304477913,
         "RevenueAbcBase": 42115.380000000005,
         "abc_stats": {
-          "ACA": 1
+          "AC?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4314,8 +4551,8 @@
         "RevenueSharePercent": 3.2260060035300633,
         "RevenueAbcBase": 26418.78,
         "abc_stats": {
-          "ABA": 1,
-          "CCC": 1
+          "AB?": 1,
+          "CC?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4343,7 +4580,7 @@
         "RevenueSharePercent": 2.5412075969429044,
         "RevenueAbcBase": 20810.75,
         "abc_stats": {
-          "ACA": 1
+          "AC?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4369,8 +4606,8 @@
         "RevenueSharePercent": 1.8147329339576523,
         "RevenueAbcBase": 14861.42,
         "abc_stats": {
-          "BCB": 1,
-          "CBC": 1
+          "BC?": 1,
+          "CB?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4398,7 +4635,7 @@
         "RevenueSharePercent": 1.5596981784264452,
         "RevenueAbcBase": 12772.86,
         "abc_stats": {
-          "BCB": 1
+          "BC?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4424,7 +4661,7 @@
         "RevenueSharePercent": 0.04273861628869774,
         "RevenueAbcBase": 350.0,
         "abc_stats": {
-          "CAC": 1
+          "CA?": 1
         },
         "xyz_stats": {},
         "bucket_stats": {
@@ -4439,16 +4676,17 @@
     ],
     "total_categories": 13,
     "abc_stats": {
-      "AAA": 2,
-      "ABA": 5,
-      "ACA": 4,
-      "BAB": 2,
-      "BBB": 5,
-      "BCB": 4,
-      "CAC": 4,
-      "CBC": 4,
-      "CCC": 3
+      "AA?": 2,
+      "AB?": 5,
+      "AC?": 4,
+      "BA?": 2,
+      "BB?": 5,
+      "BC?": 4,
+      "CA?": 4,
+      "CB?": 4,
+      "CC?": 3
     },
-    "xyz_stats": {}
+    "xyz_stats": {},
+    "margin_abc_base": 586398.4020526317
   }
 }

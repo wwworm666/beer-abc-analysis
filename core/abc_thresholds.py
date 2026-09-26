@@ -149,11 +149,27 @@ def abc_letter_by_cumulative(cumulative_before_percent):
     return 'C'
 
 
+# Сколько знаков доли наценки учитывается при сравнении с порогом. Цена ровно
+# 3,5 себестоимости в копейках (0,35 / 0,10) даёт в float 2,4999999999999996, и
+# без округления такой кег получал B и «Низкую наценку», а страница печатала
+# «250%». Девять знаков доли — это 0,0000001 процентного пункта: реальные
+# наценки так близко к порогу не отличить, а хвосты float снимаются. Тот же
+# допуск (1e-9 в процентах) у markupPct в static/js/draft|packaging.
+MARKUP_COMPARE_DIGITS = 9
+
+
+def snap_markup(markup_share):
+    """Доля наценки для сравнения с порогами: без хвостов float. None остаётся None."""
+    return None if markup_share is None else round(markup_share, MARKUP_COMPARE_DIGITS)
+
+
 def markup_letter(markup_share, a_min=MARKUP_A_MIN, b_min=MARKUP_B_MIN):
     """Буква ABC по наценке. markup_share — доля (1.2 = 120%), None = нет данных.
 
     Пороги по умолчанию — фасовки; кеги передают KEG_MARKUP_A_MIN / KEG_MARKUP_B_MIN.
+    Сравнение — после snap_markup: цена ровно на пороге получает старшую букву.
     """
+    markup_share = snap_markup(markup_share)
     if markup_share is None:
         return None
     if markup_share >= a_min:
@@ -175,3 +191,25 @@ def xyz_letter(cv_percent):
     if cv_percent <= XYZ_Y_MAX_CV:
         return 'Y'
     return 'Z'
+
+
+# ==================== Код позиции ====================
+
+# Знак «буквы нет» в коде: наценка без себестоимости, спрос меньше чем за
+# MIN_XYZ_WEEKS недель с продажами. Не прочерк: прочерк в таблице читается как
+# «пусто», а здесь пусто только одно место из трёх.
+NO_LETTER = '?'
+
+
+def abc_code(revenue, markup, demand):
+    """Трёхбуквенный код позиции: выручка, наценка, спрос (XYZ).
+
+    Один код на обеих страницах (/packaging и /draft). До 2026-09-26 на /draft
+    третьей буквой была маржа по третям, а спрос жил отдельной колонкой XYZ:
+    одинаковый на вид код значил на двух страницах разное, а колонка XYZ не
+    влезала в ширину страницы. Маржа осталась отдельным полем ABC_Margin и
+    показывается в карточке позиции.
+
+    revenue — 'A' | 'B' | 'C'; markup и demand — буква или None (буквы нет).
+    """
+    return '{}{}{}'.format(revenue, markup or NO_LETTER, demand or NO_LETTER)

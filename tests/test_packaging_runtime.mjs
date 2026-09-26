@@ -213,12 +213,22 @@ test('таблица позиций: все позиции, итог и напр
     assert.ok(first > 0 && first < second, 'порядок строк не по убыванию выручки');
 });
 
-test('позиции без буквы XYZ показаны прочерком, а не выдуманной буквой', () => {
+test('спрос — третья буква кода, отдельной колонки XYZ нет', () => {
+    // С 2026-09-26 колонки XYZ нет: она повторяла третью букву кода и не влезала
+    // в ширину страницы. Позиция без буквы спроса показана «?», а не выдуманной буквой.
     const html = env.byId.pkPos.innerHTML;
+    const head = html.match(/class="pk-row is-head"[\s\S]*?<\/div>/)[0];
+    assert.ok(!/>XYZ</.test(head), 'в шапке таблицы позиций осталась колонка XYZ');
+    assert.ok(!html.includes('pk-xyz'), 'в строках осталась ячейка XYZ');
+    const codes = [...html.matchAll(/class="pk-abc [a-z]*">([^<]*)</g)].map((m) => m[1]);
+    assert.equal(codes.length, BLOCK.positions.length, 'не у каждой позиции есть код');
     const noLetter = BLOCK.positions.filter((p) => !p.XYZ_Category).length;
-    const dashes = (html.match(/class="pk-xyz">—/g) || []).length;
-    assert.equal(dashes, noLetter,
-        `прочерков ${dashes}, позиций без буквы ${noLetter}`);
+    const questions = codes.filter((c) => c.endsWith('?')).length;
+    assert.equal(questions, noLetter, `кодов с «?» ${questions}, позиций без буквы ${noLetter}`);
+    for (const p of BLOCK.positions) {
+        assert.equal(p.ABC_Combined.charAt(2), p.XYZ_Category || '?',
+            `третья буква кода ${p.Beer} не спрос`);
+    }
 });
 
 test('поиск фильтрует позиции и по названию, и по категории', () => {
@@ -635,6 +645,121 @@ test('раннер действительно исполняет проверк�
         .replace(/const needle[\s\S]*?;\n/, '');
     assert.ok(!needle.test(src),
         'тест возвращает промис — раннер синхронный и его проверки не исполнятся');
+});
+
+test('наценка округляется вниз и не спорит с буквой', () => {
+    // «Айингер Лагер Хелл» — 119,5%: буква B и «Низкая наценка»; до 2026-09-26
+    // таблица печатала «120%».
+    assert.equal(api.markupPct(119.5, 0), '119%');
+    assert.equal(api.markupPct(120, 0), '120%');
+    assert.equal(api.markupPct(99.96, 1), '99,9%');
+    assert.equal(api.markupPct(null, 0), '—');
+    const near = BLOCK.positions.find((p) => p.MarkupPercent !== null &&
+        p.MarkupPercent >= 119.5 && p.MarkupPercent < 120);
+    assert.ok(near, 'в фикстуре нет позиции с наценкой 119,5–120%');
+    assert.equal(near.ABC_Markup, 'B');
+    api.render();
+    const html = env.byId.pkPos.innerHTML;
+    const row = html.slice(html.indexOf(api.esc(near.Beer)));
+    assert.ok(row.slice(0, 1500).includes('>119%<'), 'наценка 119,5% напечатана не как 119%');
+});
+
+test('карточка категории: «N позиций», формула делит на базу категорий', () => {
+    const cat = BLOCK.categories.find((c) => c.BeersCount > 1);
+    api.openCategory(cat.Category);
+    const html = env.byId.pkDrawer.innerHTML;
+    const word = api.plural(cat.BeersCount, 'позиция', 'позиции', 'позиций');
+    assert.ok(html.includes(cat.BeersCount + ' ' + word), 'число позиций подписано не позициями');
+    assert.ok(!/\d+ штук(а|и)? · клик/.test(html), 'осталось «N штук»');
+    const base = BLOCK.totals.category_revenue_abc_base;
+    assert.equal(typeof base, 'number', 'сервер не отдал базу долей категорий');
+    assert.ok(html.includes(api.esc(api.money(cat.TotalRevenue) + ' / ' + api.money(base))),
+        'в формуле не база категорий');
+    assert.ok(Math.abs(cat.TotalRevenue / base * 100 - cat.RevenueSharePercent) < 1e-9,
+        'выручка / база не даёт напечатанную долю');
+});
+
+test('скользящие пресеты заканчиваются вчера, текущие — сегодня', () => {
+    const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+        '-' + String(d.getDate()).padStart(2, '0');
+    const today = new Date();
+    const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const mod = env.sandbox.window.__packaging;
+    for (const [key, days] of [['d30', 30], ['d90', 90], ['d180', 180]]) {
+        const range = mod.presetRange ? mod.presetRange(key) : null;
+        assert.ok(range, 'presetRange не экспортирован');
+        assert.equal(range.to, iso(yesterday), `${key} кончается не вчера`);
+        const span = Math.round((new Date(range.to) - new Date(range.from)) / 86400000) + 1;
+        assert.equal(span, days, `${key}: ${span} дней`);
+    }
+    assert.equal(mod.presetRange('week').to, iso(today));
+    assert.equal(mod.presetRange('month').to, iso(today));
+    assert.equal(env.fetchCalls[0].body.date_to, iso(yesterday), 'по умолчанию уходит не по вчера');
+});
+
+test('расхождения в «Общей»: недостача одного бара не гасится излишком другого', () => {
+    const data = JSON.parse(JSON.stringify(BLOCK));
+    const row = data.losses.by_item.find((r) => r.PositionId !== null);
+    Object.assign(row, { InventoryNetQty: 0, InventoryShortQty: 5, InventorySurplusQty: 5,
+                         WriteoffQty: 0, LossQty: 5 });
+    const pos = data.positions.find((p) => p.Id === row.PositionId);
+    Object.assign(pos, { InventoryNetQty: 0, InventoryShortQty: 5, InventorySurplusQty: 5,
+                         WriteoffQty: 0, LossQty: 5, SoldQtyStock: 40,
+                         LossPercentOfSold: 12.5, InventoryShortPercentOfSold: 12.5,
+                         InventorySurplusPercentOfSold: 12.5, StockUnit: null });
+    api.state.data = data;
+    api.render();
+    assert.ok(env.byId.pkLosses.innerHTML.includes('5<i class="pk-loss-plus"> +5</i>'),
+        'в строке нет недостачи с излишком рядом');
+    api.openPosition(pos.Id);
+    const card = env.byId.pkDrawer.innerHTML;
+    assert.ok(card.includes('НЕДОСТАЧА ИНВЕНТ.'), 'ячейка не недостача');
+    assert.ok(card.includes('Ещё излишек 5 шт в других барах'), 'излишек других баров не назван');
+    assert.ok(card.includes('недостача 5 · 5 / 40 = 12,5%'), 'формула потерь не по недостаче баров');
+    api.state.data = BLOCK;
+    api.render();
+});
+
+async function asyncTest(name, fn) {
+    try {
+        await fn();
+        passed++;
+        console.log(`  ok  ${name}`);
+    } catch (e) {
+        failed++;
+        console.log(`FAIL  ${name}`);
+        console.log(`      ${e && e.message}`);
+    }
+}
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+await asyncTest('смена бара во время загрузки: старый ответ выброшен, новый запрос ушёл', async () => {
+    const calls = [];
+    const pending = [];
+    env.sandbox.fetch = (url, opts) => {
+        calls.push(JSON.parse(opts.body));
+        let resolve;
+        const promise = new Promise((r) => { resolve = r; });
+        pending.push(resolve);
+        return promise;
+    };
+    const reply = (label) => ({ ok: true, status: 200, json: () =>
+        Promise.resolve(Object.assign({}, BLOCK, { scope: 'bar', bar_label: label })) });
+    const pick = (bar) => env.byId.pkBarMenu.listeners.click[0](
+        { target: { closest: () => ({ dataset: { bar } }) } });
+    pick('Лиговский');
+    pick('Варшавская');
+    assert.equal(calls.length, 1, 'второй запрос ушёл, не дождавшись первого');
+    pending[0](reply('Лиговский'));
+    for (let i = 0; i < 5; i++) await flush();
+    assert.equal(calls.length, 2, 'новый выбор потерян: запрос по нему не ушёл');
+    assert.equal(calls[1].bar, 'Варшавская');
+    assert.equal(env.byId.pkBody.hidden, true, 'устаревший ответ лёг на экран');
+    pending[1](reply('Варшавская'));
+    for (let i = 0; i < 5; i++) await flush();
+    assert.equal(env.byId.pkBody.hidden, false, 'ответ по новому выбору не показан');
+    assert.match(env.byId.pkContext.textContent, /разрез: Варшавская/);
+    assert.equal(env.byId.pkBarLabel.textContent, 'Варшавская');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

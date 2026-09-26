@@ -500,6 +500,35 @@ class TestXYZ:
         assert keg['XYZ_Category'] == 'X'
         assert keg['CoefficientOfVariation'] is not None
 
+    def test_code_third_letter_is_demand_like_packaging(self):
+        """С 2026-09-26 код = выручка, наценка, спрос (как у фасовки), маржа — вне кода.
+
+        Раньше третьей буквой была маржа, а спрос стоял отдельной колонкой XYZ:
+        одинаковый на вид код на двух страницах значил разное.
+        """
+        rows = self._rows_for_weeks([10.0, 12.0, 11.0], keg='keg-steady')
+        rows += self._rows_for_weeks([10.0], keg='keg-new', start_day=18)
+        sales = [sale('Лиговский', 'dish-steady', '2026-08-04', 60, 36000.0, 9000.0),
+                 sale('Лиговский', 'dish-new', '2026-08-18', 20, 1000.0, 900.0)]
+        dish_map = {'dish-steady': [['keg-steady', 0.5]], 'dish-new': [['keg-new', 0.5]]}
+        block = DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-24').build()
+        by_id = {k['KegId']: k for k in block['kegs']}
+        steady, new = by_id['keg-steady'], by_id['keg-new']
+        assert steady['XYZ_Category'] == 'X'
+        assert steady['ABC_Combined'] == steady['ABC_Revenue'] + steady['ABC_Markup'] + 'X'
+        # Одна неделя на кране: буквы спроса нет — «?», а не маржа на её месте.
+        assert new['XYZ_Category'] is None
+        assert new['ABC_Combined'][2] == '?'
+        # Маржа не пропала: отдельное поле для карточки кега.
+        assert steady['ABC_Margin'] in ('A', 'B', 'C') and new['ABC_Margin'] in ('A', 'B', 'C')
+        assert 'ABCXYZ_Combined' not in steady
+        assert block['abc_stats'] == {steady['ABC_Combined']: 1, new['ABC_Combined']: 1}
+
+    def test_code_is_the_same_function_as_packaging(self):
+        from core.abc_thresholds import NO_LETTER, abc_code
+        assert abc_code('A', 'B', 'X') == 'ABX'
+        assert abc_code('C', None, None) == 'C' + NO_LETTER + NO_LETTER == 'C??'
+
     def test_single_position_is_not_forced_to_z(self):
         """Одна позиция в разрезе с ровными продажами — это X, а не Z.
 
@@ -636,6 +665,65 @@ class TestWeeklyRate:
         block = DraftKegAnalysis(rows, [], DISH_MAP, '2026-08-04', '2026-08-17').build()
         assert block['period']['days'] == 14
         assert abs(block['kegs'][0]['AvgLitersPerWeek'] - 100.0) < 1e-9
+
+
+class TestMarginLetter:
+    """Буква маржи — Парето 80/15/5, как у фасовки (с 2026-09-26; были трети)."""
+
+    @staticmethod
+    def _block(margins):
+        rows, sales, dish_map = [], [], {}
+        for index, margin in enumerate(margins):
+            keg, dish = f'keg-{index}', f'dish-{index}'
+            rows.append(trans('Лиговский', keg, '2026-08-04', 'SESSION_WRITEOFF', out=5.0))
+            sales.append(sale('Лиговский', dish, '2026-08-04', 10, 100.0 + margin, 100.0))
+            dish_map[dish] = [[keg, 0.5]]
+        return DraftKegAnalysis(rows, sales, dish_map, '2026-08-04', '2026-08-10').build()
+
+    def test_single_keg_is_A_not_C(self):
+        """По третям единственный кег получал C."""
+        keg = self._block([500.0])['kegs'][0]
+        assert keg['ABC_Margin'] == 'A'
+        assert abs(keg['MarginSharePercent'] - 100.0) < 1e-9
+
+    def test_two_kegs_top_is_A(self):
+        """По третям при двух кегах A не было ни у кого."""
+        letters = sorted(k['ABC_Margin'] for k in self._block([900.0, 100.0])['kegs'])
+        assert letters == ['A', 'B']
+
+    def test_pareto_shares_and_base(self):
+        block = self._block([800.0, 150.0, 50.0])
+        by_margin = {round(k['TotalMargin']): k for k in block['kegs']}
+        assert block['margin_abc_base'] == 1000.0
+        assert by_margin[800]['ABC_Margin'] == 'A'
+        assert by_margin[150]['ABC_Margin'] == 'B'
+        assert by_margin[50]['ABC_Margin'] == 'C'
+        assert abs(by_margin[150]['MarginSharePercent'] - 15.0) < 1e-9
+        assert abs(by_margin[150]['MarginCumulativePercent'] - 95.0) < 1e-9
+
+    def test_zero_base_gives_C_not_A(self):
+        """Ни у кого нет положительной маржи — буква C, а не A всем подряд."""
+        block = self._block([-50.0, -10.0])
+        assert {k['ABC_Margin'] for k in block['kegs']} == {'C'}
+        assert block['margin_abc_base'] == 0.0
+
+
+class TestLitersPerActiveWeek:
+    """Литров в неделю на кране — по неделям с продажами (с 2026-09-26)."""
+
+    def test_rotating_keg_counts_only_weeks_on_tap(self):
+        """Одна неделя из двенадцати: 60 л за неделю на кране, а не 60 / 12,9."""
+        rows = [trans('Лиговский', KEG_A, '2026-07-31', 'SESSION_WRITEOFF', out=60.0)]
+        keg = DraftKegAnalysis(rows, [], DISH_MAP, '2026-05-13', '2026-08-10').build()['kegs'][0]
+        assert keg['WeeksWithSales'] == 1 and keg['WeeksInPeriod'] == 12
+        assert keg['AvgLitersPerActiveWeek'] == 60.0
+        assert keg['AvgLitersPerWeek'] < 5.0
+
+    def test_no_full_week_gives_none(self):
+        rows = [trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=6.0)]
+        keg = DraftKegAnalysis(rows, [], DISH_MAP, '2026-08-04', '2026-08-06').build()['kegs'][0]
+        assert keg['WeeksInPeriod'] == 0
+        assert keg['AvgLitersPerActiveWeek'] is None
 
 
 class TestLosses:
@@ -922,6 +1010,33 @@ class TestLossesForUi:
         assert row['InventoryNetLiters'] == 7.0
         # Потери = акты + недостача; излишки в потери не идут
         assert abs(row['LossLiters'] - 10.0) < 1e-9
+
+    def test_network_does_not_net_shortage_against_other_bar_surplus(self):
+        """«Общая»: −10 л в одном баре и +10 л в другом не гасят друг друга (2026-09-26).
+
+        Инвентаризация — пересчёт одного склада. Раньше кег пропадал из
+        «где именно расхождения», хотя в баре A пропало 10 л. Баланс сети
+        при этом остаётся нетто — это честное изменение остатка.
+        """
+        rows = [
+            trans('Лиговский', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=40.0),
+            trans('Варшавская', KEG_A, '2026-08-04', 'SESSION_WRITEOFF', out=40.0),
+            trans('Лиговский', KEG_A, '2026-08-06', 'INVENTORY_CORRECTION', out=10.0),
+            trans('Варшавская', KEG_A, '2026-08-06', 'INVENTORY_CORRECTION', inc=10.0),
+        ]
+        block = DraftKegAnalysis(rows, [], {}, '2026-08-04', '2026-08-10').build()
+        assert block['losses']['inventory_net'] == 0.0
+        row = block['losses']['by_keg'][0]
+        assert row['InventoryNetLiters'] == 0.0
+        assert row['InventoryShortLiters'] == 10.0
+        assert row['InventorySurplusLiters'] == 10.0
+        assert row['LossLiters'] == 10.0
+        keg = block['kegs'][0]
+        assert keg['InventoryShortLiters'] == 10.0 and keg['InventorySurplusLiters'] == 10.0
+        # В разрезе одного бара — ровно его нетто.
+        alone = DraftKegAnalysis(rows, [], {}, '2026-08-04', '2026-08-10').build('Лиговский')
+        assert alone['losses']['by_keg'][0]['InventoryShortLiters'] == 10.0
+        assert alone['losses']['by_keg'][0]['InventorySurplusLiters'] == 0.0
 
     def test_surplus_is_not_counted_as_loss(self):
         rows = [

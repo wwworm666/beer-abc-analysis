@@ -280,8 +280,19 @@ class OlapReports:
         названия окажется два GUID (пересозданная карточка), строки разойдутся
         по DishId — PackagingAnalysis складывает их обратно по названию и
         хранит все GUID позиции в DishIds.
+
+        С 2026-09-26 запрос облегчён и идёт через _post_olap_interactive, как у
+        розлива: агрегаты только те три, что читает core/packaging_analysis.py
+        (UniqOrderId, DiscountSum, OneItem и MarkUp не использовались, а
+        UniqOrderId — счёт уникальных заказов, самый дорогой агрегат для iiko), и
+        две попытки с таймаутом под бюджет gunicorn вместо одной на 30 с.
         """
-        return self.get_beer_sales_report(date_from, date_to, bar_name, include_dish_id=True)
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+        request_body = self._build_olap_request(date_from, date_to, bar_name,
+                                                include_dish_id=True, lean=True)
+        return self._post_olap_interactive(request_body, 'Prodazhi fasovki')
 
     def get_beer_sales_report(self, date_from, date_to, bar_name=None, include_dish_id=False):
         """
@@ -604,10 +615,18 @@ class OlapReports:
         """
         return self._transactions_report(date_from, date_to, bar_name,
                                          TOP_PARENT_BOTTLES, 'tovaram fasovki',
-                                         'Provodki po fasovke')
+                                         'Provodki po fasovke', by_day=False)
 
-    def _transactions_report(self, date_from, date_to, bar_name, top_parent, what, tag):
-        """Общее тело OLAP TRANSACTIONS для розлива и фасовки."""
+    def _transactions_report(self, date_from, date_to, bar_name, top_parent, what, tag,
+                             by_day=True):
+        """Общее тело OLAP TRANSACTIONS для розлива и фасовки.
+
+        by_day: день проводки в группировке. Розливу он нужен (недельные корзины
+        XYZ строятся из проводок), фасовке — нет: её баланс и потери считаются
+        суммами за период, а XYZ идёт из продаж. Без дня строк столько, сколько
+        пар «склад x товар x тип», а не умноженных на число дней с движением
+        (с 2026-09-26; суммы те же).
+        """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
             return None
@@ -624,7 +643,7 @@ class OlapReports:
                 "Product.Id",
                 "Product.Name",
                 "Product.MeasureUnit",
-                "DateTime.DateTyped",
+            ] + (["DateTime.DateTyped"] if by_day else []) + [
                 "TransactionType",
             ],
             "groupByColFields": [],
@@ -773,6 +792,13 @@ class OlapReports:
 
     ASSEMBLY_CACHE_TTL = 86400  # 24 часа: техкарты меняются редко
 
+    # Сколько дней держать файлы кэша связки. Файл заводится на КАЖДЫЙ период
+    # (ключ — даты запроса), а пресеты страниц сдвигаются ежедневно, поэтому до
+    # 2026-09-26 файлы копились в /kultura/cache без конца (несколько новых в
+    # день). Две недели с запасом покрывают и TTL, и аварийный фоллбэк: ему нужен
+    # только самый свежий файл, а он при чистке не удаляется никогда.
+    ASSEMBLY_CACHE_KEEP_DAYS = 14
+
     # Префикс файлов кэша. v2 — потому что смысл amount изменился: раньше это была
     # сумма норм по всем ревизиям и размерам (годилась только для связки «блюдо -> кег»),
     # теперь норма последней ревизии, на которую умножают порции. Файл v1 дал бы
@@ -852,6 +878,31 @@ class OlapReports:
             print(f"[CHARTS CACHE] Ne zapisan {path}: {e}")
             try:
                 os.unlink(tmp)
+            except OSError:
+                pass
+            return
+        self._prune_assembly_cache(keep=path)
+
+    def _prune_assembly_cache(self, keep):
+        """Удалить файлы связки старше ASSEMBLY_CACHE_KEEP_DAYS, кроме keep.
+
+        Ошибки чистки не мешают расчёту: худшее последствие — лишний файл на диске.
+        """
+        cutoff = time.time() - self.ASSEMBLY_CACHE_KEEP_DAYS * 86400
+        directory = os.path.dirname(keep)
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            return
+        for name in names:
+            if not (name.startswith(self.ASSEMBLY_CACHE_PREFIX) and name.endswith('.json')):
+                continue
+            path = os.path.join(directory, name)
+            if os.path.abspath(path) == os.path.abspath(keep):
+                continue
+            try:
+                if os.path.getmtime(path) < cutoff:
+                    os.unlink(path)
             except OSError:
                 pass
 
@@ -1312,7 +1363,7 @@ class OlapReports:
         return request
 
     def _build_olap_request(self, date_from, date_to, bar_name=None, draft=False,
-                            include_waiter=False, include_dish_id=False):
+                            include_waiter=False, include_dish_id=False, lean=False):
         """Построить JSON запрос для OLAP отчета v2
 
         draft: True - разливное пиво, False - фасованное пиво
@@ -1321,6 +1372,9 @@ class OlapReports:
             связывать продажи с проводками склада по GUID). Остальные вызывающие
             (revenue_metrics, knowledge_graph, отчёт с официантами) форму строки
             не меняют.
+        lean: True - только три агрегата, которые читает страница /packaging
+            (количество, выручка со скидкой, себестоимость). Остальные вызывающие
+            получают полный набор, как раньше.
         """
 
         # Определяем группу напитков
@@ -1351,6 +1405,10 @@ class OlapReports:
             "groupByRowFields": groupByRowFields,
             "groupByColFields": [],
             "aggregateFields": [
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+            ] if lean else [
                 "UniqOrderId",
                 "UniqOrderId.OrdersCount",  # Количество уникальных заказов (чеков)
                 "DishAmountInt",

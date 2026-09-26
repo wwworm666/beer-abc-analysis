@@ -179,18 +179,30 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
     нужна для диагностики «касса против склада».
 
     Поля позиции после вызова: SoldQtyStock, WriteoffQty, InventoryNetQty,
-    LossQty, LossPercentOfSold, WriteoffPercentOfSold, InventoryPercentOfSold
-    (проценты None, если по складу не продано) и StockUnit — единица товара на
-    складе, если она не «шт» (такая позиция в баланс не входит).
+    InventoryShortQty, InventorySurplusQty, LossQty, LossPercentOfSold,
+    WriteoffPercentOfSold, InventoryPercentOfSold, InventoryShortPercentOfSold,
+    InventorySurplusPercentOfSold (проценты None, если по складу не продано) и
+    StockUnit — единица товара на складе, если она не «шт» (такая позиция в
+    баланс не входит).
+
+    Недостача и излишек считаются ПО КАЖДОМУ БАРУ (с 2026-09-26): инвентаризация —
+    пересчёт одного склада, и излишек в баре B не отменяет пропажу в баре A. В
+    разрезе «Общая» они раньше гасили друг друга, и позиция с −5 в одном баре и
+    +5 в другом исчезала из расхождений. Баланс сверху остаётся нетто по сети —
+    это честное изменение остатка.
     """
     for position in positions:
         position['SoldQtyStock'] = 0.0
         position['WriteoffQty'] = 0.0
         position['InventoryNetQty'] = 0.0
+        position['InventoryShortQty'] = 0.0
+        position['InventorySurplusQty'] = 0.0
         position['LossQty'] = 0.0
         position['LossPercentOfSold'] = None
         position['WriteoffPercentOfSold'] = None
         position['InventoryPercentOfSold'] = None
+        position['InventoryShortPercentOfSold'] = None
+        position['InventorySurplusPercentOfSold'] = None
         position['StockUnit'] = None
 
     stock, diagnostics = collect_stock(transactions, bar_name)
@@ -225,17 +237,42 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
     transfer_out = sum(e['transfer_out'] for e in merged.values())
     inventory_net = inventory_out - inventory_in
 
+    def position_of(product_id, product_name):
+        position_id = by_guid.get(product_id)
+        if position_id is not None:
+            return position_id, 'guid'
+        position_id = by_name.get(str(product_name).strip())
+        return position_id, ('name' if position_id is not None else None)
+
+    # Недостача и излишек по барам: для товара — сумма по его складам; для
+    # позиции — сначала нетто по всем её GUID внутри бара (пересозданная карточка
+    # — тот же товар на той же полке, её GUID гасят друг друга), потом по барам.
+    product_split = {}      # product_id -> [недостача, излишек]
+    position_bar_net = {}   # (position_id, bar) -> нетто
+    for (bar, product_id), entry in sorted(stock.items(),
+                                           key=lambda kv: (kv[0][1], kv[0][0] or '')):
+        net = entry['inventory_out'] - entry['inventory_in']
+        split = product_split.setdefault(product_id, [0.0, 0.0])
+        split[0] += max(net, 0.0)
+        split[1] += max(-net, 0.0)
+        position_id, _ = position_of(product_id, entry['product_name'])
+        if position_id is not None:
+            key = (position_id, bar)
+            position_bar_net[key] = position_bar_net.get(key, 0.0) + net
+    for (position_id, _bar), net in sorted(position_bar_net.items(),
+                                           key=lambda kv: (kv[0][0], kv[0][1] or '')):
+        position = by_id[position_id]
+        position['InventoryShortQty'] += max(net, 0.0)
+        position['InventorySurplusQty'] += max(-net, 0.0)
+
     by_item = []
     unmatched = 0
     for entry in merged.values():
-        position_id = by_guid.get(entry['product_id'])
-        matched_by = 'guid' if position_id is not None else None
-        if position_id is None:
-            position_id = by_name.get(str(entry['product_name']).strip())
-            matched_by = 'name' if position_id is not None else None
+        position_id, matched_by = position_of(entry['product_id'], entry['product_name'])
 
         net = entry['inventory_out'] - entry['inventory_in']
-        loss = entry['writeoff'] + max(net, 0.0)
+        short, surplus = product_split.get(entry['product_id'], (max(net, 0.0), max(-net, 0.0)))
+        loss = entry['writeoff'] + short
 
         if position_id is not None:
             position = by_id[position_id]
@@ -245,7 +282,7 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
 
         # Только товары с расхождениями, без обрезки: страница показывает первые
         # восемь, остальные прячет под «ещё N» — но решает это интерфейс.
-        if entry['writeoff'] > 0 or abs(net) > 0:
+        if entry['writeoff'] > 0 or short > 0 or surplus > 0:
             if position_id is None:
                 unmatched += 1
             by_item.append({
@@ -256,24 +293,30 @@ def build_losses_block(transactions, bar_name, positions, sold_by_register):
                 'SoldQty': entry['sold'],
                 'WriteoffQty': entry['writeoff'],
                 'InventoryNetQty': net,
+                'InventoryShortQty': short,
+                'InventorySurplusQty': surplus,
                 'LossQty': loss,
                 'LossPercentOfSold': (loss / entry['sold'] * 100) if entry['sold'] > 0 else None,
             })
 
     for position in positions:
-        # Потери позиции — от её собственных сумм, а не сумма потерь по GUID:
-        # у пересозданной карточки (два DishId) недостача по одному GUID и
-        # излишек по другому гасят друг друга, как в балансе сверху.
-        position['LossQty'] = position['WriteoffQty'] + max(position['InventoryNetQty'], 0.0)
+        # Потери позиции — акты плюс недостача по барам (см. выше): GUID одной
+        # позиции внутри бара гасят друг друга, разные бары — нет.
+        position['LossQty'] = position['WriteoffQty'] + position['InventoryShortQty']
         stock_sold = position['SoldQtyStock']
         if stock_sold > 0:
             position['LossPercentOfSold'] = position['LossQty'] / stock_sold * 100
             position['WriteoffPercentOfSold'] = position['WriteoffQty'] / stock_sold * 100
             position['InventoryPercentOfSold'] = position['InventoryNetQty'] / stock_sold * 100
+            position['InventoryShortPercentOfSold'] = (position['InventoryShortQty']
+                                                       / stock_sold * 100)
+            position['InventorySurplusPercentOfSold'] = (position['InventorySurplusQty']
+                                                         / stock_sold * 100)
 
     # Сортировка как у кегов — по величине расхождения; тай-брейк по имени,
     # чтобы порядок не зависел от порядка строк OLAP.
-    by_item.sort(key=lambda k: (-(k['WriteoffQty'] + abs(k['InventoryNetQty'])),
+    by_item.sort(key=lambda k: (-(k['WriteoffQty'] + k['InventoryShortQty']
+                                  + k['InventorySurplusQty']),
                                 k['ProductName'], k['ProductId']))
 
     diagnostics.update({
