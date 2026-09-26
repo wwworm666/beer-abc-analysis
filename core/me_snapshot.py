@@ -610,6 +610,9 @@ def _assemble(month, date_from, date_to, bonus_emps, kpi_emps, hours_emps,
             'norm_shifts': kpi_defaults.get('norm_shifts') or SHIFT_NORM,
             'max_ratio': kpi_defaults.get('max_ratio'),
             'metrics_catalog': AVAILABLE_METRICS,
+            # Блюда KPI, которых за месяц не продал никто (обычно переименованы
+            # в iiko): без этого /me молча показывал «0», а страница ЗП — предупреждение
+            'dishes_not_found': kpi_data.get('dishes_not_found') or [],
         },
         'employees': employees,
         'unlinked_hours': unlinked,
@@ -718,6 +721,11 @@ def _kpi_for(kpi_row, kpi_keys, kpi_config, shifts_planned=0):
             # смысла не имеет: там не набирают, а не превышают)
             if per_shift_target >= per_shift_min:
                 item['remaining'] = round(max(0, item['target_month'] - fact_now), 2)
+        # Цели точек, из которых взвешены цель и минимум: таблица «Цели по
+        # точкам» в общем блоке расчёта (static/js/shared/kpi_breakdown.js),
+        # как на странице ЗП. Только показ — расчёт их уже учёл.
+        if src.get('location_targets') is not None:
+            item['location_targets'] = src.get('location_targets')
         # KPI на выбранные блюда: список и разбивка по каждому блюду
         if src.get('dishes') is not None:
             item['dishes'] = src.get('dishes')

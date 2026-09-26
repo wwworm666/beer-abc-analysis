@@ -181,274 +181,34 @@
             return;
         }
 
+        // Тот же блок, что на странице ЗП (static/js/shared/kpi_breakdown.js):
+        // чек премии и линейка на каждый показатель. Здесь только сборка модели
+        // из снимка — ничего не пересчитывается.
         var meta = data.kpi_meta || {};
-        var maxRatio = meta.max_ratio || 2;
-        var perKpi = meta.base_per_kpi;
-        var fundBox = (meta.kpi_pool != null && perKpi != null
-                ? 'Фонд ' + money(meta.kpi_pool) + ' / ' + kpi.items.length + ' = '
-                  + money(perKpi) + ' за каждый показатель<br>'
-                : '')
-            + 'Коэффициент x' + num(kpi.koef, 2) + ' = ' + (kpi.total_shifts || 0)
-            + ' ваших смен на точках с целями / ' + (meta.norm_shifts || '')
-            + boxSub('Премия показателя = множитель x ' + money(perKpi)
-                     + ' x ' + num(kpi.koef, 2));
-
-        var total = '<div class="me-card me-kpi-total">'
-            + row('Итого KPI', money(kpi.total_premium), fundBox) + '</div>';
-
-        var cards = kpi.items.map(function (it) {
-            return kpiCard(it, kpi, meta, maxRatio);
-        }).join('');
-
-        host.innerHTML = band + total + '<div class="me-kpi-grid">' + cards + '</div>';
-        scaleHost = host;
-        fitScaleLabels(host);
-    }
-
-    // Подпись риски («минимум», «цель») не должна наезжать на крайние подписи
-    // легенды. Ширина текста известна только после отрисовки, поэтому меряем:
-    // если подпись упирается в соседа, опускаем её строкой ниже — под ту же
-    // риску. Перемеряем при повороте телефона.
-    var scaleHost = null;
-    function fitScaleLabels(host) {
-        var legends = host.querySelectorAll('.me-scale-legend');
-        for (var i = 0; i < legends.length; i++) {
-            var lg = legends[i], mid = lg.querySelector('.me-scale-mid');
-            if (!mid) continue;
-            lg.classList.remove('is-two-rows');
-            mid.classList.remove('is-below');
-            var ends = lg.children;
-            var l = ends[0].getBoundingClientRect(), r = ends[ends.length - 1].getBoundingClientRect(),
-                m = mid.getBoundingClientRect();
-            if (!m.width) continue;   // секция скрыта — мерить нечего
-            if (m.left < l.right + 4 || m.right > r.left - 4) {
-                lg.classList.add('is-two-rows');
-                mid.classList.add('is-below');
-            }
-        }
-    }
-    window.addEventListener('resize', function () { if (scaleHost) fitScaleLabels(scaleHost); });
-
-    function kpiCard(it, kpi, meta, maxRatio) {
-        var cat = (meta.metrics_catalog || {})[it.metric] || {};
-        // Штучный KPI «на смену» (с августа 2026): сервер отдаёт единицу
-        // «шт/смену» и знаки; факт, цель и минимум — за одну кассовую смену
-        var unit = it.unit != null ? it.unit : (cat.unit || '') + (it.per_shift ? '/смену' : '');
-        var dec = it.decimals != null ? it.decimals : (cat.decimals == null ? 1 : cat.decimals);
-        var v = function (x) { return x == null ? '—' : num(x, dec) + (unit ? ' ' + unit : ''); };
-        // Штучный KPI: цель зависит от смен — норма за смену x смены человека.
-        // Главные числа на экране в штуках («8 из 10»), «за смену» — в пояснении
-        var perShift = !!(it.per_shift && it.target_period != null && it.shifts_divisor);
-        var rawUnit = cat.unit || '';
-        var pv = function (x) {
-            if (x == null) return '—';
-            var dec = it.period_decimals != null ? it.period_decimals : (cat.decimals || 0);
-            var round = Math.abs(x - Math.round(x)) < 0.05;
-            return num(x, (rawUnit === '\u20bd' || round) ? dec : Math.max(dec, 1))
-                + (rawUnit ? ' ' + rawUnit : '');
-        };
-        var pf = perShift ? pv : v;   // как показывать факт/цель/минимум
-        // Месячная цель — ориентир на действие: «продать 6», а не «5,6».
-        // Штучные величины округляем до целого, деньги и проценты — как есть.
-        // На деньги это не влияет: множитель считается по темпу за смену.
-        var countUnit = rawUnit !== '\u20bd'
-            && (it.period_decimals == null || it.period_decimals === 0);
-        var mv = function (x) {
-            if (x == null) return '—';
-            return countUnit ? num(Math.round(x), 0) + (rawUnit ? ' ' + rawUnit : '') : pv(x);
-        };
-        var shiftsWord = perShift
-            ? it.shifts_divisor + ' ' + plural(it.shifts_divisor, 'смену', 'смены', 'смен') : '';
-        // Цель показываем НА ВЕСЬ МЕСЯЦ по графику смен (владелец 2026-09-10):
-        // цель за уже отработанные смены росла бы каждый день и «выполнялась»
-        // в первую же смену. Множитель и премия по-прежнему считаются по темпу
-        // за отработанное — поэтому они подписаны отдельно.
-        var monthly = perShift && it.target_month != null && it.month_shifts;
-        var monthShiftsWord = monthly
-            ? it.month_shifts + ' ' + plural(it.month_shifts, 'смена', 'смены', 'смен') : '';
-        // Подпись под плиткой: откуда взялась месячная цель. В саму метку
-        // «на месяц» не выносим — длинная метка ломает сетку плиток на телефоне
-        var monthSub = monthly
-            ? 'на месяц · ' + monthShiftsWord
-              + (it.month_shifts_source === 'schedule' ? ' по графику' : '')
-            : '';
-        // Пояснение без дробей «за смену»: норма смен -> целое, его смены -> целое
-        var normShifts = meta.norm_shifts || 15;
-        // «Меньше — лучше» (опоздания, отмены): от смен зависит ПОТОЛОК, а не цель
-        var inverseKpi = !it.no_targets && it.min != null && it.target != null && it.min > it.target;
-        var perShiftLine = !perShift ? ''
-            : inverseKpi
-            ? 'Порог зависит от смен: за норму ' + normShifts + ' '
-              + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
-              + mv(it.min * normShifts) + ', за ваши ' + monthShiftsWord + ' — не больше '
-              + mv(it.min_month != null ? it.min_month : it.min_period) + '<br>'
-            : 'Цель зависит от смен: за норму ' + normShifts + ' '
-              + plural(normShifts, 'смену', 'смены', 'смен') + ' — '
-              + mv(it.target * normShifts) + ', за ваши ' + monthShiftsWord + ' — '
-              + mv(monthly ? it.target_month : it.target_period)
-              + ' (минимум ' + mv(monthly ? it.min_month : it.min_period) + ')<br>';
-        // Множитель и премия считаются по УЖЕ ОТРАБОТАННЫМ сменам, а цель — на
-        // месяц: без этой строки «сделал 2 из 6, а множитель x2» читается как ошибка
-        var paceLine = (monthly && !inverseKpi && it.shifts_divisor)
-            ? 'Множитель — по темпу за отработанные ' + shiftsWord + ': нужно было '
-              + pv(it.target_period) + ', сделано ' + pv(it.fact_raw) + '<br>'
-            : '';
-
-        var ratio = it.ratio == null ? 0 : it.ratio;
-        // Шкала. У месячного KPI это прогресс к цели месяца «0 … цель» с риской
-        // на минимуме, а не множитель: владелец 2026-09-10 — «на графике всё
-        // равно показывает цель за текущие смены, а должен за весь месяц».
-        // Шкала по множителю при цели на месяц читалась как «58% сделано».
-        // У «меньше — лучше» шкала «0 … максимум», риска на цели: заливка —
-        // сколько потолка уже израсходовано, за потолком краснеет.
-        // Обычные KPI (доля розлива) остаются на шкале множителя 0 … max.
-        var scale = kpiScale(it, ratio, maxRatio, monthly, inverseKpi, countUnit, mv);
-
-        // Вердикт словами: молчаливый ноль читается как ошибка расчёта.
-        var verdict, mulCls = '';
-        var inverse = it.min != null && it.target != null && it.min > it.target;
-        if (it.no_targets) {
-            verdict = '<div class="me-verdict is-warn">Цели на ваших точках не заданы — премия не начисляется</div>';
-            mulCls = ' is-bad';
-        } else if (it.min != null && it.fact != null
-                   && (inverse ? it.fact > it.min : it.fact < it.min)) {
-            verdict = '<div class="me-verdict is-warn">' + (inverse ? 'Выше' : 'Ниже')
-                    + ' минимума — премия не начисляется</div>';
-            mulCls = ' is-bad';
-        } else if (ratio >= maxRatio) {
-            verdict = '<div class="me-verdict is-ok">' + (monthly ? 'Темп выше цели' : 'Выше цели')
-                    + ' — множитель на максимуме</div>';
-            mulCls = ' is-ok';
-        } else if (ratio >= 1) {
-            verdict = '<div class="me-verdict is-ok">'
-                    + (monthly ? 'Идёте по цели' : 'Цель выполнена') + '</div>';
-            mulCls = ' is-ok';
-        } else {
-            verdict = '<div class="me-verdict is-plain">'
-                    + (monthly ? 'Темп ниже цели — премия частичная'
-                               : 'Между минимумом и целью — премия частичная') + '</div>';
-        }
-        // Сколько ещё нужно до месячной цели — самая полезная строка на экране
-        if (monthly && !inverse && it.remaining != null && !it.no_targets) {
-            // «Осталось» считаем от показанной (округлённой) цели, чтобы
-            // сделано + осталось сходилось с целью на экране
-            var left = Math.max(0, (countUnit ? Math.round(it.target_month) : it.target_month)
-                                   - (it.fact_raw || 0));
-            verdict += '<div class="me-verdict is-plain">' + (left > 0
-                ? 'До цели месяца осталось ' + mv(left)
-                : 'Цель месяца уже набрана') + '</div>';
-        }
-
-        // Формула с подставленными числами.
-        var calc;
-        if (it.no_targets) {
-            calc = 'На ваших точках цели по этому показателю не заданы — премия по нему не начисляется';
-        } else if (it.min != null && it.fact != null
-                   && (inverse ? it.fact > it.min : it.fact < it.min)) {
-            calc = 'Факт ' + pf(perShift ? it.fact_raw : it.fact) + (inverse ? ' выше' : ' ниже')
-                 + (inverse ? ' максимума ' : ' минимума ')
-                 + pf(monthly ? it.min_month : (perShift ? it.min_period : it.min))
-                 + ' — множитель 0, премия 0' + RUB;
-        } else {
-            var cFact = perShift ? pv(it.fact_raw) : num(it.fact, dec);
-            var cMin = perShift ? pv(it.min_period) : num(it.min, dec);
-            var cTarget = perShift ? pv(it.target_period) : num(it.target, dec);
-            calc = 'Множитель = (факт − минимум) / (цель − минимум)<br>= ('
-                 + cFact + ' − ' + cMin + ') / ('
-                 + cTarget + ' − ' + cMin + ') = ' + num(ratio, 2);
-            if (ratio >= maxRatio) {
-                calc += '<br>Множитель ограничен диапазоном 0…' + num(maxRatio, 0);
-            }
-            calc += '<br>Премия = ' + num(ratio, 2) + ' x ' + money(meta.base_per_kpi)
-                 + ' x ' + num(kpi.koef, 2) + ' = ' + money(it.premium);
-        }
-
-        // KPI на выбранные блюда: из чего сложился факт
-        var dishLine = '';
-        if (it.no_dishes) {
-            dishLine = 'Блюда для показателя не выбраны — премия по нему не начисляется<br>';
-        } else if (it.dishes && it.dishes.length) {
-            dishLine = 'Блюда: ' + it.dishes.map(function (d) {
-                return esc(d) + ' ' + pv((it.dish_facts || {})[d] || 0);
-            }).join(' · ') + '<br>';
-        }
-
-        var locs = kpi.shifts_per_location || {};
-        var locRows = Object.keys(locs).map(function (n) {
-            return '<div class="me-box-row"><span>' + esc(n) + '</span><span class="sp"></span>'
-                + '<span>' + shifts(locs[n]) + '</span></div>';
-        }).join('');
-
-        return '<div class="me-card me-kpi-card">'
-            + '<div class="me-card-h"><span class="me-kpi-name">' + esc(it.name) + '</span>'
-            + '<span class="me-card-sp"></span>'
-            + '<span class="me-kpi-prem' + zero(it.premium) + '">' + money(it.premium)
-            + ' <span class="me-kpi-max">начислено</span></span></div>'
-            + '<div class="me-kpi-nums">'
-            + kpiNum(monthly ? 'сделано' : 'факт', pf(perShift ? it.fact_raw : it.fact))
-            + kpiNum('цель',
-                     monthly ? mv(it.target_month) : pf(perShift ? it.target_period : it.target),
-                     '', monthly && !inverse ? monthSub : '')
-            + kpiNum(inverse ? 'максимум' : 'минимум',
-                     monthly ? mv(it.min_month) : pf(perShift ? it.min_period : it.min),
-                     '', monthly && inverse ? monthSub : '')
-            + kpiNum('множитель', 'x' + num(ratio, 2), mulCls, monthly ? 'по темпу' : '')
-            + '</div>'
-            + scaleHtml(scale)
-            + verdict
-            + '<details class="me-how"><summary>КАК ПОСЧИТАНО' + CHV + '</summary>'
-            + '<div class="me-box">' + dishLine + perShiftLine + paceLine + calc + locRows
-            + boxSub('Цели взвешены по вашим сменам: где вы работали больше, та цель весит сильнее.')
-            + '</div></details>'
-            + '</div>';
-    }
-
-    // Геометрия шкалы под плитками KPI: заливка, риска и подписи в процентах.
-    // Возвращает {fill, mark, left, mid, right, fillCls}; mid = '' — подпись
-    // риски скрыта (риска у самого края наехала бы на «0» или на правую подпись).
-    function kpiScale(it, ratio, maxRatio, monthly, inverse, countUnit, mv) {
-        var pct = function (x) { return Math.max(0, Math.min(100, x)); };
-        var whole = function (x) { return countUnit ? Math.round(x) : x; };
-        var fact = it.fact_raw || 0;
-        var sc;
-        if (monthly && !inverse) {
-            // Цель — показанная на плитке (округлённая), чтобы «сделано 8 из 8»
-            // заливало шкалу целиком, а не на 96% из-за цели 8,33
-            var goal = whole(it.target_month), floor = whole(it.min_month);
-            sc = { fill: goal > 0 ? pct(fact / goal * 100) : (fact > 0 ? 100 : 0),
-                   mark: goal > 0 ? pct(floor / goal * 100) : 0,
-                   left: '0', mid: 'минимум', right: 'цель ' + mv(goal), fillCls: '' };
-        } else if (monthly && inverse) {
-            var cap = whole(it.min_month), goalInv = whole(it.target_month);
-            sc = { fill: cap > 0 ? pct(fact / cap * 100) : (fact > 0 ? 100 : 0),
-                   mark: cap > 0 ? pct(goalInv / cap * 100) : 0,
-                   left: '0', mid: 'цель', right: 'максимум ' + mv(cap),
-                   fillCls: fact > cap ? ' is-bad' : ' is-inverse' };
-        } else {
-            sc = { fill: pct(ratio / maxRatio * 100), mark: 1 / maxRatio * 100,
-                   left: '0', mid: 'цель', right: num(maxRatio, 0), fillCls: '' };
-        }
-        // Подпись риски: у краёв прячем, ближе к краю — прижимаем к риске
-        // с внутренней стороны, чтобы не наезжала на крайние подписи
-        sc.midCls = sc.mark < 30 ? ' is-left' : sc.mark > 70 ? ' is-right' : '';
-        if (sc.mark < 8 || sc.mark > 92) sc.mid = '';
-        return sc;
-    }
-
-    function scaleHtml(sc) {
-        return '<div class="me-scale"><span class="me-scale-fill' + sc.fillCls
-            + '" style="width:' + sc.fill + '%"></span>'
-            + '<span class="me-scale-mark" style="left:' + sc.mark + '%"></span></div>'
-            + '<div class="me-scale-legend"><span>' + esc(sc.left) + '</span>'
-            + (sc.mid ? '<span class="me-scale-mid' + sc.midCls + '" style="left:' + sc.mark
-                        + '%">' + esc(sc.mid) + '</span>' : '')
-            + '<span>' + esc(sc.right) + '</span></div>';
-    }
-
-    function kpiNum(label, value, cls, sub) {
-        return '<div class="me-kpi-num"><div class="me-kpi-num-l">' + esc(label.toUpperCase())
-            + '</div><div class="me-kpi-num-v' + (cls || '') + '">' + esc(value) + '</div>'
-            + (sub ? '<div class="me-kpi-num-s">' + esc(sub) + '</div>' : '') + '</div>';
+        var spl = kpi.shifts_per_location || {};
+        var allShifts = Object.keys(spl).reduce(function (s, k) { return s + (spl[k] || 0); }, 0);
+        host.innerHTML = band + '<div></div>';
+        window.KpiBreakdown.render(host.lastElementChild, {
+            title: 'KPI-премия' + (data.month_label ? ' за ' + String(data.month_label).toLowerCase() : ''),
+            total: kpi.total_premium,
+            koef: kpi.koef,
+            totalShifts: kpi.total_shifts,
+            allShifts: allShifts,
+            norm: meta.norm_shifts || 15,
+            pool: meta.kpi_pool != null ? meta.kpi_pool : kpi.kpi_pool,
+            basePerKpi: kpi.base_per_kpi != null ? kpi.base_per_kpi : meta.base_per_kpi,
+            maxRatio: meta.max_ratio || 2,
+            shiftsPerLocation: spl,
+            catalog: meta.metrics_catalog || {},
+            dishesNotFound: meta.dishes_not_found || [],
+            // Подсказка «пока месяц идёт» — только для текущего месяца: у
+            // закрытого смены графика без кассовой смены дали бы «ещё N смен»
+            plan: {
+                open: !!(data.today && data.month && String(data.today).slice(0, 7) === data.month),
+                shifts: (data.hours && data.hours.shifts_planned) || 0
+            },
+            items: kpi.items
+        });
     }
 
     // ==================== Показатели ====================

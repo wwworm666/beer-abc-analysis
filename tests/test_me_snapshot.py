@@ -428,6 +428,26 @@ def test_assemble_passes_planned_shifts_into_kpi():
     assert dish['remaining'] == 6.0               # 8 − 2 сделанных
 
 
+def test_snapshot_carries_location_targets_and_missing_dishes():
+    """Общий блок расчёта KPI на /me показывает то же, что страница ЗП:
+    цели точек (откуда взвешены цель и минимум) и предупреждение о блюде,
+    которого за месяц не продал никто. Оба поля — сквозные из расчёта."""
+    kpi = _kpi_row(ID_A, 'Юреня Роман')
+    kpi['kpis']['kpi1']['location_targets'] = {
+        'Варшавская': {'target': 61, 'min': 59, 'shifts': 8},
+        'Кременчугская': {'target': 60, 'min': 57, 'shifts': 4},
+    }
+    kpi_data = _kpi_data()
+    kpi_data['dishes_not_found'] = ['Щечки BBW блюдо']
+    snap = _assemble([_bonus_row(ID_A, 'Юреня Роман')], [kpi],
+                     [_hours_row(ID_A, 'Юреня Роман')], kpi_data=kpi_data)
+    item = snap['employees'][ID_A]['kpi']['items'][0]
+    assert item['location_targets']['Варшавская'] == {'target': 61, 'min': 59, 'shifts': 8}
+    assert snap['kpi_meta']['dishes_not_found'] == ['Щечки BBW блюдо']
+    # в расчёте поля нет — в снимке его тоже нет, а не пустой объект
+    assert 'location_targets' not in snap['employees'][ID_A]['kpi']['items'][1]
+
+
 def test_kpi_target_is_for_whole_month_by_schedule():
     """Цель штучного KPI — на весь месяц по графику смен, а не за отработанные.
 

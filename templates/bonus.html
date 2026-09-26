@@ -13,11 +13,13 @@
     <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/shared/kpi_breakdown.css?v={{ app_version }}">
 
     <!-- Flatpickr -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/ru.js"></script>
+    <script src="/static/js/shared/kpi_breakdown.js?v={{ app_version }}"></script>
 
     <style>
         /* Card */
@@ -251,92 +253,9 @@
         }
         [data-theme="dark"] .late-badge { background: rgba(239, 68, 68, 0.25); }
 
-        /* KPI detail inside card */
-        .kpi-detail-cards { display: flex; flex-direction: column; gap: 12px; }
-
-        .kpi-detail-card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 16px 20px;
-        }
-
-        .kpi-detail-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .kpi-detail-name { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
-        .kpi-detail-premium { font-weight: 600; font-size: 0.9rem; }
-        .kpi-detail-max { font-weight: 500; font-size: 0.78rem; color: var(--text-tertiary); }
-
-        /* Шапка фонда KPI: фонд / N = база за каждый */
-        .kpi-fund-banner {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 12px 18px;
-            margin-bottom: 12px;
-        }
-        .kpi-fund-main { font-size: 1rem; color: var(--text-secondary); }
-        .kpi-fund-main strong { color: var(--success); font-size: 1.15rem; }
-        .kpi-fund-sub { font-size: 0.8rem; color: var(--text-tertiary); margin-top: 4px; }
-        .kpi-fund-sub strong { color: var(--text-primary); }
-
-        .kpi-metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        .kpi-metric-item { text-align: center; }
-        .kpi-metric-label { font-size: 0.7rem; color: var(--text-tertiary); margin-bottom: 2px; }
-        .kpi-metric-val { font-size: 0.85rem; font-weight: 500; }
-
-        .kpi-ratio-bar {
-            height: 6px;
-            background: var(--bg-tertiary);
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-        .kpi-ratio-fill { height: 100%; border-radius: 3px; transition: width 300ms ease; }
-
-        /* Location breakdown mini-table */
-        .loc-breakdown { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-        .loc-breakdown th { padding: 4px 8px; color: var(--text-tertiary); font-weight: 500; text-align: left; border-bottom: 1px solid var(--border-color); }
-        .loc-breakdown td { padding: 4px 8px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); }
-        .loc-breakdown .loc-weighted td { font-weight: 600; color: var(--text-primary); }
-
-        /* Premium calc summary */
-        .kpi-calc-summary {
-            margin-top: 12px;
-            padding: 10px 14px;
-            background: var(--bg-tertiary);
-            border-radius: 8px;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-        .kpi-calc-summary strong { color: var(--text-primary); }
-
-        /* KPI «на смену»: подпись сырого факта, бейдж, заметка «нет целей» */
-        .kpi-metric-sub { font-size: 0.7rem; color: var(--text-tertiary); margin-top: 2px; }
-        .kpi-per-shift-badge {
-            display: inline-block;
-            font-size: 0.68rem;
-            font-weight: 500;
-            color: var(--accent);
-            border: 1px solid var(--accent);
-            border-radius: 6px;
-            padding: 1px 6px;
-            margin-left: 6px;
-            vertical-align: middle;
-        }
-        .kpi-no-targets { font-size: 0.78rem; color: var(--warning); margin-bottom: 10px; }
-        .kpi-per-shift-note { font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 10px; }
-        .kpi-per-shift-note b { color: var(--text-secondary); font-weight: 600; }
+        /* Панель KPI в карточке сотрудника — общий блок расчёта
+           (static/shared/kpi_breakdown.css + static/js/shared/kpi_breakdown.js),
+           тот же, что на /me. Свои правила здесь не пишутся. */
         /* Редактор: чекбокс «на смену» и подсказки */
         .targets-content input[type="checkbox"] { width: auto; padding: 0; margin: 0 6px 0 0; vertical-align: middle; }
         .kpi-per-shift { display: flex; align-items: center; margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; }
@@ -389,11 +308,6 @@
         .dish-option .dish-option-meta { color: var(--text-tertiary); font-size: 0.7rem; }
         .dish-option.is-empty { cursor: default; color: var(--text-tertiary); }
         .dish-option.is-empty:hover { background: none; color: var(--text-tertiary); }
-
-        /* Блюда в панели KPI */
-        .kpi-dish-facts { font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 10px; }
-        .kpi-dish-facts b { color: var(--text-secondary); font-weight: 600; }
-        .kpi-dish-missing { color: var(--warning); }
 
         /* ====== Сворачиваемые секции (KPI-цели, ставки, описание расчёта) ====== */
         /* Единый вертикальный ритм: секции идут друг за другом с одинаковым
@@ -554,7 +468,6 @@
             .emp-card-body { padding: 0 16px 16px; }
             .emp-details { padding: 12px 16px 16px; }
             .summary-row { grid-template-columns: repeat(2, 1fr); }
-            .kpi-metrics-grid { grid-template-columns: repeat(3, 1fr); }
             .kpi-config-grid { grid-template-columns: 1fr; }
             .targets-grid { grid-template-columns: 90px repeat(4, 1fr); gap: 6px; }
             .tg-input { padding: 6px 2px; }
@@ -792,21 +705,6 @@
             return `${d}.${m}.${y}`;
         }
 
-        function ratioColor(ratio) {
-            if (ratio >= 1) return 'var(--success)';
-            if (ratio >= 0.5) return 'var(--warning)';
-            if (ratio > 0) return 'var(--accent)';
-            return 'var(--danger)';
-        }
-
-        // ===================== IDENTITY MATCHING =====================
-        // Личность сотрудника — стабильный employee_id из iiko (тот же, что у смен
-        // графика). Имя во всех трёх источниках — снимок: пока его считали ключом,
-        // переименование в iiko («Алексей Стажер» -> «Алексей Марченко») давало
-        // ДВЕ карточки с половиной ЗП в каждой (2026-08-06). Матч по имени
-        // остался фоллбэком для смен без employee_id и людей не из iiko.
-        // Зеркало на бэке — core/salary_payload.py (_emp_id/_find_match): правки
-        // синхронно, иначе кнопка экспорта и ночная выгрузка разойдутся.
         function empId(rec) {
             return String((rec && rec.employee_id) || '').trim();
         }
@@ -1549,210 +1447,46 @@
         // Единица и знаки показателя — из ответа расчёта: у штучного KPI «на
         // смену» сервер отдаёт unit «шт/смену» и decimals 2 (core/kpi_calculator.py,
         // metric_unit / metric_decimals); старый ответ без этих полей — по каталогу
-        function kpiDecimals(kpi) {
-            if (kpi.decimals != null) return kpi.decimals;
-            return availableMetrics[kpi.metric] ? availableMetrics[kpi.metric].decimals : 1;
-        }
-        function kpiUnit(kpi) {
-            if (kpi.unit != null) return kpi.unit;
-            const info = availableMetrics[kpi.metric] || {};
-            return (info.unit || '') + (kpi.per_shift ? PER_SHIFT_SUFFIX : '');
-        }
-        function withUnit(kpi, v) {
-            const unit = kpiUnit(kpi);
-            return formatNum(v, kpiDecimals(kpi)) + (unit ? ' ' + unit : '');
-        }
-
-        // Число «за период» — в обычных единицах метрики (штуки, рубли, часы).
-        // Дробное значение «за смену» человеку не показываем главным числом:
-        // «сделал 8 из 10» вместо «0,80 из 2,00» (владелец 2026-09-06).
-        // Знак после запятой добавляем только когда он есть по существу
-        // (минимум 3,33 шт), у рублей не добавляем никогда.
-        function periodVal(kpi, v) {
-            const info = availableMetrics[kpi.metric] || {};
-            const unit = info.unit || '';
-            const dec = kpi.period_decimals != null ? kpi.period_decimals : (info.decimals || 0);
-            const isRound = Math.abs(v - Math.round(v)) < 0.05;
-            const out = formatNum(v, (unit === '₽' || isRound) ? dec : Math.max(dec, 1));
-            return out + (unit ? ' ' + unit : '');
-        }
-        function shiftWord(n) {
-            const t = Math.abs(n) % 100, o = t % 10;
-            if (t > 10 && t < 20) return 'смен';
-            if (o === 1) return 'смена';
-            if (o >= 2 && o <= 4) return 'смены';
-            return 'смен';
-        }
-
+        // Панель KPI — общий блок расчёта, тот же, что на /me
+        // (static/js/shared/kpi_breakdown.js): чек премии и линейка на каждый
+        // показатель. Здесь только сборка модели из ответа /api/kpi-calculate —
+        // множители, премии и итог приходят с сервера и не пересчитываются.
         function renderKpiDetail(index) {
             const emp = mergedEmployees[index];
             const k = emp.kpi;
             if (!k || !k.kpis) return;
-
-            const keys = sortedKpiKeys(k.kpis);
-            const monthTargets = kpiData.month_targets || {};
-            const locs = Object.entries(k.shifts_per_location || {});
-            const totalShifts = locs.reduce((s, [, c]) => s + c, 0);
-            const maxRatio = kpiData.defaults.max_ratio || 2;
-            const normShifts = kpiData.defaults.norm_shifts || 15;
-            const basePerKpi = k.base_per_kpi || 0;
-            const pool = k.kpi_pool != null ? k.kpi_pool : basePerKpi * keys.length;
-            // total_shifts из API считает только смены на точках с настроенными целями
-            const koefTitle = `Смены на точках с настроенными целями (${k.total_shifts}) / норма (${normShifts})`;
-
-            // Шапка фонда: показывает деление фонда на количество показателей
-            let html = `<div class="kpi-fund-banner">
-                <div class="kpi-fund-main">KPI-премия: <strong>${formatMoney(k.total_premium)}</strong></div>
-                <div class="kpi-fund-sub">Фонд ${formatMoney(pool)} / ${keys.length} ${keys.length === 1 ? 'показатель' : 'показателя'} = <strong>${formatMoney(basePerKpi)}</strong> за каждый
-                    &nbsp;&middot;&nbsp; Коэффициент смен <span title="${koefTitle}">x${formatNum(k.koef, 2)}</span> (${k.total_shifts} из ${normShifts})</div>
-            </div>`;
-
-            html += '<div class="kpi-detail-cards">';
-
-            keys.forEach(key => {
-                const kpi = k.kpis[key];
-                if (!kpi) return;
-                const catalog = availableMetrics[kpi.metric] || {};
-                const color = kpi.no_targets ? 'var(--text-tertiary)' : ratioColor(kpi.capped_ratio);
-                const perKpiPremium = (kpi.intermediate_premium || 0) * k.koef;
-                const premColor = perKpiPremium > 0 ? 'var(--success)' : 'var(--text-tertiary)';
-                const pct = Math.min(kpi.capped_ratio / maxRatio * 100, 100);
-                // Штучный KPI: цель у каждого своя — норма за смену × его смены.
-                // Показываем в штуках за период, «за смену» уводим в пояснение.
-                const perShift = kpi.per_shift && kpi.target_period != null;
-                const shifts = kpi.shifts_divisor || 0;
-                // «Меньше — лучше» (опоздания, отмены): порог задан ВЫШЕ цели,
-                // и слово «минимум» тут обмануло бы — это потолок
-                const inverse = !kpi.no_targets && kpi.min > kpi.target;
-                const factSub = perShift
-                    ? `<div class="kpi-metric-sub">за ${shifts} ${shiftWord(shifts)}</div>` : '';
-                // У инверсного показателя цель обычно 0 — подпись «за N смен»
-                // под нулём ничего не объясняет, она нужна только у обычной цели
-                const targetSub = perShift && !inverse
-                    ? `<div class="kpi-metric-sub">за ${shifts} ${shiftWord(shifts)}</div>` : '';
-                const badge = perShift
-                    ? ' <span class="kpi-per-shift-badge" title="Цель зависит от числа смен: задана за норму смен и пересчитана на смены сотрудника">по сменам</span>' : '';
-                // Пояснение без дробей: норма смен -> целое число, его смены -> целое
-                // У инверсного показателя от смен зависит ПОТОЛОК (цель обычно 0),
-                // поэтому пересчёт показываем по нему, а не по цели
-                const perShiftNote = !perShift ? ''
-                    : inverse
-                    ? `<div class="kpi-per-shift-note">Порог зависит от смен: за норму ${normShifts} ${shiftWord(normShifts)} — ${periodVal(kpi, kpi.min * normShifts)}, за ${shifts} ${shiftWord(shifts)} — не больше <b>${periodVal(kpi, kpi.min_period)}</b></div>`
-                    : `<div class="kpi-per-shift-note">Цель зависит от смен: за норму ${normShifts} ${shiftWord(normShifts)} — ${periodVal(kpi, kpi.target * normShifts)}, за ${shifts} ${shiftWord(shifts)} — <b>${periodVal(kpi, kpi.target_period)}</b> (минимум ${periodVal(kpi, kpi.min_period)})</div>`;
-                const noTargets = kpi.no_targets
-                    ? '<div class="kpi-no-targets">На точках сотрудника цели по этому показателю не заданы: премия по нему не начисляется</div>' : '';
-                // KPI на блюда: из чего сложился факт и что не нашлось в продажах
-                const notFound = (kpiData.dishes_not_found || []);
-                let dishLine = '';
-                if (kpi.no_dishes) {
-                    dishLine = '<div class="kpi-no-targets">Блюда для этого показателя не выбраны: премия по нему не начисляется. Выберите их в «Настройка KPI-целей»</div>';
-                } else if (kpi.dishes && kpi.dishes.length) {
-                    const parts = kpi.dishes.map(d => {
-                        const val = (kpi.dish_facts || {})[d] || 0;
-                        const missing = notFound.some(n => n.trim().toLowerCase() === String(d).trim().toLowerCase());
-                        return missing
-                            ? `<span class="kpi-dish-missing" title="За период это блюдо не продавалось ни у кого — возможно, его переименовали в iiko">${d} — нет в продажах</span>`
-                            : `${d} <b>${periodVal(kpi, val)}</b>`;
-                    });
-                    dishLine = `<div class="kpi-dish-facts">Блюда: ${parts.join(' &middot; ')}</div>`;
-                }
-                // Цели точек — из ответа расчёта, уже в единицах показателя (за смену
-                // для штучных); month_targets — фоллбэк для старого ответа без location_targets
-                const resolvedLocs = kpi.location_targets || null;
-                const targetShifts = kpi.target_shifts != null ? kpi.target_shifts : totalShifts;
-
-                html += `<div class="kpi-detail-card">
-                    <div class="kpi-detail-header">
-                        <span class="kpi-detail-name">${kpi.name}${badge}</span>
-                        <span class="kpi-detail-premium" style="color:${premColor};">${formatMoney(perKpiPremium)} <span class="kpi-detail-max">/ ${formatMoney(basePerKpi)}</span></span>
-                    </div>
-
-                    <div class="kpi-metrics-grid">
-                        <div class="kpi-metric-item">
-                            <div class="kpi-metric-label">Факт</div>
-                            <div class="kpi-metric-val" style="color:${color};">${perShift ? periodVal(kpi, kpi.fact_raw) : withUnit(kpi, kpi.fact)}</div>
-                            ${factSub}
-                        </div>
-                        <div class="kpi-metric-item">
-                            <div class="kpi-metric-label">Цель${perShift ? '' : ' (взвеш.)'}</div>
-                            <div class="kpi-metric-val">${kpi.no_targets ? '—' : (perShift ? periodVal(kpi, kpi.target_period) : withUnit(kpi, kpi.target))}</div>
-                            ${kpi.no_targets ? '' : targetSub}
-                        </div>
-                        <div class="kpi-metric-item">
-                            <div class="kpi-metric-label">${inverse ? 'Максимум' : 'Минимум'}</div>
-                            <div class="kpi-metric-val">${kpi.no_targets ? '—' : (perShift ? periodVal(kpi, kpi.min_period) : withUnit(kpi, kpi.min))}</div>
-                        </div>
-                        <div class="kpi-metric-item">
-                            <div class="kpi-metric-label">Множитель</div>
-                            <div class="kpi-metric-val">x${formatNum(kpi.capped_ratio, 2)}${kpi.ratio > kpi.capped_ratio ? ' (cap)' : ''}</div>
-                        </div>
-                    </div>
-                    ${noTargets}
-                    ${dishLine}
-                    ${kpi.no_targets ? '' : perShiftNote}
-
-                    <div class="kpi-ratio-bar">
-                        <div class="kpi-ratio-fill" style="width:${pct}%;background:${color};"></div>
-                    </div>
-
-                    <table class="loc-breakdown">
-                        <thead><tr><th>Точка</th><th>Смены</th><th>Вес</th><th>Цель ТТ</th><th>${inverse ? 'Макс ТТ' : 'Мин ТТ'}</th></tr></thead>
-                        <tbody>`;
-
-                locs.forEach(([loc, cnt]) => {
-                    let locTargets, isSet;
-                    if (resolvedLocs) {
-                        locTargets = resolvedLocs[loc] || null;
-                        isSet = !!locTargets;
-                    } else {
-                        locTargets = (monthTargets[loc] || {})[key] || {};
-                        isSet = locTargets.target !== undefined && !(locTargets.target === 0 && locTargets.min === 0);
-                    }
-                    // Вес точки — среди смен на точках, где этот KPI задан
-                    const weight = isSet && targetShifts > 0 ? (cnt / targetShifts * 100) : null;
-                    // У штучного KPI цель точки — за смены сотрудника ИМЕННО на ней
-                    const locTarget = isSet
-                        ? (perShift && locTargets.target_period != null
-                            ? periodVal(kpi, locTargets.target_period) : withUnit(kpi, locTargets.target))
-                        : '—';
-                    const locMin = isSet
-                        ? (perShift && locTargets.min_period != null
-                            ? periodVal(kpi, locTargets.min_period) : withUnit(kpi, locTargets.min))
-                        : '—';
-                    html += `<tr>
-                        <td>${loc}</td>
-                        <td>${cnt}</td>
-                        <td>${weight === null ? '—' : formatNum(weight, 0) + '%'}</td>
-                        <td>${locTarget}</td>
-                        <td>${locMin}</td>
-                    </tr>`;
-                });
-
-                html += `<tr class="loc-weighted">
-                    <td>${perShift ? 'Итого' : 'Взвешенное'}</td><td>${targetShifts}</td><td>${targetShifts > 0 ? '100%' : '—'}</td>
-                    <td>${kpi.no_targets ? '—' : (perShift ? periodVal(kpi, kpi.target_period) : withUnit(kpi, kpi.target))}</td>
-                    <td>${kpi.no_targets ? '—' : (perShift ? periodVal(kpi, kpi.min_period) : withUnit(kpi, kpi.min))}</td>
-                </tr>`;
-
-                html += `</tbody></table></div>`;
+            const defaults = kpiData.defaults || {};
+            const spl = k.shifts_per_location || {};
+            const allShifts = Object.values(spl).reduce((s, c) => s + (c || 0), 0);
+            KpiBreakdown.render(document.getElementById(`detail-kpi-${index}`), {
+                title: 'KPI-премия',
+                total: k.total_premium,
+                koef: k.koef,
+                totalShifts: k.total_shifts,
+                allShifts,
+                norm: defaults.norm_shifts || 15,
+                pool: k.kpi_pool != null ? k.kpi_pool : null,
+                basePerKpi: k.base_per_kpi || 0,
+                maxRatio: defaults.max_ratio || 2,
+                shiftsPerLocation: spl,
+                catalog: kpiData.available_metrics || availableMetrics,
+                dishesNotFound: kpiData.dishes_not_found || [],
+                // Подсказка «пока месяц идёт» — только если выбран весь ТЕКУЩИЙ
+                // месяц: смены графика приходят за выбранный период, и для
+                // части месяца «к концу месяца» было бы неправдой
+                plan: {
+                    open: periodIsWholeCurrentMonth(),
+                    shifts: emp.hoursByRole ? (emp.hoursByRole.shifts_planned || 0) : 0
+                },
+                items: sortedKpiKeys(k.kpis).map(key => k.kpis[key]).filter(Boolean)
             });
+        }
 
-            // Premium calc summary. Сумма строк — из intermediate_premium × koef
-            // (то, что реально начислено); множитель в тексте округлён до сотых,
-            // поэтому произведение «на глаз» может отличаться на рубль
-            let calcSum = 0;
-            html += `<div class="kpi-calc-summary"><strong>Расчёт:</strong><br>`;
-            keys.forEach(key => {
-                const kpi = k.kpis[key];
-                if (!kpi) return;
-                const kpiPremCalc = (kpi.intermediate_premium || 0) * k.koef;
-                calcSum += kpiPremCalc;
-                html += `${kpi.name}: ${formatNum(k.koef, 2)} x ${formatNum(kpi.capped_ratio, 2)} x ${formatNum(basePerKpi, 0)} = ${formatMoney(kpiPremCalc)}<br>`;
-            });
-            html += `<br>Итого: <strong>${formatMoney(calcSum)}</strong></div>`;
-
-            html += '</div>';
-            document.getElementById(`detail-kpi-${index}`).innerHTML = html;
+        // Выбран весь текущий (по Москве) календарный месяц
+        function periodIsWholeCurrentMonth() {
+            if (!periodFrom || !periodTo) return false;
+            const nowMonth = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 7);
+            return periodFrom === nowMonth + '-01' && periodTo === monthLastDay(nowMonth);
         }
 
         // ===================== RATES EDITOR (ставки за час по ролям) =====================
@@ -1816,8 +1550,6 @@
         }
 
         // ===================== KPI TARGETS EDITOR =====================
-        // Зеркало PER_SHIFT_UNIT_SUFFIX (core/kpi_calculator.py) — единица «за смену»
-        const PER_SHIFT_SUFFIX = '/смену';
         // Первый месяц, с которого штучные метрики считаются «на смену»
         // (PER_SHIFT_FROM_MONTH на сервере; приходит в /api/kpi-targets).
         // До загрузки — null: флаг по умолчанию не ставится

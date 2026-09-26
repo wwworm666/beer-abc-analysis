@@ -1,0 +1,202 @@
+/* Расчёт KPI-премии — общий блок /me и страницы ЗП (static/js/shared/kpi_breakdown.js).
+
+   Цвета — через токены --kb-*. По умолчанию они берутся из общей палитры
+   (variables.css), /me переопределяет их на свои --me-* в me.css. Правила
+   блока пишутся только через --kb-*, иначе на одной из страниц поедет тема. */
+.kb {
+    --kb-card: var(--bg-secondary, #fff);
+    --kb-line: var(--border-color, #E8E6E3);
+    --kb-hair: var(--border-light, #F0EFED);
+    --kb-track: var(--bg-tertiary, #F4F3F0);
+    --kb-dead: var(--bg-hover, #EEECEA);
+    --kb-ink: var(--text-primary, #1a1a1a);
+    --kb-ink2: var(--text-secondary, #666);
+    --kb-ink3: var(--text-tertiary, #999);
+    --kb-accent: var(--accent, #D97757);
+    --kb-ok: var(--success, #059669);
+    --kb-warn: var(--warning, #D97706);
+    --kb-hint-bg: var(--warning-bg, #FFFBEB);
+    --kb-hint-ink: var(--warning, #D97706);
+    --kb-radius: 14px;
+    --kb-mono: var(--font-family, ui-monospace, monospace);
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    container-type: inline-size;
+    color: var(--kb-ink);
+    font-size: 14px;
+    line-height: 1.5;
+}
+/* minmax(0, 1fr): без этого колонку распирает min-content таблицы «Цели по
+   точкам» (ячейки nowrap) и карточка вылезает за экран телефона — таблица
+   должна прокручиваться в своём .kb-tbl-wrap, а не растягивать страницу. */
+.kb-card {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    background: var(--kb-card);
+    border: 1px solid var(--kb-line);
+    border-radius: var(--kb-radius);
+    padding: 16px 18px 14px;
+}
+
+/* ---------- чек ---------- */
+.kb-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.kb-total-n { font-weight: 600; font-size: 15px; }
+.kb-total-v {
+    margin-left: auto;
+    font: 600 24px/1 var(--kb-mono);
+    font-variant-numeric: tabular-nums;
+}
+.kb-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 2px 14px;
+    padding: 7px 0;
+    border-top: 1px solid var(--kb-hair);
+}
+.kb-line:first-child { border-top: none; }
+.kb-l-n { min-width: 0; overflow-wrap: anywhere; }
+.kb-l-n small { display: block; color: var(--kb-ink3); font-size: 12.5px; }
+.kb-l-f {
+    color: var(--kb-ink3);
+    font: 400 13px/1.3 var(--kb-mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.kb-l-m {
+    min-width: 76px;
+    text-align: right;
+    white-space: nowrap;
+    font: 500 14px/1.3 var(--kb-mono);
+    font-variant-numeric: tabular-nums;
+}
+.kb-line.is-sub { border-top-color: var(--kb-line); color: var(--kb-ink2); }
+.kb-line.is-grand { border-top: 2px solid var(--kb-ink); padding-top: 9px; font-weight: 600; }
+.kb-line.is-grand .kb-l-m { font-weight: 600; font-size: 15px; }
+.kb-foot { color: var(--kb-ink3); font-size: 12.5px; line-height: 1.5; }
+
+/* ---------- карточка показателя ---------- */
+.kb-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; }
+.kb-name { min-width: 0; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.kb-mult {
+    margin-left: auto;
+    font: 600 21px/1 var(--kb-mono);
+    font-variant-numeric: tabular-nums;
+}
+.kb-mult.is-ok { color: var(--kb-ok); }
+.kb-mult.is-zero { color: var(--kb-ink3); }
+.kb-fact { margin-top: -6px; color: var(--kb-ink2); font-size: 13.5px; }
+.kb-fact b { color: var(--kb-ink); font-weight: 600; }
+.kb-unit {
+    margin-bottom: -8px;
+    color: var(--kb-ink3);
+    font: 500 11px/1 var(--kb-mono);
+    letter-spacing: .04em;
+}
+
+/* Линейка: подписи отметок над дорожкой, факт под ней — не пересекаются. */
+.kb-ruler { position: relative; padding: 34px 0 26px; }
+.kb-track { position: relative; height: 12px; border-radius: 6px; background: var(--kb-track); }
+.kb-dead {
+    position: absolute; top: 0; bottom: 0; left: 0;
+    border-radius: 6px 0 0 6px;
+    background: repeating-linear-gradient(135deg, var(--kb-dead) 0 4px, transparent 4px 8px);
+}
+.kb-fill { position: absolute; top: 0; bottom: 0; background: var(--kb-accent); opacity: .85; }
+.kb-tick {
+    position: absolute; top: -5px; bottom: -5px;
+    width: 2px; margin-left: -1px;
+    border-radius: 1px;
+    background: var(--kb-ink3);
+}
+.kb-mark {
+    position: absolute; top: -7px; bottom: -7px;
+    width: 4px; margin-left: -2px;
+    border-radius: 2px;
+    background: var(--kb-ink);
+    box-shadow: 0 0 0 2px var(--kb-card);
+}
+.kb-lab {
+    position: absolute; top: 0;
+    transform: translateX(-50%);
+    text-align: center;
+    white-space: nowrap;
+}
+.kb-lab-x { display: block; font: 600 11px/1.2 var(--kb-mono); color: var(--kb-ink3); }
+.kb-lab-v {
+    display: block;
+    font: 500 12.5px/1.3 var(--kb-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--kb-ink);
+}
+.kb-you {
+    position: absolute; bottom: 2px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font: 600 12.5px/1 var(--kb-mono);
+    font-variant-numeric: tabular-nums;
+}
+.kb-you::before { content: '▲ '; font-size: 9px; color: var(--kb-ink3); }
+.kb-you.is-left { transform: none; }
+.kb-you.is-right { transform: translateX(-100%); }
+
+.kb-explain { color: var(--kb-ink2); font-size: 13.5px; line-height: 1.55; }
+.kb-n { color: var(--kb-ink); font-family: var(--kb-mono); font-variant-numeric: tabular-nums; }
+.kb-hint {
+    background: var(--kb-hint-bg);
+    color: var(--kb-hint-ink);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+}
+.kb-hint-t {
+    display: block;
+    margin-bottom: 4px;
+    font: 600 10.5px/1 var(--kb-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    opacity: .85;
+}
+.kb-warn { color: var(--kb-warn); font-size: 13.5px; }
+
+/* ---------- раскрытия ---------- */
+.kb-more { border-top: 1px solid var(--kb-hair); padding-top: 9px; }
+.kb-more > summary {
+    cursor: pointer;
+    color: var(--kb-ink3);
+    font: 600 11px/1.4 var(--kb-mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+}
+.kb-more > summary:focus-visible { outline: 2px solid var(--kb-accent); outline-offset: 3px; border-radius: 4px; }
+.kb-more[open] > summary { margin-bottom: 8px; }
+.kb-tbl-wrap { overflow-x: auto; }
+.kb-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.kb-tbl th, .kb-tbl td {
+    padding: 5px 8px;
+    text-align: right;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--kb-hair);
+}
+.kb-tbl th { color: var(--kb-ink3); font-weight: 500; font-size: 11.5px; }
+.kb-tbl th:first-child, .kb-tbl td:first-child { text-align: left; padding-left: 0; }
+.kb-tbl td { font-family: var(--kb-mono); font-variant-numeric: tabular-nums; }
+.kb-tbl td:first-child { font-family: inherit; }
+.kb-tbl tr.is-sum td { font-weight: 600; border-bottom: none; }
+.kb-tbl tr.is-off td { color: var(--kb-ink3); }
+.kb-tbl tr.is-warn td { color: var(--kb-warn); }
+.kb-formula { margin-top: 8px; color: var(--kb-ink2); font: 400 12.5px/1.55 var(--kb-mono); }
+.kb-more .kb-warn { margin-top: 8px; }
+
+/* Узкий контейнер (телефон, узкая колонка): формула строки чека уходит
+   под название, чтобы сумма не выталкивалась за край. */
+@container (max-width: 440px) {
+    .kb-line { grid-template-columns: minmax(0, 1fr) auto; }
+    .kb-l-f { grid-column: 1 / -1; grid-row: 2; }
+    .kb-total-v { font-size: 22px; }
+}

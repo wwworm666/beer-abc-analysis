@@ -442,14 +442,6 @@ details[open] > .me-box { animation: meIn .22s cubic-bezier(.2, .7, .3, 1); }
 }
 .me-box-sub { margin-top: 5px; color: var(--me-ink4); }
 .me-box-warn { margin-top: 5px; color: var(--me-warn); }
-.me-box-row {
-    display: flex;
-    gap: 10px;
-    border-top: 1px dotted var(--me-dot);
-    margin-top: 9px;
-    padding-top: 9px;
-}
-.me-box-row > .sp { flex: 1; }
 
 .me-sum {
     display: flex;
@@ -472,130 +464,28 @@ details[open] > .me-box { animation: meIn .22s cubic-bezier(.2, .7, .3, 1); }
 
 /* ==================== KPI ==================== */
 
-.me-kpi-total { padding: 4px 20px; }
-.me-kpi-total .me-row { border-top: none; }
-.me-kpi-total .me-row > summary { padding: 15px 0; }
-.me-kpi-total .me-row-n { font: 700 14.5px/1.2 var(--me-sans); }
-.me-kpi-total .me-row-v { font-size: 16px; font-weight: 700; }
-.me-kpi-total .me-box { margin: 0 0 15px; }
-
-.me-kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-    gap: 12px;
-    margin-top: 12px;
+/* Расчёт KPI рисует общий блок static/js/shared/kpi_breakdown.js — тот же, что
+   на странице ЗП. Здесь только его токены в палитре кабинета: правила блока
+   живут в static/shared/kpi_breakdown.css и пишутся через --kb-*. */
+body.me-page .kb {
+    --kb-card: var(--me-card);
+    --kb-line: var(--me-line);
+    --kb-hair: var(--me-hair);
+    --kb-track: var(--me-track);
+    --kb-dead: var(--me-dot);
+    --kb-ink: var(--me-ink);
+    --kb-ink2: var(--me-ink2);
+    --kb-ink3: var(--me-ink3);
+    --kb-accent: var(--me-accent);
+    --kb-ok: var(--me-ok);
+    --kb-warn: var(--me-warn);
+    --kb-hint-bg: color-mix(in srgb, var(--me-warn) 9%, var(--me-card));
+    --kb-hint-ink: var(--me-warn);
+    --kb-radius: var(--me-r-card);
+    --kb-mono: var(--me-mono);
+    font-family: var(--me-sans);
 }
-.me-kpi-card { min-width: 0; padding: 18px 20px 14px; }
-.me-kpi-name { font: 600 15px/1.3 var(--me-sans); }
-.me-kpi-prem {
-    white-space: nowrap;
-    font: 700 15px/1 var(--me-mono);
-    font-variant-numeric: tabular-nums;
-}
-.me-kpi-prem.is-zero { color: var(--me-ink4); }
-.me-kpi-max { font: 500 12px/1 var(--me-mono); color: var(--me-ink5); }
-
-.me-kpi-nums {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin: 14px 0 16px;
-}
-.me-kpi-num {
-    background: var(--me-soft2);
-    border: 1px solid var(--me-hair);
-    border-radius: var(--me-r-in);
-    padding: 9px 12px;
-    min-width: 0;
-}
-.me-kpi-num-l {
-    font: 600 10px/1 var(--me-mono);
-    letter-spacing: .1em;
-    color: var(--me-ink4);
-}
-.me-kpi-num-v {
-    margin-top: 5px;
-    font: 600 16px/1 var(--me-mono);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.me-kpi-num-s {
-    margin-top: 2px;
-    font: 400 10.5px/1.3 var(--me-sans);
-    color: var(--me-ink3, var(--me-ink2));
-    letter-spacing: 0.01em;
-}
-.me-kpi-num-v.is-ok { color: var(--me-ok); }
-.me-kpi-num-v.is-bad { color: var(--me-bad); }
-
-/* Шкала множителя 0..max с риской на цели: без риски шкала читается как
-   «выполнил половину», хотя это ровно «выполнил цель». */
-.me-scale {
-    position: relative;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--me-track);
-}
-.me-scale-fill {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    border-radius: 999px;
-    background: var(--me-accent);
-}
-.me-scale-mark {
-    position: absolute;
-    top: -3px; bottom: -3px;
-    width: 2px;
-    border-radius: 2px;
-    background: var(--me-ink);
-    opacity: .55;
-}
-/* Шкала «меньше — лучше»: заливка — израсходованный потолок, за потолком — красная */
-.me-scale-fill.is-inverse { background: var(--me-ink5); }
-.me-scale-fill.is-bad { background: var(--me-bad); }
-.me-scale-legend {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    margin-top: 6px;
-    font: 500 10.5px/1 var(--me-mono);
-    color: var(--me-ink4);
-}
-/* Подпись риски стоит под самой риской (left задаётся инлайном в процентах):
-   у месячного KPI минимум не посередине шкалы, и flex-центрирование не подходит */
-.me-scale-mid {
-    position: absolute;
-    top: 0;
-    transform: translateX(-50%);
-    white-space: nowrap;
-}
-.me-scale-mid.is-left { transform: none; }
-.me-scale-mid.is-right { transform: translateX(-100%); }
-/* Подпись упёрлась в соседа — строкой ниже, под той же риской */
-.me-scale-mid.is-below { top: 14px; }
-.me-scale-legend.is-two-rows { margin-bottom: 14px; }
-.me-verdict { margin-top: 12px; font: 400 12.5px/1.5 var(--me-sans); }
-.me-verdict.is-ok { color: var(--me-ok); }
-.me-verdict.is-warn { color: var(--me-warn); }
-.me-verdict.is-plain { color: var(--me-ink2); }
-
-/* «КАК ПОСЧИТАНО» — вложенное раскрытие внутри карточки KPI */
-.me-how { border-top: 1px solid var(--me-hair); margin-top: 10px; }
-.me-how > summary {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 0;
-    cursor: pointer;
-    list-style: none;
-    font: 600 11px/1 var(--me-mono);
-    letter-spacing: .08em;
-    color: var(--me-ink3);
-}
-.me-how > summary::-webkit-details-marker { display: none; }
-.me-how .me-box { margin: 0 0 10px; }
+body.me-page .kb-card { box-shadow: var(--me-shadow); padding: 18px 20px 14px; }
 
 /* ==================== Показатели ==================== */
 
@@ -1162,8 +1052,8 @@ body.me-page .ms-note {
     }
     .me-total { font-size: 34px; }
     .me-card { padding: 16px 16px 12px; }
-    .me-kpi-card, .me-group, .me-tile-b { padding: 15px 16px 12px; }
-    .me-kpi-total { padding: 2px 16px; }
+    .me-group, .me-tile-b { padding: 15px 16px 12px; }
+    body.me-page .kb-card { padding: 15px 16px 12px; }
     .me-tiles-big { grid-template-columns: repeat(2, 1fr); }
     .me-tiles-big > .me-tile-b:first-child { grid-column: 1 / -1; }
     .me-groups { grid-template-columns: 1fr; }
@@ -1178,7 +1068,6 @@ body.me-page .ms-note {
        для человека, который отвечает одной рукой, стоя за баром. */
     .me-acc-btns { grid-template-columns: 1fr; }
     .me-acc-b { padding: 15px 10px; }
-    .me-kpi-nums { grid-template-columns: repeat(2, 1fr); }
     .me-tiles-3 { gap: 8px; }
     .me-tile-s { padding: 10px 11px; }
     .me-tile-s-v { font-size: 17px; }
