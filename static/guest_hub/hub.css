@@ -1,0 +1,1605 @@
+/* Раздел «Гости» (/content-plan, /reviews, полоса на /guests) — общие стили.
+
+   Внешний вид повторяет /draft (static/draft/draft.css): тёплая палитра
+   (фон #F7F5F1, белые карточки с границей #EAE6DF, текст #1D1A16), подписи и
+   текст — IBM Plex Sans, числа — IBM Plex Mono, карточки со скруглением 16px,
+   своя шапка вместо общей .header-bar.
+
+   Токены `--gh-*` объявлены на `.gh-scope`, а не на body: полоса раздела
+   встраивается и в /guests, где body свой. Страницы раздела ставят на body
+   оба класса: `gh-page gh-scope`. Элементы, которые common.js добавляет в body
+   сам (тосты, диалоги, подсказка, затемнения), тоже получают класс gh-scope.
+
+   Встроенная полоса (/guests): <div class="gh-scope gh-embed"> вокруг
+   shared/guest_hub_strip.html — правила `.gh-embed` подгоняют отступы.
+   Классы на <html>, которые ставит common.js: gh-lock (открыт слой —
+   страница не прокручивается), gh-drawer-open (открыта выдвижная карточка —
+   тосты уходят с её нижней панели).
+
+   Тон (muted / warning / accent / success / danger) — класс `gh-tone-<тон>`.
+   Он задаёт пару локальных переменных --gh-t (цвет) и --gh-t-ink (текст), а
+   компоненты (бейдж, чип, баннер, тост, точка, счётчик) берут цвет из них.
+   Поэтому один и тот же класс тона работает на любом компоненте.
+
+   Правила: префикс gh- у каждого класса и токена; ни одного HEX вне двух блоков
+   токенов (светлый и тёмный); без эмодзи. Имена .metric-card / .metric-value /
+   .stat-value не использовать — глобальный mobile.css перебивает их на <=480px
+   (урок со страницы /me). Брейкпоинт телефона — 768px, как в base.css. */
+
+/* ==================== IBM Plex Sans ====================
+   Те же файлы и то же объявление, что в draft.css и me.css: в проекте есть
+   только начертание 400, полужирное браузер достраивает сам. Объявление
+   повторяется здесь, потому что этот файл отдаётся с ?v={{ app_version }}. */
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-cyrillic.woff2') format('woff2');
+    unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-cyrillic-ext.woff2') format('woff2');
+    unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+                   U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+                   U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'IBM Plex Sans';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('/static/fonts/ibm-plex-sans/IBMPlexSans-400-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+                   U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
+                   U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* ==================== Токены ==================== */
+
+.gh-scope {
+    /* поверхности */
+    --gh-bg: #F7F5F1;
+    --gh-card: #FFFFFF;
+    --gh-line: #EAE6DF;          /* граница карточки */
+    --gh-line2: #DDD7CC;         /* граница поля ввода и кнопки: чуть темнее карточки */
+    --gh-hair: #F1EDE6;          /* разделители строк внутри карточки */
+    --gh-rule: #E7E2D9;          /* линия в полосе-заголовке */
+    --gh-hover: #FBFAF7;         /* подсветка строки под курсором */
+    --gh-soft: #F7F4EE;          /* плитка внутри карточки, подложка переключателя */
+    --gh-chip: #FCFBF9;          /* плашка-подпись */
+    --gh-track: #EFEBE3;         /* подложка шкалы */
+    --gh-field: #FFFFFF;         /* фон поля ввода */
+
+    /* текст */
+    --gh-ink: #1D1A16;
+    --gh-ink2: #57524A;
+    --gh-ink3: #6B665C;
+    --gh-ink4: #8A8578;
+    --gh-ink5: #9C968A;
+    --gh-ink6: #B3ADA1;
+    --gh-faint: #C4BFB4;         /* прочерк там, где значения нет */
+
+    /* акцент и статусы */
+    --gh-accent: #D97757;
+    --gh-accent-h: #C2664A;
+    --gh-accent-ink: #A9502F;    /* акцентный ТЕКСТ: #D97757 на белом даёт ~3:1, мало для 12px */
+    --gh-on-accent: #FFFFFF;
+    --gh-on-status: #FFFFFF;     /* текст на залитой статусной кнопке */
+    --gh-ok: #059669;
+    --gh-ok-ink: #047857;
+    --gh-warn: #D97706;
+    --gh-warn-ink: #B45309;
+    --gh-bad: #DC2626;
+    --gh-bad-ink: #B91C1C;
+    --gh-muted: #9C968A;         /* тон muted: серый из той же шкалы, что текст */
+    --gh-muted-ink: #6B665C;
+
+    /* всплывающая подсказка: тёмная плашка в светлой теме */
+    --gh-tip-bg: #2A2622;
+    --gh-tip-ink: #F7F5F1;
+
+    --gh-shadow: 0 1px 2px rgba(28, 25, 23, .04);
+    --gh-shadow-seg: 0 1px 2px rgba(28, 25, 23, .10);
+    --gh-shadow-menu: 0 14px 36px rgba(28, 25, 23, .14);
+    --gh-shadow-drawer: -28px 0 60px rgba(28, 25, 23, .18);
+    --gh-shadow-modal: 0 24px 64px rgba(28, 25, 23, .22);
+    --gh-backdrop: rgba(28, 25, 23, .34);
+
+    /* радиусы: шапка/диалог 18, карточка 16, меню 14, бургер 13,
+       вложенное 12, плитка 10, поле 10, бейдж 6 */
+    --gh-r-head: 18px;
+    --gh-r-card: 16px;
+    --gh-r-menu: 14px;
+    --gh-r-burger: 13px;
+    --gh-r-in: 12px;
+    --gh-r-tile: 10px;
+    --gh-r-ctl: 10px;
+    --gh-r-badge: 6px;
+
+    /* высота кнопок и полей; на телефоне 42px (удобная цель для пальца) */
+    --gh-ctl-h: 38px;
+
+    --gh-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, sans-serif;
+    --gh-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+    /* Родные части полей (значки даты и времени, флажки, список select,
+       полосы прокрутки) рисуются в цвете темы. */
+    color-scheme: light;
+}
+
+[data-theme="dark"] .gh-scope,
+.gh-scope[data-theme="dark"] {
+    --gh-bg: #1C1917;
+    --gh-card: #24211F;
+    --gh-line: #37332F;
+    --gh-line2: #45403B;
+    --gh-hair: #302C29;
+    --gh-rule: #37332F;
+    --gh-hover: #2A2624;
+    --gh-soft: #2A2521;
+    --gh-chip: #221F1D;
+    --gh-track: #37332F;
+    --gh-field: #1F1C1A;
+
+    --gh-ink: #F5F2ED;
+    --gh-ink2: #D5CEC4;
+    --gh-ink3: #B6AFA5;
+    --gh-ink4: #9A9388;
+    --gh-ink5: #8A837A;
+    --gh-ink6: #756E66;
+    --gh-faint: #5E5850;
+
+    --gh-accent: #E89779;
+    --gh-accent-h: #F0AB91;
+    --gh-accent-ink: #F0AB91;
+    --gh-on-accent: #241F1C;
+    --gh-on-status: #1C1917;
+    --gh-ok: #34D399;
+    --gh-ok-ink: #34D399;
+    --gh-warn: #FBBF24;
+    --gh-warn-ink: #FBBF24;
+    --gh-bad: #F87171;
+    --gh-bad-ink: #F87171;
+    --gh-muted: #8A837A;
+    --gh-muted-ink: #B6AFA5;
+
+    --gh-tip-bg: #3A3531;
+    --gh-tip-ink: #F5F2ED;
+
+    --gh-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+    --gh-shadow-seg: 0 1px 2px rgba(0, 0, 0, .45);
+    --gh-shadow-menu: 0 14px 36px rgba(0, 0, 0, .5);
+    --gh-shadow-drawer: -28px 0 60px rgba(0, 0, 0, .55);
+    --gh-shadow-modal: 0 24px 64px rgba(0, 0, 0, .6);
+    --gh-backdrop: rgba(0, 0, 0, .55);
+
+    color-scheme: dark;
+}
+
+/* ==================== Каркас страницы ==================== */
+
+/* Общий каркас приложения на страницах раздела не нужен: своя шапка вместо
+   .header-bar, сайдбар открывается гамбургером из неё. Типографика и цвет
+   ссылок задаются внутри .gh-wrap, а не на body: сайдбар лежит в том же body,
+   и правило `body a` перекрасило бы всё меню (дефект ловили на /me). */
+body.gh-page { background: var(--gh-bg); }
+body.gh-page .header-bar { display: none; }
+body.gh-page .container { padding: 0; }
+
+/* Пока открыт диалог или выдвижная карточка, страница под ними не скроллится. */
+html.gh-lock,
+html.gh-lock body { overflow: hidden; }
+
+/* Атрибут hidden внутри раздела прячет элемент всегда. Без этого правила
+   компонент со своим display (.gh-btn, .gh-seg-btn, .gh-form-row — flex/inline-flex)
+   перебивает браузерное [hidden]{display:none}, и «скрытая» кнопка остаётся на
+   экране. Раньше страница отзывов закрывала это точечными правилами. */
+.gh-scope [hidden] { display: none !important; }
+
+.gh-wrap {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 22px 20px calc(64px + env(safe-area-inset-bottom, 0px));
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+.gh-wrap ::selection { background: color-mix(in srgb, var(--gh-accent) 22%, transparent); }
+
+/* ==================== Шапка ==================== */
+
+.gh-head {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-head);
+    box-shadow: var(--gh-shadow);
+    padding: 11px 18px 11px 12px;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-burger {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3.5px;
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: var(--gh-r-burger);
+    background: var(--gh-accent);
+    cursor: pointer;
+    flex: none;
+    transition: background .15s ease;
+}
+.gh-burger:hover { background: var(--gh-accent-h); }
+.gh-burger:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-burger span {
+    width: 16px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--gh-on-accent);
+}
+.gh-burger span:last-child { width: 10px; align-self: flex-start; margin-left: 13px; }
+.gh-title { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.gh-title-n {
+    font: 600 15px/1.2 var(--gh-sans);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gh-title-s {
+    font: 400 12px/1.2 var(--gh-sans);
+    color: var(--gh-ink4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gh-logo {
+    font: 600 15px/1 var(--gh-mono);
+    letter-spacing: .4px;
+    white-space: nowrap;
+    flex: none;
+    color: var(--gh-ink);
+}
+.gh-logo i { color: var(--gh-accent); font-style: normal; }
+.gh-logo b { color: var(--gh-accent); font-weight: 600; animation: ghBlink .9s step-end infinite; }
+@keyframes ghBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* ==================== Вкладки раздела и «требует внимания» ==================== */
+
+.gh-strip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 14px;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: 999px;
+    box-shadow: var(--gh-shadow);
+}
+.gh-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    padding: 0 16px;
+    border-radius: 999px;
+    font: 500 13px/1 var(--gh-sans);
+    color: var(--gh-ink3);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background .15s ease, color .15s ease;
+}
+.gh-tab:hover { color: var(--gh-ink); background: var(--gh-soft); }
+.gh-tab:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-tab.is-active {
+    background: color-mix(in srgb, var(--gh-accent) 13%, var(--gh-card));
+    color: var(--gh-accent-ink);
+    font-weight: 600;
+}
+
+.gh-attn {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: auto;
+    min-width: 0;
+}
+.gh-attn[hidden] { display: none; }
+.gh-attn-scope {
+    font: 600 9.5px/1 var(--gh-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+    margin-right: 4px;
+    cursor: help;
+}
+.gh-attn-item {
+    --gh-t: var(--gh-muted);
+    --gh-t-ink: var(--gh-muted-ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--gh-line);
+    border-radius: 999px;
+    background: var(--gh-card);
+    font: 500 12px/1 var(--gh-sans);
+    color: var(--gh-ink3);
+    text-decoration: none;
+    white-space: nowrap;
+    max-width: 100%;
+    transition: border-color .15s ease, background .15s ease;
+}
+.gh-attn-item[hidden] { display: none; }
+.gh-attn-item:hover { border-color: color-mix(in srgb, var(--gh-t) 55%, var(--gh-card)); }
+.gh-attn-item:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+/* Подпись счётчика: на очень узком экране обрезается многоточием, а не
+   раздвигает страницу (сам счётчик не шире строки). */
+.gh-attn-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gh-attn-n {
+    font: 600 12.5px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink);
+}
+/* Ненулевой счётчик: common.js ставит is-hot и класс тона. */
+.gh-attn-item.is-hot {
+    border-color: color-mix(in srgb, var(--gh-t) 38%, var(--gh-card));
+    background: color-mix(in srgb, var(--gh-t) 8%, var(--gh-card));
+    color: var(--gh-ink2);
+}
+.gh-attn-item.is-hot .gh-attn-n { color: var(--gh-t-ink); }
+.gh-attn.is-loading .gh-attn-n { color: var(--gh-faint); }
+
+/* Полоса, встроенная в чужую страницу (/guests: <div class="gh-scope gh-embed">).
+   Встаёт на место первой строки страницы (отступ сверху 18px — как был у
+   .guests-controls) и отделена линией: вкладки раздела — уровень выше, чем
+   переключатели периода и вкладки отчётов под ней, а по форме они похожи. */
+.gh-embed .gh-strip {
+    margin-top: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--gh-rule);
+}
+
+/* ==================== Полоса фильтров ==================== */
+/* Как .dr-filters на /draft: одна карточка, внутри контролы без своих рамок,
+   разделённые вертикальными линиями. position: relative обязателен — меню
+   позиционируются внутри полосы. */
+
+.gh-filters {
+    position: relative;
+    z-index: 41;
+    display: flex;
+    align-items: stretch;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    min-height: 58px;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-pick { position: relative; display: flex; }
+.gh-pick-btn {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    border: none;
+    background: transparent;
+    padding: 9px 18px;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+    transition: background .15s ease;
+}
+.gh-filters > .gh-pick:first-child .gh-pick-btn,
+.gh-filters > .gh-month:first-child { border-radius: var(--gh-r-card) 0 0 var(--gh-r-card); }
+.gh-pick-btn:hover { background: var(--gh-hover); }
+.gh-pick-btn:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: -2px; }
+.gh-pick-cap {
+    font: 600 9.5px/1 var(--gh-mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+}
+.gh-pick-val {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 13.5px/1 var(--gh-sans);
+    color: var(--gh-ink);
+    white-space: nowrap;
+}
+.gh-pick-hint { font: 500 11.5px/1 var(--gh-mono); color: var(--gh-ink5); }
+.gh-chev { flex: none; }
+.gh-chev path { stroke: var(--gh-ink6); }
+.gh-sep { width: 1px; background: var(--gh-line); margin: 13px 0; flex: none; }
+.gh-grow { flex: 1; }
+
+/* Месяц: ‹ Октябрь 2026 › — стрелки и подпись; подпись может быть кнопкой
+   (открывает меню, например «За всё время» на отзывах). */
+.gh-month { display: flex; align-items: center; gap: 2px; padding: 0 6px; }
+.gh-month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--gh-ink4);
+    cursor: pointer;
+    flex: none;
+    transition: background .15s ease, color .15s ease;
+}
+.gh-month-nav:hover { background: var(--gh-soft); color: var(--gh-ink); }
+.gh-month-nav:disabled { opacity: .35; cursor: default; background: transparent; }
+.gh-month-nav:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-month-nav svg { stroke: currentColor; fill: none; }
+.gh-month-val {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 124px;
+    padding: 9px 8px;
+    border: none;
+    border-radius: var(--gh-r-tile);
+    background: transparent;
+    text-align: left;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+}
+button.gh-month-val { cursor: pointer; transition: background .15s ease; }
+button.gh-month-val:hover { background: var(--gh-hover); }
+.gh-month-label { font: 600 13.5px/1 var(--gh-sans); white-space: nowrap; }
+
+/* Переключатель внутри полосы (Таблица | Календарь). */
+.gh-filters-seg { display: flex; align-items: center; padding: 9px 12px; }
+
+/* Действия справа в полосе. Блок растягивается и прижимает кнопки вправо:
+   в одной строке с выборами он делит свободное место с .gh-grow (кнопки всё
+   равно у правого края), а если кнопки не влезли и блок перенёсся на свою
+   строку — они стоят справа, под концом полосы, а не прилипают к левому краю. */
+.gh-filters-actions {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 9px 12px 9px 8px;
+}
+
+/* ==================== Меню / нижний лист ==================== */
+
+.gh-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 10px;
+    width: 272px;
+    max-height: min(420px, 70vh);
+    overflow-y: auto;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-menu);
+    box-shadow: var(--gh-shadow-menu);
+    padding: 6px;
+    z-index: 45;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+    text-align: left;
+}
+.gh-menu[hidden] { display: none; }
+.gh-menu.is-right { left: auto; right: 10px; }
+.gh-menu-grab { display: none; }
+.gh-menu-cap {
+    padding: 9px 12px 5px;
+    font: 600 9.5px/1 var(--gh-mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+}
+.gh-menu-sep { height: 1px; margin: 5px 6px; background: var(--gh-hair); }
+.gh-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 9px;
+    padding: 9px 12px;
+    cursor: pointer;
+    text-align: left;
+    text-decoration: none;
+    font: 500 13px/1.25 var(--gh-sans);
+    color: var(--gh-ink);
+    transition: background .12s ease;
+}
+.gh-menu-item:hover { background: var(--gh-soft); }
+.gh-menu-item:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: -2px; }
+.gh-menu-item.is-on { background: var(--gh-soft); color: var(--gh-accent-ink); font-weight: 600; }
+.gh-menu-item.is-danger { color: var(--gh-bad-ink); }
+.gh-menu-item:disabled { opacity: .4; cursor: default; background: transparent; }
+.gh-menu-item > span:first-child { flex: 1; min-width: 0; }
+.gh-menu-hint {
+    margin-left: auto;
+    font: 500 10.5px/1.2 var(--gh-mono);
+    color: var(--gh-ink5);
+    white-space: nowrap;
+}
+/* Затемнение под нижним листом: только на телефоне (common.js держит его в
+   синхроне с открытым меню). */
+.gh-menu-scrim { display: none; }
+
+/* ==================== Кнопки ==================== */
+
+.gh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: var(--gh-ctl-h);
+    min-height: 0;
+    padding: 0 16px;
+    border: 1px solid var(--gh-line2);
+    border-radius: 999px;
+    background: var(--gh-card);
+    color: var(--gh-ink);
+    font: 600 13px/1 var(--gh-sans);
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    flex: none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.gh-btn:not(:disabled):hover { background: var(--gh-hover); border-color: var(--gh-ink6); }
+.gh-btn:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-btn:disabled,
+.gh-btn[aria-disabled="true"] { opacity: .45; cursor: default; }
+.gh-btn svg { flex: none; stroke: currentColor; fill: none; }
+
+.gh-btn-primary {
+    background: var(--gh-accent);
+    border-color: var(--gh-accent);
+    color: var(--gh-on-accent);
+}
+.gh-btn-primary:not(:disabled):hover { background: var(--gh-accent-h); border-color: var(--gh-accent-h); }
+
+.gh-btn-danger {
+    background: var(--gh-bad);
+    border-color: var(--gh-bad);
+    color: var(--gh-on-status);
+}
+.gh-btn-danger:not(:disabled):hover {
+    background: color-mix(in srgb, var(--gh-bad) 88%, var(--gh-ink));
+    border-color: color-mix(in srgb, var(--gh-bad) 88%, var(--gh-ink));
+}
+
+/* Контурный вариант акцентной и опасной кнопки («Утвердить готовые»,
+   «Удалить материал»): тише залитой, но цвет действия виден. */
+.gh-btn-primary.gh-btn-outline {
+    background: var(--gh-card);
+    border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card));
+    color: var(--gh-accent-ink);
+}
+.gh-btn-primary.gh-btn-outline:not(:disabled):hover {
+    background: color-mix(in srgb, var(--gh-accent) 8%, var(--gh-card));
+    border-color: var(--gh-accent);
+}
+.gh-btn-danger.gh-btn-outline {
+    background: var(--gh-card);
+    border-color: color-mix(in srgb, var(--gh-bad) 40%, var(--gh-card));
+    color: var(--gh-bad-ink);
+}
+.gh-btn-danger.gh-btn-outline:not(:disabled):hover {
+    background: color-mix(in srgb, var(--gh-bad) 7%, var(--gh-card));
+    border-color: var(--gh-bad);
+}
+
+.gh-btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--gh-ink3);
+}
+.gh-btn-ghost:not(:disabled):hover { background: var(--gh-soft); border-color: transparent; color: var(--gh-ink); }
+
+.gh-btn-sm { height: 30px; padding: 0 12px; gap: 6px; font-size: 12px; }
+.gh-btn-icon { width: var(--gh-ctl-h); padding: 0; }
+.gh-btn-sm.gh-btn-icon { width: 30px; }
+.gh-btn-block { width: 100%; }
+
+/* Круглая кнопка закрытия (карточка, диалог). */
+.gh-x {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid var(--gh-line);
+    border-radius: 999px;
+    background: var(--gh-card);
+    color: var(--gh-ink2);
+    cursor: pointer;
+    flex: none;
+    transition: border-color .15s ease;
+}
+.gh-x:hover { border-color: var(--gh-accent); }
+.gh-x:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-x svg { stroke: currentColor; fill: none; }
+
+/* Ссылка-действие внутри текста. */
+.gh-link {
+    display: inline;
+    padding: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--gh-accent-ink);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--gh-accent) 40%, transparent);
+    cursor: pointer;
+}
+.gh-link:hover { border-bottom-color: var(--gh-accent-ink); }
+
+/* Индикатор загрузки; цвет — текущий цвет текста. */
+.gh-spin {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: ghSpin .7s linear infinite;
+    flex: none;
+}
+.gh-spin[hidden] { display: none; }
+@keyframes ghSpin { to { transform: rotate(360deg); } }
+
+/* ==================== Чипы, бейджи, точки ==================== */
+
+/* Чип: размещение в таблице, снимаемый фильтр, пометка. Цвет — от тона. */
+.gh-chip {
+    --gh-t: var(--gh-muted);
+    --gh-t-ink: var(--gh-muted-ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    max-width: 100%;
+    padding: 0 10px;
+    border: 1px solid color-mix(in srgb, var(--gh-t) 32%, var(--gh-card));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--gh-t) 9%, var(--gh-card));
+    color: var(--gh-t-ink);
+    font: 500 11.5px/1 var(--gh-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
+    vertical-align: middle;
+}
+button.gh-chip,
+a.gh-chip { cursor: pointer; transition: border-color .15s ease; }
+button.gh-chip:hover,
+a.gh-chip:hover { border-color: color-mix(in srgb, var(--gh-t) 70%, var(--gh-card)); }
+.gh-chip:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gh-t); flex: none; }
+.gh-chip-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    min-height: 0;
+    margin-right: -5px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    flex: none;
+}
+.gh-chip-x:hover { background: color-mix(in srgb, var(--gh-t) 18%, transparent); }
+.gh-chip-x svg { stroke: currentColor; fill: none; }
+.gh-chips { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+
+/* Бейдж: короткая метка («Живые данные: таплист», «серия: пт», статус). */
+.gh-badge {
+    --gh-t: var(--gh-muted);
+    --gh-t-ink: var(--gh-muted-ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: var(--gh-r-badge);
+    background: color-mix(in srgb, var(--gh-t) 12%, transparent);
+    color: var(--gh-t-ink);
+    font: 600 10.5px/1.35 var(--gh-mono);
+    letter-spacing: .02em;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Точка-индикатор. */
+.gh-dot {
+    --gh-t: var(--gh-muted);
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--gh-t);
+    flex: none;
+}
+
+/* ==================== Поля ввода ==================== */
+/* Классы, а не теги: глобальный base.css красит все input/select/textarea
+   (padding 12px 16px, скругление 24px), класс перебивает его по специфичности. */
+
+.gh-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.gh-field-cap {
+    font: 600 9.5px/1.2 var(--gh-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+}
+.gh-field-hint { font: 400 11.5px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+.gh-field-err { font: 500 11.5px/1.45 var(--gh-sans); color: var(--gh-bad-ink); }
+.gh-form-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.gh-form-row > .gh-field { flex: 1 1 160px; }
+
+.gh-input,
+.gh-select,
+.gh-textarea {
+    display: block;
+    width: 100%;
+    height: var(--gh-ctl-h);
+    min-height: 0;
+    padding: 0 12px;
+    border: 1px solid var(--gh-line2);
+    border-radius: var(--gh-r-ctl);
+    background: var(--gh-field);
+    color: var(--gh-ink);
+    font: 400 13.5px/1.3 var(--gh-sans);
+    box-shadow: none;
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.gh-textarea {
+    height: auto;
+    min-height: 96px;
+    padding: 10px 12px;
+    line-height: 1.55;
+    resize: vertical;
+}
+.gh-select { padding-right: 8px; cursor: pointer; }
+.gh-input::placeholder,
+.gh-textarea::placeholder { color: var(--gh-ink6); }
+.gh-input:focus,
+.gh-select:focus,
+.gh-textarea:focus {
+    border-color: var(--gh-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 14%, transparent);
+}
+.gh-input.is-invalid,
+.gh-select.is-invalid,
+.gh-textarea.is-invalid { border-color: var(--gh-bad); }
+.gh-input:disabled,
+.gh-select:disabled,
+.gh-textarea:disabled,
+.gh-input[readonly],
+.gh-textarea[readonly] { background: var(--gh-soft); color: var(--gh-ink4); cursor: default; }
+.gh-input-sm { height: 30px; font-size: 12.5px; padding: 0 10px; }
+
+/* Счётчик знаков под полем: «312 / 1024». */
+.gh-counter {
+    font: 500 11px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink5);
+    white-space: nowrap;
+}
+.gh-counter.is-over { color: var(--gh-bad-ink); font-weight: 700; }
+
+/* Индикатор автосохранения: «Сохраняется…» / «Сохранено» / ошибка. */
+.gh-save { font: 500 11px/1 var(--gh-mono); color: var(--gh-ink5); white-space: nowrap; }
+.gh-save.is-saving { color: var(--gh-ink4); }
+.gh-save.is-saved { color: var(--gh-ok-ink); }
+.gh-save.is-error { color: var(--gh-bad-ink); }
+
+/* Обычный флажок с подписью. */
+.gh-cb {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 9px;
+    font: 400 13px/1.4 var(--gh-sans);
+    color: var(--gh-ink2);
+    cursor: pointer;
+}
+.gh-cb input {
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    margin: 1px 0 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    box-shadow: none;
+    accent-color: var(--gh-accent);
+    cursor: pointer;
+    flex: none;
+}
+.gh-cb input:disabled + span { opacity: .5; }
+
+/* Флажки-таблетки (дни недели, бары): сам input скрыт, таблетка — span. */
+.gh-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+.gh-check { position: relative; display: inline-flex; cursor: pointer; }
+.gh-check input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    opacity: 0;
+    pointer-events: none;
+}
+.gh-check span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    min-width: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--gh-line2);
+    border-radius: 999px;
+    background: var(--gh-card);
+    font: 500 12.5px/1 var(--gh-sans);
+    color: var(--gh-ink2);
+    white-space: nowrap;
+    user-select: none;
+    transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.gh-check:hover span { border-color: var(--gh-ink6); }
+.gh-check input:checked + span {
+    background: color-mix(in srgb, var(--gh-accent) 13%, var(--gh-card));
+    border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card));
+    color: var(--gh-accent-ink);
+    font-weight: 600;
+}
+.gh-check input:focus-visible + span { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-check input:disabled + span { opacity: .45; cursor: default; }
+
+/* ==================== Переключатель-сегменты ==================== */
+
+.gh-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    background: var(--gh-soft);
+    border: 1px solid var(--gh-line);
+    border-radius: 999px;
+    max-width: 100%;
+}
+.gh-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    min-height: 0;
+    padding: 0 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    font: 500 12.5px/1 var(--gh-sans);
+    color: var(--gh-ink3);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s ease, color .15s ease;
+}
+.gh-seg-btn:hover { color: var(--gh-ink); }
+.gh-seg-btn:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-seg-btn.is-on {
+    background: var(--gh-card);
+    color: var(--gh-ink);
+    font-weight: 600;
+    box-shadow: var(--gh-shadow-seg);
+}
+.gh-seg-btn:disabled { opacity: .4; cursor: default; }
+.gh-seg.gh-seg-block { display: flex; width: 100%; }
+.gh-seg.gh-seg-block .gh-seg-btn { flex: 1 1 0; min-width: 0; }
+
+/* ==================== Карточки и секции ==================== */
+
+.gh-card {
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    padding: 18px 20px 16px;
+    overflow-wrap: break-word;
+}
+.gh-card-h { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 14px; }
+.gh-card-t { font: 600 15px/1.25 var(--gh-sans); }
+.gh-card-s { font: 500 10.5px/1.2 var(--gh-mono); color: var(--gh-ink5); margin-left: auto; }
+
+/* Полоса-заголовок секции: «ПОДПИСЬ ———— пояснение». */
+.gh-band {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    min-height: 24px;
+    margin: 26px 2px 12px;
+}
+.gh-band-t {
+    font: 600 11px/1 var(--gh-mono);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--gh-ink4);
+}
+.gh-band-line { flex: 1; min-width: 40px; height: 1px; background: var(--gh-rule); }
+.gh-band-s { font: 500 11px/1.2 var(--gh-mono); color: var(--gh-ink5); }
+
+/* Подзаголовок внутри выдвижной карточки или диалога. */
+.gh-sub { display: flex; align-items: center; gap: 10px; margin: 24px 0 12px; }
+.gh-sub:first-child { margin-top: 2px; }
+.gh-sub-t {
+    font: 600 10px/1 var(--gh-mono);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--gh-ink4);
+}
+.gh-sub-line { flex: 1; min-width: 24px; height: 1px; background: var(--gh-rule); }
+.gh-sub-s { font: 500 10.5px/1.2 var(--gh-mono); color: var(--gh-ink5); }
+
+/* Плитки с числом (метрики отзывов, сводка). Имя НЕ metric-card. */
+.gh-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.gh-tile {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    padding: 15px 17px 13px;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+}
+button.gh-tile { cursor: pointer; transition: border-color .15s ease, background .12s ease; }
+button.gh-tile:hover { background: var(--gh-hover); border-color: color-mix(in srgb, var(--gh-accent) 60%, var(--gh-card)); }
+.gh-tile:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-tile.is-on {
+    border-color: var(--gh-accent);
+    box-shadow: 0 0 0 1px var(--gh-accent), var(--gh-shadow);
+}
+.gh-tile-cap {
+    font: 600 10px/1.2 var(--gh-mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gh-ink4);
+}
+.gh-tile-v {
+    margin-top: 10px;
+    font: 700 24px/1 var(--gh-mono);
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+}
+.gh-tile-v u { font: 600 12.5px/1 var(--gh-mono); color: var(--gh-ink5); text-decoration: none; }
+.gh-tile-v.is-dash { color: var(--gh-faint); }
+.gh-tile-s { margin-top: 8px; font: 400 11.5px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+
+/* Строка-сводка: «Материалов 12 · Размещений 30 · …». */
+.gh-sumline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 18px;
+    margin: 16px 2px 0;
+    font: 400 12.5px/1.4 var(--gh-sans);
+    color: var(--gh-ink4);
+}
+.gh-sumline-i { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.gh-sumline-i b {
+    font: 600 13px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink);
+}
+.gh-sumline-i.is-warn b { color: var(--gh-warn-ink); }
+.gh-sumline-i.is-accent b { color: var(--gh-accent-ink); }
+
+/* Таблица: настоящая <table> внутри карточки; на узком экране прокручивается
+   карточка, а не страница. */
+.gh-table-wrap {
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    overflow-x: auto;
+}
+.gh-table { width: 100%; border-collapse: collapse; font-family: var(--gh-sans); color: var(--gh-ink); }
+.gh-table th {
+    padding: 12px 12px 10px;
+    text-align: left;
+    font: 600 9.5px/1.2 var(--gh-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--gh-hair);
+}
+.gh-table td {
+    padding: 11px 12px;
+    font: 400 13px/1.4 var(--gh-sans);
+    border-top: 1px solid var(--gh-hair);
+    vertical-align: top;
+}
+.gh-table tr:first-child td { border-top: none; }
+.gh-table th:first-child,
+.gh-table td:first-child { padding-left: 18px; }
+.gh-table th:last-child,
+.gh-table td:last-child { padding-right: 18px; }
+.gh-table tbody tr.is-click { cursor: pointer; transition: background .12s ease; }
+.gh-table tbody tr.is-click:hover td { background: var(--gh-hover); }
+.gh-table tr.is-sel td { background: color-mix(in srgb, var(--gh-accent) 6%, var(--gh-card)); }
+.gh-table tr.is-group td {
+    padding-top: 14px;
+    padding-bottom: 6px;
+    font: 600 10px/1.2 var(--gh-mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gh-ink4);
+    background: var(--gh-soft);
+}
+.gh-num {
+    font-family: var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ==================== Баннер, пустое состояние, сообщения ==================== */
+
+.gh-banner {
+    --gh-t: var(--gh-muted);
+    --gh-t-ink: var(--gh-muted-ink);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 16px;
+    border: 1px solid color-mix(in srgb, var(--gh-t) 30%, var(--gh-card));
+    border-radius: var(--gh-r-in);
+    background: color-mix(in srgb, var(--gh-t) 7%, var(--gh-card));
+    font: 400 13px/1.5 var(--gh-sans);
+    color: var(--gh-ink2);
+    overflow-wrap: break-word;
+}
+.gh-banner[hidden] { display: none; }
+.gh-banner-ico {
+    display: flex;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    color: var(--gh-t-ink);
+}
+.gh-banner-ico svg { width: 18px; height: 18px; stroke: currentColor; fill: none; }
+.gh-banner-t { flex: 1; min-width: 0; }
+.gh-banner-t b { font-weight: 600; color: var(--gh-ink); }
+.gh-banner-a { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; }
+
+.gh-empty {
+    padding: 38px 24px;
+    text-align: center;
+    background: var(--gh-card);
+    border: 1px dashed var(--gh-line2);
+    border-radius: var(--gh-r-card);
+    font-family: var(--gh-sans);
+}
+.gh-empty-t { font: 600 15px/1.35 var(--gh-sans); color: var(--gh-ink); }
+.gh-empty-s {
+    max-width: 480px;
+    margin: 6px auto 0;
+    font: 400 13px/1.55 var(--gh-sans);
+    color: var(--gh-ink4);
+}
+.gh-empty-a { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
+
+/* Загрузка или ошибка на месте блока: страница не остаётся молча пустой. */
+.gh-msg {
+    margin-top: 16px;
+    padding: 26px 22px;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    text-align: center;
+    font: 400 13px/1.6 var(--gh-sans);
+    color: var(--gh-ink3);
+}
+.gh-msg[hidden] { display: none; }
+.gh-msg.is-err { color: var(--gh-bad-ink); }
+
+.gh-legend { margin: 10px 4px 0; font: 400 11.5px/1.6 var(--gh-sans); color: var(--gh-ink5); }
+
+/* ==================== Подсказка ==================== */
+/* Любой элемент с data-tip="текст" показывает подсказку при наведении и
+   фокусе (common.js рисует одну плавающую плашку .gh-tipbox с position: fixed,
+   поэтому она не вылезает за экран и не даёт горизонтальной прокрутки).
+   .gh-help — кружок «?» рядом с подписью; .gh-hint — пунктир под текстом. */
+
+.gh-tipbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 90;
+    max-width: min(340px, calc(100vw - 16px));
+    padding: 9px 12px;
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-tip-bg);
+    color: var(--gh-tip-ink);
+    font: 400 12px/1.5 var(--gh-sans);
+    box-shadow: var(--gh-shadow-menu);
+    white-space: pre-line;
+    overflow-wrap: break-word;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+.gh-tipbox[hidden] { display: none; }
+.gh-tipbox.is-on { opacity: 1; }
+
+.gh-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid var(--gh-line2);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--gh-ink5);
+    font: 600 10px/1 var(--gh-mono);
+    cursor: help;
+    flex: none;
+    vertical-align: middle;
+    transition: border-color .15s ease, color .15s ease;
+}
+.gh-help:hover,
+.gh-help:focus-visible { border-color: var(--gh-accent); color: var(--gh-accent-ink); outline: none; }
+.gh-hint { border-bottom: 1px dotted var(--gh-ink6); cursor: help; }
+
+/* ==================== Выдвижная карточка ==================== */
+
+.gh-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: var(--gh-backdrop);
+    animation: ghFade .2s ease;
+}
+.gh-backdrop[hidden] { display: none; }
+@keyframes ghFade { from { opacity: 0; } to { opacity: 1; } }
+
+.gh-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 61;
+    display: flex;
+    flex-direction: column;
+    width: 600px;
+    max-width: 94vw;
+    background: var(--gh-card);
+    border-left: 1px solid var(--gh-line);
+    box-shadow: var(--gh-shadow-drawer);
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+    outline: none;
+    animation: ghSlideIn .24s cubic-bezier(.2, .7, .3, 1);
+}
+.gh-drawer[hidden] { display: none; }
+@keyframes ghSlideIn {
+    from { opacity: 0; transform: translateX(26px); }
+    to { opacity: 1; transform: none; }
+}
+.gh-drawer-head {
+    flex: none;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid var(--gh-hair);
+}
+.gh-drawer-h { flex: 1; min-width: 0; }
+.gh-drawer-t { font: 600 18px/1.25 var(--gh-sans); overflow-wrap: break-word; }
+.gh-drawer-s { margin-top: 5px; font: 500 11px/1.3 var(--gh-mono); color: var(--gh-ink5); }
+.gh-drawer-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 22px 28px;
+    overflow-wrap: break-word;
+}
+.gh-drawer-foot {
+    flex: none;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 22px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--gh-hair);
+    background: var(--gh-card);
+}
+
+/* ==================== Диалог ==================== */
+/* .gh-modal — затемнение на весь экран и центровка; .gh-modal-box — само окно.
+   Клик по затемнению (мимо окна) закрывает диалог. */
+
+.gh-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    background: var(--gh-backdrop);
+    animation: ghFade .18s ease;
+}
+.gh-modal[hidden] { display: none; }
+.gh-modal-box {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(100vh - 48px);
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-head);
+    box-shadow: var(--gh-shadow-modal);
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+    outline: none;
+    animation: ghPop .2s cubic-bezier(.2, .7, .3, 1);
+}
+.gh-modal-box.gh-modal-wide { max-width: 720px; }
+@keyframes ghPop {
+    from { opacity: 0; transform: translateY(8px) scale(.985); }
+    to { opacity: 1; transform: none; }
+}
+.gh-modal-head { flex: none; display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 6px; }
+.gh-modal-t { flex: 1; min-width: 0; margin: 0; font: 600 17px/1.3 var(--gh-sans); color: var(--gh-ink); }
+.gh-modal-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 20px 18px;
+    font: 400 13.5px/1.55 var(--gh-sans);
+    color: var(--gh-ink2);
+    overflow-wrap: break-word;
+}
+.gh-modal-body p + p { margin-top: 8px; }
+.gh-modal-foot {
+    flex: none;
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 20px 18px;
+    border-top: 1px solid var(--gh-hair);
+}
+
+/* ==================== Тосты ==================== */
+
+.gh-toasts {
+    position: fixed;
+    right: 20px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    width: min(420px, calc(100vw - 32px));
+    pointer-events: none;
+}
+.gh-toast {
+    --gh-t: var(--gh-muted);
+    --gh-t-ink: var(--gh-muted-ink);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: 100%;
+    padding: 11px 10px 11px 14px;
+    border: 1px solid var(--gh-line);
+    border-left: 3px solid var(--gh-t);
+    border-radius: var(--gh-r-in);
+    background: var(--gh-card);
+    box-shadow: var(--gh-shadow-menu);
+    font: 400 13px/1.45 var(--gh-sans);
+    color: var(--gh-ink);
+    pointer-events: auto;
+    overflow-wrap: break-word;
+    animation: ghToastIn .22s cubic-bezier(.2, .7, .3, 1);
+    transition: opacity .2s ease, transform .2s ease;
+}
+/* Пока открыта выдвижная карточка (common.js ставит на <html> gh-drawer-open),
+   тосты не закрывают её нижнюю панель с кнопками: на экране от 1100px — где
+   рядом с карточкой шириной 600px помещается колонка тостов 420px — встают
+   левее карточки; уже — поднимаются над панелью (76px ~ высота панели:
+   кнопка 38-42px + отступы 2 x 10-12px, с запасом). */
+html.gh-drawer-open .gh-toasts { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 1100px) {
+    html.gh-drawer-open .gh-toasts {
+        right: calc(600px + 20px);
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    }
+}
+@keyframes ghToastIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+.gh-toast.is-out { opacity: 0; transform: translateY(6px); }
+.gh-toast-t { flex: 1; min-width: 0; padding-top: 2px; }
+.gh-toast-a {
+    flex: none;
+    padding-top: 2px;
+    font: 600 13px/1.45 var(--gh-sans);
+    color: var(--gh-accent-ink);
+    text-decoration: none;
+    white-space: nowrap;
+}
+/* Действие-кнопка (GH.toast с onAction) выглядит так же, как действие-ссылка. */
+button.gh-toast-a {
+    min-height: 0;
+    margin: 0;
+    padding: 2px 0 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+.gh-toast-a:hover { text-decoration: underline; }
+.gh-toast-a:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; border-radius: 4px; }
+.gh-toast-x {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--gh-ink5);
+    cursor: pointer;
+    flex: none;
+}
+.gh-toast-x:hover { background: var(--gh-soft); color: var(--gh-ink); }
+.gh-toast-x svg { stroke: currentColor; fill: none; }
+
+/* ==================== Мелочи ==================== */
+
+.gh-mono { font-family: var(--gh-mono); font-variant-numeric: tabular-nums; }
+.gh-muted { color: var(--gh-ink5); }
+.gh-nowrap { white-space: nowrap; }
+.gh-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ==================== Тоны ====================
+   Стоят ПОСЛЕ компонентов: у компонента и у тона одна специфичность (один
+   класс), побеждает то, что ниже. Компонент задаёт тон muted по умолчанию,
+   поэтому тон не «протекает» из родителя в вложенный бейдж. */
+
+.gh-tone-muted { --gh-t: var(--gh-muted); --gh-t-ink: var(--gh-muted-ink); }
+.gh-tone-warning { --gh-t: var(--gh-warn); --gh-t-ink: var(--gh-warn-ink); }
+.gh-tone-accent { --gh-t: var(--gh-accent); --gh-t-ink: var(--gh-accent-ink); }
+.gh-tone-success { --gh-t: var(--gh-ok); --gh-t-ink: var(--gh-ok-ink); }
+.gh-tone-danger { --gh-t: var(--gh-bad); --gh-t-ink: var(--gh-bad-ink); }
+
+/* ==================== Телефон (<=768px, как base.css) ==================== */
+
+@media (max-width: 768px) {
+    .gh-scope { --gh-ctl-h: 42px; }
+
+    .gh-wrap { padding: 14px 16px calc(48px + env(safe-area-inset-bottom, 0px)); }
+    .gh-head { gap: 10px; padding: 9px 12px 9px 9px; }
+
+    /* Вкладки раздела — во всю ширину, счётчики — строкой ниже. */
+    .gh-strip { flex-direction: column; align-items: stretch; }
+    .gh-tabs { display: flex; }
+    .gh-tab { flex: 1 1 0; min-width: 0; padding: 0 8px; }
+    .gh-attn { margin-left: 0; }
+
+    /* Полоса фильтров переносится: каждый выбор — половина строки, месяц и
+       переключатель вида — строка целиком, действия — отдельной строкой. */
+    /* z-index снят: меню здесь — лист с position: fixed, ему не нужен слой
+       полосы. Со слоем 41 вся полоса оставалась бы яркой над затемнением
+       (.gh-menu-scrim, слой 40), а с auto затемняется вместе со страницей,
+       и над затемнением виден только лист (слой 46). */
+    .gh-filters { min-height: 0; z-index: auto; }
+    .gh-pick { flex: 1 1 50%; min-width: 0; }
+    .gh-pick-btn { width: 100%; min-width: 0; padding: 10px 14px; }
+    .gh-pick-val { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .gh-sep { display: none; }
+    .gh-filters > .gh-grow { display: none; }
+    .gh-month {
+        flex: 1 1 100%;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--gh-hair);
+        padding: 2px 6px;
+    }
+    .gh-filters > .gh-month:first-child { border-radius: var(--gh-r-card) var(--gh-r-card) 0 0; }
+    .gh-month-val { align-items: center; text-align: center; flex: 1; }
+    .gh-month-nav { width: 40px; height: 40px; }
+    .gh-filters-seg { flex: 1 1 100%; padding: 8px 12px; }
+    .gh-filters-seg .gh-seg { display: flex; width: 100%; }
+    .gh-filters-seg .gh-seg-btn { flex: 1 1 0; min-width: 0; }
+    .gh-filters-actions { flex: 1 1 100%; padding: 4px 12px 12px; }
+    .gh-filters-actions .gh-btn { flex: 1 1 auto; }
+
+    /* Меню — лист снизу во всю ширину с ручкой. */
+    .gh-menu,
+    .gh-menu.is-right {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: auto;
+        max-height: 75vh;
+        border-radius: 22px 22px 0 0;
+        padding: 6px 10px calc(14px + env(safe-area-inset-bottom, 0px));
+        z-index: 46;
+        animation: ghSheetUp .22s cubic-bezier(.2, .7, .3, 1);
+    }
+    .gh-menu-grab {
+        display: block;
+        width: 38px;
+        height: 4px;
+        margin: 4px auto 8px;
+        border-radius: 999px;
+        background: var(--gh-line2);
+    }
+    .gh-menu-item { min-height: 44px; font-size: 14px; }
+    .gh-menu-scrim {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        background: var(--gh-backdrop);
+        animation: ghFade .2s ease;
+    }
+    .gh-menu-scrim[hidden] { display: none; }
+
+    /* Поля: 16px, иначе iOS увеличивает страницу при фокусе. */
+    .gh-input,
+    .gh-select,
+    .gh-textarea { font-size: 16px; }
+
+    .gh-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gh-tile { padding: 13px 14px 12px; }
+    .gh-tile-v { font-size: 21px; }
+    .gh-card { padding: 16px 16px 14px; }
+    .gh-banner { padding: 12px 14px; flex-wrap: wrap; }
+    .gh-banner-a { width: 100%; }
+
+    /* Выдвижная карточка — во весь экран. */
+    .gh-drawer {
+        width: 100%;
+        max-width: 100%;
+        border-left: none;
+        animation: ghSheetUp .26s cubic-bezier(.2, .7, .3, 1);
+    }
+    .gh-drawer-head { padding: 12px 16px 12px; }
+    .gh-drawer-body { padding: 16px 16px 24px; }
+    .gh-drawer-foot { padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); }
+    .gh-drawer-foot .gh-btn { flex: 1 1 auto; }
+
+    /* Диалог — лист снизу. */
+    .gh-modal { align-items: flex-end; padding: 0; }
+    .gh-modal-box,
+    .gh-modal-box.gh-modal-wide {
+        max-width: 100%;
+        max-height: 92vh;
+        border-radius: 22px 22px 0 0;
+        border-bottom: none;
+        animation: ghSheetUp .24s cubic-bezier(.2, .7, .3, 1);
+    }
+    .gh-modal-head { padding: 16px 16px 4px; }
+    .gh-modal-body { padding: 8px 16px 16px; }
+    .gh-modal-foot { padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); }
+    .gh-modal-foot .gh-btn { flex: 1 1 auto; }
+
+    /* Тосты — сверху: внизу телефона живут лист меню, диалог-лист и нижняя
+       панель карточки, и тост закрывал бы поле ввода или кнопки. */
+    .gh-toasts,
+    html.gh-drawer-open .gh-toasts {
+        top: calc(12px + env(safe-area-inset-top, 0px));
+        right: 16px;
+        bottom: auto;
+        left: 16px;
+        width: auto;
+        align-items: stretch;
+    }
+    .gh-toast { animation-name: ghToastInTop; }
+    .gh-toast.is-out { transform: translateY(-6px); }
+}
+@keyframes ghToastInTop {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes ghSheetUp {
+    from { opacity: .6; transform: translateY(24px); }
+    to { opacity: 1; transform: none; }
+}
+@media (max-width: 640px) {
+    .gh-logo-tail { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gh-drawer, .gh-modal, .gh-modal-box, .gh-backdrop, .gh-toast,
+    .gh-menu, .gh-menu-scrim, .gh-logo b { animation: none; }
+}

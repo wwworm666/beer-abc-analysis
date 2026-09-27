@@ -1,0 +1,23 @@
+{#- Раздел «Гости»: шапка страницы вместо общей .header-bar + вкладки раздела.
+
+    Подключение (внутри <div class="gh-wrap">, body class="gh-page gh-scope"):
+        {% set hub_active = 'content' %}      -- 'content' | 'reviews' | 'guests'
+        {% set hub_title = 'Контент-план' %}
+        {% set hub_subtitle = 'План публикаций и рассылок на месяц' %}
+        {% include 'shared/guest_hub_head.html' %}
+
+    Общая .header-bar на body.gh-page скрыта (static/guest_hub/hub.css).
+    Гамбургер #ghBurger пробрасывает клик на скрытую кнопку #sidebar-toggle из
+    shared/nav.html — тот же приём, что на /draft; обработчик вешает
+    GH.initHeader() (static/js/guest_hub/common.js). -#}
+<header class="gh-head">
+  <button type="button" class="gh-burger" id="ghBurger" aria-label="Меню">
+    <span></span><span></span><span></span>
+  </button>
+  <span class="gh-title">
+    <span class="gh-title-n">{{ hub_title | default('Гости') }}</span>
+    {% if hub_subtitle %}<span class="gh-title-s">{{ hub_subtitle }}</span>{% endif %}
+  </span>
+  <span class="gh-logo"><i>&gt;&nbsp;</i>k<span class="gh-logo-tail">ultura.os</span><b>_</b></span>
+</header>
+{% include 'shared/guest_hub_strip.html' %}
