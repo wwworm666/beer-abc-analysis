@@ -23,6 +23,9 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const html = read('templates/draft.html');
 const css = read('static/draft/draft.css');
 const js = read('static/js/draft/draft.js');
+// Общая раскладка /draft и /packaging: вкладки, «Обзор», «Цены», бармены.
+const view = read('static/js/shared/abc_view.js');
+const viewCss = read('static/shared/abc_view.css');
 
 let passed = 0;
 let failed = 0;
@@ -118,18 +121,45 @@ test('имена из данных экранируются везде, где �
     assert.deepEqual(bare, [], `без экранирования: ${bare.join(', ')}`);
 });
 
-test('вкладок больше нет: обе таблицы на одном экране', () => {
-    assert.ok(!/dtab-btn|data-tab=/.test(html), 'остались кнопки вкладок');
+test('вкладки: у каждой своя панель, таблицы и баланс на месте', () => {
+    // С 2026-09-27 страница разложена по вкладкам (общий модуль abc_view.js).
+    assert.ok(!/dtab-btn/.test(html), 'остались кнопки прежних вкладок режима');
+    assert.match(html, /<nav class="av-tabs" id="drTabs"/, 'нет полосы вкладок');
+    for (const [id, panel] of [['drOverview', 'overview'], ['drPanelItems', 'items'],
+                               ['drPanelCats', 'cats'], ['drPrices', 'prices'],
+                               ['drPanelLosses', 'losses'], ['drPanelPeople', 'people']]) {
+        assert.match(html, new RegExp(`id="${id}" data-panel="${panel}"`), `нет панели ${panel}`);
+    }
+    // До загрузки видна только «Обзор»: остальные панели скрыты в разметке.
+    const hidden = [...html.matchAll(/class="av-panel" id="(\w+)" data-panel="\w+"( hidden)?/g)];
+    assert.deepEqual(hidden.filter((m) => !m[2]).map((m) => m[1]), ['drOverview']);
     assert.match(html, /id="drKegs"/, 'нет таблицы кегов');
     assert.match(html, /id="drBts"/, 'нет таблицы барменов');
     assert.match(html, /id="drBalance"/, 'нет баланса');
     assert.match(html, /id="drLosses"/, 'нет блока расхождений');
+    assert.match(html, /static\/js\/shared\/abc_view\.js\?v=\{\{ app_version \}\}[\s\S]*static\/js\/draft\/draft\.js/,
+        'общий модуль не подключён до draft.js');
+    assert.match(html, /static\/shared\/abc_view\.css\?v=\{\{ app_version \}\}/, 'нет стилей раскладки');
+    assert.match(js, /AbcView\.mount\(/, 'draft.js не монтирует раскладку');
+    assert.match(js, /AbcView\.fromDraft\(data\)/, 'модель раскладки не строится из ответа');
+});
+
+test('пояснения расчётов свёрнуты в «Как считается», а не висят на экране', () => {
+    // CLAUDE.md, п. 1: легенды и формулы — в <details>, на экране только числа.
+    const loose = html.replace(/<details[\s\S]*?<\/details>/g, '');
+    assert.ok(!/class="dr-legend"/.test(loose), 'легенда вне раскрывашки');
+    assert.ok(!/id="drKey"/.test(loose), 'расшифровка кода вне раскрывашки');
+    assert.ok(!/<div class="dr-note">/.test(js), 'заметка расчёта рисуется открытой');
+    assert.match(js, /function howNote/, 'нет общей обёртки пояснения');
+    for (const cls of ['.av-how', '.av-how-in', '.av-how.is-bare']) {
+        assert.ok(viewCss.includes(cls), `класс ${cls} не описан`);
+    }
 });
 
 test('на странице объяснено, что такое бармен и откуда литры', () => {
     assert.match(html, /Авторизовал/, 'нет оговорки про AuthUser');
     assert.match(html, /объём порции из техкарты/, 'не объяснено, откуда литры на человека');
-    assert.match(html, /расход кегов со склада/, 'не объяснено, откуда литры вообще');
+    assert.match(view, /расход кегов со склада/, 'не объяснено, откуда литры вообще');
 });
 
 test('расшифровка букв на экране и честна про методику /draft', () => {
@@ -197,17 +227,17 @@ test('в таблице кегов нет колонки XYZ, и таблица 
     assert.ok(minWidth <= wrap - 2 * 20 - 2, `таблица кегов ${minWidth}px шире контента ${wrap - 42}px`);
 });
 
-test('решения по ассортименту: секция на /draft печатает карточки с сервера', () => {
-    assert.match(html, /РЕШЕНИЯ ПО АССОРТИМЕНТУ/, 'нет секции решений');
-    assert.match(html, /id="drBuckets"/, 'нет узла карточек');
-    assert.match(js, /data\.buckets/, 'карточки не читаются из ответа');
+test('решения по ассортименту: группы с сервера на «Обзоре» и фильтром над таблицей', () => {
+    // Группы рисует общий модуль из data.buckets; клик — таблица кегов с фильтром.
+    assert.match(view, /d\.buckets/, 'группы не читаются из ответа');
+    assert.match(view, /data-go="items" data-filter="/, 'группа не открывает таблицу с фильтром');
+    assert.match(js, /view\.filter\(\)/, 'таблица кегов не фильтруется по группе');
+    assert.match(js, /ABC_Bucket === bucket/, 'фильтр не по полю группы');
+    assert.match(html, /id="drFilter"/, 'нет фильтра над таблицей');
     assert.match(js, /info\.rule/, 'правило группы не печатается');
     assert.match(js, /info\.hint/, 'подсказка группы не печатается');
-    assert.ok(!/Звёзды|Рабочие лошадки|Премиум-ниша/.test(js), 'на /draft старый словарь корзин');
-    for (const cls of ['dr-buckets', 'dr-bucket', 'dr-bucket-top', 'dr-led', 'dr-bucket-n',
-                       'dr-bucket-v', 'dr-bucket-s']) {
-        assert.ok(css.includes(`.${cls}`), `класс .${cls} не описан в CSS`);
-    }
+    assert.ok(!/Звёзды|Рабочие лошадки|Премиум-ниша/.test(js + view), 'старый словарь корзин');
+    assert.ok(!/id="drBuckets"|id="drSum"/.test(html), 'остались прежние сводка и карточки групп');
 });
 
 test('категории: секция, таблица и стиль берутся с блюда, а не с кега', () => {

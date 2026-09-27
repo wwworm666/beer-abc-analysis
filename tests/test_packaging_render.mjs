@@ -23,6 +23,9 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const html = read('templates/packaging.html');
 const css = read('static/packaging/packaging.css');
 const js = read('static/js/packaging/packaging.js');
+// Общая раскладка /draft и /packaging: вкладки, «Обзор», «Цены», бары.
+const view = read('static/js/shared/abc_view.js');
+const viewCss = read('static/shared/abc_view.css');
 const routes = read('routes/pages.py');
 const analysisPy = read('routes/analysis.py');
 const thresholds = read('core/abc_thresholds.py');
@@ -99,12 +102,51 @@ test('все классы, которые пишет JS, описаны в CSS',
     assert.deepEqual(missing, [], `нет в CSS: ${missing.join(', ')}`);
 });
 
-test('обе таблицы и обе секции объявлены в шаблоне', () => {
+test('обе таблицы, вкладки и панели объявлены в шаблоне', () => {
     assert.match(html, /id="pkCats"/, 'нет таблицы категорий');
     assert.match(html, /id="pkPos"/, 'нет таблицы позиций');
-    assert.match(html, /id="pkBuckets"/, 'нет корзин действий');
-    assert.match(html, /id="pkSum"/, 'нет сводки');
     assert.match(html, /id="pkDrawer"/, 'нет выдвижной карточки');
+    // С 2026-09-27 страница разложена по вкладкам (общий модуль abc_view.js).
+    assert.match(html, /<nav class="av-tabs" id="pkTabs"/, 'нет полосы вкладок');
+    for (const [id, panel] of [['pkOverview', 'overview'], ['pkPanelItems', 'items'],
+                               ['pkPanelCats', 'cats'], ['pkPrices', 'prices'],
+                               ['pkPanelLosses', 'losses'], ['pkPanelBars', 'bars']]) {
+        assert.match(html, new RegExp(`id="${id}" data-panel="${panel}"`), `нет панели ${panel}`);
+    }
+    const shown = [...html.matchAll(/class="av-panel" id="(\w+)" data-panel="\w+"( hidden)?/g)]
+        .filter((m) => !m[2]).map((m) => m[1]);
+    assert.deepEqual(shown, ['pkOverview'], 'до загрузки видна не только «Обзор»');
+    assert.ok(!/id="pkBuckets"|id="pkSum"/.test(html), 'остались прежние сводка и карточки групп');
+    assert.match(html, /static\/js\/shared\/abc_view\.js\?v=\{\{ app_version \}\}[\s\S]*static\/js\/packaging\/packaging\.js/,
+        'общий модуль не подключён до packaging.js');
+    assert.match(html, /static\/shared\/abc_view\.css\?v=\{\{ app_version \}\}/, 'нет стилей раскладки');
+    assert.match(js, /AbcView\.mount\(/, 'packaging.js не монтирует раскладку');
+    assert.match(js, /AbcView\.fromPackaging\(data\)/, 'модель раскладки не строится из ответа');
+});
+
+test('пояснения расчётов свёрнуты в «Как считается», а не висят на экране', () => {
+    // CLAUDE.md, п. 1: легенды и формулы — в <details>, на экране только числа.
+    const loose = html.replace(/<details[\s\S]*?<\/details>/g, '');
+    assert.ok(!/class="pk-legend"/.test(loose), 'легенда вне раскрывашки');
+    assert.ok(!/id="pkKey"/.test(loose), 'расшифровка кода вне раскрывашки');
+    assert.ok(!/<div class="pk-note">/.test(js), 'заметка расчёта рисуется открытой');
+    assert.ok(!/'<div class="pk-formula">/.test(js), 'правило группы рисуется открытым');
+    assert.match(js, /function howNote/, 'нет общей обёртки пояснения');
+});
+
+test('таблица позиций: порция строк и «Показать ещё», итог по всей выборке', () => {
+    // 450 фасовок одной лентой — 20 000 px; показываем порцию, остальное по кнопке.
+    assert.match(js, /rows\.slice\(0, state\.limit\)/, 'таблица позиций не делится на порции');
+    assert.match(js, /data-more-rows/, 'нет кнопки «Показать ещё»');
+    assert.match(js, /state\.limit \+= ROWS_STEP/, 'кнопка не добавляет строки');
+    assert.ok(viewCss.includes('.av-rows-more'), 'класс кнопки не описан');
+});
+
+test('классы общей раскладки, которые пишет packaging.js, описаны в abc_view.css', () => {
+    const used = new Set();
+    for (const m of js.matchAll(/["' ](av-[\w-]+)/g)) used.add(m[1]);
+    const missing = [...used].filter((c) => !viewCss.includes(`.${c}`));
+    assert.deepEqual(missing, [], `нет в abc_view.css: ${missing.join(', ')}`);
 });
 
 test('вкладок режима больше нет: категории и позиции на одном экране', () => {
@@ -138,7 +180,9 @@ test('обработчики кликов не подставляют данны
     assert.ok(!/onclick=/.test(js), 'в разметке появился инлайновый onclick');
     assert.ok(!/onclick=/.test(html), 'в шаблоне появился инлайновый onclick');
     assert.match(js, /data-cat="' \+ esc\(/, 'имя категории пишется без экранирования');
-    assert.match(js, /data-bucket="' \+ esc\(bucket\.key\)/, 'ключ группы пишется без экранирования');
+    assert.match(view, /data-item="' \+ esc\(it\.id\)/, 'идентификатор позиции пишется без экранирования');
+    // Ключ группы в data-filter — только из постоянного списка BUCKET_ORDER.
+    assert.match(view, /var BUCKET_ORDER = \[/, 'ключи групп не из постоянного списка');
 });
 
 test('имена из данных экранируются везде, где попадают в разметку', () => {
@@ -175,11 +219,13 @@ test('решения по ассортименту: имена и правила
     // вместе с правилом и подсказкой — раньше имена жили в двух местах и расходились.
     assert.ok(!/Звёзды|Рабочие лошадки|Премиум-ниша|key: 'stars'/.test(js),
         'на фронте остался старый словарь корзин');
-    assert.match(js, /data\.buckets/, 'карточки групп не читаются из ответа');
+    assert.ok(!/Звёзды|Рабочие лошадки|Премиум-ниша|key: 'stars'/.test(view),
+        'в общей раскладке старый словарь корзин');
+    assert.match(view, /d\.buckets/, 'группы не читаются из ответа');
     assert.match(js, /info\.rule/, 'правило группы не печатается');
     assert.match(js, /info\.hint/, 'подсказка группы не печатается');
-    assert.match(html, /РЕШЕНИЯ ПО АССОРТИМЕНТУ/, 'секция не переименована');
-    assert.ok(!/КОРЗИНЫ ДЕЙСТВИЙ/.test(html), 'старое название секции осталось');
+    assert.match(view, /Выручка по решениям/, 'нет блока групп на «Обзоре»');
+    assert.ok(!/КОРЗИНЫ ДЕЙСТВИЙ/.test(html + view), 'старое название секции осталось');
 });
 
 test('пороги в подписях совпадают с константами ядра', () => {
@@ -229,7 +275,7 @@ test('расшифровка букв на экране и совпадает с
 
 test('секция баланса и расхождений — зеркало /draft, в штуках', () => {
     assert.match(html, /БАЛАНС И РАСХОЖДЕНИЯ/, 'нет секции баланса');
-    assert.match(html, /всё в штуках/, 'единица не названа');
+    assert.match(html, /штуки и рубли по закупке/, 'единица не названа');
     for (const id of ['pkBalance', 'pkLosses', 'pkDiag', 'pkUpdated']) {
         assert.ok(html.includes(`id="${id}"`), `нет узла ${id}`);
     }

@@ -174,6 +174,7 @@ static/
 │   │   └── modules/     # analytics, charts, trends, plans, comparison, ai_insights, ... (15+)
 │   ├── draft/           # draft.js — весь экран «Розлив — ABC/XYZ и потери»
 │   ├── packaging/       # packaging.js — весь экран «Фасовка — ABC/XYZ и потери»
+│   ├── shared/          # общие блоки страниц: kpi_breakdown.js, abc_view.js (вкладки /draft и /packaging)
 │   ├── employee/
 │   ├── guests/
 │   ├── me/
@@ -182,6 +183,7 @@ static/
 │   └── stocks/
 ├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
 ├── packaging/           # packaging.css — оформление /packaging как /draft (токены --pk-*)
+├── shared/              # kpi_breakdown.css, abc_view.css (цвета — токены страницы)
 ├── me/                  # me.css — оформление /me по макету (токены --me-*)
 ├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
 ├── css/

@@ -21,14 +21,28 @@
         from: null,
         to: null,
         data: null,              // ответ /api/packaging
+        model: null,             // модель общей раскладки (AbcView.fromPackaging)
         query: '',
         catSort: { key: 'TotalRevenue', dir: -1 },
         posSort: { key: 'TotalRevenue', dir: -1 },
         loading: false,
-        bars: []
+        bars: [],
+        // Строк таблицы позиций на экране: 450 фасовок одной лентой — 20 000 px.
+        limit: 30
     };
 
     var el = {};
+    // Строк таблицы за одно «Показать ещё».
+    var ROWS_STEP = 30;
+    // Общая раскладка страницы (static/js/shared/abc_view.js): вкладки, «Обзор»,
+    // «Цены», бары. null — модуль не подключён (страница работает и без него).
+    var view = null;
+
+    // Пояснение расчёта — свёрнуто под стрелкой «Как считается» (CLAUDE.md, п. 1).
+    function howNote(inner, cls) {
+        return '<details class="av-how"><summary>Как считается</summary><div class="av-how-in">' +
+            '<div class="' + (cls || 'pk-dr-note') + '">' + inner + '</div></div></details>';
+    }
 
     // ==================== формат ====================
 
@@ -278,6 +292,7 @@
             }
             state.data = result.payload;
             state.query = '';
+            state.limit = ROWS_STEP;
             el.search.value = '';
             render();
         }).catch(function (error) {
@@ -332,41 +347,13 @@
             el.updated.hidden = true;
         }
 
-        renderSummary(data);
-        renderBuckets(data);
+        state.model = window.AbcView ? window.AbcView.fromPackaging(data) : null;
+        if (view && state.model) view.render(state.model);
         renderCategories();
         renderPositions();
         renderBalance(data);
         renderLosses(data);
         renderDiagnostics(data);
-    }
-
-    function tile(cap, value, unit, sub) {
-        return '<div class="pk-tile"><div class="pk-tile-cap">' + esc(cap) + '</div>' +
-            '<div class="pk-tile-v">' + value +
-            (unit ? '<u> ' + esc(unit) + '</u>' : '') + '</div>' +
-            '<div class="pk-tile-s">' + esc(sub) + '</div></div>';
-    }
-
-    function renderSummary(data) {
-        var t = data.totals || {};
-        var html = '';
-        html += tile('ВЫРУЧКА', num(Math.round(t.revenue), 0), '₽',
-            'фасовка, со скидками');
-        html += tile('ПРОДАНО', num(t.qty, 0), 'шт',
-            'бутылок и банок за период');
-        html += tile('ПОЗИЦИЙ', num(t.sku, 0), '',
-            t.sku + ' ' + plural(t.sku, 'фасовка', 'фасовки', 'фасовок') + ' в продаже');
-        html += tile('КАТЕГОРИЙ', num(t.categories, 0), '',
-            'все показаны ниже');
-        html += tile('НАЦЕНКА', t.markup_percent === null ? '—'
-                : markupPct(t.markup_percent, 1).replace('%', ''), '%',
-            '(выручка − себестоимость) / себестоимость');
-        html += tile('МАРЖА', num(Math.round(t.margin), 0), '₽',
-            'выручка минус себестоимость');
-        html += tile('СРЕДНЯЯ ЦЕНА', num(Math.round(t.price_per_unit), 0), '₽',
-            'выручка / штуки');
-        el.sum.innerHTML = html;
     }
 
     // Корзины действий: порядок и подписи повторяют core/abc_buckets.py.
@@ -380,20 +367,6 @@
             if (cards[i].key === key) return cards[i];
         }
         return null;
-    }
-
-    function renderBuckets(data) {
-        var html = '';
-        (data.buckets || []).forEach(function (bucket) {
-            html += '<button type="button" class="pk-bucket" data-bucket="' + esc(bucket.key) + '">' +
-                '<span class="pk-bucket-top"><span class="pk-led ' + esc(bucket.tone) + '"></span>' +
-                '<span class="pk-bucket-n">' + esc(bucket.name) + '</span></span>' +
-                '<div class="pk-bucket-v">' + bucket.count +
-                '<u> ' + plural(bucket.count, 'позиция', 'позиции', 'позиций') + '</u></div>' +
-                '<div class="pk-bucket-s">' + esc(bucket.action) + ' · ' +
-                pct(bucket.revenue_share_percent, 1) + ' выручки</div></button>';
-        });
-        el.buckets.innerHTML = html;
     }
 
     function sortRows(rows, sort) {
@@ -521,6 +494,11 @@
                        String(p.Category || '').toLowerCase().indexOf(query) >= 0;
             });
         }
+        // Группа решения: клик по группе на «Обзоре» или фильтр над таблицей.
+        var bucket = view ? view.filter() : null;
+        if (bucket) {
+            rows = rows.filter(function (p) { return p.ABC_Bucket === bucket; });
+        }
         rows = sortRows(rows, state.posSort);
         var maxShare = rows.reduce(function (acc, p) {
             return Math.max(acc, p.RevenueSharePercent || 0);
@@ -530,7 +508,7 @@
         }, 0);
 
         var total = (data.positions || []).length;
-        el.posCount.textContent = query
+        el.posCount.textContent = (query || bucket)
             ? rows.length + ' из ' + total
             : total + ' ' + plural(total, 'позиция', 'позиции', 'позиций');
 
@@ -552,7 +530,7 @@
             '<span class="pk-th c">ABC</span>' +
             '</div>';
 
-        rows.forEach(function (p, index) {
+        rows.slice(0, state.limit).forEach(function (p, index) {
             html += '<div class="pk-row is-body" data-pos="' + p.Id + '">' +
                 '<span class="pk-rank">' + (index + 1) + '</span>' +
                 '<span class="pk-name">' + esc(p.Beer) + '</span>' +
@@ -570,7 +548,7 @@
 
         if (!rows.length) {
             html += '<div class="pk-empty">' + (total
-                ? 'ничего не найдено — уточните запрос'
+                ? 'ничего не найдено — уточните запрос' + (bucket ? ' или снимите фильтр группы' : '')
                 : 'продаж фасовки за период нет — ниже только движения склада') + '</div>';
         } else {
             var sumQty = rows.reduce(function (a, p) { return a + p.TotalQty; }, 0);
@@ -591,6 +569,11 @@
                     (sumCost > 0 ? markupPct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
                     '</span>' +
                 '<span></span></div>';
+            // Итог — по всем строкам выборки, показаны первые state.limit.
+            if (rows.length > state.limit) {
+                html += '<button type="button" class="av-rows-more" data-more-rows>Показать ещё ' +
+                    Math.min(ROWS_STEP, rows.length - state.limit) + ' · всего ' + rows.length + '</button>';
+            }
         }
         el.pos.innerHTML = html;
     }
@@ -663,6 +646,10 @@
             html += balanceRow('Недостача по инвентаризациям', losses.inventory_net, '−', scale, 'bad',
                 losses.sold > 0 ? '<span class="pk-pill bad">' +
                     pct(losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+            // Та же недостача в деньгах (AbcView.shortage): штуки × средняя закупка штуки.
+            if (window.AbcView && state.model) {
+                html += window.AbcView.shortageLineHtml(state.model, 'av-rub-line');
+            }
         }
 
         html += '<div class="pk-bal-total">' +
@@ -672,14 +659,14 @@
             signed(losses.balance, losses.balance < 0 ? '−' : '+') + ' шт</span></div>' +
             // Формула словами и числами — требование CLAUDE.md пункт 1. Оба
             // итога (received, spent) приходят с сервера, здесь ничего не складывается.
-            '<div class="pk-note">приход ' + qty(losses.received) +
+            howNote('приход ' + qty(losses.received) +
             ' − расход ' + qty(losses.spent) +
             ' (продано ' + qty(losses.sold) + ' + акты ' + qty(losses.writeoff) +
             (losses.inventory_net < 0
                 ? ' − излишек ' + qty(-losses.inventory_net)
                 : ' + недостача ' + qty(losses.inventory_net)) +
             ' + перемещения ' + qty(losses.transfer_out) +
-            ') · товар фасовки списывается при продаже сам, без техкарты</div>';
+            ') · товар фасовки списывается при продаже сам, без техкарты', 'pk-note');
         el.balance.innerHTML = html;
     }
 
@@ -694,7 +681,15 @@
         return surplus > 0 ? signed(surplus, '+') : '0';
     }
 
-    function lossRow(row, maxLoss) {
+    // Потери строки в рублях по закупке позиции (AbcView.lossRubles); у товара без
+    // продаж в периоде — по средней закупке штуки за период.
+    function lossRub(rubles, id) {
+        var r = rubles && rubles.byId[id];
+        if (!r || !(r.rub > 0)) return '';
+        return '<span class="av-rub">≈ ' + money(r.rub) + (r.byAvg ? ' по средней закупке' : '') + '</span>';
+    }
+
+    function lossRow(row, maxLoss, rubles) {
         var loss = row.LossQty || 0;
         // Излишек (недостача с минусом) — не потеря: полосы у такой строки нет,
         // иначе красная засечка читалась бы как «тут пропало».
@@ -702,7 +697,7 @@
         var linked = row.PositionId !== null && row.PositionId !== undefined;
         return '<div class="pk-loss-row' + (linked ? '' : ' is-static') + '"' +
             (linked ? ' data-pos="' + row.PositionId + '"' : '') + '>' +
-            '<span class="pk-loss-n">' + esc(row.ProductName) + '</span>' +
+            '<span class="pk-loss-n">' + esc(row.ProductName) + lossRub(rubles, row.PositionId) + '</span>' +
             '<span class="pk-num">' + (row.WriteoffQty ? qty(row.WriteoffQty) : '0') + '</span>' +
             '<span class="pk-share">' +
                 '<span class="pk-bar pk-loss-bar"><i style="width:' + width.toFixed(1) +
@@ -721,11 +716,14 @@
         var rows = losses.by_item || [];
         var totalLoss = rows.reduce(function (acc, row) { return acc + (row.LossQty || 0); }, 0);
         var maxLoss = rows.reduce(function (acc, row) { return Math.max(acc, row.LossQty || 0); }, 0);
+        var rubles = window.AbcView && state.model ? window.AbcView.lossRubles(state.model) : null;
 
         var html = '<div class="pk-card-h"><span class="pk-card-t">Где именно расхождения</span>' +
             '<span class="pk-card-s">' + rows.length + ' ' +
             plural(rows.length, 'позиция', 'позиции', 'позиций') + ' · ' + qty(totalLoss) +
-            ' шт потерь</span></div>';
+            ' шт потерь</span>' +
+            (rubles && rubles.total > 0 ? '<span class="av-rub-head">≈ ' + money(rubles.total) +
+                ' по закупке</span>' : '') + '</div>';
 
         if (!losses.diagnostics || !losses.diagnostics.has_transactions) {
             html += '<div class="pk-empty" style="border-top:none">' +
@@ -748,7 +746,7 @@
 
         // Первые восемь видны сразу, остальные под раскрывашкой — как на /draft.
         var head = rows.slice(0, 8), tail = rows.slice(8);
-        head.forEach(function (row) { html += lossRow(row, maxLoss); });
+        head.forEach(function (row) { html += lossRow(row, maxLoss, rubles); });
 
         if (tail.length) {
             var tailLoss = tail.reduce(function (acc, row) { return acc + (row.LossQty || 0); }, 0);
@@ -758,16 +756,16 @@
                 '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">' +
                 '<path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" ' +
                 'stroke-linecap="round" stroke-linejoin="round"/></svg></summary>';
-            tail.forEach(function (row) { html += lossRow(row, maxLoss); });
+            tail.forEach(function (row) { html += lossRow(row, maxLoss, rubles); });
             html += '</details>';
         }
 
-        html += '<div class="pk-note">% — потери (акты + недостача) к проданному по складу · ' +
+        html += howNote('% — потери (акты + недостача) к проданному по складу · ' +
             'недостача считается по каждому бару: излишек одного бара не гасит недостачу ' +
             'другого · «+N» — излишек · ' +
             '«—» — позиция не продавалась · серые строки — товар склада, которого нет ' +
             'среди проданных позиций периода (нет продаж или другое имя в номенклатуре) · ' +
-            'клик по строке открывает карточку</div>';
+            'клик по строке открывает карточку', 'pk-note');
         el.losses.innerHTML = html;
     }
 
@@ -808,6 +806,9 @@
             parts.push('связка склада с продажами — по названию: в продажах нет DishId');
         }
         el.diag.innerHTML = parts.length ? parts.join(' · ') : '';
+        // Раскрывашка «Диагностика данных» без содержимого не нужна.
+        var diagBox = el.diag.closest ? el.diag.closest('details') : null;
+        if (diagBox) diagBox.hidden = !parts.length;
     }
 
     // ==================== карточки ====================
@@ -974,7 +975,7 @@
             '</div>';
         // Правило с числами и подсказка — с сервера (CLAUDE.md пункт 1).
         html += '<div class="pk-dr-note">' + esc(info.hint) + '</div>';
-        html += '<div class="pk-formula">правило: ' + esc(info.rule) + '</div>';
+        html += howNote('правило: ' + esc(info.rule), 'pk-formula');
 
         if (members.length) {
             html += miniPositions(members, 'ПОЗИЦИИ', 'маржа группы ' + money(margin));
@@ -1079,12 +1080,12 @@
         if (p.QtyOutsideWeeks > 0) {
             // Иначе «0 недель с продажами» стоит прямо под собственной выручкой
             // позиции и выглядит поломкой страницы.
-            html += '<div class="pk-dr-note">' + num(p.QtyOutsideWeeks, 0) +
+            html += howNote(num(p.QtyOutsideWeeks, 0) +
                 ' ' + plural(p.QtyOutsideWeeks, 'штука продана', 'штуки проданы',
                     'штук продано') +
                 ' вне недельного окна ' + rangeLabel(period.weeks_from, period.weeks_to) +
                 ': период не делится на целые недели, и остаток в XYZ не входит. ' +
-                'В выручке и количестве выше эти продажи учтены полностью.</div>';
+                'В выручке и количестве выше эти продажи учтены полностью.');
         }
 
         html += band('ДЕНЬГИ');
@@ -1219,12 +1220,12 @@
                 money(p.TotalMargin) + ' / ' + money(totals.margin_abc_base) + ' = ' +
                 pct(p.MarginSharePercent, 1)) +
             '</div></div>';
-        html += '<div class="pk-dr-note">Буква по выручке считается дважды и от разных ' +
+        html += howNote('Буква по выручке считается дважды и от разных ' +
             'баз: по всему ассортименту разреза и внутри своей категории. Обе верные, ' +
             'но означают разное — поэтому показаны обе, а не одна без пояснения. ' +
             'В знаменателе долей стоит сумма только ПОЛОЖИТЕЛЬНЫХ значений: возврат не ' +
             'увеличивает целое, долей которого он считается, поэтому база маржи может ' +
-            'отличаться от итоговой маржи разреза.</div>';
+            'отличаться от итоговой маржи разреза.');
 
         html += band('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="pk-cells three">' +
@@ -1237,7 +1238,7 @@
         if ((p.WeeklyQty || []).length) {
             html += weeksChart(p.WeeklyQty);
         }
-        html += '<div class="pk-dr-note">' + esc(xyzNote(p, data)) + '</div>';
+        html += howNote(esc(xyzNote(p, data)));
 
         html += '</div>';
         openDrawer(html);
@@ -1328,15 +1329,19 @@
         el.run.addEventListener('click', run);
         el.search.addEventListener('input', function () {
             state.query = el.search.value;
+            state.limit = ROWS_STEP;
             if (state.data) renderPositions();
         });
 
-        el.buckets.addEventListener('click', function (event) {
-            var card = event.target.closest('[data-bucket]');
-            if (card) openBucket(card.dataset.bucket);
-        });
         el.cats.addEventListener('click', onTableClick);
-        el.pos.addEventListener('click', onTableClick);
+        el.pos.addEventListener('click', function (event) {
+            if (event.target.closest('[data-more-rows]')) {
+                state.limit += ROWS_STEP;
+                renderPositions();
+                return;
+            }
+            onTableClick(event);
+        });
         el.losses.addEventListener('click', function (event) {
             var row = event.target.closest('[data-pos]');
             if (row) openPosition(row.dataset.pos);
@@ -1372,8 +1377,14 @@
             xyzChip: document.getElementById('pkXyzChip'),
             msg: document.getElementById('pkMsg'),
             body: document.getElementById('pkBody'),
-            sum: document.getElementById('pkSum'),
-            buckets: document.getElementById('pkBuckets'),
+            tabs: document.getElementById('pkTabs'),
+            overview: document.getElementById('pkOverview'),
+            prices: document.getElementById('pkPrices'),
+            barsView: document.getElementById('pkPanelBars'),
+            filter: document.getElementById('pkFilter'),
+            panelItems: document.getElementById('pkPanelItems'),
+            panelCats: document.getElementById('pkPanelCats'),
+            panelLosses: document.getElementById('pkPanelLosses'),
             catCount: document.getElementById('pkCatCount'),
             cats: document.getElementById('pkCats'),
             posCount: document.getElementById('pkPosCount'),
@@ -1392,6 +1403,22 @@
             state.bars = JSON.parse(barsNode ? barsNode.textContent : '[]') || [];
         } catch (e) {
             state.bars = [];
+        }
+
+        // Вкладки, «Обзор», «Цены», бары — общий модуль; таблицы и карточки
+        // рисует эта страница, модуль только открывает их по клику.
+        if (window.AbcView && el.tabs) {
+            view = window.AbcView.mount({
+                tabs: el.tabs,
+                panels: { overview: el.overview, items: el.panelItems, cats: el.panelCats,
+                          prices: el.prices, losses: el.panelLosses, bars: el.barsView },
+                boxes: { overview: el.overview, prices: el.prices, bars: el.barsView, chips: el.filter },
+                open: { item: openPosition, rule: openBucket },
+                filter: function () {
+                    state.limit = ROWS_STEP;
+                    if (state.data) renderPositions();
+                }
+            });
         }
 
         applyPreset(state.preset);
@@ -1416,6 +1443,7 @@
     }
     if (typeof window !== 'undefined') {
         window.__packaging = { state: state, render: render, openPosition: openPosition,
+                               view: function () { return view; },
                                openCategory: openCategory, openBucket: openBucket,
                                num: num, money: money, pct: pct, esc: esc, plural: plural,
                                abcClass: abcClass, weeksIn: weeksIn, lossTone: lossTone,

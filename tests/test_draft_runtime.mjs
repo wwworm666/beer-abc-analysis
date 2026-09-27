@@ -9,8 +9,8 @@
  *
  * Здесь настоящий draft.js исполняется на настоящем ответе API
  * (tests/fixtures/draft_kegs_sample.json — снят с боевого iiko за неделю
- * 03-09.08.2026) и проверяется, что в узлы легла ожидаемая разметка: сводка,
- * таблицы с итогами, баланс, расхождения, карточки кега и бармена.
+ * 03-09.08.2026) и проверяется, что в узлы легла ожидаемая разметка: «Обзор» и вкладки,
+ * таблицы с итогами, баланс, расхождения, карточки кега и бармена;
  */
 
 import assert from 'node:assert/strict';
@@ -23,6 +23,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 const js = read('static/js/draft/draft.js');
+// Общая раскладка (вкладки, «Обзор», «Цены», бармены): на странице подключена до draft.js.
+const viewJs = read('static/js/shared/abc_view.js');
 const RESPONSE = JSON.parse(read('tests/fixtures/draft_kegs_sample.json'));
 const BLOCK = RESPONSE[Object.keys(RESPONSE)[0]];
 
@@ -70,7 +72,9 @@ function makeEl(id) {
 
 const IDS = ['drBurger', 'drBarBtn', 'drBarMenu', 'drBarLabel', 'drPerBtn', 'drPerMenu',
              'drPerLabel', 'drPerHint', 'drCatch', 'drRun', 'drRunLabel', 'drSpin',
-             'drContext', 'drXyzChip', 'drUpdated', 'drMsg', 'drBody', 'drSum', 'drBuckets',
+             'drContext', 'drXyzChip', 'drUpdated', 'drMsg', 'drBody',
+             'drTabs', 'drOverview', 'drPrices', 'drPeople', 'drFilter',
+             'drPanelItems', 'drPanelCats', 'drPanelLosses', 'drPanelPeople',
              'drCatCount', 'drCats', 'drKegCount',
              'drSearch', 'drKegs', 'drBts', 'drBalance', 'drLosses', 'drDiag',
              'drDrawer', 'drBackdrop', 'drBars'];
@@ -104,6 +108,7 @@ function boot() {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    new vm.Script(viewJs, { filename: 'abc_view.js' }).runInContext(sandbox);
     new vm.Script(js, { filename: 'draft.js' }).runInContext(sandbox);
     return { sandbox, byId, fetchCalls };
 }
@@ -153,16 +158,120 @@ test('после ответа тело страницы показано, соо
     assert.match(env.byId.drUpdated.textContent, /обновлено \d\d:\d\d/, 'нет времени расчёта');
 });
 
-test('сводка: семь плиток с числами из ответа', () => {
-    const html = env.byId.drSum.innerHTML;
-    const tiles = (html.match(/class="dr-tile"/g) || []).length;
-    assert.equal(tiles, 7, `плиток должно быть 7, найдено ${tiles}`);
-    for (const cap of ['ПРОДАНО', 'ВЫРУЧКА', 'ВСЕГО ПОРЦИЙ', 'ЦЕНА ЗА ЛИТР',
-                       'ОБЪЁМ ПОРЦИИ', 'НАЦЕНКА', 'БАРМЕНОВ']) {
-        assert.ok(html.includes(cap), `нет плитки ${cap}`);
+// Клик по элементу с data-атрибутами: стаб не умеет closest(), поэтому цель
+// клика отвечает только на селектор своего атрибута.
+function clickAttr(node, attrs) {
+    const target = {
+        closest: (sel) => {
+            const m = sel.match(/^\[(data-[\w-]+)\]$/);
+            return m && attrs[m[1]] !== undefined
+                ? { getAttribute: (a) => (attrs[a] === undefined ? null : attrs[a]) } : null;
+        }
+    };
+    node.listeners.click.forEach((fn) => fn({ target }));
+}
+// Intl ставит неразрывные пробелы между разрядами: сравниваем с обычными.
+const flat = (h) => h.replace(/[\u00a0\u202f]/g, ' ');
+
+test('обзор: маржа, продано и выручка с литра из ответа', () => {
+    const html = flat(env.byId.drOverview.innerHTML);
+    assert.match(html, /Маржа за 7 дней/, 'нет главного числа');
+    assert.match(html, /586 398/, 'маржа не совпала с суммами ответа');
+    assert.match(html, /818 932/, 'выручка не выведена');
+    assert.match(html, /770<\/span>|770 л/, 'литры из ответа не выведены');
+    assert.match(html, /1 537 порций/, 'порции не выведены');
+    assert.match(html, /Наценка[\s\S]*252,1%/, 'наценка не выведена или не округлена вниз');
+    // Пояснения — только в раскрывашках «Как считается».
+    const loose = html.replace(/<details[\s\S]*?<\/details>/g, '');
+    assert.ok(!/Маржа = выручка − закупка/.test(loose), 'формула висит открытой');
+    assert.match(html, /<details class="av-how"><summary>Как считается/, 'нет раскрывашки');
+});
+
+test('вкладки: числа на кнопках, видна одна панель', () => {
+    const tabs = flat(env.byId.drTabs.innerHTML);
+    for (const id of ['overview', 'items', 'cats', 'prices', 'losses', 'people']) {
+        assert.match(tabs, new RegExp(`data-tab="${id}"`), `нет вкладки ${id}`);
     }
-    assert.match(html, /770,01/, 'литры из ответа не выведены');
-    assert.match(html, />8</, 'число барменов не выведено');
+    assert.match(tabs, /Кеги<span class="n">33</, 'на вкладке кегов нет числа');
+    assert.match(tabs, /\+75 тыс ₽/, 'на вкладке цен нет суммы недобора');
+    assert.match(tabs, /−64 тыс ₽/, 'на вкладке потерь нет недостачи в рублях');
+    const panels = ['drOverview', 'drPanelItems', 'drPanelCats', 'drPrices', 'drPanelLosses', 'drPanelPeople'];
+    assert.deepEqual(panels.filter((id) => !env.byId[id].hidden), ['drOverview']);
+    clickAttr(env.byId.drTabs, { 'data-tab': 'losses' });
+    assert.deepEqual(panels.filter((id) => !env.byId[id].hidden), ['drPanelLosses']);
+    assert.equal(env.sandbox.window.__draft.view().tab(), 'losses');
+    clickAttr(env.byId.drTabs, { 'data-tab': 'overview' });
+});
+
+test('обзор: «где деньги» — цены, недостача и бармены в рублях', () => {
+    const html = flat(env.byId.drOverview.innerHTML);
+    assert.match(html, /Цены ниже минимума сети[\s\S]*\+75 128/, 'нет недобора по ценам');
+    assert.match(html, /24 кега с наценкой ниже 250%/, 'нет числа кегов ниже минимума');
+    assert.match(html, /Недостача по инвентаризации[\s\S]*−63 595/, 'нет недостачи в рублях');
+    assert.match(html, /3 из 8 · сильнее всех Дарья Коновцова, −7,7%/, 'нет строки барменов');
+    assert.match(html, /−13 214/, 'сумма барменов ниже средней не выведена');
+});
+
+test('решения по ассортименту: шесть групп с сервера, каждый кег в одной', () => {
+    const html = env.byId.drOverview.innerHTML;
+    const dapi = env.sandbox.window.__draft;
+    for (const card of BLOCK.buckets) {
+        assert.ok(html.includes(dapi.esc(card.name)), `нет группы «${card.name}»`);
+    }
+    // Группа с кегами — кнопка в таблицу с фильтром, пустая — просто строка.
+    const open = BLOCK.buckets.filter((c) => c.count > 0);
+    for (const card of open) {
+        assert.ok(html.includes(`data-go="items" data-filter="${card.key}"`), `группа ${card.key} не кликается`);
+    }
+    assert.equal((html.match(/class="av-li av-li-b is-dim"/g) || []).length, BLOCK.buckets.length - open.length);
+    assert.equal(BLOCK.buckets.reduce((a, c) => a + c.count, 0), BLOCK.kegs.length,
+        'группы не покрывают все кеги');
+    assert.ok(BLOCK.kegs.every((k) => k.ABC_Bucket), 'есть кег без группы');
+    // Неделя: «вывести» не выносится, группа честно говорит «смотреть за 4 недели».
+    const weak = BLOCK.buckets.find((c) => c.key === 'weak');
+    assert.equal(weak.verdict_ready, false, 'на неделе решение о выводе не должно выноситься');
+    assert.ok(html.includes('Смотреть за 4 недели'), 'нет отложенного действия');
+    assert.ok(!html.includes('Вывести из ассортимента'), 'на неделе показано «вывести»');
+});
+
+test('клик по группе открывает таблицу кегов с фильтром, «Все» его снимает', () => {
+    const view = env.sandbox.window.__draft.view();
+    const low = BLOCK.kegs.filter((k) => k.ABC_Bucket === 'low_markup').length;
+    try {
+        clickAttr(env.byId.drOverview, { 'data-go': 'items', 'data-filter': 'low_markup' });
+        assert.equal(view.tab(), 'items', 'не открылась вкладка кегов');
+        assert.equal(env.byId.drPanelItems.hidden, false);
+        assert.equal(view.filter(), 'low_markup');
+        const rows = (env.byId.drKegs.innerHTML.match(/class="dr-row is-body"/g) || []).length;
+        assert.equal(rows, low, `строк ${rows}, кегов в группе ${low}`);
+        assert.match(env.byId.drKegCount.textContent, new RegExp(`${low} из 33`));
+        assert.match(env.byId.drFilter.innerHTML, /data-filter="low_markup" aria-pressed="true"/,
+            'фильтр над таблицей не подсвечен');
+        clickAttr(env.byId.drFilter, { 'data-filter': 'all' });
+        assert.equal(view.filter(), null);
+        const all = (env.byId.drKegs.innerHTML.match(/class="dr-row is-body"/g) || []).length;
+        assert.equal(all, BLOCK.kegs.length, 'фильтр не снялся');
+    } finally {
+        // Следующие тесты ждут всю таблицу и «Обзор».
+        view.setFilter(null);
+        view.show('overview', false);
+    }
+});
+
+test('лидеры и строки цен открывают карточку кега', () => {
+    const top = BLOCK.kegs.slice().sort((a, b) => b.Revenue - a.Revenue)[0];
+    clickAttr(env.byId.drOverview, { 'data-item': String(top.KegId) });
+    assert.ok(env.byId.drDrawer.innerHTML.includes(env.sandbox.window.__draft.esc(top.KegName)),
+        'клик по лидеру не открыл карточку');
+    assert.match(env.byId.drPrices.innerHTML, /data-item="/, 'строки цен не кликаются');
+});
+
+test('бармены: сравнение с той же выручкой с литра на тех же кегах', () => {
+    const html = flat(env.byId.drPeople.innerHTML);
+    assert.match(html, /3 из 8<\/b> получили с литра меньше/, 'нет вывода');
+    assert.equal((html.match(/data-person="/g) || []).length, BLOCK.bartenders.length);
+    clickAttr(env.byId.drPeople, { 'data-person': 'Дарья Коновцова' });
+    assert.match(env.byId.drDrawer.innerHTML, /Дарья Коновцова/, 'карточка бармена не открылась');
 });
 
 test('таблица кегов: все позиции, итог и сортировка по литрам', () => {
@@ -317,25 +426,6 @@ test('карточка бармена: налив, деньги и что нал
     assert.match(html, /поле «Авторизовал» в iiko/, 'нет оговорки об источнике имени');
     const kegs = (html.match(/class="dr-who-row" data-keg=/g) || []).length;
     assert.equal(kegs, person.kegs.length, 'разбивка «что наливал» не совпала');
-});
-
-test('решения по ассортименту: шесть групп с сервера, каждый кег в одной', () => {
-    const html = env.byId.drBuckets.innerHTML;
-    const dapi = env.sandbox.window.__draft;
-    const cards = (html.match(/class="dr-bucket"/g) || []).length;
-    assert.equal(cards, 6, `групп должно быть 6, найдено ${cards}`);
-    for (const card of BLOCK.buckets) {
-        assert.ok(html.includes(dapi.esc(card.name)), `нет группы «${card.name}»`);
-    }
-    assert.equal(BLOCK.buckets.reduce((a, c) => a + c.count, 0), BLOCK.kegs.length,
-        'группы не покрывают все кеги');
-    assert.ok(BLOCK.kegs.every((k) => k.ABC_Bucket), 'есть кег без группы');
-    assert.match(html, /кег(а|ов)?<\/u>/, 'счётчик не в кегах');
-    // Неделя: «вывести» не выносится, карточка честно говорит «смотреть за 4 недели».
-    const weak = BLOCK.buckets.find((c) => c.key === 'weak');
-    assert.equal(weak.verdict_ready, false, 'на неделе решение о выводе не должно выноситься');
-    assert.ok(html.includes('Смотреть за 4 недели'), 'нет отложенного действия');
-    assert.ok(!html.includes('Вывести из ассортимента'), 'на неделе показано «вывести»');
 });
 
 test('карточка группы: правило в порциях, подсказка и кеги', () => {

@@ -31,6 +31,16 @@
     };
 
     var el = {};
+    // Общая раскладка страницы (static/js/shared/abc_view.js): вкладки, «Обзор»,
+    // «Цены», бармены. null — модуль не подключён (страница работает и без него).
+    var view = null;
+
+    // Пояснение расчёта — свёрнуто под стрелкой «Как считается» (CLAUDE.md, п. 1):
+    // текст на странице, но не занимает экран.
+    function howNote(inner, cls) {
+        return '<details class="av-how"><summary>Как считается</summary><div class="av-how-in">' +
+            '<div class="' + (cls || 'dr-dr-note') + '">' + inner + '</div></div></details>';
+    }
 
     // ==================== формат ====================
 
@@ -362,42 +372,14 @@
             el.xyzChip.hidden = true;
         }
 
-        renderSummary(data);
-        renderBuckets(data);
+        state.model = window.AbcView ? window.AbcView.fromDraft(data) : null;
+        if (view && state.model) view.render(state.model);
         renderCategories();
         renderKegs();
         renderBartenders();
         renderBalance(data);
         renderLosses(data);
         renderDiagnostics(data);
-    }
-
-    function tile(cap, value, unit, sub) {
-        return '<div class="dr-tile"><div class="dr-tile-cap">' + esc(cap) + '</div>' +
-            '<div class="dr-tile-v">' + value +
-            (unit ? '<u> ' + esc(unit) + '</u>' : '') + '</div>' +
-            '<div class="dr-tile-s">' + esc(sub) + '</div></div>';
-    }
-
-    function renderSummary(data) {
-        var period = data.period || {};
-        var kegs = data.total_kegs || 0;
-        var html = '';
-        html += tile('ПРОДАНО', num(data.total_liters), 'л',
-            kegs + ' ' + plural(kegs, 'кег', 'кега', 'кегов') + ' за ' + period.days +
-            ' ' + plural(period.days, 'день', 'дня', 'дней'));
-        html += tile('ВЫРУЧКА', num(Math.round(data.total_revenue), 0), '₽', 'разливное пиво');
-        html += tile('ВСЕГО ПОРЦИЙ', num(data.total_portions), '', 'по кассе iiko');
-        html += tile('ЦЕНА ЗА ЛИТР', num(Math.round(data.avg_price_per_liter), 0), '₽',
-            'выручка / литры');
-        html += tile('ОБЪЁМ ПОРЦИИ', num(data.avg_portion_liters, 3), 'л', 'литры / порции');
-        html += tile('НАЦЕНКА',
-            data.markup_percent === null ? '—'
-                : markupPct(data.markup_percent, 1).replace('%', ''), '%',
-            'средняя по разрезу');
-        var people = data.total_bartenders || 0;
-        html += tile('БАРМЕНОВ', num(people, 0), '', 'пробивали проливы');
-        el.sum.innerHTML = html;
     }
 
     // ---------- решения по ассортименту ----------
@@ -415,20 +397,6 @@
     function bucketNameOf(key) {
         var card = bucketCard(key);
         return card ? card.name + ' · ' + card.action : 'группа не определена';
-    }
-
-    function renderBuckets(data) {
-        var html = '';
-        (data.buckets || []).forEach(function (bucket) {
-            html += '<button type="button" class="dr-bucket" data-bucket="' + esc(bucket.key) + '">' +
-                '<span class="dr-bucket-top"><span class="dr-led ' + esc(bucket.tone) + '"></span>' +
-                '<span class="dr-bucket-n">' + esc(bucket.name) + '</span></span>' +
-                '<div class="dr-bucket-v">' + bucket.count +
-                '<u> ' + plural(bucket.count, 'кег', 'кега', 'кегов') + '</u></div>' +
-                '<div class="dr-bucket-s">' + esc(bucket.action) + ' · ' +
-                pct(bucket.revenue_share_percent, 1) + ' выручки</div></button>';
-        });
-        el.buckets.innerHTML = html;
     }
 
     function openBucket(key) {
@@ -452,7 +420,7 @@
             '</div>';
         // Подсказка и правило с числами — с сервера (CLAUDE.md пункт 1).
         html += '<div class="dr-dr-note">' + esc(info.hint) + '</div>';
-        html += '<div class="dr-dr-note">Правило: ' + esc(info.rule) + '</div>';
+        html += howNote('Правило: ' + esc(info.rule));
 
         if (members.length) {
             html += sub('КЕГИ', 'клик — карточка кега');
@@ -700,6 +668,11 @@
                 return String(keg.KegName || '').toLowerCase().indexOf(query) >= 0;
             });
         }
+        // Группа решения: клик по группе на «Обзоре» или фильтр над таблицей.
+        var bucket = view ? view.filter() : null;
+        if (bucket) {
+            rows = rows.filter(function (keg) { return keg.ABC_Bucket === bucket; });
+        }
         rows = sortRows(rows, state.kegSort);
         var maxLitersShare = rows.reduce(function (acc, keg) {
             return Math.max(acc, keg.LitersSharePercent || 0);
@@ -709,7 +682,7 @@
         }, 0);
 
         var total = data.total_kegs || 0;
-        el.kegCount.textContent = query
+        el.kegCount.textContent = (query || bucket)
             ? rows.length + ' из ' + total
             : total + ' ' + plural(total, 'позиция', 'позиции', 'позиций');
 
@@ -752,7 +725,8 @@
         });
 
         if (!rows.length) {
-            html += '<div class="dr-empty">ничего не найдено — уточните запрос</div>';
+            html += '<div class="dr-empty">ничего не найдено — уточните запрос' +
+                (bucket ? ' или снимите фильтр группы' : '') + '</div>';
         } else {
             var sumLiters = rows.reduce(function (a, k) { return a + k.TotalLiters; }, 0);
             var sumPortions = rows.reduce(function (a, k) { return a + k.TotalPortions; }, 0);
@@ -882,6 +856,10 @@
             html += balanceRow('Недостача по инвентаризациям', losses.inventory_net, '−', scale, 'bad',
                 losses.sold > 0 ? '<span class="dr-pill bad">' +
                     pct(losses.inventory_percent_of_sold, 1) + ' от продаж</span>' : '');
+            // Та же недостача в деньгах (AbcView.shortage): литры × средняя закупка литра.
+            if (window.AbcView && state.model) {
+                html += window.AbcView.shortageLineHtml(state.model, 'av-rub-line');
+            }
         }
 
         // Приход и расход приходят с сервера (core/draft_kegs.py, _build_losses):
@@ -892,14 +870,14 @@
             '<span class="dr-bal-lead"></span>' +
             '<span class="dr-bal-total-v">' +
             signed(losses.balance, losses.balance < 0 ? '−' : '+') + ' л</span></div>' +
-            '<div class="dr-note">приход ' + fixed(losses.received, 2) + ' − расход ' +
+            howNote('приход ' + fixed(losses.received, 2) + ' − расход ' +
             fixed(losses.spent, 2) + ' (продано ' + fixed(losses.sold, 2) + ' + акты ' +
             fixed(losses.writeoff, 2) +
             (losses.inventory_net < 0
                 ? ' − излишек ' + fixed(-losses.inventory_net, 2)
                 : ' + недостача ' + fixed(losses.inventory_net, 2)) +
             ' + перемещения ' + fixed(losses.transfer_out, 2) +
-            ') · списание по техкарте при продаже</div>';
+            ') · списание по техкарте при продаже', 'dr-note');
         el.balance.innerHTML = html;
     }
 
@@ -924,7 +902,7 @@
         return surplus > 0 ? signed(surplus, '+') : fixed(0, 2);
     }
 
-    function lossRow(row, maxLoss, inTable) {
+    function lossRow(row, maxLoss, inTable, rubles) {
         var loss = row.LossLiters || 0;             // акты + недостача по барам, сервер
         var percent = row.SoldLiters > 0 ? loss / row.SoldLiters * 100 : null;
         // Излишек (недостача с минусом) — не потеря: полосы у такой строки нет,
@@ -936,7 +914,7 @@
         var linked = !inTable || inTable[row.KegId];
         return '<div class="dr-loss-row' + (linked ? '' : ' is-static') + '"' +
             (linked ? ' data-keg="' + esc(row.KegId) + '"' : '') + '>' +
-            '<span class="dr-loss-n">' + esc(row.KegName) + '</span>' +
+            '<span class="dr-loss-n">' + esc(row.KegName) + lossRub(rubles, row.KegId) + '</span>' +
             '<span class="dr-num">' +
                 (row.WriteoffLiters ? fixed(row.WriteoffLiters, 2) : '0') + '</span>' +
             '<span class="dr-share">' +
@@ -950,8 +928,17 @@
             '</div>';
     }
 
+    // Потери строки в рублях по закупке кега (AbcView.lossRubles); у кега без
+    // продаж в периоде — по средней закупке литра за период.
+    function lossRub(rubles, id) {
+        var r = rubles && rubles.byId[id];
+        if (!r || !(r.rub > 0)) return '';
+        return '<span class="av-rub">≈ ' + money(r.rub) + (r.byAvg ? ' по средней закупке' : '') + '</span>';
+    }
+
     function renderLosses(data) {
         var rows = (data.losses && data.losses.by_keg) || [];
+        var rubles = window.AbcView && state.model ? window.AbcView.lossRubles(state.model) : null;
         var totalLoss = rows.reduce(function (acc, row) { return acc + (row.LossLiters || 0); }, 0);
         var maxLoss = rows.reduce(function (acc, row) {
             return Math.max(acc, row.LossLiters || 0);
@@ -960,7 +947,9 @@
         var html = '<div class="dr-card-h"><span class="dr-card-t">Где именно расхождения</span>' +
             '<span class="dr-card-s">' + rows.length + ' ' +
             plural(rows.length, 'кег', 'кега', 'кегов') + ' · ' + num(totalLoss) +
-            ' л потерь</span></div>';
+            ' л потерь</span>' +
+            (rubles && rubles.total > 0 ? '<span class="av-rub-head">≈ ' + money(rubles.total) +
+                ' по закупке</span>' : '') + '</div>';
 
         if (!rows.length) {
             html += '<div class="dr-empty" style="border-top:none">' +
@@ -978,7 +967,7 @@
         var inTable = {};
         (data.kegs || []).forEach(function (keg) { inTable[keg.KegId] = true; });
         var head = rows.slice(0, 8), tail = rows.slice(8);
-        head.forEach(function (row) { html += lossRow(row, maxLoss, inTable); });
+        head.forEach(function (row) { html += lossRow(row, maxLoss, inTable, rubles); });
 
         if (tail.length) {
             var tailLoss = tail.reduce(function (acc, row) { return acc + (row.LossLiters || 0); }, 0);
@@ -988,16 +977,16 @@
                 '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">' +
                 '<path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" ' +
                 'stroke-linecap="round" stroke-linejoin="round"/></svg></summary>';
-            tail.forEach(function (row) { html += lossRow(row, maxLoss, inTable); });
+            tail.forEach(function (row) { html += lossRow(row, maxLoss, inTable, rubles); });
             html += '</details>';
         }
 
-        html += '<div class="dr-note">% — потери (акты + недостача) к проданному по кегу · ' +
+        html += howNote('% — потери (акты + недостача) к проданному по кегу · ' +
             'недостача считается по каждому бару: излишек одного бара не гасит недостачу ' +
             'другого, поэтому потери в шапке больше, чем акты + недостача в балансе, где ' +
             'излишек её уменьшает · «+N» — излишек · «—» — кег не продавался · серые ' +
             'строки — кеги без продаж в периоде, их нет в таблице · клик по строке ' +
-            'открывает карточку</div>';
+            'открывает карточку', 'dr-note');
         el.losses.innerHTML = html;
     }
 
@@ -1033,6 +1022,9 @@
                 }).join(', '));
         }
         el.diag.innerHTML = parts.length ? parts.join(' · ') : '';
+        // Раскрывашка «Диагностика данных» без содержимого не нужна.
+        var diagBox = el.diag.closest ? el.diag.closest('details') : null;
+        if (diagBox) diagBox.hidden = !parts.length;
     }
 
     // ==================== карточки ====================
@@ -1268,13 +1260,13 @@
                 (keg.TotalMargin < 0 ? ' (маржа ' + money(keg.TotalMargin) +
                     ' — в Парето считается нулём)' : '')) +
             '</div></div>';
-        html += '<div class="dr-dr-note">' +
+        html += howNote(
             (inCategory ? 'Буква по выручке считается дважды и от разных баз: по ' +
                 'всему разрезу и внутри своей категории. Обе верные, но означают ' +
                 'разное, поэтому показаны обе. ' : '') +
             'Маржа в код не входит: её буква — Парето по марже в рублях среди кегов ' +
             'разреза (80/15/5, как у фасовки). В знаменателе — сумма только положительных ' +
-            'маржей.</div>';
+            'маржей.');
 
         html += sub('XYZ — СТАБИЛЬНОСТЬ СПРОСА');
         html += '<div class="dr-cells three">' +
@@ -1289,7 +1281,7 @@
         if ((keg.WeeklyLiters || []).length > 1) {
             html += weeksChart(keg.WeeklyLiters);
         }
-        html += '<div class="dr-dr-note">' + xyzNote(keg) + '</div>';
+        html += howNote(xyzNote(keg));
 
         html += '</div>';
         openDrawer(html);
@@ -1477,10 +1469,6 @@
             if (state.data) renderKegs();
         });
 
-        el.buckets.addEventListener('click', function (event) {
-            var card = event.target.closest('[data-bucket]');
-            if (card) openBucket(card.dataset.bucket);
-        });
         el.cats.addEventListener('click', onTableClick);
         el.kegs.addEventListener('click', onTableClick);
         el.bts.addEventListener('click', onTableClick);
@@ -1522,8 +1510,15 @@
             updated: document.getElementById('drUpdated'),
             msg: document.getElementById('drMsg'),
             body: document.getElementById('drBody'),
-            sum: document.getElementById('drSum'),
-            buckets: document.getElementById('drBuckets'),
+            tabs: document.getElementById('drTabs'),
+            overview: document.getElementById('drOverview'),
+            prices: document.getElementById('drPrices'),
+            people: document.getElementById('drPeople'),
+            filter: document.getElementById('drFilter'),
+            panelItems: document.getElementById('drPanelItems'),
+            panelCats: document.getElementById('drPanelCats'),
+            panelLosses: document.getElementById('drPanelLosses'),
+            panelPeople: document.getElementById('drPanelPeople'),
             xyzChip: document.getElementById('drXyzChip'),
             catCount: document.getElementById('drCatCount'),
             cats: document.getElementById('drCats'),
@@ -1543,6 +1538,19 @@
             state.bars = JSON.parse(barsNode ? barsNode.textContent : '[]') || [];
         } catch (e) {
             state.bars = [];
+        }
+
+        // Вкладки, «Обзор», «Цены», бармены — общий модуль; таблицы и карточки
+        // рисует эта страница, модуль только открывает их по клику.
+        if (window.AbcView && el.tabs) {
+            view = window.AbcView.mount({
+                tabs: el.tabs,
+                panels: { overview: el.overview, items: el.panelItems, cats: el.panelCats,
+                          prices: el.prices, losses: el.panelLosses, people: el.panelPeople },
+                boxes: { overview: el.overview, prices: el.prices, people: el.people, chips: el.filter },
+                open: { item: openKeg, person: openBartender, rule: openBucket },
+                filter: function () { if (state.data) renderKegs(); }
+            });
         }
 
         applyPreset(state.preset);
@@ -1565,6 +1573,7 @@
     }
     if (typeof window !== 'undefined') {
         window.__draft = { state: state, render: render, openKeg: openKeg,
+                           view: function () { return view; },
                            openBartender: openBartender, openBucket: openBucket,
                            openCategory: openCategory,
                            num: num, fixed: fixed,

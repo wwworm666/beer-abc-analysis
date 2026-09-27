@@ -1,0 +1,285 @@
+/* Общая раскладка «Розлива» и «Фасовки» (static/js/shared/abc_view.js): вкладки,
+   «Обзор», «Цены», бармены, бары, свёрнутые пояснения.
+
+   Своих цветов нет: токены страницы (--dr-* на /draft, --pk-* на /packaging)
+   переводятся в общие имена --av-*, поэтому тёмная тема и палитра сервиса
+   подхватываются сами. Префикс классов — av-. Без эмодзи. */
+body.draft-page {
+    --av-bg: var(--dr-bg); --av-card: var(--dr-card); --av-line: var(--dr-line); --av-hair: var(--dr-hair);
+    --av-rule: var(--dr-rule); --av-dot: var(--dr-dot); --av-hover: var(--dr-hover); --av-soft: var(--dr-soft);
+    --av-track: var(--dr-track); --av-ink: var(--dr-ink); --av-ink2: var(--dr-ink2); --av-ink3: var(--dr-ink3);
+    --av-ink4: var(--dr-ink4); --av-ink5: var(--dr-ink5); --av-ink6: var(--dr-ink6); --av-faint: var(--dr-faint);
+    --av-accent: var(--dr-accent); --av-on-accent: var(--dr-on-accent); --av-on-status: var(--dr-on-status);
+    --av-ok: var(--dr-ok); --av-ok-ink: var(--dr-ok-ink); --av-warn: var(--dr-warn); --av-warn-ink: var(--dr-warn-ink);
+    --av-bad: var(--dr-bad); --av-bad-ink: var(--dr-bad-ink); --av-neutral: var(--dr-neutral);
+    --av-shadow: var(--dr-shadow); --av-shadow-menu: var(--dr-shadow-menu);
+    --av-r-card: var(--dr-r-card); --av-r-in: var(--dr-r-in); --av-r-tile: var(--dr-r-tile); --av-r-badge: var(--dr-r-badge);
+    --av-sans: var(--dr-sans); --av-mono: var(--dr-mono);
+}
+body.packaging-page {
+    --av-bg: var(--pk-bg); --av-card: var(--pk-card); --av-line: var(--pk-line); --av-hair: var(--pk-hair);
+    --av-rule: var(--pk-rule); --av-dot: var(--pk-dot); --av-hover: var(--pk-hover); --av-soft: var(--pk-soft);
+    --av-track: var(--pk-track); --av-ink: var(--pk-ink); --av-ink2: var(--pk-ink2); --av-ink3: var(--pk-ink3);
+    --av-ink4: var(--pk-ink4); --av-ink5: var(--pk-ink5); --av-ink6: var(--pk-ink6); --av-faint: var(--pk-faint);
+    --av-accent: var(--pk-accent); --av-on-accent: var(--pk-on-accent); --av-on-status: var(--pk-on-status);
+    --av-ok: var(--pk-ok); --av-ok-ink: var(--pk-ok-ink); --av-warn: var(--pk-warn); --av-warn-ink: var(--pk-warn-ink);
+    --av-bad: var(--pk-bad); --av-bad-ink: var(--pk-bad-ink); --av-neutral: var(--pk-calm);
+    --av-shadow: var(--pk-shadow); --av-shadow-menu: var(--pk-shadow-menu);
+    --av-r-card: var(--pk-r-card); --av-r-in: var(--pk-r-in); --av-r-tile: var(--pk-r-tile); --av-r-badge: var(--pk-r-badge);
+    --av-sans: var(--pk-sans); --av-mono: var(--pk-mono);
+}
+
+/* ==================== Вкладки ==================== */
+.av-tabs { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; gap: 2px; margin: 12px 0 0;
+    overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--av-line);
+    background: color-mix(in srgb, var(--av-bg) 92%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.av-tabs::-webkit-scrollbar { display: none; }
+.av-tab { display: inline-flex; align-items: baseline; gap: 7px; flex: none; margin-bottom: -1px; padding: 14px 13px 12px;
+    border: 0; border-bottom: 2px solid transparent; background: none; cursor: pointer; white-space: nowrap;
+    font: 600 13.5px/1 var(--av-sans); color: var(--av-ink4); transition: color .12s ease, border-color .12s ease; }
+.av-tab:hover { color: var(--av-ink); }
+.av-tab[aria-selected="true"] { color: var(--av-ink); border-bottom-color: var(--av-accent); }
+.av-tab:focus-visible { outline: 2px solid var(--av-accent); outline-offset: -5px; border-radius: 9px; }
+.av-tab .n { font: 500 11px/1 var(--av-mono); color: var(--av-ink5); font-variant-numeric: tabular-nums; }
+.av-tab .n.neg { color: var(--av-bad-ink); }
+.av-panel { display: grid; gap: 12px; padding-top: 16px; }
+.av-panel[hidden] { display: none; }
+.av-panel > [class$="-band"]:first-child { margin-top: 0; }
+
+/* ==================== Пояснения: свёрнуты (CLAUDE.md, п. 1) ==================== */
+.av-how { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--av-hair); }
+.av-how.is-bare { padding-top: 2px; border-top: 0; margin: 2px 4px 0; }
+.av-how > summary { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; list-style: none;
+    font: 500 11px/1.4 var(--av-mono); color: var(--av-ink4); }
+.av-how > summary::-webkit-details-marker { display: none; }
+.av-how > summary::before { content: ''; width: 5px; height: 5px; margin-left: 2px; border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .15s ease; }
+.av-how[open] > summary::before { transform: rotate(45deg); }
+.av-how > summary:hover { color: var(--av-ink); }
+.av-how > summary:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 2px; border-radius: 6px; }
+.av-how-in { display: grid; gap: 6px; margin-top: 8px; max-width: 110ch; font: 400 11.5px/1.6 var(--av-sans); color: var(--av-ink4); }
+.av-how-in p { margin: 0; }
+.av-how-in ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+.av-how-in > [class$="-legend"], .av-how-in > [class$="-note"], .av-how-in > [class$="-dr-note"] { margin: 0; }
+
+/* ==================== Карточки и сетки ==================== */
+.av-row { display: grid; gap: 12px; }
+.av-two { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
+.av-four { grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); }
+@media (max-width: 900px) { .av-two { grid-template-columns: 1fr; } }
+.av-card { min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 18px 20px 16px; background: var(--av-card);
+    border: 1px solid var(--av-line); border-radius: var(--av-r-card); box-shadow: var(--av-shadow); }
+@media (max-width: 600px) { .av-card { padding: 16px 16px 14px; } }
+.av-card-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.av-card-t { margin: 0; font: 600 15px/1.2 var(--av-sans); color: var(--av-ink); }
+.av-card-s { margin-left: auto; font: 500 10.5px/1.3 var(--av-mono); color: var(--av-ink5); }
+.av-label { font: 600 10px/1.2 var(--av-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--av-ink4); }
+.av-lead { margin: 0; max-width: 76ch; font: 400 12.5px/1.55 var(--av-sans); color: var(--av-ink3); }
+.av-lead b { font-weight: 600; color: var(--av-ink); }
+.av-sub { font: 400 12px/1.45 var(--av-sans); color: var(--av-ink4); }
+.av-sub b { font-weight: 600; color: var(--av-ink); }
+.av-link { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; border: 0; background: none;
+    cursor: pointer; font: 600 12.5px/1.2 var(--av-sans); color: var(--av-accent); }
+.av-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.av-link:focus-visible, .av-li:focus-visible, .av-lg:focus-visible, .av-chip:focus-visible, .av-more:focus-visible {
+    outline: 2px solid var(--av-accent); outline-offset: 1px; border-radius: 8px; }
+
+/* Числа — моноширинные, как плитки сводки */
+.av-big { font: 700 34px/1.05 var(--av-mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--av-ink); }
+.av-big small { margin-left: 4px; font: 600 14px/1 var(--av-mono); letter-spacing: 0; color: var(--av-ink5); }
+@media (max-width: 600px) { .av-big { font-size: 28px; } }
+.av-mid { font: 700 22px/1.1 var(--av-mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--av-ink); }
+.av-mid small { margin-left: 3px; font: 600 12px/1 var(--av-mono); color: var(--av-ink5); }
+.av-pos { color: var(--av-ok-ink); }
+.av-neg { color: var(--av-bad-ink); }
+.av-under { color: var(--av-warn-ink); }
+
+/* Полоса из частей, ключи, точки */
+.av-split { display: flex; gap: 2px; height: 8px; }
+.av-split i { display: block; min-width: 3px; height: 100%; border-radius: 999px; }
+.av-keys { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 400 12px/1.3 var(--av-sans); color: var(--av-ink3); }
+.av-keys span { display: inline-flex; align-items: center; gap: 7px; }
+.av-keys b { font: 600 12px/1 var(--av-mono); color: var(--av-ink); font-variant-numeric: tabular-nums; }
+.av-dot { display: inline-block; flex: none; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--av-ink4); }
+.av-keys .av-dot, .av-chip .av-dot { margin-right: 0; }
+/* Группы решений — цветами светодиодов карточек групп (tone в ответе API) */
+.av-c-core { background: var(--av-ok); }
+.av-c-low_markup { background: var(--av-warn); }
+.av-c-new { background: var(--av-accent); }
+.av-c-weak { background: var(--av-ink4); }
+.av-c-few { background: var(--av-ink6); }
+.av-c-check { background: var(--av-warn); }
+.av-c-margin { background: var(--av-ok); }
+.av-c-cost { background: var(--av-dot); }
+
+/* Обзор: маржа и показатели */
+.av-hero { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
+.av-hero-l { display: flex; flex-direction: column; gap: 14px; }
+.av-hero-l .av-sub { margin-top: 4px; font: 500 11px/1.4 var(--av-mono); color: var(--av-ink5); }
+.av-hero-r { padding-left: 32px; border-left: 1px solid var(--av-hair); }
+@media (max-width: 900px) {
+    .av-hero { grid-template-columns: 1fr; }
+    .av-hero-r { padding: 6px 0 0; border-left: 0; border-top: 1px solid var(--av-hair); }
+}
+.av-kv { display: grid; }
+.av-kv-r { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; padding: 10px 0;
+    border-top: 1px solid var(--av-hair); }
+.av-kv-r:first-child { border-top: 0; padding-top: 2px; }
+.av-kv-l { font: 400 12.5px/1.35 var(--av-sans); color: var(--av-ink2); }
+.av-kv-v { font: 600 13.5px/1.2 var(--av-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; color: var(--av-ink); }
+.av-kv-s { grid-column: 1 / -1; font: 400 11.5px/1.35 var(--av-sans); color: var(--av-ink5); }
+.av-meter { grid-column: 1 / -1; position: relative; height: 4px; margin-top: 4px; border-radius: 999px; background: var(--av-track); }
+.av-meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.av-meter b { position: absolute; top: -4px; bottom: -4px; width: 2px; border-radius: 1px; background: var(--av-ink); }
+
+/* «Где деньги» */
+.av-ledger { display: grid; }
+.av-lg { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto 14px; gap: 14px; align-items: center; width: 100%;
+    margin: 0; padding: 12px 6px; border: 0; border-top: 1px solid var(--av-hair); background: none; text-align: left;
+    cursor: pointer; font: inherit; color: inherit; transition: background .12s ease; }
+.av-lg:first-child { border-top: 0; }
+.av-lg:hover { background: var(--av-hover); }
+.av-lg-ic { width: 38px; height: 38px; display: grid; place-items: center; border-radius: var(--av-r-in); }
+.av-lg-ic.pos { background: color-mix(in srgb, var(--av-ok) 10%, transparent); color: var(--av-ok-ink); }
+.av-lg-ic.neg { background: color-mix(in srgb, var(--av-bad) 10%, transparent); color: var(--av-bad-ink); }
+.av-lg-ic.check { background: color-mix(in srgb, var(--av-warn) 12%, transparent); color: var(--av-warn-ink); }
+.av-lg-t { display: block; font: 600 13.5px/1.3 var(--av-sans); color: var(--av-ink); }
+.av-lg-s { display: block; margin-top: 2px; font: 400 12px/1.35 var(--av-sans); color: var(--av-ink4); }
+.av-lg-v { text-align: right; }
+.av-lg-v b { display: block; font: 700 16px/1.2 var(--av-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.av-lg-v span { font: 500 10.5px/1.3 var(--av-mono); color: var(--av-ink5); white-space: nowrap; }
+.av-chev { color: var(--av-ink6); display: flex; }
+@media (max-width: 600px) {
+    .av-lg { grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; padding-inline: 2px; }
+    .av-lg-ic { width: 34px; height: 34px; }
+    .av-lg .av-chev { display: none; }
+}
+
+/* Списки с полосой */
+.av-list { display: grid; }
+.av-li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(60px, .7fr) auto; gap: 3px 14px; align-items: center;
+    width: 100%; margin: 0; padding: 9px 6px; border: 0; border-top: 1px solid var(--av-hair); background: none; text-align: left;
+    font: inherit; color: inherit; transition: background .12s ease; }
+.av-li:first-child { border-top: 0; }
+button.av-li { cursor: pointer; }
+button.av-li:hover { background: var(--av-hover); }
+.av-li.is-dim { opacity: .55; }
+.av-li-b { grid-template-columns: minmax(0, 1fr) auto auto; }
+.av-li-n { display: grid; gap: 3px; min-width: 0; }
+.av-li-t { display: flex; align-items: center; font: 500 13px/1.3 var(--av-sans); color: var(--av-ink); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; }
+.av-li-s { font: 500 11px/1.3 var(--av-mono); color: var(--av-ink5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.av-li-v { font: 600 12.5px/1.2 var(--av-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; color: var(--av-ink); }
+.av-li-v small { display: block; margin-top: 3px; font: 500 10.5px/1.3 var(--av-mono); color: var(--av-ink5); }
+.av-li-v.av-pos { color: var(--av-ok-ink); } .av-li-v.av-neg { color: var(--av-bad-ink); }
+.av-w64 { min-width: 64px; }
+.av-bar { position: relative; height: 4px; border-radius: 999px; background: var(--av-track); overflow: hidden; }
+.av-bar i { position: absolute; left: 0; top: 0; bottom: 0; min-width: 2px; border-radius: 999px; background: var(--av-accent); }
+.av-bar i.under { background: var(--av-warn); }
+.av-more { display: block; width: 100%; margin-top: 4px; padding: 11px; border: 1px dashed var(--av-dot); border-radius: var(--av-r-in);
+    background: none; cursor: pointer; font: 500 11.5px/1 var(--av-mono); color: var(--av-ink3); }
+.av-more:hover { color: var(--av-ink); background: var(--av-hover); }
+.av-split-line { display: flex; align-items: center; gap: 10px; padding: 7px 6px 5px; border-top: 1px solid var(--av-hair);
+    font: 500 10.5px/1.2 var(--av-mono); color: var(--av-ink4); }
+.av-split-line::before, .av-split-line::after { content: ''; flex: 1; height: 1px; background: var(--av-dot); }
+@media (max-width: 600px) {
+    .av-li { grid-template-columns: minmax(0, 1fr) auto; }
+    .av-li .av-bar, .av-li .av-dtrack { grid-column: 1 / -1; grid-row: 2; }
+    /* Строка группы: число и доля выручки остаются в одной строке с названием. */
+    .av-li.av-li-b { grid-template-columns: minmax(0, 1fr) auto auto; gap: 3px 10px; }
+    .av-li-b .av-w64 { min-width: 48px; }
+}
+
+/* Код ABC — как в таблице кегов: цвет по первой букве */
+.av-abc { display: inline-block; min-width: 34px; padding: 3px 6px; border-radius: var(--av-r-badge); color: var(--av-on-status);
+    font: 700 10px/1 var(--av-mono); letter-spacing: .06em; text-align: center; background: var(--av-faint); vertical-align: middle; }
+.av-abc.a { background: var(--av-ok); } .av-abc.b { background: var(--av-warn); } .av-abc.c { background: var(--av-bad); }
+
+/* Фильтр таблицы по группе решения */
+.av-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.av-chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border: 1px solid var(--av-line);
+    border-radius: 999px; background: var(--av-card); cursor: pointer; font: 500 12.5px/1 var(--av-sans); color: var(--av-ink2); }
+.av-chip .n { font: 500 11px/1 var(--av-mono); color: var(--av-ink5); }
+.av-chip:hover { border-color: var(--av-accent); }
+.av-chip[aria-pressed="true"] { border-color: var(--av-accent); background: color-mix(in srgb, var(--av-accent) 10%, var(--av-card)); color: var(--av-ink); }
+.av-chip:disabled { opacity: .45; cursor: default; border-color: var(--av-line); }
+.av-chips .av-link { margin-left: 4px; align-self: center; }
+
+/* Бармены: отклонение в обе стороны от средней */
+.av-li-d { grid-template-columns: minmax(0, 1fr) minmax(120px, 1fr) auto; }
+.av-dtrack { position: relative; height: 4px; border-radius: 999px; background: var(--av-track); }
+.av-dtrack::before { content: ''; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--av-ink5); }
+.av-dtrack i { position: absolute; top: 0; bottom: 0; min-width: 2px; }
+.av-dtrack i.n { right: 50%; border-radius: 999px 0 0 999px; background: var(--av-warn); }
+.av-dtrack i.p { left: 50%; border-radius: 0 999px 999px 0; background: var(--av-ok); }
+.av-dscale { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 1fr) auto; gap: 14px; padding: 0 6px; }
+.av-dscale-in { display: flex; justify-content: space-between; font: 500 10px/1 var(--av-mono); color: var(--av-ink5); }
+.av-dscale i { min-width: 70px; }
+@media (max-width: 600px) { .av-dscale { display: none; } }
+
+/* Точечный график «цена против закупки» */
+.av-chart { position: relative; width: 100%; min-width: 0; }
+.av-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.av-ax { font: 400 10.5px var(--av-mono); fill: var(--av-ink5); }
+.av-ax-t { font: 500 10.5px var(--av-mono); fill: var(--av-ink4); }
+.av-gl { stroke: var(--av-hair); stroke-width: 1; }
+.av-bl { stroke: var(--av-rule); stroke-width: 1; }
+.av-zone { fill: color-mix(in srgb, var(--av-warn) 7%, transparent); }
+.av-minl { stroke: var(--av-warn); stroke-width: 1.5; }
+.av-minlbl { font: 600 10.5px var(--av-mono); fill: var(--av-ink2); }
+.av-pt { stroke: var(--av-card); stroke-width: 2; }
+.av-pt.u { fill: var(--av-warn); } .av-pt.r { fill: var(--av-ink6); }
+.av-plbl { font: 500 11px var(--av-sans); fill: var(--av-ink2); paint-order: stroke; stroke: var(--av-card); stroke-width: 3px; stroke-linejoin: round; }
+.av-hit { fill: transparent; cursor: pointer; }
+.av-hit:hover { fill: color-mix(in srgb, var(--av-ink) 8%, transparent); }
+.av-sw { display: inline-block; width: 14px; height: 10px; border-radius: 3px; }
+.av-sw.u { width: 9px; height: 9px; border-radius: 50%; background: var(--av-warn); }
+.av-sw.r { width: 9px; height: 9px; border-radius: 50%; background: var(--av-ink6); }
+.av-sw.h-o2 { background: var(--av-accent); } .av-sw.h-o1 { background: color-mix(in srgb, var(--av-accent) 22%, var(--av-card)); }
+.av-sw.h-0 { background: var(--av-soft); box-shadow: inset 0 0 0 1px var(--av-line); }
+.av-sw.h-u1 { background: color-mix(in srgb, var(--av-ink4) 22%, var(--av-card)); } .av-sw.h-u2 { background: var(--av-ink4); }
+
+/* Бары фасовки: доля категории. Больше, чем в сети — акцент, меньше — серый. */
+.av-scroll { overflow-x: auto; }
+.av-heat { width: 100%; min-width: 620px; border-collapse: separate; border-spacing: 2px; font: 500 12px/1.2 var(--av-mono);
+    font-variant-numeric: tabular-nums; }
+.av-heat th { padding: 2px 8px 8px; text-align: right; white-space: nowrap; vertical-align: bottom; font: 600 9.5px/1.25 var(--av-mono);
+    letter-spacing: .1em; text-transform: uppercase; color: var(--av-ink5); }
+.av-heat thead th:first-child { text-align: left; }
+.av-heat tbody th { position: sticky; left: 0; z-index: 1; max-width: 240px; padding: 7px 10px 7px 0; background: var(--av-card);
+    text-align: left; text-transform: none; letter-spacing: 0; font: 500 12.5px/1.3 var(--av-sans); color: var(--av-ink);
+    overflow: hidden; text-overflow: ellipsis; }
+.av-heat td { padding: 8px 10px; text-align: right; border-radius: 6px; color: var(--av-ink2); }
+.av-heat td.h-o2 { background: var(--av-accent); color: var(--av-on-accent); font-weight: 600; }
+.av-heat td.h-o1 { background: color-mix(in srgb, var(--av-accent) 22%, var(--av-card)); color: var(--av-ink); }
+.av-heat td.h-0 { background: var(--av-soft); color: var(--av-ink3); }
+.av-heat td.h-u1 { background: color-mix(in srgb, var(--av-ink4) 22%, var(--av-card)); color: var(--av-ink); }
+.av-heat td.h-u2 { background: var(--av-ink4); color: var(--av-card); font-weight: 600; }
+.av-heat td.net { background: transparent; color: var(--av-ink3); font-weight: 600; }
+.av-heat tr.ctx th, .av-heat tr.ctx td { color: var(--av-ink5); }
+.av-heat tr.ctx td { background: transparent; box-shadow: inset 0 0 0 1px var(--av-hair); }
+.av-heat tr.ctx td.net { box-shadow: none; }
+.av-heat td:not(.net):hover { box-shadow: inset 0 0 0 2px var(--av-ink); }
+
+/* Рубли рядом с литрами и штуками */
+.av-rub-line { padding: 8px 0 9px; border-top: 1px solid var(--av-hair); font: 400 12px/1.4 var(--av-sans); color: var(--av-ink2); }
+.av-rub-line b { font: 600 12.5px/1 var(--av-mono); color: var(--av-ink); font-variant-numeric: tabular-nums; }
+.av-rub { display: block; margin-top: 3px; font: 500 10.5px/1.2 var(--av-mono); color: var(--av-ink4); font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.av-rub-head { font: 600 10.5px/1 var(--av-mono); color: var(--av-ink3); white-space: nowrap; }
+
+/* Длинная таблица показывается порциями */
+.av-rows-more { display: block; width: 100%; margin: 8px 0 4px; padding: 11px; border: 1px dashed var(--av-dot);
+    border-radius: var(--av-r-in); background: none; cursor: pointer; font: 500 11.5px/1 var(--av-mono); color: var(--av-ink3); }
+.av-rows-more:hover { color: var(--av-ink); background: var(--av-hover); }
+
+/* Подсказка */
+.av-tip { position: absolute; z-index: 60; pointer-events: none; max-width: 280px; padding: 8px 10px; border-radius: 10px;
+    background: var(--av-ink); color: var(--av-card); font: 400 12px/1.4 var(--av-sans); box-shadow: var(--av-shadow-menu); }
+.av-tip[hidden] { display: none; }
+.av-tip-v { font: 600 13px/1.25 var(--av-mono); font-variant-numeric: tabular-nums; }
+.av-tip-n { color: color-mix(in srgb, var(--av-card) 72%, var(--av-ink)); }
+
+@media (prefers-reduced-motion: reduce) {
+    .av-tab, .av-li, .av-lg, .av-how > summary::before { transition: none; }
+}

@@ -380,65 +380,8 @@ body.packaging-page .container { padding: 0; }
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--pk-accent) 14%, transparent);
 }
 
-/* ==================== Сводка ==================== */
-
-.pk-sum {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
-    gap: 10px;
-}
-.pk-tile {
-    background: var(--pk-card);
-    border: 1px solid var(--pk-line);
-    border-radius: var(--pk-r-card);
-    box-shadow: var(--pk-shadow);
-    padding: 15px 17px 13px;
-}
-.pk-tile-cap { font: 600 10px/1 var(--pk-mono); letter-spacing: .14em; color: var(--pk-ink4); }
-.pk-tile-v {
-    margin-top: 10px;
-    font: 700 24px/1 var(--pk-mono);
-    letter-spacing: -.02em;
-    font-variant-numeric: tabular-nums;
-}
-.pk-tile-v u { font: 600 12.5px/1 var(--pk-mono); color: var(--pk-ink5); text-decoration: none; }
-.pk-tile-s { margin-top: 8px; font: 400 11.5px/1.4 var(--pk-sans); color: var(--pk-ink5); }
-
-/* ==================== Корзины действий ==================== */
-
-.pk-buckets {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
-    gap: 10px;
-}
-.pk-bucket {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: var(--pk-card);
-    border: 1px solid var(--pk-line);
-    border-radius: var(--pk-r-card);
-    box-shadow: var(--pk-shadow);
-    padding: 14px 16px 13px;
-    cursor: pointer;
-    font-family: var(--pk-sans);
-    transition: border-color .15s ease, background .12s ease;
-}
-.pk-bucket:hover { background: var(--pk-hover); border-color: var(--pk-accent); }
-.pk-bucket-top { display: flex; align-items: center; gap: 8px; }
-.pk-led { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--pk-calm); }
-.pk-led.ok { background: var(--pk-ok); }
-.pk-led.warn { background: var(--pk-warn); }
-.pk-led.bad { background: var(--pk-bad); }
-.pk-led.accent { background: var(--pk-accent); }
-.pk-bucket-n { font: 600 13px/1.2 var(--pk-sans); }
-.pk-bucket-v {
-    margin-top: 10px;
-    font: 700 21px/1 var(--pk-mono);
-    font-variant-numeric: tabular-nums;
-}
-.pk-bucket-v u { font: 600 11.5px/1 var(--pk-mono); color: var(--pk-ink5); text-decoration: none; }
-.pk-bucket-s { margin-top: 7px; font: 400 11.5px/1.4 var(--pk-sans); color: var(--pk-ink5); }
+/* Сводка и карточки групп решений с 2026-09-27 — «Обзор» общего модуля
+   (static/shared/abc_view.css). */
 
 /* ==================== Таблицы ==================== */
 
@@ -927,7 +870,6 @@ body.packaging-page .container { padding: 0; }
     .pk-run.sm { width: auto; }
     .pk-context { justify-content: flex-start; }
     .pk-search { width: 100%; }
-    .pk-tile-v { font-size: 21px; }
     .pk-drawer { width: 100%; max-width: 100%; }
     .pk-dr-in { padding: 18px 16px 26px; }
     .pk-cells.three, .pk-cells.two { grid-template-columns: 1fr 1fr; }

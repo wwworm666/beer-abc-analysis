@@ -26,6 +26,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 const js = read('static/js/packaging/packaging.js');
+// Общая раскладка (вкладки, «Обзор», «Цены», бары): на странице подключена до packaging.js.
+const viewJs = read('static/js/shared/abc_view.js');
 const BLOCK = JSON.parse(read('tests/fixtures/packaging_sample.json'));
 
 let passed = 0;
@@ -72,7 +74,9 @@ function makeEl(id) {
 
 const IDS = ['pkBurger', 'pkBarBtn', 'pkBarMenu', 'pkBarLabel', 'pkPerBtn', 'pkPerMenu',
              'pkPerLabel', 'pkPerHint', 'pkCatch', 'pkRun', 'pkRunLabel', 'pkSpin',
-             'pkContext', 'pkXyzChip', 'pkMsg', 'pkBody', 'pkSum', 'pkBuckets',
+             'pkContext', 'pkXyzChip', 'pkMsg', 'pkBody',
+             'pkTabs', 'pkOverview', 'pkPrices', 'pkFilter',
+             'pkPanelItems', 'pkPanelCats', 'pkPanelLosses', 'pkPanelBars',
              'pkCatCount', 'pkCats', 'pkPosCount', 'pkSearch', 'pkPos',
              'pkUpdated', 'pkBalance', 'pkLosses', 'pkDiag',
              'pkDrawer', 'pkBackdrop', 'pkBars'];
@@ -94,6 +98,7 @@ function boot() {
             body: makeEl('body')
         },
         location: { hash: '' },
+        history: { replaceState: () => {} },
         fetch: (url, opts) => {
             fetchCalls.push({ url, body: JSON.parse(opts.body) });
             return Promise.resolve({
@@ -105,6 +110,7 @@ function boot() {
     };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
+    new vm.Script(viewJs, { filename: 'abc_view.js' }).runInContext(sandbox);
     new vm.Script(js, { filename: 'packaging.js' }).runInContext(sandbox);
     return { sandbox, byId, fetchCalls };
 }
@@ -139,35 +145,126 @@ test('после ответа тело страницы показано, соо
         'не показано, сколько недель в периоде');
 });
 
-test('сводка: семь плиток с числами из ответа', () => {
-    const html = env.byId.pkSum.innerHTML;
-    const tiles = (html.match(/class="pk-tile"/g) || []).length;
-    assert.equal(tiles, 7, `плиток должно быть 7, найдено ${tiles}`);
-    for (const cap of ['ВЫРУЧКА', 'ПРОДАНО', 'ПОЗИЦИЙ', 'КАТЕГОРИЙ', 'НАЦЕНКА',
-                       'МАРЖА', 'СРЕДНЯЯ ЦЕНА']) {
-        assert.ok(html.includes(cap), `нет плитки ${cap}`);
+// Клик по элементу с data-атрибутами: стаб не умеет closest(), поэтому цель
+// клика отвечает только на селектор своего атрибута.
+function clickAttr(node, attrs) {
+    const target = {
+        closest: (sel) => {
+            const m = sel.match(/^\[(data-[\w-]+)\]$/);
+            return m && attrs[m[1]] !== undefined
+                ? { getAttribute: (a) => (attrs[a] === undefined ? null : attrs[a]) } : null;
+        }
+    };
+    node.listeners.click.forEach((fn) => fn({ target }));
+}
+// Intl ставит неразрывные пробелы между разрядами: сравниваем с обычными.
+const flat = (h) => h.replace(/[  ]/g, ' ');
+// Таблица позиций показывает порцию строк; проверкам «все строки» нужна вся.
+function withAllRows(fn) {
+    const keep = api.state.limit;
+    api.state.limit = 1e9;
+    api.render();
+    try { fn(); } finally { api.state.limit = keep; api.render(); }
+}
+
+test('обзор: маржа, продано и выручка с бутылки из ответа', () => {
+    const html = flat(env.byId.pkOverview.innerHTML);
+    assert.match(html, /Маржа за 30 дней/, 'нет главного числа');
+    assert.match(html, /325 459/, 'маржа не совпала с суммами ответа');
+    assert.match(html, /605 944/, 'выручка не выведена');
+    assert.match(html, /1 103 шт/, 'проданные штуки не выведены');
+    assert.ok(html.includes(`${BLOCK.totals.categories} категори`), 'число категорий не выведено');
+    assert.match(html, /116,0%[\s\S]*ниже минимума сети 120%/, 'наценка сети против минимума не показана');
+    assert.ok(html.includes('Наценка = (выручка − закупка) / закупка'), 'формула наценки не показана');
+    const loose = html.replace(/<details[\s\S]*?<\/details>/g, '');
+    assert.ok(!loose.includes('Наценка = (выручка − закупка)'), 'формула висит открытой');
+});
+
+test('вкладки: числа на кнопках, «Бары» только в «Общей»', () => {
+    const tabs = flat(env.byId.pkTabs.innerHTML);
+    for (const id of ['overview', 'items', 'cats', 'prices', 'losses', 'bars']) {
+        assert.match(tabs, new RegExp(`data-tab="${id}"`), `нет вкладки ${id}`);
     }
-    assert.ok(html.includes(String(BLOCK.totals.categories)), 'число категорий не выведено');
-    assert.ok(html.includes('(выручка − себестоимость) / себестоимость'),
-        'формула наценки не показана на экране');
+    assert.ok(!/data-tab="people"/.test(tabs), 'у фасовки нет барменов');
+    assert.match(tabs, new RegExp(`Позиции<span class="n">${BLOCK.positions.length}<`), 'на вкладке позиций нет числа');
+    assert.match(tabs, /\+23 тыс ₽/, 'на вкладке цен нет суммы недобора');
+    const panels = ['pkOverview', 'pkPanelItems', 'pkPanelCats', 'pkPrices', 'pkPanelLosses', 'pkPanelBars'];
+    assert.deepEqual(panels.filter((id) => !env.byId[id].hidden), ['pkOverview']);
+    clickAttr(env.byId.pkTabs, { 'data-tab': 'bars' });
+    assert.deepEqual(panels.filter((id) => !env.byId[id].hidden), ['pkPanelBars']);
+    const bars = flat(env.byId.pkPanelBars.innerHTML);
+    for (const bar of BLOCK.bars_in_scope) assert.ok(bars.includes(api.esc(bar)), `нет бара ${bar}`);
+    clickAttr(env.byId.pkTabs, { 'data-tab': 'overview' });
+});
+
+test('обзор: «где деньги» — цены, недостача и «сверить учёт» в рублях', () => {
+    const html = flat(env.byId.pkOverview.innerHTML);
+    assert.match(html, /Цены ниже минимума сети[\s\S]*\+23 261/, 'нет недобора по ценам');
+    assert.match(html, /Недостача по инвентаризации[\s\S]*−14 501/, 'нет недостачи в рублях');
+    assert.match(html, /Сверить учёт/, 'нет строки «Сверить учёт»');
+    assert.ok(!/Бармены ниже средней/.test(html), 'у фасовки нет разреза по барменам');
 });
 
 test('решения по ассортименту: шесть групп с сервера, с долей выручки', () => {
-    const html = env.byId.pkBuckets.innerHTML;
-    const cards = (html.match(/class="pk-bucket"/g) || []).length;
-    assert.equal(cards, 6, `групп должно быть 6, найдено ${cards}`);
+    const html = env.byId.pkOverview.innerHTML;
     for (const card of BLOCK.buckets) {
         assert.ok(html.includes(api.esc(card.name)), `нет группы «${card.name}»`);
         assert.ok(html.includes(api.esc(card.action)), `нет действия «${card.action}»`);
+        if (card.count > 0) {
+            assert.ok(html.includes(`data-go="items" data-filter="${card.key}"`), `группа ${card.key} не кликается`);
+        }
     }
-    assert.match(html, /% выручки/, 'не показана доля выручки группы');
-    // Каждая позиция ровно в одной группе: сумма карточек равна числу позиций,
+    // Каждая позиция ровно в одной группе: сумма групп равна числу позиций,
     // и позиций без группы нет (раньше без себестоимости позиция исчезала).
     assert.equal(BLOCK.buckets.reduce((a, c) => a + c.count, 0), BLOCK.positions.length,
         'группы не покрывают все позиции');
     assert.ok(BLOCK.positions.every((p) => p.ABC_Bucket), 'есть позиция без группы');
     assert.ok(Math.abs(BLOCK.buckets.reduce((a, c) => a + c.revenue_share_percent, 0) - 100) < 1e-6,
         'доли групп не складываются в 100%');
+});
+
+test('клик по группе открывает таблицу позиций с фильтром', () => {
+    const view = api.view();
+    const low = BLOCK.positions.filter((p) => p.ABC_Bucket === 'low_markup').length;
+    try {
+        clickAttr(env.byId.pkOverview, { 'data-go': 'items', 'data-filter': 'low_markup' });
+        assert.equal(view.tab(), 'items', 'не открылась вкладка позиций');
+        assert.equal(view.filter(), 'low_markup');
+        const rows = (env.byId.pkPos.innerHTML.match(/class="pk-row is-body"/g) || []).length;
+        assert.equal(rows, Math.min(low, 30), `строк ${rows}, позиций в группе ${low}`);
+        assert.match(env.byId.pkPosCount.textContent, new RegExp(`${low} из ${BLOCK.positions.length}`));
+        assert.match(env.byId.pkPos.innerHTML, new RegExp(`Итого · ${low} позиц`), 'итог не по выборке группы');
+        assert.match(env.byId.pkFilter.innerHTML, /data-filter="low_markup" aria-pressed="true"/);
+    } finally {
+        view.setFilter(null);
+        view.show('overview', false);
+    }
+    const rows = (env.byId.pkPos.innerHTML.match(/class="pk-row is-body"/g) || []).length;
+    assert.equal(rows, 30, 'фильтр не снялся');
+});
+
+test('таблица позиций: порция в 30 строк, «Показать ещё» добавляет следующие', () => {
+    const count = () => (env.byId.pkPos.innerHTML.match(/class="pk-row is-body"/g) || []).length;
+    assert.equal(count(), 30, 'первая порция не 30 строк');
+    assert.match(flat(env.byId.pkPos.innerHTML), new RegExp(`Показать ещё 30 · всего ${BLOCK.positions.length}`));
+    // Итог — по всем позициям, а не по показанным.
+    assert.match(env.byId.pkPos.innerHTML, new RegExp(`Итого · ${BLOCK.positions.length} позиц`));
+    clickAttr(env.byId.pkPos, { 'data-more-rows': '' });
+    assert.equal(count(), 60, 'кнопка не добавила строки');
+    // Новый поиск начинает с первой порции.
+    env.byId.pkSearch.value = '';
+    env.byId.pkSearch.listeners.input[0]({});
+    assert.equal(count(), 30, 'поиск не сбросил порцию');
+});
+
+test('потери в рублях: недостача в балансе и ₽ по строкам расхождений', () => {
+    const bal = flat(env.byId.pkBalance.innerHTML);
+    assert.match(bal, /недостача в деньгах: <b>≈ 14 501 ₽<\/b> по закупке/, 'нет недостачи в рублях');
+    const loss = flat(env.byId.pkLosses.innerHTML);
+    assert.match(loss, /class="av-rub-head">≈ [\d ]+ ₽ по закупке/, 'нет суммы потерь в рублях');
+    assert.ok((loss.match(/class="av-rub"/g) || []).length > 0, 'у строк нет рублей');
+    assert.match(env.byId.pkBalance.innerHTML, /<details class="av-how"><summary>Как считается/,
+        'формула баланса не свёрнута');
 });
 
 test('таблица категорий: ВСЕ категории, без урезания до топ-10', () => {
@@ -197,7 +294,7 @@ test('итог таблицы категорий сходится со свод�
     assert.ok(html.includes('100,0%'), 'накопленная доля итога не 100%');
 });
 
-test('таблица позиций: все позиции, итог и направление сортировки', () => {
+test('таблица позиций: все позиции, итог и направление сортировки', () => withAllRows(() => {
     const html = env.byId.pkPos.innerHTML;
     const rows = (html.match(/class="pk-row is-body"/g) || []).length;
     assert.equal(rows, BLOCK.positions.length, `строк ${rows}, позиций ${BLOCK.positions.length}`);
@@ -211,9 +308,9 @@ test('таблица позиций: все позиции, итог и напр
     const first = html.indexOf(api.esc(BLOCK.positions[0].Beer));
     const second = html.indexOf(api.esc(BLOCK.positions[1].Beer));
     assert.ok(first > 0 && first < second, 'порядок строк не по убыванию выручки');
-});
+}));
 
-test('спрос — третья буква кода, отдельной колонки XYZ нет', () => {
+test('спрос — третья буква кода, отдельной колонки XYZ нет', () => withAllRows(() => {
     // С 2026-09-26 колонки XYZ нет: она повторяла третью букву кода и не влезала
     // в ширину страницы. Позиция без буквы спроса показана «?», а не выдуманной буквой.
     const html = env.byId.pkPos.innerHTML;
@@ -229,7 +326,7 @@ test('спрос — третья буква кода, отдельной кол
         assert.equal(p.ABC_Combined.charAt(2), p.XYZ_Category || '?',
             `третья буква кода ${p.Beer} не спрос`);
     }
-});
+}));
 
 test('поиск фильтрует позиции и по названию, и по категории', () => {
     const cat = BLOCK.categories[0].Category;
@@ -460,14 +557,18 @@ test('сортировка по наценке не ставит «нет дан
     const withoutMarkup = BLOCK.positions.filter((p) => p.MarkupPercent === null).length;
     assert.ok(withoutMarkup > 0, 'в фикстуре нет позиций без наценки');
     api.state.posSort = { key: 'MarkupPercent', dir: 1 };   // по возрастанию
-    api.render();
-    const html = env.byId.pkPos.innerHTML;
-    const firstDash = html.indexOf('class="pk-num dash"');
-    const firstValue = html.search(/class="pk-num">\d/);
-    assert.ok(firstDash > firstValue,
-        'позиции без наценки встали первыми, как будто их наценка худшая');
-    api.state.posSort = { key: 'TotalRevenue', dir: -1 };
-    api.render();
+    try {
+        withAllRows(() => {
+            const html = env.byId.pkPos.innerHTML;
+            const firstDash = html.indexOf('class="pk-num dash"');
+            const firstValue = html.search(/class="pk-num">\d/);
+            assert.ok(firstDash > firstValue,
+                'позиции без наценки встали первыми, как будто их наценка худшая');
+        });
+    } finally {
+        api.state.posSort = { key: 'TotalRevenue', dir: -1 };
+        api.render();
+    }
 });
 
 test('карточка позиции: разбивка по барам в разрезе «Общая»', () => {
@@ -658,10 +759,11 @@ test('наценка округляется вниз и не спорит с б�
         p.MarkupPercent >= 119.5 && p.MarkupPercent < 120);
     assert.ok(near, 'в фикстуре нет позиции с наценкой 119,5–120%');
     assert.equal(near.ABC_Markup, 'B');
-    api.render();
-    const html = env.byId.pkPos.innerHTML;
-    const row = html.slice(html.indexOf(api.esc(near.Beer)));
-    assert.ok(row.slice(0, 1500).includes('>119%<'), 'наценка 119,5% напечатана не как 119%');
+    withAllRows(() => {
+        const html = env.byId.pkPos.innerHTML;
+        const row = html.slice(html.indexOf(api.esc(near.Beer)));
+        assert.ok(row.slice(0, 1500).includes('>119%<'), 'наценка 119,5% напечатана не как 119%');
+    });
 });
 
 test('карточка категории: «N позиций», формула делит на базу категорий', () => {
