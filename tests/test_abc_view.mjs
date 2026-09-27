@@ -219,6 +219,21 @@ test('пояснения расчётов только в «Как считае�
     }
 });
 
+test('недобор по ценам — недополученные деньги: минус и красный, не «заработок»', () => {
+    // Владелец: «+335 тыс» зелёным читалось как лишние деньги от низкой наценки.
+    const ov = flat(V.overviewHtml(MD));
+    assert.match(ov, /class="av-lg-ic neg"[\s\S]*Цены ниже минимума сети[\s\S]*class="av-neg">−75 128 ₽/);
+    const pr = flat(loose(V.pricesHtml(MD, 12)));
+    assert.match(pr, /Недополучено из-за цен ниже минимума сети 250%/);
+    assert.match(pr, /class="av-big av-neg">−75 128 ₽/);
+    assert.ok(!/av-pos/.test(pr), 'в «Ценах» осталась зелёная сумма');
+    assert.ok(!/\+\d[\d ]* ₽/.test(pr.replace(/<[^>]+>/g, ' ')), 'в «Ценах» осталась сумма со знаком плюс');
+    const tab = flat(V.tabsHtml(MD, 'overview'));
+    assert.match(tab, /data-tab="prices"[^>]*>Цены<span class="n neg">−75 тыс ₽/);
+    const cats = flat(V.pricesHtml(MP, 12));
+    assert.ok(!/av-pos/.test(cats), 'в недоборе по категориям осталась зелёная сумма');
+});
+
 test('одинаковый вход — одинаковая разметка', () => {
     assert.equal(V.overviewHtml(V.fromDraft(DRAFT)), V.overviewHtml(V.fromDraft(DRAFT)));
     assert.equal(V.pricesHtml(V.fromPackaging(PACK), 12), V.pricesHtml(V.fromPackaging(PACK), 12));

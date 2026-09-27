@@ -176,6 +176,7 @@ button.av-li:hover { background: var(--av-hover); }
 .av-bar { position: relative; height: 4px; border-radius: 999px; background: var(--av-track); overflow: hidden; }
 .av-bar i { position: absolute; left: 0; top: 0; bottom: 0; min-width: 2px; border-radius: 999px; background: var(--av-accent); }
 .av-bar i.under { background: var(--av-warn); }
+.av-bar i.bad { background: var(--av-bad); }
 .av-more { display: block; width: 100%; margin-top: 4px; padding: 11px; border: 1px dashed var(--av-dot); border-radius: var(--av-r-in);
     background: none; cursor: pointer; font: 500 11.5px/1 var(--av-mono); color: var(--av-ink3); }
 .av-more:hover { color: var(--av-ink); background: var(--av-hover); }

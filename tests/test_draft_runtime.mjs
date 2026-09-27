@@ -193,7 +193,7 @@ test('вкладки: числа на кнопках, видна одна пан
         assert.match(tabs, new RegExp(`data-tab="${id}"`), `нет вкладки ${id}`);
     }
     assert.match(tabs, /Кеги<span class="n">33</, 'на вкладке кегов нет числа');
-    assert.match(tabs, /\+75 тыс ₽/, 'на вкладке цен нет суммы недобора');
+    assert.match(tabs, /Цены<span class="n neg">−75 тыс ₽/, 'на вкладке цен нет недополученной суммы со знаком минус');
     assert.match(tabs, /−64 тыс ₽/, 'на вкладке потерь нет недостачи в рублях');
     const panels = ['drOverview', 'drPanelItems', 'drPanelCats', 'drPrices', 'drPanelLosses', 'drPanelPeople'];
     assert.deepEqual(panels.filter((id) => !env.byId[id].hidden), ['drOverview']);
@@ -205,7 +205,8 @@ test('вкладки: числа на кнопках, видна одна пан
 
 test('обзор: «где деньги» — цены, недостача и бармены в рублях', () => {
     const html = flat(env.byId.drOverview.innerHTML);
-    assert.match(html, /Цены ниже минимума сети[\s\S]*\+75 128/, 'нет недобора по ценам');
+    assert.match(html, /Цены ниже минимума сети[\s\S]*class="av-neg">−75 128 ₽[\s\S]*недополучено/,
+        'недобор по ценам не показан как недополученные деньги');
     assert.match(html, /24 кега с наценкой ниже 250%/, 'нет числа кегов ниже минимума');
     assert.match(html, /Недостача по инвентаризации[\s\S]*−63 595/, 'нет недостачи в рублях');
     assert.match(html, /3 из 8 · сильнее всех Дарья Коновцова, −7,7%/, 'нет строки барменов');

@@ -187,7 +187,7 @@ test('вкладки: числа на кнопках, «Бары» только 
     }
     assert.ok(!/data-tab="people"/.test(tabs), 'у фасовки нет барменов');
     assert.match(tabs, new RegExp(`Позиции<span class="n">${BLOCK.positions.length}<`), 'на вкладке позиций нет числа');
-    assert.match(tabs, /\+23 тыс ₽/, 'на вкладке цен нет суммы недобора');
+    assert.match(tabs, /Цены<span class="n neg">−23 тыс ₽/, 'на вкладке цен нет недополученной суммы со знаком минус');
     const panels = ['pkOverview', 'pkPanelItems', 'pkPanelCats', 'pkPrices', 'pkPanelLosses', 'pkPanelBars'];
     assert.deepEqual(panels.filter((id) => !env.byId[id].hidden), ['pkOverview']);
     clickAttr(env.byId.pkTabs, { 'data-tab': 'bars' });
@@ -199,7 +199,8 @@ test('вкладки: числа на кнопках, «Бары» только 
 
 test('обзор: «где деньги» — цены, недостача и «сверить учёт» в рублях', () => {
     const html = flat(env.byId.pkOverview.innerHTML);
-    assert.match(html, /Цены ниже минимума сети[\s\S]*\+23 261/, 'нет недобора по ценам');
+    assert.match(html, /Цены ниже минимума сети[\s\S]*class="av-neg">−23 261 ₽[\s\S]*недополучено/,
+        'недобор по ценам не показан как недополученные деньги');
     assert.match(html, /Недостача по инвентаризации[\s\S]*−14 501/, 'нет недостачи в рублях');
     assert.match(html, /Сверить учёт/, 'нет строки «Сверить учёт»');
     assert.ok(!/Бармены ниже средней/.test(html), 'у фасовки нет разреза по барменам');

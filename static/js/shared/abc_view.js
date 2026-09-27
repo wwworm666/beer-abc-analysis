@@ -297,7 +297,7 @@
         }).join('') + '</div>';
     }
     var ICONS = {
-        up: 'M7 17 17 7M9 7h8v8', loss: 'M12 3v12m0 0-4-4m4 4 4-4M5 21h14',
+        tag: 'M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8ZM7.5 7.5h.01', loss: 'M12 3v12m0 0-4-4m4 4 4-4M5 21h14',
         people: 'M16 19v-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v1M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M20 19v-1a4 4 0 0 0-3-3.9M15 4.1a3 3 0 0 1 0 5.8',
         check: 'M12 8v5m0 3h.01M10.3 3.9 2.4 17.5A2 2 0 0 0 4.1 20.5h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0',
         chev: 'm9 6 6 6-6 6'
@@ -369,9 +369,11 @@
                 '<span class="av-chev">' + icon('chev', 16) + '</span></button>';
         }
         if (pg.rows.length) {
-            rows += lrow('up', 'pos', 'Цены ниже минимума сети',
+            // Недобор — упущенная выручка, поэтому со знаком минус и красным, как потери:
+            // «+» читался как заработок.
+            rows += lrow('tag', 'neg', 'Цены ниже минимума сети',
                 cnt(pg.rows.length, M.nom) + ' с наценкой ниже ' + nf(minPct) + '% · половину дают ' + nf(pg.half),
-                srub(pg.total), 'av-pos', 'при том же объёме', 'prices');
+                srub(-pg.total), 'av-neg', 'недополучено при том же объёме', 'prices');
         }
         if (sh && sh.qty > 0) {
             rows += lrow('loss', 'neg', 'Недостача по инвентаризации',
@@ -393,7 +395,7 @@
             (rows ? '<div class="av-ledger">' + rows + '</div>'
                   : '<p class="av-lead">Цены не ниже минимума, недостачи нет' + (M.key === 'draft' ? ', бармены на уровне средней' : '') + '.</p>') +
             how([
-                'Цены: недобор = закупка × ' + nf(1 + M.aMin, 1) + ' − выручка по каждой позиции с наценкой ниже ' + nf(minPct) +
+                'Цены: недополучено = закупка × ' + nf(1 + M.aMin, 1) + ' − выручка по каждой позиции с наценкой ниже ' + nf(minPct) +
                     '% и продажами от ' + MIN_SALES + ' ' + M.salesWord + ', без «Сверить учёт». Считается при том же объёме, поэтому это верхняя граница.',
                 'Недостача: ' + M.unit + ' недостачи × средняя закупка ' + M.perWord + ' за период. Недостача считается по каждому бару: излишек одного бара не гасит недостачу другого.',
                 M.key === 'draft' ? 'Бармены: выручка бармена против того, что дали бы те же литры тех же кегов по средней выручке с литра в разрезе.' : null,
@@ -447,11 +449,11 @@
         var pg = priceGap(M);
         var minPct = nf(M.aMin * 100) + '%', mult = nf(1 + M.aMin, 1);
         shown = shown || PRICE_STEP;
-        var html = '<section class="av-card"><div class="av-label">Если довести цену до минимума сети ' + minPct + '</div>' +
-            '<div class="av-big av-pos">' + srub(pg.total) + '</div>' +
+        var html = '<section class="av-card"><div class="av-label">Недополучено из-за цен ниже минимума сети ' + minPct + '</div>' +
+            '<div class="av-big av-neg">' + srub(-pg.total) + '</div>' +
             '<p class="av-lead">' + esc(periodWords(M)) + ' при том же объёме продаж · <b>' + cnt(pg.rows.length, M.nom) +
             '</b> ниже минимума' + (pg.rows.length > 1 ? ' · половину суммы дают ' + (pg.half === 1 ? 'один ' + M.nom[0] : 'первые ' + nf(pg.half)) : '') + '.</p>' +
-            how(['Недобор позиции = закупка × ' + mult + ' − выручка: наценка ' + minPct + ' означает цену в ' + mult + ' раза выше закупки.',
+            how(['Недополучено по позиции = закупка × ' + mult + ' − выручка: столько не хватило до цены по минимуму. Наценка ' + minPct + ' означает цену в ' + mult + ' раза выше закупки.',
                 (M.key === 'draft' ? 'Цена 0,5 л — выручка с литра × 0,5' : 'Цена бутылки — выручка на бутылку') + ', уже со скидками.',
                 'Считается при том же объёме, поэтому это верхняя граница: после подорожания продаж может стать меньше.',
                 'Не входят позиции из «Сверить учёт» и с продажами меньше ' + MIN_SALES + ' ' + M.salesWord + '.']) + '</section>';
@@ -462,8 +464,8 @@
             list += '<button type="button" class="av-li" data-item="' + esc(x.it.id) + '">' +
                 '<span class="av-li-n"><span class="av-li-t">' + esc(x.it.name) + '</span>' +
                 '<span class="av-li-s">' + esc(M.per) + ': ' + nf(x.now) + ' → ' + rub(x.need) + ' · наценка ' + mk(x.it.markup) + '</span></span>' +
-                bar(max > 0 ? x.up / max * 100 : 0, 'under') +
-                '<span class="av-li-v av-pos">' + srub(x.up) + '</span></button>';
+                bar(max > 0 ? x.up / max * 100 : 0, 'bad') +
+                '<span class="av-li-v av-neg">' + srub(-x.up) + '</span></button>';
             if (i + 1 === pg.half && pg.half < Math.min(shown, pg.rows.length)) {
                 list += '<div class="av-split-line">выше — половина суммы</div>';
             }
@@ -472,7 +474,7 @@
         var more = pg.rows.length > shown
             ? '<button type="button" class="av-more" data-more="' + (shown + PRICE_STEP) + '">Показать ещё ' +
               nf(Math.min(PRICE_STEP, pg.rows.length - shown)) + '</button>' : '';
-        html += '<div class="av-row av-two"><section class="av-card">' + cardHead('Где поднять цену', 'по сумме недобора') +
+        html += '<div class="av-row av-two"><section class="av-card">' + cardHead('Где поднять цену', 'больше всего недополучено') +
             '<div class="av-list">' + list + '</div>' + more + '</section>';
 
         if (M.key === 'draft') {
@@ -501,15 +503,15 @@
             var cl = Object.keys(byCat).map(function (k) { return { cat: k, up: byCat[k].up, n: byCat[k].n }; })
                 .sort(function (a, b) { return b.up - a.up || byName(a.cat, b.cat); });
             var mx = cl.length ? cl[0].up : 1;
-            html += '<section class="av-card">' + cardHead('По категориям', 'где собирается недобор') + '<div class="av-list">' +
+            html += '<section class="av-card">' + cardHead('По категориям', 'где недополучено больше всего') + '<div class="av-list">' +
                 cl.slice(0, 10).map(function (x) {
                     return '<div class="av-li"><span class="av-li-n"><span class="av-li-t">' + esc(x.cat) + '</span>' +
                         '<span class="av-li-s">' + cnt(x.n, M.nom) + ' ниже ' + minPct + '</span></span>' +
-                        bar(mx > 0 ? x.up / mx * 100 : 0, 'under') + '<span class="av-li-v av-pos">' + srub(x.up) + '</span></div>';
+                        bar(mx > 0 ? x.up / mx * 100 : 0, 'bad') + '<span class="av-li-v av-neg">' + srub(-x.up) + '</span></div>';
                 }).join('') + '</div>' +
                 (cl.length > 10 ? '<div class="av-sub">ещё ' + cnt(cl.length - 10, ['категория', 'категории', 'категорий']) + ' — ' +
-                    srub(cl.slice(10).reduce(function (a, x) { return a + x.up; }, 0)) + '</div>' : '') +
-                how(['Сумма недобора позиций категории. Пересматривать цены удобнее категорией: у бутылок одного стиля обычно общая логика цены.']) +
+                    srub(-cl.slice(10).reduce(function (a, x) { return a + x.up; }, 0)) + '</div>' : '') +
+                how(['Сумма недополученного по позициям категории. Пересматривать цены удобнее категорией: у бутылок одного стиля обычно общая логика цены.']) +
                 '</section>';
         }
         return html + '</div>';
@@ -715,7 +717,7 @@
             { id: 'overview', title: 'Обзор' },
             { id: 'items', title: M.itemsWord, n: nf(M.totals.count) },
             { id: 'cats', title: 'Категории', n: nf(M.totals.cats) },
-            { id: 'prices', title: 'Цены', n: pg.rows.length ? '+' + thousands(pg.total) : '' },
+            { id: 'prices', title: 'Цены', n: pg.rows.length ? '−' + thousands(pg.total) : '', neg: true },
             { id: 'losses', title: 'Потери', n: sh && sh.qty > 0 ? '−' + thousands(sh.cost) : '', neg: true }
         ];
         if (M.key === 'draft') t.push({ id: 'people', title: 'Бармены', n: nf(M.people.length) });
