@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    {# Страница согласия OAuth для MCP-коннекторов (routes/mcp_oauth.py, core/mcp/oauth.py).
+       mode: consent — запрос доступа; forbidden — вошёл не администратор; error — запрос
+       некорректен и перенаправлять код некуда. Цвета — только переменные сайта
+       (static/dashboard/styles/variables.css), тема — как в shared/nav.html. #}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <title>{% if mode == 'consent' %}Разрешить доступ{% elif mode == 'forbidden' %}Нет доступа{% else %}Подключение не удалось{% endif %} — kultura.os</title>
+    <script nonce="{{ csp_nonce }}">
+        /* Тема сайта хранится в localStorage 'theme' (shared/nav.html). Применяем до отрисовки,
+           чтобы страница не мигала светлой у тех, кто выбрал тёмную. */
+        (function () {
+            try {
+                var theme = localStorage.getItem('theme');
+                if (theme && theme !== 'light') {
+                    document.documentElement.setAttribute('data-theme', theme);
+                }
+            } catch (e) { /* хранилище недоступно — остаётся светлая */ }
+        })();
+    </script>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <style>
+        body {
+            min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
+            padding: 32px 16px;
+        }
+        .oc-card {
+            width: 100%; max-width: 580px; background: var(--bg-secondary);
+            border: 1px solid var(--border-color); border-radius: var(--border-radius-sm);
+            padding: 28px 28px 24px; box-shadow: var(--shadow-lg);
+        }
+        .oc-brand { font-size: 18px; font-weight: 500; letter-spacing: .5px; margin-bottom: 18px; }
+        .oc-brand .prompt { color: var(--accent); margin-right: 6px; }
+        .oc-brand .cursor { color: var(--accent); margin-left: 2px; animation: oc-blink 1.1s steps(1) infinite; }
+        @keyframes oc-blink { 50% { opacity: 0; } }
+        .oc-title { font-size: 20px; line-height: 1.35; margin-bottom: 6px; }
+        .oc-lead { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
+        .oc-block { border-top: 1px solid var(--border-light); padding: 14px 0; }
+        .oc-label { font-size: 12px; color: var(--text-tertiary); margin-bottom: 4px; }
+        .oc-name { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+        .oc-host { font-size: 26px; font-weight: 600; color: var(--accent); overflow-wrap: anywhere; line-height: 1.25; }
+        .oc-mono { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .oc-note { font-size: 12px; color: var(--text-tertiary); margin-top: 6px; }
+        .oc-list { margin: 8px 0 0 18px; font-size: 13px; }
+        .oc-list li { margin: 3px 0; }
+        .oc-facts { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-secondary); }
+        .oc-facts li { margin: 4px 0; }
+        .oc-warn {
+            background: var(--warning-bg); border: 1px solid var(--warning); color: var(--text-primary);
+            border-radius: 12px; padding: 12px 14px; font-size: 13px; margin-top: 10px;
+        }
+        .oc-warn strong { color: var(--warning); }
+        .oc-error {
+            background: var(--danger-bg); border: 1px solid var(--danger); color: var(--text-primary);
+            border-radius: 12px; padding: 12px 14px; font-size: 14px; margin-top: 8px;
+        }
+        .oc-pill {
+            display: inline-block; padding: 2px 10px; margin-left: 6px; vertical-align: middle;
+            border-radius: var(--border-radius-pill); font-size: 12px; font-weight: 600;
+            background: var(--accent-light); color: var(--accent);
+        }
+        .oc-modes { display: grid; gap: 8px; margin-top: 6px; }
+        .oc-mode {
+            display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; cursor: pointer;
+            border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-primary);
+        }
+        .oc-mode:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+        /* base.css задаёт input отступы, рамку и скругление — у радиокнопки их снимаем. */
+        .oc-mode input[type=radio] {
+            flex: none; width: 16px; height: 16px; margin: 3px 0 0; padding: 0; border: 0;
+            box-shadow: none; accent-color: var(--accent);
+        }
+        .oc-mode-title { display: block; font-size: 14px; font-weight: 600; }
+        .oc-mode-tag { font-size: 11px; font-weight: 500; color: var(--text-tertiary); }
+        .oc-mode-desc { display: block; font-size: 12px; color: var(--text-secondary); }
+        .oc-actions { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+        .oc-actions .btn { flex: 1 1 180px; }
+        /* base.css красит текст .btn белым; в тёмной теме акцент светлый — нужен
+           парный токен --text-on-accent (тёмный в тёмной теме, белый в светлой). */
+        .oc-actions .btn:not(.btn-secondary) { color: var(--text-on-accent); }
+        .oc-links { margin-top: 18px; font-size: 13px; color: var(--text-tertiary); }
+        .oc-links a { color: var(--accent); }
+        @media (max-width: 480px) {
+            body { padding: 16px 12px; }
+            .oc-card { padding: 20px 16px; }
+            .oc-host { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+<main class="oc-card">
+    <div class="oc-brand"><span class="prompt">&gt;</span>kultura.os<span class="cursor">_</span></div>
+
+    {% if mode == 'consent' %}
+        <h1 class="oc-title">Подключить приложение к данным «Культуры»?</h1>
+        <p class="oc-lead">Приложение просит доступ к сайту по MCP от вашего имени.</p>
+
+        <section class="oc-block">
+            <div class="oc-label">Приложение</div>
+            <div class="oc-name">{{ client_name }}</div>
+            <div class="oc-note">Название приложение указало само при регистрации{% if client_registered_at %} ({{ client_registered_at }} МСК){% endif %}, проверять по нему нельзя. Надёжный признак — адрес ниже.</div>
+        </section>
+
+        <section class="oc-block">
+            <div class="oc-label">Код доступа будет отправлен на</div>
+            <div class="oc-host">{{ redirect_host }}</div>
+            <div class="oc-mono">{{ redirect_uri }}</div>
+            {% if is_loopback %}
+                <div class="oc-warn"><strong>Это ваш компьютер (localhost).</strong> Так подключаются Claude Code и другие программы на этом компьютере. Любая программа на нём может выдать себя за приложение, поэтому разрешайте, только если вы сами только что запустили подключение здесь.</div>
+            {% elif is_claude_host %}
+                <div class="oc-note">Адрес приложения Claude: сайт, Desktop, мобильное приложение и расписания.</div>
+            {% else %}
+                <div class="oc-note">Этот хост разрешён в настройках страницы «Доступ агентов».</div>
+            {% endif %}
+        </section>
+
+        <section class="oc-block">
+            <div class="oc-label">Раздел (коннектор)</div>
+            <div class="oc-name">{{ connector.title }} <span class="oc-pill">{{ url_mode_title }}</span></div>
+            <div class="oc-mono">{{ connector.url }}</div>
+            {% if connector.domains %}
+                <ul class="oc-list">
+                    {% for d in connector.domains %}<li><strong>{{ d.title }}</strong>: {{ d.summary }}</li>{% endfor %}
+                </ul>
+            {% endif %}
+        </section>
+
+        <form method="POST" action="{{ url_for('mcp_oauth.authorize') }}" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            {% for name, value in echo %}<input type="hidden" name="{{ name }}" value="{{ value }}">
+            {% endfor %}
+
+            <section class="oc-block">
+                <div class="oc-label">Режим доступа</div>
+                <div class="oc-modes" role="radiogroup" aria-label="Режим доступа">
+                    {% for m in mode_options %}
+                        <label class="oc-mode">
+                            <input type="radio" name="mode" value="{{ m.key }}"{% if m.checked %} checked{% endif %}>
+                            <span>
+                                <span class="oc-mode-title">{{ m.title }}{% if m.checked %} <span class="oc-mode-tag">как в адресе коннектора</span>{% endif %}</span>
+                                <span class="oc-mode-desc">{{ m.desc }}</span>
+                            </span>
+                        </label>
+                    {% endfor %}
+                </div>
+                <div class="oc-note">{% if mode_options|length > 1 %}Режим задан адресом коннектора. Можно выбрать строже, но не мягче.{% else %}Адрес коннектора разрешает только этот режим.{% endif %}</div>
+            </section>
+
+            <section class="oc-block">
+                <div class="oc-label">От чьего имени</div>
+                <div>{{ user_display }} <span class="oc-mono">({{ user_login }}, администратор)</span></div>
+            </section>
+
+            <section class="oc-block">
+                <ul class="oc-facts">
+                    <li>Приложение увидит все данные раздела как есть, включая имена, зарплаты и телефоны, если они в нём есть. Что оно сможет менять, определяет выбранный режим доступа. Каждый вызов записывается в журнал.</li>
+                    <li>Доступ продлевается сам: ключ действует {{ access_hours }} ч и обновляется, пока приложение пользуется им хотя бы раз в {{ refresh_days }} дней.</li>
+                    <li>Отключить приложение можно в любой момент на странице «Доступ агентов». Доступ пропадает и тогда, когда ваш аккаунт перестаёт быть активным администратором.</li>
+                </ul>
+            </section>
+
+            <div class="oc-warn">Разрешайте, только если вы сами только что начали подключение в приложении. Если ссылку прислал кто-то другой, нажмите «Отказать».</div>
+
+            <div class="oc-actions">
+                <button type="submit" name="decision" value="allow" class="btn">Разрешить</button>
+                <button type="submit" name="decision" value="deny" class="btn btn-secondary">Отказать</button>
+            </div>
+        </form>
+
+    {% elif mode == 'forbidden' %}
+        <h1 class="oc-title">Нет доступа</h1>
+        <div class="oc-error">Подключать приложения к данным сайта по MCP может только администратор. Вы вошли как <strong>{{ user_login }}</strong>.</div>
+        <div class="oc-links"><a href="/logout">Войти под другим аккаунтом</a> · <a href="/">На главную</a></div>
+
+    {% else %}
+        <h1 class="oc-title">{{ error_title or 'Подключение не удалось' }}</h1>
+        <div class="oc-error">{{ error_message }}</div>
+        <div class="oc-links">Вернитесь в приложение и начните подключение заново. · <a href="/">На главную</a></div>
+    {% endif %}
+</main>
+</body>
+</html>

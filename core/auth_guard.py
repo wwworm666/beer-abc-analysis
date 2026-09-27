@@ -37,6 +37,17 @@ PUBLIC_ENDPOINTS = {
     'taps.taplist_yml',                # Яндекс забирает YML-фид таплиста без cookie
     'taps.kitchen_yml',                # Яндекс забирает YML кухонного меню без cookie
     'yml_feeds.kitchen_yml',           # тот же фид, если его отдаёт страница фидов
+    # MCP (ИИ-агенты владельца, core/mcp/__init__.py): у клиента Claude нет cookie сайта. Коннекторы
+    # сами проверяют Bearer-токен (core/mcp/auth.py) — без токена 401. OAuth-метаданные,
+    # регистрация клиента, выдача и отзыв токена по спецификации открыты без входа;
+    # страница согласия mcp_oauth.authorize здесь НЕ стоит — она требует входа в сайт.
+    'mcp.mcp_all',
+    'mcp.mcp_domain',
+    'mcp_oauth.protected_resource_metadata',
+    'mcp_oauth.authorization_server_metadata',
+    'mcp_oauth.register_client',
+    'mcp_oauth.token',
+    'mcp_oauth.revoke',
 }
 
 

@@ -20,10 +20,13 @@ core/content_media.py. Этот модуль только разбирает з�
     GET    /api/content-plan/materials/<id>               {material} (для deep-link ?open=)
     POST   /api/content-plan/materials                    {month, title, kind?, live_source?,
                                                            planned_date?, base_text?, note?,
-                                                           media_required?} -> {material}
+                                                           media_required?, agent_rationale?,
+                                                           shot_list?} -> {material}
+                                                          (origin ставит сервер: через MCP — 'agent')
     PATCH  /api/content-plan/materials/<id>               {title?, kind?, live_source?, planned_date?,
-                                                           base_text?, note?, media_required?}
-                                                          -> {material, unapproved}
+                                                           base_text?, note?, media_required?,
+                                                           agent_rationale?, shot_list?}
+                                                          -> {material, unapproved}; origin — 400
     DELETE /api/content-plan/materials/<id>               -> {deleted: true}; 409 при вышедших
     POST   /api/content-plan/materials/<id>/placements    {channel, bars:[..], date?, time?, text?,
                                                            media?, audience?} -> {material, created}
@@ -37,16 +40,27 @@ core/content_media.py. Этот модуль только разбирает з�
     POST   /api/content-plan/materials/<id>/media         multipart 'file' -> {material, unapproved}
     DELETE /api/content-plan/materials/<id>/media/<name>  -> {material, unapproved}
     GET    /api/content-plan/media/<name>                 файл; 404 на неверное/неизвестное имя
-    GET    /api/content-plan/approve-preview              ?month=&bar=&channel= -> {month, will_approve,
-                                                          bot, stays_draft}
+    GET    /api/content-plan/approve-preview              ?month=&bar=&channel=&origin= -> {month,
+                                                          will_approve, bot, stays_draft}; origin
+                                                          (agent|human) — фильтр «Только от ИИ»
     POST   /api/content-plan/approve                      {placement_ids:[..], confirm_bot?}
                                                           -> {approved, skipped}
     POST   /api/content-plan/bulk-pause                   {bar, action:'pause'|'resume'}
                                                           -> {changed, skipped}
     POST   /api/content-plan/bulk                         {material_ids:[..], action:'shift'|'delete'|
                                                            'cancel', days?} -> {done, failed:[{id, error}]}
+    POST   /api/content-plan/agent-drafts/delete          {month, material_ids?} -> {deleted: [id],
+                                                          skipped: [{id, reason}]} — «Удалить черновики
+                                                          ИИ»: материалы месяца с origin 'agent', у
+                                                          которых все размещения draft или cancelled
+                                                          (см. ContentPlanStore.delete_agent_drafts)
     POST   /api/content-plan/copy-month                   {from?, to, with_content?} -> {created, notes}
                                                           (from по умолчанию — месяц перед to)
+    GET    /api/content-plan/brief                        бриф сети для ИИ-агента -> {brief, stored,
+                                                          total, schema} (core/content_brief.py)
+    PUT    /api/content-plan/brief                        {sections: {...частично}} -> {brief, stored,
+                                                          total, changed}; сливает переданные поля,
+                                                          неизвестные — 400
     GET    /api/content-plan/live-preview                 ?source=&bar=&material_id=&placement_id=&date=
                                                           &template=&channel=&has_media=
                                                           -> render_live (POST с тем же JSON — для
@@ -61,7 +75,13 @@ core/content_media.py. Этот модуль только разбирает з�
 Коды ответов: 400 — ошибка ввода {error}; 404 — нет материала/размещения/файла;
 409 — действие недопустимо в текущем статусе (+ поля из исключения); 413 —
 тело загрузки больше предела видео; 503 {error, code: 'content_plan_unavailable'}
-— файл плана есть, но не читается (он НЕ перезаписывается).
+— файл плана есть, но не читается (он НЕ перезаписывается); 503 {error, code:
+'content_brief_unavailable'} — то же для файла брифа.
+
+ИИ-агент (MCP): мост core/mcp/bridge.py исполняет эти же маршруты от имени
+владельца с 'via_mcp': True в current_user(). По нему хранилище ставит origin
+новых материалов ('agent') и подписывает журнал «<login> · агент» — маршрутам
+ничего передавать не нужно (core/content_plan.py, раздел «ИИ-агент»).
 """
 from functools import wraps
 
@@ -69,6 +89,7 @@ from flask import Blueprint, jsonify, render_template, request, send_from_direct
 
 from core import content_media
 from core.auth_guard import current_user
+from core.content_brief import ContentBriefUnavailable, get_content_brief_store
 from core.content_plan import (CHANNELS, CROSS_MONTH_STATES, MATERIAL_MEDIA_MAX, ContentPlanConflict,
                                ContentPlanNotFound, ContentPlanUnavailable, add_months,
                                get_content_plan_store, parse_bool, parse_date, parse_days, parse_month,
@@ -107,6 +128,8 @@ def _guard(view):
             return view(*args, **kwargs)
         except ContentPlanUnavailable as e:
             return _error(str(e), 503, code='content_plan_unavailable')
+        except ContentBriefUnavailable as e:
+            return _error(str(e), 503, code='content_brief_unavailable')
         except ContentPlanNotFound as e:
             return _error(str(e), 404)
         except ContentPlanConflict as e:
@@ -119,6 +142,11 @@ def _guard(view):
 def _store():
     """Хранилище плана (отдельная функция — тесты подменяют её временным файлом)."""
     return get_content_plan_store()
+
+
+def _brief_store():
+    """Хранилище брифа для агента (тесты подменяют так же, как _store)."""
+    return get_content_brief_store()
 
 
 def _app_version() -> str:
@@ -253,11 +281,14 @@ def placement_action(placement_id):
 @content_plan_bp.route('/api/content-plan/approve-preview', methods=['GET'])
 @_guard
 def approve_preview():
+    """Что утвердит «Утвердить готовые». ?origin=agent|human — только материалы
+    этого происхождения (фильтр «Только от ИИ» на экране)."""
     store = _store()
     args = request.args
     raw = (args.get('month') or '').strip()
     month = parse_month(raw) if raw else _current_month(store)
-    return jsonify(store.approve_preview(month, bar=args.get('bar'), channel=args.get('channel')))
+    return jsonify(store.approve_preview(month, bar=args.get('bar'), channel=args.get('channel'),
+                                         origin=args.get('origin')))
 
 
 @content_plan_bp.route('/api/content-plan/approve', methods=['POST'])
@@ -314,6 +345,24 @@ def bulk_materials():
     return jsonify({'done': done, 'failed': failed})
 
 
+@content_plan_bp.route('/api/content-plan/agent-drafts/delete', methods=['POST'])
+@_guard
+def delete_agent_drafts():
+    """«Удалить черновики ИИ»: {month, material_ids?} -> {deleted, skipped}.
+
+    Удаляет материалы плана месяца month с origin 'agent', у которых все
+    размещения — черновики или отменены (ContentPlanStore.delete_agent_drafts).
+    material_ids сужает набор (экран шлёт ровно те id, число которых показал
+    в подтверждении); без них — все черновики агента месяца. Всё одной
+    записью; то, что удалить нельзя, — в skipped с причиной. 400 — нет или
+    неверный month, material_ids не список, пустой или длиннее BULK_MAX."""
+    body = _json_body()
+    ids = body.get('material_ids')
+    if isinstance(ids, list) and len(ids) > BULK_MAX:
+        return _error(f'За один раз — не больше {BULK_MAX} материалов')
+    return jsonify(_store().delete_agent_drafts(body.get('month'), current_user(), material_ids=ids))
+
+
 @content_plan_bp.route('/api/content-plan/copy-month', methods=['POST'])
 @_guard
 def copy_month():
@@ -324,6 +373,32 @@ def copy_month():
     with_content = body.get('with_content')
     with_content = parse_bool(with_content, 'Копировать тексты и фото') if with_content is not None else False
     return jsonify(_store().copy_month(from_month, to_month, with_content, current_user()))
+
+
+# ------------------------------------------------------------------ бриф для агента
+
+@content_plan_bp.route('/api/content-plan/brief', methods=['GET'])
+@_guard
+def get_brief():
+    """Бриф сети для ИИ-агента: {brief, stored, total, schema}.
+
+    stored=false — файла ещё нет, показана затравка (бары из справочника);
+    schema — подписи, подсказки и пределы полей, назначение брифа и правила
+    слияния (core/content_brief.py). 503 — файл брифа не читается."""
+    return jsonify(_brief_store().payload())
+
+
+@content_plan_bp.route('/api/content-plan/brief', methods=['PUT'])
+@_guard
+def update_brief():
+    """Правка брифа: {sections: {...частично}} -> {brief, stored, total, changed}.
+
+    Меняются только переданные поля (bars — по барам и полям, examples —
+    целым списком); неизвестный ключ, раздел, бар или поле, неверный тип,
+    превышение предела — 400, не сохраняется ничего; 503 — файл не читается
+    (не перезаписывается). Подпись updated_by через MCP — «<login> · агент»."""
+    body = request.get_json(silent=True)
+    return jsonify(_brief_store().update(body, current_user()))
 
 
 # ------------------------------------------------------------------ живые данные

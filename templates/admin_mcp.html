@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Доступ агентов — kultura.os</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/admin_mcp.css?v={{ app_version }}">
+</head>
+<body class="dashboard-page mcp-page">
+    <div class="container">
+        {% set page_title = "Доступ агентов" %}
+        {% set page_subtitle = "MCP: коннекторы, токены, журнал" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <main class="main-content">
+        <div class="mcp-wrap" id="mcpRoot" data-base-url="{{ base_url }}">
+
+            {% if load_errors %}
+            <section class="mcp-panel mcp-warn">
+                <h2>Часть инструментов не опубликована</h2>
+                <p class="mcp-note">Описания ниже не прошли проверку при загрузке — агент их не видит.
+                   Остальные инструменты работают.</p>
+                <ul class="mcp-list">
+                    {% for err in load_errors %}<li><code>{{ err }}</code></li>{% endfor %}
+                </ul>
+            </section>
+            {% endif %}
+
+            <section class="mcp-panel">
+                <h2>Коннекторы</h2>
+                <p class="mcp-note">Коннектор — адрес, по которому ИИ-клиент (Claude Code, приложение Claude,
+                   расписания Claude) подключается к сервису. Агент работает от вашего имени и видит то же, что вы
+                   на сайте. Приложение Claude подключается по адресу коннектора само и спрашивает разрешение на
+                   странице входа; Claude Code — по токену ниже.</p>
+                <div class="mcp-table-wrap">
+                    <table class="mcp-table">
+                        <thead>
+                            <tr><th>Раздел</th><th>Адрес</th><th>Инструментов</th><th>Сценариев</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for c in connectors %}
+                            <tr>
+                                <td><strong>{{ c.title }}</strong></td>
+                                <td><code class="mcp-code">{{ c.url }}</code></td>
+                                <td>{{ c.tools }}</td>
+                                <td>{{ c.prompts }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="mcp-note mcp-note-after">Режим доступа задаётся концом адреса: <code class="mcp-code">/read</code>
+                   — только чтение, <code class="mcp-code">/draft</code> — чтение и черновики (например,
+                   <code class="mcp-code">{{ base_url }}/mcp/content/draft</code>), без суффикса — полный доступ.
+                   Действует более строгий из режима адреса и режима токена. Для расписаний и агентов, которые
+                   читают тексты гостей, — «Только чтение» или «Чтение и черновики»: тогда ни одна «команда»,
+                   спрятанная в данных, не дотянется до утверждения, отправки и публичных фидов.</p>
+            </section>
+
+            <section class="mcp-panel">
+                <h2>Выпустить токен для Claude Code</h2>
+                <div class="mcp-grid">
+                    <div class="mcp-field">
+                        <label for="mcpTokenName">Имя токена</label>
+                        <input id="mcpTokenName" class="mcp-input" type="text" maxlength="80"
+                               placeholder="Claude Code, ноутбук" autocomplete="off">
+                    </div>
+                    <div class="mcp-field">
+                        <label for="mcpTokenExpiry">Срок действия</label>
+                        <select id="mcpTokenExpiry" class="mcp-input">
+                            <option value="">без срока</option>
+                            <option value="30">30 дней</option>
+                            <option value="90">90 дней</option>
+                            <option value="365">1 год</option>
+                        </select>
+                    </div>
+                    <div class="mcp-field">
+                        <label for="mcpTokenMode">Режим доступа</label>
+                        <select id="mcpTokenMode" class="mcp-input">
+                            {% for m in modes|reverse %}<option value="{{ m }}">{{ mode_titles[m] }}</option>{% endfor %}
+                        </select>
+                        <span class="mcp-hint">Токен в режиме «Только чтение» или «Чтение и черновики» не получит
+                            больше, даже если подключить его к адресу без суффикса.</span>
+                    </div>
+                    <div class="mcp-field mcp-full">
+                        <span class="mcp-label">Разделы</span>
+                        <div class="mcp-checks" id="mcpDomainChecks">
+                            <label class="mcp-check"><input type="checkbox" id="mcpDomainAll" checked> все разделы
+                                и полный коннектор /mcp</label>
+                            {% for key, dom in domains.items() %}
+                            <label class="mcp-check"><input type="checkbox" class="mcp-domain" value="{{ key }}"
+                                   disabled> {{ dom.title }}</label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="mcp-full mcp-actions">
+                        <button type="button" class="mcp-btn mcp-btn-primary" id="mcpTokenCreate">Выпустить токен</button>
+                        <span class="mcp-err" id="mcpTokenError"></span>
+                    </div>
+                </div>
+
+                <div class="mcp-token-box" id="mcpTokenResult" hidden>
+                    <p class="mcp-strong">Токен показан один раз — скопируйте его сейчас. На сервере хранится только
+                       отпечаток, восстановить токен нельзя.</p>
+                    <div class="mcp-copy-row">
+                        <code class="mcp-code mcp-secret" id="mcpTokenValue"></code>
+                        <button type="button" class="mcp-btn mcp-btn-ghost mcp-btn-sm" id="mcpTokenCopy">Скопировать</button>
+                    </div>
+                    <p class="mcp-note">Команды для терминала (Claude Code):</p>
+                    <div class="mcp-commands" id="mcpCommands"></div>
+                    <p class="mcp-note">Полный коннектор /mcp доступен только токену на все разделы.</p>
+                    <button type="button" class="mcp-btn mcp-btn-ghost mcp-btn-sm" id="mcpTokenHide">Скрыть токен</button>
+                </div>
+            </section>
+
+            <section class="mcp-panel">
+                <h2>Статические токены</h2>
+                <div class="mcp-table-wrap">
+                    <table class="mcp-table">
+                        <thead>
+                            <tr><th>Имя</th><th>Начало токена</th><th>Разделы</th><th>Режим</th><th>Выпущен</th>
+                                <th>Использован</th><th>Срок</th><th>Статус</th><th></th></tr>
+                        </thead>
+                        <tbody id="mcpTokensBody"></tbody>
+                    </table>
+                </div>
+                <p class="mcp-empty" id="mcpTokensEmpty" hidden>Токенов пока нет.</p>
+                <span class="mcp-err" id="mcpTokensError"></span>
+            </section>
+
+            {% if oauth_available %}
+            <section class="mcp-panel" id="mcpGrantsPanel">
+                <h2>Подключённые приложения (OAuth)</h2>
+                <p class="mcp-note">Приложение Claude и расписания получают доступ после вашего согласия на странице
+                   входа. Отключение сразу гасит все выданные приложению токены.</p>
+                <div class="mcp-table-wrap">
+                    <table class="mcp-table">
+                        <thead>
+                            <tr><th>Приложение</th><th>Возвращает на</th><th>Коннектор</th><th>Режим</th>
+                                <th>Чьё</th><th>Подключено</th><th>Использовано</th><th></th></tr>
+                        </thead>
+                        <tbody id="mcpGrantsBody"></tbody>
+                    </table>
+                </div>
+                <p class="mcp-empty" id="mcpGrantsEmpty" hidden>Подключённых приложений нет.</p>
+                <span class="mcp-err" id="mcpGrantsError"></span>
+            </section>
+            {% endif %}
+
+            <section class="mcp-panel">
+                <h2>Журнал вызовов</h2>
+                <div class="mcp-filters">
+                    <div class="mcp-field">
+                        <label for="mcpAuditTool">Инструмент</label>
+                        <input id="mcpAuditTool" class="mcp-input" type="text" list="mcpToolNames"
+                               placeholder="все" autocomplete="off">
+                        <datalist id="mcpToolNames">
+                            {% for name in tool_names %}<option value="{{ name }}">{% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="mcp-field">
+                        <label for="mcpAuditStatus">Статус</label>
+                        <select id="mcpAuditStatus" class="mcp-input">
+                            <option value="">все</option>
+                            <option value="ok">успешно</option>
+                            <option value="error">ошибка</option>
+                            <option value="denied">отказ</option>
+                        </select>
+                    </div>
+                    <div class="mcp-field mcp-field-end">
+                        <button type="button" class="mcp-btn mcp-btn-ghost" id="mcpAuditRefresh">Обновить</button>
+                    </div>
+                </div>
+                <div class="mcp-table-wrap">
+                    <table class="mcp-table mcp-table-audit">
+                        <thead>
+                            <tr><th>Время (МСК)</th><th>Инструмент</th><th>Коннектор</th><th>Клиент</th>
+                                <th>Статус</th><th>HTTP</th><th>мс</th><th>Аргументы и ошибка</th></tr>
+                        </thead>
+                        <tbody id="mcpAuditBody"></tbody>
+                    </table>
+                </div>
+                <p class="mcp-empty" id="mcpAuditEmpty" hidden>Вызовов нет.</p>
+                <span class="mcp-err" id="mcpAuditError"></span>
+            </section>
+
+            <section class="mcp-panel">
+                <h2>Настройки</h2>
+                <div class="mcp-grid">
+                    <div class="mcp-field">
+                        <label for="mcpChatSelect">Чат Telegram для отчётов агентов</label>
+                        <select id="mcpChatSelect" class="mcp-input"></select>
+                        <span class="mcp-hint">Подписчики бота проверки открытия баров. Агент пишет сюда
+                            инструментом common_notify_owner (не больше 30 сообщений в сутки).</span>
+                    </div>
+                    <div class="mcp-field">
+                        <label for="mcpChatInput">Или номер чата вручную</label>
+                        <input id="mcpChatInput" class="mcp-input" type="text" inputmode="numeric"
+                               placeholder="670033096" autocomplete="off">
+                        <span class="mcp-hint" id="mcpBotStatus"></span>
+                    </div>
+                    <div class="mcp-field mcp-full">
+                        <label for="mcpHosts">Разрешённые хосты возврата OAuth (по одному в строке)</label>
+                        <textarea id="mcpHosts" class="mcp-input mcp-textarea" rows="4" spellcheck="false"></textarea>
+                        <span class="mcp-hint">Куда сервер авторизации может вернуть код: приложения Claude и
+                            локальные адреса Claude Code. Лишний хост — лишний риск.</span>
+                    </div>
+                    <div class="mcp-full mcp-actions">
+                        <button type="button" class="mcp-btn mcp-btn-primary" id="mcpSettingsSave">Сохранить</button>
+                        <span class="mcp-ok" id="mcpSettingsOk"></span>
+                        <span class="mcp-err" id="mcpSettingsError"></span>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script src="/static/js/admin_mcp.js?v={{ app_version }}"></script>
+</body>
+</html>

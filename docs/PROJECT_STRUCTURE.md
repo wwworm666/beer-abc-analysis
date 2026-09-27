@@ -27,8 +27,12 @@ beer-abc-analysis/
 ├── utils/                  # Утилиты маппинга
 ├── scripts/                # Вспомогательные скрипты (debug, check, maintenance)
 ├── tests/                  # Тесты (pytest + node *.mjs; раздел «Гости»: test_content_plan.py,
-│                           #   test_guest_reviews.py, test_content_plan_render.mjs,
-│                           #   test_reviews_render.mjs, test_guest_hub_render.mjs)
+│                           #   test_content_brief.py, test_guest_reviews.py, test_content_plan_render.mjs,
+│                           #   test_reviews_render.mjs, test_guest_hub_render.mjs; MCP: test_mcp_protocol.py,
+│                           #   test_mcp_bridge.py, test_mcp_tokens.py, test_mcp_oauth.py, test_mcp_coverage.py,
+│                           #   test_mcp_docs_allowlist.py, test_mcp_modes.py,
+│                           #   test_mcp_tools_{content,stocks,analytics,staff}.py,
+│                           #   test_mcp_admin_render.mjs)
 ├── docs/                   # Документация проекта (SoT)
 ├── .claude/                # Принципы + индекс для агентов
 ├── memory/                 # Persistent-память (auto-managed)
@@ -95,10 +99,11 @@ beer-abc-analysis/
 | `bar_acceptance.py` | **Приёмка бара** «Как принял бар?»: правила ответа, окно, сборка журнала месяца |
 | `bar_photo_store.py` | Фото приёмки на диске: имя, проверка сигнатуры JPEG, атомарная запись |
 
-### Раздел «Гости» (7)
+### Раздел «Гости» (8)
 | Файл | Что делает |
 |---|---|
-| `content_plan.py` | **Контент-план**: материалы и размещения, готовность, сводка, утверждение, пауза, сдвиг, повтор, копирование месяца, живые данные таплиста, журнал (`content_plan.json`) — [content-plan.md](content-plan.md) |
+| `content_plan.py` | **Контент-план**: материалы и размещения, готовность, сводка, утверждение, пауза, сдвиг, повтор, копирование месяца, живые данные таплиста, журнал (`content_plan.json`); ИИ-агент: `origin`, «Почему этот пост», «Что снять», черновики ИИ — [content-plan.md](content-plan.md) |
+| `content_brief.py` | **Бриф сети для ИИ-агента** контент-плана: разделы, бары, примеры, пределы, слияние правок, затравка (`content_brief.json`) — [content-plan.md](content-plan.md), раздел «ИИ-агент» |
 | `content_media.py` | Фото и видео контент-плана на диске: имя `cp_<дата>_<12 hex>`, проверка сигнатуры, атомарная запись (`content_media/`) |
 | `guest_reviews.py` | **Отзывы гостей**: хранилище, проверка полей, статусы, метрики и формулы, слой календаря (`guest_reviews.json`) — [reviews.md](reviews.md) |
 | `yandex_business.py` | Клиент кабинета Яндекс Бизнеса (только чтение): организации, филиалы сетей, отзывы, разбор — [yandex-reviews.md](yandex-reviews.md) |
@@ -130,6 +135,27 @@ beer-abc-analysis/
 | `weeks_generator.py` | Генератор недель для UI-селектора |
 | `export_manager.py` | Экспорт XLSX |
 
+### MCP-платформа — `core/mcp/` (с 2026-09-27, [mcp.md](mcp.md))
+| Файл | Что делает |
+|---|---|
+| `mcp/__init__.py` | Обзор пакета и карта файлов |
+| `mcp/db.py` | SQLite `mcp.db` на постоянном диске: `read()`, `write()` (`BEGIN IMMEDIATE`), `ensure_schema()` |
+| `mcp/principal.py` | `Principal` — кто вызывает: владелец, токен, клиент, разделы токена |
+| `mcp/spec.py` | `ToolSpec` (пометки `draft_write`, `owner_notice`), `PromptSpec` (`mode_required`), `DOMAINS`, режимы доступа `MODES` (`allowed_in_mode`, `prompt_allowed_in_mode`, `stricter_mode`), статическая проверка описаний |
+| `mcp/registry.py` | Сбор инструментов по разделам, видимость по коннекторам, инструкции агентам, исключения |
+| `mcp/protocol.py` | JSON-RPC и методы MCP двух эпох (2026-07-28 и `initialize`), режим подключения (строже из адреса и токена), проверки HTTP, лимиты частоты и одновременности, журнал |
+| `mcp/bridge.py` | Мост: тот же Flask-маршрут от имени владельца (`via_mcp`, `mcp_mode`), сверка пути с картой маршрутов, упаковка ответа, обрезание 60 000, семафор тяжёлых |
+| `mcp/schema_check.py` | Проверка аргументов по JSON Schema с русскими сообщениями |
+| `mcp/auth.py` | Проверка `Authorization: Bearer`: статический токен или OAuth, активный админ, раздел |
+| `mcp/tokens.py` | Статические токены для Claude Code (`kmcp_…`, sha256, режим доступа), `revoke_all_for_user` |
+| `mcp/oauth.py` | OAuth 2.1 для приложения Claude и расписаний: DCR с пределами, PKCE S256, привязка к коннектору с режимом, режим гранта, ротация, `revoke_all_for_user` |
+| `mcp/settings.py` | Настройки: чат Telegram для отчётов агентов, разрешённые хосты OAuth |
+| `mcp/audit.py` | Журнал вызовов инструментов: отказы хранятся отдельно, история не моложе 180 дней не удаляется |
+| `mcp/coverage.py` | Правило покрытия: каждый API-маршрут — инструмент или исключение; `py -3 -m core.mcp.coverage` |
+| `mcp/tools/__init__.py` | Что экспортирует модуль раздела: `TOOLS`, `PROMPTS`, `INSTRUCTIONS`, `EXCLUDED` |
+| `mcp/tools/common.py` | Общие инструменты (`common_*`), `DOCS_ALLOWLIST` (документы для агентов = `.dockerignore`), общие правила агентов, исключения служебных маршрутов |
+| `mcp/tools/content.py`, `stocks.py`, `analytics.py`, `staff.py` | Описания инструментов, правила и сценарии разделов |
+
 ---
 
 ## `routes/` — Flask blueprints (11)
@@ -155,6 +181,8 @@ beer-abc-analysis/
 | `cleanliness_bp` | `/cleanliness`, `/api/cleanliness` | `cleanliness.py` |
 | `content_plan_bp` | `/content-plan`, `/api/content-plan` | `content_plan.py` |
 | `reviews_bp` | `/reviews`, `/api/reviews`, `/api/guest-hub/attention` | `reviews.py` |
+| `mcp_bp` | `/mcp[/<раздел>][/read\|/draft]` (коннекторы MCP), `/admin/mcp`, `/api/admin/mcp/*` | `mcp.py` |
+| `mcp_oauth_bp` | `/.well-known/oauth-*`, `/oauth/register`, `/oauth/authorize`, `/oauth/token`, `/oauth/revoke` | `mcp_oauth.py` |
 
 `menu_bp` вынесен в [menu_tool/](../menu_tool/) как отдельное локальное приложение на порту 5050 — в прод не регистрируется.
 
@@ -179,6 +207,8 @@ templates/
 ├── guests.html          # «Маркетинг» (/guests), вверху полоса раздела «Гости»
 ├── content_plan.html    # «Контент-план» (/content-plan): фильтры, таблица, календарь, карточка, диалоги
 ├── reviews.html         # «Отзывы» (/reviews): фильтры, показатели, список, диалог отзыва
+├── admin_mcp.html       # «Доступ агентов» (/admin/mcp, только админ): коннекторы, токены, OAuth, журнал, настройки
+├── mcp_consent.html     # Страница согласия OAuth для MCP (и «нет доступа», «подключение не удалось»)
 ├── dashboard/           # Подшаблоны главного дашборда (plans_tab, comparison_tab, ...)
 └── shared/
     ├── nav.html               # Общая навигация sidebar + topbar (секция «Гости»)
@@ -203,6 +233,7 @@ static/
 │   ├── employee/
 │   ├── guests/          # «Маркетинг»; views-guest.js подставляет ?q= в поиск гостя
 │   ├── guest_hub/       # раздел «Гости»: common.js (window.GH, полоса), content_plan.js, reviews.js
+│   ├── admin_mcp.js     # страница «Доступ агентов» (/admin/mcp)
 │   ├── me/
 │   ├── schedule/
 │   ├── taps/
@@ -212,6 +243,7 @@ static/
 ├── shared/              # kpi_breakdown.css, abc_view.css (цвета — токены страницы)
 ├── me/                  # me.css — оформление /me по макету (токены --me-*)
 ├── guest_hub/           # hub.css (токены --gh-* на .gh-scope, тёмная тема), content_plan.css, reviews.css
+├── admin_mcp.css        # стили страницы «Доступ агентов» (только токены цвета)
 ├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
 ├── css/
 └── pwa/                 # manifest.webmanifest, sw.js
@@ -233,6 +265,8 @@ data/
 ├── content_plan.json       # Контент-план: материалы, размещения, журнал (на проде /kultura, в git нет)
 ├── content_media/          # Фото и видео контент-плана cp_<дата>_<hex>.<ext> (на проде /kultura, в git нет)
 ├── guest_reviews.json      # Отзывы гостей (на проде /kultura, в git нет)
+├── content_brief.json      # Бриф сети для ИИ-агента контент-плана (на проде /kultura, в git нет)
+├── mcp.db                  # MCP: токены, OAuth, журнал вызовов, настройки (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
@@ -302,6 +336,7 @@ docs/
 │
 ├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, suppliers.md, venues-plans.md, schedule.md
 ├── guests.md, content-plan.md, reviews.md   # раздел «Гости»
+├── mcp.md                   # MCP-платформа: весь сервис для ИИ-агентов владельца
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
 ├── iiko-integration.md, frontend.md, design-system.md
@@ -309,6 +344,7 @@ docs/
 ├── employee-dashboard-presentation.md, salary-instruction.txt
 │
 ├── guides/                  # Человеко-ориентированные инструкции
+│   ├── mcp-connect.md       # Подключение ИИ-агентов владельца: токен, приложение Claude, агенты-роли, расписания
 │   ├── DEPLOYMENT_GUIDE.md (legacy Render)
 │   ├── BACKUP_SETUP.md, RENDER_DISK_SETUP.md (legacy)
 │   ├── TAPS_*.md            # TAPS_MANAGEMENT, TAPS_QUICK_START, TAPS_README, ...
@@ -340,6 +376,12 @@ docs/
 └── archive/                 # Старая документация
 ```
 
+> В прод-образ и ИИ-агентам по MCP из `docs/` идут **только** документы явного списка
+> `DOCS_ALLOWLIST` (`core/mcp/tools/common.py`), который повторяют строки `!docs/…` в
+> `.dockerignore`: в служебных документах есть доступы, которые агенту видеть нельзя. Новый
+> документ для агентов — в оба списка, без паролей и токенов (проверяет
+> `tests/test_mcp_docs_allowlist.py`), см. [mcp.md](mcp.md), «Документация для агентов».
+
 ---
 
 ## `.claude/` — Принципы и индекс
@@ -350,7 +392,9 @@ docs/
 ├── INDEX.md                 # Индекс документации (карта по docs/)
 ├── context.md               # Быстрый контекст для Claude
 ├── settings.local.json      # Локальные настройки harness
-├── agents/                  # Custom subagents (опционально)
+├── agents/                  # Субагенты Claude Code: kultura-analyst.md, kultura-payroll.md,
+│                            #   kultura-content.md — агенты-роли MCP (docs/guides/mcp-connect.md);
+│                            #   signature-docs-analyst.md
 ├── agent-memory/            # Заметки агентов
 ├── skills/                  # Skill-определения
 └── docs/                    # MOVED — модули переехали в корневой docs/ (остались stub'ы)
@@ -422,6 +466,8 @@ docker compose up -d
 | `/stocks` | Заказы и остатки: экран «К заказу» |
 | `/suppliers` | Справочник поставщиков |
 | `/content-plan`, `/reviews`, `/guests` | Раздел «Гости»: контент-план, отзывы, маркетинг |
+| `/mcp`, `/mcp/<раздел>` | MCP-коннекторы для ИИ-агентов владельца (Bearer-токен или OAuth) |
+| `/admin/mcp` | «Доступ агентов»: токены, OAuth-приложения, журнал вызовов, настройки (только админ) |
 | `/expiration` | Shelf-Life Cockpit |
 | `/employee`, `/salary`, `/bonus`, `/schedule` | Сотрудники |
 | `/waiters` | 301 на `/draft#bartenders` (страница слита в «Розлив») |

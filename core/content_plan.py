@@ -19,7 +19,8 @@ Instagram сети.
 |------|------|
 | `core/content_plan.py` | этот модуль: модель, правила, операции, живые данные |
 | `core/content_media.py` | файлы фото/видео на диске |
-| `routes/content_plan.py` | HTTP API и страница `/content-plan` |
+| `core/content_brief.py` | бриф сети для ИИ-агента (правила, по которым он пишет черновики) |
+| `routes/content_plan.py` | HTTP API и страница `/content-plan` (и бриф: `/api/content-plan/brief`) |
 | `tests/test_content_plan.py` | тесты (self-runnable) |
 
 Данные: `content_plan.json` на постоянном диске (`core/storage_paths`):
@@ -239,6 +240,41 @@ stats — по этим материалам). С month — обычный ме�
 и файл НИКОГДА не перезаписывается. Журнал хранит последние 5000 записей
 (≈ год активной работы четырёх баров; больше — разбухание файла).
 
+## ИИ-агент: происхождение, пояснения, подпись (MCP, 2026-09-27)
+
+Агент на стороне Claude работает с планом по MCP: мост (core/mcp/bridge.py)
+исполняет те же маршруты от имени владельца и кладёт в пользователя
+'via_mcp': True (`is_agent_user`). Клиент это поле не присылает и подделать
+через тело запроса не может.
+
+- origin материала: 'agent', если материал создан через MCP, иначе 'human'
+  (`origin_of`). Ставится сервером ПРИ СОЗДАНИИ записи и больше не меняется:
+  origin в POST/PATCH — 400 (`_reject_origin`). Старые материалы без поля
+  читаются как 'human'. Значение вне ('human', 'agent') в файле — файл
+  повреждён (503): неизвестное значение не перезаписываем.
+- Копии (повтор по дням недели, копирование месяца) — НОВЫЕ записи, их
+  origin — по тому, кто выполнил действие: человек скопировал материал
+  агента — копии 'human'; агент скопировал месяц — копии 'agent'. Источник
+  не меняется. Так «Удалить черновики ИИ» трогает только то, что агент сделал
+  сам.
+- agent_rationale «Почему этот пост» и shot_list «Что снять» — строки до
+  AGENT_TEXT_MAX (2000) знаков, как заметка: это пояснение к посту и список
+  кадров, не текст публикации. Принимаются в POST/PATCH материалов и в
+  create_material; правка их не снимает утверждение (не содержание). У копий
+  они сохраняются только вместе с содержанием (тот же флаг keep, что у
+  текста и файлов: повтор — всегда; копирование месяца — при with_content
+  или у материала с актуальными данными), иначе пустые.
+- Подпись автора (`actor_label`): действие через MCP подписывается
+  «<login> · агент» — в журнале (by) и в полях *_by (created_by, updated_by,
+  approved_by, published_by, uploaded_by).
+- Черновик ИИ (`is_agent_draft`, поле agent_draft в ответе): origin 'agent'
+  и все размещения — draft или cancelled (размещений нет — тоже черновик).
+  `delete_agent_drafts(month)` удаляет черновики ИИ плана месяца (month
+  материала == month) одной записью; остальные материалы агента — в skipped с
+  причиной. Материалы людей и утверждённое не трогаются никогда.
+- approve_preview(origin=...) — окно «Утвердить готовые» под фильтром
+  «Только от ИИ»; в каждой строке — origin материала.
+
 ## Changelog
 
 - 2026-09-26 — модуль создан (этап «только интерфейс», без отправки).
@@ -249,6 +285,10 @@ stats — по этим материалам). С month — обычный ме�
   «Не хватает: … — где»; kind в предпросмотре утверждения; copy_month —
   опорная дата со сдвигом (порядок размещений сохраняется) и объединение
   размещений серии.
+- 2026-09-27 (MCP) — поддержка ИИ-агента: origin материала (ставит сервер по
+  via_mcp), agent_rationale и shot_list, подпись «<login> · агент», флаг
+  agent_draft и delete_agent_drafts, фильтр origin в approve_preview. Бриф
+  сети для агента — отдельный модуль core/content_brief.py.
 """
 
 import copy
@@ -418,6 +458,26 @@ LOG_MAX = 5000              # записей журнала (см. «Хране�
 SHIFT_DAYS_MAX = 60         # сдвиг материала, дней в каждую сторону
 YEAR_MIN, YEAR_MAX = 2020, 2100
 
+# ---------------------------------------------------------------------------
+# ИИ-агент (MCP): происхождение материала и его пояснения (см. докстроку).
+# ---------------------------------------------------------------------------
+ORIGIN_HUMAN = 'human'
+ORIGIN_AGENT = 'agent'
+ORIGINS = (ORIGIN_HUMAN, ORIGIN_AGENT)
+ORIGIN_NAMES = {ORIGIN_HUMAN: 'люди', ORIGIN_AGENT: 'ИИ-агент'}
+# Подпись действия через MCP: «anna · агент» (журнал и поля *_by).
+AGENT_SUFFIX = ' · агент'
+# «Почему этот пост» и «Что снять»: предел как у заметки (NOTE_MAX = 2000) —
+# абзац пояснения или список кадров, который владелец прочтёт при проверке
+# черновика; длиннее — это уже второй текст поста, а не пояснение к нему.
+AGENT_TEXT_MAX = 2000
+# Черновик агента («Удалить черновики ИИ»): ни одно размещение не ушло
+# дальше черновика; отменённые не мешают.
+AGENT_DRAFT_STATUSES = ('draft', 'cancelled')
+AGENT_DRAFT_RULE = ('Черновик ИИ — материал, который создал агент через MCP, если ни одно его размещение '
+                    'не утверждено, не стоит на паузе, не вышло и не с ошибкой отправки: все размещения — '
+                    'черновики или отменены (или размещений нет). Материалы людей и утверждённое не удаляются.')
+
 MEDIA_URL_PREFIX = '/api/content-plan/media/'
 
 MONTHS_GEN = ('января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля',
@@ -489,10 +549,32 @@ class ContentPlanConflict(Exception):
 # Разбор входа
 # ---------------------------------------------------------------------------
 
-def _login(user: Optional[dict]) -> str:
+def is_agent_user(user: Optional[dict]) -> bool:
+    """Действие пришло через MCP: мост core/mcp/bridge.py кладёт в копию
+    пользователя 'via_mcp': True (поле 'login' при этом прежнее). Клиент это
+    поле не присылает: признак берётся только из current_user() сервера."""
+    return bool(user and user.get('via_mcp'))
+
+
+def actor_label(user: Optional[dict]) -> str:
+    """Подпись автора действия для журнала (by) и полей *_by.
+
+    login (иначе display_name, иначе 'unknown'); действие через MCP —
+    «<login> · агент» (AGENT_SUFFIX): в истории видно, что правку сделал агент
+    от имени владельца, а не владелец руками."""
     if not user:
         return 'unknown'
-    return user.get('login') or user.get('display_name') or 'unknown'
+    name = user.get('login') or user.get('display_name') or 'unknown'
+    return name + AGENT_SUFFIX if is_agent_user(user) else name
+
+
+def origin_of(user: Optional[dict]) -> str:
+    """origin новой записи материала: 'agent' через MCP, иначе 'human'."""
+    return ORIGIN_AGENT if is_agent_user(user) else ORIGIN_HUMAN
+
+
+# Прежнее имя внутри модуля: все операции подписываются через него.
+_login = actor_label
 
 
 def _new_id(prefix: str) -> str:
@@ -871,6 +953,28 @@ def material_date(material: dict) -> Optional[str]:
     return material.get('planned_date') or None
 
 
+def is_agent_draft(material: dict) -> bool:
+    """Черновик ИИ (`AGENT_DRAFT_RULE`): origin 'agent' и все размещения —
+    draft или cancelled. Материал без размещений (тема) — тоже черновик."""
+    return (material.get('origin') == ORIGIN_AGENT
+            and all(p.get('status') in AGENT_DRAFT_STATUSES for p in material.get('placements') or []))
+
+
+def guard_draft_mode(user: Optional[dict], material: dict) -> None:
+    """Режим «чтение и черновики» (MCP-коннектор …/draft, core/mcp/spec.MODES):
+    агент меняет только СВОИ черновики — материал origin 'agent', все размещения
+    draft или cancelled (is_agent_draft). Иначе 409.
+    
+    Зачем: по расписанию агент читает отзывы гостей и описания пива; «команда»,
+    внедрённая в такой текст, не должна переносить, менять или снимать утверждение
+    с публикаций владельца. Режим ставит мост (core/mcp/bridge.py, поле mcp_mode
+    пользователя); у людей на сайте его нет, для них правило не действует."""
+    if (user or {}).get('mcp_mode') == 'draft' and not is_agent_draft(material):
+        raise ContentPlanConflict(
+            'В режиме «чтение и черновики» агент меняет только свои черновики: этот материал '
+            'создан не агентом или в нём уже есть утверждённые размещения.')
+
+
 def _missing_breakdown(active: list) -> List[dict]:
     """Недостающее по всем незаполненным размещениям: [{code, text, where,
     everywhere}] — причины в порядке появления (порядок размещений, затем порядок
@@ -974,9 +1078,10 @@ def _placement_view(material: dict, placement: dict, now_str: str) -> Tuple[dict
 
 
 def material_json(material: dict, now_str: str, month: Optional[str] = None) -> dict:
-    """Материал для API: хранимые поля + date, summary, in_month, media[].url и
-    вычисленные поля размещений. in_month — принадлежит ли материал месяцу month
-    (без month — True: ответ на правку относится к самому материалу)."""
+    """Материал для API: хранимые поля + date, summary, in_month, agent_draft,
+    media[].url и вычисленные поля размещений. in_month — принадлежит ли
+    материал месяцу month (без month — True: ответ на правку относится к самому
+    материалу). agent_draft — `is_agent_draft` (для «Удалить черновики ИИ»)."""
     out = copy.deepcopy(material)
     out['media'] = [dict(item, url=MEDIA_URL_PREFIX + item['name'])
                     for item in material.get('media') or []]
@@ -989,6 +1094,7 @@ def material_json(material: dict, now_str: str, month: Optional[str] = None) -> 
     out['date'] = material_date(material)
     out['summary'] = material_summary(states, live=material.get('kind') == 'live')
     out['in_month'] = (material.get('month') == month) if month else True
+    out['agent_draft'] = is_agent_draft(material)
     return out
 
 
@@ -1158,24 +1264,28 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
 # Хранилище
 # ---------------------------------------------------------------------------
 
+# origin по умолчанию 'human': материалы до 2026-09-27 создавали только люди
+# (MCP тогда не было).
 _MATERIAL_DEFAULTS = {
     'title': '', 'kind': 'fixed', 'live_source': None, 'planned_date': None, 'base_text': '',
     'media_required': False, 'note': '', 'series': None, 'copied_from': None,
     'source_review_id': None, 'created_at': None, 'created_by': None, 'updated_at': None,
-    'updated_by': None,
+    'updated_by': None, 'origin': ORIGIN_HUMAN, 'agent_rationale': '', 'shot_list': '',
 }
 _PLACEMENT_DEFAULTS = {
     'bar': BAR_ALL, 'date': None, 'time': None, 'text': None, 'media': None, 'audience': None,
     'approved_at': None, 'approved_by': None, 'approved_snapshot': None, 'published_at': None,
     'published_by': None, 'failed_error': None, 'updated_at': None, 'updated_by': None,
 }
-MATERIAL_EDITABLE = ('title', 'kind', 'live_source', 'planned_date', 'base_text', 'note', 'media_required')
+# origin сюда не входит: его ставит сервер при создании (см. `_reject_origin`).
+MATERIAL_EDITABLE = ('title', 'kind', 'live_source', 'planned_date', 'base_text', 'note', 'media_required',
+                     'agent_rationale', 'shot_list')
 PLACEMENT_EDITABLE = ('channel', 'bar', 'date', 'time', 'text', 'media', 'audience')
 FIELD_NAMES = {
     'title': 'название', 'kind': 'тип', 'live_source': 'источник данных', 'planned_date': 'дата темы',
     'base_text': 'текст', 'note': 'заметка', 'media_required': '«нужно фото»', 'channel': 'площадка',
     'bar': 'бар', 'date': 'дата', 'time': 'время', 'text': 'свой текст', 'media': 'подборка файлов',
-    'audience': 'аудитория',
+    'audience': 'аудитория', 'agent_rationale': '«почему этот пост»', 'shot_list': '«что снять»',
 }
 
 
@@ -1209,6 +1319,10 @@ def _check_data(data) -> dict:
             material.setdefault(key, copy.deepcopy(default))
         if material['kind'] not in KINDS:
             raise _broken(f'тип материала {mid}')
+        # Неизвестное происхождение не «чиним» в 'human': запись поверх стёрла бы
+        # значение, которого эта версия не понимает (как с типом выше).
+        if material['origin'] not in ORIGINS:
+            raise _broken(f'происхождение материала {mid}')
         for item in media:
             if not isinstance(item, dict) or not content_media.is_valid_name(item.get('name')):
                 raise _broken(f'файл материала {mid}')
@@ -1260,7 +1374,20 @@ def _clean_material_fields(fields: dict) -> dict:
         out['note'] = _clean_text(fields['note'], NOTE_MAX, 'Заметка')
     if 'media_required' in fields:
         out['media_required'] = parse_bool(fields['media_required'], '«Нужно фото»')
+    if 'agent_rationale' in fields:
+        out['agent_rationale'] = _clean_text(fields['agent_rationale'], AGENT_TEXT_MAX, '«Почему этот пост»')
+    if 'shot_list' in fields:
+        out['shot_list'] = _clean_text(fields['shot_list'], AGENT_TEXT_MAX, '«Что снять»')
     return out
+
+
+def _reject_origin(fields: dict) -> None:
+    """origin ставит сервер при создании записи (`origin_of`) — в теле запроса
+    его быть не может: иначе агент мог бы выдать свой черновик за работу людей
+    (и наоборот)."""
+    if 'origin' in fields:
+        raise ValueError('Происхождение материала (origin) ставит сервер при создании: «agent», если материал '
+                         'создан через MCP, иначе «human». Передавать и менять его нельзя')
 
 
 def _clean_placement_fields(fields: dict) -> dict:
@@ -1320,9 +1447,14 @@ def _copy_placement(placement: dict, new_date: Optional[str], keep_content: bool
 
 
 def _copy_material(source: dict, month: str, planned_date: Optional[str], keep_content: bool,
-                   now_str: str, login: str) -> dict:
+                   now_str: str, login: str, origin: str = ORIGIN_HUMAN) -> dict:
     """Новый материал по образцу source. Материал с актуальными данными всегда
-    сохраняет шаблон, файлы и свои версии текста: шаблон — утверждённый дизайн."""
+    сохраняет шаблон, файлы и свои версии текста: шаблон — утверждённый дизайн.
+
+    origin — кто выполнил копирование (`origin_of` пользователя), а не origin
+    источника: копия — новая запись, её сделал тот, кто нажал «Повторить» или
+    «Скопировать месяц». «Почему этот пост» и «Что снять» копируются вместе с
+    содержанием (тот же keep): без текста пояснение к нему не имеет смысла."""
     keep = keep_content or source.get('kind') == 'live'
     return {
         'id': _new_id('m_'), 'month': month, 'title': source['title'], 'kind': source['kind'],
@@ -1331,6 +1463,9 @@ def _copy_material(source: dict, month: str, planned_date: Optional[str], keep_c
         'media': copy.deepcopy(source.get('media') or []) if keep else [],
         'media_required': bool(source.get('media_required')), 'note': source.get('note') or '',
         'series': None, 'copied_from': None, 'source_review_id': None,
+        'origin': origin,
+        'agent_rationale': source.get('agent_rationale') or '' if keep else '',
+        'shot_list': source.get('shot_list') or '' if keep else '',
         'created_at': now_str, 'created_by': login, 'updated_at': now_str, 'updated_by': login,
         'placements': [],
     }, keep
@@ -1469,6 +1604,12 @@ def _meta() -> dict:
         'media_limits': {'image_bytes': content_media.MAX_IMAGE_BYTES,
                          'video_bytes': content_media.MAX_VIDEO_BYTES,
                          'per_material': MATERIAL_MEDIA_MAX},
+        # Пределы хранения полей материала — чтобы агент (MCP) не упирался в 400
+        # вслепую; экран держит те же числа (зеркала в content_plan.js).
+        'field_limits': {'title': TITLE_MAX, 'base_text': TEXT_MAX, 'note': NOTE_MAX,
+                         'agent_rationale': AGENT_TEXT_MAX, 'shot_list': AGENT_TEXT_MAX},
+        'origins': [{'key': key, 'name': ORIGIN_NAMES[key]} for key in ORIGINS],
+        'agent_draft_rule': AGENT_DRAFT_RULE,
     }
 
 
@@ -1720,7 +1861,7 @@ class ContentPlanStore:
                         overdue += 1
         return {'publications_today': publications, 'delivery_errors': errors, 'overdue': overdue}
 
-    def approve_preview(self, month, bar=None, channel=None) -> dict:
+    def approve_preview(self, month, bar=None, channel=None, origin=None) -> dict:
         """Что утвердит кнопка «Утвердить готовые» (черновики месяца под фильтром).
 
         Размещение в месяце M: его материал относится к M или его дата в M.
@@ -1728,6 +1869,9 @@ class ContentPlanStore:
         списком: их утверждение требует явного подтверждения аудитории.
         kind в каждой строке — тип материала: у 'live' утверждается шаблон, а
         данные подставятся при выходе (окно показывает это пометкой).
+        origin ('agent' | 'human', необязателен) — только материалы этого
+        происхождения (фильтр «Только от ИИ» на экране); origin есть и в
+        каждой строке — окно помечает посты агента «ИИ».
         """
         month = parse_month(month)
         bar = _norm_filter_bar(bar)
@@ -1736,10 +1880,16 @@ class ContentPlanStore:
         channel = str(channel or '').strip() or None
         if channel is not None and channel not in CHANNELS:
             raise ValueError('Площадка: Telegram, Instagram или Бот')
+        origin = str(origin or '').strip() or None
+        if origin is not None and origin not in ORIGINS:
+            raise ValueError('Происхождение: agent (от ИИ-агента) или human (от людей)')
         data = self._load()
         now_str = self.now_str()
         will, bot, stays = [], [], []
         for material in data['materials'].values():
+            material_origin = material.get('origin') or ORIGIN_HUMAN
+            if origin and material_origin != origin:
+                continue
             for placement in material['placements']:
                 if material['month'] != month and (placement.get('date') or '')[:7] != month:
                     continue
@@ -1751,6 +1901,7 @@ class ContentPlanStore:
                     continue
                 item = {'placement_id': placement['id'], 'material_id': material['id'],
                         'title': material['title'], 'kind': material.get('kind') or 'fixed',
+                        'origin': material_origin,
                         'channel': placement['channel'], 'bar': placement['bar'],
                         'date': placement.get('date'), 'time': placement.get('time')}
                 missing = readiness(material, placement, now_str)
@@ -1772,10 +1923,13 @@ class ContentPlanStore:
 
     def create_material(self, fields: dict, user: Optional[dict]) -> dict:
         """Создать материал. Поля: month, title, kind, live_source, planned_date,
-        base_text, note, media_required, source_review_id. Дата темы задаёт месяц.
+        base_text, note, media_required, agent_rationale, shot_list,
+        source_review_id. Дата темы задаёт месяц. origin ставится по user
+        (`origin_of`: через MCP — 'agent'); origin в полях — ValueError.
         -> материал в JSON-форме API (id, month, ...). ValueError — неверные поля."""
         if not isinstance(fields, dict):
             raise ValueError('Нужен объект с полями материала')
+        _reject_origin(fields)
         clean = _clean_material_fields({k: fields[k] for k in MATERIAL_EDITABLE if k in fields})
         if 'title' not in clean:
             raise ValueError('Название обязательно')
@@ -1795,6 +1949,8 @@ class ContentPlanStore:
             'base_text': clean.get('base_text', ''), 'media': [],
             'media_required': clean.get('media_required', False), 'note': clean.get('note', ''),
             'series': None, 'copied_from': None, 'source_review_id': review_id or None,
+            'origin': origin_of(user), 'agent_rationale': clean.get('agent_rationale', ''),
+            'shot_list': clean.get('shot_list', ''),
             'created_at': now_str, 'created_by': login, 'updated_at': now_str, 'updated_by': login,
             'placements': [],
         }
@@ -1808,14 +1964,18 @@ class ContentPlanStore:
 
     def update_material(self, material_id: str, fields: dict, user: Optional[dict],
                         month: Optional[str] = None) -> Tuple[dict, List[str]]:
-        """Правка материала. -> (материал, [id размещений, с которых снято утверждение])."""
+        """Правка материала. -> (материал, [id размещений, с которых снято утверждение]).
+        origin не редактируется (ValueError); «Почему этот пост» и «Что снять» —
+        не содержание публикации, утверждение не снимают."""
         if not isinstance(fields, dict):
             raise ValueError('Нужен объект с полями материала')
+        _reject_origin(fields)
         clean = _clean_material_fields({k: fields[k] for k in MATERIAL_EDITABLE if k in fields})
         login = _login(user)
         now_str = self.now_str()
         with self._tx() as (data, _after):
             material = self._material(data, material_id)
+            guard_draft_mode(user, material)
             before = self._signatures(material)
             changed = []
             for key, value in clean.items():
@@ -1872,6 +2032,84 @@ class ContentPlanStore:
             result = material_json(material, now_str, month)
         return result
 
+    def delete_agent_drafts(self, month, user: Optional[dict], material_ids=None) -> dict:
+        """«Удалить черновики ИИ»: удалить черновики агента плана месяца month.
+
+        Удаляются материалы с month == month, origin 'agent' и всеми
+        размещениями draft или cancelled (`is_agent_draft`, AGENT_DRAFT_RULE).
+        material_ids (необязательно) сужает набор: экран передаёт ровно те id,
+        число которых показал в подтверждении, — если за это время план
+        изменился, лишнего не удалится. Без material_ids — все черновики агента
+        месяца (так удобнее агенту по MCP).
+
+        Что НЕ удаляется (-> skipped [{id, reason}]): материал агента с
+        утверждённым, стоящим на паузе, вышедшим или ошибочным размещением; при
+        переданных id ещё — нет такого материала, материал другого месяца,
+        материал людей (origin 'human'). Материалы людей без material_ids не
+        рассматриваются вовсе. Всё — одной записью файла; журнал — действие
+        'delete' на каждый материал; файлы, на которые больше никто не ссылается
+        (`_media_referenced`), удаляются с диска после записи.
+        -> {deleted: [id], skipped: [{id, reason}]}.
+        """
+        month = parse_month(month)
+        ids: Optional[List[str]] = None
+        if material_ids is not None:
+            if not isinstance(material_ids, list):
+                raise ValueError('material_ids: нужен список id материалов')
+            ids = []
+            for raw in material_ids:
+                mid = str(raw)
+                if mid not in ids:
+                    ids.append(mid)
+            if not ids:
+                raise ValueError('Не выбраны материалы')
+        login = _login(user)
+        now_str = self.now_str()
+        deleted: List[str] = []
+        skipped: List[dict] = []
+        with self._tx() as (data, after):
+            candidates = []
+            if ids is None:
+                candidates = [m for m in data['materials'].values()
+                              if m['month'] == month and m.get('origin') == ORIGIN_AGENT]
+                candidates.sort(key=lambda m: (m.get('created_at') or '', m['id']))
+            else:
+                for mid in ids:
+                    material = data['materials'].get(mid)
+                    if material is None:
+                        skipped.append({'id': mid, 'reason': 'материал не найден'})
+                    elif material['month'] != month:
+                        skipped.append({'id': mid, 'reason': f'«{material["title"]}»: материал из плана '
+                                                             f'«{month_label(material["month"])}»'})
+                    elif material.get('origin') != ORIGIN_AGENT:
+                        skipped.append({'id': mid, 'reason': f'«{material["title"]}»: материал создали люди, '
+                                                             'а не агент'})
+                    else:
+                        candidates.append(material)
+            removed = []
+            for material in candidates:
+                if not is_agent_draft(material):
+                    skipped.append({'id': material['id'],
+                                    'reason': f'«{material["title"]}»: есть утверждённые, вышедшие или '
+                                              'ошибочные размещения — это уже не черновик'})
+                    continue
+                del data['materials'][material['id']]
+                removed.append(material)
+                deleted.append(material['id'])
+                self._log(data, now_str, login, 'delete', material['id'], None,
+                          f'Удалён черновик агента «{material["title"]}» (массовое удаление черновиков ИИ)')
+            # Файлы — после удаления всех материалов: общий файл двух удалённых
+            # черновиков тоже уходит, а файл, нужный кому-то ещё, остаётся.
+            names = []
+            for material in removed:
+                for item in material['media']:
+                    if item['name'] not in names:
+                        names.append(item['name'])
+            for name in names:
+                if not self._media_referenced(data, name):
+                    after.append(lambda n=name: self.media.delete(n))
+        return {'deleted': deleted, 'skipped': skipped}
+
     # ----- размещения --------------------------------------------------------
 
     def add_placements(self, material_id: str, fields: dict, user: Optional[dict],
@@ -1913,6 +2151,7 @@ class ContentPlanStore:
         created = []
         with self._tx() as (data, _after):
             material = self._material(data, material_id)
+            guard_draft_mode(user, material)
             _check_media_subset(material, clean.get('media'))
             day = clean['date'] if 'date' in clean else material.get('planned_date')
             for bar in unique:
@@ -1943,6 +2182,7 @@ class ContentPlanStore:
         now_str = self.now_str()
         with self._tx() as (data, _after):
             material, placement = self._placement(data, placement_id)
+            guard_draft_mode(user, material)
             if placement['status'] == 'published':
                 raise ValueError('Размещение уже вышло')
             if placement['status'] == 'cancelled':
@@ -2155,19 +2395,23 @@ class ContentPlanStore:
         Для каждой даты месяца с нужным днём недели, не раньше сегодняшнего дня и
         не занятой этой серией (дата темы или дата размещений любого материала
         серии, включая сам источник) создаётся копия: то же название, тип,
-        источник, текст, ссылки на файлы, «нужно фото», заметка; размещения
-        (кроме отменённых) — черновиками на эту дату. Источник и копии — одна
-        серия {id, weekdays}; дни недели серии объединяются с прежними.
+        источник, текст, ссылки на файлы, «нужно фото», заметка, «почему этот
+        пост», «что снять»; размещения (кроме отменённых) — черновиками на эту
+        дату. origin копий — по тому, кто повторяет (`origin_of(user)`), а не
+        по источнику. Источник и копии — одна серия {id, weekdays}; дни недели
+        серии объединяются с прежними.
         -> {created: [id материалов]}.
         """
         weekdays = parse_weekdays(weekdays)
         month = parse_month(month)
         login = _login(user)
+        origin = origin_of(user)
         now_str = self.now_str()
         today = now_str[:10]
         created: List[str] = []
         with self._tx() as (data, _after):
             source = self._material(data, material_id)
+            guard_draft_mode(user, source)
             series = source.get('series') or None
             series_id = series['id'] if series and series.get('id') else None
             members = [m for m in data['materials'].values()
@@ -2185,7 +2429,7 @@ class ContentPlanStore:
                 iso = day.isoformat()
                 if day.weekday() not in weekdays or iso < today or iso in occupied:
                     continue
-                clone, _keep = _copy_material(source, month, iso, True, now_str, login)
+                clone, _keep = _copy_material(source, month, iso, True, now_str, login, origin)
                 for placement in source['placements']:
                     if placement['status'] == 'cancelled':
                         continue
@@ -2229,14 +2473,19 @@ class ContentPlanStore:
         - with_content False: у готовых публикаций текст и файлы очищаются (свои
           версии текста и подборки — тоже); у материалов с актуальными данными
           шаблон и файлы остаются. True — всё копируется (ссылки на те же файлы).
+          «Почему этот пост» и «Что снять» идут вместе с содержанием (очищаются
+          или копируются вместе с текстом).
         - Все размещения — черновики; утверждение не переносится; copied_from = id
           источника (у серии — id дня-образца). Отменённые размещения не копируются.
+        - origin копий — по тому, кто копирует (`origin_of(user)`): человек —
+          'human', агент через MCP — 'agent'.
         -> {created: n, notes: [...]}.
         """
         from_month = parse_month(from_month, 'Месяц-источник')
         to_month = parse_month(to_month, 'Месяц назначения')
         keep_content = parse_bool(with_content, 'Копировать тексты и фото') if with_content is not None else False
         login = _login(user)
+        origin = origin_of(user)
         now_str = self.now_str()
         today = now_str[:10]
         if to_month < now_str[:7]:
@@ -2290,7 +2539,7 @@ class ContentPlanStore:
                         continue
                     iso = day.isoformat()
                     days.append(iso)
-                    clone, _keep = _copy_material(template, to_month, iso, keep_content, now_str, login)
+                    clone, _keep = _copy_material(template, to_month, iso, keep_content, now_str, login, origin)
                     clone['series'] = dict(new_series, weekdays=list(weekdays))
                     clone['copied_from'] = template['id']
                     names = [item['name'] for item in clone['media']]
@@ -2340,7 +2589,7 @@ class ContentPlanStore:
                     return (date.fromisoformat(day_iso) + timedelta(days=delta)).isoformat()
 
                 planned = moved(material.get('planned_date'))
-                clone, keep = _copy_material(material, to_month, planned, keep_content, now_str, login)
+                clone, keep = _copy_material(material, to_month, planned, keep_content, now_str, login, origin)
                 clone['copied_from'] = material['id']
                 for placement in material['placements']:
                     if placement['status'] != 'cancelled':

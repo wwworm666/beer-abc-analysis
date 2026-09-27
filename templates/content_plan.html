@@ -106,10 +106,22 @@
             <span class="gh-banner-a"><button type="button" class="gh-btn gh-btn-sm" id="cpRetry">Повторить</button></span>
         </div>
 
-        <!-- Сводка месяца (числа сервера) и вторичные действия. -->
+        <!-- Сводка месяца (числа сервера) и вторичные действия. Рядом со сводкой —
+             материалы ИИ-агента (MCP): чип-фильтр «Только от ИИ» (?origin=agent) и
+             «Удалить черновики ИИ»; блок виден, когда в месяце есть материалы агента
+             или фильтр включён (content_plan.js, renderOrigin). -->
         <div class="gh-cp-bar">
             <div class="gh-sumline gh-cp-sum" id="cpSum"></div>
+            <div class="gh-cp-origin" id="cpOrigin" hidden>
+                <button type="button" class="gh-chip gh-cp-originchip" id="cpOriginBtn" aria-pressed="false"
+                        data-tip="Показать только материалы, которые создал ИИ-агент (по MCP). Число — такие материалы в плане. Нажмите ещё раз, чтобы показать все.">
+                    <span class="gh-cp-ai" aria-hidden="true">ИИ</span>Только от ИИ<b class="gh-cp-originchip-n" id="cpOriginN">0</b>
+                </button>
+                <button type="button" class="gh-btn gh-btn-sm gh-btn-danger gh-btn-outline" id="cpAgentDelBtn" hidden>Удалить черновики ИИ</button>
+            </div>
             <div class="gh-cp-bar-acts">
+                <button type="button" class="gh-btn gh-btn-sm gh-cp-briefbtn" id="cpBriefBtn"
+                        data-tip="Постоянные правила сети для ИИ-агента: тон, рубрики, ритм, табу, реклама алкоголя, фото, бары, примеры постов. Агент читает бриф перед каждым черновиком.">Бриф для агента</button>
                 <button type="button" class="gh-btn gh-btn-sm" id="cpCopyBtn">Скопировать прошлый месяц</button>
                 <div class="gh-cp-menuwrap">
                     <button type="button" class="gh-btn gh-btn-sm" id="cpPauseBtn" aria-haspopup="true" aria-expanded="false">
@@ -143,6 +155,12 @@
 
     <!-- Карточка материала: содержимое рисует content_plan.js. -->
     <aside class="gh-drawer gh-cp-drawer" id="cpDrawer" hidden aria-label="Материал"></aside>
+
+    <!-- Бриф для агента (GET / PUT /api/content-plan/brief): все поля брифа с
+         автосохранением и счётчиками длины. Открывается кнопкой «Бриф для
+         агента» или адресом ?brief=1; одновременно открыта одна выдвижная
+         карточка (common.js), поэтому карточка материала при этом закрывается. -->
+    <aside class="gh-drawer gh-cp-drawer gh-cp-brief" id="cpBriefDrawer" hidden aria-label="Бриф для агента"></aside>
 
     <!-- Выбор файлов для карточки. Поле живёт ВНЕ карточки: карточка
          перерисовывается целиком (автосохранение, ответы сервера), и поле внутри

@@ -37,7 +37,47 @@ tests/exports/
 archive/
 _archive_to_delete/
 
-docs/
+# Документация: в образ попадает ТОЛЬКО явный список документов модулей — их читают
+# ИИ-агенты через MCP (common_docs_read). Список обязан совпадать с DOCS_ALLOWLIST в
+# core/mcp/tools/common.py (сверяет tests/test_mcp_docs_allowlist.py, он же ищет в них
+# пароли и токены). Остальное в docs/ содержит служебные данные (подключения к
+# компьютерам баров, пароли, токены ботов) и в образ не идёт — проверка безопасности
+# 2026-09-28. Новый документ для агентов: добавить сюда И в DOCS_ALLOWLIST.
+docs/**
+!docs/content-plan.md
+!docs/reviews.md
+!docs/guests.md
+!docs/discounts.md
+!docs/stocks.md
+!docs/orders.md
+!docs/suppliers.md
+!docs/expiration.md
+!docs/taps.md
+!docs/taplist-v2.md
+!docs/keg-catalog.md
+!docs/untappd-links.md
+!docs/menu-editor.md
+!docs/kitchen.md
+!docs/draft.md
+!docs/abc-xyz-analysis.md
+!docs/dashboard.md
+!docs/monthly-report.md
+!docs/venues-plans.md
+!docs/goals.md
+!docs/explorer.md
+!docs/employee.md
+!docs/schedule.md
+!docs/me.md
+!docs/cleanliness.md
+!docs/temperature.md
+!docs/open-check-bot.md
+!docs/mcp.md
+!docs/overview.md
+!docs/lessons.md
+!docs/guides/mcp-connect.md
+!docs/technical/OLAP_REPORT_BUILDING_RULES.md
+!docs/technical/OLAP_REPORTS_COLLECTION.md
+!docs/technical/IIKO_API_REFERENCE.md
 *.md
 LICENSE
 

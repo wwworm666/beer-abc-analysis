@@ -2,7 +2,10 @@
 
 1. Ручной запуск ежедневной проверки:
    POST /api/admin/open-check/run-now
-   Headers: X-Remote-Pass: <REMOTE_PASS>
+   Доступ: заголовок X-Remote-Pass: <REMOTE_PASS> ИЛИ вошедший активный
+   администратор (сессия сайта или MCP-агент владельца, core/mcp/bridge.py).
+   С 2026-09-27 админ проходит без пароля: весь интерфейс открыт владельцу по
+   MCP, а пароль из .env агенту не передаётся.
 
 2. Telegram webhook (команды /start, /status + кнопка подписки):
    POST /telegram/openbot/webhook           — точка входа для Telegram
@@ -27,13 +30,30 @@ open_check_bp = Blueprint('open_check', __name__)
 _WEBHOOK_PATH = '/telegram/openbot/webhook'
 
 
-@open_check_bp.route('/api/admin/open-check/run-now', methods=['POST'])
-def open_check_run_now():
+def _run_now_allowed():
+    """Кто может вручную запустить проверку: админ или знающий REMOTE_PASS.
+
+    Проверка отправляет сообщения в рабочие чаты, поэтому обычному аккаунту
+    нужен пароль из окружения, а администратору — нет: он и так видит и
+    настраивает всё (в том числе через своего MCP-агента).
+    """
+    from core.auth_guard import current_user
+    user = current_user() or {}
+    if user.get('is_admin') and user.get('active', True):
+        return True, None
     expected = os.environ.get('REMOTE_PASS')
     if not expected:
-        return jsonify({'error': 'REMOTE_PASS не настроен на сервере'}), 503
+        return False, (jsonify({'error': 'REMOTE_PASS не настроен на сервере'}), 503)
     if request.headers.get('X-Remote-Pass') != expected:
-        return jsonify({'error': 'forbidden'}), 403
+        return False, (jsonify({'error': 'forbidden'}), 403)
+    return True, None
+
+
+@open_check_bp.route('/api/admin/open-check/run-now', methods=['POST'])
+def open_check_run_now():
+    allowed, denied = _run_now_allowed()
+    if not allowed:
+        return denied
     try:
         # queue_failures=False: ручной прогон — тест; его провалы НЕ ставим в
         # очередь досылки, иначе тревога «ЗАКРЫТЫ все» из прогона в 10:00 (бары

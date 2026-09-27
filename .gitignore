@@ -45,6 +45,11 @@ data/guest_reviews.json
 # Контент-план раздела «Гости» и его фото/видео (на проде живут на /kultura)
 data/content_plan.json
 data/content_media/
+# Бриф сети для ИИ-агента (core/content_brief.py) и SQLite MCP-платформы
+# (токены, OAuth, журнал вызовов — core/mcp/db.py); на проде живут на /kultura
+data/content_brief.json
+data/mcp.db
+data/mcp.db-*
 # Фиды Яндекса: правки позиций и снимок пива (на проде живут на /kultura)
 data/yml_*.json
 data/yml_*.json.*

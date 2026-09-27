@@ -10,6 +10,13 @@
  * нет эмодзи и цветов мимо токенов. Такие расхождения не ловятся ни юнит-
  * тестами хранилища, ни глазами на одном экране: страница просто молча не
  * рисует блок или получает 404.
+ *
+ * ИИ-агент (MCP, 2026-09-27): пометка «ИИ» в таблице, календаре, карточке и
+ * окне утверждения; «Почему этот пост» / «Что снять» с автосохранением и
+ * пределом как в ядре; фильтр «Только от ИИ» (?origin=agent); «Удалить
+ * черновики ИИ» (число и id — из agent_draft сервера, подтверждение);
+ * карточка «Бриф для агента» (поля и пределы — из schema сервера, PUT одним
+ * полем, сброс несохранённого при уходе, ?brief=1).
  */
 
 import assert from 'node:assert/strict';
@@ -140,6 +147,10 @@ test('нужные спецификации вызовы действитель�
         'GET /api/content-plan/materials/<x>/log',
         'DELETE /api/content-plan/materials/<x>',
         'GET /api/content-plan/materials/<x>',
+        // ИИ-агент (MCP): бриф сети и «Удалить черновики ИИ».
+        'GET /api/content-plan/brief',
+        'PUT /api/content-plan/brief',
+        'POST /api/content-plan/agent-drafts/delete',
     ];
     const missing = need.filter((n) => !calls.includes(n));
     assert.deepEqual(missing, [], `нет вызова: ${missing.join('; ')}`);
@@ -259,6 +270,12 @@ test('тексты спецификации на месте', () => {
     for (const label of ['Сдвинуть на N дней', 'Отменить размещения', 'Удалить']) {
         assert.ok(html.includes(label), `в панели массовых действий нет «${label}»`);
     }
+    for (const label of ['Бриф для агента', 'Только от ИИ', 'Удалить черновики ИИ']) {
+        assert.ok(html.includes(label), `нет «${label}» (поддержка ИИ-агента)`);
+    }
+    for (const label of ['Почему этот пост', 'Что снять']) {
+        assert.ok(js.includes(`'${label}'`), `в карточке нет раздела «${label}»`);
+    }
 });
 
 test('рассылка бота в диалоге утверждения не отмечена по умолчанию', () => {
@@ -294,7 +311,8 @@ test('общий модуль даёт всё, чем пользуется ст�
 // не идёт дальше отправки, и проверяется именно то, ЧТО ушло на сервер.
 import vm from 'node:vm';
 
-function loadPage() {
+// extra — дополнительные члены заглушки GH (например, confirm для диалогов).
+function loadPage(extra = {}) {
     const calls = [];
     const toasts = [];
     const GH = {
@@ -305,6 +323,7 @@ function loadPage() {
         toast: (...args) => { toasts.push(args); },
         loadAttention: () => { calls.push(['ATTENTION']); return Promise.resolve(null); },
         plural: (n, one, few, many) => many,
+        ...extra,
     };
     const ctx = {
         window: { GH },
@@ -601,6 +620,126 @@ test('диалог копирования: правила дат — с серв
     assert.match(body, /each\(copyRules\(\), function \(r\)/, 'список правил в диалоге не из copyRules()');
     assert.ok(!/Тот же день недели с тем же номером в месяце/.test(body), 'в диалоге снова своё правило переноса дат');
     assert.match(read('core/content_plan.py'), /'copy_rules': list\(COPY_RULES\)/, 'сервер больше не отдаёт copy_rules');
+});
+
+// ---------------------------------------------------------------- ИИ-агент (MCP)
+
+test('ИИ-агент: пометка «ИИ» в таблице, плашках календаря, шапке карточки и окне утверждения', () => {
+    const { cp } = loadPage();
+    const mark = cp.aiMark({ origin: 'agent' }, true);
+    assert.match(mark, /class="gh-cp-ai"/, 'пометка без своего класса');
+    assert.match(mark, />ИИ</, 'пометка без текста «ИИ»');
+    assert.match(mark, /data-tip=/, 'у пометки в таблице нет пояснения');
+    assert.equal(cp.aiMark({ origin: 'human' }, true), '', 'материал людей помечен «ИИ»');
+    assert.equal(cp.aiMark({}, true), '', 'материал без origin (старые данные) помечен «ИИ»');
+    assert.ok(!/data-tip=/.test(cp.aiMark({ origin: 'agent' }, false)), 'в плашке календаря у метки своя подсказка');
+    assert.match(fnBody('rowHtml'), /aiMark\(m, true\)/, 'в строке таблицы нет пометки «ИИ»');
+    assert.match(fnBody('pillHtml'), /aiMark\(x\.m, false\)/, 'в плашке календаря нет пометки «ИИ»');
+    assert.match(fnBody('drawerHead'), /aiMark\(m, true\)/, 'в шапке карточки нет пометки «ИИ»');
+    assert.match(fnBody('apRow'), /aiMark\(g, true\)/, 'в окне утверждения посты агента не помечены');
+    assert.match(fnBody('pillTip'), /ИИ: материал создал агент/, 'подсказка плашки не говорит, что это агент');
+    assert.ok(css.includes('.gh-cp-ai {'), 'нет стиля пометки «ИИ»');
+    // Происхождение ставит сервер: клиент его не шлёт.
+    assert.ok(!/origin:\s*['"](?:agent|human)/.test(js.replace(/setOrigin\([^)]*\)/g, '')),
+        'клиент отправляет origin материала на сервер');
+});
+
+test('ИИ-агент: «Почему этот пост» и «Что снять» — автосохранение полей материала, предел как в ядре', () => {
+    assert.match(fnBody('renderDrawer'), /secMain\(m\) \+ secWhy\(m\) \+ secContent\(m\) \+ secShots\(m\)/,
+        'разделы агента не на своих местах в карточке');
+    assert.match(fnBody('secWhy'), /agentFieldHtml\(m, 'agent_rationale'/, '«Почему этот пост» не из agent_rationale');
+    assert.match(fnBody('secShots'), /agentFieldHtml\(m, 'shot_list'/, '«Что снять» не из shot_list');
+    const field = fnBody('agentFieldHtml');
+    assert.match(field, /var key = 'm:' \+ m\.id \+ ':' \+ field;/, 'ключ автосохранения не материала');
+    assert.match(field, /data-save-key="' \+\s*esc\(key\)/, 'поле без автосохранения (data-save-key)');
+    assert.match(field, /data-limit="' \+ AGENT_TEXT_MAX/, 'счётчик без предела');
+    const core = read('core/content_plan.py');
+    const max = core.match(/AGENT_TEXT_MAX = (\d+)/)[1];
+    assert.match(js, new RegExp(`var AGENT_TEXT_MAX = ${max};`), `AGENT_TEXT_MAX разошёлся с ядром (${max})`);
+    assert.match(core, /MATERIAL_EDITABLE = \([^)]*'agent_rationale', 'shot_list'\)/,
+        'ядро не принимает поля агента в правке материала');
+});
+
+test('фильтр «Только от ИИ»: ?origin=agent, скрывает материалы людей и в таблице, и в календаре', () => {
+    assert.match(js, /params\.get\('origin'\) === ORIGIN_AGENT/, 'не читается ?origin=agent');
+    assert.match(fnBody('setOrigin'), /GH\.setParams\(\{ origin: S\.origin \|\| null \}\)/, 'фильтр не пишется в адрес');
+    assert.match(fnBody('calendarItems'), /if \(!originMatches\(m\)\) return;/, 'календарь не фильтрует по происхождению');
+    assert.match(fnBody('openApprove'), /'&origin=' \+ enc\(S\.origin\)/, '«Утвердить готовые» не учитывает фильтр');
+    assert.match(fnBody('filtersActive'), /S\.origin/, 'фильтр не считается активным');
+    const { cp } = loadPage();
+    const human = { id: 'h', origin: 'human', placements: [] };
+    const agent = { id: 'a', origin: 'agent', placements: [] };
+    const old = { id: 'o', placements: [] };
+    assert.equal(cp.materialVisible(human), true);
+    cp.state.origin = 'agent';
+    assert.equal(cp.materialVisible(human), false, 'материал людей виден под «Только от ИИ»');
+    assert.equal(cp.materialVisible(old), false, 'старый материал (без origin) виден под «Только от ИИ»');
+    assert.equal(cp.materialVisible(agent), true, 'материал агента скрыт под «Только от ИИ»');
+});
+
+test('«Удалить черновики ИИ»: число из agent_draft сервера, подтверждение, на сервер — ровно эти id', () => {
+    const confirms = [];
+    const { cp, calls } = loadPage({
+        // Синхронный «промис»: подтверждение сразу «да».
+        confirm: (opts) => { confirms.push(opts); return { then: (fn) => fn(true) }; },
+        monthLabel: (m) => 'Октябрь 2026 (' + m + ')',
+    });
+    cp.state.month = '2026-10';
+    cp.state.data = { materials: [
+        { id: 'a1', title: 'Черновик агента', origin: 'agent', in_month: true, agent_draft: true, placements: [] },
+        { id: 'a2', title: 'Утверждённый агента', origin: 'agent', in_month: true, agent_draft: false, placements: [] },
+        { id: 'a3', title: 'Другой месяц', origin: 'agent', in_month: false, agent_draft: true, placements: [] },
+        { id: 'h1', title: 'Черновик людей', origin: 'human', in_month: true, agent_draft: false, placements: [] },
+    ] };
+    const st = cp.agentStats();
+    assert.equal(st.total, 2, 'чип «Только от ИИ» считает не материалы агента этого месяца');
+    assert.deepEqual(Array.from(st.drafts, (m) => m.id), ['a1'], 'удалить предлагается не только черновики ИИ месяца');
+    cp.deleteAgentDrafts();
+    assert.equal(confirms.length, 1, 'удаление без подтверждения');
+    assert.match(confirms[0].title, /Удалить черновики ИИ: 1\?/, 'в подтверждении нет числа');
+    assert.match(confirms[0].text, /«Черновик агента»/, 'подтверждение не называет материалы');
+    assert.equal(confirms[0].danger, true, 'кнопка удаления не опасная');
+    const del = calls.filter((c) => c[1] === '/api/content-plan/agent-drafts/delete');
+    assert.equal(del.length, 1, `ожидался один запрос удаления, ушло: ${JSON.stringify(calls)}`);
+    assert.equal(del[0][0], 'POST');
+    assert.deepEqual(JSON.parse(JSON.stringify(del[0][2])), { month: '2026-10', material_ids: ['a1'] });
+    // В сквозном виде (все месяцы) удаления по месяцу нет.
+    cp.state.scope = 'state';
+    cp.deleteAgentDrafts();
+    assert.equal(confirms.length, 1, 'в виде «Все месяцы» предложено удаление');
+    assert.match(fnBody('deleteAgentDrafts'), /reload\(\)/, 'после удаления план и полоса внимания не перечитываются');
+});
+
+test('бриф для агента: поля и пределы — из ответа сервера, PUT шлёт одно поле, сохранение не теряется при уходе', () => {
+    const { cp } = loadPage();
+    const plain = (x) => JSON.parse(JSON.stringify(x));
+    assert.deepEqual(plain(cp.briefBody('s:tone', 'На «вы»')), { sections: { tone: 'На «вы»' } });
+    assert.deepEqual(plain(cp.briefBody('b:ligovskiy:hours', '12–02')),
+        { sections: { bars: { ligovskiy: { hours: '12–02' } } } });
+    assert.deepEqual(plain(cp.briefBody('e', ['Пример'])), { sections: { examples: ['Пример'] } });
+    // Подписи, подсказки и пределы — только с сервера (schema), не свои числа.
+    assert.match(fnBody('briefBodyHtml'), /each\(schema\.sections, function \(spec\)/, 'разделы брифа не из schema');
+    assert.match(fnBody('briefBarsHtml'), /each\(schema\.bars, function \(bar\)/, 'бары брифа не из schema.bars');
+    assert.match(fnBody('briefBarsHtml'), /each\(schema\.bar_fields/, 'поля бара не из schema.bar_fields');
+    assert.match(fnBody('updateBriefTotal'), /briefSchema\(\)\.total_max/, 'предел всего брифа не из schema');
+    assert.ok(!/40000|40 000/.test(js), 'в JS свой предел всего брифа');
+    const brief = read('core/content_brief.py');
+    for (const name of ['SECTION_TEXT_MAX', 'BAR_FIELD_MAX', 'BRIEF_TOTAL_MAX', 'EXAMPLES_MAX']) {
+        assert.match(brief, new RegExp(`^${name} = `, 'm'), `в core/content_brief.py нет ${name}`);
+    }
+    // Автосохранение: PUT брифа с keepalive на уходе; сброс — вместе с остальными.
+    assert.match(fnBody('briefSaveKey'), /GH\.api\('PUT', API \+ '\/brief', briefBody\(key, value\), apiOpts\(\)\)/,
+        'поле брифа сохраняется не через PUT /brief с keepalive');
+    assert.match(fnBody('flushSavers'), /flushBrief\(\)/, 'несохранённое в брифе теряется при уходе со страницы');
+    assert.match(fnBody('onBriefClose'), /flushBrief\(\)/, 'закрытие брифа теряет несохранённое');
+    // Карточка брифа — вне .gh-wrap, как карточка материала; открывается кнопкой и ?brief=1.
+    const at = html.indexOf('id="cpBriefDrawer"');
+    assert.ok(at > html.indexOf('id="cpDrawer"'), 'нет выдвижной карточки брифа');
+    assert.match(html, /<aside class="gh-drawer gh-cp-drawer gh-cp-brief" id="cpBriefDrawer" hidden/);
+    const acts = html.slice(html.indexOf('class="gh-cp-bar-acts"'), html.indexOf('id="cpPauseBtn"'));
+    assert.ok(acts.includes('id="cpBriefBtn"'), 'кнопка «Бриф для агента» не в панели действий');
+    assert.match(js, /params\.get\('brief'\) === '1'/, 'не читается ?brief=1');
+    assert.match(fnBody('openBrief'), /GH\.openDrawer\(el\.briefDrawer/, 'бриф открывается не выдвижной карточкой');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

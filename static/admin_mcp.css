@@ -1,0 +1,149 @@
+/* Страница «Доступ агентов» (/admin/mcp, templates/admin_mcp.html).
+   Цвета — только через токены ниже, а они — через переменные темы
+   (static/dashboard/styles/variables.css): тёмная тема подхватывается сама. */
+
+.mcp-page {
+    --mcp-surface: var(--bg-secondary);
+    --mcp-bg: var(--bg-primary);
+    --mcp-code-bg: var(--bg-tertiary);
+    --mcp-border: var(--border-color);
+    --mcp-text: var(--text-primary);
+    --mcp-muted: var(--text-secondary);
+    --mcp-accent: var(--accent);
+    --mcp-on-accent: var(--text-on-accent);
+    --mcp-danger: var(--danger);
+    --mcp-danger-bg: var(--danger-bg);
+    --mcp-success: var(--success);
+    --mcp-success-bg: var(--success-bg);
+    --mcp-warning: var(--warning);
+    --mcp-warning-bg: var(--warning-bg);
+    --mcp-radius: 12px;
+}
+
+.mcp-wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+
+.mcp-panel {
+    background: var(--mcp-surface);
+    border: 1px solid var(--mcp-border);
+    border-radius: var(--mcp-radius);
+    padding: 18px 20px;
+    margin-bottom: 20px;
+}
+.mcp-panel[hidden] { display: none; }
+.mcp-panel h2 { margin: 0 0 12px; font-size: 16px; }
+
+.mcp-warn { border-color: var(--mcp-warning); background: var(--mcp-warning-bg); }
+.mcp-warn h2 { color: var(--mcp-warning); }
+
+.mcp-note { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--mcp-muted); }
+.mcp-hint { display: block; margin-top: 5px; font-size: 12px; line-height: 1.4; color: var(--mcp-muted); }
+.mcp-strong { font-weight: 600; }
+.mcp-mono { font-family: var(--font-family); font-size: 12px; }
+.mcp-nowrap { white-space: nowrap; }
+.mcp-list { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.7; }
+
+.mcp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.mcp-full { grid-column: 1 / -1; }
+.mcp-field label, .mcp-label {
+    display: block; font-size: 12px; color: var(--mcp-muted); margin-bottom: 5px;
+}
+.mcp-field-end { align-self: end; }
+.mcp-input {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid var(--mcp-border);
+    border-radius: 8px;
+    background: var(--mcp-bg);
+    color: var(--mcp-text);
+    font-size: 14px;
+    font-family: inherit;
+}
+.mcp-textarea { resize: vertical; min-height: 84px; }
+
+.mcp-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.mcp-check { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; cursor: pointer; }
+/* mobile.css даёт всем input min-height 44px (зона нажатия) — у галочки это сдвигает
+   квадрат вверх от подписи; зону нажатия здесь даёт сама подпись. */
+.mcp-check input[type="checkbox"] { min-height: 0; width: 16px; height: 16px; margin: 0; flex: none; }
+.mcp-domain { margin: 0; }
+
+.mcp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.mcp-filters { display: grid; grid-template-columns: 2fr 1fr auto; gap: 12px 16px; margin-bottom: 14px; }
+
+.mcp-btn {
+    padding: 9px 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+}
+.mcp-btn:disabled { opacity: 0.6; cursor: default; }
+.mcp-btn-primary { background: var(--mcp-accent); color: var(--mcp-on-accent); }
+.mcp-btn-ghost { background: transparent; border-color: var(--mcp-border); color: var(--mcp-text); }
+.mcp-btn-danger { background: transparent; border-color: var(--mcp-danger); color: var(--mcp-danger); }
+.mcp-btn-sm { padding: 5px 9px; font-size: 12px; font-weight: 500; }
+
+.mcp-err { color: var(--mcp-danger); font-size: 13px; }
+.mcp-ok { color: var(--mcp-success); font-size: 13px; }
+.mcp-err-text { color: var(--mcp-danger); font-size: 12px; margin-top: 4px; word-break: break-word; }
+.mcp-empty { margin: 10px 0 0; font-size: 13px; color: var(--mcp-muted); }
+.mcp-empty[hidden] { display: none; }
+
+.mcp-table-wrap { overflow-x: auto; }
+.mcp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mcp-table th, .mcp-table td {
+    padding: 9px 8px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--mcp-border);
+}
+.mcp-table th { font-size: 12px; color: var(--mcp-muted); font-weight: 600; white-space: nowrap; }
+.mcp-table-audit td { font-size: 12px; }
+.mcp-row-off td { color: var(--mcp-muted); }
+
+.mcp-code {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: var(--mcp-code-bg);
+    font-family: var(--font-family);
+    font-size: 12px;
+    word-break: break-all;
+}
+.mcp-args { max-width: 420px; max-height: 96px; overflow: auto; white-space: pre-wrap; }
+
+.mcp-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.mcp-tag-active, .mcp-tag-ok { background: var(--mcp-success-bg); color: var(--mcp-success); }
+.mcp-tag-error, .mcp-tag-revoked { background: var(--mcp-danger-bg); color: var(--mcp-danger); }
+.mcp-tag-denied, .mcp-tag-expired { background: var(--mcp-warning-bg); color: var(--mcp-warning); }
+/* Токен цел, но владелец выключен, удалён или без админства — токен не работает. */
+.mcp-tag-owner_disabled, .mcp-tag-owner_not_admin, .mcp-tag-owner_missing {
+    background: var(--mcp-warning-bg); color: var(--mcp-warning);
+}
+.mcp-note-after { margin: 12px 0 0; }
+
+.mcp-token-box {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--mcp-accent);
+    border-radius: var(--mcp-radius);
+    background: var(--mcp-bg);
+}
+.mcp-token-box[hidden] { display: none; }
+.mcp-token-box p { margin: 0 0 10px; }
+.mcp-copy-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.mcp-copy-row .mcp-code { flex: 1; min-width: 0; }
+.mcp-secret { font-size: 13px; padding: 6px 8px; }
+.mcp-commands { margin-bottom: 8px; }
+.mcp-cmd { margin-bottom: 10px; }
+.mcp-cmd-title { font-size: 12px; color: var(--mcp-muted); margin-bottom: 4px; }
+.mcp-cmd-text { white-space: pre-wrap; }
+
+.mcp-offscreen { position: fixed; left: -9999px; top: 0; opacity: 0; }
+
+@media (max-width: 768px) {
+    .mcp-wrap { padding: 12px; }
+    .mcp-panel { padding: 14px; }
+    .mcp-grid, .mcp-filters { grid-template-columns: 1fr; }
+    .mcp-copy-row { flex-direction: column; }
+    .mcp-args { max-width: 260px; }
+}

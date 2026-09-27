@@ -393,9 +393,13 @@ def month_bounds(month: str):
 # ----------------------------------------------------------------- поля
 
 def _user_login(user: Optional[dict]) -> str:
+    """Подпись автора. Действия ИИ-агента владельца (вызов через MCP, флаг via_mcp
+    ставит core/mcp/bridge.py) подписываются «<login> · агент» — как в контент-плане,
+    чтобы в отзывах было видно, что ответ сохранил агент, а не человек."""
     if not user:
         return 'unknown'
-    return user.get('login') or user.get('display_name') or 'unknown'
+    login = user.get('login') or user.get('display_name') or 'unknown'
+    return f'{login} · агент' if user.get('via_mcp') else login
 
 
 def _as_text(value, field: str) -> str:
@@ -964,6 +968,12 @@ class ReviewStore:
         source меняется только у отзывов, внесённых вручную. created_at: null -> 400.
         """
         changes = {k: v for k, v in (fields or {}).items() if k in self.EDITABLE_FIELDS}
+        # Режим «чтение и черновики» (MCP-коннектор …/draft): агент по расписанию может
+        # только сохранить черновик ответа. Сам отзыв (текст, оценка, бар, гость) он не
+        # меняет — «команда» в тексте другого отзыва не должна править данные.
+        if (user or {}).get('mcp_mode') == 'draft' and set(changes) - {'reply_draft'}:
+            raise ReviewConflict('В режиме «чтение и черновики» агент меняет только черновик ответа '
+                                 '(reply_draft), сам отзыв — нет.')
 
         def op(reviews, now):
             rec = self._require(reviews, review_id)

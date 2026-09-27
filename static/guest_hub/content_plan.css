@@ -4,7 +4,8 @@
    выдвижная карточка, диалоги, тосты, подсказки) живут в hub.css. Здесь —
    только то, что есть на этой странице: таблица месяца, календарь, карточка
    материала (размещения, предпросмотр, файлы), диалоги утверждения и
-   копирования, панель массовых действий.
+   копирования, панель массовых действий, всё для ИИ-агента (пометка «ИИ»,
+   чип «Только от ИИ», карточка «Бриф для агента»).
 
    Правила: префикс gh-cp- у каждого класса; цвета — только токены --gh-* из
    hub.css (ни одного HEX: тёмная тема работает сама); без эмодзи.
@@ -41,7 +42,9 @@ button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outl
     border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card));
     color: var(--gh-ink2);
 }
-.gh-cp-bar-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; }
+/* margin-left: auto — если сводка с чипом «Только от ИИ» заняла строку и
+   действия перенеслись, они стоят справа, а не прилипают к левому краю. */
+.gh-cp-bar-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; margin-left: auto; }
 .gh-cp-menuwrap { position: relative; display: inline-flex; }
 /* Меню паузы длиннее обычного (две группы по пять пунктов и пояснение):
    на широком экране ему можно больше высоты, чтобы пояснение не пряталось. */
@@ -1042,15 +1045,129 @@ button.gh-chip.gh-cp-st-failed:hover { border-color: var(--gh-ink); }
 /* Живой материал в диалоге утверждения. */
 .gh-cp-ap-live { margin-left: 6px; }
 
+/* ==================== ИИ-агент (MCP) ====================
+   Пометка «ИИ» — материал создал агент (origin 'agent', ставит сервер).
+   Инверсная плашка цветом текста: не похожа ни на один цвет состояния
+   размещения (те — оттенки тонов), в тёмной теме становится светлой сама. */
+
+.gh-cp-ai {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    height: 17px;
+    padding: 0 5px;
+    border-radius: 5px;
+    background: var(--gh-ink);
+    color: var(--gh-card);
+    font: 700 9.5px/1 var(--gh-mono);
+    letter-spacing: .08em;
+    white-space: nowrap;
+    vertical-align: 1px;
+    cursor: help;
+}
+.gh-cp-c-mat > .gh-cp-ai { margin-right: 7px; }
+.gh-drawer-s .gh-cp-ai { margin-right: 6px; vertical-align: 0; }
+.gh-cp-ai-t { font-weight: 600; color: var(--gh-ink3); }
+.gh-cp-ap-what .gh-cp-ai,
+.gh-cp-ap-bot .gh-cp-ai { margin-right: 6px; }
+/* В плашке календаря — меньше и без своей подсказки (она у всей плашки). */
+.gh-cp-pill .gh-cp-ai {
+    height: 14px;
+    margin-right: 4px;
+    padding: 0 4px;
+    font-size: 8.5px;
+    cursor: inherit;
+}
+/* На залитой плашке (время вышло, вышло, ошибка) — наоборот, светлая. */
+.gh-cp-pill.gh-cp-st-overdue .gh-cp-ai,
+.gh-cp-pill.gh-cp-st-published .gh-cp-ai,
+.gh-cp-pill.gh-cp-st-failed .gh-cp-ai { background: var(--gh-on-status); color: var(--gh-t-ink); }
+
+/* Чип «Только от ИИ» и «Удалить черновики ИИ» рядом со сводкой. */
+.gh-cp-origin { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; }
+.gh-cp-originchip {
+    gap: 7px;
+    height: 30px;
+    padding: 0 12px 0 6px;
+    border-color: var(--gh-line2);
+    background: var(--gh-card);
+    color: var(--gh-ink2);
+    font: 600 12px/1 var(--gh-sans);
+}
+button.gh-cp-originchip:hover { border-color: var(--gh-ink6); }
+.gh-cp-originchip.is-on {
+    background: color-mix(in srgb, var(--gh-accent) 13%, var(--gh-card));
+    border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card));
+    color: var(--gh-accent-ink);
+}
+button.gh-cp-originchip.is-on:hover { border-color: var(--gh-accent); }
+.gh-cp-originchip .gh-cp-ai { vertical-align: 0; cursor: inherit; }
+.gh-cp-originchip-n { font: 600 12px/1 var(--gh-mono); font-variant-numeric: tabular-nums; color: var(--gh-ink); }
+.gh-cp-originchip.is-on .gh-cp-originchip-n { color: inherit; }
+
+/* «Почему этот пост» и «Что снять» в карточке материала. */
+.gh-cp-agentarea { min-height: 76px; }
+
+/* Бриф для агента (выдвижная карточка #cpBriefDrawer). */
+.gh-cp-brief-intro { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
+.gh-cp-brief-purpose { margin: 0; font: 400 13px/1.55 var(--gh-sans); color: var(--gh-ink2); }
+.gh-cp-brief-intro .gh-cp-warn { margin-top: 2px; }
+.gh-cp-brief-ta { min-height: 92px; }
+.gh-cp-brief .gh-cp-sec > .gh-field-hint { margin-top: -4px; }
+.gh-cp-brief-ex { display: flex; flex-direction: column; gap: 6px; }
+.gh-cp-brief-ex-h {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font: 600 10px/1 var(--gh-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+}
+.gh-cp-brief-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-in);
+    background: var(--gh-chip);
+}
+.gh-cp-brief-bar-h {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    font: 600 13.5px/1.3 var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-cp-brief-bar-h span { font: 500 11px/1.3 var(--gh-mono); color: var(--gh-ink5); }
+.gh-cp-brief-bar .gh-cp-brief-ta { min-height: 64px; }
+.gh-cp-brief-bar .gh-field-cap { cursor: help; }
+.gh-cp-brief-total {
+    font: 500 11px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink4);
+    white-space: nowrap;
+    cursor: help;
+}
+.gh-cp-brief-total.is-over { color: var(--gh-bad-ink); font-weight: 700; }
+
 /* ==================== Телефон (<=768px, как hub.css) ==================== */
 
 @media (max-width: 768px) {
     .gh-cp-bar { flex-direction: column; align-items: stretch; gap: 10px; }
     .gh-cp-sum { margin-left: -6px; }
-    .gh-cp-bar-acts { display: flex; }
+    /* В колонке автоотступ сжал бы блок до ширины кнопок — здесь он во всю ширину. */
+    .gh-cp-bar-acts { display: flex; margin-left: 0; }
     .gh-cp-bar-acts > .gh-btn,
     .gh-cp-menuwrap { flex: 1 1 0; min-width: 0; }
     .gh-cp-menuwrap > .gh-btn { width: 100%; }
+    /* «Бриф для агента» — своей строкой: втроём с «Скопировать прошлый
+       месяц» и «Паузой» подписи в 360px не помещаются. */
+    .gh-cp-bar-acts > .gh-cp-briefbtn { flex: 1 1 100%; }
 
     /* Таблица -> карточки: строка раскладывается сеткой, страница не
        прокручивается вбок. */

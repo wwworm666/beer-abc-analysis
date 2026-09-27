@@ -466,6 +466,19 @@ def test_open_redirect_blocked():
     assert r.headers['Location'] in ('/', 'http://localhost/'), r.headers['Location']
 
 
+def test_safe_next_rejects_control_chars_and_backslash():
+    """Регрессия (проверка безопасности MCP 2026-09-28): «/<TAB>/evil.example» после
+    выброса табуляции становился «//evil.example» — переход на чужой сайт после входа.
+    Закодированный redirect_uri OAuth-согласия при этом должен проходить как есть."""
+    from routes.auth import _safe_next
+    for bad in ('/\t/evil.example', '/\n/evil.example', '/\r/evil', '/a' + chr(92) + 'evil',
+                '/' + chr(127) + '/evil', '//evil.example', 'https://evil.example'):
+        assert _safe_next(bad) == '/', repr(bad)
+    ok = '/oauth/authorize?redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&state=x'
+    assert _safe_next(ok) == ok
+    assert _safe_next('/content-plan?month=2026-10') == '/content-plan?month=2026-10'
+
+
 def test_secret_key_stable_and_env_override():
     # без env: два вызова дают один и тот же персистентный ключ
     saved = os.environ.pop('SECRET_KEY', None)

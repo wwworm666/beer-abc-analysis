@@ -21,6 +21,8 @@ from .cleanliness import cleanliness_bp
 from .yml_feeds import yml_bp
 from .content_plan import content_plan_bp
 from .reviews import reviews_bp
+from .mcp import mcp_bp
+from .mcp_oauth import mcp_oauth_bp
 
 # Редактор меню (/menu) перенесён из локального menu_tool/ в основное приложение:
 # данные на постоянном диске (/kultura), Chromium для PDF есть в прод-образе
@@ -52,3 +54,7 @@ def register_blueprints(app):
     # Раздел «Гости» (2026-09-26): контент-план и отзывы, см. docs/content-plan.md, docs/reviews.md
     app.register_blueprint(content_plan_bp)
     app.register_blueprint(reviews_bp)
+    # MCP-платформа (2026-09-27): весь интерфейс сервиса для ИИ-агентов владельца,
+    # см. docs/mcp.md. /mcp и OAuth-эндпоинты сами проверяют токены.
+    app.register_blueprint(mcp_bp)
+    app.register_blueprint(mcp_oauth_bp)

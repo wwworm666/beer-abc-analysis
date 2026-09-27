@@ -11,7 +11,13 @@
        или шаблон, фото и видео), размещения с редактором, предпросмотр,
        повтор и перенос, история;
      - диалоги «Утвердить готовые» и «Скопировать прошлый месяц», меню паузы,
-       массовые действия над отмеченными строками таблицы.
+       массовые действия над отмеченными строками таблицы;
+     - ИИ-агент (MCP): пометка «ИИ» у материалов агента (origin 'agent' ставит
+       сервер) в таблице, календаре и шапке карточки; в карточке — «Почему этот
+       пост» (agent_rationale) и «Что снять» (shot_list) с автосохранением;
+       чип «Только от ИИ» (?origin=agent) и «Удалить черновики ИИ» рядом со
+       сводкой; кнопка «Бриф для агента» — выдвижная карточка брифа сети
+       (GET / PUT /api/content-plan/brief, поля и пределы — из ответа сервера).
 
    Источник истины — ответ GET /api/content-plan?month=. Состояние размещения
    (display_state, display_label, missing) и сводка материала (summary)
@@ -27,7 +33,8 @@
    бара и площадки, но не при фильтре состояния (у неё нет состояния).
 
    Адрес: ?month=YYYY-MM, ?view=table|calendar, ?open=<id материала>,
-   ?state=overdue|failed|incomplete|ready|scheduled|paused.
+   ?state=overdue|failed|incomplete|ready|scheduled|paused, ?origin=agent
+   (только материалы ИИ-агента), ?brief=1 (открыть бриф для агента).
 
    Сквозной вид: ?state=overdue|failed БЕЗ ?month= (так ведут ссылки полосы
    «Требует внимания»: там считаются размещения любых месяцев) — страница
@@ -73,6 +80,16 @@
     var SHIFT_MAX = 60;
     // Название: зеркало TITLE_MAX в core/content_plan.py (атрибут maxlength).
     var TITLE_MAX = 200;
+    // «Почему этот пост» и «Что снять»: зеркало AGENT_TEXT_MAX в
+    // core/content_plan.py (предел хранения, как у заметки; сервер проверяет
+    // сам, здесь — счётчик под полем).
+    var AGENT_TEXT_MAX = 2000;
+    // Происхождение материала: 'agent' — создан ИИ-агентом через MCP (ставит
+    // сервер при создании, не редактируется). Фильтр «Только от ИИ» — ?origin=agent.
+    var ORIGIN_AGENT = 'agent';
+    // Подтверждение «Удалить черновики ИИ» называет материалы поимённо, но не
+    // больше 8 (окно не должно уезжать за экран); остальные — «и ещё N».
+    var AGENT_DEL_SHOWN = 8;
     // 1 МБ = 1024 x 1024 байт — как пределы MAX_IMAGE_BYTES / MAX_VIDEO_BYTES
     // в core/content_media.py.
     var MB = 1024 * 1024;
@@ -134,6 +151,17 @@
         'черновиками и не уходят.';
     var SIZE_UNKNOWN = 'неизвестно: бот не подключён';
 
+    // Пометка «ИИ»: материал создал ИИ-агент через MCP (сервер ставит origin
+    // 'agent' при создании; копия, которую сделал человек, — уже не «ИИ»).
+    var AI_TIP = 'Материал создал ИИ-агент (через MCP) от имени владельца. Проверьте текст, фото и размещения ' +
+        'перед утверждением: агент только готовит черновики.';
+    var WHY_PLACEHOLDER = 'Зачем этот пост: повод, рубрика, на какие данные он опирается. Агент заполняет сам, ' +
+        'можно дописать.';
+    var SHOTS_PLACEHOLDER = 'Список кадров: что снять, где и как. Например: краны крупно; бармен наливает; ' +
+        'стол с закусками у окна.';
+    var AGENT_FIELD_TIP = 'Предел хранения — ' + AGENT_TEXT_MAX + ' знаков, как у заметки: это пояснение и список ' +
+        'кадров, а не текст поста. В публикацию не уходит, утверждение не снимает.';
+
     // Пояснение к каждому состоянию размещения (подсказка на бейдже). Само
     // состояние считает сервер; здесь только слова о том, что оно значит.
     var STATE_TIPS = {
@@ -177,6 +205,7 @@
         bar: '',                 // '' = все бары
         channel: '',             // '' = все площадки
         stateFilter: '',
+        origin: '',              // '' — все материалы, 'agent' — только от ИИ (?origin=agent)
         scope: '',               // 'state' — сквозной вид по всем месяцам (?state= без ?month=)
         data: null,              // ответ GET /api/content-plan
         extra: {},               // id -> материал, открытый в карточке, но выпавший из списка сквозного вида
@@ -214,11 +243,22 @@
         calOpen: {},             // день -> показаны все размещения
         approve: null,
         copy: null,
-        pendingOpen: null
+        pendingOpen: null,
+        // Бриф для агента: {loading} | {error} | {data: ответ GET, examples: [..]}.
+        // examples — список примеров на экране (с пустыми, которые только что
+        // добавили): сервер пустые отбрасывает, поэтому экран держит свой.
+        brief: null,
+        briefDirty: {},          // ключ поля брифа -> несохранённое значение
+        briefSaving: 0,
+        briefSave: '',           // '' | 'dirty' | 'saving' | 'saved' | 'error'
+        briefError: ''
     };
 
     var el = {};
     var savers = {};
+    // Автосохранение полей брифа: свои отложенные вызовы (PUT брифа, а не PATCH
+    // материала), но сбрасываются вместе с остальными (flushSavers).
+    var briefSavers = {};
 
     // ==================== мелочи ====================
 
@@ -355,7 +395,13 @@
         if (S.stateFilter && p.display_state !== S.stateFilter) return false;
         return true;
     }
+    // Фильтр «Только от ИИ» (?origin=agent): материал целиком — его origin
+    // ставит сервер при создании (core/content_plan.py, origin_of).
+    function originMatches(m) {
+        return !S.origin || m.origin === S.origin;
+    }
     function materialVisible(m) {
+        if (!originMatches(m)) return false;
         var pls = m.placements || [];
         if (!pls.length) return !S.stateFilter;
         for (var i = 0; i < pls.length; i++) if (placementMatches(pls[i])) return true;
@@ -381,7 +427,21 @@
         each(materials(), function (m) { if (inTable(m) && materialVisible(m)) out.push(m); });
         return out;
     }
-    function filtersActive() { return !!(S.bar || S.channel || S.stateFilter); }
+    function filtersActive() { return !!(S.bar || S.channel || S.stateFilter || S.origin); }
+
+    // Материалы ИИ-агента в плане на экране: total — сколько их (для чипа
+    // «Только от ИИ»), drafts — черновики ИИ плана этого месяца (agent_draft
+    // считает сервер: все размещения — черновики или отменены) для «Удалить
+    // черновики ИИ». В сквозном виде (все месяцы) удаления нет: оно — по месяцу.
+    function agentStats() {
+        var out = { total: 0, drafts: [] };
+        each(materials(), function (m) {
+            if (m.origin !== ORIGIN_AGENT || !m.in_month) return;
+            out.total++;
+            if (m.agent_draft && !S.scope) out.drafts.push(m);
+        });
+        return out;
+    }
 
     // ==================== загрузка и изменения ====================
 
@@ -582,6 +642,7 @@
         var y = window.pageYOffset;
         renderChrome();
         renderSummary();
+        renderOrigin();
         renderStateBar();
         renderView();
         renderBulk();
@@ -654,6 +715,34 @@
                 'Размещения, которые не удалось отправить.' + scope, 'is-warn');
         }
         el.sum.innerHTML = html;
+    }
+
+    // Чип «Только от ИИ» и «Удалить черновики ИИ» рядом со сводкой. Блок виден,
+    // когда в плане есть материалы агента или фильтр включён (снять его можно
+    // всегда); кнопка удаления — когда в плане месяца есть черновики ИИ.
+    function renderOrigin() {
+        if (!S.data) { el.origin.hidden = true; return; }
+        var st = agentStats();
+        var on = S.origin === ORIGIN_AGENT;
+        el.origin.hidden = !st.total && !on;
+        el.originBtn.classList.toggle('is-on', on);
+        el.originBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        el.originN.textContent = String(st.total);
+        var n = st.drafts.length;
+        el.agentDel.hidden = !n;
+        el.agentDel.textContent = 'Удалить черновики ИИ: ' + n;
+        el.agentDel.setAttribute('data-tip', ((S.data && S.data.agent_draft_rule) ||
+            'Черновик ИИ — материал агента, у которого все размещения — черновики или отменены.') +
+            '\nУдаляются только черновики ИИ плана «' + GH.monthLabel(S.month) + '», перед удалением — ' +
+            'подтверждение со списком.');
+    }
+
+    function setOrigin(value) {
+        S.origin = value === ORIGIN_AGENT ? ORIGIN_AGENT : '';
+        GH.setParams({ origin: S.origin || null });
+        renderOrigin();
+        renderView();
+        renderBulk();
     }
 
     function renderStateBar() {
@@ -752,10 +841,18 @@
                     '<button type="button" class="gh-btn" data-act="copy">Скопировать прошлый месяц</button>' +
                 '</div></div>';
         }
+        if (S.origin && !agentStats().total) {
+            return '<div class="gh-empty">' +
+                '<div class="gh-empty-t">Материалов от ИИ в плане «' + esc(GH.monthLabel(S.month)) + '» нет</div>' +
+                '<div class="gh-empty-s">ИИ-агент готовит черновики через MCP; они появятся здесь с пометкой ' +
+                    '«ИИ». Правила, по которым он пишет, — в «Бриф для агента».</div>' +
+                '<div class="gh-empty-a"><button type="button" class="gh-btn" data-act="origin-off">' +
+                    'Показать все материалы</button></div></div>';
+        }
         return '<div class="gh-empty">' +
             '<div class="gh-empty-t">Под выбранные фильтры ничего не попало</div>' +
             '<div class="gh-empty-s">Фильтры: бар, площадка' + (S.stateFilter ? ', состояние' : '') +
-                '. Материалы без подходящих размещений скрыты.</div>' +
+                (S.origin ? ', только от ИИ' : '') + '. Материалы без подходящих размещений скрыты.</div>' +
             '<div class="gh-empty-a"><button type="button" class="gh-btn" data-act="reset-filters">' +
                 'Сбросить фильтры</button></div></div>';
     }
@@ -793,6 +890,14 @@
         return '<tr class="is-group gh-cp-grp"><td colspan="5"><span' + tip(hint) + '>' + esc(label) +
             '</span><span class="gh-cp-grp-n">' + esc(nText(n, 'материал', 'материала', 'материалов')) +
             '</span></td></tr>';
+    }
+
+    // Пометка «ИИ» у материала агента (таблица, календарь, шапка карточки).
+    // withTip — своя подсказка; в плашке календаря её нет: там пояснение уже
+    // в подсказке всей плашки (pillTip), а метка слишком мала для наведения.
+    function aiMark(m, withTip) {
+        if (!m || m.origin !== ORIGIN_AGENT) return '';
+        return '<span class="gh-cp-ai"' + (withTip ? tip(AI_TIP) : ' aria-label="от ИИ"') + '>ИИ</span>';
     }
 
     function tagsHtml(m) {
@@ -921,8 +1026,8 @@
             '<td class="gh-cp-c-sel"><label class="gh-cp-cbx"><input type="checkbox" data-sel="' + esc(m.id) + '"' +
                 (sel ? ' checked' : '') + ' aria-label="Выбрать: ' + esc(m.title) + '"></label></td>' +
             '<td class="gh-cp-c-date">' + date + '</td>' +
-            '<td class="gh-cp-c-mat"><button type="button" class="gh-cp-mt" data-open="' + esc(m.id) + '">' +
-                esc(m.title) + '</button>' +
+            '<td class="gh-cp-c-mat">' + aiMark(m, true) +
+                '<button type="button" class="gh-cp-mt" data-open="' + esc(m.id) + '">' + esc(m.title) + '</button>' +
                 (tags ? '<div class="gh-cp-tags">' + tags + '</div>' : '') +
                 (ex ? '<div class="gh-cp-ex">' + esc(ex) + '</div>' : '') + '</td>' +
             '<td class="gh-cp-c-pl">' + chipsHtml(m) + '</td>' +
@@ -993,6 +1098,7 @@
         var days = {};
         function push(day, item) { (days[day] = days[day] || []).push(item); }
         each(materials(), function (m) {
+            if (!originMatches(m)) return;
             var datedHere = false;
             each(m.placements, function (p) {
                 if (!p.date || p.date.slice(0, 7) !== S.month) return;
@@ -1009,24 +1115,26 @@
     }
 
     function pillTip(x) {
+        var ai = x.m.origin === ORIGIN_AGENT ? '\nИИ: материал создал агент (через MCP).' : '';
         if (x.theme) {
             return '«' + x.m.title + '»\nТема на этот день: размещений в этом месяце пока нет. ' +
-                'Нажмите, чтобы открыть карточку.';
+                'Нажмите, чтобы открыть карточку.' + ai;
         }
-        return chipTip(x.m, x.p) + '\nМатериал: «' + x.m.title + '»';
+        return chipTip(x.m, x.p) + '\nМатериал: «' + x.m.title + '»' + ai;
     }
     function pillHtml(x) {
         if (x.theme) {
             return '<button type="button" class="gh-cp-pill is-theme" data-open="' + esc(x.m.id) + '"' +
-                tip(pillTip(x)) + '><span class="gh-cp-pill-n">Тема: ' + esc(x.m.title) + '</span></button>';
+                tip(pillTip(x)) + '>' + aiMark(x.m, false) + '<span class="gh-cp-pill-n">Тема: ' +
+                esc(x.m.title) + '</span></button>';
         }
         var p = x.p;
         return '<button type="button" class="gh-cp-pill ' + stateCls(p.display_state) +
             (p.display_state === 'cancelled' ? ' is-cancel' : '') + '" data-open="' + esc(x.m.id) +
             '" data-pid="' + esc(p.id) + '"' + tip(pillTip(x)) + '>' +
             '<span class="gh-cp-pill-t">' + esc(p.time || '—') + '</span> ' +
-            esc(chShort(p.channel) + ' ' + GH.barShort(p.bar)) + ' · <span class="gh-cp-pill-n">' +
-            esc(x.m.title) + '</span></button>';
+            esc(chShort(p.channel) + ' ' + GH.barShort(p.bar)) + ' · ' + aiMark(x.m, false) +
+            '<span class="gh-cp-pill-n">' + esc(x.m.title) + '</span></button>';
     }
 
     // Сводка дня календаря (по видимым под фильтрами пунктам, без отменённых):
@@ -1379,12 +1487,13 @@
         dtFlushAll();
         return flushSavers();
     }
-    // Только отложенные тексты.
+    // Только отложенные тексты: карточки материала и брифа для агента.
     function flushSavers() {
         var out = [];
         for (var k in savers) {
             if (Object.prototype.hasOwnProperty.call(savers, k) && savers[k].pending()) out.push(savers[k].flush());
         }
+        out.push(flushBrief());
         return Promise.all(out);
     }
 
@@ -1651,7 +1760,8 @@
         var focus = captureFocus(el.drawer);
         el.drawer.innerHTML = drawerHead(m) +
             '<div class="gh-drawer-body">' +
-                secMain(m) + secContent(m) + secPlacements(m) + secPreview(m) + secRepeat(m) + secLog(m) +
+                secMain(m) + secWhy(m) + secContent(m) + secShots(m) + secPlacements(m) + secPreview(m) +
+                secRepeat(m) + secLog(m) +
             '</div>' + drawerFoot(m);
         var body = el.drawer.querySelector('.gh-drawer-body');
         if (body) body.scrollTop = scroll;
@@ -1693,12 +1803,18 @@
         var subParts = ['План: ' + GH.monthLabel(m.month)];
         if (!m.in_month) subParts.push('в этом месяце — только размещения');
         if (m.updated_at) subParts.push('изменено ' + GH.fmtDateTime(m.updated_at) + (m.updated_by ? ', ' + m.updated_by : ''));
+        // Материал агента: пометка «ИИ» и кто его создал (created_by сервера —
+        // «<login> · агент»), чтобы при проверке было видно, чей это черновик.
+        var ai = m.origin === ORIGIN_AGENT
+            ? aiMark(m, true) + '<span class="gh-cp-ai-t">Подготовил ИИ-агент' +
+                (m.created_at ? ' ' + esc(GH.fmtDateTime(m.created_at)) : '') + '</span> · '
+            : '';
         return '<div class="gh-drawer-head">' +
             '<div class="gh-drawer-h">' +
                 '<textarea class="gh-cp-title" rows="1" data-fk="title" data-save-key="' + esc(key) + '" maxlength="' +
                     TITLE_MAX + '" autocomplete="off" aria-label="Название материала" ' +
                     'placeholder="Название материала">' + esc(dirtyOr(key, m.title)) + '</textarea>' +
-                '<div class="gh-drawer-s">' + esc(subParts.join(' · ')) + '</div>' +
+                '<div class="gh-drawer-s">' + ai + esc(subParts.join(' · ')) + '</div>' +
             '</div>' +
             '<button type="button" class="gh-x" data-gh-close aria-label="Закрыть карточку">' + X_SVG + '</button>' +
         '</div>';
@@ -1819,6 +1935,39 @@
                 'aria-label="Заметка для команды" placeholder="Видна только в плане, в публикацию не уходит">' +
                 esc(dirtyOr(noteKey, m.note || '')) + '</textarea>', 'gh-cp-note');
         return '<section class="gh-cp-sec" data-sec="content">' + html + '</section>';
+    }
+
+    // «Почему этот пост» (agent_rationale) и «Что снять» (shot_list): строки до
+    // AGENT_TEXT_MAX, автосохранение как у текста (ключ 'm:<id>:<поле>' ->
+    // PATCH материала). В публикацию не уходят и утверждение не снимают.
+    function agentFieldHtml(m, field, label, placeholder, cls) {
+        var key = 'm:' + m.id + ':' + field;
+        var text = dirtyOr(key, m[field] || '');
+        var n = charLen(text);
+        return '<textarea class="gh-textarea ' + cls + '" rows="3" data-fk="' + field + '" data-save-key="' +
+                esc(key) + '" aria-label="' + esc(label) + '" placeholder="' + esc(placeholder) + '">' + esc(text) +
+            '</textarea>' +
+            '<div class="gh-cp-textfoot"><span class="gh-save" data-save></span>' +
+                '<span class="gh-counter' + (n > AGENT_TEXT_MAX ? ' is-over' : '') + '" data-counter="' + esc(key) +
+                    '" data-limit="' + AGENT_TEXT_MAX + '"' + tip(AGENT_FIELD_TIP) + '>' + n + ' / ' + AGENT_TEXT_MAX +
+                '</span></div>';
+    }
+    // Сразу под основными полями: при проверке черновика агента владелец
+    // сначала читает, зачем пост, и только потом — сам текст.
+    function secWhy(m) {
+        var agent = m.origin === ORIGIN_AGENT;
+        return '<section class="gh-cp-sec" data-sec="why">' +
+            sub('Почему этот пост', agent ? 'пояснение агента' : 'по желанию') +
+            agentFieldHtml(m, 'agent_rationale', 'Почему этот пост', WHY_PLACEHOLDER, 'gh-cp-agentarea') +
+            '</section>';
+    }
+    // После «Содержания» (там фото и видео): что нужно снять для этого поста.
+    function secShots(m) {
+        var agent = m.origin === ORIGIN_AGENT;
+        return '<section class="gh-cp-sec" data-sec="shots">' +
+            sub('Что снять', agent ? 'список кадров от агента' : 'список кадров') +
+            agentFieldHtml(m, 'shot_list', 'Что снять', SHOTS_PLACEHOLDER, 'gh-cp-agentarea') +
+            '</section>';
     }
 
     function liveSourceHtml(m) {
@@ -2968,7 +3117,7 @@
 
     function approveScope() {
         return GH.monthLabel(S.month) + ' · ' + (S.bar ? GH.barName(S.bar) : 'все бары') + ' · ' +
-            (S.channel ? chName(S.channel) : 'все площадки');
+            (S.channel ? chName(S.channel) : 'все площадки') + (S.origin ? ' · только от ИИ' : '');
     }
     function apWhen(it) {
         return (it.date ? GH.fmtDateShort(it.date) : 'без даты') + (it.time ? ' ' + it.time : '');
@@ -2990,7 +3139,7 @@
             var key = [it.material_id, it.date || '', it.time || '', it.channel, why.join(', ')].join('|');
             if (!index[key]) {
                 index[key] = { date: it.date, time: it.time, title: it.title, channel: it.channel,
-                               why: why.join(', '), bars: [], kind: itemKind(it) };
+                               why: why.join(', '), bars: [], kind: itemKind(it), origin: it.origin };
                 list.push(index[key]);
             }
             index[key].bars.push(it.bar);
@@ -3015,7 +3164,7 @@
         var bars = [];
         each(g.bars, function (b) { bars.push(GH.barShort(b)); });
         return '<li class="gh-cp-ap-i"><span class="gh-cp-ap-when">' + esc(apWhen(g)) + '</span>' +
-            '<span class="gh-cp-ap-what">' + esc(g.title) + ' <b>' + esc(bars.join(' · ')) + '</b>' +
+            '<span class="gh-cp-ap-what">' + aiMark(g, true) + esc(g.title) + ' <b>' + esc(bars.join(' · ')) + '</b>' +
                 liveTag(g.kind) + '</span>' +
             (extra || '') + '</li>';
     }
@@ -3025,8 +3174,10 @@
         S.approve = { loading: true, bots: {} };
         renderApprove();
         GH.openModal(el.approveModal);
+        // Под фильтром «Только от ИИ» окно утверждает только материалы агента
+        // (сервер: ?origin=), как бар и площадка — только отфильтрованное.
         var q = '?month=' + enc(S.month) + (S.bar ? '&bar=' + enc(S.bar) : '') +
-            (S.channel ? '&channel=' + enc(S.channel) : '');
+            (S.channel ? '&channel=' + enc(S.channel) : '') + (S.origin ? '&origin=' + enc(S.origin) : '');
         GH.api('GET', API + '/approve-preview' + q).then(function (res) {
             if (!S.approve) return;
             S.approve = { data: res || {}, bots: {} };
@@ -3071,7 +3222,7 @@
                     'разосланное сообщение не отзовёшь.</p>';
                 each(bots, function (it) {
                     html += '<label class="gh-cb gh-cp-ap-bot"><input type="checkbox" data-bot="' + esc(it.placement_id) + '"' +
-                        (a.bots[it.placement_id] ? ' checked' : '') + '><span><b>' + esc(it.title) + '</b> · ' +
+                        (a.bots[it.placement_id] ? ' checked' : '') + '><span>' + aiMark(it, true) + '<b>' + esc(it.title) + '</b> · ' +
                         esc(apWhen(it)) + ' · ' + esc(GH.barName(it.bar)) + liveTag(itemKind(it)) + '<br>Аудитория: ' +
                         esc(it.audience ? it.audience.name : 'не выбрана') + ' · размер: ' + esc(SIZE_UNKNOWN) +
                         '</span></label>';
@@ -3231,6 +3382,432 @@
         });
     }
 
+    // ==================== черновики ИИ ====================
+
+    // «Удалить черновики ИИ»: материалы агента плана этого месяца, у которых
+    // все размещения — черновики или отменены (agent_draft считает сервер).
+    // Подтверждение называет число и материалы; на сервер уходят ровно эти id
+    // (POST /agent-drafts/delete): если план успел измениться, сервер удалит
+    // только то, что всё ещё черновик ИИ, и вернёт остальное в skipped.
+    function deleteAgentDrafts() {
+        if (S.scope) return;
+        var list = agentStats().drafts;
+        if (!list.length) return;
+        flushAll();
+        var names = [];
+        each(list.slice(0, AGENT_DEL_SHOWN), function (m) { names.push('— «' + m.title + '»'); });
+        if (list.length > AGENT_DEL_SHOWN) names.push('и ещё ' + (list.length - AGENT_DEL_SHOWN));
+        var what = nText(list.length, 'черновик', 'черновика', 'черновиков');
+        GH.confirm({
+            title: 'Удалить черновики ИИ: ' + list.length + '?',
+            text: 'Удаляются материалы плана «' + GH.monthLabel(S.month) + '», которые создал ИИ-агент и у ' +
+                'которых ни одно размещение не утверждено и не вышло (все — черновики или отменены). Вернуть ' +
+                'их нельзя. Материалы людей и утверждённое не трогаются.\n\n' + names.join('\n'),
+            ok: 'Удалить ' + what, danger: true
+        }).then(function (ok) {
+            if (!ok) return;
+            var ids = [];
+            each(list, function (m) { ids.push(m.id); });
+            GH.api('POST', API + '/agent-drafts/delete', { month: S.month, material_ids: ids }).then(function (res) {
+                var deleted = (res && res.deleted) || [];
+                var skipped = (res && res.skipped) || [];
+                each(deleted, function (id) {
+                    delete S.selected[id];
+                    // Несохранённые правки удалённого материала больше не нужны.
+                    for (var k in S.dirty) {
+                        if (Object.prototype.hasOwnProperty.call(S.dirty, k) && k.indexOf('m:' + id + ':') === 0) {
+                            delete S.dirty[k];
+                            if (savers[k]) savers[k].cancel();
+                        }
+                    }
+                });
+                if (S.openId && deleted.indexOf(S.openId) >= 0) GH.closeDrawer(el.drawer);
+                GH.toast('Удалено черновиков ИИ: ' + deleted.length, deleted.length ? 'success' : 'muted');
+                if (skipped.length) {
+                    GH.toast('Не удалено: ' + skipped.length + ' — ' + (skipped[0].reason || ''), 'warning');
+                }
+                reload();
+            }, function (err) { reportError(err); reload(); });
+        });
+    }
+
+    // ==================== бриф для агента ====================
+    // Поля, подписи, подсказки и пределы приходят с сервера (schema в ответе
+    // GET /api/content-plan/brief, core/content_brief.py) — экран их не
+    // дублирует. Каждое поле сохраняется само через AUTOSAVE_MS после
+    // последнего нажатия и сразу при уходе из поля: PUT {sections: {...}} с
+    // одним полем (сервер сливает переданное с остальным). Карточка после
+    // сохранения не перерисовывается (набранное остаётся в поле); отклонённое
+    // значение (400: длиннее предела) остаётся в поле с красным счётчиком,
+    // чтобы его можно было сократить.
+
+    // Ключи полей брифа: 's:<раздел>' — текстовый раздел; 'b:<бар>:<поле>' —
+    // поле бара; 'e' — весь список примеров (examples заменяется целиком).
+    function briefBody(key, value) {
+        var parts = String(key).split(':');
+        var sections = {};
+        if (parts[0] === 's') {
+            sections[parts[1]] = value;
+        } else if (parts[0] === 'b') {
+            var fields = {};
+            fields[parts[2]] = value;
+            sections.bars = {};
+            sections.bars[parts[1]] = fields;
+        } else if (parts[0] === 'e') {
+            sections.examples = value;
+        }
+        return { sections: sections };
+    }
+
+    function briefSchema() { return (S.brief && S.brief.data && S.brief.data.schema) || {}; }
+    function briefSections() {
+        var d = S.brief && S.brief.data;
+        return (d && d.brief && d.brief.sections) || {};
+    }
+    function briefDirtyOr(key, value) {
+        return Object.prototype.hasOwnProperty.call(S.briefDirty, key) ? S.briefDirty[key] : value;
+    }
+
+    function openBrief() {
+        flushAll();
+        S.brief = { loading: true };
+        S.briefDirty = {};
+        setBriefSave('');
+        renderBrief();
+        GH.openDrawer(el.briefDrawer, { onClose: onBriefClose });
+        GH.setParams({ brief: '1' });
+        loadBrief();
+    }
+
+    function loadBrief() {
+        GH.api('GET', API + '/brief').then(function (res) {
+            if (!S.brief) return;
+            var sections = (res && res.brief && res.brief.sections) || {};
+            S.brief = { data: res || {}, examples: (sections.examples || []).slice() };
+            renderBrief();
+        }, function (err) {
+            if (!S.brief) return;
+            S.brief = { error: err.status === 503
+                ? 'Бриф недоступен: ' + err.message + '. Файл не перезаписывается — сообщите администратору.'
+                : 'Бриф не загрузился: ' + err.message };
+            renderBrief();
+        });
+    }
+
+    function onBriefClose() {
+        flushBrief();
+        S.brief = null;
+        GH.setParams({ brief: null });
+    }
+
+    function briefStatus() {
+        var d = S.brief && S.brief.data;
+        if (!d || !d.brief) return 'Правила сети для ИИ-агента';
+        if (!d.stored) return 'Ещё не сохранён: показана затравка из справочника баров';
+        var b = d.brief;
+        return 'Сохранён ' + GH.fmtDateTime(b.updated_at) + (b.updated_by ? ', ' + b.updated_by : '');
+    }
+
+    function briefCounter(id, text, max) {
+        var n = charLen(text);
+        return '<span class="gh-counter' + (max && n > max ? ' is-over' : '') + '" data-bcounter="' + esc(id) +
+            '" data-limit="' + (max || 0) + '"' + tip('Предел поля — ' + max + ' знаков. Длина считается в ' +
+                'символах, как на сервере.') + '>' + n + ' / ' + max + '</span>';
+    }
+
+    // Поле брифа: textarea + подсказка + счётчик. key — ключ сохранения,
+    // cid — ключ счётчика (у примеров — 'e:<номер>': ключ сохранения общий).
+    function briefArea(key, cid, value, max, label, rows, extra) {
+        var text = key === 'e' ? value : briefDirtyOr(key, value || '');
+        return '<textarea class="gh-textarea gh-cp-brief-ta" rows="' + rows + '" data-bkey="' + esc(key) + '"' +
+            ' data-bc="' + esc(cid) + '" data-fk="brief:' + esc(cid) + '"' + (extra || '') +
+            ' aria-label="' + esc(label) + '">' + esc(text) + '</textarea>' +
+            '<div class="gh-cp-textfoot">' + briefCounter(cid, text, max) + '</div>';
+    }
+
+    function briefTextHtml(spec, sections) {
+        var key = 's:' + spec.key;
+        return '<section class="gh-cp-sec" data-bsec="' + esc(spec.key) + '">' + sub(spec.label, '') +
+            (spec.hint ? '<p class="gh-field-hint">' + esc(spec.hint) + '</p>' : '') +
+            briefArea(key, key, sections[spec.key], spec.max, spec.label, 4) + '</section>';
+    }
+
+    function briefExamplesHtml(spec) {
+        var list = S.brief.examples || [];
+        var html = '<section class="gh-cp-sec" data-bsec="examples">' +
+            sub(spec.label, list.length + ' из ' + spec.max_items) +
+            (spec.hint ? '<p class="gh-field-hint">' + esc(spec.hint) + '</p>' : '');
+        each(list, function (text, i) {
+            html += '<div class="gh-cp-brief-ex">' +
+                '<div class="gh-cp-brief-ex-h"><span>Пример ' + (i + 1) + '</span>' +
+                    '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-bact="del-example" data-ei="' + i +
+                    '" data-fk="brief:del:' + i + '">Убрать</button></div>' +
+                briefArea('e', 'e:' + i, text, spec.max, 'Пример ' + (i + 1), 5, ' data-ei="' + i + '"') +
+                '</div>';
+        });
+        html += '<button type="button" class="gh-btn gh-btn-sm" data-bact="add-example" data-fk="brief:add"' +
+            (list.length >= spec.max_items ? ' disabled' : '') + '>' + PLUS_SVG + 'Добавить пример</button>';
+        return html + '</section>';
+    }
+
+    function briefBarsHtml(spec, sections) {
+        var schema = briefSchema();
+        var bars = sections.bars || {};
+        var html = '<section class="gh-cp-sec" data-bsec="bars">' + sub(spec.label, '') +
+            (spec.hint ? '<p class="gh-field-hint">' + esc(spec.hint) + '</p>' : '');
+        // Порядок баров — список schema.bars (в объекте ответа ключи отсортированы).
+        each(schema.bars, function (bar) {
+            var fields = bars[bar.key] || {};
+            var facts = [];
+            if (bar.address) facts.push(bar.address);
+            if (bar.taps) facts.push('кранов: ' + bar.taps);
+            html += '<div class="gh-cp-brief-bar">' +
+                '<div class="gh-cp-brief-bar-h"><b>' + esc(bar.name) + '</b>' +
+                    (facts.length ? '<span>' + esc(facts.join(' · ')) + '</span>' : '') + '</div>';
+            each(schema.bar_fields, function (f) {
+                var key = 'b:' + bar.key + ':' + f.key;
+                html += '<div class="gh-field"><span class="gh-field-cap"' + tip(f.hint) + '>' + esc(f.label) +
+                    '</span>' + briefArea(key, key, fields[f.key], f.max, bar.name + ' — ' + f.label, 2) + '</div>';
+            });
+            html += '</div>';
+        });
+        return html + '</section>';
+    }
+
+    function briefBodyHtml() {
+        var d = S.brief.data || {};
+        var schema = d.schema || {};
+        var sections = briefSections();
+        var html = '<div class="gh-cp-brief-intro">' +
+            '<p class="gh-cp-brief-purpose">' + esc(schema.purpose || '') + '</p>' +
+            '<p class="gh-cp-explain">' + esc(schema.limits_note || '') + '</p>' +
+            (d.stored ? '' : '<div class="gh-cp-warn">Бриф ещё не сохранён: в разделе «О сети» — затравка из ' +
+                'справочника баров сервиса (названия, адреса, краны). Он сохранится с первой правкой.</div>') +
+            '</div>';
+        each(schema.sections, function (spec) {
+            if (spec.type === 'text') html += briefTextHtml(spec, sections);
+            else if (spec.type === 'list') html += briefExamplesHtml(spec);
+            else if (spec.type === 'bars') html += briefBarsHtml(spec, sections);
+        });
+        return html;
+    }
+
+    function renderBrief() {
+        var b = S.brief;
+        if (!b) return;
+        var focus = captureFocus(el.briefDrawer);
+        var oldBody = el.briefDrawer.querySelector('.gh-drawer-body');
+        var scroll = oldBody ? oldBody.scrollTop : 0;
+        var body;
+        if (b.loading) {
+            body = '<div class="gh-cp-loading"><span class="gh-spin"></span>Загружаю бриф…</div>';
+        } else if (b.error) {
+            body = '<p class="gh-field-err">' + esc(b.error) + '</p>' +
+                '<button type="button" class="gh-btn gh-btn-sm" data-bact="retry">Повторить</button>';
+        } else {
+            body = briefBodyHtml();
+        }
+        el.briefDrawer.innerHTML = '<div class="gh-drawer-head">' +
+                '<div class="gh-drawer-h"><div class="gh-drawer-t">Бриф для агента</div>' +
+                    '<div class="gh-drawer-s" data-bstatus>' + esc(briefStatus()) + '</div></div>' +
+                '<button type="button" class="gh-x" data-gh-close aria-label="Закрыть бриф">' + X_SVG + '</button>' +
+            '</div>' +
+            '<div class="gh-drawer-body">' + body + '</div>' +
+            '<div class="gh-drawer-foot">' +
+                '<span class="gh-cp-brief-total" data-btotal></span>' +
+                '<span class="gh-grow"></span>' +
+                '<span class="gh-save" data-bsave></span>' +
+                '<button type="button" class="gh-btn gh-btn-sm" data-gh-close>Закрыть</button>' +
+            '</div>';
+        fitBriefAreas();
+        var newBody = el.briefDrawer.querySelector('.gh-drawer-body');
+        if (newBody) newBody.scrollTop = scroll;
+        restoreFocus(el.briefDrawer, focus);
+        updateBriefTotal();
+        updateBriefSave();
+    }
+
+    // «Всего: N / предел» — сумма длин всех полей на экране (как brief_total
+    // на сервере, но с несохранённым): видно заранее, упрётся ли правка в
+    // предел всего брифа (schema.total_max сервера).
+    function updateBriefTotal() {
+        var node = el.briefDrawer.querySelector('[data-btotal]');
+        if (!node) return;
+        var max = briefSchema().total_max;
+        if (!max) { node.textContent = ''; return; }
+        var areas = el.briefDrawer.querySelectorAll('[data-bkey]');
+        var n = 0;
+        for (var i = 0; i < areas.length; i++) n += charLen(areas[i].value);
+        node.textContent = 'Всего: ' + GH.fmtNum(n, 0) + ' / ' + GH.fmtNum(max, 0);
+        node.classList.toggle('is-over', n > max);
+        node.setAttribute('data-tip', 'Длина всего брифа: все разделы, примеры и поля баров. Больше ' +
+            GH.fmtNum(max, 0) + ' знаков сохранить нельзя (сокращать можно всегда): агент читает бриф целиком ' +
+            'перед каждым черновиком.');
+    }
+
+    // Поле брифа растёт по тексту, но не выше BRIEF_AREA_MAX_PX (дальше —
+    // прокрутка внутри поля): затравка «О сети» и длинные правила видны
+    // целиком без ручного растягивания, а одно огромное поле не прячет
+    // остальные. box-sizing: border-box (base.css) — к высоте текста
+    // добавляются рамки.
+    var BRIEF_AREA_MAX_PX = 420;
+    function fitBriefArea(area) {
+        area.style.height = 'auto';
+        var h = area.scrollHeight;
+        if (!h) return;     // карточка ещё скрыта: высоту подгонит следующая отрисовка
+        var cs = window.getComputedStyle ? window.getComputedStyle(area) : null;
+        var borders = cs ? (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0) : 0;
+        area.style.height = Math.min(h + borders, BRIEF_AREA_MAX_PX) + 'px';
+    }
+    function fitBriefAreas() {
+        var areas = el.briefDrawer.querySelectorAll('[data-bkey]');
+        for (var i = 0; i < areas.length; i++) fitBriefArea(areas[i]);
+    }
+
+    function updateBriefCounter(area) {
+        var cid = area.getAttribute('data-bc');
+        var node = cid ? el.briefDrawer.querySelector('[data-bcounter="' + cid + '"]') : null;
+        if (!node) return;
+        var n = charLen(area.value);
+        var max = Number(node.getAttribute('data-limit')) || 0;
+        node.textContent = n + ' / ' + max;
+        node.classList.toggle('is-over', !!max && n > max);
+    }
+
+    function setBriefSave(stateName, message) {
+        S.briefSave = stateName;
+        S.briefError = message || '';
+        updateBriefSave();
+    }
+    function updateBriefSave() {
+        var node = el.briefDrawer.querySelector('[data-bsave]');
+        if (!node) return;
+        var st = S.briefSave;
+        node.textContent = st === 'saving' || st === 'dirty' ? 'Сохраняется…' : st === 'saved' ? 'Сохранено'
+            : st === 'error' ? 'Не сохранено: ' + (S.briefError || 'ошибка') : '';
+        node.className = 'gh-save' + (st === 'saving' || st === 'dirty' ? ' is-saving' : st === 'saved' ? ' is-saved'
+            : st === 'error' ? ' is-error' : '');
+        var status = el.briefDrawer.querySelector('[data-bstatus]');
+        if (status) status.textContent = briefStatus();
+    }
+
+    function briefSaver(key) {
+        if (!briefSavers[key]) briefSavers[key] = GH.debounce(function () { return briefSaveKey(key); }, AUTOSAVE_MS);
+        return briefSavers[key];
+    }
+    function briefPending() {
+        for (var k in briefSavers) {
+            if (Object.prototype.hasOwnProperty.call(briefSavers, k) && briefSavers[k].pending()) return true;
+        }
+        return false;
+    }
+    function flushBrief() {
+        var out = [];
+        for (var k in briefSavers) {
+            if (Object.prototype.hasOwnProperty.call(briefSavers, k) && briefSavers[k].pending()) {
+                out.push(briefSavers[k].flush());
+            }
+        }
+        return Promise.all(out);
+    }
+
+    function briefSaveKey(key) {
+        if (!Object.prototype.hasOwnProperty.call(S.briefDirty, key)) return Promise.resolve(null);
+        var value = S.briefDirty[key];
+        S.briefSaving++;
+        setBriefSave('saving');
+        return GH.api('PUT', API + '/brief', briefBody(key, value), apiOpts()).then(function (res) {
+            S.briefSaving--;
+            if (S.briefDirty[key] === value) delete S.briefDirty[key];
+            var d = S.brief && S.brief.data;
+            if (d && res && res.brief) {
+                d.brief = res.brief;
+                d.stored = res.stored;
+                d.total = res.total;
+            }
+            setBriefSave(S.briefSaving || briefPending() ? 'saving' : 'saved');
+            return res;
+        }, function (err) {
+            S.briefSaving--;
+            setBriefSave('error', err.message);
+            if (err.status === 503) {
+                GH.toast('Бриф недоступен: ' + err.message + '. Файл не перезаписывается — сообщите администратору.',
+                    'danger');
+            } else {
+                GH.toast(err.message, 'danger');
+            }
+            return null;
+        });
+    }
+
+    function onBriefInput(e) {
+        var t = e.target;
+        var key = t.getAttribute && t.getAttribute('data-bkey');
+        if (!key || !S.brief || !S.brief.data) return;
+        if (key === 'e') {
+            var i = parseInt(t.getAttribute('data-ei'), 10);
+            if (i >= 0 && i < S.brief.examples.length) S.brief.examples[i] = t.value;
+            S.briefDirty.e = S.brief.examples.slice();
+        } else {
+            S.briefDirty[key] = t.value;
+        }
+        setBriefSave('dirty');
+        briefSaver(key)();
+        updateBriefCounter(t);
+        updateBriefTotal();
+        fitBriefArea(t);
+    }
+
+    function onBriefFocusOut(e) {
+        var key = e.target && e.target.getAttribute && e.target.getAttribute('data-bkey');
+        if (key && briefSavers[key] && briefSavers[key].pending()) briefSavers[key].flush();
+    }
+
+    function addExample() {
+        var spec = null;
+        each(briefSchema().sections, function (s) { if (s.type === 'list') spec = s; });
+        if (!spec || S.brief.examples.length >= spec.max_items) return;
+        S.brief.examples.push('');
+        renderBrief();
+        var areas = el.briefDrawer.querySelectorAll('[data-bkey="e"]');
+        var last = areas[areas.length - 1];
+        if (last) {
+            try { last.focus({ preventScroll: false }); } catch (err) { /* фокус не критичен */ }
+        }
+    }
+
+    function removeExample(i) {
+        var text = S.brief.examples[i];
+        var run = function () {
+            S.brief.examples.splice(i, 1);
+            S.briefDirty.e = S.brief.examples.slice();
+            renderBrief();
+            briefSaver('e')();
+            briefSaver('e').flush();
+        };
+        if (!String(text || '').trim()) { run(); return; }
+        GH.confirm({
+            title: 'Убрать пример ' + (i + 1) + '?',
+            text: 'Пример удалится из брифа, агент больше не будет брать его за образец.',
+            ok: 'Убрать', danger: true
+        }).then(function (ok) { if (ok) run(); });
+    }
+
+    function onBriefClick(e) {
+        var act = closest(e.target, '[data-bact]');
+        if (!act || act.disabled || !S.brief) return;
+        var a = act.getAttribute('data-bact');
+        if (a === 'retry') {
+            S.brief = { loading: true };
+            renderBrief();
+            loadBrief();
+        } else if (a === 'add-example' && S.brief.data) {
+            addExample();
+        } else if (a === 'del-example' && S.brief.data) {
+            removeExample(parseInt(act.getAttribute('data-ei'), 10));
+        }
+    }
+
     // ==================== пауза ====================
 
     function menuItem(attr, value, label, hint, on) {
@@ -3340,9 +3917,13 @@
             if (a === 'add') { addMaterial(null); return; }
             if (a === 'copy') { openCopy(); return; }
             if (a === 'leave-scope') { leaveScope(S.month, ''); return; }
+            if (a === 'origin-off') { setOrigin(''); return; }
             if (a === 'reset-filters') {
                 S.bar = GH.setBar('');
                 S.channel = '';
+                S.origin = '';
+                GH.setParams({ origin: null });
+                renderOrigin();
                 setStateFilter('');
                 renderChrome();
                 if (S.reviewsOn) loadReviews();
@@ -3430,6 +4011,12 @@
         el.approveBtn.addEventListener('click', openApprove);
         el.addBtn.addEventListener('click', function () { addMaterial(null); });
         el.copyBtn.addEventListener('click', openCopy);
+        el.briefBtn.addEventListener('click', openBrief);
+        el.originBtn.addEventListener('click', function () { setOrigin(S.origin ? '' : ORIGIN_AGENT); });
+        el.agentDel.addEventListener('click', deleteAgentDrafts);
+        el.briefDrawer.addEventListener('input', onBriefInput);
+        el.briefDrawer.addEventListener('click', onBriefClick);
+        el.briefDrawer.addEventListener('focusout', onBriefFocusOut);
         el.pauseBtn.addEventListener('click', function () { renderPauseMenu(); GH.toggleMenu(el.pauseMenu, el.pauseBtn); });
         el.pauseMenu.addEventListener('click', function (e) {
             var item = closest(e.target, '[data-pause]');
@@ -3547,7 +4134,13 @@
             copyModal: byId('cpCopyModal'),
             copyBody: byId('cpCopyBody'),
             copyGo: byId('cpCopyGo'),
-            file: byId('cpFile')
+            file: byId('cpFile'),
+            origin: byId('cpOrigin'),
+            originBtn: byId('cpOriginBtn'),
+            originN: byId('cpOriginN'),
+            agentDel: byId('cpAgentDelBtn'),
+            briefBtn: byId('cpBriefBtn'),
+            briefDrawer: byId('cpBriefDrawer')
         };
         if (!GH) {
             if (el.msg) {
@@ -3567,15 +4160,22 @@
         // «Требует внимания»). С календарём не сочетается: календарь — сетка
         // одного месяца, там остаётся обычный фильтр состояния.
         S.scope = !monthGiven && SCOPE_STATES.indexOf(S.stateFilter) >= 0 && S.view === 'table' ? 'state' : '';
+        S.origin = params.get('origin') === ORIGIN_AGENT ? ORIGIN_AGENT : '';
         S.bar = GH.getBar();
         S.pendingOpen = params.get('open') || null;
+        // ?brief=1 — открыть бриф для агента (ссылка «откройте бриф»); если в
+        // адресе есть и ?open=, главнее карточка материала.
+        var wantBrief = params.get('brief') === '1';
         bind();
         renderChrome();
         load().then(function (ok) {
-            if (!ok || !S.pendingOpen) return;
-            var id = S.pendingOpen;
-            S.pendingOpen = null;
-            openMaterial(id);
+            if (ok && S.pendingOpen) {
+                var id = S.pendingOpen;
+                S.pendingOpen = null;
+                openMaterial(id);
+                return;
+            }
+            if (wantBrief) openBrief();
         });
     }
 
@@ -3589,6 +4189,8 @@
         openApprove: openApprove, openCopy: openCopy, charLen: charLen, parseDays: parseDays,
         dayStats: dayStats, dtValue: dtValue, dtChange: dtChange, dtCommit: dtCommit,
         stateCls: stateCls, stateLabel: stateLabel, placementFiles: placementFiles, listUrl: listUrl,
-        inTable: inTable, normTitle: normTitle, copyRules: copyRules
+        inTable: inTable, normTitle: normTitle, copyRules: copyRules,
+        materialVisible: materialVisible, agentStats: agentStats, aiMark: aiMark, briefBody: briefBody,
+        deleteAgentDrafts: deleteAgentDrafts, openBrief: openBrief
     };
 })();

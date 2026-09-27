@@ -21,12 +21,41 @@ auth_bp = Blueprint('auth', __name__)
 
 
 def _safe_next(nxt: str) -> str:
-    """Защита от open-redirect: разрешаем только локальные пути (/...), не //, не схему."""
+    """Защита от open-redirect: разрешаем только локальные пути (/...), не //, не схему.
+
+    Управляющие символы (код ниже 0x20 и DEL) и обратная косая запрещены целиком:
+    браузер и urlsplit выбрасывают табуляцию и перевод строки, и «/<TAB>/evil.example»
+    превращался в «//evil.example» — переход на чужой сайт сразу после входа (нашла
+    проверка безопасности MCP 2026-09-28; через этот вход идёт OAuth-согласие).
+    """
     if not nxt or not isinstance(nxt, str):
+        return '/'
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in nxt) or chr(92) in nxt:  # chr(92) — «\»
         return '/'
     if not nxt.startswith('/') or nxt.startswith('//') or '://' in nxt:
         return '/'
     return nxt
+
+
+def _revoke_agent_access(user_id: int) -> None:
+    """Отозвать MCP-токены и OAuth-подключения аккаунта (core/mcp/tokens.py, oauth.py).
+
+    Зовётся при удалении, отключении и снятии флага администратора: токены и так
+    перестают работать (доступ к MCP только у активного админа, проверка на каждом
+    вызове), но без отзыва возврат флага оживил бы старые токены. Ошибка отзыва не
+    ломает основное действие: оно уже выполнено, а токены всё равно не пройдут
+    проверку, пока аккаунт не админ.
+    """
+    try:
+        from core.mcp import tokens
+        tokens.revoke_all_for_user(user_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"[AUTH] MCP-токены аккаунта {user_id} не отозваны: {e}")
+    try:
+        from core.mcp import oauth
+        oauth.revoke_all_for_user(user_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"[AUTH] OAuth-подключения аккаунта {user_id} не отозваны: {e}")
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -234,6 +263,8 @@ def api_set_active(user_id):
         get_auth_manager().set_active(user_id, bool(data.get('active')))
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    if not bool(data.get('active')):
+        _revoke_agent_access(user_id)
     return jsonify({'ok': True})
 
 
@@ -245,6 +276,8 @@ def api_set_admin(user_id):
         get_auth_manager().set_admin(user_id, bool(data.get('is_admin')))
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    if not bool(data.get('is_admin')):
+        _revoke_agent_access(user_id)
     return jsonify({'ok': True})
 
 
@@ -255,4 +288,5 @@ def api_delete_user(user_id):
         get_auth_manager().delete_user(user_id)
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    _revoke_agent_access(user_id)
     return jsonify({'ok': True})

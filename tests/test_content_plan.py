@@ -32,6 +32,13 @@ content_plan_bp (app.py не импортируется: он запускает
   площадке и фото; подписи «Шаблон утверждён…», «Вышло: N из M», «Не хватает:
   … — где»; kind в предпросмотре утверждения; copy_month — опорная дата со
   сдвигом (порядок и интервалы) и объединение размещений серии.
+- ИИ-агент (MCP, 2026-09-27): origin ставит сервер по via_mcp (в теле — 400),
+  подпись «anna · агент» в журнале и *_by; agent_rationale / shot_list —
+  сохранение, пределы, не снимают утверждение; старые данные — 'human',
+  неизвестный origin — 503; копии (повтор, копирование месяца) — origin того,
+  кто копирует, пояснения — вместе с содержанием; «Удалить черновики ИИ»
+  (правило черновика, явные id, файлы, журнал); фильтр origin в предпросмотре
+  утверждения.
 """
 
 import atexit
@@ -57,6 +64,9 @@ import routes.content_plan as rcp  # noqa: E402
 from routes.content_plan import content_plan_bp  # noqa: E402
 
 USER = {'login': 'anna', 'display_name': 'Анна'}
+# Тот же владелец, но через MCP: так его видит маршрут, когда мост
+# core/mcp/bridge.py исполняет инструмент агента (поле login прежнее).
+AGENT = {'login': 'anna', 'display_name': 'Анна', 'via_mcp': True, 'mcp_client': 'Claude', 'mcp_token_id': 't1'}
 NOW = datetime(2026, 10, 7, 12, 0)      # среда
 NOW_STR = '2026-10-07T12:00'
 MONTH = '2026-10'
@@ -94,10 +104,12 @@ def _store(moment=NOW):
 
 
 @contextmanager
-def _client(store):
+def _client(store, user=USER):
+    """Голое приложение с content_plan_bp; user — кто «вошёл» (AGENT — вызов
+    через MCP: мост кладёт 'via_mcp': True в пользователя)."""
     saved = (rcp._store, rcp.current_user)
     rcp._store = lambda: store
-    rcp.current_user = lambda: USER
+    rcp.current_user = lambda: user
     try:
         app = Flask('test_content_plan')
         app.register_blueprint(content_plan_bp)
@@ -499,9 +511,9 @@ def test_approve_preview():
         assert r.status_code == 200
         p = r.get_json()
         assert [i['placement_id'] for i in p['will_approve']] == [a_bol, a_lig, b_var]
-        assert set(p['will_approve'][0]) == {'placement_id', 'material_id', 'title', 'kind', 'channel', 'bar',
-                                             'date', 'time'}
-        assert p['will_approve'][0]['kind'] == 'fixed'
+        assert set(p['will_approve'][0]) == {'placement_id', 'material_id', 'title', 'kind', 'origin', 'channel',
+                                             'bar', 'date', 'time'}
+        assert p['will_approve'][0]['kind'] == 'fixed' and p['will_approve'][0]['origin'] == 'human'
         assert [i['placement_id'] for i in p['bot']] == [a_bot]
         assert p['bot'][0]['audience']['name'] == 'Все подписчики бота' and p['bot'][0]['audience']['size'] is None
         assert [i['placement_id'] for i in p['stays_draft']] == [a_ig]
@@ -1587,6 +1599,234 @@ def test_journal_and_bulk():
         assert c.post('/api/content-plan/bulk', json={'material_ids': [a['id']], 'action': 'shift'}).status_code == 400
 
 
+# --------------------------------------------------------------------------- ИИ-агент (MCP)
+
+def test_origin_set_by_server_and_agent_signature():
+    store = _store()
+    with _client(store, AGENT) as c:
+        r = c.post('/api/content-plan/materials', json={
+            'month': MONTH, 'title': 'Черновик агента', 'base_text': 'Текст',
+            'agent_rationale': 'Сезонный повод: Октоберфест', 'shot_list': 'Краны крупно; бокалы на стойке'})
+        assert r.status_code == 200, r.get_json()
+        m = r.get_json()['material']
+        assert (m['origin'], m['created_by'], m['updated_by'], m['agent_draft']) == (
+            'agent', 'anna · агент', 'anna · агент', True)
+        assert (m['agent_rationale'], m['shot_list']) == ('Сезонный повод: Октоберфест',
+                                                          'Краны крупно; бокалы на стойке')
+        pid = c.post(f'/api/content-plan/materials/{m["id"]}/placements', json={
+            'channel': 'telegram', 'bars': ['bolshoy'], 'date': '2026-10-09', 'time': '16:00'}).get_json()['created'][0]
+        assert c.post('/api/content-plan/approve', json={'placement_ids': [pid]}).get_json()['approved'] == [pid]
+        raw = _raw(store, pid)
+        assert (raw['approved_by'], raw['updated_by']) == ('anna · агент', 'anna · агент')
+        entries = c.get(f'/api/content-plan/materials/{m["id"]}/log').get_json()['entries']
+        assert [e['action'] for e in entries] == ['approve', 'add_placement', 'create']
+        assert {e['by'] for e in entries} == {'anna · агент'}
+        # утверждённое — уже не черновик ИИ
+        assert c.get(f'/api/content-plan/materials/{m["id"]}').get_json()['material']['agent_draft'] is False
+        # origin в теле запроса — 400: его ставит только сервер
+        r = c.post('/api/content-plan/materials', json={'month': MONTH, 'title': 'Подделка', 'origin': 'human'})
+        assert r.status_code == 400 and 'origin' in r.get_json()['error']
+        r = c.patch(f'/api/content-plan/materials/{m["id"]}', json={'origin': 'human', 'title': 'x'})
+        assert r.status_code == 400
+    raw_m = store.get_material_raw(m['id'])
+    assert (raw_m['origin'], raw_m['title']) == ('agent', 'Черновик агента')     # отказ ничего не поменял
+    assert [x['title'] for x in store.month_payload(MONTH)['materials']] == ['Черновик агента']
+    with _client(store) as c:
+        h = c.post('/api/content-plan/materials', json={'month': MONTH, 'title': 'Руками'}).get_json()['material']
+        assert (h['origin'], h['created_by'], h['agent_draft'], h['agent_rationale'], h['shot_list']) == (
+            'human', 'anna', False, '', '')
+        # человек правит материал агента: origin остаётся, подпись — человека
+        body = c.patch(f'/api/content-plan/materials/{m["id"]}', json={'title': 'Поправлено'}).get_json()['material']
+        assert (body['origin'], body['updated_by']) == ('agent', 'anna')
+    # путь «Сделать материалом» (routes/reviews.py зовёт create_material с current_user())
+    made = store.create_material({'month': MONTH, 'title': 'Отзыв гостя — ВО', 'source_review_id': 'r_1'}, AGENT)
+    assert (made['origin'], made['created_by']) == ('agent', 'anna · агент')
+    try:
+        store.create_material({'month': MONTH, 'title': 'x', 'origin': 'agent'}, USER)
+        raise AssertionError('origin в полях create_material должен давать ValueError')
+    except ValueError:
+        pass
+    assert (cp.actor_label(AGENT), cp.actor_label(USER), cp.actor_label(None)) == ('anna · агент', 'anna', 'unknown')
+    assert cp.is_agent_user({'login': 'x', 'via_mcp': False}) is False and cp.origin_of(None) == 'human'
+
+
+def test_agent_fields_round_trip_and_limits():
+    store = _store()
+    m = _material(store)
+    pid = _add(store, m['id'])[0]
+    store.approve([pid], USER)
+    with _client(store) as c:
+        url = f'/api/content-plan/materials/{m["id"]}'
+        r = c.patch(url, json={'agent_rationale': 'Почему', 'shot_list': 'Что снять'})
+        assert r.status_code == 200 and r.get_json()['unapproved'] == []    # не содержание публикации
+        assert _raw(store, pid)['status'] == 'approved'
+        got = c.get(url).get_json()['material']
+        assert (got['agent_rationale'], got['shot_list'], got['origin']) == ('Почему', 'Что снять', 'human')
+        assert store.log_for(m['id'])[0]['text'] == 'Изменено: «почему этот пост», «что снять»'
+        assert c.patch(url, json={'agent_rationale': 'x' * 2000, 'shot_list': 'y' * 2000}).status_code == 200
+        r = c.patch(url, json={'agent_rationale': 'x' * 2001})
+        assert r.status_code == 400 and r.get_json()['error'] == '«Почему этот пост» длиннее 2000 знаков'
+        r = c.patch(url, json={'shot_list': 'y' * 2001})
+        assert r.status_code == 400 and r.get_json()['error'] == '«Что снять» длиннее 2000 знаков'
+        r = c.post('/api/content-plan/materials', json={'month': MONTH, 'title': 't', 'agent_rationale': 'x' * 2001})
+        assert r.status_code == 400
+        assert len(store.get_material_raw(m['id'])['agent_rationale']) == 2000
+        # пределы и правило черновика ИИ — в справочниках ответа (для агента и экрана)
+        meta = c.get('/api/content-plan').get_json()
+        assert meta['field_limits'] == {'title': 200, 'base_text': 10000, 'note': 2000,
+                                        'agent_rationale': 2000, 'shot_list': 2000}
+        assert [o['key'] for o in meta['origins']] == ['human', 'agent']
+        assert meta['agent_draft_rule'] == cp.AGENT_DRAFT_RULE
+    assert cp.AGENT_TEXT_MAX == cp.NOTE_MAX == 2000
+
+
+def test_old_materials_are_human_and_bad_origin_is_503():
+    store = _store()
+    old = {'version': 1, 'log': [], 'materials': {'m_old': {
+        'id': 'm_old', 'month': MONTH, 'title': 'Старый', 'kind': 'fixed', 'base_text': 'x',
+        'placements': [], 'media': []}}}
+    with open(store.data_file, 'w', encoding='utf-8') as f:
+        json.dump(old, f, ensure_ascii=False)
+    got = store.get_material('m_old')
+    assert (got['origin'], got['agent_rationale'], got['shot_list'], got['agent_draft']) == ('human', '', '', False)
+    old['materials']['m_old']['origin'] = 'robot'
+    content = json.dumps(old, ensure_ascii=False)
+    with open(store.data_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+    with _client(store) as c:
+        r = c.get('/api/content-plan')
+        assert r.status_code == 503 and r.get_json()['code'] == 'content_plan_unavailable'
+        assert c.post('/api/content-plan/agent-drafts/delete', json={'month': MONTH}).status_code == 503
+    with open(store.data_file, encoding='utf-8') as f:
+        assert f.read() == content                                              # не перезаписан
+
+
+def test_copies_take_origin_of_the_actor():
+    # повтор: копии — того, кто повторяет; пояснения — вместе с содержанием (всегда)
+    store = _store()
+    src = store.create_material({'month': MONTH, 'title': 'Пятница', 'planned_date': '2026-10-09',
+                                 'base_text': 'Текст', 'agent_rationale': 'Повод', 'shot_list': 'Кадры'}, AGENT)
+    _add(store, src['id'], date='2026-10-09')
+    by_human = store.repeat(src['id'], [4], MONTH, USER)['created']
+    assert len(by_human) == 3
+    for mid in by_human:
+        raw = store.get_material_raw(mid)
+        assert (raw['origin'], raw['created_by'], raw['agent_rationale'], raw['shot_list']) == (
+            'human', 'anna', 'Повод', 'Кадры')
+    assert store.get_material_raw(src['id'])['origin'] == 'agent'               # источник не меняется
+    by_agent = store.repeat(src['id'], [5], MONTH, AGENT)['created']
+    assert by_agent and all(store.get_material_raw(x)['origin'] == 'agent' for x in by_agent)
+
+    # копирование месяца: без содержания пояснения очищаются (кроме живых данных)
+    store = _store()
+    a = store.create_material({'month': MONTH, 'title': 'Агентский', 'planned_date': '2026-10-09',
+                               'base_text': 'Текст', 'agent_rationale': 'Повод', 'shot_list': 'Кадры'}, AGENT)
+    live = store.create_material({'month': MONTH, 'title': 'Таплист', 'kind': 'live', 'live_source': 'taplist',
+                                  'base_text': '{таплист}', 'planned_date': '2026-10-02',
+                                  'agent_rationale': 'Живой', 'shot_list': 'Краны'}, USER)
+    members = _friday_series(store, title='Серия людей')
+    store.copy_month(MONTH, '2026-11', False, USER)
+    nov = {m['copied_from']: m for m in store.month_payload('2026-11')['materials']}
+    assert (nov[a['id']]['origin'], nov[a['id']]['base_text'], nov[a['id']]['agent_rationale'],
+            nov[a['id']]['shot_list']) == ('human', '', '', '')
+    assert (nov[live['id']]['agent_rationale'], nov[live['id']]['shot_list']) == ('Живой', 'Краны')
+    assert nov[members[0]]['origin'] == 'human'
+    store.copy_month(MONTH, '2026-12', True, AGENT)
+    dec = [m for m in store.month_payload('2026-12')['materials']]
+    assert dec and all(m['origin'] == 'agent' and m['created_by'] == 'anna · агент' for m in dec)
+    d = next(m for m in dec if m['copied_from'] == a['id'])
+    assert (d['agent_rationale'], d['shot_list'], d['base_text']) == ('Повод', 'Кадры', 'Текст')
+    assert all(m['agent_draft'] for m in dec)                                   # все копии — черновики
+
+
+def test_delete_agent_drafts():
+    store = _store()
+    ok, shared = store.media.save(PNG, '2026-10-07')
+    ok, own = store.media.save(JPEG, '2026-10-07')
+    topic = store.create_material({'month': MONTH, 'title': 'Тема агента'}, AGENT)        # без размещений
+    draft = store.create_material({'month': MONTH, 'title': 'Черновик агента', 'base_text': 'Текст'}, AGENT)
+    store.add_media(draft['id'], own, len(JPEG), 'own.jpg', AGENT)
+    store.add_media(draft['id'], shared, len(PNG), 'shared.png', AGENT)
+    _add(store, draft['id'])
+    p_cancel = _add(store, draft['id'], bars=['ligovskiy'])[0]
+    store.placement_action(p_cancel, 'cancel', AGENT)                                    # отменённое не мешает
+    kept = {}
+    for title, status in (('Утверждённый', 'approved'), ('На паузе', 'paused'), ('Вышедший', 'published'),
+                          ('С ошибкой', 'failed')):
+        material = store.create_material({'month': MONTH, 'title': title, 'base_text': 'Текст'}, AGENT)
+        _add(store, material['id'], bars=['varshavskaya'])
+        pid = _add(store, material['id'])[0]
+        _set(store, pid, status=status)
+        kept[material['id']] = title
+    human = _material(store, title='Черновик людей')
+    _add(store, human['id'])
+    store.add_media(human['id'], shared, len(PNG), 'shared.png', USER)                   # файл общий с людьми
+    november = store.create_material({'month': '2026-11', 'title': 'Ноябрьский'}, AGENT)
+
+    view = {m['id']: m for m in store.month_payload(MONTH)['materials']}
+    assert (view[topic['id']]['agent_draft'], view[draft['id']]['agent_draft'], view[human['id']]['agent_draft']) == (
+        True, True, False)
+    assert not any(view[mid]['agent_draft'] for mid in kept)
+
+    with _client(store) as c:
+        url = '/api/content-plan/agent-drafts/delete'
+        # проверки ввода
+        assert c.post(url, json={}).status_code == 400                                   # нет месяца
+        assert c.post(url, json={'month': '2026-13'}).status_code == 400
+        assert c.post(url, json={'month': MONTH, 'material_ids': topic['id']}).status_code == 400
+        assert c.post(url, json={'month': MONTH, 'material_ids': []}).status_code == 400
+        r = c.post(url, json={'month': MONTH, 'material_ids': ['m_x'] * (rcp.BULK_MAX + 1)})
+        assert r.status_code == 400 and str(rcp.BULK_MAX) in r.get_json()['error']
+        # явные id: удаляется только подходящее, остальное — с причиной
+        r = c.post(url, json={'month': MONTH, 'material_ids': [topic['id'], human['id'], november['id'], 'm_nope',
+                                                               topic['id']]})
+        assert r.status_code == 200, r.get_json()
+        body = r.get_json()
+        assert body['deleted'] == [topic['id']]
+        reasons = {s['id']: s['reason'] for s in body['skipped']}
+        assert set(reasons) == {human['id'], november['id'], 'm_nope'}
+        assert reasons['m_nope'] == 'материал не найден'
+        assert 'создали люди' in reasons[human['id']]
+        assert 'ноябрь 2026' in reasons[november['id']]
+        # без id: все черновики агента месяца; не черновики — в skipped
+        body = c.post(url, json={'month': MONTH}).get_json()
+        assert body['deleted'] == [draft['id']]
+        assert {s['id'] for s in body['skipped']} == set(kept)
+        assert all('уже не черновик' in s['reason'] for s in body['skipped'])
+        assert c.post(url, json={'month': MONTH}).get_json()['deleted'] == []
+    left = {m['id'] for m in store.month_payload(MONTH)['materials']}
+    assert left == set(kept) | {human['id']}
+    assert store.get_material_raw(november['id'])['month'] == '2026-11'                # другой месяц не тронут
+    # файлы: свой файл черновика ушёл с диска, общий с людьми — остался
+    assert not store.media.exists(own) and store.media.exists(shared)
+    entry = store.log_for(draft['id'])[0]
+    assert (entry['action'], entry['by']) == ('delete', 'anna')
+    assert entry['text'] == 'Удалён черновик агента «Черновик агента» (массовое удаление черновиков ИИ)'
+    # агент по MCP удаляет свой черновик сам — подпись агента
+    again = store.create_material({'month': MONTH, 'title': 'Ещё один'}, AGENT)
+    assert store.delete_agent_drafts(MONTH, AGENT) == {
+        'deleted': [again['id']], 'skipped': [{'id': mid, 'reason': f'«{title}»: есть утверждённые, вышедшие или '
+                                                                    'ошибочные размещения — это уже не черновик'}
+                                              for mid, title in sorted(kept.items(), key=lambda kv: (NOW_STR, kv[0]))]}
+    assert store.log_for(again['id'])[0]['by'] == 'anna · агент'
+
+
+def test_approve_preview_origin_filter():
+    store = _store()
+    human = _material(store, title='Люди')
+    _add(store, human['id'])
+    agent = store.create_material({'month': MONTH, 'title': 'Агент', 'base_text': 'Текст'}, AGENT)
+    _add(store, agent['id'], bars=['ligovskiy'])
+    with _client(store) as c:
+        url = '/api/content-plan/approve-preview?month=2026-10'
+        p = c.get(url).get_json()
+        assert {i['title']: i['origin'] for i in p['will_approve']} == {'Люди': 'human', 'Агент': 'agent'}
+        assert [i['title'] for i in c.get(url + '&origin=agent').get_json()['will_approve']] == ['Агент']
+        assert [i['title'] for i in c.get(url + '&origin=human').get_json()['will_approve']] == ['Люди']
+        assert c.get(url + '&origin=').get_json() == p                                  # пусто — без фильтра
+        assert c.get(url + '&origin=robot').status_code == 400
+
+
 def test_page_route_renders_template():
     calls = []
     saved_render = rcp.render_template
@@ -1621,6 +1861,51 @@ def test_page_route_renders_template():
             sys.modules.pop('extensions', None)
         else:
             sys.modules['extensions'] = saved_ext
+
+
+def test_draft_mode_agent_edits_only_own_drafts():
+    """Коннектор …/draft (mcp_mode='draft'): агент правит только свои черновики.
+
+    Проверка безопасности 2026-09-28: по расписанию агент читает отзывы гостей;
+    внедрённая в них «команда» не должна трогать материалы владельца или уже
+    утверждённое. В полном режиме и у людей на сайте ограничения нет."""
+    store = _store()
+    agent_draft = dict(AGENT, mcp_mode='draft')
+    agent_full = dict(AGENT, mcp_mode='full')
+    owners = _material(store, title='Материал владельца')
+    own = store.create_material({'month': MONTH, 'title': 'Черновик агента',
+                                 'base_text': 'Текст агента'}, agent_draft)
+    assert own['origin'] == 'agent'
+    # свой черновик: правка, размещение, правка размещения — можно
+    store.update_material(own['id'], {'title': 'Черновик агента 2'}, agent_draft)
+    _m, created = store.add_placements(own['id'], {'channel': 'telegram', 'bars': ['bolshoy'],
+                                                   'date': '2026-10-09', 'time': '16:00'}, agent_draft)
+    store.update_placement(created[0], {'time': '17:00'}, agent_draft)
+    # материал владельца — отказ на каждой записи
+    owner_pid = _add(store, owners['id'])[0]
+    for call in (lambda: store.update_material(owners['id'], {'title': 'x'}, agent_draft),
+                 lambda: store.add_placements(owners['id'], {'channel': 'telegram', 'bars': ['bolshoy'],
+                                                             'date': '2026-10-09', 'time': '16:00'},
+                                              agent_draft),
+                 lambda: store.update_placement(owner_pid, {'time': '18:00'}, agent_draft)):
+        try:
+            call()
+        except cp.ContentPlanConflict as e:
+            assert 'черновики' in str(e)
+        else:
+            raise AssertionError('в режиме draft агент изменил материал владельца')
+    # свой материал после утверждения владельцем — уже не черновик
+    store.approve(created, USER)
+    try:
+        store.update_placement(created[0], {'time': '19:00'}, agent_draft)
+    except cp.ContentPlanConflict:
+        pass
+    else:
+        raise AssertionError('в режиме draft агент перенёс утверждённое размещение')
+    # полный режим и человек на сайте — без ограничения
+    store.update_material(owners['id'], {'title': 'Полный режим'}, agent_full)
+    store.update_material(owners['id'], {'title': 'Человек'}, USER)
+    assert store.get_material(owners['id'])['title'] == 'Человек'
 
 
 if __name__ == '__main__':
