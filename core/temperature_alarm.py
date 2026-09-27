@@ -1,8 +1,16 @@
-"""Тревога по высокой температуре в баре.
+"""Тревога по температуре в баре: «жарко» и «холодно».
 
 Если температура воздуха в баре поднялась выше порога (TUYA_ALARM_TEMP_C, по
-умолчанию 26 C) — шлём аларм в те же чаты, куда open-check бот шлёт тревоги о
-закрытых барах (TELEGRAM_ALARM_CHAT_IDS + самоподписавшиеся в боте).
+умолчанию 26 C) — «ЖАРКО В БАРЕ»; опустилась ниже TUYA_ALARM_COLD_C (по
+умолчанию 19 C, решение владельца 2026-09-28) — «ХОЛОДНО В БАРЕ». Шлём в те же
+чаты, куда open-check бот шлёт тревоги о закрытых барах (TELEGRAM_ALARM_CHAT_IDS
++ самоподписавшиеся в боте).
+
+«Холодно» устроено зеркально «жарко»: своё состояние в alarm_state с ключом
+«<бар>:cold» (тревоги независимы), снятие молча выше TUYA_ALARM_COLD_CLEAR_C (по
+умолчанию порог + 1 C, т.е. 20 C — гистерезис), те же тихие часы. Пороги тревог
+не совпадают с диапазонами окраски на странице и в /temp (там «холодно» < 16 C,
+«жарко» > 28 C, core/tuya_temperature.py): тревога предупреждает раньше.
 
 Антиспам (главное): опрос идёт каждые TUYA_POLL_MINUTES минут, но аларм НЕ шлётся
 каждый раз. Состояние тревоги по бару хранится в temperature_store (таблица
@@ -50,6 +58,30 @@ def _clear_temp(alarm_temp: float) -> float:
         except (ValueError, TypeError):
             pass
     return alarm_temp - 1.0
+
+
+def _cold_temp() -> float:
+    """Порог «холодно» (C). Ниже него — тревога. 19 C — решение владельца 2026-09-28."""
+    try:
+        return float(os.getenv("TUYA_ALARM_COLD_C", "19"))
+    except (ValueError, TypeError):
+        return 19.0
+
+
+def _cold_clear_temp(cold_temp: float) -> float:
+    """Порог снятия «холодно» (гистерезис). По умолчанию порог + 1 C; не ниже порога."""
+    raw = os.getenv("TUYA_ALARM_COLD_CLEAR_C")
+    if raw:
+        try:
+            return max(float(raw), cold_temp)
+        except (ValueError, TypeError):
+            pass
+    return cold_temp + 1.0
+
+
+# Ключ состояния «холодно» в alarm_state: у бара два независимых состояния —
+# «жарко» (ключ = бар, как было) и «холодно» (бар + суффикс).
+COLD_KEY_SUFFIX = ":cold"
 
 
 def _in_quiet_hours() -> bool:
@@ -114,8 +146,16 @@ def _alarm_text(bar_key: str, temp: float, alarm_temp: float) -> str:
     )
 
 
+def _cold_text(bar_key: str, temp: float, cold_temp: float) -> str:
+    return (
+        "<b>!!! ХОЛОДНО В БАРЕ !!!</b>\n"
+        f"<b>{_short(bar_key)} — {temp:.1f} C</b>\n"
+        f"Порог {cold_temp:.0f} C. Опрос {_now_hhmm()} МСК."
+    )
+
+
 def evaluate(readings) -> None:
-    """Проверить показания на превышение порога и отправить тревоги.
+    """Проверить показания на выход за пороги «жарко» / «холодно» и отправить тревоги.
 
     readings: {bar_key: {temperature, ...}} из tuya_temperature.read_all().
     Без токена бота или в тихие часы — тихо выходим и состояние НЕ трогаем (чтобы при
@@ -129,6 +169,8 @@ def evaluate(readings) -> None:
 
     alarm_temp = _alarm_temp()
     clear_temp = _clear_temp(alarm_temp)
+    cold_temp = _cold_temp()
+    cold_clear = _cold_clear_temp(cold_temp)
     store = get_store()
 
     for bar_key, r in (readings or {}).items():
@@ -148,3 +190,14 @@ def evaluate(readings) -> None:
             if store.set_alarm_state(bar_key, False):
                 print(f"[TUYA-ALARM] {bar_key} {t:.1f} C < {clear_temp:.0f} — тревога снята (без оповещения)")
         # между clear_temp и alarm_temp — зона гистерезиса, состояние не меняем
+
+        cold_key = bar_key + COLD_KEY_SUFFIX
+        if t < cold_temp:
+            if store.set_alarm_state(cold_key, True):
+                print(f"[TUYA-ALARM] {bar_key} {t:.1f} C < {cold_temp:.0f} — тревога «холодно»")
+                if not _send(_cold_text(bar_key, t, cold_temp)):
+                    store.set_alarm_state(cold_key, False)
+        elif t > cold_clear:
+            if store.set_alarm_state(cold_key, False):
+                print(f"[TUYA-ALARM] {bar_key} {t:.1f} C > {cold_clear:.0f} — «холодно» снято (без оповещения)")
+        # между cold_temp и cold_clear — зона гистерезиса «холодно», состояние не меняем

@@ -134,6 +134,7 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-09-28 (5):** **MCP: проверка безопасности и режимы доступа.** [mcp.md](../docs/mcp.md) — режимы `read`/`draft`/`full` и `draft_write`, документация для агентов только списком `DOCS_ALLOWLIST` (= `.dockerignore`, тест ищет пароли), журнал с раздельным хранением отказов, новые пределы, 205 инструментов и 27 исключений; [guides/mcp-connect.md](../docs/guides/mcp-connect.md) — расписания только через `/draft` и `/read`. Обновлены content-plan.md (режим черновиков, `guard_draft_mode`), reviews.md, auth.md (отзыв доступа агентов, `_safe_next`), open-check-bot.md, lessons.md (3 урока), PROJECT_STRUCTURE.md. Решить владельцу: пароли и токены в служебных документах и истории git.
 - **2026-09-28 (4):** **Бот: кнопка «Последние отзывы» и `/reviews`.** Пять свежих отзывов в меню бота kulturaopenclosed — [open-check-bot.md](../docs/open-check-bot.md).
 - **2026-09-28 (3):** **Новые отзывы в бот kulturaopenclosed.** Подписчикам бота после ежедневной сверки; правила — [yandex-reviews.md](../docs/yandex-reviews.md), [open-check-bot.md](../docs/open-check-bot.md).
 - **2026-09-28 (2):** **Отзывы Яндекс Бизнеса, этап 1.** Сверка раз в сутки грузит отзывы 4 баров в «Отзывы» (только чтение кабинета); решения владельца по статусам истории, ответам из Яндекса, частоте и ручному вводу — в [yandex-reviews.md](../docs/yandex-reviews.md); обновлён [reviews.md](../docs/reviews.md).
