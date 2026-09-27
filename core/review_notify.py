@@ -108,6 +108,57 @@ def format_overflow(n: int) -> str:
             f'(за раз не больше {NOTIFY_MAX_PER_RUN}).\n{SITE}/reviews?month=all')
 
 
+# ----------------------------------------------------------------- кнопка «Последние отзывы»
+
+# Кнопка и команда /reviews в меню бота (core/open_check_telegram.py, просьба
+# владельца 2026-09-28): последние LATEST_COUNT отзывов по дате отзыва. Текст
+# каждого — до LATEST_TEXT_LEN знаков: 5 × (заголовок + 300) укладывается в
+# предел сообщения Telegram 4096 с запасом.
+LATEST_COUNT = 5
+LATEST_TEXT_LEN = 300
+STATUS_WORDS = {'new': 'Ответа нет', 'answered': 'Ответ есть', 'skipped': 'Без ответа по решению'}
+
+
+def format_latest(reviews: Iterable[dict], n: int = LATEST_COUNT) -> str:
+    """Последние n отзывов (по дате отзыва, новые первыми; при равной — по id), HTML.
+
+    В заголовке — сколько всего ждёт ответа (статус «Без ответа», за любую дату —
+    как счётчик полосы «Требует внимания» на сайте).
+    """
+    items = list(reviews)
+    waiting = sum(1 for r in items if r.get('status') == 'new')
+    latest = sorted(items, key=lambda r: (r.get('created_at') or '', r.get('id') or ''), reverse=True)[:n]
+    if not latest:
+        return 'Отзывов пока нет.'
+    lines = [f'<b>Последние {len(latest)} отзывов</b> · ждут ответа: {waiting}']
+    for r in latest:
+        rating = r.get('rating')
+        head = [BAR_NAMES.get(r.get('bar'), r.get('bar') or ''),
+                f'{rating} из 5' if isinstance(rating, int) else 'без оценки',
+                r.get('author') or 'без имени', _fmt_when(r.get('created_at'))]
+        text = _cut(r.get('text') or '', LATEST_TEXT_LEN)
+        status = STATUS_WORDS.get(r.get('status'), '')
+        if r.get('gone_at'):
+            status += ' · нет в Яндексе'
+        lines.append('')
+        lines.append(f'<b>{html.escape(head[0])}</b> · ' + html.escape(' · '.join(head[1:])))
+        lines.append(f'«{html.escape(text)}»' if text else 'Текста нет — только оценка.')
+        lines.append(html.escape(status))
+    lines.append('')
+    lines.append(f'{SITE}/reviews?month=all')
+    return '\n'.join(lines)
+
+
+def latest_reviews_text() -> str:
+    """Ответ кнопки «Последние отзывы»: читает хранилище отзывов; сбой — понятный текст."""
+    try:
+        from core.guest_reviews import get_review_store
+        return format_latest(get_review_store().all())
+    except Exception as e:  # noqa: BLE001 — бот не должен молчать
+        print(f'[REVIEWS-BOT] последние отзывы: {e!r}')
+        return 'Отзывы сейчас не читаются — откройте страницу отзывов на сайте.'
+
+
 def _default_send(recipients: List[str], text: str) -> dict:
     from core.open_check_bot import _send_with_retries
     return _send_with_retries(recipients, text)

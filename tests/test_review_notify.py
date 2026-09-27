@@ -190,6 +190,59 @@ def test_message_text():
     assert not any(ord(ch) > 0xFFFF for ch in t + a)     # без эмодзи
 
 
+# ----------------------------------------------------------------- кнопка «Последние отзывы»
+
+def _rv(i, created, status='answered', **over):
+    r = {'id': f'r_{i:03d}', 'bar': 'bolshoy', 'source': 'yandex', 'rating': 5, 'author': f'Гость {i}',
+         'text': f'Отзыв {i}', 'created_at': created, 'status': status}
+    r.update(over)
+    return r
+
+
+def test_latest_order_count_and_waiting():
+    reviews = [_rv(i, f'2026-09-{10 + i:02d}T12:00') for i in range(8)]
+    reviews.append(_rv(99, '2025-01-01T10:00', status='new'))
+    reviews.append(_rv(98, '2026-09-17T12:00', status='new', gone_at='2026-09-28T08:30', rating=None, text=''))
+    t = rn.format_latest(reviews)
+    assert t.startswith('<b>Последние 5 отзывов</b> · ждут ответа: 2')
+    order = [x for x in ('Гость 98', 'Гость 7', 'Гость 6', 'Гость 5', 'Гость 4', 'Гость 3') if x in t]
+    assert order == ['Гость 98', 'Гость 7', 'Гость 6', 'Гость 5', 'Гость 4'], order   # 17.09 и 7 делят дату — по id
+    assert 'Гость 99' not in t
+    assert 'без оценки' in t and 'Текста нет' in t and 'Ответа нет · нет в Яндексе' in t
+    assert t.endswith('https://beerkultura.ru/reviews?month=all')
+    assert rn.format_latest([]) == 'Отзывов пока нет.'
+
+
+def test_latest_escaping_and_telegram_limit():
+    long = [_rv(i, f'2026-09-2{i}T12:00', text='<i>' + 'я' * 5000, author='A&B') for i in range(5)]
+    t = rn.format_latest(long)
+    assert '<i>' not in t and '&lt;i&gt;' in t and 'A&amp;B' in t
+    assert len(t) < 4096
+
+
+def test_bot_button_and_command_send_latest():
+    from core import open_check_telegram as tg
+    import core.review_notify as rnmod
+    sent, answered, saved = [], [], (tg.send_message, tg.answer_callback, rnmod.latest_reviews_text, tg.api_call)
+    tg.send_message = lambda chat_id, text, reply_markup=None, html=False: sent.append((chat_id, text, html)) or True
+    tg.answer_callback = lambda cq_id, text=None: answered.append(cq_id)
+    rnmod.latest_reviews_text = lambda: 'СПИСОК'
+    calls = []
+    tg.api_call = lambda method, payload=None, **kw: calls.append((method, payload)) or {}
+    try:
+        kb = tg._menu_keyboard(False)['inline_keyboard']
+        assert ['oc_reviews'] in [[b['callback_data'] for b in row] for row in kb]
+        tg.handle_update({'callback_query': {'id': 'q1', 'data': 'oc_reviews',
+                                             'message': {'chat': {'id': 42}, 'message_id': 7}}})
+        tg.handle_update({'message': {'text': '/reviews', 'chat': {'id': 43}}})
+        tg.handle_update({'message': {'text': '/отзывы', 'chat': {'id': 44}}})
+        assert sent == [(42, 'СПИСОК', True), (43, 'СПИСОК', True), (44, 'СПИСОК', True)] and answered == ['q1']
+        tg.set_my_commands()
+        assert 'reviews' in [c['command'] for c in calls[0][1]['commands']]
+    finally:
+        tg.send_message, tg.answer_callback, rnmod.latest_reviews_text, tg.api_call = saved
+
+
 # ----------------------------------------------------------------- из сверки
 
 class _Client:

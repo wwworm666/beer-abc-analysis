@@ -216,6 +216,7 @@ def set_my_commands():
         {"command": "status", "description": "Статус баров сейчас"},
         {"command": "temp", "description": "Температура в барах сейчас"},
         {"command": "cash", "description": "Возможная инкассация по барам"},
+        {"command": "reviews", "description": "Последние отзывы гостей"},
     ]})
 
 
@@ -223,7 +224,8 @@ def set_my_commands():
 
 def _menu_keyboard(subscribed: bool) -> dict:
     """Простое меню: одна кнопка подписки-переключателя + статус.
-    Раньше было 5 кнопок (positive/alarm/both/off/status) — упрощено."""
+    Раньше было 5 кнопок (positive/alarm/both/off/status) — упрощено.
+    «Последние отзывы» (2026-09-28) — core/review_notify.latest_reviews_text."""
     toggle = ({"text": "Отписаться от уведомлений", "callback_data": "oc_off"} if subscribed
               else {"text": "Подписаться на уведомления", "callback_data": "oc_on"})
     return {"inline_keyboard": [
@@ -231,6 +233,7 @@ def _menu_keyboard(subscribed: bool) -> dict:
         [{"text": "Статус баров сейчас", "callback_data": "oc_status"}],
         [{"text": "Температура в барах", "callback_data": "oc_temp"}],
         [{"text": "Возможная инкассация", "callback_data": "oc_cash"}],
+        [{"text": "Последние отзывы", "callback_data": "oc_reviews"}],
     ]}
 
 
@@ -245,7 +248,9 @@ def _start_text(chat_id, subscribed: bool) -> str:
         "«Статус баров сейчас» — проверить открытие вручную в любой момент, "
         "«Температура в барах» — текущая температура датчиков (команда /temp), "
         "«Возможная инкассация» — сколько наличных можно забрать с каждого бара "
-        f"по последней сданной кассе (остаётся {CASH_CHANGE_FLOAT_RUB} ₽ на размен, команда /cash)."
+        f"по последней сданной кассе (остаётся {CASH_CHANGE_FLOAT_RUB} ₽ на размен, команда /cash), "
+        "«Последние отзывы» — пять свежих отзывов с Яндекс Карт (команда /reviews). "
+        "Подписчикам новые отзывы приходят сами, раз в день утром."
     )
 
 
@@ -404,6 +409,12 @@ def _handle_callback(cq: dict, subs) -> None:
         send_message(chat_id, _live_cash_collection_text(), html=True)
         return
 
+    if data == "oc_reviews":
+        from core.review_notify import latest_reviews_text
+        answer_callback(cq_id)
+        send_message(chat_id, latest_reviews_text(), html=True)
+        return
+
     # subscribed = состояние ПОСЛЕ переключения (не перечитываем файл повторно).
     if data == "oc_on":
         subs.subscribe(chat_id)
@@ -423,7 +434,7 @@ def _handle_callback(cq: dict, subs) -> None:
 
 def handle_update(update: dict) -> None:
     """Обработать один апдейт. Команды: /start (меню+подписка), /status, /temp
-    (температура баров), /subscribe, /unsubscribe. Подписка и быстрые действия —
+    (температура баров), /cash, /reviews (последние отзывы), /subscribe, /unsubscribe. Подписка и быстрые действия —
     кнопками (callback_query)."""
     from core import open_check_subscribers as subs
 
@@ -450,6 +461,9 @@ def handle_update(update: dict) -> None:
         send_message(chat_id, _live_temperature_text(), html=True)
     elif cmd in ("/cash", "/incass", "/инкассация", "/касса"):
         send_message(chat_id, _live_cash_collection_text(), html=True)
+    elif cmd in ("/reviews", "/отзывы"):
+        from core.review_notify import latest_reviews_text
+        send_message(chat_id, latest_reviews_text(), html=True)
     elif cmd == "/subscribe":
         subs.subscribe(chat_id)
         send_message(chat_id, "Подписка оформлена. Уведомления будут приходить в этот чат.")

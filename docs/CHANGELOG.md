@@ -1,5 +1,17 @@
 ﻿# Changelog
 
+### 2026-09-28 (4) — Бот kulturaopenclosed: кнопка «Последние отзывы»
+
+**Что и почему.** Владелец: «нужна какая-то кнопка в меню типа последние пять отзывов». В меню
+бота — кнопка «Последние отзывы», команда `/reviews` (`/отзывы`) и пункт в меню команд
+Telegram: пять свежих отзывов с оценкой, автором, датой, текстом до 300 знаков и отметкой
+ответа, в заголовке — сколько ждут ответа.
+
+- `core/review_notify.py`: `format_latest`, `latest_reviews_text`; `core/open_check_telegram.py`:
+  кнопка `oc_reviews`, команды, текст меню.
+- Тесты: +3 в `tests/test_review_notify.py`. Доки: [open-check-bot.md](open-check-bot.md),
+  [yandex-reviews.md](yandex-reviews.md).
+
 ### 2026-09-28 (3) — Новые отзывы в бот kulturaopenclosed
 
 **Что и почему.** Владелец: «видел наш тг бот kulturaopenclosed, дублируй туда все новые
