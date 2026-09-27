@@ -49,6 +49,40 @@ _PRIMARY_COOLDOWN = 300  # секунд
 _primary_dead_until = 0.0
 _working_ip = None
 
+# Повтор при обрыве СОЕДИНЕНИЯ (connect), а не ответа. 2026-09-28 ночью ТСПУ
+# «мигал»: к живому 149.154.167.220 не устанавливалось 5 соединений из 12, а
+# повтор через секунду проходил. С одной попыткой на адрес бот отвечал примерно
+# через раз («не отвечает»). Три попытки: доля неудач 0,45^3 ~ 9 % вместо 45 %.
+# Повторяется только основной путь и первый (самый перспективный) запасной
+# адрес; остальные запасные — по разу: они обычно заблокированы наглухо, и
+# повторы только растянули бы худший случай. Connect-таймаут 4 с (было 5):
+# худший случай при полной блокировке ~ основной 3x4 + первый запасной 3x4 +
+# второй 4 + DoH — не дольше прежних ~45 с на вызов (см. open_check_bot.py,
+# SEND_PASSES). Обрыв при чтении ответа не повторяется: сообщение могло уже
+# уйти — повтор дал бы дубль.
+CONNECT_ATTEMPTS = 3
+CONNECT_TIMEOUT = 4
+
+
+def _is_connect_error(e: Exception) -> bool:
+    """Соединение не установилось по таймауту (запрос до Telegram не дошёл) — повтор безопасен.
+
+    Только ConnectTimeout — так ТСПУ и проявляется (в логах 2026-09-28 все
+    сбои — ConnectTimeoutError). Общий ConnectionError бывает и после отправки
+    запроса (обрыв на чтении), там повтор мог бы задублировать сообщение.
+    """
+    return isinstance(e, requests.exceptions.ConnectTimeout)
+
+
+def _with_connect_retries(fn, attempts: int):
+    """fn() до attempts раз, пока ошибка — обрыв соединения; иная ошибка — сразу наверх."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001 — решаем по типу ниже
+            if not _is_connect_error(e) or i == attempts - 1:
+                raise
+
 
 class _SNIAdapter(requests.adapters.HTTPAdapter):
     """TLS к голому IP с SNI и проверкой сертификата на имя api.telegram.org."""
@@ -137,8 +171,10 @@ def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str 
 
     if time.time() >= _primary_dead_until:
         try:
-            r = requests.post(f"{_API}/bot{token}/{method}", json=payload or {},
-                              timeout=(5, timeout))
+            r = _with_connect_retries(
+                lambda: requests.post(f"{_API}/bot{token}/{method}", json=payload or {},
+                                      timeout=(CONNECT_TIMEOUT, timeout)),
+                CONNECT_ATTEMPTS)
             data = r.json()
             if not data.get("ok"):
                 log.warning("TG %s -> %s", method, data.get("description"))
@@ -148,9 +184,11 @@ def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str 
             log.warning("TG %s: основной путь не работает (%s) — пробуем запасные IP",
                         method, _scrub(e, token))
 
-    for ip in _iter_candidate_ips():
+    for n, ip in enumerate(_iter_candidate_ips()):
         try:
-            data = _post_via_ip(ip, method, token, payload, (5, timeout))
+            data = _with_connect_retries(
+                lambda ip=ip: _post_via_ip(ip, method, token, payload, (CONNECT_TIMEOUT, timeout)),
+                CONNECT_ATTEMPTS if n == 0 else 1)
         except Exception as e:
             log.warning("TG %s via %s failed: %s", method, ip, _scrub(e, token))
             continue
