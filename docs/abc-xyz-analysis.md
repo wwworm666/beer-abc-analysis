@@ -35,7 +35,7 @@ ABC/XYZ и потери» и «Розлив — ABC/XYZ и потери». Оф�
 
 | Файл | Что делает |
 |---|---|
-| [`core/packaging_analysis.py`](../core/packaging_analysis.py) | весь расчёт: сбор, сведение, ABC, XYZ, категории, корзины; вызывает блок потерь |
+| [`core/packaging_analysis.py`](../core/packaging_analysis.py) | весь расчёт: сбор, сведение, ABC, XYZ, категории, корзины; вызывает блок потерь. С 2026-09-27 — общий с кухней: точки расширения `A_MIN`, `B_MIN`, `UNCATEGORIZED_LABEL`, `_category_of`, `_skip_row`, `_losses` ([kitchen.md](kitchen.md)) |
 | [`core/packaging_losses.py`](../core/packaging_losses.py) | баланс и потери в штуках из проводок склада, связка товар — позиция |
 | [`core/packaging_loader.py`](../core/packaging_loader.py) | продажи + проводки под одним ключом кэша, `fetched_at` для чипа «обновлено» |
 | [`core/olap_reports.py`](../core/olap_reports.py) | `get_packaging_sales_report` (продажи с `DishId`), `get_packaging_writeoff_report` (проводки группы «Напитки Фасовка») |
@@ -638,6 +638,11 @@ WriteoffPercentOfSold, InventoryPercentOfSold, StockUnit
 
 ## Changelog
 
+- **2026-09-27 (2)** — Расчёт стал общим с кухней (`/kitchen`, [kitchen.md](kitchen.md)).
+  - `KitchenAnalysis` наследует `PackagingAnalysis` и подменяет только пороги,
+    категорию, пропуск модификаторов и блок потерь.
+  - Ответ фасовки не изменился: 77 проверок расчёта, потерь и эндпоинта фасовки
+    проходят без правок.
 - **2026-09-27** — Раскладка по вкладкам, общая с `/draft` ([abc-view.md](abc-view.md)).
   - «Обзор» вместо сводки и карточек групп.
   - «Цены»: недобор до 120% по позициям и категориям.

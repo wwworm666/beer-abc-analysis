@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Кухня — ABC/XYZ и потери — Пивная культура</title>
+    <!-- Кухня — клон «Фасовки» (docs/kitchen.md): стили общие, packaging.css, классы
+         pk-* и токены --pk-* на body.packaging-page; своих правил у страницы нет.
+         Порядок важен: packaging.css последним из страничных, чтобы его правила
+         побеждали при равной специфичности с общими стилями дашборда.
+         draft.css подключён ради @font-face IBM Plex Sans: объявление живёт там и
+         приезжает с ?v={{ app_version }}, то есть переживает кэш-бастинг. Его
+         собственные правила ничего здесь не трогают — они все под .draft-page. -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/draft/draft.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/packaging/packaging.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/shared/abc_view.css?v={{ app_version }}">
+</head>
+<body class="packaging-page kitchen-page">
+    <div class="container">
+        {% set page_title = "Кухня — ABC/XYZ и потери" %}
+        {% set page_subtitle = "Меню кухни и баланс склада в рублях" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <div class="pk-wrap">
+
+      <!-- Шапка страницы вместо общей .header-bar (та скрыта на .packaging-page).
+           Гамбургер открывает тот же сайдбар: клик пробрасывается на скрытую
+           кнопку #sidebar-toggle из shared/nav.html — тот же приём, что на /draft. -->
+      <header class="pk-head">
+        <button type="button" class="pk-burger" id="ktBurger" aria-label="Меню">
+          <span></span><span></span><span></span>
+        </button>
+        <span class="pk-title">
+          <span class="pk-title-n">Кухня — ABC/XYZ и потери</span>
+          <span class="pk-title-s">что держать, где поднять цену, где теряются продукты</span>
+        </span>
+        <span class="pk-logo"><i>&gt;&nbsp;</i>k<span class="pk-logo-tail">ultura.os</span><b>_</b></span>
+      </header>
+
+      <!-- Перехватчик клика мимо открытого меню бара или периода. -->
+      <div class="pk-catch" id="ktCatch" hidden></div>
+
+      <div class="pk-filters">
+        <div class="pk-pick">
+          <button type="button" class="pk-pick-btn" id="ktBarBtn" aria-haspopup="listbox">
+            <span class="pk-pick-cap">БАР</span>
+            <span class="pk-pick-val">
+              <span id="ktBarLabel">Общая</span>
+              <svg class="pk-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="pk-menu" id="ktBarMenu" role="listbox" hidden></div>
+        </div>
+
+        <span class="pk-sep"></span>
+
+        <div class="pk-pick">
+          <button type="button" class="pk-pick-btn" id="ktPerBtn" aria-haspopup="listbox">
+            <span class="pk-pick-cap">ПЕРИОД</span>
+            <span class="pk-pick-val">
+              <span id="ktPerLabel">Последние 30 дней</span>
+              <span class="pk-pick-hint" id="ktPerHint"></span>
+              <svg class="pk-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none"
+                      stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="pk-menu" id="ktPerMenu" role="listbox" hidden></div>
+        </div>
+
+        <span class="pk-grow"></span>
+
+        <div class="pk-run-wrap">
+          <button type="button" class="pk-run" id="ktRun">
+            <span class="pk-spin" id="ktSpin" hidden></span>
+            <span id="ktRunLabel">Запустить анализ</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="pk-context">
+        <span class="pk-grow"></span>
+        <span class="pk-context-t" id="ktContext"></span>
+        <span class="pk-context-chip" id="ktXyzChip" hidden></span>
+        <span class="pk-context-chip" id="ktUpdated" hidden></span>
+      </div>
+
+      <!-- Загрузка, ошибка и пустой ответ: одно место, чтобы страница никогда не
+           оставалась молча пустой. -->
+      <div class="pk-msg" id="ktMsg" hidden></div>
+
+      <div class="pk-body" id="ktBody" hidden>
+
+        <!-- Раскладка по вкладкам (с 2026-09-27): «Обзор» на один экран, подробности —
+             в своих вкладках. Кнопки вкладок с числами, «Обзор», «Цены» и «Бары» рисует
+             общий модуль static/js/shared/abc_view.js (тот же у /draft и /packaging);
+             таблицы, баланс и карточки — kitchen.js.
+             Пояснения расчётов свёрнуты в «Как считается» (CLAUDE.md, п. 1). -->
+        <nav class="av-tabs" id="ktTabs" role="tablist" aria-label="Разделы страницы"></nav>
+
+        <section class="av-panel" id="ktOverview" data-panel="overview"></section>
+
+        <section class="av-panel" id="ktPanelItems" data-panel="items" hidden>
+          <div class="pk-band">
+            <span class="pk-band-t">ПОЗИЦИИ</span>
+            <span class="pk-band-line"></span>
+            <span class="pk-band-s" id="ktPosCount"></span>
+            <input type="search" class="pk-search" id="ktSearch" placeholder="найти блюдо…"
+                   autocomplete="off" aria-label="Поиск по блюдам и категориям">
+          </div>
+          <div class="av-chips" id="ktFilter" role="group" aria-label="Группа решения"></div>
+          <div class="pk-table pk-pos">
+            <div class="pk-table-in" id="ktPos"></div>
+          </div>
+          <details class="av-how is-bare"><summary>Как читать код</summary><div class="av-how-in">
+          <div class="pk-key" id="ktKey">
+            <div class="pk-key-row">
+              <span class="pk-key-cap">1-Я БУКВА · ВЫРУЧКА</span>
+              <span class="pk-key-cells">
+                <span class="pk-key-cell"><i class="pk-abc-ltr a">A</i>первые 80% накопленной выручки</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr b">B</i>следующие 15%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr c">C</i>последние 5%</span>
+              </span>
+            </div>
+            <div class="pk-key-row">
+              <span class="pk-key-cap">2-Я БУКВА · НАЦЕНКА</span>
+              <span class="pk-key-cells">
+                <span class="pk-key-cell"><i class="pk-abc-ltr a">A</i>от 180%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr b">B</i>от 150% до 180%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr c">C</i>ниже 150%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr none">?</i>себестоимость не задана</span>
+              </span>
+            </div>
+            <div class="pk-key-row">
+              <span class="pk-key-cap">3-Я БУКВА · СПРОС (XYZ)</span>
+              <span class="pk-key-cells">
+                <span class="pk-key-cell"><i class="pk-abc-ltr x">X</i>ровный: разброс по неделям до 30%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr y">Y</i>умеренный: от 30% до 60%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr z">Z</i>скачет: свыше 60%</span>
+                <span class="pk-key-cell"><i class="pk-abc-ltr none">?</i>меньше 3 недель с продажами</span>
+              </span>
+            </div>
+          </div>
+          <!-- Пороги наценки кухни — core/abc_thresholds.py, KITCHEN_MARKUP_A_MIN /
+               KITCHEN_MARKUP_B_MIN; за совпадением следит tests/test_kitchen_render.mjs. -->
+          <div class="pk-legend">Наценка считается от сумм:
+            (выручка − себестоимость) / себестоимость, как строка «Итого» в отчёте iiko.
+            180% — минимальная наценка кухни (план наценки кухни на дашборде).
+            Соусы-модификаторы, которые отдают к блюдам, в позиции не входят: их
+            количество и закупка названы в «Диагностике данных» на вкладке «Потери».
+            Разброс спроса — коэффициент вариации недельных продаж по неделям, когда
+            позиция продавалась.
+            «?» вместо буквы означает, что данных не хватило, а не «плохо»; отдельной
+            колонки XYZ нет — спрос и есть третья буква кода.
+            В разрезе «Общая» бары складываются в одну сеть: количества и деньги
+            суммируются, наценка и буквы пересчитываются от сумм заново. Клик по
+            строке — карточка позиции с разбором каждой буквы и разбивкой по барам.</div>
+
+          </div></details>
+        </section>
+
+        <section class="av-panel" id="ktPanelCats" data-panel="cats" hidden>
+          <div class="pk-band">
+            <span class="pk-band-t">КАТЕГОРИИ</span>
+            <span class="pk-band-line"></span>
+            <span class="pk-band-s" id="ktCatCount"></span>
+          </div>
+          <div class="pk-table pk-cats">
+            <div class="pk-table-in" id="ktCats"></div>
+          </div>
+          <details class="av-how is-bare"><summary>Как считается</summary><div class="av-how-in">
+          <div class="pk-legend">Категория — группа блюда под «ЕДА» в номенклатуре iiko:
+            третий уровень дерева, если он есть, иначе второй. Показаны все категории
+            разреза, без отбора топа. Блюда, лежащие прямо в «ЕДА», собраны в
+            «Без категории (К)» и участвуют в расчёте наравне с остальными — иначе их
+            выручка исчезала бы из итога.
+            ABC категории — место по выручке среди категорий: A — первые 80%
+            накопленной выручки, B — следующие 15%, C — последние 5%. Клик по строке
+            открывает карточку со всеми позициями категории.</div>
+
+          </div></details>
+        </section>
+
+        <section class="av-panel" id="ktPrices" data-panel="prices" hidden></section>
+
+        <section class="av-panel" id="ktPanelLosses" data-panel="losses" hidden>
+          <div class="pk-band">
+            <span class="pk-band-t">БАЛАНС И РАСХОЖДЕНИЯ</span>
+            <span class="pk-band-line"></span>
+            <span class="pk-band-s">рубли по закупке</span>
+          </div>
+          <div class="pk-two">
+            <div class="pk-card" id="ktBalance"></div>
+            <div class="pk-card" id="ktLosses"></div>
+          </div>
+          <details class="av-how is-bare"><summary>Диагностика данных</summary><div class="av-how-in">
+            <div class="pk-legend" id="ktDiag"></div>
+          </div></details>
+        </section>
+
+        <!-- Профиль баров: вкладка есть только в разрезе «Общая» (AbcView.barProfile). -->
+        <section class="av-panel" id="ktPanelBars" data-panel="bars" hidden></section>
+      </div>
+    </div>
+
+    <div class="pk-backdrop" id="ktBackdrop" hidden></div>
+    <aside class="pk-drawer" id="ktDrawer" hidden aria-label="Карточка"></aside>
+
+    <!-- Список баров отдаёт сервер: меню фильтра строит JS, а BARS живут в
+         extensions.py и на клиенте иначе взяться неоткуда. -->
+    <script type="application/json" id="ktBars">{{ bars | tojson }}</script>
+    <script src="/static/js/shared/abc_view.js?v={{ app_version }}"></script>
+    <script src="/static/js/kitchen/kitchen.js?v={{ app_version }}"></script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

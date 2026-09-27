@@ -47,8 +47,10 @@ vm.createContext(sandbox);
 new vm.Script(src, { filename: 'abc_view.js' }).runInContext(sandbox);
 const V = sandbox.AbcView;
 
+const KITCHEN = JSON.parse(read('tests/fixtures/kitchen_sample.json'));
 const MD = V.fromDraft(DRAFT);
 const MP = V.fromPackaging(PACK);
+const MK = V.fromKitchen(KITCHEN);
 const flat = (h) => h.replace(/[  ]/g, ' ');
 const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
 // Разметка без раскрывашек «Как считается» — то, что видно на экране сразу.
@@ -232,6 +234,34 @@ test('недобор по ценам — недополученные деньг
     assert.match(tab, /data-tab="prices"[^>]*>Цены<span class="n neg">−75 тыс ₽/);
     const cats = flat(V.pricesHtml(MP, 12));
     assert.ok(!/av-pos/.test(cats), 'в недоборе по категориям осталась зелёная сумма');
+});
+
+test('кухня: пороги 180/150, недостача и потери сразу в рублях', () => {
+    assert.equal(MK.key, 'kitchen');
+    assert.equal(MK.aMin, +thresholds.match(/KITCHEN_MARKUP_A_MIN = ([\d.]+)/)[1]);
+    assert.equal(MK.bMin, +thresholds.match(/KITCHEN_MARKUP_B_MIN = ([\d.]+)/)[1]);
+    const sh = V.shortage(MK);
+    // Сервер отдаёт недостачу в рублях: пересчитывать через закупку единицы нельзя.
+    assert.equal(sh.cost, KITCHEN.losses.inventory_net);
+    assert.ok(near(sh.price, KITCHEN.losses.inventory_net * KITCHEN.totals.revenue / KITCHEN.totals.cost));
+    const lr = V.lossRubles(MK);
+    assert.ok(near(lr.total, KITCHEN.losses.by_item.reduce((a, r) => a + r.LossRub, 0)));
+    // Недобор — тот же расчёт, минимум кухни.
+    const pg = V.priceGap(MK);
+    const hand = priceGapByHand(KITCHEN.positions, 1.8, (p) => ({ bucket: p.ABC_Bucket, markup: p.MarkupPercent,
+        cost: p.TotalCost, qty: p.TotalQty, sales: p.TotalQty, revenue: p.TotalRevenue }));
+    assert.ok(near(pg.total, hand.total));
+    assert.equal(pg.rows.length, hand.count);
+    const ids = V.tabsFor(MK).map((t) => t.id);
+    assert.deepEqual([...ids], ['overview', 'items', 'cats', 'prices', 'losses', 'bars']);
+    const text = flat(V.overviewHtml(MK) + V.barsHtml(MK)).replace(/<[^>]+>/g, ' ');
+    assert.ok(!/фасовк|бутыл/.test(text), 'в разметке кухни слова фасовки');
+    assert.match(text, /Выручка с порции/);
+});
+
+test('бар без категории: «не берут», а не «в — раза реже»', () => {
+    const html = flat(V.barsHtml(MK)).replace(/<[^>]+>/g, ' ');
+    assert.ok(!/в — раза/.test(html), 'деление на ноль в подписи отличия');
 });
 
 test('одинаковый вход — одинаковая разметка', () => {

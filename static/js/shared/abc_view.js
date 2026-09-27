@@ -72,6 +72,10 @@
         var M = {
             key: 'draft', unit: 'л', qd: 1, per: '0,5 л', perK: 0.5, perWord: 'литра',
             aMin: 2.5, bMin: 2.0, salesWord: 'порций', itemsWord: 'Кеги',
+            area: 'розлива', unitOne: 'литра', unitMany: 'литры по складу',
+            qtyNote: 'Литры — расход кегов со склада по данным iiko: списание по техкарте при продаже. Акты и недостача сюда не входят — они во вкладке «Потери».',
+            priceNote: 'Цена 0,5 л — выручка с литра × 0,5', goods: ['порции', 'порций', 'порций'],
+            catNote: 'у кегов одного стиля обычно общая логика цены',
             nom: ['кег', 'кега', 'кегов'], gen: ['кега', 'кегов', 'кегов'],
             period: d.period || {}, scope: null, barNames: [],
             totals: { revenue: d.total_revenue || 0, cost: d.total_cost || 0, margin: d.total_margin || 0,
@@ -98,6 +102,10 @@
         var M = {
             key: 'pack', unit: 'шт', qd: 0, per: 'бутылка', perK: 1, perWord: 'штуки',
             aMin: 1.2, bMin: 1.0, salesWord: 'штук', itemsWord: 'Позиции',
+            area: 'фасовки', unitOne: 'бутылки', unitMany: 'проданные штуки',
+            qtyNote: 'Штуки — продажи по кассе iiko: товар фасовки списывается со склада при продаже сам. Акты и недостача сюда не входят — они во вкладке «Потери».',
+            priceNote: 'Цена бутылки — выручка на бутылку', goods: ['бутылки', 'бутылок', 'бутылок'],
+            catNote: 'у бутылок одного стиля обычно общая логика цены',
             nom: ['позиция', 'позиции', 'позиций'], gen: ['позиции', 'позиций', 'позиций'],
             period: d.period || {}, scope: d.scope || null, barNames: d.bars_in_scope || [],
             totals: { revenue: T.revenue || 0, cost: T.cost || 0, margin: T.margin || 0, qty: T.qty || 0,
@@ -119,6 +127,32 @@
             people: []
         };
         return index(M);
+    }
+
+    // Кухня (/kitchen): клон фасовки про еду. Отличия — пороги 180/150, слова и
+    // потери: сервер отдаёт их сразу в рублях по закупке (core/kitchen_losses.py),
+    // строки расхождений — продукты склада, в том числе ингредиенты блюд.
+    function fromKitchen(d) {
+        var M = fromPackaging(d);
+        var L = (d && d.losses) || {};
+        M.key = 'kitchen';
+        M.unit = 'порц.';
+        M.per = 'порция';
+        M.perWord = 'порции';
+        M.aMin = 1.8;
+        M.bMin = 1.5;
+        M.area = 'кухни';
+        M.unitOne = 'порции';
+        M.unitMany = 'проданные порции';
+        M.qtyNote = 'Порции — продажи по кассе iiko. Соусы-модификаторы, которые отдают к блюдам, в позиции не входят. Акты и недостача — во вкладке «Потери», в рублях по закупке.';
+        M.priceNote = 'Цена порции — выручка на порцию';
+        M.goods = ['порции', 'порций', 'порций'];
+        M.catNote = 'у блюд одной категории обычно общая логика цены';
+        M.lossRub = true;
+        M.losses = lossModel(L, (L.by_item || []).map(function (r) {
+            return { id: r.ProductId, name: r.ProductName, sold: r.SoldRub || 0, loss: r.LossRub || 0 };
+        }));
+        return M;
     }
 
     function lossModel(L, rows) {
@@ -153,8 +187,13 @@
 
     // Недостача в рублях: единицы недостачи × средняя закупка (и выручка) единицы
     // за период. Нетто: излишек в балансе недостачу уменьшает.
+    // У кухни недостача приходит сразу в рублях по закупке; по цене продажи — та
+    // же сумма × выручка / закупка кухни за период.
     function shortage(M) {
         var T = M.totals, L = M.losses;
+        if (M.lossRub) {
+            return { qty: L.invNet, cost: L.invNet, price: T.cost > 0 ? L.invNet * T.revenue / T.cost : 0, pct: L.invPct };
+        }
         if (!(T.qty > 0)) return null;
         return { qty: L.invNet, cost: L.invNet * T.cost / T.qty, price: L.invNet * T.revenue / T.qty, pct: L.invPct };
     }
@@ -164,6 +203,10 @@
     function lossRubles(M) {
         var avg = M.totals.qty > 0 ? M.totals.cost / M.totals.qty : 0;
         var byId = {}, total = 0;
+        if (M.lossRub) {
+            M.losses.rows.forEach(function (r) { byId[r.id] = { rub: r.loss, byAvg: false }; total += r.loss; });
+            return { byId: byId, total: total };
+        }
         M.losses.rows.forEach(function (r) {
             var it = M.byId[r.id];
             var own = it && it.qty > 0;
@@ -217,10 +260,10 @@
 
     function isUnc(name) { return /^Без категории/.test(String(name || '')); }
 
-    // Профиль баров фасовки (разрез «Общая»): доля категории в выручке бара против
-    // сети; наценка бара; цена тех же бутылок к средней по сети.
+    // Профиль баров фасовки и кухни (разрез «Общая»): доля категории в выручке бара против
+    // сети; наценка бара; цена тех же позиций к средней по сети.
     function barProfile(M) {
-        if (M.key !== 'pack' || M.scope !== 'total' || M.barNames.length < 2) return null;
+        if (M.key === 'draft' || M.scope !== 'total' || M.barNames.length < 2) return null;
         var bars = M.barNames.slice();
         var rev = {}, cost = {}, qty = {}, exp = {}, cell = {}, catRev = {};
         bars.forEach(function (b) { rev[b] = 0; cost[b] = 0; qty[b] = 0; exp[b] = 0; });
@@ -347,16 +390,15 @@
                 '<div class="av-kv-r"><span class="av-kv-l">Продано</span><span class="av-kv-v">' + nf(Math.round(T.qty)) + ' ' + M.unit + '</span>' +
                     '<span class="av-kv-s">' + (M.key === 'draft' ? nf(T.sales) + ' порций · ' + cnt(T.count, M.nom)
                         : cnt(T.count, M.nom) + ' · ' + cnt(T.cats, ['категория', 'категории', 'категорий'])) + '</span></div>' +
-                '<div class="av-kv-r"><span class="av-kv-l">Выручка с ' + (M.key === 'draft' ? 'литра' : 'бутылки') + '</span>' +
+                '<div class="av-kv-r"><span class="av-kv-l">Выручка с ' + M.unitOne + '</span>' +
                     '<span class="av-kv-v">' + rub(T.unitPrice) + '</span>' +
-                    '<span class="av-kv-s">выручка / ' + (M.key === 'draft' ? 'литры' : 'штуки') + '</span></div>' +
+                    '<span class="av-kv-s">выручка / ' + (M.key === 'draft' ? 'литры' : M.key === 'kitchen' ? 'порции' : 'штуки') + '</span></div>' +
             '</div></div>' +
             how(['Маржа = выручка − закупка. Выручка — по кассе iiko, уже со скидками. Закупка — себестоимость проданного по данным iiko.',
                 'Наценка = (выручка − закупка) / закупка. Минимум сети — ' + nf(minPct) + '% для ' +
-                    (M.key === 'draft' ? 'розлива' : 'фасовки') + ' (решение владельца, core/abc_thresholds.py). Число печатается с округлением вниз, чтобы 249,96% не выглядело как «250%».',
-                'Выручка с ' + (M.key === 'draft' ? 'литра' : 'бутылки') + ' = выручка / ' + (M.key === 'draft' ? 'литры по складу' : 'проданные штуки') + '.',
-                M.key === 'draft' ? 'Литры — расход кегов со склада по данным iiko: списание по техкарте при продаже. Акты и недостача сюда не входят — они во вкладке «Потери».'
-                                  : 'Штуки — продажи по кассе iiko: товар фасовки списывается со склада при продаже сам. Акты и недостача сюда не входят — они во вкладке «Потери».']) +
+                    M.area + ' (решение владельца, core/abc_thresholds.py). Число печатается с округлением вниз, чтобы 249,96% не выглядело как «250%».',
+                'Выручка с ' + M.unitOne + ' = выручка / ' + M.unitMany + '.',
+                M.qtyNote]) +
             '</section>';
 
         // Где деньги
@@ -377,7 +419,8 @@
         }
         if (sh && sh.qty > 0) {
             rows += lrow('loss', 'neg', 'Недостача по инвентаризации',
-                nf(sh.qty, M.qd) + ' ' + M.unit + ' · ' + pct(sh.pct) + ' от продаж',
+                M.lossRub ? pct(sh.pct) + ' от списанного при продаже по складу'
+                          : nf(sh.qty, M.qd) + ' ' + M.unit + ' · ' + pct(sh.pct) + ' от продаж',
                 srub(-sh.cost), 'av-neg', 'по закупке', 'losses');
         }
         if (bt && bt.neg.length) {
@@ -397,7 +440,8 @@
             how([
                 'Цены: недополучено = закупка × ' + nf(1 + M.aMin, 1) + ' − выручка по каждой позиции с наценкой ниже ' + nf(minPct) +
                     '% и продажами от ' + MIN_SALES + ' ' + M.salesWord + ', без «Сверить учёт». Считается при том же объёме, поэтому это верхняя граница.',
-                'Недостача: ' + M.unit + ' недостачи × средняя закупка ' + M.perWord + ' за период. Недостача считается по каждому бару: излишек одного бара не гасит недостачу другого.',
+                M.lossRub ? 'Недостача: сумма инвентаризаций по закупке из проводок склада группы «ЕДА» (продукты и ингредиенты вместе), нетто по сети: излишек уменьшает недостачу.'
+                          : 'Недостача: ' + M.unit + ' недостачи × средняя закупка ' + M.perWord + ' за период. Недостача считается по каждому бару: излишек одного бара не гасит недостачу другого.',
                 M.key === 'draft' ? 'Бармены: выручка бармена против того, что дали бы те же литры тех же кегов по средней выручке с литра в разрезе.' : null,
                 chk && chk.count > 0 ? '«Сверить учёт» — позиции без себестоимости или с наценкой ниже половины порога B: так в сети не продают, это учёт.' : null
             ]) + '</section>';
@@ -454,7 +498,7 @@
             '<p class="av-lead">' + esc(periodWords(M)) + ' при том же объёме продаж · <b>' + cnt(pg.rows.length, M.nom) +
             '</b> ниже минимума' + (pg.rows.length > 1 ? ' · половину суммы дают ' + (pg.half === 1 ? 'один ' + M.nom[0] : 'первые ' + nf(pg.half)) : '') + '.</p>' +
             how(['Недополучено по позиции = закупка × ' + mult + ' − выручка: столько не хватило до цены по минимуму. Наценка ' + minPct + ' означает цену в ' + mult + ' раза выше закупки.',
-                (M.key === 'draft' ? 'Цена 0,5 л — выручка с литра × 0,5' : 'Цена бутылки — выручка на бутылку') + ', уже со скидками.',
+                M.priceNote + ', уже со скидками.',
                 'Считается при том же объёме, поэтому это верхняя граница: после подорожания продаж может стать меньше.',
                 'Не входят позиции из «Сверить учёт» и с продажами меньше ' + MIN_SALES + ' ' + M.salesWord + '.']) + '</section>';
 
@@ -511,7 +555,7 @@
                 }).join('') + '</div>' +
                 (cl.length > 10 ? '<div class="av-sub">ещё ' + cnt(cl.length - 10, ['категория', 'категории', 'категорий']) + ' — ' +
                     srub(-cl.slice(10).reduce(function (a, x) { return a + x.up; }, 0)) + '</div>' : '') +
-                how(['Сумма недополученного по позициям категории. Пересматривать цены удобнее категорией: у бутылок одного стиля обычно общая логика цены.']) +
+                how(['Сумма недополученного по позициям категории. Пересматривать цены удобнее категорией: ' + M.catNote + '.']) +
                 '</section>';
         }
         return html + '</div>';
@@ -625,7 +669,7 @@
             '</section>';
     }
 
-    // ======================= БАРЫ (фасовка) =======================
+    // ======================= БАРЫ (фасовка и кухня) =======================
     function heatClass(dev) {
         var a = Math.abs(dev);
         if (a < HEAT_WEAK) return 'h-0';
@@ -644,10 +688,13 @@
                 '<div class="av-kv-r"><span class="av-kv-l">Доля сети</span><span class="av-kv-v">' + pct(i.share) + '</span></div>' +
                 '<div class="av-kv-r"><span class="av-kv-l">Наценка</span><span class="av-kv-v' + (below ? ' av-under' : '') + '">' +
                     (i.markup === null ? '—' : mk(i.markup)) + '</span></div>' +
-                '<div class="av-kv-r"><span class="av-kv-l">Цена бутылки к сети</span><span class="av-kv-v">' + (i.price === null ? '—' : spct(i.price)) + '</span></div>' +
+                '<div class="av-kv-r"><span class="av-kv-l">Цена ' + M.unitOne + ' к сети</span><span class="av-kv-v">' + (i.price === null ? '—' : spct(i.price)) + '</span></div>' +
                 '</div>' +
                 (b && Math.abs(b.c.dev) >= HEAT_WEAK ? '<div class="av-sub">Отличие: <b>' + esc(b.r.name.replace(/\s*\(Ф\)\s*$/, '')) + '</b> ' +
-                    (b.c.dev > 0 ? 'в ' + times(b.c.share, b.r.net) + ' раза чаще сети' : 'в ' + times(b.r.net, b.c.share) + ' раза реже сети') + '</div>' : '') +
+                    (b.c.dev > 0 ? 'в ' + times(b.c.share, b.r.net) + ' раза чаще сети'
+                        // Доля 0% — «в N раз реже» не посчитать: бар эту категорию не берёт.
+                        : b.c.share > 0 ? 'в ' + times(b.r.net, b.c.share) + ' раза реже сети'
+                        : 'не берут, в сети ' + pct(b.r.net)) + '</div>' : '') +
                 '</section>';
         }).join('') + '</div>';
         var mks = sp.info.filter(function (i) { return i.markup !== null; }).sort(function (a, b) { return a.markup - b.markup; });
@@ -657,24 +704,24 @@
             var ctx = ri >= sp.rows.length;
             return '<tr' + (ctx ? ' class="ctx"' : '') + '><th scope="row" title="' + esc(r.name) + '">' + esc(r.name) + '</th>' +
                 r.cells.map(function (c) {
-                    return '<td class="' + (ctx ? '' : heatClass(c.dev)) + '"' + tipAttr([pct(c.share) + ' выручки фасовки бара', c.bar + ' · ' + r.name,
+                    return '<td class="' + (ctx ? '' : heatClass(c.dev)) + '"' + tipAttr([pct(c.share) + ' выручки ' + M.area + ' бара', c.bar + ' · ' + r.name,
                         rub(c.rub) + ' · по сети ' + pct(r.net),
                         Math.abs(c.dev) < 0.05 ? 'как в среднем по сети' : 'на ' + nf(Math.abs(c.dev), 1) + ' п.п. ' + (c.dev > 0 ? 'больше' : 'меньше') + ', чем в среднем']) +
                         '>' + pct(c.share) + '</td>';
                 }).join('') + '<td class="net">' + pct(r.net) + '</td></tr>';
         }).join('');
-        html += '<section class="av-card">' + cardHead('Что берут в каждом баре', 'доля категории в выручке фасовки бара') +
+        html += '<section class="av-card">' + cardHead('Что берут в каждом баре', 'доля категории в выручке ' + M.area + ' бара') +
             (mks.length > 1 && pr.length ? '<p class="av-lead">Наценка по барам — от <b>' + mk(mks[0].markup) + '</b> (' + esc(mks[0].bar) + ') до <b>' +
-                mk(mks[mks.length - 1].markup) + '</b> (' + esc(mks[mks.length - 1].bar) + '). Одни и те же бутылки стоят почти одинаково: от ' +
+                mk(mks[mks.length - 1].markup) + '</b> (' + esc(mks[mks.length - 1].bar) + '). Одни и те же ' + (M.key === 'kitchen' ? 'позиции' : 'бутылки') + ' стоят почти одинаково: от ' +
                 spct(Math.min.apply(null, pr)) + ' до ' + spct(Math.max.apply(null, pr)) + ' к средней. Разницу даёт набор покупок.</p>' : '') +
             '<div class="av-keys"><span><i class="av-sw h-o2"></i>чаще сети от ' + HEAT_STRONG + ' п.п.</span><span><i class="av-sw h-o1"></i>' +
                 HEAT_WEAK + '–' + HEAT_STRONG + ' п.п. чаще</span><span><i class="av-sw h-0"></i>как в сети</span><span><i class="av-sw h-u1"></i>' +
                 HEAT_WEAK + '–' + HEAT_STRONG + ' п.п. реже</span><span><i class="av-sw h-u2"></i>реже от ' + HEAT_STRONG + ' п.п.</span></div>' +
             '<div class="av-scroll"><table class="av-heat"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>' +
-            how(['Доля категории в выручке фасовки бара за период; «Сеть» — та же доля по всем барам.',
+            how(['Доля категории в выручке ' + M.area + ' бара за период; «Сеть» — та же доля по всем барам.',
                 'Цвет — отличие от сети в процентных пунктах' + (sp.bottles ? ': ' + HEAT_WEAK + ' п.п. в баре — около ' +
-                    cnt(Math.round(sp.bottles), ['бутылки', 'бутылок', 'бутылок']) + ' за период, меньше — обычный разброс.' : '.'),
-                'Цена бутылки к сети — выручка бара против тех же штук по средней цене сети.',
+                    cnt(Math.round(sp.bottles), M.goods) + ' за период, меньше — обычный разброс.' : '.'),
+                'Цена ' + M.unitOne + ' к сети — выручка бара против тех же ' + M.goods[2] + ' по средней цене сети.',
                 'Две нижние строки без заливки: «Без категории» — ' + cnt(sp.uncCount, ['позиция', 'позиции', 'позиций']) +
                     ' без стиля в номенклатуре iiko, а в сборной строке разные стили смешаны.']) +
             '</section>';
@@ -854,7 +901,7 @@
     function hideTip() { if (tipEl) tipEl.hidden = true; }
 
     window.AbcView = {
-        MIN_SALES: MIN_SALES, BUCKET_ORDER: BUCKET_ORDER,
+        MIN_SALES: MIN_SALES, fromKitchen: fromKitchen, BUCKET_ORDER: BUCKET_ORDER,
         fromDraft: fromDraft, fromPackaging: fromPackaging,
         priceGap: priceGap, shortage: shortage, lossRubles: lossRubles, bartenders: bartenders,
         priceCost: priceCost, barProfile: barProfile,

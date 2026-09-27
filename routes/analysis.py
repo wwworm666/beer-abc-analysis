@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 from core.olap_reports import OlapReports
 from core.packaging_analysis import PackagingAnalysis
 from core.packaging_loader import load_packaging
+from core.kitchen_analysis import KitchenAnalysis
+from core.kitchen_loader import load_kitchen
 from core.draft_analysis import DraftAnalysis
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.draft_loader import load_draft_kegs
@@ -100,6 +102,68 @@ def analyze_packaging():
 
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/packaging: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
+
+
+@analysis_bp.route('/api/kitchen', methods=['POST'])
+def analyze_kitchen():
+    """ABC/XYZ анализ кухни: вся страница /kitchen одним ответом.
+
+    Клон /api/packaging (решение владельца 2026-09-27): тот же вход {bar,
+    date_from, date_to} или {bar, days}, те же коды ответа (400 на кривой вход,
+    502 при сбое iiko, 404 только когда пусто и в кассе, и на складе). Ответ —
+    блок из core/kitchen_analysis.py: пороги наценки кухни 180/150, соусы-
+    модификаторы отдельно (modifiers), баланс и потери в рублях по закупке.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        bar_name = data.get('bar') or None
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+
+        print(f"\n[KITCHEN] Zapusk analiza kuhni...")
+        print(f"   Bar: {bar_name if bar_name else 'VSE (Obschaya)'}")
+
+        if not date_from or not date_to:
+            try:
+                days = int(data.get('days', 30))
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Поле days должно быть числом'}), 400
+            today = datetime.now(ZoneInfo('Europe/Moscow')).date()
+            date_to = today.strftime('%Y-%m-%d')
+            date_from = (today - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        try:
+            if datetime.strptime(date_from, '%Y-%m-%d') > datetime.strptime(date_to, '%Y-%m-%d'):
+                return jsonify({'error': 'Начало периода позже конца'}), 400
+        except ValueError:
+            return jsonify({'error': 'Даты должны быть в формате YYYY-MM-DD'}), 400
+
+        raw = load_kitchen(bar_name, date_from, date_to)
+        if not raw:
+            return jsonify({'error': 'Не удалось получить данные из iiko API'}), 502
+
+        analyzer = KitchenAnalysis(raw['sales'], date_from, date_to,
+                                   transactions=raw['transactions'])
+        block = analyzer.build(bar_name)
+        block['generated_at'] = raw.get('fetched_at')
+
+        losses = block['losses']
+        if (not block['positions'] and not block['modifiers']['count']
+                and not losses['diagnostics']['has_transactions']):
+            return jsonify({'error': 'Нет данных за выбранный период'}), 404
+
+        totals = block['totals']
+        print(f"   [OK] Pozitsiy: {totals['sku']}, kategoriy: {totals['categories']}, "
+              f"vyruchka: {totals['revenue']:.2f}, modifikatorov: {block['modifiers']['count']}, "
+              f"sklad: prodano {losses['sold']:.0f} rub, spisano {losses['writeoff']:.0f}, "
+              f"nedostacha {losses['inventory_net']:.0f}")
+        return jsonify(block)
+
+    except Exception as e:
+        print(f"[ERROR] Oshibka v /api/kitchen: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
