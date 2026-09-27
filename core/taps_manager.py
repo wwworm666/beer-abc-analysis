@@ -10,9 +10,14 @@ import os
 import threading
 from copy import deepcopy
 
-from core.taplist import legacy_product_id
+from core.taplist import BAR_NAMES, legacy_product_id
 
 from core.json_store import file_lock
+
+# Поля, по которым страница кранов проверяет, что кран не изменился с момента,
+# когда бармен его открыл (другой бармен, вторая вкладка, двойное нажатие).
+EXPECTED_FIELDS = ('status', 'current_beer', 'started_at')
+CONFLICT_MESSAGE = 'Кран уже изменили, пока он был открыт. Данные обновлены — проверьте и повторите.'
 
 class ActionType(Enum):
     """Типы действий с кранами"""
@@ -64,12 +69,14 @@ class Tap:
 class TapsManager:
     """Менеджер для управления всеми кранами"""
 
-    # Конфигурация баров
+    # Конфигурация баров: число кранов — единственный источник для страниц /taps.
+    # Названия — как везде в проекте (core/taplist.BAR_NAMES); до 2026-09-27 здесь
+    # были «Бар 1»…«Бар 4», и их видели выгрузка CSV и события кранов.
     BARS_CONFIG = {
-        'bar1': {'name': 'Бар 1', 'taps': 24},
-        'bar2': {'name': 'Бар 2', 'taps': 12},
-        'bar3': {'name': 'Бар 3', 'taps': 12},
-        'bar4': {'name': 'Бар 4', 'taps': 12},
+        'bar1': {'name': BAR_NAMES['bar1'], 'taps': 24},
+        'bar2': {'name': BAR_NAMES['bar2'], 'taps': 12},
+        'bar3': {'name': BAR_NAMES['bar3'], 'taps': 12},
+        'bar4': {'name': BAR_NAMES['bar4'], 'taps': 12},
     }
 
     # Максимум событий в истории одного крана (защита от неограниченного роста файла)
@@ -232,7 +239,17 @@ class TapsManager:
             self._save_data()
             return {'success': True, 'iiko_product_id': product_id}
 
-    def start_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str, iiko_product_id: Optional[str] = None) -> Dict:
+    @staticmethod
+    def _changed_since(tap, expected) -> bool:
+        """expected — состояние крана, которое видел бармен (status, current_beer,
+        started_at). None — проверка не нужна (бот, MCP, старые клиенты)."""
+        if expected is None:
+            return False
+        current = tap.to_dict()
+        return any(expected.get(key) != current.get(key) for key in EXPECTED_FIELDS if key in expected)
+
+    def start_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str,
+                  iiko_product_id: Optional[str] = None, expected: Optional[Dict] = None) -> Dict:
         """
         Подключить кегу (начать работу крана)
 
@@ -241,6 +258,7 @@ class TapsManager:
             tap_number: Номер крана
             beer_name: Название пива
             keg_id: ID кеги
+            expected: состояние крана, которое видел бармен; изменилось — отказ (conflict)
 
         Returns:
             Результат операции
@@ -255,6 +273,8 @@ class TapsManager:
                 return {'success': False, 'error': f'Кран {tap_number} не найден в баре {bar_id}'}
 
             tap = bar.taps[tap_number]
+            if self._changed_since(tap, expected):
+                return {'success': False, 'conflict': True, 'error': CONFLICT_MESSAGE}
 
             # Если кран уже работает, добавляем запись в историю
             if tap.status == TapStatus.ACTIVE:
@@ -292,13 +312,14 @@ class TapsManager:
                 'status': 'started'
             }
 
-    def stop_tap(self, bar_id: str, tap_number: int) -> Dict:
+    def stop_tap(self, bar_id: str, tap_number: int, expected: Optional[Dict] = None) -> Dict:
         """
         Остановить кран (кега закончилась)
 
         Args:
             bar_id: ID бара
             tap_number: Номер крана
+            expected: состояние крана, которое видел бармен; изменилось — отказ (conflict)
 
         Returns:
             Результат операции
@@ -313,6 +334,8 @@ class TapsManager:
                 return {'success': False, 'error': f'Кран {tap_number} не найден'}
 
             tap = bar.taps[tap_number]
+            if self._changed_since(tap, expected):
+                return {'success': False, 'conflict': True, 'error': CONFLICT_MESSAGE}
 
             if tap.status == TapStatus.EMPTY:
                 return {'success': False, 'error': 'Кран уже пустой'}
@@ -322,7 +345,7 @@ class TapsManager:
                 'action': ActionType.STOP.value,
                 'beer_name': tap.current_beer,
                 'iiko_product_id': tap.iiko_product_id,
-                    'keg_id': tap.current_keg_id
+                'keg_id': tap.current_keg_id
             }
             tap.history.append(event)
 
@@ -341,7 +364,8 @@ class TapsManager:
                 'status': 'stopped'
             }
 
-    def replace_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str, iiko_product_id: Optional[str] = None) -> Dict:
+    def replace_tap(self, bar_id: str, tap_number: int, beer_name: str, keg_id: str,
+                    iiko_product_id: Optional[str] = None, expected: Optional[Dict] = None) -> Dict:
         """
         Заменить кегу (смена сорта пива)
 
@@ -350,6 +374,7 @@ class TapsManager:
             tap_number: Номер крана
             beer_name: Название нового пива
             keg_id: ID новой кеги
+            expected: состояние крана, которое видел бармен; изменилось — отказ (conflict)
 
         Returns:
             Результат операции
@@ -364,6 +389,9 @@ class TapsManager:
                 return {'success': False, 'error': f'Кран {tap_number} не найден'}
 
             tap = bar.taps[tap_number]
+            if self._changed_since(tap, expected):
+                return {'success': False, 'conflict': True, 'error': CONFLICT_MESSAGE}
+            old_beer, old_keg, old_product = tap.current_beer, tap.current_keg_id, tap.iiko_product_id
 
             # Записываем старое пиво как остановленное
             if tap.current_beer:
@@ -389,7 +417,11 @@ class TapsManager:
                 'action': ActionType.REPLACE.value,
                 'beer_name': beer_name,
                 'iiko_product_id': iiko_product_id,
-                'keg_id': keg_id
+                'keg_id': keg_id,
+                # Что стояло до замены — чтобы история показывала «X → Y».
+                'old_beer': old_beer,
+                'old_keg_id': old_keg,
+                'old_iiko_product_id': old_product,
             }
             tap.history.append(event)
 
@@ -414,19 +446,22 @@ class TapsManager:
         Returns:
             История действий
         """
-        if bar_id not in self.bars:
-            return {'error': f'Бар {bar_id} не найден'}
+        with self._lock, file_lock(self._lock_path):
+            self._reload()  # другой воркер мог записать событие
+            if bar_id not in self.bars:
+                return {'error': f'Бар {bar_id} не найден'}
 
-        bar = self.bars[bar_id]
-        if tap_number not in bar.taps:
-            return {'error': f'Кран {tap_number} не найден'}
+            bar = self.bars[bar_id]
+            if tap_number not in bar.taps:
+                return {'error': f'Кран {tap_number} не найден'}
 
-        tap = bar.taps[tap_number]
-        return {
-            'bar_id': bar_id,
-            'tap_number': tap_number,
-            'history': list(reversed(tap.history))[-limit:]  # Новые записи в начале
-        }
+            tap = bar.taps[tap_number]
+            return {
+                'bar_id': bar_id,
+                'tap_number': tap_number,
+                # Новые записи в начале; до 2026-09-27 срез брал самые старые.
+                'history': deepcopy(list(reversed(tap.history))[:limit])
+            }
 
     def get_all_events(self, bar_id: Optional[str] = None, limit: int = 100) -> List[Dict]:
         """
@@ -441,20 +476,22 @@ class TapsManager:
         """
         events = []
 
-        bars_to_process = [bar_id] if bar_id else self.bars.keys()
+        with self._lock, file_lock(self._lock_path):
+            self._reload()  # другой воркер мог записать событие
+            bars_to_process = [bar_id] if bar_id else list(self.bars.keys())
 
-        for current_bar_id in bars_to_process:
-            if current_bar_id not in self.bars:
-                continue
+            for current_bar_id in bars_to_process:
+                if current_bar_id not in self.bars:
+                    continue
 
-            bar = self.bars[current_bar_id]
-            for tap in bar.taps.values():
-                for event in tap.history:
-                    event_copy = event.copy()
-                    event_copy['bar_id'] = current_bar_id
-                    event_copy['bar_name'] = bar.name
-                    event_copy['tap_number'] = tap.tap_number
-                    events.append(event_copy)
+                bar = self.bars[current_bar_id]
+                for tap in bar.taps.values():
+                    for event in tap.history:
+                        event_copy = event.copy()
+                        event_copy['bar_id'] = current_bar_id
+                        event_copy['bar_name'] = bar.name
+                        event_copy['tap_number'] = tap.tap_number
+                        events.append(event_copy)
 
         # Сортируем по времени (новые в начале)
         events.sort(key=lambda x: x['timestamp'], reverse=True)

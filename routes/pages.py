@@ -79,10 +79,17 @@ def discounts_redirect():
     return redirect('/guests#promo', code=301)
 
 
+def _tap_bars():
+    """Бары и число кранов — из TapsManager.BARS_CONFIG (один источник на все страницы кранов)."""
+    from core.taps_manager import TapsManager
+    return [{'id': bar_id, 'name': config['name'], 'taps': config['taps']}
+            for bar_id, config in TapsManager.BARS_CONFIG.items()]
+
+
 @pages_bp.route('/taps')
 def taps():
     """Главная страница управления кранами - выбор бара"""
-    return render_template('taps_main.html')
+    return render_template('taps_main.html', bars=_tap_bars())
 
 
 @pages_bp.route('/stocks')
@@ -142,21 +149,15 @@ def monthly_report_page():
 @pages_bp.route('/taps/<bar_id>')
 def taps_bar(bar_id):
     """Страница управления кранами конкретного бара"""
-    bars_config = {
-        'bar1': {'name': 'Большой пр. В.О', 'taps': 24},
-        'bar2': {'name': 'Лиговский', 'taps': 12},
-        'bar3': {'name': 'Кременчугская', 'taps': 12},
-        'bar4': {'name': 'Варшавская', 'taps': 12}
-    }
-
-    if bar_id not in bars_config:
+    bars = _tap_bars()
+    bar_info = next((bar for bar in bars if bar['id'] == bar_id), None)
+    if bar_info is None:
         return "Бар не найден", 404
-
-    bar_info = bars_config[bar_id]
     return render_template('taps_bar.html',
                          bar_id=bar_id,
                          bar_name=bar_info['name'],
-                         tap_count=bar_info['taps'])
+                         tap_count=bar_info['taps'],
+                         bars=bars)
 
 
 @pages_bp.route('/schedule')

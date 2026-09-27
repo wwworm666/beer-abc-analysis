@@ -55,11 +55,28 @@ def get_bar_taps(bar_id):
         print(f"[ERROR] Oshibka v /api/taps/{bar_id}: {e}")
         return jsonify({'error': str(e)}), 500
 
+def _expected(data):
+    """Состояние крана, которое видел бармен (страница /taps/<bar>). Нет — без проверки:
+    бот и MCP-инструменты вызывают эти эндпоинты без него."""
+    expected = data.get('expected')
+    if expected is None:
+        return None
+    if not isinstance(expected, dict):
+        raise ValueError('Обновите страницу и повторите')
+    return expected
+
+
+def _action_response(result):
+    if result['success']:
+        return jsonify(result)
+    return jsonify(result), 409 if result.get('conflict') else 400
+
+
 @taps_bp.route('/api/taps/<bar_id>/start', methods=['POST'])
 def start_tap(bar_id):
     """Подключить кегу (начать работу крана)"""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         tap_number = data.get('tap_number')
         beer_name = data.get('beer_name')
         keg_id = data.get('keg_id')
@@ -74,81 +91,60 @@ def start_tap(bar_id):
 
         try:
             product_id = selected_product(data)
+            expected = _expected(data)
         except ValueError as error:
             return jsonify({'success': False, 'error': str(error)}), 400
-        result = taps_manager.start_tap(bar_id, int(tap_number), beer_name, keg_id,
-                                          iiko_product_id=product_id)
-
-        if result['success']:
-            return jsonify(result)
-        else:
-            return jsonify(result), 400
+        return _action_response(taps_manager.start_tap(
+            bar_id, int(tap_number), beer_name, keg_id, iiko_product_id=product_id, expected=expected))
     except Exception as e:
-        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/start: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"[ERROR] /api/taps/{bar_id}/start: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Не удалось подключить кегу'}), 500
 
 @taps_bp.route('/api/taps/<bar_id>/stop', methods=['POST'])
 def stop_tap(bar_id):
     """Остановить кран (кега закончилась)"""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         tap_number = data.get('tap_number')
 
         if not tap_number:
             return jsonify({'error': 'Требуется: tap_number'}), 400
-
-        result = taps_manager.stop_tap(bar_id, int(tap_number))
-
-        if result['success']:
-            return jsonify(result)
-        else:
-            return jsonify(result), 400
+        try:
+            expected = _expected(data)
+        except ValueError as error:
+            return jsonify({'success': False, 'error': str(error)}), 400
+        return _action_response(taps_manager.stop_tap(bar_id, int(tap_number), expected=expected))
     except Exception as e:
-        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/stop: {e}")
-        return jsonify({'error': str(e)}), 500
+        print(f"[ERROR] /api/taps/{bar_id}/stop: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Не удалось остановить кран'}), 500
 
 @taps_bp.route('/api/taps/<bar_id>/replace', methods=['POST'])
 def replace_tap(bar_id):
     """Заменить кегу (смена сорта пива)"""
     try:
-        print(f"[DEBUG] /api/taps/{bar_id}/replace called")
-        data = request.json
-        print(f"[DEBUG] Request data: {data}")
-
+        data = request.get_json(silent=True) or {}
         tap_number = data.get('tap_number')
         beer_name = data.get('beer_name')
         keg_id = data.get('keg_id')
 
-        print(f"[DEBUG] tap_number={tap_number}, beer_name={beer_name}, keg_id={keg_id}")
-
         # Проверяем только обязательные поля (keg_id может быть пустым, тогда создастся AUTO)
         if not tap_number or not beer_name:
-            print(f"[ERROR] Missing required fields")
             return jsonify({'error': 'Требуются: tap_number, beer_name'}), 400
 
         # Если keg_id пустой, генерируем автоматический
         if not keg_id:
             keg_id = f'AUTO-{int(time.time() * 1000)}'
-            print(f"[DEBUG] Generated auto keg_id: {keg_id}")
 
-        print(f"[DEBUG] Calling taps_manager.replace_tap...")
         try:
             product_id = selected_product(data)
+            expected = _expected(data)
         except ValueError as error:
             return jsonify({'success': False, 'error': str(error)}), 400
-        result = taps_manager.replace_tap(bar_id, int(tap_number), beer_name, keg_id,
-                                          iiko_product_id=product_id)
-        print(f"[DEBUG] Result: {result}")
-
-        if result['success']:
-            return jsonify(result)
-        else:
-            return jsonify(result), 400
+        return _action_response(taps_manager.replace_tap(
+            bar_id, int(tap_number), beer_name, keg_id, iiko_product_id=product_id, expected=expected))
     except Exception as e:
-        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/replace: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        print(f"[ERROR] /api/taps/{bar_id}/replace: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Не удалось заменить кегу'}), 500
 
 @taps_bp.route('/api/taps/<bar_id>/<int:tap_number>/history', methods=['GET'])
 def get_tap_history(bar_id, tap_number):
@@ -515,46 +511,58 @@ def kitchen_yml():
 
 @taps_bp.route('/api/taps/<bar_id>/stats', methods=['GET'])
 def get_bar_stats(bar_id):
-    """Получить краткую статистику для карточки бара"""
+    """Краткая статистика для карточки бара на /taps.
+
+    active / empty — краны сейчас; unverified — активные краны без проверенной
+    карточки сорта (в фид Яндекса не попадают); activity_7d — доля кран-дней
+    с подключённой кегой за 7 дней, включая сегодня (формула — TapsManager.tap_activity_by_tap).
+    Ошибка — 503, а не выдуманные нули.
+    """
     try:
-        result = taps_manager.get_bar_taps(bar_id)
+        registry = load_registry()
+        result = taps_manager.get_bar_taps(bar_id, product_catalog(registry))
         if 'error' in result:
-            return jsonify({'active': 0, 'empty': 12, 'activity_7d': 0}), 200
+            return jsonify({'error': result['error']}), 404
 
         taps = result.get('taps', [])
-        active = len([t for t in taps if t.get('status') == 'active'])
-        total = result.get('total_taps', 12)
-        empty = total - len([t for t in taps if t.get('status') in ['active', 'replacing']])
+        active = [t for t in taps if t.get('status') == 'active']
+        total = result.get('total_taps', len(taps))
+        unverified = sum(1 for tap in active if tap.get('current_beer')
+                         and tap_details(tap, registry)['mapping_status'] != 'verified')
 
-        # Рассчитываем активность за последние 7 дней
         from datetime import datetime, timedelta
         today = datetime.now()
-        week_ago = today - timedelta(days=7)
-        date_from = week_ago.strftime('%Y-%m-%d')
+        date_from = (today - timedelta(days=6)).strftime('%Y-%m-%d')
         date_to = today.strftime('%Y-%m-%d')
-
         activity_7d = taps_manager.calculate_tap_activity_for_period(bar_id, date_from, date_to)
 
         return jsonify({
-            'active': active,
-            'empty': empty,
+            'active': len(active),
+            'empty': total - len(active),
             'total': total,
-            'activity_7d': round(activity_7d, 1)  # Процент активности за последние 7 дней
+            'unverified': unverified,
+            'activity_7d': round(activity_7d, 1),
         })
     except Exception as e:
-        print(f"[ERROR] Oshibka v /api/taps/{bar_id}/stats: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'active': 0, 'empty': 12, 'activity_7d': 0}), 200
+        print(f"[ERROR] /api/taps/{bar_id}/stats: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Не удалось посчитать краны'}), 503
 
 @taps_bp.route('/api/beers/draft', methods=['GET'])
 def get_draft_beers():
+    """Кеги для выбора на странице кранов. У проверенных — название сорта и
+    пивоварня из карточки Untappd, чтобы искать можно было и по «Festhaus»,
+    и по «ФестХаус»."""
     try:
         registry = load_registry()
         catalog = product_catalog(registry)
-        beers = [{'id': row['id'], 'name': row['name'], 'num': row['num'],
-                  'mapped': registry['products'].get(row['id'], {}).get('status') == 'verified'}
-                 for row in catalog.values()]
+        beers = []
+        for row in catalog.values():
+            details = tap_details({'iiko_product_id': row['id'], 'current_beer': row['name']}, registry)
+            mapped = details['mapping_status'] == 'verified'
+            beers.append({'id': row['id'], 'name': row['name'], 'num': row['num'], 'mapped': mapped,
+                          'beer_name': details['beer_name'] if mapped else None,
+                          'brewery': details['brewery'] if mapped else None,
+                          'style': details['style'] if mapped else None})
         return jsonify({'beers': sorted(beers, key=lambda row: (row['name'], row['id']))})
     except Exception as error:
         print(f'[ERROR] Draft catalog: {error}')
