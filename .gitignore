@@ -45,6 +45,9 @@ data/guest_reviews.json
 # Контент-план раздела «Гости» и его фото/видео (на проде живут на /kultura)
 data/content_plan.json
 data/content_media/
+# Фиды Яндекса: правки позиций и снимок пива (на проде живут на /kultura)
+data/yml_*.json
+data/yml_*.json.*
 taps_data*.json
 
 # Бэкапы

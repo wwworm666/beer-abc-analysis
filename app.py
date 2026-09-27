@@ -1,6 +1,7 @@
 from flask import Flask, send_from_directory
 from routes import register_blueprints
 from core.auth_guard import init_auth
+import os
 import subprocess
 from datetime import datetime
 import extensions
@@ -53,50 +54,60 @@ def serve_manifest():
     return send_from_directory('static', 'manifest.json')
 
 
-# Запустить ежедневный авторефреш ЧЗ (если REMOTE_PASS настроен)
-from core.chz_scheduler import start_scheduler
-start_scheduler()
+def _start_background_jobs():
+    # Запустить ежедневный авторефреш ЧЗ (если REMOTE_PASS настроен)
+    from core.chz_scheduler import start_scheduler
+    start_scheduler()
 
-# Запустить ежедневную проверку открытых смен (если TELEGRAM_OPEN_CHECK_BOT_TOKEN настроен)
-from core.open_check_scheduler import start_scheduler as start_open_check_scheduler
-start_open_check_scheduler()
+    # Запустить ежедневную проверку открытых смен (если TELEGRAM_OPEN_CHECK_BOT_TOKEN настроен)
+    from core.open_check_scheduler import start_scheduler as start_open_check_scheduler
+    start_open_check_scheduler()
 
-# Long-polling меню open-check бота: webhook от Telegram не доставляется
-# из-за магистральных блокировок, апдейты забираем сами через getUpdates
-from core.open_check_polling import start_polling as start_open_check_polling
-start_open_check_polling()
+    # Long-polling меню open-check бота: webhook от Telegram не доставляется
+    # из-за магистральных блокировок, апдейты забираем сами через getUpdates
+    from core.open_check_polling import start_polling as start_open_check_polling
+    start_open_check_polling()
 
-# Таплист-бот: тот же long-polling. Отзыв токена сбрасывает webhook, а входящие
-# от Telegram до сервера не доходят (ТСПУ) — команды забираем сами.
-from core.taplist_polling import start_polling as start_taplist_polling
-start_taplist_polling()
+    # Таплист-бот: тот же long-polling. Отзыв токена сбрасывает webhook, а входящие
+    # от Telegram до сервера не доходят (ТСПУ) — команды забираем сами.
+    from core.taplist_polling import start_polling as start_taplist_polling
+    start_taplist_polling()
 
-# Фиды Яндекса: снимок кухни и пива каждый день в 05:00 МСК.
-from core.yml_scheduler import start_scheduler as start_yml_scheduler
-start_yml_scheduler()
+    # Фиды Яндекса: снимок пива каждый день в 05:00 МСК.
+    from core.yml_scheduler import start_scheduler as start_yml_scheduler
+    start_yml_scheduler()
 
-# Запустить фоновый пересчёт витрины «Месячный отчёт» (ночной + стартовый бэкфилл)
-from core.monthly_report_scheduler import start_scheduler as start_monthly_report_scheduler
-start_monthly_report_scheduler()
+    # Запустить фоновый пересчёт витрины «Месячный отчёт» (ночной + стартовый бэкфилл)
+    from core.monthly_report_scheduler import start_scheduler as start_monthly_report_scheduler
+    start_monthly_report_scheduler()
 
-# Запустить фоновый опрос термометров по барам (если заданы TUYA_ACCESS_ID/SECRET)
-from core.temperature_scheduler import start_scheduler as start_temperature_scheduler
-start_temperature_scheduler()
+    # Запустить фоновый опрос термометров по барам (если заданы TUYA_ACCESS_ID/SECRET)
+    from core.temperature_scheduler import start_scheduler as start_temperature_scheduler
+    start_temperature_scheduler()
 
-# Запустить фоновую синхронизацию витрины «Аналитика гостей» (ночной синк + бэкфилл)
-from core.guest_sync_scheduler import start_scheduler as start_guest_sync_scheduler
-start_guest_sync_scheduler()
+    # Запустить фоновую синхронизацию витрины «Аналитика гостей» (ночной синк + бэкфилл)
+    from core.guest_sync_scheduler import start_scheduler as start_guest_sync_scheduler
+    start_guest_sync_scheduler()
 
-# Запустить ночную выгрузку расчёта ЗП в Google Таблицу бухгалтерии
-# (04:00; молча не стартует, если не задан SALARY_SHEET_ID или нет ключа)
-from core.salary_scheduler import start_scheduler as start_salary_sync_scheduler
-start_salary_sync_scheduler(app)
+    # Запустить ночную выгрузку расчёта ЗП в Google Таблицу бухгалтерии
+    # (04:00; молча не стартует, если не задан SALARY_SHEET_ID или нет ключа)
+    from core.salary_scheduler import start_scheduler as start_salary_sync_scheduler
+    start_salary_sync_scheduler(app)
 
-# Запустить ночной пересчёт снимка личного кабинета /me (05:40 наивного времени
-# = 08:40 МСК, последним в ночной цепочке: те же кассовые смены и OLAP, что у
-# выгрузки ЗП). Молча не стартует без кредов iiko.
-from core.me_snapshot_scheduler import start_scheduler as start_me_snapshot_scheduler
-start_me_snapshot_scheduler(app)
+    # Запустить ночной пересчёт снимка личного кабинета /me (05:40 наивного времени
+    # = 08:40 МСК, последним в ночной цепочке: те же кассовые смены и OLAP, что у
+    # выгрузки ЗП). Молча не стартует без кредов iiko.
+    from core.me_snapshot_scheduler import start_scheduler as start_me_snapshot_scheduler
+    start_me_snapshot_scheduler(app)
+
+
+# BEER_SCHEDULERS=0 — импорт app без фоновых потоков (локальные скрипты, проверки).
+# Иначе импорт запускает рассылки с боевыми токенами из .env: 2026-09-26 локальный
+# скрипт так запустил догоняющую проверку open-check в чат персонала.
+if os.environ.get('BEER_SCHEDULERS', '1').strip() != '0':
+    _start_background_jobs()
+else:
+    print('[APP] BEER_SCHEDULERS=0: фоновые задачи не запущены')
 
 
 if __name__ == '__main__':

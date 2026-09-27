@@ -12,7 +12,7 @@ from core.untappd_registry import load_registry
 from core.taplist import product_catalog, tap_details, full_taplist, BAR_NAMES
 from core.taplist_pricing import enrich_prices
 from core.kitchen_menu import render_kitchen_menu
-from core.taplist_yml import SHOP_URL, build_yml, offers_for
+from core.taplist_yml import SHOP_URL, build_yml
 from core.yml_overrides import load_overrides, merge_offers
 
 taps_bp = Blueprint('taps', __name__)
@@ -461,7 +461,9 @@ def export_taplist_full():
 
 @taps_bp.route('/feeds/taplist.yml', methods=['GET'])
 def taplist_yml():
-    """Публичный YML текущего таплиста для Яндекс Карт. bar=bar1…bar4 или все бары."""
+    """Публичный YML. bar=bar1…bar4 — тот же файл, что /feeds/kitchen/<bar>
+    (кухня и пиво). Без bar — пиво всех баров из снимка, разделы = бары;
+    в iiko на каждый анонимный запрос не ходит."""
     bar_id = request.args.get('bar') or request.args.get('bar_id') or None
     if bar_id is not None and bar_id not in BAR_NAMES:
         return jsonify({'error': 'Бар не найден'}), 404
@@ -470,13 +472,14 @@ def taplist_yml():
             from routes.yml_feeds import render_bar_feed
             body = render_bar_feed(bar_id)
         else:
-            from core.yml_feeds import overrides_for_bar
-            rows = load_reviewed_taplist(None, True)
+            from core.yml_feeds import FEED_ORDER, overrides_for_bar
+            from routes.yml_feeds import bar_state, ensure_overrides_schema
+            ensure_overrides_schema()
             stored = load_overrides()
-            items = [
-                merge_offers([item], overrides_for_bar(stored, item.get('bar_id')))[0]
-                for item in offers_for(rows)
-            ]
+            items = []
+            for bar in FEED_ORDER:
+                beer, _, _ = bar_state(bar)
+                items.extend(merge_offers(beer, overrides_for_bar(stored, bar)))
             body = build_yml(items=items)
     except PriceUnavailable:
         return jsonify({'error': 'Не удалось получить актуальный прайс iiko'}), 503
@@ -493,8 +496,18 @@ def taplist_yml():
 
 @taps_bp.route('/feeds/kitchen.yml', methods=['GET'])
 def kitchen_yml():
-    """Публичный YML кухонного меню для Яндекс Карт. Фото отдаёт сам сайт."""
-    response = make_response(render_kitchen_menu(SHOP_URL + '/'))
+    """Старый публичный YML кухни (исходный файл меню). Общие правки кухни со
+    страницы /yandex применяются: скрытое блюдо не попадает и сюда. Фото отдаёт сам сайт."""
+    from core.kitchen_menu import apply_overrides
+    from core.yml_feeds import KITCHEN_SCOPE
+    from routes.yml_feeds import ensure_overrides_schema
+    try:
+        ensure_overrides_schema()
+        common = load_overrides().get(KITCHEN_SCOPE) or {}
+    except Exception as error:
+        print(f'[ERROR] Kitchen YML overrides: {type(error).__name__}: {error}')
+        return jsonify({'error': 'Не удалось собрать фид'}), 503
+    response = make_response(apply_overrides(render_kitchen_menu(SHOP_URL + '/'), common))
     response.headers['Content-Type'] = 'application/xml; charset=utf-8'
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response

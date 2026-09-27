@@ -50,6 +50,7 @@
 | `expiration_bp` | `/api` | Shelf-Life Cockpit (board, recommend) | [routes/expiration.py](../routes/expiration.py) |
 | `explorer_bp` | `/`, `/api` | Конструктор отчётов (pivot iiko) | [routes/explorer.py](../routes/explorer.py) |
 | `open_check_bp` | `/api`, `/telegram/openbot` | ручной run + webhook open-check бота | [routes/open_check.py](../routes/open_check.py) |
+| `yml_bp` | `/yandex`, `/api/yml`, `/feeds/kitchen/<bar>` | фиды Яндекса: страница правок, API, публичный YML бара ([yandex-feeds.md](yandex-feeds.md)) | [routes/yml_feeds.py](../routes/yml_feeds.py) |
 
 ### Backend: core/ (33 модуля)
 
@@ -84,6 +85,8 @@
 #### Шедулеры и фоновые процессы
 - [chz_scheduler.py](../core/chz_scheduler.py) — daemon-thread, авторефреш ЧЗ-кэша в 03:00 МСК + atomic lock-файл
 - [open_check_scheduler.py](../core/open_check_scheduler.py) — daemon-thread, проверка открытых смен в 14:59 МСК + atomic lock-файл
+- [yml_scheduler.py](../core/yml_scheduler.py) — daemon-thread, снимок пива для фидов Яндекса в 05:00 МСК (и по кнопке), повторы и тревога ([yandex-feeds.md](yandex-feeds.md))
+- Все фоновые задачи запускаются при импорте [app.py](../app.py); `BEER_SCHEDULERS=0` отключает их (локальные скрипты и проверки — иначе рассылки уйдут с боевыми токенами из `.env`)
 - [open_check_bot.py](../core/open_check_bot.py) — логика проверки + форматирование сообщений
 - [open_check_telegram.py](../core/open_check_telegram.py) — Telegram Bot API (sync через `requests`), меню подписки (кнопка) + команды `/start` `/status`
 - [open_check_subscribers.py](../core/open_check_subscribers.py) — хранилище самоподписавшихся чатов (`open_check_subscribers.json`, единый список + portalocker)

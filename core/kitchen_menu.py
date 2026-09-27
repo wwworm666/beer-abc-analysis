@@ -74,21 +74,10 @@ def render_kitchen_menu(public_base, source=None, photo_dir=None):
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + body
 
 
-def render_for_bar(public_base, bar_id, overrides=None, source=None, photo_dir=None):
-    """Тот же каталог, в названии магазина — конкретная точка, плюс её правки."""
-    from core.taplist import BAR_NAMES
-    xml = render_kitchen_menu(public_base, source=source, photo_dir=photo_dir)
-    root = ET.fromstring(xml)
-    name = root.find('./shop/name')
-    if name is not None and bar_id in BAR_NAMES:
-        name.text = f'Культура, {BAR_NAMES[bar_id]}'
-    body = ET.tostring(root, encoding='unicode')
-    xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + body
-    return apply_overrides(xml, overrides or {})
-
-
 def apply_overrides(xml, overrides):
-    """Скрыть позицию или подменить имя, цену и описание. Остальной файл не трогаем."""
+    """Скрыть позицию или подменить имя, цену и описание. Остальной файл не трогаем.
+
+    Используется старой ссылкой /feeds/kitchen.yml с общими правками кухни."""
     overrides = overrides or {}
     root = ET.fromstring(xml)
     box = root.find('./shop/offers')

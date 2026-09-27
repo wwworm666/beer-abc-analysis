@@ -91,7 +91,8 @@ def regular_price(records, product, day):
         # Owner confirmed the regular price for every bar; categories never override it.
         if price != price.quantize(Decimal('0.01')):
             return None, 'Цена точнее копейки: нужна проверка', None
-        return price, None, {'kind': 'iiko_price_order', 'document_id': item.get('documentId')}
+        return price, None, {'kind': 'iiko_price_order', 'document_id': item.get('documentId'),
+                             'date_from': item.get('dateFrom')}
     if product.get('defaultIncludedInMenu') is not True:
         return None, 'Порция не включена в меню', None
     price = decimal(product.get('defaultSalePrice'))
@@ -99,7 +100,7 @@ def regular_price(records, product, day):
         return None, 'Цена в iiko не задана', None
     if price != price.quantize(Decimal('0.01')):
         return None, 'Цена точнее копейки: нужна проверка', None
-    return price, None, {'kind': 'iiko_default_sale_price', 'document_id': None}
+    return price, None, {'kind': 'iiko_default_sale_price', 'document_id': None, 'date_from': None}
 
 
 def enrich_prices(rows, registry, sources):

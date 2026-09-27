@@ -1,4 +1,7 @@
-"""YML-фид таплиста: цена, дедуп, экранирование. Сети нет."""
+"""YML-фид таплиста: цена, дедуп, экранирование. Сети нет.
+
+Подробные правила выбора цены, правки и снимок — tests/test_yml_feeds.py.
+"""
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -13,16 +16,20 @@ ROW = {
     'bar_id': 'bar2',
     'bar': 'Лиговский',
     'tap_number': 4,
+    'iiko_product_id': 'keg-hell-bock',
+    'mapping_status': 'verified',
+    'untappd_beer_id': 777,
     'beer_name': 'Hell & Bock',
     'brewery': 'Zavod',
     'style': 'Helles',
     'abv': 4.8,
     'ibu': 18,
     'description': 'Светлое <b>пиво</b>',
+    'description_source': 'untappd',
     'photo_url': 'https://untappd.example/photo.jpg',
     'servings': [
-        {'portion_liters': '0.5', 'price_rub': '310.00'},
-        {'portion_liters': '0.3', 'price_rub': '220'},
+        {'portion_liters': '0.5', 'price_rub': '310.00', 'dish_name': 'Хелл и Бок (0,5)'},
+        {'portion_liters': '0.3', 'price_rub': '220', 'dish_name': 'Хелл и Бок (0,3)'},
     ],
 }
 
@@ -46,8 +53,10 @@ def test_feed_lists_priced_portions_with_required_fields():
     assert [offer.findtext('price') for offer in offers] == ['310.00']
     assert '0,3' not in xml
     half = offers[0]
+    assert half.get('id') == 'bar2-u777-p05'
     assert half.get('available') == 'true'
-    assert half.findtext('currencyId') == 'RUR'
+    assert half.findtext('currencyId') == 'RUB'
+    assert half.find('url') is None
     assert half.findtext('categoryId') == '2'
     assert half.findtext('name') == 'Zavod Hell & Bock, 0,5 л'
     assert half.findtext('vendor') == 'Zavod'
@@ -59,17 +68,18 @@ def test_feed_lists_priced_portions_with_required_fields():
 def test_unpriced_duplicate_and_http_photo_are_dropped():
     second = dict(ROW, tap_number=9)
     bare = {
-        'bar_id': 'bar1', 'tap_number': 1, 'beer_name': 'Без цены',
-        'photo_url': 'http://insecure.example/a.jpg', 'servings': [],
+        'bar_id': 'bar1', 'tap_number': 1, 'beer_name': 'Без цены', 'mapping_status': 'verified',
+        'untappd_beer_id': 5, 'photo_url': 'http://insecure.example/a.jpg', 'servings': [],
     }
     items = offers_for([ROW, second, bare])
     assert len(items) == 1
+    assert items[0]['taps'] == [4, 9]
     assert all(item['picture'].startswith('https://') for item in items)
     assert bare['beer_name'] not in {item['name'] for item in items}
 
 
 def test_two_bars_become_two_categories():
-    other = dict(ROW, bar_id='bar4', beer_name='Другое', tap_number=1)
+    other = dict(ROW, bar_id='bar4', beer_name='Другое', tap_number=1, untappd_beer_id=778)
     xml = build_yml([ROW, other], when='2026-09-25T12:00:00+03:00')
     names = [node.text for node in ET.fromstring(xml).find('shop/categories')]
     assert names == ['Лиговский', 'Варшавская']
@@ -99,28 +109,31 @@ def test_page_lists_one_combined_feed_per_bar():
             {'id': 'nuts', 'name': 'Арахис', 'price': '250', 'category_id': '5'},
             {'id': 'brownie', 'name': 'Брауни', 'price': '490', 'category_id': '7'},
         ],
-        [{'id': 'bar2-tap1-p05', 'name': 'Стаут, 0,5 л', 'price': '290.00', 'category_id': '2'}],
+        [{'id': 'bar2-u1-p05', 'name': 'Стаут, 0,5 л', 'price': '290.00', 'category_id': '2'}],
     )
     assert [item['category_name'] for item in combined] == [
-        'Пиво', 'Горячие закуски', 'Пицца', 'Горячее мясо', 'Закуски', 'Десерты',
+        'Разливное', 'Горячие закуски', 'Пицца', 'Горячее мясо', 'Закуски', 'Десерты',
     ]
     assert [item['id'] for item in combined] == [
-        'bar2-tap1-p05', 'fries', 'pizza', 'sausage', 'nuts', 'brownie',
+        'bar2-u1-p05', 'fries', 'pizza', 'sausage', 'nuts', 'brownie',
     ]
-    stored = {'kitchen-bar2': {'ttk-s02': {'hidden': True}}, 'bar2': {'ttk-s02': {'name': 'Картофель'}}}
+    stored = {'kitchen': {'ttk-s02': {'hidden': True}}, 'kitchen-bar2': {'ttk-s03': {'hidden': True}},
+              'bar2': {'ttk-s02': {'name': 'Картофель'}}}
     assert overrides_for_bar(stored, 'bar2')['ttk-s02']['name'] == 'Картофель'
+    assert overrides_for_bar(stored, 'bar1')['ttk-s02'] == {'hidden': True}
+    assert 'ttk-s03' not in overrides_for_bar(stored, 'bar1')
 
 
 def test_override_roundtrip_keeps_feeds_separate(tmp_path):
     path = tmp_path / 'yml_overrides.json'
-    save_overrides('kitchen-bar1', {'ttk-s02': {'hidden': True, 'name': 'Фри'}}, path)
-    save_overrides('kitchen-bar2', {'ttk-s02': {'price': '10'}}, path)
+    save_overrides('bar1', {'ttk-s02': {'hidden': True, 'name': 'Фри'}}, path)
+    save_overrides('bar2', {'ttk-s02': {'price': '10'}}, path)
     from core.yml_overrides import load_overrides
     stored = load_overrides(path)
-    assert stored['kitchen-bar1']['ttk-s02']['hidden'] is True
-    assert stored['kitchen-bar1']['ttk-s02']['name'] == 'Фри'
-    assert stored['kitchen-bar2']['ttk-s02']['price'] == '10.00'
-    assert 'name' not in stored['kitchen-bar2']['ttk-s02']
+    assert stored['bar1']['ttk-s02']['hidden'] is True
+    assert stored['bar1']['ttk-s02']['name'] == 'Фри'
+    assert stored['bar2']['ttk-s02']['price'] == '10.00'
+    assert 'name' not in stored['bar2']['ttk-s02']
     try:
         normalize_override({'price': 'нет'})
     except ValueError:
@@ -129,7 +142,7 @@ def test_override_roundtrip_keeps_feeds_separate(tmp_path):
 
 
 def test_hidden_and_renamed_offer_changes_the_file():
-    other = dict(ROW, beer_name='Другое', tap_number=2)
+    other = dict(ROW, beer_name='Другое', tap_number=2, untappd_beer_id=779)
     items = offers_for([ROW, other])
     items[0]['hidden'] = True
     items[1]['name'] = 'Своё имя, 0,4 л'
