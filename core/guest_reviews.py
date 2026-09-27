@@ -151,7 +151,8 @@ round(4.35, 1) в Python даёт 4.3 из-за двоичного предст�
 источника пропал -> new, прежний ответ остаётся для истории. Отзыв пропал из
 полного прохода (complete) -> gone_at, запись НЕ удаляется; вернулся ->
 gone_at снимается. Дополнительные поля загруженных: photos, author_avatar,
-public_rating, gone_at.
+public_rating, gone_at, tg_notified_at (когда новый отзыв ушёл подписчикам бота —
+core/review_notify.py; ставит mark_notified).
 
 Слой календаря (daily): за месяц по дням created_at —
 {count, rated, avg}, avg — как avg_rating; дни без отзывов не выводятся.
@@ -563,7 +564,7 @@ def _check_record(rid, rec) -> dict:
                          ('external_id', None), ('origin', 'manual'), ('material_id', None),
                          ('added_at', None), ('added_by', None), ('updated_at', None),
                          ('updated_by', None), ('photos', []), ('author_avatar', None),
-                         ('public_rating', None), ('gone_at', None)):
+                         ('public_rating', None), ('gone_at', None), ('tg_notified_at', None)):
         fixed.setdefault(key, default)
     return fixed
 
@@ -1058,6 +1059,25 @@ class ReviewStore:
         return self._write(op)
 
     # ----- загрузка из источника ------------------------------------------
+
+    def mark_notified(self, review_ids: Iterable[str], stamp: str) -> int:
+        """Отметить отзывы отправленными в Telegram (tg_notified_at = stamp); одна запись файла.
+
+        Уже отмеченные и неизвестные id пропускаются. Ответ — сколько отмечено.
+        updated_at не трогается: отправка уведомления — не правка отзыва.
+        """
+        ids = set(review_ids or [])
+        stamp = fmt_dt(parse_dt(stamp, 'Время отправки'))
+
+        def op(reviews, now):
+            n = 0
+            for rid in ids:
+                rec = reviews.get(rid)
+                if rec is not None and not rec.get('tg_notified_at'):
+                    rec['tg_notified_at'] = stamp
+                    n += 1
+            return n
+        return self._write(op)
 
     IMPORT_FIELDS = ('rating', 'text', 'author', 'photos', 'author_avatar', 'public_rating')
 

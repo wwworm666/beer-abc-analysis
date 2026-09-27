@@ -6,6 +6,9 @@
 утром, до начала смен — ночные отзывы уже в списке.
     YANDEX_REVIEWS_SYNC_HOUR / _MINUTE   время ежедневной сверки, МСК (8 / 30)
     YANDEX_REVIEWS_SYNC_ENABLED          0 — не запускать (по умолчанию 1)
+    YANDEX_REVIEWS_NOTIFY                0 — не слать новые отзывы в бот
+                                         kulturaopenclosed (по умолчанию 1,
+                                         core/review_notify.py)
 
 При старте приложения — разовая сверка, если успешной не было больше
 STARTUP_STALE_HOURS: так первая загрузка истории происходит сразу после
@@ -95,8 +98,13 @@ def needs_startup_sync(state: dict, now: datetime) -> bool:
 
 def _run(tag: str) -> None:
     from core.yandex_reviews_sync import sync_all
-    print(f'[YANDEX-REVIEWS-SCHED] сверка ({tag})')
-    sync_all()
+    notifier = None
+    if os.environ.get('YANDEX_REVIEWS_NOTIFY', '1').strip() != '0':
+        from core.review_notify import notify_new_reviews
+        notifier = notify_new_reviews
+    print(f'[YANDEX-REVIEWS-SCHED] сверка ({tag}), рассылка новых отзывов: '
+          f'{"да" if notifier else "нет"}')
+    sync_all(notifier=notifier)
 
 
 def _daily_loop():

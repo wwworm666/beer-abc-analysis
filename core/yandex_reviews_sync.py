@@ -114,13 +114,21 @@ def _scrub(text, secrets) -> str:
 
 
 def sync_all(*, store=None, client_factory: Optional[Callable] = None,
-             clock: Callable[[], datetime] = msk_time.now, path: Optional[str] = None) -> dict:
+             clock: Callable[[], datetime] = msk_time.now, path: Optional[str] = None,
+             notifier: Optional[Callable] = None) -> dict:
     """Одна полная сверка всех баров. Возвращает записанное состояние.
 
     client_factory(session_id, session_id2) -> клиент с branches() и
     iter_review_pages() (по умолчанию YandexBusinessClient); store — хранилище
     отзывов (по умолчанию общий ReviewStore). Не бросает исключений: всё
     уходит в state.status / state.error.
+
+    notifier(store, state, now_str) -> сводка — рассылка новых отзывов после
+    загрузки (core/review_notify.notify_new_reviews). По умолчанию None — НЕ
+    шлётся ничего: настоящий отправитель передаёт только планировщик, чтобы
+    тесты, пробные прогоны и ручной вызов не писали в Telegram. Вызывается
+    при итоге ok / partial (что-то загружено); его сбой статус сверки не
+    меняет, а пишется в state.notify.error.
     """
     path = path or state_path()
     lock_path = path + '.lock'
@@ -132,12 +140,12 @@ def sync_all(*, store=None, client_factory: Optional[Callable] = None,
         print('[YANDEX-REVIEWS] сверка уже идёт в другом процессе — пропуск')
         return {'skipped': 'already_running'}
     try:
-        return _sync_locked(store, client_factory, clock, path)
+        return _sync_locked(store, client_factory, clock, path, notifier)
     finally:
         lock.release()
 
 
-def _sync_locked(store, client_factory, clock, path) -> dict:
+def _sync_locked(store, client_factory, clock, path, notifier=None) -> dict:
     def clock_now():
         n = clock()
         return n.astimezone(msk_time.MOSCOW_TZ).replace(tzinfo=None) if n.tzinfo else n
@@ -218,6 +226,12 @@ def _sync_locked(store, client_factory, clock, path) -> dict:
             except (YandexBusinessError, ValueError, OSError, RuntimeError) as e:
                 b_state['error'] = _scrub(e, secrets)
                 failed.append(bar)
+        if notifier is not None:
+            try:
+                state['notify'] = notifier(store, state, _now_str(clock_now()))
+            except Exception as e:  # noqa: BLE001 — рассылка не должна ломать итог сверки
+                state['notify'] = {'error': _scrub(repr(e), secrets)}
+                print(f'[YANDEX-REVIEWS] рассылка новых отзывов: {state["notify"]["error"]}')
         if failed:
             return finish('partial', 'Не сверены: ' + ', '.join(failed))
         return finish('ok')
