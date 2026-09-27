@@ -33,6 +33,16 @@ def packaging():
     return render_template('packaging.html', bars=BARS, app_version=APP_VERSION)
 
 
+@pages_bp.route('/kitchen')
+def kitchen():
+    """Кухня — ABC/XYZ и потери: клон «Фасовки» про еду (группа iiko «ЕДА»).
+
+    Стили и разметка общие с /packaging (docs/kitchen.md): шаблон подключает
+    packaging.css, а свой kitchen.js рисует ответ /api/kitchen.
+    """
+    return render_template('kitchen.html', bars=BARS, app_version=APP_VERSION)
+
+
 @pages_bp.route('/draft')
 def draft():
     """Розлив — ABC/XYZ и потери (до 2026-09-19 «Анализ проливов»): кеги, бармены

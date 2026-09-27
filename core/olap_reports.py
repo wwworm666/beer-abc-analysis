@@ -12,6 +12,8 @@ from core.iiko_api import IikoAPI
 # литерал живёт здесь один раз, а не рассыпан по построителям.
 TOP_PARENT_DRAFT = "Напитки Розлив"
 TOP_PARENT_BOTTLES = "Напитки Фасовка"
+# Кухня — строго группа «ЕДА», как на дашборде (core/dashboard_analysis.py).
+TOP_PARENT_KITCHEN = "ЕДА"
 
 
 class OlapReports:
@@ -293,6 +295,70 @@ class OlapReports:
         request_body = self._build_olap_request(date_from, date_to, bar_name,
                                                 include_dish_id=True, lean=True)
         return self._post_olap_interactive(request_body, 'Prodazhi fasovki')
+
+    def get_kitchen_page_sales_report(self, date_from, date_to, bar_name=None):
+        """Продажи кухни (группа «ЕДА») — для страницы /kitchen.
+
+        Не путать с get_kitchen_sales_report ниже: тот (для отладочных скриптов
+        дашборда) тянет «ЕДА» вместе с «Прочим» и без групп блюд.
+
+        Тот же облегчённый отчёт, что у фасовки (get_packaging_sales_report), с
+        двумя отличиями в группировке:
+        - DishGroup.SecondParent рядом с ThirdParent: у блюд кухни дерево мельче,
+          чем у пива, и категория — самая глубокая заполненная группа
+          (core/kitchen_analysis.py);
+        - DishType вместо DishForeignName (страны у еды нет): по нему соусы-
+          модификаторы, которые отдают к блюдам бесплатно, отделяются от позиций
+          (решение владельца 2026-09-27).
+        DishId — для связки с проводками склада, как у фасовки.
+        """
+        if not self.token:
+            print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
+            return None
+        request_body = {
+            "reportType": "SALES",
+            "groupByRowFields": [
+                "Store.Name",
+                "DishName",
+                "DishGroup.SecondParent",
+                "DishGroup.ThirdParent",
+                "DishType",
+                "OpenDate.Typed",
+                "DishId",
+            ],
+            "groupByColFields": [],
+            "aggregateFields": [
+                "DishAmountInt",
+                "DishDiscountSumInt",
+                "ProductCostBase.ProductCost",
+            ],
+            "filters": {
+                "OpenDate.Typed": {
+                    "filterType": "DateRange",
+                    "periodType": "CUSTOM",
+                    "from": f"{date_from}",
+                    "to": f"{date_to}"
+                },
+                "DishGroup.TopParent": {
+                    "filterType": "IncludeValues",
+                    "values": [TOP_PARENT_KITCHEN]
+                },
+                "DeletedWithWriteoff": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                },
+                "OrderDeleted": {
+                    "filterType": "IncludeValues",
+                    "values": ["NOT_DELETED"]
+                }
+            }
+        }
+        if bar_name:
+            request_body["filters"]["Store.Name"] = {
+                "filterType": "IncludeValues",
+                "values": [bar_name]
+            }
+        return self._post_olap_interactive(request_body, 'Prodazhi kuhni')
 
     def get_beer_sales_report(self, date_from, date_to, bar_name=None, include_dish_id=False):
         """
@@ -617,15 +683,33 @@ class OlapReports:
                                          TOP_PARENT_BOTTLES, 'tovaram fasovki',
                                          'Provodki po fasovke', by_day=False)
 
+    def get_kitchen_writeoff_report(self, date_from, date_to, bar_name=None):
+        """Движение продуктов кухни В РУБЛЯХ — OLAP по проводкам (TRANSACTIONS).
+
+        Тот же отчёт, что у фасовки, с фильтром по группе «ЕДА» и суммами прихода
+        и расхода. На складе кухни лежат и товары, которые продаются как есть
+        (орехи, джерки), и ингредиенты блюд в кг, штуках и литрах: складывать их
+        можно только в деньгах, поэтому баланс и потери кухни считаются по
+        Sum.Outgoing / Sum.Incoming (core/kitchen_losses.py).
+
+        Даты — как у фасовки: from включительно, to ЭКСКЛЮЗИВНО.
+        """
+        return self._transactions_report(date_from, date_to, bar_name,
+                                         TOP_PARENT_KITCHEN, 'produktam kuhni',
+                                         'Provodki po kuhne', by_day=False, money=True)
+
     def _transactions_report(self, date_from, date_to, bar_name, top_parent, what, tag,
-                             by_day=True):
-        """Общее тело OLAP TRANSACTIONS для розлива и фасовки.
+                             by_day=True, money=False):
+        """Общее тело OLAP TRANSACTIONS для розлива, фасовки и кухни.
 
         by_day: день проводки в группировке. Розливу он нужен (недельные корзины
         XYZ строятся из проводок), фасовке — нет: её баланс и потери считаются
         суммами за период, а XYZ идёт из продаж. Без дня строк столько, сколько
         пар «склад x товар x тип», а не умноженных на число дней с движением
         (с 2026-09-26; суммы те же).
+
+        money: добавить сумму прихода (Sum.Incoming). Сумма расхода
+        (Sum.Outgoing) приходит всегда. Кухне нужны обе: её баланс в рублях.
         """
         if not self.token:
             print("[ERROR] Snachala nuzhno podklyuchitsya (vizovite connect())")
@@ -647,7 +731,8 @@ class OlapReports:
                 "TransactionType",
             ],
             "groupByColFields": [],
-            "aggregateFields": ["Amount.Out", "Amount.In", "Sum.Outgoing"],
+            "aggregateFields": ["Amount.Out", "Amount.In", "Sum.Outgoing"]
+                               + (["Sum.Incoming"] if money else []),
             "filters": {
                 "DateTime.DateTyped": {
                     "filterType": "DateRange",

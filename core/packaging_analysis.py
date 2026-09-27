@@ -37,6 +37,8 @@ from datetime import date, datetime, timedelta
 from core.abc_buckets import bucket_cards, decide_bucket
 from core.packaging_losses import build_losses_block
 from core.abc_thresholds import (
+    MARKUP_A_MIN,
+    MARKUP_B_MIN,
     MIN_XYZ_WEEKS,
     TOTAL_LABEL,
     UNCATEGORIZED,
@@ -159,7 +161,18 @@ class PackagingAnalysis:
     rows — список строк iiko (Store.Name, DishName, DishGroup.ThirdParent,
     DishForeignName, OpenDate.Typed, DishAmountInt, DishDiscountSumInt,
     ProductCostBase.ProductCost). Даты периода ВКЛЮЧИТЕЛЬНЫЕ.
+
+    Точки расширения для кухни (core/kitchen_analysis.py): пороги наценки
+    (A_MIN / B_MIN), подпись пустой категории, выбор категории строки,
+    пропуск строки (модификаторы) и блок потерь. Всё остальное — сбор, ABC,
+    XYZ, группы решений, категории и итоги — одно и то же, поэтому одна
+    формула не может разойтись на двух страницах.
     """
+
+    # Пороги буквы наценки и минимум сети — доли (1.2 = 120%): core/abc_thresholds.py.
+    A_MIN = MARKUP_A_MIN
+    B_MIN = MARKUP_B_MIN
+    UNCATEGORIZED_LABEL = UNCATEGORIZED
 
     def __init__(self, rows, date_from, date_to, transactions=None):
         self.rows = rows or []
@@ -232,6 +245,8 @@ class PackagingAnalysis:
             name = _text(row.get('DishName'))
             if not name:
                 continue
+            if self._skip_row(row):
+                continue
 
             item = positions.get(name)
             if item is None:
@@ -261,7 +276,7 @@ class PackagingAnalysis:
 
             # Пустой стиль получает подпись, а не None: иначе позиция выпадала
             # из группировки и терялась из анализа целиком.
-            category = _text(row.get('DishGroup.ThirdParent'), UNCATEGORIZED)
+            category = self._category_of(row)
             item['_categories'][category] = item['_categories'].get(category, 0.0) + revenue
             country = _text(row.get('DishForeignName'))
             if country:
@@ -287,6 +302,18 @@ class PackagingAnalysis:
             by_bar['Cost'] += cost
 
         return positions
+
+    def _category_of(self, row):
+        """Категория строки продаж. Фасовка — стиль, третий уровень дерева."""
+        return _text(row.get('DishGroup.ThirdParent'), self.UNCATEGORIZED_LABEL)
+
+    def _skip_row(self, row):
+        """Строка не становится позицией. У фасовки таких нет."""
+        return False
+
+    def _losses(self, rows, bar_name, totals):
+        """Блок losses ответа; проставляет позициям поля движений склада."""
+        return build_losses_block(self.transactions, bar_name, rows, totals['qty'])
 
     # ---------- XYZ ----------
 
@@ -353,7 +380,7 @@ class PackagingAnalysis:
             # алфавиту. Детерминировано и осмысленно: позиция числится там, где
             # на неё пришлись деньги, а не там, куда её случайно записали одной
             # строкой.
-            item['Category'] = _pick_by_revenue(item.pop('_categories'), UNCATEGORIZED)
+            item['Category'] = _pick_by_revenue(item.pop('_categories'), self.UNCATEGORIZED_LABEL)
             item['Country'] = _pick_by_revenue(item.pop('_countries'), '—')
             ids = item.pop('_ids')
             item['DishId'] = _pick_by_revenue(ids, None)
@@ -398,7 +425,7 @@ class PackagingAnalysis:
 
         for item in rows:
             item['ABC_Markup'] = markup_letter(
-                _markup_share(item['TotalRevenue'], item['TotalCost'])
+                _markup_share(item['TotalRevenue'], item['TotalCost']), self.A_MIN, self.B_MIN
             )
             # Группа решения — по правилам с защитой от малых выборок, а не по
             # паре букв: см. core/abc_buckets.py. Без себестоимости — «сверить
@@ -410,6 +437,8 @@ class PackagingAnalysis:
                 item['WeeksInPeriod'],
                 item['WeeklyQty'],
                 item['QtyOutsideWeeks'],
+                a_min=self.A_MIN,
+                b_min=self.B_MIN,
             )
             # Код один на обе страницы: core/abc_thresholds.py, abc_code.
             item['ABC_Combined'] = abc_code(
@@ -444,7 +473,7 @@ class PackagingAnalysis:
         totals = self._build_totals(rows, categories, revenue_base, margin_base)
         # Баланс и потери по проводкам склада; заодно проставляет позициям поля
         # движений (SoldQtyStock, WriteoffQty, InventoryNetQty, LossQty).
-        losses = build_losses_block(self.transactions, bar_name, rows, totals['qty'])
+        losses = self._losses(rows, bar_name, totals)
 
         return {
             'scope': 'bar' if bar_name else 'total',
@@ -464,7 +493,7 @@ class PackagingAnalysis:
             'totals': totals,
             'losses': losses,
             # Карточки решений: счётчики, доли и правила словами — с сервера.
-            'buckets': bucket_cards(rows, self.period_days, 'pieces'),
+            'buckets': bucket_cards(rows, self.period_days, 'pieces', self.A_MIN, self.B_MIN),
             'bucket_stats': self._count(rows, 'ABC_Bucket'),
             'abc_stats': self._count(rows, 'ABC_Combined'),
             'xyz_stats': self._count(rows, 'XYZ_Category'),
@@ -557,7 +586,7 @@ class PackagingAnalysis:
                 _markup_share(entry['TotalRevenue'], entry['TotalCost'])
             )
             entry['ABC_Markup'] = markup_letter(
-                _markup_share(entry['TotalRevenue'], entry['TotalCost'])
+                _markup_share(entry['TotalRevenue'], entry['TotalCost']), self.A_MIN, self.B_MIN
             )
 
         # База долей категорий нужна карточке категории для формулы «выручка /
