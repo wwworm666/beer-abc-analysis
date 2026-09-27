@@ -40,6 +40,11 @@ data/taps_data.json
 # Заказы поставщикам (общий черновик и история; на проде живут на /kultura)
 data/orders.json
 data/suppliers.json
+# Отзывы гостей (раздел «Гости»; на проде живут на /kultura)
+data/guest_reviews.json
+# Контент-план раздела «Гости» и его фото/видео (на проде живут на /kultura)
+data/content_plan.json
+data/content_media/
 taps_data*.json
 
 # Бэкапы

@@ -26,7 +26,9 @@ beer-abc-analysis/
 ├── mapping/                # Маппинг блюд на кеги (CSV)
 ├── utils/                  # Утилиты маппинга
 ├── scripts/                # Вспомогательные скрипты (debug, check, maintenance)
-├── tests/                  # Тесты
+├── tests/                  # Тесты (pytest + node *.mjs; раздел «Гости»: test_content_plan.py,
+│                           #   test_guest_reviews.py, test_content_plan_render.mjs,
+│                           #   test_reviews_render.mjs, test_guest_hub_render.mjs)
 ├── docs/                   # Документация проекта (SoT)
 ├── .claude/                # Принципы + индекс для агентов
 ├── memory/                 # Persistent-память (auto-managed)
@@ -93,6 +95,13 @@ beer-abc-analysis/
 | `bar_acceptance.py` | **Приёмка бара** «Как принял бар?»: правила ответа, окно, сборка журнала месяца |
 | `bar_photo_store.py` | Фото приёмки на диске: имя, проверка сигнатуры JPEG, атомарная запись |
 
+### Раздел «Гости» (3)
+| Файл | Что делает |
+|---|---|
+| `content_plan.py` | **Контент-план**: материалы и размещения, готовность, сводка, утверждение, пауза, сдвиг, повтор, копирование месяца, живые данные таплиста, журнал (`content_plan.json`) — [content-plan.md](content-plan.md) |
+| `content_media.py` | Фото и видео контент-плана на диске: имя `cp_<дата>_<12 hex>`, проверка сигнатуры, атомарная запись (`content_media/`) |
+| `guest_reviews.py` | **Отзывы гостей**: хранилище, проверка полей, статусы, метрики и формулы, слой календаря (`guest_reviews.json`) — [reviews.md](reviews.md) |
+
 ### Краны и остатки (2)
 | Файл | Что делает |
 |---|---|
@@ -140,6 +149,8 @@ beer-abc-analysis/
 | `open_check_bp` | `/api`, `/telegram/openbot` | `open_check.py` |
 | `me_bp` | `/me`, `/api/me` | `me.py` |
 | `cleanliness_bp` | `/cleanliness`, `/api/cleanliness` | `cleanliness.py` |
+| `content_plan_bp` | `/content-plan`, `/api/content-plan` | `content_plan.py` |
+| `reviews_bp` | `/reviews`, `/api/reviews`, `/api/guest-hub/attention` | `reviews.py` |
 
 `menu_bp` вынесен в [menu_tool/](../menu_tool/) как отдельное локальное приложение на порту 5050 — в прод не регистрируется.
 
@@ -161,9 +172,14 @@ templates/
 ├── kitchen.html         # «Кухня»: клон packaging.html (стили фасовки, id kt*)
 ├── wiki.html            # Встроенная wiki с TOC
 ├── pwa-widget.html      # PWA виджет выручки
+├── guests.html          # «Маркетинг» (/guests), вверху полоса раздела «Гости»
+├── content_plan.html    # «Контент-план» (/content-plan): фильтры, таблица, календарь, карточка, диалоги
+├── reviews.html         # «Отзывы» (/reviews): фильтры, показатели, список, диалог отзыва
 ├── dashboard/           # Подшаблоны главного дашборда (plans_tab, comparison_tab, ...)
 └── shared/
-    └── nav.html         # Общая навигация sidebar + topbar
+    ├── nav.html               # Общая навигация sidebar + topbar (секция «Гости»)
+    ├── guest_hub_head.html    # Шапка раздела «Гости» (бургер, заголовок) + полоса
+    └── guest_hub_strip.html   # Вкладки раздела и полоса «Требует внимания»
 ```
 
 ---
@@ -181,7 +197,8 @@ static/
 │   ├── kitchen/         # kitchen.js — «Кухня — ABC/XYZ и потери», клон packaging.js
 │   ├── shared/          # общие блоки страниц: kpi_breakdown.js, abc_view.js (вкладки /draft, /packaging, /kitchen)
 │   ├── employee/
-│   ├── guests/
+│   ├── guests/          # «Маркетинг»; views-guest.js подставляет ?q= в поиск гостя
+│   ├── guest_hub/       # раздел «Гости»: common.js (window.GH, полоса), content_plan.js, reviews.js
 │   ├── me/
 │   ├── schedule/
 │   ├── taps/
@@ -190,6 +207,7 @@ static/
 ├── packaging/           # packaging.css — оформление /packaging как /draft (токены --pk-*)
 ├── shared/              # kpi_breakdown.css, abc_view.css (цвета — токены страницы)
 ├── me/                  # me.css — оформление /me по макету (токены --me-*)
+├── guest_hub/           # hub.css (токены --gh-* на .gh-scope, тёмная тема), content_plan.css, reviews.css
 ├── fonts/               # IBM Plex Mono (ttf) + IBM Plex Sans (woff2, субсеты)
 ├── css/
 └── pwa/                 # manifest.webmanifest, sw.js
@@ -208,6 +226,9 @@ data/
 ├── meeting_notes.json      # Заметки совещаний
 ├── orders.json             # Заказы поставщикам: черновик + история (на проде /kultura, в git нет)
 ├── suppliers.json          # Справочник поставщиков (на проде /kultura, в git нет; без файла — стартовый набор из кода)
+├── content_plan.json       # Контент-план: материалы, размещения, журнал (на проде /kultura, в git нет)
+├── content_media/          # Фото и видео контент-плана cp_<дата>_<hex>.<ext> (на проде /kultura, в git нет)
+├── guest_reviews.json      # Отзывы гостей (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
@@ -276,6 +297,7 @@ docs/
 ├── lessons.md               # Баги, паттерны
 │
 ├── dashboard.md, employee.md, taps.md, stocks.md, orders.md, suppliers.md, venues-plans.md, schedule.md
+├── guests.md, content-plan.md, reviews.md   # раздел «Гости»
 ├── abc-xyz-analysis.md, draft-beer-errors.md, draft-beer-fixes.md, discounts.md
 ├── explorer.md, expiration.md, chz-stock-integration.md, open-check-bot.md
 ├── iiko-integration.md, frontend.md, design-system.md
@@ -368,6 +390,11 @@ pip install -r requirements.txt
 python app.py    # http://127.0.0.1:5000
 ```
 
+> Внимание: `app.py` при импорте запускает все шедулеры и Telegram long-polling с токенами из
+> `.env`. С боевыми токенами локально его не запускать и не импортировать — проверять
+> отдельные blueprint'ы на голом Flask (см. [content-plan.md](content-plan.md) «Проверка
+> локально», [lessons.md](lessons.md)).
+
 ### Production (Selectel)
 ```bash
 docker compose up -d
@@ -389,6 +416,7 @@ docker compose up -d
 | `/taps/<bar_id>` | Управление кранами |
 | `/stocks` | Заказы и остатки: экран «К заказу» |
 | `/suppliers` | Справочник поставщиков |
+| `/content-plan`, `/reviews`, `/guests` | Раздел «Гости»: контент-план, отзывы, маркетинг |
 | `/expiration` | Shelf-Life Cockpit |
 | `/employee`, `/salary`, `/bonus`, `/schedule` | Сотрудники |
 | `/waiters` | 301 на `/draft#bartenders` (страница слита в «Розлив») |

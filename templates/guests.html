@@ -12,6 +12,10 @@
     <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
     <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
     <link rel="stylesheet" href="/static/logo.css">
+    <!-- Полоса раздела «Гости» (вкладки + «требует внимания»): все её классы и
+         токены с префиксом gh- и живут внутри .gh-scope, остальную страницу
+         hub.css не трогает. -->
+    <link rel="stylesheet" href="/static/guest_hub/hub.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/guests/guests.css?v={{ app_version }}">
 </head>
 <body class="guests-page">
@@ -22,6 +26,16 @@
     </div>
 
     <div class="guests-wrap">
+        {#- Раздел «Гости»: вкладки Контент-план / Отзывы / Маркетинг и счётчики
+            «требует внимания» (shared/guest_hub_strip.html). Токены цвета --gh-*
+            объявлены на .gh-scope, а body у этой страницы свой — поэтому полоса
+            обёрнута в собственный .gh-scope. gh-embed подгоняет отступы полосы
+            под вёрстку /guests (static/guest_hub/hub.css). -#}
+        {% set hub_active = 'guests' %}
+        <div class="gh-scope gh-embed">
+            {% include 'shared/guest_hub_strip.html' %}
+        </div>
+
         <!-- Период: тип + навигация стрелками -->
         <div class="guests-controls">
             <div class="period-types" id="periodTypes">
@@ -92,5 +106,8 @@
     <script src="/static/js/guests/views-venues.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-never.js?v={{ app_version }}"></script>
     <script src="/static/js/guests/views-guest.js?v={{ app_version }}"></script>
+    <!-- Общий модуль раздела «Гости» (window.GH): заполняет счётчики полосы.
+         Отдельно от js/guests/*: другой namespace, на виды страницы не влияет. -->
+    <script src="/static/js/guest_hub/common.js?v={{ app_version }}"></script>
 </body>
 </html>

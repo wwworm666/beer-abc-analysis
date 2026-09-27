@@ -24,6 +24,25 @@ Guests.registerView('guest', function (pane) {
         });
         var saved = pane.dataset.guestId;
         if (saved) showCard(saved);
+        else applyUrlQuery(input);
+    }
+
+    // Переход из «Отзывов» (/guests?q=<телефон или Telegram>#guest, ссылка
+    // «Открыть в Маркетинге» в static/js/guest_hub/reviews.js): запрос из
+    // адреса подставляется в поле и поиск запускается сам — ОДИН раз за
+    // жизнь страницы. Вид перерисовывается при смене периода, и повторный
+    // поиск затирал бы то, что пользователь уже набрал или выбрал; отметка
+    // хранится на самом пейне, как и выбранный гость (dataset.guestId).
+    function applyUrlQuery(input) {
+        if (pane.dataset.urlQueryApplied) return;
+        pane.dataset.urlQueryApplied = '1';
+        var q = '';
+        try {
+            q = new URLSearchParams((window.location && window.location.search) || '').get('q') || '';
+        } catch (e) { q = ''; }
+        if (q.trim().length < 2) return;   // тот же порог, что в search(): короче не ищем
+        input.value = q;
+        search(q);
     }
 
     function search(q) {

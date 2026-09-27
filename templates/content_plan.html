@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Контент-план — Гости — Пивная культура</title>
+    <!-- Порядок важен: общие стили дашборда, затем hub.css раздела «Гости»,
+         затем стили этой страницы — при равной специфичности побеждает последний. -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/guest_hub/hub.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/guest_hub/content_plan.css?v={{ app_version }}">
+</head>
+<body class="gh-page gh-scope">
+    <div class="container">
+        {% set page_title = "Контент-план" %}
+        {% set page_subtitle = "План публикаций и рассылок на месяц" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <div class="gh-wrap gh-cp-wrap">
+        {% set hub_active = 'content' %}
+        {% set hub_title = 'Контент-план' %}
+        {% set hub_subtitle = 'План публикаций и рассылок на месяц' %}
+        {% include 'shared/guest_hub_head.html' %}
+
+        <!-- Полоса фильтров: месяц, бар (общий для раздела), площадка, вид.
+             Справа — два главных действия месяца. -->
+        <div class="gh-filters" id="cpFilters">
+            <div class="gh-month">
+                <button type="button" class="gh-month-nav" id="cpPrev" aria-label="Предыдущий месяц">
+                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.5 3 4.5 7l4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <button type="button" class="gh-month-val" id="cpMonthBtn"
+                        data-tip="Месяц плана. Нажмите, чтобы вернуться к текущему месяцу.">
+                    <span class="gh-pick-cap">Месяц</span>
+                    <span class="gh-month-label" id="cpMonthLabel">—</span>
+                </button>
+                <button type="button" class="gh-month-nav" id="cpNext" aria-label="Следующий месяц">
+                    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.5 3l4 4-4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </div>
+
+            <span class="gh-sep"></span>
+
+            <div class="gh-pick">
+                <button type="button" class="gh-pick-btn" id="cpBarBtn" aria-haspopup="true" aria-expanded="false">
+                    <span class="gh-pick-cap">Бар</span>
+                    <span class="gh-pick-val">
+                        <span id="cpBarLabel">Все бары</span>
+                        <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                </button>
+                <div class="gh-menu" id="cpBarMenu" hidden></div>
+            </div>
+
+            <span class="gh-sep"></span>
+
+            <div class="gh-pick">
+                <button type="button" class="gh-pick-btn" id="cpChBtn" aria-haspopup="true" aria-expanded="false">
+                    <span class="gh-pick-cap">Площадка</span>
+                    <span class="gh-pick-val">
+                        <span id="cpChLabel">Все площадки</span>
+                        <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                </button>
+                <div class="gh-menu" id="cpChMenu" hidden></div>
+            </div>
+
+            <span class="gh-sep"></span>
+
+            <div class="gh-filters-seg">
+                <div class="gh-seg" id="cpViewSeg" role="group" aria-label="Вид">
+                    <button type="button" class="gh-seg-btn is-on" data-value="table" aria-pressed="true">Таблица</button>
+                    <button type="button" class="gh-seg-btn" data-value="calendar" aria-pressed="false">Календарь</button>
+                </div>
+            </div>
+
+            <span class="gh-grow"></span>
+
+            <div class="gh-filters-actions">
+                <button type="button" class="gh-btn gh-btn-primary gh-btn-outline" id="cpApproveBtn">Утвердить готовые</button>
+                <button type="button" class="gh-btn gh-btn-primary" id="cpAddBtn">
+                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5v9M1.5 6h9" stroke-width="1.8" stroke-linecap="round"/></svg>
+                    Добавить материал
+                </button>
+            </div>
+        </div>
+
+        <!-- Отправка не подключена ни в одну площадку (delivery_connected — все
+             false): утверждённое никуда не уходит само, выход отмечают вручную. -->
+        <div class="gh-banner gh-tone-accent" id="cpDelivery" hidden>
+            <span class="gh-banner-ico"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2" stroke-width="1.5"/><path d="M9 8.2v4.3M9 5.6v.1" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <span class="gh-banner-t">Отправка пока не подключена: утверждённые публикации не уходят автоматически. Когда публикация вышла, отметьте её вручную.</span>
+        </div>
+
+        <!-- Хранилище плана недоступно (503) или месяц не загрузился. -->
+        <div class="gh-banner gh-tone-danger" id="cpErr" hidden>
+            <span class="gh-banner-ico"><svg viewBox="0 0 18 18" aria-hidden="true"><path d="M9 2.2 16.3 15H1.7L9 2.2z" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 7.2v3.6M9 12.8v.1" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+            <span class="gh-banner-t" id="cpErrText"></span>
+            <span class="gh-banner-a"><button type="button" class="gh-btn gh-btn-sm" id="cpRetry">Повторить</button></span>
+        </div>
+
+        <!-- Сводка месяца (числа сервера) и вторичные действия. -->
+        <div class="gh-cp-bar">
+            <div class="gh-sumline gh-cp-sum" id="cpSum"></div>
+            <div class="gh-cp-bar-acts">
+                <button type="button" class="gh-btn gh-btn-sm" id="cpCopyBtn">Скопировать прошлый месяц</button>
+                <div class="gh-cp-menuwrap">
+                    <button type="button" class="gh-btn gh-btn-sm" id="cpPauseBtn" aria-haspopup="true" aria-expanded="false">
+                        Пауза
+                        <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="gh-menu is-right gh-cp-pausemenu" id="cpPauseMenu" hidden></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Снимаемый фильтр состояния (?state=); в сквозном виде (?state= без
+             ?month=, ссылки полосы «Требует внимания») — чип «Все месяцы · …». -->
+        <div class="gh-cp-statebar" id="cpStateBar" hidden></div>
+
+        <!-- Загрузка и ошибка на месте плана: страница не остаётся молча пустой. -->
+        <div class="gh-msg" id="cpMsg">Загружаю план…</div>
+
+        <div class="gh-cp-view" id="cpTable" hidden></div>
+        <div class="gh-cp-view" id="cpCal" hidden></div>
+    </div>
+
+    <!-- Массовые действия над отмеченными строками таблицы. -->
+    <div class="gh-cp-bulk" id="cpBulk" hidden role="region" aria-label="Действия с выбранными">
+        <span class="gh-cp-bulk-n" id="cpBulkN"></span>
+        <button type="button" class="gh-btn gh-btn-sm" data-bulk="shift">Сдвинуть на N дней</button>
+        <button type="button" class="gh-btn gh-btn-sm" data-bulk="cancel">Отменить размещения</button>
+        <button type="button" class="gh-btn gh-btn-sm gh-btn-danger gh-btn-outline" data-bulk="delete">Удалить</button>
+        <button type="button" class="gh-btn gh-btn-sm gh-btn-ghost" data-bulk="clear">Снять выделение</button>
+    </div>
+
+    <!-- Карточка материала: содержимое рисует content_plan.js. -->
+    <aside class="gh-drawer gh-cp-drawer" id="cpDrawer" hidden aria-label="Материал"></aside>
+
+    <!-- Выбор файлов для карточки. Поле живёт ВНЕ карточки: карточка
+         перерисовывается целиком (автосохранение, ответы сервера), и поле внутри
+         неё отрывалось бы от страницы, пока открыт системный диалог выбора, —
+         выбранный файл молча терялся. Кнопку «Выбрать файлы» и список типов
+         (accept) задаёт content_plan.js. -->
+    <input type="file" id="cpFile" multiple hidden aria-hidden="true" tabindex="-1">
+
+    <!-- Диалог «Утвердить готовые». -->
+    <div class="gh-modal" id="cpApproveModal" hidden aria-labelledby="cpApproveTitle">
+        <div class="gh-modal-box gh-modal-wide">
+            <div class="gh-modal-head">
+                <h2 class="gh-modal-t" id="cpApproveTitle">Утвердить готовые</h2>
+                <button type="button" class="gh-x" data-gh-close aria-label="Закрыть">
+                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="gh-modal-body" id="cpApproveBody"></div>
+            <div class="gh-modal-foot">
+                <button type="button" class="gh-btn" data-gh-close>Отмена</button>
+                <button type="button" class="gh-btn gh-btn-primary" id="cpApproveGo" disabled>Утвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Диалог «Скопировать прошлый месяц». -->
+    <div class="gh-modal" id="cpCopyModal" hidden aria-labelledby="cpCopyTitle">
+        <div class="gh-modal-box gh-modal-wide">
+            <div class="gh-modal-head">
+                <h2 class="gh-modal-t" id="cpCopyTitle">Скопировать прошлый месяц</h2>
+                <button type="button" class="gh-x" data-gh-close aria-label="Закрыть">
+                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-width="1.6" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="gh-modal-body" id="cpCopyBody"></div>
+            <div class="gh-modal-foot" id="cpCopyFoot">
+                <button type="button" class="gh-btn" data-gh-close>Отмена</button>
+                <button type="button" class="gh-btn gh-btn-primary" id="cpCopyGo">Скопировать</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/guest_hub/common.js?v={{ app_version }}"></script>
+    <script src="/static/js/guest_hub/content_plan.js?v={{ app_version }}"></script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

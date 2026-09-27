@@ -1,0 +1,61 @@
+{#- Раздел «Гости»: вкладки раздела и полоса «требует внимания».
+
+    Подключение:
+        {% set hub_active = 'content' %}   -- 'content' | 'reviews' | 'guests'
+        {% include 'shared/guest_hub_strip.html' %}
+
+    На страницах раздела (/content-plan, /reviews) полосу подключает шапка
+    shared/guest_hub_head.html. На /guests она вставлена отдельно, внутри
+    элемента с классом gh-scope: токены цвета (--gh-*) живут на .gh-scope, а
+    body у /guests свой.
+
+    Счётчики заполняет static/js/guest_hub/common.js (GH.loadAttention) из
+    /api/guest-hub/attention?bar=<общий фильтр бара>. До ответа видны прочерки;
+    при ошибке полоса молча скрывается. «Ошибки отправки» и «Время вышло»
+    показываются, только когда их больше нуля.
+
+    Определения счётчиков (подсказки data-tip) — из спецификации раздела:
+      reviews_unanswered — отзывы со статусом «без ответа», любая дата;
+      publications_today — размещения с датой сегодня в статусах
+                           «утверждено», «на паузе», «вышло»;
+      delivery_errors    — размещения со статусом «ошибка отправки», любая дата;
+      overdue            — утверждённые размещения, чьи дата и время уже прошли.
+    Фильтр бара X: для отзывов — отзывы бара X; для размещений — бар X и
+    размещения на всю сеть.
+
+    Ссылки ведут туда, где видно ровно то, что посчитано:
+      «Отзывы без ответа» -> /reviews?status=new&month=all — счётчик берёт
+          отзывы за любую дату, поэтому и список открывается «За всё время»
+          (без month страница показала бы только текущий месяц, и 1-го числа
+          отзывы, ждущие дольше всех, пропали бы из списка);
+      «Публикаций сегодня» -> /content-plan?view=calendar;
+      «Ошибки отправки» / «Время вышло» -> /content-plan?state=failed|overdue —
+          без month контент-план открывает эти состояния по всем месяцам. -#}
+<div class="gh-strip">
+  <nav class="gh-tabs" aria-label="Раздел «Гости»">
+    <a class="gh-tab{% if hub_active == 'content' %} is-active{% endif %}" href="/content-plan"{% if hub_active == 'content' %} aria-current="page"{% endif %}>Контент-план</a>
+    <a class="gh-tab{% if hub_active == 'reviews' %} is-active{% endif %}" href="/reviews"{% if hub_active == 'reviews' %} aria-current="page"{% endif %}>Отзывы</a>
+    <a class="gh-tab{% if hub_active == 'guests' %} is-active{% endif %}" href="/guests"{% if hub_active == 'guests' %} aria-current="page"{% endif %}>Маркетинг</a>
+  </nav>
+
+  <div class="gh-attn is-loading" id="ghAttention" aria-label="Требует внимания">
+    <span class="gh-attn-scope" data-attn-scope
+          data-tip="Счётчики считаются по бару, выбранному в фильтре раздела. Фильтр общий для контент-плана и отзывов.">Вся сеть</span>
+    <a class="gh-attn-item" data-attn="reviews_unanswered" href="/reviews?status=new&amp;month=all"
+       data-tip="Отзывы без ответа: все отзывы со статусом «без ответа», за любую дату. Отзывы, оставленные без ответа по решению, сюда не входят. При выбранном баре — только отзывы этого бара.">
+      <b class="gh-attn-n">—</b><span class="gh-attn-l">Отзывы без ответа</span>
+    </a>
+    <a class="gh-attn-item" data-attn="publications_today" href="/content-plan?view=calendar"
+       data-tip="Публикаций сегодня: размещения с датой выхода сегодня (по Москве) в статусах «утверждено», «на паузе» и «вышло». Черновики и отменённые не считаются. При выбранном баре — размещения этого бара и размещения на всю сеть.">
+      <b class="gh-attn-n">—</b><span class="gh-attn-l">Публикаций сегодня</span>
+    </a>
+    <a class="gh-attn-item" data-attn="delivery_errors" href="/content-plan?state=failed" hidden
+       data-tip="Ошибки отправки: размещения со статусом «ошибка отправки», за любую дату. Пока отправка не подключена, таких не бывает. При выбранном баре — размещения этого бара и размещения на всю сеть.">
+      <b class="gh-attn-n">—</b><span class="gh-attn-l">Ошибки отправки</span>
+    </a>
+    <a class="gh-attn-item" data-attn="overdue" href="/content-plan?state=overdue" hidden
+       data-tip="Время вышло: утверждённые размещения, у которых дата и время выхода уже прошли, а выход не отмечен. Пока отправка не подключена, выход отмечается вручную. При выбранном баре — размещения этого бара и размещения на всю сеть.">
+      <b class="gh-attn-n">—</b><span class="gh-attn-l">Время вышло</span>
+    </a>
+  </div>
+</div>

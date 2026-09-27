@@ -1,0 +1,1110 @@
+/* Страница «Контент-план» (/content-plan) — стили поверх static/guest_hub/hub.css.
+
+   Общие компоненты (полоса фильтров, кнопки, чипы, бейджи, тоны, поля,
+   выдвижная карточка, диалоги, тосты, подсказки) живут в hub.css. Здесь —
+   только то, что есть на этой странице: таблица месяца, календарь, карточка
+   материала (размещения, предпросмотр, файлы), диалоги утверждения и
+   копирования, панель массовых действий.
+
+   Правила: префикс gh-cp- у каждого класса; цвета — только токены --gh-* из
+   hub.css (ни одного HEX: тёмная тема работает сама); без эмодзи.
+   Тон компонента (gh-tone-*) задаётся классами hub.css, которые стоят ПОСЛЕ
+   компонентов hub.css, но РАНЬШЕ этого файла. Поэтому значения тона по
+   умолчанию для своих компонентов здесь заданы через :where() — с нулевой
+   специфичностью, иначе они перебили бы класс тона. */
+
+/* ==================== Сводка и вторичные действия ==================== */
+
+.gh-cp-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    margin-top: 14px;
+    font-family: var(--gh-sans);
+}
+.gh-cp-sum { flex: 1 1 auto; margin: 0 0 0 -8px; gap: 4px 4px; }
+.gh-cp-sum-i {
+    padding: 6px 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    cursor: help;
+}
+button.gh-cp-sum-i { cursor: pointer; transition: background .15s ease, border-color .15s ease; }
+button.gh-cp-sum-i:hover { background: var(--gh-card); border-color: var(--gh-line); }
+button.gh-cp-sum-i:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-cp-sum-i.is-on {
+    background: var(--gh-card);
+    border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card));
+    color: var(--gh-ink2);
+}
+.gh-cp-bar-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: none; }
+.gh-cp-menuwrap { position: relative; display: inline-flex; }
+/* Меню паузы длиннее обычного (две группы по пять пунктов и пояснение):
+   на широком экране ему можно больше высоты, чтобы пояснение не пряталось. */
+@media (min-width: 769px) {
+    .gh-menu.gh-cp-pausemenu { max-height: min(600px, 80vh); }
+}
+.gh-cp-menu-note {
+    padding: 8px 12px 6px;
+    font: 400 11.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink5);
+}
+
+/* Снимаемый фильтр состояния. */
+.gh-cp-statebar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.gh-cp-statebar[hidden] { display: none; }
+.gh-cp-statebar-t { font: 400 12.5px/1.4 var(--gh-sans); color: var(--gh-ink4); }
+
+.gh-cp-view { margin-top: 14px; }
+
+/* ==================== Таблица месяца ==================== */
+
+.gh-cp-table th.gh-cp-c-sel,
+.gh-cp-table td.gh-cp-c-sel { width: 46px; padding-right: 0; }
+.gh-cp-table .gh-cp-c-date { width: 118px; white-space: nowrap; }
+.gh-cp-table .gh-cp-c-mat { min-width: 220px; }
+.gh-cp-table .gh-cp-c-pl { width: 33%; }
+.gh-cp-table .gh-cp-c-ready { width: 21%; }
+.gh-cp-table th .gh-help { margin-left: 4px; letter-spacing: 0; }
+
+/* Флажок строки: глобальный base.css/mobile.css красит все input (отступы,
+   скругление, min-height 44px на телефоне) — здесь всё сброшено классом. */
+.gh-cp-cbx {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+}
+.gh-cp-cbx input {
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    box-shadow: none;
+    accent-color: var(--gh-accent);
+    cursor: pointer;
+}
+
+.gh-cp-grp td > span:first-child { cursor: help; }
+.gh-cp-grp-n { margin-left: 10px; font-weight: 500; letter-spacing: .08em; color: var(--gh-ink5); }
+
+.gh-cp-d {
+    display: block;
+    padding-top: 1px;
+    font: 600 12.5px/1.5 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink);
+    white-space: nowrap;
+}
+.gh-cp-d.is-rep { color: var(--gh-faint); }
+.gh-cp-d.is-none { font-weight: 500; color: var(--gh-ink6); }
+.gh-cp-row.is-past .gh-cp-d { color: var(--gh-ink5); }
+.gh-cp-row.is-past .gh-cp-d.is-rep { color: var(--gh-faint); }
+.gh-cp-today { margin-top: 4px; }
+
+.gh-cp-mt {
+    display: inline;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font: 600 14px/1.35 var(--gh-sans);
+    color: var(--gh-ink);
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+.gh-cp-mt:hover { color: var(--gh-accent-ink); }
+.gh-cp-mt:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; border-radius: 4px; }
+.gh-cp-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.gh-cp-tags .gh-badge { cursor: help; }
+.gh-cp-ex {
+    display: -webkit-box;
+    margin-top: 5px;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font: 400 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink4);
+    overflow-wrap: anywhere;
+}
+
+/* Чип размещения: «TG Вар 16:00», цвет — состояние. */
+.gh-cp-chip { gap: 5px; padding: 0 9px 0 8px; }
+.gh-cp-chip b { font-weight: 700; }
+.gh-cp-chip-t { margin-left: 2px; font-weight: 500; color: var(--gh-ink3); }
+.gh-cp-chip.is-cancel { text-decoration: line-through; opacity: .6; }
+.gh-cp-chip-more { cursor: help; }
+.gh-cp-none {
+    font: 500 11.5px/1.5 var(--gh-mono);
+    color: var(--gh-ink6);
+    cursor: help;
+}
+.gh-cp-ready {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.4;
+    cursor: help;
+}
+/* В таблице длинная сводка («Не хватает: нет фото — IG Сеть; …») — не больше
+   двух строк; полная — первой строкой подсказки. */
+.gh-cp-table .gh-cp-c-ready .gh-cp-ready {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+}
+
+/* ==================== Календарь ==================== */
+
+.gh-cp-calbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 10px;
+}
+.gh-cp-rvnote { font: 500 11px/1 var(--gh-mono); color: var(--gh-ink5); }
+.gh-cp-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.gh-cp-legend-i {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 11.5px/1 var(--gh-sans);
+    color: var(--gh-ink4);
+    cursor: help;
+}
+
+.gh-cp-cal {
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    overflow: hidden;
+}
+.gh-cp-cal-head,
+.gh-cp-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.gh-cp-cal-head { border-bottom: 1px solid var(--gh-hair); }
+.gh-cp-wd {
+    padding: 11px 10px 9px;
+    font: 600 9.5px/1 var(--gh-mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+}
+.gh-cp-wd.is-weekend { color: var(--gh-accent-ink); }
+
+.gh-cp-day {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    min-height: 132px;
+    padding: 8px 8px 32px;
+    border-right: 1px solid var(--gh-hair);
+    border-bottom: 1px solid var(--gh-hair);
+    transition: background .12s ease;
+}
+.gh-cp-grid > .gh-cp-day:nth-child(7n) { border-right: none; }
+.gh-cp-grid > .gh-cp-day:nth-last-child(-n+7) { border-bottom: none; }
+.gh-cp-day.is-out { background: var(--gh-soft); }
+.gh-cp-day.is-out .gh-cp-day-n { color: var(--gh-faint); }
+.gh-cp-day.is-past .gh-cp-day-n { color: var(--gh-ink5); }
+/* Плотный день (от 3 размещений): лёгкая подложка и счётчик. */
+.gh-cp-day.is-dense { background: color-mix(in srgb, var(--gh-accent) 5%, var(--gh-card)); }
+.gh-cp-day.is-today { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--gh-accent) 70%, var(--gh-card)); }
+.gh-cp-day.is-add { cursor: pointer; }
+.gh-cp-day.is-add:hover { background: var(--gh-hover); }
+.gh-cp-day.is-add.is-dense:hover { background: color-mix(in srgb, var(--gh-accent) 8%, var(--gh-card)); }
+.gh-cp-day-h { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-height: 24px; }
+.gh-cp-day-n {
+    font: 600 13px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink);
+}
+.gh-cp-day.is-today .gh-cp-day-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--gh-accent);
+    color: var(--gh-on-accent);
+}
+.gh-cp-day-today {
+    font: 600 9.5px/1 var(--gh-mono);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gh-accent-ink);
+}
+.gh-cp-day-cnt {
+    margin-left: auto;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--gh-accent) 15%, var(--gh-card));
+    color: var(--gh-accent-ink);
+    font: 700 10.5px/18px var(--gh-mono);
+    text-align: center;
+    cursor: help;
+}
+.gh-cp-day-rv {
+    align-self: flex-start;
+    max-width: 100%;
+    padding: 1px 6px;
+    border-radius: var(--gh-r-badge);
+    background: var(--gh-soft);
+    font: 500 10.5px/1.35 var(--gh-mono);
+    color: var(--gh-ink3);
+    white-space: nowrap;
+    cursor: help;
+}
+.gh-cp-day.is-out .gh-cp-day-rv { display: none; }
+.gh-cp-day-list { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+:where(.gh-cp-pill) { --gh-t: var(--gh-muted); --gh-t-ink: var(--gh-muted-ink); }
+.gh-cp-pill {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    padding: 3px 6px 3px 6px;
+    border: none;
+    border-left: 3px solid var(--gh-t);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--gh-t) 10%, var(--gh-card));
+    font: 500 11px/1.4 var(--gh-sans);
+    color: var(--gh-ink2);
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: background .12s ease;
+}
+.gh-cp-pill:hover { background: color-mix(in srgb, var(--gh-t) 20%, var(--gh-card)); }
+.gh-cp-pill:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-cp-pill-t { font: 600 11px/1 var(--gh-mono); color: var(--gh-t-ink); }
+.gh-cp-pill-n { color: var(--gh-ink); }
+.gh-cp-pill.is-theme {
+    border: 1px dashed var(--gh-line2);
+    border-left: 3px dashed var(--gh-ink6);
+    background: var(--gh-card);
+    color: var(--gh-ink3);
+}
+.gh-cp-pill.is-theme .gh-cp-pill-n { color: var(--gh-ink3); }
+.gh-cp-pill.is-cancel { text-decoration: line-through; opacity: .55; }
+.gh-cp-more {
+    align-self: flex-start;
+    min-height: 0;
+    padding: 2px 6px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    font: 600 11px/1.3 var(--gh-mono);
+    color: var(--gh-accent-ink);
+    cursor: pointer;
+}
+.gh-cp-more:hover { background: var(--gh-soft); }
+.gh-cp-more:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-cp-day-add {
+    position: absolute;
+    left: 8px;
+    bottom: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 0;
+    padding: 3px 8px;
+    border: 1px dashed var(--gh-line2);
+    border-radius: 999px;
+    background: var(--gh-card);
+    font: 600 10.5px/1 var(--gh-sans);
+    color: var(--gh-ink4);
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+.gh-cp-day-add svg { stroke: currentColor; fill: none; }
+.gh-cp-day:hover .gh-cp-day-add,
+.gh-cp-day-add:focus-visible { opacity: 1; }
+.gh-cp-day-add:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+
+/* Список по дням — только на телефоне (ниже). */
+.gh-cp-agenda { display: none; }
+.gh-cp-ag-day {
+    padding: 12px 14px;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+}
+.gh-cp-ag-day.is-today { border-color: color-mix(in srgb, var(--gh-accent) 70%, var(--gh-card)); }
+.gh-cp-ag-h { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.gh-cp-ag-d { font: 600 14px/1.2 var(--gh-sans); color: var(--gh-ink); }
+.gh-cp-ag-day.is-past .gh-cp-ag-d { color: var(--gh-ink4); }
+.gh-cp-ag-list { display: flex; flex-direction: column; gap: 6px; }
+.gh-cp-ag-list .gh-cp-pill { padding: 8px 10px; font-size: 13px; white-space: normal; }
+.gh-cp-ag-list .gh-cp-pill-t { font-size: 12px; }
+
+/* ==================== Массовые действия ==================== */
+
+.gh-cp-bulk {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: calc(100vw - 32px);
+    padding: 9px 10px 9px 18px;
+    transform: translateX(-50%);
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: 999px;
+    box-shadow: var(--gh-shadow-menu);
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-cp-bulk[hidden] { display: none; }
+.gh-cp-bulk-n { margin-right: 6px; font: 600 13px/1.2 var(--gh-sans); white-space: nowrap; }
+
+/* ==================== Карточка материала ==================== */
+
+.gh-cp-title {
+    display: block;
+    width: calc(100% + 8px);
+    height: auto;
+    min-height: 0;
+    resize: none;
+    overflow: hidden;
+    margin: -4px 0 0 -8px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: var(--gh-r-ctl);
+    background: transparent;
+    box-shadow: none;
+    font: 600 18px/1.3 var(--gh-sans);
+    color: var(--gh-ink);
+    outline: none;
+    transition: border-color .15s ease, background .15s ease;
+}
+.gh-cp-title:hover { border-color: var(--gh-line); }
+.gh-cp-title:focus {
+    border-color: var(--gh-accent);
+    background: var(--gh-field);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gh-accent) 14%, transparent);
+}
+.gh-cp-title::placeholder { color: var(--gh-ink6); }
+
+.gh-cp-sec { display: flex; flex-direction: column; gap: 12px; }
+.gh-cp-sec + .gh-cp-sec { margin-top: 22px; }
+/* Подзаголовок внутри секции: отступ сверху 12 + зазор секции 12 = 24, как
+   между секциями (22 + 2 у первого подзаголовка). */
+.gh-cp-sec > .gh-sub { margin: 12px 0 0; }
+.gh-cp-sec > .gh-sub:first-child { margin-top: 2px; }
+.gh-field-cap .gh-help { margin-left: 4px; letter-spacing: 0; }
+
+.gh-cp-main { gap: 14px; }
+.gh-cp-kind { display: flex; flex-direction: column; }
+.gh-cp-kind-hints { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; }
+.gh-cp-kind-hints p { margin: 0; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+.gh-cp-kind-hints p.is-on { color: var(--gh-ink2); }
+.gh-cp-kind-hints b { font-weight: 600; color: inherit; }
+.gh-cp-main-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 18px; }
+.gh-cp-pdate { flex: 0 1 190px; }
+.gh-cp-main-row > .gh-field:last-child { flex: 1 1 220px; }
+.gh-cp-state { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; min-height: var(--gh-ctl-h); }
+.gh-cp-datenote { font: 500 11.5px/1.3 var(--gh-mono); color: var(--gh-ink5); }
+
+.gh-cp-text { min-height: 150px; }
+.gh-cp-textfoot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    min-height: 16px;
+}
+.gh-cp-textfoot .gh-save { margin-right: auto; }
+.gh-cp-textfoot .gh-counter { cursor: help; }
+.gh-cp-warn {
+    padding: 9px 12px;
+    border: 1px solid color-mix(in srgb, var(--gh-warn) 32%, var(--gh-card));
+    border-radius: var(--gh-r-tile);
+    background: color-mix(in srgb, var(--gh-warn) 9%, var(--gh-card));
+    font: 400 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink2);
+}
+.gh-cp-explain { margin: 0; font: 400 12.5px/1.5 var(--gh-sans); color: var(--gh-ink4); }
+
+.gh-cp-live { display: flex; flex-direction: column; gap: 12px; }
+.gh-cp-src { max-width: 280px; }
+.gh-cp-token { font-size: 12px; }
+.gh-cp-livebox {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-in);
+    background: var(--gh-soft);
+}
+.gh-cp-livebar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.gh-cp-livebar .gh-field { flex: 1 1 200px; }
+.gh-cp-liveres { display: flex; flex-direction: column; gap: 8px; }
+.gh-cp-liveres-h {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font: 500 11px/1.3 var(--gh-mono);
+    color: var(--gh-ink5);
+}
+.gh-cp-liveres-h .gh-counter { cursor: help; }
+.gh-cp-stop {
+    padding: 9px 12px;
+    border: 1px solid color-mix(in srgb, var(--gh-bad) 30%, var(--gh-card));
+    border-radius: var(--gh-r-tile);
+    background: color-mix(in srgb, var(--gh-bad) 8%, var(--gh-card));
+    font: 400 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink2);
+    overflow-wrap: anywhere;
+}
+.gh-cp-stop b { font-weight: 600; color: var(--gh-bad-ink); }
+.gh-cp-go { font: 500 12.5px/1.45 var(--gh-sans); color: var(--gh-ok-ink); }
+.gh-cp-rendered {
+    max-height: 280px;
+    overflow: auto;
+    padding: 10px 12px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-card);
+    font: 400 13px/1.55 var(--gh-sans);
+    color: var(--gh-ink);
+    overflow-wrap: anywhere;
+}
+
+/* Фото и видео материала. */
+.gh-cp-media {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+    gap: 10px;
+}
+.gh-cp-media-i {
+    position: relative;
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-card);
+}
+.gh-cp-media-th { position: relative; aspect-ratio: 1 / 1; background: var(--gh-soft); }
+.gh-cp-media-th img,
+.gh-cp-media-th video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.gh-cp-media-kind {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: var(--gh-tip-bg);
+    color: var(--gh-tip-ink);
+    font: 600 10px/1.3 var(--gh-mono);
+}
+.gh-cp-media-cap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 8px 7px;
+    font: 400 11px/1.3 var(--gh-sans);
+    color: var(--gh-ink3);
+}
+.gh-cp-media-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-cp-media-sz { font: 500 10.5px/1.2 var(--gh-mono); color: var(--gh-ink5); }
+.gh-cp-media-x {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    min-height: 0;
+    padding: 0;
+    border: 1px solid var(--gh-line);
+    border-radius: 999px;
+    background: var(--gh-card);
+    color: var(--gh-ink2);
+    cursor: pointer;
+}
+.gh-cp-media-x svg { stroke: currentColor; fill: none; }
+.gh-cp-media-x:hover { border-color: var(--gh-bad); color: var(--gh-bad-ink); }
+.gh-cp-media-x:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-cp-drop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 14px 16px;
+    border: 1px dashed var(--gh-line2);
+    border-radius: var(--gh-r-in);
+    background: var(--gh-chip);
+    transition: border-color .15s ease, background .15s ease;
+}
+.gh-cp-drop.is-drag {
+    border-color: var(--gh-accent);
+    background: color-mix(in srgb, var(--gh-accent) 7%, var(--gh-card));
+}
+.gh-cp-drop.is-busy { color: var(--gh-ink3); }
+.gh-cp-drop-t { font: 500 13px/1.4 var(--gh-sans); color: var(--gh-ink2); }
+.gh-cp-drop-s { flex-basis: 100%; font: 400 11.5px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+.gh-cp-upload { cursor: pointer; }
+.gh-cp-req { display: flex; align-items: center; gap: 8px; }
+.gh-cp-note { margin-top: 4px; }
+.gh-cp-notearea { min-height: 64px; }
+
+/* Размещения. */
+.gh-cp-pl {
+    padding: 12px 14px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-in);
+    background: var(--gh-card);
+}
+.gh-cp-pl.is-open { background: var(--gh-chip); }
+.gh-cp-pl.is-focus {
+    border-color: var(--gh-accent);
+    box-shadow: 0 0 0 1px var(--gh-accent);
+}
+.gh-cp-pl.is-cancel .gh-cp-pl-ch,
+.gh-cp-pl.is-cancel .gh-cp-pl-bar,
+.gh-cp-pl.is-cancel .gh-cp-pl-when { text-decoration: line-through; color: var(--gh-ink5); }
+.gh-cp-pl-h { display: flex; align-items: flex-start; gap: 10px; }
+.gh-cp-pl-info {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    min-width: 0;
+    min-height: 30px;
+}
+.gh-cp-pl-info .gh-badge { cursor: help; }
+.gh-cp-pl-ch { font: 600 13.5px/1.3 var(--gh-sans); color: var(--gh-ink); }
+.gh-cp-pl-bar { font: 500 13px/1.3 var(--gh-sans); color: var(--gh-ink2); }
+.gh-cp-pl-when { font: 500 12px/1.3 var(--gh-mono); color: var(--gh-ink4); white-space: nowrap; }
+.gh-cp-pl-tg { flex: none; margin-left: auto; }
+.gh-cp-pl-miss { margin-top: 7px; font: 500 12.5px/1.45 var(--gh-sans); color: var(--gh-warn-ink); }
+.gh-cp-pl-meta { margin-top: 5px; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); }
+.gh-cp-pl-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.gh-cp-acthint { font: 400 11.5px/1.3 var(--gh-sans); color: var(--gh-ink5); }
+.gh-cp-del { color: var(--gh-bad-ink); }
+.gh-cp-ed {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gh-hair);
+}
+.gh-cp-own { align-self: flex-start; }
+.gh-cp-owntext { min-height: 110px; }
+.gh-cp-mediasel { margin-top: 8px; }
+.gh-cp-mediasel .gh-check span { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+
+.gh-cp-add {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px dashed var(--gh-line2);
+    border-radius: var(--gh-r-in);
+}
+.gh-cp-add-h { font: 600 13px/1.2 var(--gh-sans); color: var(--gh-ink); }
+.gh-cp-add > .gh-seg,
+.gh-cp-add > .gh-btn { align-self: flex-start; }
+.gh-cp-botnote { margin: 0; font: 400 11.5px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+
+/* Предпросмотр. */
+.gh-cp-ptabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.gh-cp-ptab {
+    height: 28px;
+    min-height: 0;
+    padding: 0 12px;
+    border: 1px solid var(--gh-line2);
+    border-radius: 999px;
+    background: var(--gh-card);
+    font: 600 11.5px/1 var(--gh-mono);
+    color: var(--gh-ink3);
+    cursor: pointer;
+    transition: border-color .15s ease, color .15s ease;
+}
+.gh-cp-ptab:hover { border-color: var(--gh-ink6); color: var(--gh-ink); }
+.gh-cp-ptab:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+.gh-cp-ptab.is-on { background: var(--gh-ink); border-color: var(--gh-ink); color: var(--gh-card); }
+.gh-cp-pv {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border-radius: var(--gh-r-in);
+    background: var(--gh-soft);
+}
+.gh-cp-tg { display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+.gh-cp-tg-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12.5px/1.3 var(--gh-sans);
+    color: var(--gh-ink2);
+}
+.gh-cp-av {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--gh-accent);
+    color: var(--gh-on-accent);
+    font: 700 9.5px/1 var(--gh-mono);
+}
+.gh-cp-tg.is-bot .gh-cp-av { background: var(--gh-ink3); color: var(--gh-card); }
+.gh-cp-bubble {
+    position: relative;
+    padding: 6px 6px 24px;
+    overflow: hidden;
+    border-radius: 14px 14px 14px 4px;
+    background: var(--gh-card);
+    box-shadow: var(--gh-shadow);
+}
+.gh-cp-bubble-t {
+    padding: 4px 6px 0;
+    font: 400 13.5px/1.5 var(--gh-sans);
+    color: var(--gh-ink);
+    overflow-wrap: anywhere;
+}
+.gh-cp-bubble-time {
+    position: absolute;
+    right: 10px;
+    bottom: 7px;
+    font: 500 10.5px/1 var(--gh-mono);
+    color: var(--gh-ink5);
+}
+.gh-cp-pv-media {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    margin-bottom: 4px;
+    overflow: hidden;
+    border-radius: 10px;
+}
+.gh-cp-pv-media[data-n="1"] { grid-template-columns: 1fr; }
+.gh-cp-pv-media[data-n="3"] > :first-child { grid-column: span 2; }
+.gh-cp-pv-media img,
+.gh-cp-pv-media .gh-cp-pv-vid {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+.gh-cp-pv-vid {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--gh-tip-bg);
+    color: var(--gh-tip-ink);
+    font: 600 11px/1 var(--gh-mono);
+}
+.gh-cp-pv-more {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: var(--gh-tip-bg);
+    color: var(--gh-tip-ink);
+    font: 600 11px/1.3 var(--gh-mono);
+}
+.gh-cp-ig {
+    max-width: 360px;
+    overflow: hidden;
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: 12px;
+}
+.gh-cp-ig-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    font: 600 12.5px/1.3 var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-cp-ig-media {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+    background: var(--gh-soft);
+}
+.gh-cp-ig-media img,
+.gh-cp-ig-media .gh-cp-pv-vid { width: 100%; height: 100%; object-fit: cover; }
+.gh-cp-ig-empty {
+    padding: 20px;
+    text-align: center;
+    font: 500 12px/1.45 var(--gh-sans);
+    color: var(--gh-warn-ink);
+}
+.gh-cp-ig-count {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--gh-tip-bg);
+    color: var(--gh-tip-ink);
+    font: 600 10.5px/1.3 var(--gh-mono);
+}
+.gh-cp-ig-cap {
+    max-height: 260px;
+    overflow: auto;
+    padding: 10px 12px 12px;
+    font: 400 13px/1.5 var(--gh-sans);
+    color: var(--gh-ink);
+    overflow-wrap: anywhere;
+}
+.gh-cp-pv-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.gh-cp-pv-foot .gh-counter { cursor: help; }
+.gh-cp-pv-note { font: 500 11px/1 var(--gh-mono); color: var(--gh-ink5); }
+.gh-cp-loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font: 400 13px/1.4 var(--gh-sans);
+    color: var(--gh-ink4);
+}
+
+/* Повтор и перенос, история. */
+.gh-cp-rep-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.gh-cp-days { flex: 0 1 170px; }
+.gh-cp-rep-days { margin-top: 6px; }
+.gh-cp-sec > .gh-btn { align-self: flex-start; }
+.gh-cp-series { font: 500 11.5px/1.4 var(--gh-mono); color: var(--gh-ink4); cursor: help; }
+.gh-cp-log { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.gh-cp-log-i {
+    display: grid;
+    grid-template-columns: 136px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 8px 0;
+    border-top: 1px solid var(--gh-hair);
+    font: 400 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink2);
+}
+.gh-cp-log-i:first-child { border-top: none; }
+.gh-cp-log-at { font: 500 11px/1.65 var(--gh-mono); color: var(--gh-ink5); white-space: nowrap; }
+.gh-cp-log-t { overflow-wrap: anywhere; }
+.gh-cp-log-by { font: 500 11px/1.65 var(--gh-mono); color: var(--gh-ink4); }
+.gh-cp-logmore { align-self: flex-start; font-size: 12.5px; }
+
+/* ==================== Диалоги ==================== */
+
+.gh-cp-scope {
+    margin-bottom: 8px;
+    font: 600 11px/1.4 var(--gh-mono);
+    letter-spacing: .06em;
+    color: var(--gh-ink4);
+}
+.gh-cp-ap-g + .gh-cp-ap-g { margin-top: 12px; }
+.gh-cp-ap-gh { margin-bottom: 6px; font: 600 12.5px/1.3 var(--gh-sans); color: var(--gh-ink); }
+.gh-cp-ap-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-tile);
+}
+.gh-cp-ap-list.is-stay { background: var(--gh-soft); }
+.gh-cp-ap-i {
+    display: grid;
+    grid-template-columns: 124px minmax(0, 1fr);
+    gap: 2px 12px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--gh-hair);
+    font: 400 13px/1.4 var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-cp-ap-i:first-child { border-top: none; }
+.gh-cp-ap-when { font: 500 11.5px/1.6 var(--gh-mono); color: var(--gh-ink4); white-space: nowrap; }
+.gh-cp-ap-what { overflow-wrap: anywhere; }
+.gh-cp-ap-what b { margin-left: 6px; font: 600 11.5px/1 var(--gh-mono); color: var(--gh-ink3); white-space: nowrap; }
+.gh-cp-ap-why { grid-column: 2; font: 400 12px/1.4 var(--gh-sans); color: var(--gh-warn-ink); }
+.gh-cp-ap-bot {
+    display: flex;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-tile);
+}
+.gh-cp-ap-bot b { font-weight: 600; color: var(--gh-ink); }
+.gh-cp-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font: 400 12.5px/1.5 var(--gh-sans);
+    color: var(--gh-ink3);
+}
+.gh-cp-copyopt { margin-top: 12px; }
+.gh-modal-body .gh-cp-warn { margin: 10px 0 4px; }
+.gh-modal-body .gh-field-hint { margin-top: 6px; }
+
+/* ==================== Состояния размещения ====================
+   Вид — по display_state (STATE_HUE в content_plan.js), одинаковый на чипах
+   таблицы, плашках календаря, бейджах карточки и в легенде. Оттенок даёт
+   класс тона hub.css (--gh-t / --gh-t-ink), начертание — класс
+   gh-cp-st-<состояние>:
+     incomplete — пунктирный контур (черновику чего-то не хватает);
+     ready      — сплошной контур (можно утверждать);
+     scheduled  — спокойная графитовая заливка (в очереди);
+     overdue / published / failed — плотная заливка (факт или исключение);
+     paused     — серый пунктир; cancelled — серый, зачёркнуто (is-cancel).
+   Плотная заливка — цветом *-ink (темнее базового): белый текст на нём
+   читается (контраст не ниже 4,5:1); в тёмной теме *-ink светлый, а
+   --gh-on-status тёмный. Правила идут в конце файла: при равной
+   специфичности они перебивают базовые правила компонентов выше. */
+
+/* Чипы (таблица, снимаемый фильтр). */
+.gh-chip.gh-cp-st-ready,
+.gh-chip.gh-cp-st-incomplete { background: var(--gh-card); border-color: var(--gh-t); }
+.gh-chip.gh-cp-st-incomplete,
+.gh-chip.gh-cp-st-paused { border-style: dashed; }
+/* Пауза — без заливки: так она не сливается с графитовой «в очереди». */
+.gh-chip.gh-cp-st-paused { background: var(--gh-card); border-color: color-mix(in srgb, var(--gh-t) 70%, var(--gh-card)); }
+.gh-chip.gh-cp-st-incomplete .gh-chip-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--gh-t); }
+.gh-chip.gh-cp-st-scheduled {
+    background: color-mix(in srgb, var(--gh-ink) 11%, var(--gh-card));
+    border-color: color-mix(in srgb, var(--gh-ink) 32%, var(--gh-card));
+    color: var(--gh-ink2);
+}
+.gh-chip.gh-cp-st-scheduled .gh-chip-dot { background: var(--gh-ink3); }
+.gh-chip.gh-cp-st-overdue,
+.gh-chip.gh-cp-st-published,
+.gh-chip.gh-cp-st-failed {
+    background: var(--gh-t-ink);
+    border-color: var(--gh-t-ink);
+    color: var(--gh-on-status);
+}
+.gh-chip.gh-cp-st-overdue .gh-chip-dot,
+.gh-chip.gh-cp-st-published .gh-chip-dot,
+.gh-chip.gh-cp-st-failed .gh-chip-dot { background: var(--gh-on-status); }
+.gh-chip.gh-cp-st-overdue .gh-cp-chip-t,
+.gh-chip.gh-cp-st-published .gh-cp-chip-t,
+.gh-chip.gh-cp-st-failed .gh-cp-chip-t { color: inherit; opacity: .85; }
+button.gh-chip.gh-cp-st-overdue:hover,
+button.gh-chip.gh-cp-st-published:hover,
+button.gh-chip.gh-cp-st-failed:hover { border-color: var(--gh-ink); }
+.gh-cp-scopechip { max-width: 100%; }
+
+/* Плашки календаря. Контур — тенью и outline, а не рамкой: размер плашки
+   не меняется (в списке по дням у неё свои отступы). */
+.gh-cp-pill.gh-cp-st-ready,
+.gh-cp-pill.gh-cp-st-incomplete { background: var(--gh-card); }
+.gh-cp-pill.gh-cp-st-ready { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gh-t) 60%, var(--gh-card)); }
+.gh-cp-pill.gh-cp-st-incomplete { outline: 1px dashed var(--gh-t); outline-offset: -1px; }
+.gh-cp-pill.gh-cp-st-ready:hover,
+.gh-cp-pill.gh-cp-st-incomplete:hover { background: color-mix(in srgb, var(--gh-t) 10%, var(--gh-card)); }
+.gh-cp-pill.gh-cp-st-scheduled {
+    border-left-color: var(--gh-ink3);
+    background: color-mix(in srgb, var(--gh-ink) 9%, var(--gh-card));
+}
+.gh-cp-pill.gh-cp-st-scheduled:hover { background: color-mix(in srgb, var(--gh-ink) 15%, var(--gh-card)); }
+.gh-cp-pill.gh-cp-st-scheduled .gh-cp-pill-t { color: var(--gh-ink2); }
+.gh-cp-pill.gh-cp-st-paused { border-left-style: dashed; background: var(--gh-card); }
+.gh-cp-pill.gh-cp-st-paused:hover { background: var(--gh-hover); }
+.gh-cp-pill.gh-cp-st-overdue,
+.gh-cp-pill.gh-cp-st-published,
+.gh-cp-pill.gh-cp-st-failed {
+    border-left-color: var(--gh-t-ink);
+    background: var(--gh-t-ink);
+    color: var(--gh-on-status);
+}
+.gh-cp-pill.gh-cp-st-overdue:hover,
+.gh-cp-pill.gh-cp-st-published:hover,
+.gh-cp-pill.gh-cp-st-failed:hover { background: color-mix(in srgb, var(--gh-t-ink) 86%, var(--gh-ink)); }
+.gh-cp-pill.gh-cp-st-overdue .gh-cp-pill-t,
+.gh-cp-pill.gh-cp-st-overdue .gh-cp-pill-n,
+.gh-cp-pill.gh-cp-st-published .gh-cp-pill-t,
+.gh-cp-pill.gh-cp-st-published .gh-cp-pill-n,
+.gh-cp-pill.gh-cp-st-failed .gh-cp-pill-t,
+.gh-cp-pill.gh-cp-st-failed .gh-cp-pill-n { color: var(--gh-on-status); }
+.gh-cp-pill.gh-cp-st-incomplete:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 1px; }
+
+/* Бейдж состояния и точка в строке размещения карточки. */
+.gh-badge.gh-cp-st-ready { background: transparent; box-shadow: inset 0 0 0 1px var(--gh-t); }
+.gh-badge.gh-cp-st-incomplete,
+.gh-badge.gh-cp-st-paused { background: transparent; outline: 1px dashed var(--gh-t); outline-offset: -1px; }
+.gh-badge.gh-cp-st-scheduled { background: color-mix(in srgb, var(--gh-ink) 9%, transparent); color: var(--gh-ink2); }
+.gh-badge.gh-cp-st-overdue,
+.gh-badge.gh-cp-st-published,
+.gh-badge.gh-cp-st-failed { background: var(--gh-t-ink); color: var(--gh-on-status); }
+.gh-badge.gh-cp-st-cancelled { text-decoration: line-through; }
+.gh-cp-stbadge { white-space: normal; text-align: left; }
+.gh-dot.gh-cp-st-incomplete { background: transparent; box-shadow: inset 0 0 0 1.5px var(--gh-t); }
+.gh-dot.gh-cp-st-scheduled { background: var(--gh-ink3); }
+.gh-dot.gh-cp-st-overdue,
+.gh-dot.gh-cp-st-published,
+.gh-dot.gh-cp-st-failed { background: var(--gh-t-ink); }
+
+/* Образец в легенде — то же начертание в миниатюре. */
+.gh-cp-sw {
+    display: inline-block;
+    flex: none;
+    width: 16px;
+    height: 10px;
+    border: 1px solid color-mix(in srgb, var(--gh-t) 45%, var(--gh-card));
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--gh-t) 14%, var(--gh-card));
+}
+.gh-cp-sw.gh-cp-st-ready,
+.gh-cp-sw.gh-cp-st-incomplete { background: var(--gh-card); border-color: var(--gh-t); }
+.gh-cp-sw.gh-cp-st-incomplete,
+.gh-cp-sw.gh-cp-st-paused { border-style: dashed; }
+.gh-cp-sw.gh-cp-st-paused { background: var(--gh-card); border-color: var(--gh-t); }
+.gh-cp-sw.gh-cp-st-scheduled {
+    background: color-mix(in srgb, var(--gh-ink) 16%, var(--gh-card));
+    border-color: color-mix(in srgb, var(--gh-ink) 42%, var(--gh-card));
+}
+.gh-cp-sw.gh-cp-st-overdue,
+.gh-cp-sw.gh-cp-st-published,
+.gh-cp-sw.gh-cp-st-failed { background: var(--gh-t-ink); border-color: var(--gh-t-ink); }
+/* Отменённое — зачёркнутый образец: линия по середине. */
+.gh-cp-sw.gh-cp-st-cancelled {
+    background: linear-gradient(to bottom, transparent 3.5px, var(--gh-t) 3.5px, var(--gh-t) 4.5px, transparent 4.5px),
+                var(--gh-soft);
+}
+
+/* Легенда над таблицей. */
+.gh-cp-tablebar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+
+/* Метка дня «пост + бот»: пост и рассылка бота для одной аудитории в один день. */
+.gh-cp-day-clash {
+    margin-left: auto;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--gh-warn) 14%, var(--gh-card));
+    color: var(--gh-warn-ink);
+    font: 700 9.5px/18px var(--gh-mono);
+    white-space: nowrap;
+    cursor: help;
+}
+.gh-cp-day-clash + .gh-cp-day-cnt { margin-left: 0; }
+.gh-cp-ag-h .gh-cp-day-clash,
+.gh-cp-ag-h .gh-cp-day-cnt { margin-left: 0; }
+
+/* Вышедшее размещение: что ушло на самом деле. */
+.gh-cp-pl-sent { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.gh-cp-sent-note { font: 500 11.5px/1.45 var(--gh-sans); color: var(--gh-ink4); cursor: help; }
+.gh-cp-pl-sent .gh-cp-sent-note { cursor: default; }
+.gh-cp-pv-media.gh-cp-pl-files { max-width: 160px; margin-bottom: 0; }
+
+/* Живой материал в диалоге утверждения. */
+.gh-cp-ap-live { margin-left: 6px; }
+
+/* ==================== Телефон (<=768px, как hub.css) ==================== */
+
+@media (max-width: 768px) {
+    .gh-cp-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+    .gh-cp-sum { margin-left: -6px; }
+    .gh-cp-bar-acts { display: flex; }
+    .gh-cp-bar-acts > .gh-btn,
+    .gh-cp-menuwrap { flex: 1 1 0; min-width: 0; }
+    .gh-cp-menuwrap > .gh-btn { width: 100%; }
+
+    /* Таблица -> карточки: строка раскладывается сеткой, страница не
+       прокручивается вбок. */
+    .gh-cp-tablewrap { overflow: visible; background: transparent; border: none; box-shadow: none; }
+    .gh-cp-table,
+    .gh-cp-table tbody { display: block; }
+    .gh-cp-table thead { display: none; }
+    .gh-cp-table tr.gh-cp-grp { display: block; }
+    .gh-cp-table tr.gh-cp-grp td { display: block; padding: 14px 4px 8px; background: transparent; border: none; }
+    .gh-cp-table tr.gh-cp-row {
+        display: grid;
+        grid-template-columns: 26px minmax(0, 1fr);
+        grid-template-areas: "sel date" "sel mat" "sel pl" "sel ready";
+        gap: 8px 10px;
+        margin-bottom: 8px;
+        padding: 12px 14px 12px 10px;
+        background: var(--gh-card);
+        border: 1px solid var(--gh-line);
+        border-radius: var(--gh-r-card);
+        box-shadow: var(--gh-shadow);
+    }
+    .gh-cp-table tr.gh-cp-row.is-sel { border-color: color-mix(in srgb, var(--gh-accent) 55%, var(--gh-card)); }
+    .gh-cp-table tr.gh-cp-row td { display: block; min-width: 0; width: auto; padding: 0; border: none; background: transparent; }
+    .gh-cp-table tr.gh-cp-row td.gh-cp-c-sel { grid-area: sel; width: auto; }
+    .gh-cp-table tr.gh-cp-row td.gh-cp-c-date { grid-area: date; display: flex; align-items: center; gap: 8px; }
+    .gh-cp-table tr.gh-cp-row td.gh-cp-c-mat { grid-area: mat; }
+    .gh-cp-table tr.gh-cp-row td.gh-cp-c-pl { grid-area: pl; }
+    .gh-cp-table tr.gh-cp-row td.gh-cp-c-ready { grid-area: ready; }
+    .gh-cp-d.is-rep,
+    .gh-cp-row.is-past .gh-cp-d.is-rep { color: var(--gh-ink5); }
+    .gh-cp-today { margin-top: 0; }
+
+    .gh-cp-tablebar { justify-content: flex-start; }
+
+    /* Календарь -> список по дням. */
+    .gh-cp-cal { display: none; }
+    .gh-cp-agenda { display: flex; flex-direction: column; gap: 10px; }
+    .gh-cp-legend { gap: 6px 10px; }
+
+    .gh-cp-bulk {
+        left: 16px;
+        right: 16px;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        max-width: none;
+        padding: 10px 12px;
+        transform: none;
+        border-radius: 18px;
+    }
+    .gh-cp-bulk-n { flex-basis: 100%; }
+    .gh-cp-bulk .gh-btn { flex: 1 1 auto; }
+
+    .gh-cp-title { font-size: 17px; }
+    .gh-cp-log-i { grid-template-columns: minmax(0, 1fr) auto; }
+    .gh-cp-log-at { grid-column: 1 / -1; }
+    .gh-cp-ap-i { grid-template-columns: minmax(0, 1fr); }
+    .gh-cp-ap-why { grid-column: 1; }
+}

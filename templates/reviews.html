@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отзывы — Пивная культура</title>
+    <!-- Раздел «Гости» -> «Отзывы». Порядок важен: hub.css и reviews.css последними,
+         чтобы правила раздела побеждали общие стили дашборда при равной специфичности. -->
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/guest_hub/hub.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/guest_hub/reviews.css?v={{ app_version }}">
+</head>
+<body class="gh-page gh-scope">
+    <div class="container">
+        {% set page_title = "Отзывы" %}
+        {% set page_subtitle = "Яндекс Карты и бот: ответы гостям" %}
+        {% include 'shared/nav.html' %}
+    </div>
+
+    <div class="gh-wrap">
+      {% set hub_active = 'reviews' %}
+      {% set hub_title = 'Отзывы' %}
+      {% set hub_subtitle = 'Яндекс Карты и бот: ответы гостям' %}
+      {% include 'shared/guest_hub_head.html' %}
+
+      <!-- Фильтры. Период — по дате отзыва; бар — общий фильтр раздела
+           (GH.getBar/GH.setBar, тот же, что на контент-плане). -->
+      <div class="gh-filters">
+        <div class="gh-month">
+          <button type="button" class="gh-month-nav" id="rvPrev" aria-label="Предыдущий месяц">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M8.5 3 4.5 7l4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button type="button" class="gh-month-val" id="rvMonthBtn" aria-haspopup="menu" aria-expanded="false"
+                  data-tip="Период — по дате отзыва, границы включительно, время московское. «За всё время» — без ограничения по дате.">
+            <span class="gh-pick-cap">Период</span>
+            <span class="gh-pick-val">
+              <span class="gh-month-label" id="rvMonthLabel">&nbsp;</span>
+              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <button type="button" class="gh-month-nav" id="rvNext" aria-label="Следующий месяц">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M5.5 3l4 4-4 4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="gh-menu" id="rvMonthMenu" role="menu" hidden></div>
+        </div>
+
+        <span class="gh-sep"></span>
+
+        <div class="gh-pick">
+          <button type="button" class="gh-pick-btn" id="rvBarBtn" aria-haspopup="menu" aria-expanded="false">
+            <span class="gh-pick-cap">Бар</span>
+            <span class="gh-pick-val">
+              <span id="rvBarLabel">Все бары</span>
+              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="gh-menu" id="rvBarMenu" role="menu" hidden></div>
+        </div>
+
+        <span class="gh-sep"></span>
+
+        <div class="gh-pick">
+          <button type="button" class="gh-pick-btn" id="rvSourceBtn" aria-haspopup="menu" aria-expanded="false">
+            <span class="gh-pick-cap">Источник</span>
+            <span class="gh-pick-val">
+              <span id="rvSourceLabel">Все</span>
+              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="gh-menu" id="rvSourceMenu" role="menu" hidden></div>
+        </div>
+
+        <span class="gh-sep"></span>
+
+        <div class="gh-pick">
+          <button type="button" class="gh-pick-btn" id="rvRatingBtn" aria-haspopup="menu" aria-expanded="false">
+            <span class="gh-pick-cap">Оценка</span>
+            <span class="gh-pick-val">
+              <span id="rvRatingLabel">Все</span>
+              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="gh-menu" id="rvRatingMenu" role="menu" hidden></div>
+        </div>
+
+        <span class="gh-sep"></span>
+
+        <div class="gh-pick">
+          <button type="button" class="gh-pick-btn" id="rvStatusBtn" aria-haspopup="menu" aria-expanded="false">
+            <span class="gh-pick-cap">Статус</span>
+            <span class="gh-pick-val">
+              <span id="rvStatusLabel">Все</span>
+              <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </button>
+          <div class="gh-menu is-right" id="rvStatusMenu" role="menu" hidden></div>
+        </div>
+
+        <span class="gh-grow"></span>
+
+        <div class="gh-filters-actions">
+          <button type="button" class="gh-btn gh-btn-primary" id="rvAdd">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M6 1.5v9M1.5 6h9" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+            Добавить отзыв
+          </button>
+        </div>
+      </div>
+
+      <!-- Хранилище недоступно (503) или другая ошибка загрузки. -->
+      <div class="gh-banner gh-tone-danger" id="rvBanner" role="alert" hidden>
+        <span class="gh-banner-ico">
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <circle cx="9" cy="9" r="7.2" stroke-width="1.5"/>
+            <path d="M9 5.2v4.6M9 12.4v.1" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="gh-banner-t" id="rvBannerText"></span>
+        <span class="gh-banner-a">
+          <button type="button" class="gh-btn gh-btn-sm" id="rvRetry">Повторить</button>
+        </span>
+      </div>
+
+      <!-- Интеграций пока нет: отзывы вносятся вручную, ответы не отправляются. -->
+      <div class="gh-banner gh-rv-note" id="rvNote">
+        <span class="gh-banner-ico">
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <circle cx="9" cy="9" r="7.2" stroke-width="1.5"/>
+            <path d="M9 8.2v4.6M9 5.4v.1" stroke-width="1.7" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="gh-banner-t">Яндекс Карты и бот пока не подключены: отзывы вносятся вручную, а ответ
+          никуда не отправляется — после сохранения его нужно скопировать и опубликовать в источнике.</span>
+      </div>
+
+      <div class="gh-band">
+        <span class="gh-band-t">Показатели</span>
+        <button type="button" class="gh-help" id="rvMetricsHelp" aria-label="Как считаются показатели"
+                data-tip="Показатели считаются на сервере.">?</button>
+        <span class="gh-band-line"></span>
+        <span class="gh-band-s" id="rvScope">&nbsp;</span>
+      </div>
+      <div class="gh-tiles gh-rv-tiles" id="rvTiles" aria-label="Показатели по барам"></div>
+
+      <div class="gh-band">
+        <span class="gh-band-t">Отзывы</span>
+        <button type="button" class="gh-help" id="rvSortHelp" aria-label="Порядок списка"
+                data-tip="Порядок: сначала отзывы без ответа, от самого давнего; затем остальные, от новых к старым.">?</button>
+        <span class="gh-band-line"></span>
+        <span class="gh-band-s" id="rvCount">&nbsp;</span>
+      </div>
+
+      <!-- Отзывы без ответа за другими месяцами: счётчик полосы берёт любую дату,
+           список — только выбранный месяц. Число и правило — reviews.js, elsewhereCount;
+           при нуле строка скрыта. -->
+      <div class="gh-rv-elsewhere" id="rvElsewhere" hidden>
+        <span class="gh-rv-elsewhere-t" id="rvElsewhereText"></span>
+        <button type="button" class="gh-link gh-rv-elsewhere-a" id="rvElsewhereShow">Показать все без ответа</button>
+      </div>
+
+      <div class="gh-msg" id="rvMsg">Загрузка отзывов…</div>
+
+      <div class="gh-empty" id="rvEmpty" hidden>
+        <div class="gh-empty-t" id="rvEmptyTitle">Отзывов за период нет</div>
+        <div class="gh-empty-s" id="rvEmptyText">Подключение Яндекс Карт и бота будет позже — пока отзывы можно добавить вручную.</div>
+        <div class="gh-empty-a">
+          <button type="button" class="gh-btn" id="rvEmptyReset" hidden>Сбросить фильтры</button>
+          <button type="button" class="gh-btn gh-btn-primary" id="rvEmptyAdd">Добавить отзыв</button>
+        </div>
+      </div>
+
+      <div class="gh-rv-list" id="rvList" aria-live="polite"></div>
+    </div>
+
+    <!-- Диалог «Новый отзыв» / «Изменить отзыв». Проверку полей делает сервер
+         (core/guest_reviews.clean_core), его сообщение показывается под формой. -->
+    <div class="gh-modal" id="rvDlg" aria-labelledby="rvDlgTitle" hidden>
+      <div class="gh-modal-box gh-rv-dlg">
+        <div class="gh-modal-head">
+          <h2 class="gh-modal-t" id="rvDlgTitle">Новый отзыв</h2>
+          <button type="button" class="gh-x" data-gh-close aria-label="Закрыть">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <form class="gh-modal-body gh-rv-form" id="rvForm" novalidate autocomplete="off">
+          <div class="gh-field">
+            <span class="gh-field-cap">Источник</span>
+            <div class="gh-seg gh-seg-block" id="rvFSource" role="group" aria-label="Источник">
+              <button type="button" class="gh-seg-btn is-on" data-value="yandex">Яндекс Карты</button>
+              <button type="button" class="gh-seg-btn" data-value="bot">Бот</button>
+            </div>
+            <span class="gh-field-hint" id="rvFSourceHint" hidden>Источник загруженного отзыва менять нельзя.</span>
+          </div>
+
+          <div class="gh-field">
+            <span class="gh-field-cap">Бар</span>
+            <div class="gh-checks" id="rvFBar" role="radiogroup" aria-label="Бар"></div>
+          </div>
+
+          <div class="gh-field">
+            <span class="gh-field-cap">Оценка</span>
+            <div class="gh-seg gh-rv-rateseg" id="rvFRating" role="group" aria-label="Оценка">
+              <button type="button" class="gh-seg-btn" data-value="1">1</button>
+              <button type="button" class="gh-seg-btn" data-value="2">2</button>
+              <button type="button" class="gh-seg-btn" data-value="3">3</button>
+              <button type="button" class="gh-seg-btn" data-value="4">4</button>
+              <button type="button" class="gh-seg-btn" data-value="5">5</button>
+              <button type="button" class="gh-seg-btn" data-value="none" id="rvFRatingNone">без оценки</button>
+            </div>
+            <span class="gh-field-hint" id="rvFRatingHint">На Яндекс Картах отзыв без оценки не оставить — оценка обязательна.</span>
+          </div>
+
+          <div class="gh-form-row">
+            <label class="gh-field">
+              <span class="gh-field-cap">Автор</span>
+              <input type="text" class="gh-input" id="rvFAuthor" maxlength="120" placeholder="Имя из профиля">
+            </label>
+            <label class="gh-field gh-rv-f-date">
+              <span class="gh-field-cap">Дата</span>
+              <input type="date" class="gh-input" id="rvFDate">
+            </label>
+            <label class="gh-field gh-rv-f-time">
+              <span class="gh-field-cap">Время</span>
+              <input type="time" class="gh-input" id="rvFTime">
+            </label>
+          </div>
+
+          <label class="gh-field">
+            <span class="gh-rv-caprow">
+              <span class="gh-field-cap">Текст отзыва</span>
+              <span class="gh-counter" id="rvFTextCount"
+                    data-tip="Лимит 5000 знаков: отзыв на Яндекс Картах короче, запас — на пересказ из бота.">0 / 5000</span>
+            </span>
+            <textarea class="gh-textarea" id="rvFText" rows="5" maxlength="5000"
+                      placeholder="Как написал гость. Можно пусто, если стоит оценка."></textarea>
+          </label>
+
+          <div class="gh-form-row" id="rvFGuest" hidden>
+            <label class="gh-field">
+              <span class="gh-field-cap">Телефон гостя</span>
+              <input type="tel" class="gh-input" id="rvFPhone" maxlength="32" placeholder="+7 900 000-00-00">
+            </label>
+            <label class="gh-field">
+              <span class="gh-field-cap">Telegram гостя</span>
+              <input type="text" class="gh-input" id="rvFTelegram" maxlength="64" placeholder="@username">
+            </label>
+          </div>
+
+          <p class="gh-field-hint gh-rv-dlg-rules">Нужен текст или оценка. Дата — когда гость оставил отзыв, по Москве;
+            не позже текущего момента.</p>
+          <p class="gh-field-err" id="rvDlgErr" role="alert" hidden></p>
+        </form>
+        <div class="gh-modal-foot">
+          <button type="button" class="gh-btn" data-gh-close>Отмена</button>
+          <button type="submit" class="gh-btn gh-btn-primary" form="rvForm" id="rvDlgSave">Добавить</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/js/guest_hub/common.js?v={{ app_version }}"></script>
+    <script src="/static/js/guest_hub/reviews.js?v={{ app_version }}"></script>
+    <script src="/static/logo.js"></script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+/* Страница «Отзывы» (/reviews) раздела «Гости» — стили поверх hub.css.
+
+   Общие компоненты (полоса фильтров, меню, плитки, бейджи, тоны, диалог,
+   тосты, подсказки) — в static/guest_hub/hub.css. Здесь только то, что есть
+   на этой странице: пять карточек показателей, карточка отзыва с блоком
+   ответа, диалог отзыва.
+
+   Правила: префикс gh-rv- у классов страницы; цвета — только токены --gh-*
+   из hub.css (ни одного HEX и rgb здесь нет), поэтому тёмная тема работает
+   сама. Переменную тона --gh-t здесь не задаём: этот файл подключён после
+   hub.css, и правило с той же специфичностью перебило бы класс gh-tone-*.
+   Брейкпоинт телефона — 768px, как в hub.css и base.css. */
+
+/* ==================== Показатели ==================== */
+
+/* Пять плиток в ряд: вся сеть и четыре бара. */
+.gh-rv-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.gh-rv-tile > span { display: block; }
+.gh-rv-tile .gh-tile-cap {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gh-rv-tile .gh-tile-v { margin: 12px 0 10px; }
+.gh-rv-tl {
+    margin-top: 5px;
+    font: 400 12px/1.35 var(--gh-sans);
+    color: var(--gh-ink4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.gh-rv-tl b {
+    font: 600 12px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink2);
+}
+.gh-rv-tl.is-warn b { color: var(--gh-warn-ink); }
+
+/* ==================== Список отзывов ==================== */
+
+.gh-rv-list { display: flex; flex-direction: column; gap: 12px; }
+.gh-rv-list:empty { display: none; }
+
+.gh-rv-card {
+    background: var(--gh-card);
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-card);
+    box-shadow: var(--gh-shadow);
+    padding: 16px 20px;
+    font-family: var(--gh-sans);
+    color: var(--gh-ink);
+    overflow-wrap: anywhere;
+}
+/* Отзыв без ответа — полоска слева: акцент, после срока ответа — оранжевая. */
+.gh-rv-card.is-new { box-shadow: inset 3px 0 0 var(--gh-accent), var(--gh-shadow); }
+.gh-rv-card.is-late { box-shadow: inset 3px 0 0 var(--gh-warn), var(--gh-shadow); }
+.gh-rv-card.is-flash { animation: ghRvFlash 1.6s ease; }
+/* Оставлен без ответа по решению — текст отзыва приглушён. */
+.gh-rv-card.is-skipped .gh-rv-text { color: var(--gh-ink3); }
+@keyframes ghRvFlash {
+    from { background: color-mix(in srgb, var(--gh-accent) 12%, var(--gh-card)); }
+    to { background: var(--gh-card); }
+}
+
+.gh-rv-top { display: flex; align-items: flex-start; gap: 12px; }
+.gh-rv-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    flex: 1;
+    min-width: 0;
+    min-height: 30px;
+}
+.gh-rv-side { display: flex; align-items: center; gap: 6px; flex: none; min-height: 30px; }
+
+.gh-rv-bar {
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid var(--gh-line2);
+    border-radius: 999px;
+    font: 600 11px/1 var(--gh-mono);
+    color: var(--gh-ink2);
+    cursor: help;
+}
+
+/* Оценка: пять точек (CSS, не символы) и «4 из 5». Цвет точек — от тона
+   корзины (1–2 низкие, 3 средняя, 4–5 высокие), класс gh-tone-* ставит JS. */
+.gh-rv-rate { display: inline-flex; align-items: center; gap: 7px; cursor: help; }
+.gh-rv-rate b {
+    font: 600 12px/1 var(--gh-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink);
+    white-space: nowrap;
+}
+.gh-rv-rate.is-none { font: 500 12px/1 var(--gh-sans); color: var(--gh-ink5); }
+.gh-rv-pips { display: inline-flex; gap: 3px; }
+.gh-rv-pips i {
+    display: block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--gh-track);
+}
+.gh-rv-pips i.is-on { background: var(--gh-t, var(--gh-accent)); }
+
+.gh-rv-author { font: 600 13.5px/1.3 var(--gh-sans); color: var(--gh-ink); }
+.gh-rv-author.is-anon { font-weight: 400; color: var(--gh-ink5); }
+.gh-rv-date {
+    font: 500 11.5px/1.2 var(--gh-mono);
+    color: var(--gh-ink5);
+    white-space: nowrap;
+    cursor: help;
+}
+
+.gh-rv-text {
+    margin-top: 10px;
+    font: 400 14px/1.6 var(--gh-sans);
+    color: var(--gh-ink);
+    white-space: pre-wrap;
+}
+.gh-rv-text.is-empty { font-size: 13px; color: var(--gh-ink5); }
+
+/* Контакты гостя из бота. */
+.gh-rv-guest {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--gh-soft);
+    border-radius: var(--gh-r-tile);
+    font: 400 12.5px/1.4 var(--gh-sans);
+    color: var(--gh-ink2);
+}
+.gh-rv-guest-cap {
+    font: 600 9.5px/1 var(--gh-mono);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gh-ink5);
+}
+.gh-rv-guest-v { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.gh-rv-tel,
+.gh-rv-tg { font: 500 12.5px/1.4 var(--gh-mono); color: var(--gh-ink); text-decoration: none; }
+.gh-rv-tel:hover { color: var(--gh-accent-ink); }
+.gh-rv-dot { color: var(--gh-ink6); }
+.gh-rv-guest-a { margin-left: auto; font-size: 12.5px; }
+/* Яндекс Карты контакт автора не передают: вместо строки «Гость» —
+   приглушённое пояснение, без подложки (оно есть у каждого такого отзыва,
+   и плашка утяжелила бы список). */
+.gh-rv-noguest { margin: 8px 0 0; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink5); }
+
+/* Отзывы без ответа за другими месяцами — строка над списком, в тон
+   «внимание»: это отзывы, которых в показанном списке нет. */
+.gh-rv-elsewhere {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    margin: 0 0 12px;
+    padding: 9px 14px;
+    border: 1px solid color-mix(in srgb, var(--gh-warn) 30%, var(--gh-line));
+    background: color-mix(in srgb, var(--gh-warn) 7%, var(--gh-card));
+    border-radius: var(--gh-r-tile);
+    font: 400 13px/1.45 var(--gh-sans);
+    color: var(--gh-ink2);
+    cursor: help;
+}
+.gh-rv-elsewhere[hidden] { display: none; }
+.gh-rv-elsewhere-t { min-width: 0; }
+.gh-rv-elsewhere-a { font-size: 13px; cursor: pointer; }
+
+/* ==================== Ответ ==================== */
+
+.gh-rv-reply { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--gh-hair); }
+.gh-rv-caprow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-bottom: 8px;
+}
+.gh-rv-caprow .gh-counter { margin-left: auto; cursor: help; }
+/* Пустое поле ответа — в две строки, чтобы список ждущих отзывов не
+   растягивался; при фокусе или с текстом поле вырастает. */
+.gh-rv-ta { min-height: 60px; transition: min-height .15s ease; }
+.gh-rv-ta:focus,
+.gh-rv-ta.is-filled { min-height: 104px; }
+
+.gh-rv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+.gh-rv-actions .gh-grow { min-width: 8px; }
+.gh-rv-hint { font: 400 11.5px/1.4 var(--gh-sans); color: var(--gh-ink5); }
+.gh-rv-mat { font-size: 12.5px; }
+/* Материал из отзыва удалили в контент-плане: пометка рядом с кнопкой
+   «Сделать материалом», которая снова доступна. */
+.gh-rv-mat-gone { font: 400 12px/1.4 var(--gh-sans); color: var(--gh-ink5); cursor: help; }
+
+.gh-rv-reply-meta { font: 500 11px/1.3 var(--gh-mono); color: var(--gh-ink5); }
+.gh-rv-reply-t {
+    padding: 10px 14px;
+    background: var(--gh-soft);
+    border-radius: var(--gh-r-tile);
+    font: 400 13.5px/1.6 var(--gh-sans);
+    color: var(--gh-ink);
+    white-space: pre-wrap;
+}
+.gh-rv-send { margin: 8px 0 0; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); }
+
+/* Прежний ответ или причина пропуска у отзыва, возвращённого в работу. */
+.gh-rv-hist {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border: 1px dashed var(--gh-line2);
+    border-radius: var(--gh-r-tile);
+    font: 400 12.5px/1.5 var(--gh-sans);
+    color: var(--gh-ink4);
+}
+.gh-rv-hist-h { font: 500 11px/1.4 var(--gh-mono); color: var(--gh-ink5); }
+.gh-rv-hist-a { margin-left: 6px; font: 500 12px/1.4 var(--gh-sans); }
+.gh-rv-hist-t { margin-top: 4px; color: var(--gh-ink3); white-space: pre-wrap; }
+
+.gh-rv-skip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.gh-rv-skip-t { font: 400 13px/1.5 var(--gh-sans); color: var(--gh-ink3); }
+
+/* Меню «Изменить / Удалить» у отзывов, внесённых вручную. */
+.gh-rv-more { position: relative; display: flex; }
+.gh-rv-more .gh-btn-icon svg { fill: currentColor; stroke: none; }
+.gh-rv-menu { width: 200px; }
+
+/* hub.css задаёт .gh-btn { display: inline-flex }, и атрибут hidden (правило
+   браузера с меньшей специфичностью) кнопку не прячет — «Сбросить фильтры»
+   в пустом состоянии и «Повторить» в баннере прячутся явно. */
+.gh-empty-a .gh-btn[hidden],
+.gh-banner-a .gh-btn[hidden] { display: none; }
+
+/* Пояснение «интеграций пока нет» над показателями. */
+.gh-rv-note { font-size: 12.5px; }
+
+/* ==================== Диалог отзыва ==================== */
+
+.gh-modal-box.gh-rv-dlg { max-width: 560px; }
+.gh-rv-form { display: flex; flex-direction: column; gap: 16px; }
+.gh-rv-form .gh-form-row > .gh-rv-f-date { flex: 0 1 170px; }
+.gh-rv-form .gh-form-row > .gh-rv-f-time { flex: 0 1 116px; }
+.gh-rv-rateseg { flex-wrap: wrap; }
+.gh-rv-rateseg .gh-seg-btn { min-width: 38px; }
+.gh-rv-rateseg .gh-seg-btn[hidden] { display: none; }
+.gh-rv-dlg-rules { margin: 0; }
+.gh-rv-form .gh-field-err { margin: 0; }
+.gh-rv-form .gh-field-err[hidden] { display: none; }
+.gh-rv-form .gh-field-hint[hidden] { display: none; }
+.gh-rv-form .gh-form-row[hidden] { display: none; }
+.gh-rv-form .gh-seg-btn:disabled { cursor: not-allowed; }
+/* Значок календаря и часов в полях даты — в цвет темы. */
+[data-theme="dark"] .gh-rv-form .gh-input { color-scheme: dark; }
+
+/* ==================== Средняя ширина ==================== */
+
+/* Пять плиток в ряд перестают помещаться: «Вся сеть» — строкой сверху,
+   бары — по четыре. */
+@media (max-width: 1100px) {
+    .gh-rv-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .gh-rv-tiles > :first-child { grid-column: 1 / -1; }
+}
+
+/* ==================== Телефон (<=768px) ==================== */
+
+@media (max-width: 768px) {
+    .gh-rv-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gh-rv-tile .gh-tile-v { margin: 10px 0 8px; }
+
+    .gh-rv-card { padding: 14px 14px; }
+    .gh-rv-top { gap: 8px; }
+    .gh-rv-text { font-size: 14.5px; }
+    .gh-rv-guest-a { margin-left: 0; }
+    .gh-rv-actions .gh-btn { height: 38px; flex: 1 1 auto; }
+    .gh-rv-actions .gh-grow { display: none; }
+    .gh-rv-actions .gh-rv-mat { flex: 1 1 100%; padding: 6px 0; }
+    .gh-rv-more .gh-btn { flex: none; }
+    .gh-rv-menu { width: auto; }
+
+    .gh-rv-form .gh-form-row > .gh-rv-f-date,
+    .gh-rv-form .gh-form-row > .gh-rv-f-time { flex: 1 1 120px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gh-rv-card.is-flash { animation: none; }
+}
