@@ -100,6 +100,11 @@ def _start_background_jobs():
     from core.me_snapshot_scheduler import start_scheduler as start_me_snapshot_scheduler
     start_me_snapshot_scheduler(app)
 
+    # Сверка отзывов Яндекс Бизнеса раз в сутки (08:30 МСК) + стартовая, если
+    # свежей нет. Только чтение кабинета. Молча не стартует без cookies Яндекса.
+    from core.yandex_reviews_scheduler import start_scheduler as start_yandex_reviews_scheduler
+    start_yandex_reviews_scheduler()
+
 
 # BEER_SCHEDULERS=0 — импорт app без фоновых потоков (локальные скрипты, проверки).
 # Иначе импорт запускает рассылки с боевыми токенами из .env: 2026-09-26 локальный

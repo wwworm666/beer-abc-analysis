@@ -19,14 +19,14 @@
 <body class="gh-page gh-scope">
     <div class="container">
         {% set page_title = "Отзывы" %}
-        {% set page_subtitle = "Яндекс Карты и бот: ответы гостям" %}
+        {% set page_subtitle = "Яндекс Карты: ответы гостям" %}
         {% include 'shared/nav.html' %}
     </div>
 
     <div class="gh-wrap">
       {% set hub_active = 'reviews' %}
       {% set hub_title = 'Отзывы' %}
-      {% set hub_subtitle = 'Яндекс Карты и бот: ответы гостям' %}
+      {% set hub_subtitle = 'Яндекс Карты: ответы гостям' %}
       {% include 'shared/guest_hub_head.html' %}
 
       <!-- Фильтры. Период — по дате отзыва; бар — общий фильтр раздела
@@ -116,16 +116,8 @@
           <div class="gh-menu is-right" id="rvStatusMenu" role="menu" hidden></div>
         </div>
 
-        <span class="gh-grow"></span>
-
-        <div class="gh-filters-actions">
-          <button type="button" class="gh-btn gh-btn-primary" id="rvAdd">
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M6 1.5v9M1.5 6h9" stroke-width="1.7" stroke-linecap="round"/>
-            </svg>
-            Добавить отзыв
-          </button>
-        </div>
+        <!-- Кнопки добавления отзыва нет: ручного ввода нет, отзывы приходят из
+             Яндекс Бизнеса (решение владельца 2026-09-28, docs/yandex-reviews.md). -->
       </div>
 
       <!-- Хранилище недоступно (503) или другая ошибка загрузки. -->
@@ -142,16 +134,16 @@
         </span>
       </div>
 
-      <!-- Интеграций пока нет: отзывы вносятся вручную, ответы не отправляются. -->
-      <div class="gh-banner gh-rv-note" id="rvNote">
+      <!-- Сверка с Яндекс Бизнесом (раз в сутки): когда была и не сломалась ли.
+           Текст и тон — reviews.js, renderSync; данные — yandex_sync в GET /api/reviews. -->
+      <div class="gh-banner gh-rv-sync" id="rvSync" hidden>
         <span class="gh-banner-ico">
           <svg viewBox="0 0 18 18" aria-hidden="true">
             <circle cx="9" cy="9" r="7.2" stroke-width="1.5"/>
             <path d="M9 8.2v4.6M9 5.4v.1" stroke-width="1.7" stroke-linecap="round"/>
           </svg>
         </span>
-        <span class="gh-banner-t">Яндекс Карты и бот пока не подключены: отзывы вносятся вручную, а ответ
-          никуда не отправляется — после сохранения его нужно скопировать и опубликовать в источнике.</span>
+        <span class="gh-banner-t" id="rvSyncText"></span>
       </div>
 
       <div class="gh-band">
@@ -183,17 +175,17 @@
 
       <div class="gh-empty" id="rvEmpty" hidden>
         <div class="gh-empty-t" id="rvEmptyTitle">Отзывов за период нет</div>
-        <div class="gh-empty-s" id="rvEmptyText">Подключение Яндекс Карт и бота будет позже — пока отзывы можно добавить вручную.</div>
+        <div class="gh-empty-s" id="rvEmptyText">Отзывы приходят из Яндекс Бизнеса раз в сутки.</div>
         <div class="gh-empty-a">
           <button type="button" class="gh-btn" id="rvEmptyReset" hidden>Сбросить фильтры</button>
-          <button type="button" class="gh-btn gh-btn-primary" id="rvEmptyAdd">Добавить отзыв</button>
         </div>
       </div>
 
       <div class="gh-rv-list" id="rvList" aria-live="polite"></div>
     </div>
 
-    <!-- Диалог «Новый отзыв» / «Изменить отзыв». Проверку полей делает сервер
+    <!-- Диалог «Изменить отзыв» — только для внесённых вручную (сейчас таких нет:
+         ручной ввод выключен 2026-09-28). Проверку полей делает сервер
          (core/guest_reviews.clean_core), его сообщение показывается под формой. -->
     <div class="gh-modal" id="rvDlg" aria-labelledby="rvDlgTitle" hidden>
       <div class="gh-modal-box gh-rv-dlg">

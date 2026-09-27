@@ -95,12 +95,15 @@ beer-abc-analysis/
 | `bar_acceptance.py` | **Приёмка бара** «Как принял бар?»: правила ответа, окно, сборка журнала месяца |
 | `bar_photo_store.py` | Фото приёмки на диске: имя, проверка сигнатуры JPEG, атомарная запись |
 
-### Раздел «Гости» (3)
+### Раздел «Гости» (6)
 | Файл | Что делает |
 |---|---|
 | `content_plan.py` | **Контент-план**: материалы и размещения, готовность, сводка, утверждение, пауза, сдвиг, повтор, копирование месяца, живые данные таплиста, журнал (`content_plan.json`) — [content-plan.md](content-plan.md) |
 | `content_media.py` | Фото и видео контент-плана на диске: имя `cp_<дата>_<12 hex>`, проверка сигнатуры, атомарная запись (`content_media/`) |
 | `guest_reviews.py` | **Отзывы гостей**: хранилище, проверка полей, статусы, метрики и формулы, слой календаря (`guest_reviews.json`) — [reviews.md](reviews.md) |
+| `yandex_business.py` | Клиент кабинета Яндекс Бизнеса (только чтение): организации, филиалы сетей, отзывы, разбор — [yandex-reviews.md](yandex-reviews.md) |
+| `yandex_reviews_sync.py` | Сверка отзывов Яндекса с «Отзывами» (бары по `permanent_id`, состояние `yandex_reviews_sync.json`) — [yandex-reviews.md](yandex-reviews.md) |
+| `yandex_reviews_scheduler.py` | Сверка раз в сутки, 08:30 МСК, + стартовая, если свежей нет |
 
 ### Краны и остатки (2)
 | Файл | Что делает |
@@ -362,7 +365,8 @@ scripts/
 ├── check/                   # check_*.py — проверка данных
 ├── analysis/                # analyze_*, calculate_*, search_*
 ├── maintenance/             # backup.bat, daily_update_mapping.bat, convert_pdf_to_md.py
-└── fill_plan_defaults.py    # Проставить дефолты планов (cardChecksShare = 70) во все месяцы; --dry-run; на проде через docker exec
+├── fill_plan_defaults.py    # Проставить дефолты планов (cardChecksShare = 70) во все месяцы; --dry-run; на проде через docker exec
+└── yandex_reviews_probe.py  # Диагностика отзывов Яндекс Бизнеса: вход, филиалы, последние отзывы (только чтение) — docs/yandex-reviews.md
 ```
 
 > `scripts/import_export/` удалён в 2026-05-15 (Excel-импорт планов заменён UI-only редактированием).

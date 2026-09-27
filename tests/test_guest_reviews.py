@@ -130,7 +130,7 @@ def test_validation():
     assert _add(s, created_at='2026-09-26T15:05')['created_at'] == '2026-09-26T15:05'
     e = _raises(ValueError, _add, s, created_at='2026-09-26T15:06')
     assert 'будущем' in str(e)
-    for bad in ('26.09.2026 12:00', '2026-09-31T12:00', '2019-12-31T12:00', '2026-09-26', 123):
+    for bad in ('26.09.2026 12:00', '2026-09-31T12:00', '2009-12-31T12:00', '2026-09-26', 123):
         _raises(ValueError, _add, s, created_at=bad)
     assert _add(s, created_at='2026-09-20 08:30:59')['created_at'] == '2026-09-20T08:30'
     assert _add(s, created_at=None)['created_at'] == '2026-09-26T15:00'   # по умолчанию — сейчас

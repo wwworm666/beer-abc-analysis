@@ -1,12 +1,15 @@
 /* Страница «Отзывы» (/reviews) раздела «Гости».
 
-   Что делает: список отзывов с Яндекс Карт и из бота, ответ на каждый,
-   пять карточек показателей (вся сеть и четыре бара), добавление и правка
-   отзыва вручную, «Сделать материалом» для контент-плана.
+   Что делает: список отзывов, ответ на каждый, пять карточек показателей
+   (вся сеть и четыре бара), «Сделать материалом» для контент-плана.
 
-   Интеграций на этом этапе нет: отзывы вносятся руками, ответ никуда не
-   уходит — его копируют и публикуют в источнике сами (об этом говорит
-   подпись под каждым ответом).
+   Отзывы приходят из Яндекс Бизнеса: сервер сверяется с кабинетом раз в
+   сутки (core/yandex_reviews_sync.py, docs/yandex-reviews.md), состояние
+   сверки — yandex_sync в ответе списка, строка над показателями (renderSync).
+   Ручного ввода нет (решение владельца 2026-09-28): кнопки добавления отзыва
+   нет, диалог правки остался только для внесённых вручную раньше. Ответ
+   отсюда в Яндекс не уходит: его публикуют в кабинете, и при следующей
+   сверке отзыв отмечается «Отвечен» / «Опубликован в Яндексе».
 
    Источник истины — сервер (core/guest_reviews.py, routes/reviews.py):
      - показатели (count, avg_rating, unanswered_pct, median_response_hours,
@@ -63,10 +66,19 @@
     var MAX_TEXT_LEN = 5000;    // MAX_TEXT_LEN
     // Меню периода: текущий месяц и 11 прошлых — ровно год назад.
     var MONTH_MENU_COUNT = 12;
-    // Первый месяц, который принимает сервер (YEAR_MIN = 2020).
-    var MONTH_MIN = '2020-01';
+    // Первый месяц, который принимает сервер (YEAR_MIN = 2010 в core/guest_reviews.py).
+    var MONTH_MIN = '2010-01';
     // Сколько держится подсветка карточки после действия.
     var FLASH_MS = 1600;
+    // Сверка с Яндексом, «идущая» дольше часа, считается прерванной (процесс
+    // перезапустили посреди): полный проход четырёх баров занимает минуту.
+    var SYNC_STALE_MIN = 60;
+    // Тон строки сверки: вход устарел или ошибка — отзывы перестали
+    // обновляться (опасность); капча, прерванная и неполная сверка — внимание.
+    var SYNC_TONE = {
+        ok: 'muted', never: 'muted', running: 'muted', partial: 'warning', captcha: 'warning',
+        stale: 'warning', expired: 'danger', error: 'danger', not_configured: 'danger'
+    };
     // Поиск гостя в «Маркетинге» (/api/guests/search) ищет ПОДСТРОКОЙ по
     // телефону, номеру карты и имени. Телефон там хранится одними цифрами и
     // часто с лишней ведущей 7 (779211234567 — особенность выгрузки iiko),
@@ -328,6 +340,7 @@
 
     function render() {
         renderPickers();
+        renderSync();
         renderScope();
         renderTiles();
         renderElsewhere();
@@ -346,6 +359,56 @@
         var f = formulas();
         if (f.period) el.monthBtn.setAttribute('data-tip', f.period);
         if (f.rating_filter) el.ratingBtn.setAttribute('data-tip', f.rating_filter);
+    }
+
+    // Минуты между двумя метками 'YYYY-MM-DDTHH:MM' (обе московские, наивные).
+    function minutesBetween(a, b) {
+        var ta = Date.parse(String(a || '') + ':00');
+        var tb = Date.parse(String(b || '') + ':00');
+        return isFinite(ta) && isFinite(tb) ? (tb - ta) / 60000 : null;
+    }
+
+    function syncText(s, status) {
+        var last = s.last_success_at ? fmtWhen(s.last_success_at) : '';
+        if (status === 'ok') return 'Яндекс Бизнес: сверено ' + fmtWhen(s.finished_at) + '. Сверка раз в сутки, утром.';
+        if (status === 'running') return 'Яндекс Бизнес: идёт сверка…';
+        if (status === 'never') return 'Яндекс Бизнес: первая сверка ещё не прошла.';
+        if (status === 'stale') return 'Яндекс Бизнес: сверка прервалась' +
+            (last ? ', отзывы — по сверке ' + last : '') + '. Следующая — завтра утром.';
+        if (status === 'partial') return 'Яндекс Бизнес: сверено ' + fmtWhen(s.finished_at) + ' не полностью. ' + (s.error || '');
+        if (status === 'captcha') return 'Яндекс попросил капчу — сверка не прошла' +
+            (last ? ', отзывы — по сверке ' + last : '') + '. Следующая попытка — завтра утром.';
+        if (status === 'expired') return 'Вход в Яндекс Бизнес устарел — отзывы не обновляются' +
+            (last ? ' с ' + last : '') + '. Сообщите администратору: нужны новые cookies.';
+        if (status === 'not_configured') return 'Яндекс Бизнес не подключён — отзывы не загружаются.';
+        return 'Сверка с Яндекс Бизнесом не прошла' + (s.error ? ': ' + s.error : '') + '.';
+    }
+
+    // Строка сверки над показателями: когда была и не сломалась ли. Подсказка —
+    // по барам: сколько отзывов получено и сколько насчитывает сам Яндекс.
+    function renderSync() {
+        var s = state.data && state.data.yandex_sync;
+        if (!s) { el.sync.hidden = true; return; }
+        var status = s.status;
+        if (status === 'running') {
+            var age = minutesBetween(s.started_at, state.data.now);
+            if (age !== null && age > SYNC_STALE_MIN) status = 'stale';
+        }
+        el.sync.className = 'gh-banner gh-rv-sync ' + GH.toneClass(SYNC_TONE[status] || 'danger');
+        el.syncText.textContent = syncText(s, status);
+        var lines = [];
+        var bars = s.bars || {};
+        for (var i = 0; i < GH.BARS.length; i++) {
+            var b = bars[GH.BARS[i].key];
+            if (!b) continue;
+            lines.push(GH.BARS[i].name + ': получено ' + (b.received || 0) +
+                (b.total !== null && b.total !== undefined ? ' из ' + b.total + ' по счётчику Яндекса' : '') +
+                (b.error ? ' — ' + b.error : ''));
+        }
+        var tip = 'Сверка раз в сутки: сервер читает кабинет Яндекс Бизнеса (только чтение — ответить или удалить ' +
+            'оттуда нельзя) и обновляет отзывы, оценки и ответы.' + (lines.length ? '\n\n' + lines.join('\n') : '');
+        el.sync.setAttribute('data-tip', tip);
+        el.sync.hidden = false;
     }
 
     function renderScope() {
@@ -476,12 +539,9 @@
     // (телефон / Telegram) — по нему ссылка ведёт в «Маркетинг»
     // (/guests?q=<запрос>#guest: вкладка «Гость» сама подставит запрос в поиск,
     // static/js/guests/views-guest.js). Яндекс Карты контакт автора не
-    // передают — об этом честно пишет приглушённая строка.
+    // передают — у их отзывов строки нет вовсе (пояснение на каждой карточке
+    // было шумом: все отзывы сейчас из Яндекса; решение владельца 2026-09-28).
     function guestHtml(r) {
-        if (r.source === 'yandex') {
-            return '<p class="gh-rv-noguest">Яндекс Карты не передают контакт гостя — ' +
-                'связать отзыв с карточкой гостя в «Маркетинге» нельзя.</p>';
-        }
         if (r.source !== 'bot' || !r.guest) return '';
         var parts = [];
         if (r.guest.phone) {
@@ -592,8 +652,25 @@
                 '</div>' +
             '</div>';
         }
+        if (r.status === 'answered' && r.reply && r.reply.source) {
+            // Ответ пришёл из кабинета Яндекса при сверке: править и возвращать в
+            // работу здесь нечего — следующая сверка вернула бы его как было.
+            var smeta = 'Ответ в Яндексе, ' + fmtWhen(r.reply.at);
+            if (r.reply.edited_at) smeta += ' · изменён ' + fmtWhen(r.reply.edited_at);
+            return '<div class="gh-rv-reply">' +
+                '<div class="gh-rv-caprow"><span class="gh-field-cap">Ответ</span>' +
+                    '<span class="gh-rv-reply-meta">' + GH.esc(smeta) + '</span></div>' +
+                '<div class="gh-rv-reply-t">' + GH.esc(r.reply.text) + '</div>' +
+                '<div class="gh-rv-actions">' +
+                    '<button type="button" class="gh-btn gh-btn-sm" data-act="copy">Скопировать</button>' +
+                    '<span class="gh-grow"></span>' +
+                    materialHtml(r) +
+                '</div>' +
+            '</div>';
+        }
         if (r.status === 'answered' && r.reply) {
             var meta = 'Сохранил ' + (r.reply.by || '—') + ', ' + fmtWhen(r.reply.at);
+            if (r.reply.delivered && r.reply.published_at) meta += ' · в Яндексе с ' + fmtWhen(r.reply.published_at);
             if (r.reply.edited_at) meta += ' · изменён ' + fmtWhen(r.reply.edited_at) + (r.reply.edited_by ? ' (' + r.reply.edited_by + ')' : '');
             var editing = state.editing[id] !== undefined;
             var body = editing
@@ -606,7 +683,10 @@
                     '<span class="gh-rv-hint">Время ответа не изменится: считается от первого сохранения.</span>' +
                   '</div>'
                 : '<div class="gh-rv-reply-t">' + GH.esc(r.reply.text) + '</div>' +
-                  '<p class="gh-rv-send">Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную</p>' +
+                  (r.reply.delivered
+                      ? '<p class="gh-rv-send">Опубликован в Яндексе' + (r.reply.source_text && r.reply.source_text !== r.reply.text
+                          ? ' с другим текстом: «' + GH.esc(r.reply.source_text) + '»' : '') + '</p>'
+                      : '<p class="gh-rv-send">Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную</p>') +
                   '<div class="gh-rv-actions">' +
                     '<button type="button" class="gh-btn gh-btn-sm" data-act="copy">Скопировать</button>' +
                     '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-act="edit-reply">Изменить ответ</button>' +
@@ -641,7 +721,14 @@
         var cls = classes.join(' ');
         var added = r.origin === 'manual'
             ? 'Внесён вручную: ' + (r.added_by || '—') + ', ' + fmtWhen(r.added_at)
-            : 'Загружен из источника ' + fmtWhen(r.added_at);
+            : 'Загружен из Яндекс Бизнеса ' + fmtWhen(r.added_at);
+        // Отзыва больше нет в Яндексе (удалил автор или модерация): запись не
+        // удаляется, только помечается — сверка ставит gone_at.
+        var gone = r.gone_at
+            ? '<span class="gh-badge ' + GH.toneClass('muted') + '" data-tip="' + GH.esc('При сверке ' + fmtWhen(r.gone_at) +
+                ' этого отзыва в Яндексе не было: его удалил автор или модерация. Здесь он сохранён.') +
+                '">нет в Яндексе</span>'
+            : '';
         var author = r.author
             ? '<span class="gh-rv-author">' + GH.esc(r.author) + '</span>'
             : '<span class="gh-rv-author is-anon">Без имени</span>';
@@ -658,7 +745,7 @@
                     '<span class="gh-rv-date" data-tip="' + GH.esc('Дата отзыва, по Москве. ' + added + '.') + '">' +
                         GH.esc(fmtWhen(r.created_at)) + '</span>' +
                 '</div>' +
-                '<div class="gh-rv-side">' + statusHtml(r) + menuHtml(r) + '</div>' +
+                '<div class="gh-rv-side">' + gone + statusHtml(r) + menuHtml(r) + '</div>' +
             '</div>' +
             text +
             guestHtml(r) +
@@ -712,7 +799,7 @@
         var noneAtAll = !(total.count > 0) && !state.source;
         if (noneAtAll) {
             el.emptyTitle.textContent = state.all ? 'Отзывов пока нет' : 'Отзывов за период нет';
-            el.emptyText.textContent = 'Подключение Яндекс Карт и бота будет позже — пока отзывы можно добавить вручную.';
+            el.emptyText.textContent = 'Отзывы приходят из Яндекс Бизнеса раз в сутки.';
         } else {
             el.emptyTitle.textContent = 'Под выбранные фильтры отзывов нет';
             el.emptyText.textContent = (state.all ? 'Отзывы есть' : 'За ' + GH.monthLabel(state.month).toLowerCase() +
@@ -1295,12 +1382,12 @@
         var ids = {
             prev: 'rvPrev', next: 'rvNext', monthBtn: 'rvMonthBtn', monthLabel: 'rvMonthLabel',
             barLabel: 'rvBarLabel', sourceLabel: 'rvSourceLabel', ratingBtn: 'rvRatingBtn',
-            ratingLabel: 'rvRatingLabel', statusLabel: 'rvStatusLabel', add: 'rvAdd',
+            ratingLabel: 'rvRatingLabel', statusLabel: 'rvStatusLabel', sync: 'rvSync', syncText: 'rvSyncText',
             banner: 'rvBanner', bannerText: 'rvBannerText', retry: 'rvRetry',
             scope: 'rvScope', metricsHelp: 'rvMetricsHelp', tiles: 'rvTiles',
             sortHelp: 'rvSortHelp', count: 'rvCount', msg: 'rvMsg', list: 'rvList',
             empty: 'rvEmpty', emptyTitle: 'rvEmptyTitle', emptyText: 'rvEmptyText',
-            emptyReset: 'rvEmptyReset', emptyAdd: 'rvEmptyAdd',
+            emptyReset: 'rvEmptyReset',
             elsewhere: 'rvElsewhere', elsewhereText: 'rvElsewhereText', elsewhereShow: 'rvElsewhereShow',
             dlg: 'rvDlg', dlgTitle: 'rvDlgTitle', form: 'rvForm', dlgSave: 'rvDlgSave', dlgErr: 'rvDlgErr',
             fSource: 'rvFSource', fSourceHint: 'rvFSourceHint', fBar: 'rvFBar', fRating: 'rvFRating',
@@ -1319,8 +1406,6 @@
         }
         el.prev.addEventListener('click', function () { shiftMonth(-1); });
         el.next.addEventListener('click', function () { shiftMonth(1); });
-        el.add.addEventListener('click', function () { openDialog(null); });
-        el.emptyAdd.addEventListener('click', function () { openDialog(null); });
         el.emptyReset.addEventListener('click', function () {
             state.source = '';
             state.rating = '';

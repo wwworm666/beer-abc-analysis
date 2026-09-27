@@ -7,6 +7,10 @@
 - `fetch_iiko_api_docs.py` — скачивает все статьи API-документации с портала `ru.iiko.help` в `docs/iiko-api/` и собирает оглавление `INDEX.md`. Запуск: `py -3 scripts/fetch_iiko_api_docs.py`.
 - `fetch_iiko_api_toc.py` — обновляет `docs/iiko-api/_toc.json` (названия статей и дерево разделов; рендерит портал в headless Chrome). Нужен только при изменении структуры портала.
 
+## Отзывы Яндекс Бизнеса
+
+- `yandex_reviews_probe.py` — диагностика (только чтение): вход в кабинет по cookies из `.env`, филиалы с `permanent_id`, последние отзывы; `--walk` сверяет число со счётчиком, `--dump DIR` — сырые ответы без токенов. См. [docs/yandex-reviews.md](../docs/yandex-reviews.md).
+
 ## Меню (`/menu`) — сборка каталога и цены
 
 См. [docs/menu-editor.md](../docs/menu-editor.md). Канонический файл — `data/menu_cards.json`.

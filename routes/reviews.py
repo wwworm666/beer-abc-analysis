@@ -138,10 +138,22 @@ def reviews_page():
 
 # ------------------------------------------------------------------ отзывы
 
+def _sync_state():
+    """Сводка сверки с Яндекс Бизнесом (core/yandex_reviews_sync.public_state) или None при сбое."""
+    try:
+        from core.yandex_reviews_sync import public_state
+        return public_state()
+    except Exception as e:  # noqa: BLE001 — сводка сверки не должна ронять список
+        print(f'[REVIEWS] yandex sync state unavailable: {e!r}')
+        return None
+
+
 @reviews_bp.route('/api/reviews', methods=['GET'])
 @_guard
 def list_reviews():
-    return jsonify(get_review_store().listing(request.args, material_lookup=_material_presence))
+    payload = get_review_store().listing(request.args, material_lookup=_material_presence)
+    payload['yandex_sync'] = _sync_state()
+    return jsonify(payload)
 
 
 @reviews_bp.route('/api/reviews', methods=['POST'])

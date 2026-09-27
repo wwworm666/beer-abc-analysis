@@ -1,0 +1,822 @@
+# Задача: подключить отзывы Яндекс Бизнеса к существующей странице сервиса
+
+Нужно настроить backend-синхронизацию отзывов из Яндекс Бизнеса для всех наших точек и отдавать их на уже существующую страницу веб-сервиса.
+
+## 1. Важное ограничение
+
+У Яндекс Бизнеса сейчас нет документированного публичного API для получения отзывов организаций.
+
+Не использовать для этой задачи:
+
+- Yandex Maps Organization Search API;
+- API Кабинета разработчика;
+- iframe/бейдж отзывов.
+
+Они не дают нормальный список отзывов для сохранения в нашей БД.
+
+Работаем через **внутренний API личного кабинета Яндекс Бизнеса (`sprav`)**.
+
+Для Python уже существует клиент:
+
+`ya-business-api`
+
+Текущая проверенная версия на момент постановки задачи:
+
+```bash
+pip install "ya_business_api[async]==4.0.1"
+```
+
+Если проект синхронный:
+
+```bash
+pip install "ya_business_api[sync]==4.0.1"
+```
+
+Предпочтительно использовать async-вариант, если архитектура проекта это позволяет.
+
+---
+
+# 2. Архитектура
+
+Должно получиться:
+
+```text
+Яндекс Бизнес
+    ↓
+внутренний sprav API
+    ↓
+YandexReviewsProvider
+    ↓
+синхронизация всех филиалов
+    ↓
+PostgreSQL / существующая БД
+    ↓
+существующий backend API
+    ↓
+готовая страница «Отзывы»
+```
+
+Не делать запросы к Яндексу непосредственно из frontend.
+
+Вся авторизация и синхронизация должны происходить только на backend.
+
+---
+
+# 3. Авторизация
+
+`ya-business-api` использует авторизованную сессию Яндекс Бизнеса.
+
+Нужны:
+
+```env
+YANDEX_BUSINESS_SESSION_ID=...
+YANDEX_BUSINESS_SESSION_ID2=...
+```
+
+Опционально:
+
+```env
+YANDEX_BUSINESS_CSRF_TOKEN=...
+```
+
+CSRF библиотека умеет получать автоматически, поэтому сначала попробовать вообще без сохранённого CSRF.
+
+Пример:
+
+```python
+from ya_business_api.async_api import AsyncAPI
+
+api = await AsyncAPI.build(
+    session_id=settings.YANDEX_BUSINESS_SESSION_ID,
+    session_id2=settings.YANDEX_BUSINESS_SESSION_ID2,
+)
+```
+
+После работы:
+
+```python
+await api.session.close()
+```
+
+## Как получить Session_id и sessionid2
+
+Пользователь должен:
+
+1. войти в нужный аккаунт Яндекс Бизнеса;
+2. открыть страницу отзывов организации;
+3. открыть DevTools → Application/Storage → Cookies;
+4. найти cookies для `yandex.ru`;
+5. передать значения:
+   - `Session_id`
+   - `sessionid2`
+
+Никогда:
+
+- не отдавать эти значения frontend;
+- не класть их в git;
+- не печатать их в логах;
+- не возвращать их в exception traceback/API response.
+
+Хранить как production secrets/env.
+
+---
+
+# 4. Получение организаций
+
+Сначала не хардкодить четыре точки вручную.
+
+Получить организации из аккаунта:
+
+```python
+from ya_business_api.companies.dataclasses.requests import CompaniesRequest
+
+response = await api.companies.get_companies(
+    CompaniesRequest(page=1)
+)
+```
+
+У компании есть как минимум:
+
+```python
+company.permanent_id
+company.display_name
+company.type
+```
+
+Типы:
+
+```text
+ordinal — обычная организация/филиал
+chain   — сеть
+```
+
+Если `ordinal`:
+
+```python
+yield company
+```
+
+Если `chain`, нужно раскрыть сеть через:
+
+```python
+api.companies.get_chain_branches(...)
+```
+
+и получить все реальные `ordinal`-филиалы.
+
+Для сети используется `tycoon_id`.
+
+Пример логики:
+
+```python
+async def iterate_companies(api):
+    page = 1
+
+    while True:
+        response = await api.companies.get_companies(
+            CompaniesRequest(page=page)
+        )
+
+        if not response.list_companies:
+            break
+
+        for company in response.list_companies:
+            if company.type == "ordinal":
+                yield company
+
+            elif company.type == "chain":
+                async for branch in iterate_chain_branches(
+                    api,
+                    company.tycoon_id
+                ):
+                    yield branch
+
+        page += 1
+```
+
+Для каждого найденного филиала сохранить соответствие:
+
+```text
+наш branch_id
+↔
+yandex permanent_id
+```
+
+Не использовать название организации как постоянный ключ.
+
+`permanent_id` должен быть основным внешним идентификатором филиала.
+
+---
+
+# 5. Получение отзывов
+
+Основной вызов:
+
+```python
+from ya_business_api.reviews.dataclasses.requests import ReviewsRequest
+from ya_business_api.reviews.constants import Ranking
+
+request = ReviewsRequest(
+    permanent_id=company_permanent_id,
+    ranking=Ranking.BY_TIME,
+)
+
+response = await api.reviews.get_reviews(request)
+```
+
+Для пагинации библиотека поддерживает `continue_token`:
+
+```python
+continue_token = response.list.pager.continue_token
+```
+
+Следующая страница:
+
+```python
+request = ReviewsRequest(
+    permanent_id=company_permanent_id,
+    ranking=Ranking.BY_TIME,
+    continue_token=continue_token,
+)
+```
+
+Продолжать до отсутствия элементов/`continue_token`.
+
+Также API поддерживает:
+
+```python
+unread=True
+```
+
+но **не использовать `unread=True` как основной механизм определения новых отзывов**.
+
+Причина: unread — состояние Яндекс Бизнеса. Кто-то может открыть отзыв непосредственно в кабинете Яндекса до того, как наш сервис его заберёт.
+
+Для нашего приложения:
+
+```text
+новый отзыв =
+review.id отсутствует в нашей БД
+```
+
+---
+
+# 6. Поля отзыва
+
+Актуальная модель библиотеки содержит:
+
+```python
+review.id
+review.lang
+review.author
+review.author.user
+review.author.uid
+review.author.avatar
+review.time_created
+review.snippet
+review.full_text
+review.rating
+review.public_rating
+review.owner_comment
+review.photos
+```
+
+Для ответа владельца:
+
+```python
+review.owner_comment.text
+review.owner_comment.time_created
+```
+
+Фотографии:
+
+```python
+review.photos[]
+```
+
+содержат:
+
+```text
+link
+width
+height
+```
+
+Не сохранять в БД служебные CSRF-токены отзыва, если они сейчас не нужны.
+
+---
+
+# 7. Таблица БД
+
+Если существующая модель отзывов позволяет — расширить её. Если нет — создать отдельную таблицу.
+
+Пример:
+
+```sql
+CREATE TABLE yandex_reviews (
+    id BIGSERIAL PRIMARY KEY,
+
+    yandex_review_id TEXT NOT NULL UNIQUE,
+    yandex_permanent_id BIGINT NOT NULL,
+
+    branch_id BIGINT NOT NULL,
+
+    author_name TEXT,
+    author_uid TEXT,
+    author_avatar TEXT,
+
+    rating INTEGER NOT NULL,
+    text TEXT,
+    language TEXT,
+
+    review_created_at TIMESTAMPTZ NOT NULL,
+
+    owner_reply TEXT,
+    owner_reply_created_at TIMESTAMPTZ,
+
+    photos JSONB,
+
+    source_payload JSONB,
+
+    first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+Обязательно:
+
+```sql
+UNIQUE(yandex_review_id)
+```
+
+Синхронизация должна быть идемпотентной.
+
+Повторный запуск не должен создавать второй экземпляр отзыва.
+
+---
+
+# 8. Upsert
+
+Для каждого полученного review:
+
+```text
+если review.id отсутствует:
+    INSERT
+
+если review.id уже существует:
+    UPDATE изменяемых данных
+```
+
+Обновлять как минимум:
+
+```text
+text
+rating
+owner_reply
+owner_reply_created_at
+photos
+updated_at
+source_payload
+```
+
+Это важно, потому что после появления отзыва позже может появиться ответ организации.
+
+Не считать отзыв неизменяемым после первого импорта.
+
+---
+
+# 9. Первоначальная синхронизация
+
+Первый запуск должен импортировать историю отзывов всех наших филиалов.
+
+Алгоритм:
+
+```text
+получить все организации
+        ↓
+раскрыть network/chain
+        ↓
+для каждого ordinal-филиала:
+        ↓
+получить отзывы
+        ↓
+пройти всю пагинацию
+        ↓
+upsert всех отзывов
+```
+
+Перед этим вывести найденные организации в лог примерно так:
+
+```text
+Yandex branch discovered:
+permanent_id=123456789
+name="..."
+type=ordinal
+```
+
+Нужно проверить, что получены именно наши филиалы.
+
+---
+
+# 10. Регулярная синхронизация
+
+После первоначального импорта запускать задачу примерно:
+
+```text
+каждые 10 минут
+```
+
+Это не real-time API и webhook у нас нет.
+
+Нужен polling.
+
+При небольшом количестве филиалов можно на первом этапе просто получать несколько последних страниц отзывов каждого филиала и делать upsert.
+
+Более оптимальный вариант:
+
+```text
+хранить max review_created_at
+        ↓
+получать отзывы BY_TIME
+        ↓
+идти назад по страницам
+        ↓
+остановиться после попадания достаточно далеко
+за last_seen timestamp
+```
+
+Обязательно оставить overlap, например сутки или несколько последних страниц, поскольку сортировка/модерация Яндекса может давать задержки.
+
+Дополнительно можно раз в сутки выполнять более глубокую reconciliation-синхронизацию.
+
+Не строить синхронизацию исключительно вокруг `unread`.
+
+---
+
+# 11. Timestamp
+
+`review.time_created` приходит как Unix timestamp.
+
+Конвертировать в timezone-aware datetime.
+
+Например:
+
+```python
+from datetime import datetime, timezone
+
+created_at = datetime.fromtimestamp(
+    review.time_created,
+    tz=timezone.utc,
+)
+```
+
+В БД использовать `TIMESTAMPTZ`.
+
+Frontend уже может показывать локальное время.
+
+---
+
+# 12. API нашей страницы
+
+Страница должна читать отзывы только из нашей БД.
+
+Например:
+
+```http
+GET /api/reviews
+```
+
+Фильтры:
+
+```text
+branch_id
+rating
+date_from
+date_to
+answered
+search
+```
+
+Например:
+
+```http
+GET /api/reviews?branch_id=2&rating=1
+```
+
+Ответ:
+
+```json
+{
+  "items": [
+    {
+      "id": 123,
+      "source": "yandex",
+      "external_id": "...",
+      "branch_id": 2,
+      "author": {
+        "name": "Иван",
+        "avatar": "..."
+      },
+      "rating": 2,
+      "text": "Очень долго ждали...",
+      "created_at": "...",
+      "owner_reply": null,
+      "photos": []
+    }
+  ]
+}
+```
+
+Не заставлять frontend ходить в Яндекс.
+
+---
+
+# 13. Статус интеграции
+
+Добавить техническое состояние синхронизации.
+
+Например:
+
+```text
+last_successful_sync
+last_sync_started_at
+last_sync_error
+auth_status
+```
+
+Если Яндекс вернул 401/403 или библиотека больше не может получить данные:
+
+```text
+auth_status = expired
+```
+
+В интерфейсе администратора можно показать:
+
+```text
+Требуется повторная авторизация Яндекс Бизнеса
+```
+
+Это важно, потому что `Session_id`/`sessionid2` не являются вечными API-ключами.
+
+---
+
+# 14. Ошибки
+
+Синхронизация одной точки не должна ломать синхронизацию остальных.
+
+Пример:
+
+```python
+for company in companies:
+    try:
+        await sync_company(company)
+    except Exception:
+        logger.exception(
+            "Yandex reviews sync failed for permanent_id=%s",
+            company.permanent_id,
+        )
+```
+
+Но не логировать:
+
+```text
+Session_id
+sessionid2
+CSRF
+полные Cookie headers
+```
+
+Нужен retry/backoff для временных 5xx/network errors.
+
+Не делать агрессивный polling.
+
+---
+
+# 15. Абстракция провайдера
+
+Не размазывать код `ya_business_api` по приложению.
+
+Сделать отдельный слой примерно:
+
+```python
+class YandexReviewsProvider:
+    async def get_companies(self):
+        ...
+
+    async def get_reviews(self, permanent_id):
+        ...
+
+    async def close(self):
+        ...
+```
+
+И отдельно:
+
+```python
+class ReviewsSyncService:
+    async def sync_all(self):
+        ...
+```
+
+Это важно потому, что API внутренний и Яндекс может его изменить.
+
+Если библиотека перестанет работать, должен меняться только `YandexReviewsProvider`, а не вся страница/БД.
+
+---
+
+# 16. Не использовать публичный парсер Карт как основной источник
+
+Не начинай с scraping:
+
+```text
+yandex.ru/maps/org/.../reviews
+```
+
+Поскольку у нас есть доступ владельца к Яндекс Бизнесу, сначала использовать кабинет.
+
+Публичный парсер оставить только как возможный будущий fallback.
+
+---
+
+# 17. Возможность отвечать на отзывы
+
+В текущей библиотеке также есть:
+
+```python
+api.reviews.send_answer(...)
+```
+
+Но сейчас эту функцию **не подключать автоматически**, если она не требуется готовой страницей.
+
+V1:
+
+```text
+Яндекс → наш сервис
+```
+
+только чтение/синхронизация.
+
+Если позже понадобится кнопка «Ответить», сделать это отдельным этапом после проверки получения отзывов.
+
+---
+
+# 18. Проверка интеграции
+
+Перед завершением работы обязательно выполнить:
+
+### Test 1 — авторизация
+
+```text
+подключение к Яндекс Бизнесу успешно
+```
+
+### Test 2 — организации
+
+Получены все нужные филиалы.
+
+Вывести:
+
+```text
+display_name
+permanent_id
+type
+```
+
+### Test 3 — отзывы
+
+Получить реальные отзывы каждого филиала.
+
+Проверить:
+
+```text
+review.id
+rating
+full_text
+author.user
+time_created
+owner_comment
+```
+
+### Test 4 — соответствие кабинету
+
+Вручную сравнить несколько последних отзывов:
+
+```text
+Яндекс Бизнес
+vs
+наша БД
+```
+
+Должны совпадать:
+
+```text
+точка
+автор
+звёзды
+текст
+дата
+ответ организации
+```
+
+### Test 5 — дедупликация
+
+Запустить sync дважды.
+
+Количество отзывов после второго запуска не должно удвоиться.
+
+### Test 6 — обновление
+
+Если у существующего отзыва появился `owner_comment`, после следующей синхронизации он должен обновиться в нашей БД.
+
+### Test 7 — падение авторизации
+
+Некорректные Session cookies должны:
+
+```text
+не валить приложение
+записать понятную ошибку
+пометить интеграцию как требующую авторизации
+```
+
+---
+
+# 19. Acceptance criteria
+
+Задача считается выполненной, когда:
+
+```text
+✓ backend авторизуется в Яндекс Бизнесе
+✓ автоматически находит все наши филиалы
+✓ для каждого филиала известен permanent_id
+✓ исторические отзывы импортированы
+✓ новые отзывы появляются без ручного импорта
+✓ review.id используется для дедупликации
+✓ ответ владельца синхронизируется
+✓ повторный sync безопасен
+✓ cookies находятся только на backend
+✓ frontend работает только с нашей БД/API
+✓ есть обработка истёкшей сессии
+✓ sync запускается автоматически по расписанию
+```
+
+---
+
+# 20. Базовый рабочий пример
+
+Ориентируйся на этот паттерн, но адаптируй его к текущей архитектуре проекта:
+
+```python
+from ya_business_api.async_api import AsyncAPI
+from ya_business_api.reviews.dataclasses.requests import ReviewsRequest
+from ya_business_api.reviews.constants import Ranking
+
+
+async def fetch_company_reviews(api, permanent_id):
+    request = ReviewsRequest(
+        permanent_id=permanent_id,
+        ranking=Ranking.BY_TIME,
+    )
+
+    while True:
+        response = await api.reviews.get_reviews(request)
+
+        for review in response.list.items:
+            yield review
+
+        token = response.list.pager.continue_token
+
+        if not token:
+            break
+
+        request = ReviewsRequest(
+            permanent_id=permanent_id,
+            ranking=Ranking.BY_TIME,
+            continue_token=token,
+        )
+
+
+async def sync_yandex_reviews():
+    api = await AsyncAPI.build(
+        session_id=settings.YANDEX_BUSINESS_SESSION_ID,
+        session_id2=settings.YANDEX_BUSINESS_SESSION_ID2,
+    )
+
+    try:
+        async for company in get_all_yandex_branches(api):
+
+            async for review in fetch_company_reviews(
+                api,
+                company.permanent_id,
+            ):
+                await upsert_yandex_review(
+                    company=company,
+                    review=review,
+                )
+
+    finally:
+        await api.session.close()
+```
+
+Сначала сделай минимальный diagnostic script, который просто авторизуется, выводит найденные филиалы и последние отзывы. Когда это подтверждено реальными данными — подключай к существующим моделям, scheduler и странице.
+
+Не переписывай готовую страницу и существующую архитектуру без необходимости. Задача — добавить источник данных Яндекс и встроить его в уже существующий reviews flow.

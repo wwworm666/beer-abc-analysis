@@ -48,7 +48,7 @@
   процессора под блокировкой файла отзывов;
 - нужен текст или оценка (пустой отзыв без оценки бессмыслен);
 - дата отзыва 'YYYY-MM-DDTHH:MM' (допустимы секунды и пробел вместо T;
-  секунды отбрасываются), год 2020..2100; не позже «сейчас + 5 минут»
+  секунды отбрасываются), год 2010..2100; не позже «сейчас + 5 минут»
   (FUTURE_TOLERANCE: запас на расхождение часов телефона и сервера); при
   добавлении без даты берётся текущий момент;
 - контакты гостя есть только у отзывов из бота: у отзыва с Яндекс Карт поле
@@ -133,6 +133,26 @@ material_lookup(ids) -> {id: bool} | None: модуль отзывов от ко
 round(4.35, 1) в Python даёт 4.3 из-за двоичного представления.
 Те же формулы — строками в FORMULAS (API отдаёт их для подсказок в интерфейсе).
 
+Загрузка из источника (upsert_imported, Яндекс Бизнес — docs/yandex-reviews.md):
+запись с origin 'import' ищется по паре (source, external_id); нет — создаётся,
+есть — обновляются оценка, текст, автор, фото. Статус новой записи:
+    в источнике есть ответ организации  -> answered, reply = ответ источника
+                                           ({text, at: время ответа в источнике,
+                                           by, delivered: true, source});
+    ответа нет, дата отзыва < history_cutoff -> skipped с причиной
+                                           HISTORY_SKIP_REASON (история до
+                                           подключения сервиса, решение владельца
+                                           2026-09-28);
+    иначе                                -> new.
+У существующей записи ответ источника: при new/skipped -> answered с этим
+ответом; при нашем answered (сохранён здесь) -> reply.delivered = true, момент
+ответа не меняется (published_at, source_text — что и когда вышло в источнике);
+при ответе источника — правка текста (reply.at не «молодеет»). Ответ
+источника пропал -> new, прежний ответ остаётся для истории. Отзыв пропал из
+полного прохода (complete) -> gone_at, запись НЕ удаляется; вернулся ->
+gone_at снимается. Дополнительные поля загруженных: photos, author_avatar,
+public_rating, gone_at.
+
 Слой календаря (daily): за месяц по дням created_at —
 {count, rated, avg}, avg — как avg_rating; дни без отзывов не выводятся.
 
@@ -188,10 +208,20 @@ MAX_TELEGRAM_LEN = 64       # @username (до 32) или ссылка t.me/...
 MAX_EXTERNAL_ID_LEN = 200   # id отзыва в источнике (для будущего импорта)
 MAX_MATERIAL_ID_LEN = 64
 
+# Загрузка из источника (upsert_imported). Причина для истории до подключения:
+# отзывы без ответа старше history_cutoff не попадают в «Без ответа» — иначе
+# первая загрузка вывалила бы в работу сотню отзывов 2019–2025 годов
+# (решение владельца 2026-09-28, docs/yandex-reviews.md).
+HISTORY_SKIP_REASON = 'До подключения сервиса: в Яндексе без ответа'
+MAX_IMPORT_PROBLEMS = 20    # сколько замечаний загрузки хранить в сводке
+
 # Дата отзыва может быть чуть «в будущем»: часы телефона, с которого вносят
 # отзыв, и сервера расходятся на минуты. Больше 5 минут — явная ошибка ввода.
 FUTURE_TOLERANCE = timedelta(minutes=5)
-YEAR_MIN, YEAR_MAX = 2020, 2100
+# Нижняя граница года: самые старые отзывы наших баров в Яндексе — июль 2018
+# (Кременчугская); 2010 — с запасом. Было 2020, и загрузка из Яндекса отбрасывала
+# 19 отзывов 2018–2019 годов (2026-09-28).
+YEAR_MIN, YEAR_MAX = 2010, 2100
 
 DT_FORMAT = '%Y-%m-%dT%H:%M'
 _DT_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$')
@@ -337,7 +367,7 @@ def parse_date(value, field: str = 'Дата') -> date:
 
 
 def parse_month(value, field: str = 'Месяц') -> str:
-    """'YYYY-MM' с годом 2020..2100 и месяцем 1..12 -> та же строка."""
+    """'YYYY-MM' с годом YEAR_MIN..YEAR_MAX и месяцем 1..12 -> та же строка."""
     if not isinstance(value, str):
         raise ValueError(f'{field}: нужен формат ГГГГ-ММ')
     m = _MONTH_RE.match(value.strip())
@@ -532,9 +562,48 @@ def _check_record(rid, rec) -> dict:
                          ('reply_draft', ''), ('skip_reason', ''), ('guest', None),
                          ('external_id', None), ('origin', 'manual'), ('material_id', None),
                          ('added_at', None), ('added_by', None), ('updated_at', None),
-                         ('updated_by', None)):
+                         ('updated_by', None), ('photos', []), ('author_avatar', None),
+                         ('public_rating', None), ('gone_at', None)):
         fixed.setdefault(key, default)
     return fixed
+
+
+def _import_item(item: Mapping) -> dict:
+    """Отзыв из источника (как core.yandex_business.parse_review) -> поля записи; ValueError — не загружать.
+
+    Обязательны id, дата и оценка 1..5 (отзыв на Яндекс Картах без оценки не
+    оставить). Текст и имя берутся как есть: длины источника — не ошибка
+    ввода, обрезать чужой отзыв нельзя.
+    """
+    if not isinstance(item, Mapping):
+        raise ValueError('запись не объект')
+    ext = item.get('external_id')
+    if not isinstance(ext, str) or not ext.strip() or len(ext) > MAX_EXTERNAL_ID_LEN:
+        raise ValueError('нет id')
+    created = fmt_dt(parse_dt(item.get('created_at'), 'Дата отзыва'))
+    rating = item.get('rating')
+    if isinstance(rating, bool) or not isinstance(rating, int) or not RATING_MIN <= rating <= RATING_MAX:
+        raise ValueError(f'оценка не 1..5: {rating!r}')
+    reply = item.get('owner_reply')
+    if isinstance(reply, Mapping) and isinstance(reply.get('text'), str) and reply['text'].strip():
+        at = reply.get('at')
+        reply = {'text': reply['text'].strip(),
+                 'at': fmt_dt(parse_dt(at, 'Дата ответа')) if at else None}
+    else:
+        reply = None
+    photos = [dict(p) for p in (item.get('photos') or []) if isinstance(p, Mapping) and p.get('link')]
+    public = item.get('public_rating')
+    return {
+        'external_id': ext.strip(),
+        'created_at': created,
+        'rating': rating,
+        'text': _as_text(item.get('text'), 'Текст отзыва').strip(),
+        'author': _as_text(item.get('author'), 'Имя автора').strip(),
+        'owner_reply': reply,
+        'photos': photos,
+        'author_avatar': item.get('author_avatar') if isinstance(item.get('author_avatar'), str) else None,
+        'public_rating': public if isinstance(public, bool) else None,
+    }
 
 
 # ----------------------------------------------------------------- вывод
@@ -986,6 +1055,138 @@ class ReviewStore:
             rec['material_id'] = mid
             self._touch(rec, now, user)
             return rec
+        return self._write(op)
+
+    # ----- загрузка из источника ------------------------------------------
+
+    IMPORT_FIELDS = ('rating', 'text', 'author', 'photos', 'author_avatar', 'public_rating')
+
+    def upsert_imported(self, source: str, bar: str, items: Iterable[Mapping], *,
+                        history_cutoff: str, complete: bool, by: str) -> dict:
+        """Загрузить отзывы одного бара из источника; правила — докстринг модуля.
+
+        items — отзывы как у core.yandex_business.parse_review (external_id,
+        created_at, rating, text, author, owner_reply {text, at}, photos, ...).
+        history_cutoff — 'YYYY-MM-DD': новый отзыв без ответа с датой раньше
+        него получает skipped с HISTORY_SKIP_REASON. complete=True — items
+        содержат ВСЕ отзывы бара в источнике: пропавшие получают gone_at
+        (без удаления). by — подпись загрузки (added_by / updated_by / reply.by).
+        Одна запись файла на вызов. Ответ — сводка:
+            added_new, added_answered, added_history — созданы со статусом
+                new / answered / skipped;
+            updated — изменились оценка, текст, автор или фото;
+            answered_in_source — ждал ответа или был «без ответа», в источнике ответили;
+            published — наш сохранённый ответ появился в источнике;
+            reply_removed — ответ источника пропал, отзыв снова ждёт ответа;
+            gone / back — пропал из источника / вернулся;
+            invalid — не загружены (problems — первые MAX_IMPORT_PROBLEMS причин).
+        """
+        source = _source(source)
+        bar = _bar(bar)
+        cutoff = parse_date(history_cutoff, 'Граница истории').isoformat()
+        user = {'login': by}
+        stats = {k: 0 for k in ('added_new', 'added_answered', 'added_history', 'updated',
+                                'answered_in_source', 'published', 'reply_removed', 'gone', 'back',
+                                'invalid')}
+        stats['problems'] = []
+        clean: Dict[str, dict] = {}
+        # Все id, пришедшие из источника, включая не прошедшие проверку: отзыв,
+        # который есть в источнике, но не разобрался, — не «пропавший».
+        present = set()
+        for item in items or []:
+            if isinstance(item, Mapping) and isinstance(item.get('external_id'), str):
+                present.add(item['external_id'].strip())
+            try:
+                fields = _import_item(item)
+            except ValueError as e:
+                stats['invalid'] += 1
+                if len(stats['problems']) < MAX_IMPORT_PROBLEMS:
+                    ext = item.get('external_id') if isinstance(item, Mapping) else None
+                    stats['problems'].append(f'{ext or "(без id)"}: {e}')
+                continue
+            clean.setdefault(fields['external_id'], fields)
+
+        def source_reply(fields, now):
+            r = fields['owner_reply']
+            return {'text': r['text'], 'at': r['at'] or fmt_dt(now), 'by': by,
+                    'delivered': True, 'source': source}
+
+        def op(reviews, now):
+            stamp = fmt_dt(now)
+            existing = {r['external_id']: r for r in reviews.values()
+                        if r['source'] == source and r.get('origin') == 'import' and r.get('external_id')}
+            for ext, fields in clean.items():
+                rec = existing.get(ext)
+                if rec is None:
+                    rid = 'r_' + secrets.token_hex(6)
+                    while rid in reviews:
+                        rid = 'r_' + secrets.token_hex(6)
+                    rec = {'id': rid, 'source': source, 'bar': bar, 'created_at': fields['created_at'],
+                           'status': 'new', 'reply': None, 'reply_draft': '', 'skip_reason': '',
+                           'guest': None, 'external_id': ext, 'origin': 'import', 'material_id': None,
+                           'gone_at': None, 'added_at': stamp, 'added_by': by,
+                           'updated_at': stamp, 'updated_by': by}
+                    rec.update({k: fields[k] for k in self.IMPORT_FIELDS})
+                    if fields['owner_reply']:
+                        rec['status'] = 'answered'
+                        rec['reply'] = source_reply(fields, now)
+                        stats['added_answered'] += 1
+                    elif fields['created_at'][:10] < cutoff:
+                        rec['status'] = 'skipped'
+                        rec['skip_reason'] = HISTORY_SKIP_REASON
+                        stats['added_history'] += 1
+                    else:
+                        stats['added_new'] += 1
+                    reviews[rid] = rec
+                    continue
+
+                changed = False
+                if any(rec.get(k) != fields[k] for k in self.IMPORT_FIELDS):
+                    rec.update({k: fields[k] for k in self.IMPORT_FIELDS})
+                    stats['updated'] += 1
+                    changed = True
+                if rec.get('gone_at'):
+                    rec['gone_at'] = None
+                    stats['back'] += 1
+                    changed = True
+                reply = rec.get('reply') if isinstance(rec.get('reply'), dict) else None
+                from_source = bool(reply and reply.get('source') == source)
+                src = fields['owner_reply']
+                if src:
+                    if rec['status'] == 'answered' and from_source:
+                        if reply['text'] != src['text']:
+                            reply['text'] = src['text']
+                            reply['edited_at'] = src['at'] or stamp
+                            reply['edited_by'] = by
+                            changed = True
+                    elif rec['status'] == 'answered':
+                        if not reply.get('delivered') or reply.get('source_text') != src['text']:
+                            reply['delivered'] = True
+                            reply['published_at'] = src['at'] or stamp
+                            reply['source_text'] = src['text']
+                            stats['published'] += 1
+                            changed = True
+                    else:
+                        rec['status'] = 'answered'
+                        rec['reply'] = source_reply(fields, now)
+                        stats['answered_in_source'] += 1
+                        changed = True
+                elif rec['status'] == 'answered' and from_source:
+                    rec['status'] = 'new'
+                    reply['removed_in_source_at'] = stamp
+                    stats['reply_removed'] += 1
+                    changed = True
+                if changed:
+                    self._touch(rec, now, user)
+
+            if complete:
+                for rec in reviews.values():
+                    if (rec['source'] == source and rec.get('origin') == 'import' and rec['bar'] == bar
+                            and rec.get('external_id') not in present and not rec.get('gone_at')):
+                        rec['gone_at'] = stamp
+                        stats['gone'] += 1
+                        self._touch(rec, now, user)
+            return stats
         return self._write(op)
 
 
