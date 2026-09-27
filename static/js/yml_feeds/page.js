@@ -146,8 +146,12 @@
         return offer.override && offer.override.migrated_from_tap;
     }
 
+    function openNotices(offer) {
+        return (offer.notices || []).filter((notice) => !notice.acked);
+    }
+
     function needsAttention(offer) {
-        return Boolean((offer.warnings && offer.warnings.length) || migratedFrom(offer) || offer.bar_only);
+        return Boolean(openNotices(offer).length || migratedFrom(offer) || offer.bar_only);
     }
 
     function shownName(offer) {
@@ -192,11 +196,20 @@
 
     // ---------- бары ----------
 
+    // Точка бара: красная — ошибка снимка пива; жёлтая — есть непросмотренное
+    // (предупреждение о цене или сорт на кране, которого нет в файле);
+    // зелёная — всё в порядке или отмечено «Всё верно».
     function barTone(feed) {
         if (feed.error) return 'is-bad';
-        if (feed.excluded) return 'is-warn';
+        if (feed.attention) return 'is-warn';
         if (feed.beer !== null && feed.beer !== undefined) return 'is-ok';
         return '';
+    }
+
+    function barHint(feed) {
+        if (feed.error) return 'Ошибка снимка пива: ' + feed.error;
+        if (feed.attention) return 'Есть что проверить: ' + feed.attention + '. Откройте бар — список вверху страницы.';
+        return 'Всё в порядке';
     }
 
     function renderBars() {
@@ -212,8 +225,7 @@
             dot.setAttribute('aria-hidden', 'true');
             button.appendChild(dot);
             button.appendChild(document.createTextNode(feed.title));
-            if (feed.error) button.title = feed.error;
-            else if (feed.excluded) button.title = 'Не попало в файл: ' + feed.excluded;
+            button.title = barHint(feed);
             button.addEventListener('click', () => switchBar(feed.id));
             box.appendChild(button);
         }
@@ -298,20 +310,55 @@
         const box = $('yf-counts');
         box.textContent = '';
         const items = [
-            ['В файле', counts.shown, false],
-            ['Скрыто', counts.hidden, false],
-            ['С правками', counts.edited, false],
-            ['Не попало', counts.excluded, counts.excluded > 0],
+            ['В файле', counts.shown, false, null],
+            ['Скрыто', counts.hidden, false, null],
+            ['С правками', counts.edited, false, null],
+            ['Не попало', counts.excluded, counts.excluded_open > 0, counts.excluded ? showExcluded : null],
         ];
-        for (const [label, value, warn] of items) {
-            const cell = el('div', 'yf-count' + (warn ? ' is-warn' : ''));
+        for (const [label, value, warn, run] of items) {
+            const cell = el(run ? 'button' : 'div', 'yf-count' + (warn ? ' is-warn' : '') + (run ? ' is-link' : ''));
+            if (run) {
+                cell.type = 'button';
+                cell.title = 'Показать сорта на кранах, которых нет в файле';
+                cell.addEventListener('click', run);
+            }
             cell.appendChild(el('b', null, String(value || 0)));
             cell.appendChild(el('span', null, label));
             box.appendChild(cell);
         }
     }
 
-    function banner(tone, text, action) {
+    function showExcluded() {
+        const box = $('yf-excluded');
+        box.open = true;
+        box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // «Всё верно»: предупреждение перестаёт считаться. Хранится на сервере по
+    // тексту: сменились блюда, цены или причина — предупреждение вернётся.
+    async function acknowledge(keys, acked) {
+        if (!keys.length || !state.data) return;
+        const barId = state.barId;
+        const seq = state.seq;
+        try {
+            const response = await fetch('/api/yml/feeds/' + encodeURIComponent(barId) + '/ack', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({ keys, acked }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Не удалось сохранить отметку');
+            if (seq !== state.seq || barId !== state.barId) return;
+            applyData(data);
+            loadFeeds().catch(() => {});
+            toast(acked ? 'Отмечено: всё верно. Предупреждение вернётся, если в iiko что-то изменится.'
+                : 'Предупреждение снова показывается');
+        } catch (error) {
+            toast(error.message || 'Не удалось сохранить отметку', true);
+        }
+    }
+
+    function banner(tone, text, ...actions) {
         const node = el('div', 'yf-banner ' + tone);
         const body = el('div');
         if (Array.isArray(text)) {
@@ -321,11 +368,16 @@
             body.textContent = text;
         }
         node.appendChild(body);
-        if (action) {
-            const button = el('button', 'yf-btn yf-btn-sm', action.label);
-            button.type = 'button';
-            button.addEventListener('click', action.run);
-            node.appendChild(button);
+        const list = actions.filter(Boolean);
+        if (list.length) {
+            const box = el('div', 'yf-banner-actions');
+            for (const action of list) {
+                const button = el('button', 'yf-btn yf-btn-sm', action.label);
+                button.type = 'button';
+                button.addEventListener('click', action.run);
+                box.appendChild(button);
+            }
+            node.appendChild(box);
         }
         return node;
     }
@@ -353,12 +405,25 @@
                 'Перенесено по текущему таплисту: ' + migrated + '. Проверьте, что правка относится к нужному пиву.'],
             { label: 'Показать', run: showAttention }));
         }
-        const conflicts = offers().filter((offer) => offer.warnings && offer.warnings.length).length;
-        if (conflicts) {
-            box.appendChild(banner('is-warn', ['Проверить в iiko: ' + conflicts + '.',
-                'Обычно это несколько блюд 0,5 л с разной ценой на одну кегу: в файл взята цена '
-                + 'самого свежего приказа, лишние блюда уберите из техкарт.'],
-            { label: 'Показать', run: showAttention }));
+        const withNotices = offers().filter((offer) => openNotices(offer).length);
+        if (withNotices.length) {
+            const keys = withNotices.flatMap((offer) => openNotices(offer).map((notice) => notice.key));
+            box.appendChild(banner('is-warn', ['Проверьте цены: ' + withNotices.length + '.',
+                'Обычно на одну кегу в iiko заведено несколько блюд 0,5 л с разной ценой: в файл взята '
+                + 'цена самого свежего приказа. Если цены верны, отметьте «Всё верно».'],
+            { label: 'Показать', run: showAttention },
+            { label: 'Все цены верны', run: () => {
+                if (window.confirm('Отметить все ' + withNotices.length + ' предупреждений о ценах как проверенные? '
+                    + 'Предупреждение вернётся, если в iiko поменяются блюда или цены.')) acknowledge(keys, true);
+            } }));
+        }
+        const excluded = (data.excluded || []).filter((entry) => !entry.acked);
+        if (excluded.length) {
+            const names = excluded.slice(0, 3).map((entry) => entry.name).join(', ')
+                + (excluded.length > 3 ? ' и ещё ' + (excluded.length - 3) : '');
+            box.appendChild(banner('is-warn', ['На кранах есть сорта, которых нет в файле: ' + excluded.length + '.',
+                names + '. Причина — в списке «Не попали в файл».'],
+            { label: 'Показать', run: showExcluded }));
         }
     }
 
@@ -678,7 +743,15 @@
         }));
 
         const notes = el('div', 'yf-notes');
-        for (const warning of offer.warnings || []) notes.appendChild(note(warning, 'is-warn'));
+        for (const notice of offer.notices || []) {
+            if (notice.acked) {
+                notes.appendChild(note('Отмечено как верное: ' + notice.text, 'is-muted', [
+                    { label: 'Показывать снова', run: () => acknowledge([notice.key], false) }]));
+            } else {
+                notes.appendChild(note(notice.text, 'is-warn', [
+                    { label: 'Всё верно', run: () => acknowledge([notice.key], true) }]));
+            }
+        }
         if (migratedFrom(offer)) {
             notes.appendChild(note(
                 'Правка перенесена с крана ' + migratedFrom(offer) + ' при переходе на привязку к сорту. '
@@ -735,14 +808,19 @@
         const list = $('yf-excluded-list');
         list.textContent = '';
         for (const entry of excluded) {
-            const row = el('li', 'yf-extra-item');
+            const row = el('li', 'yf-extra-item' + (entry.acked ? ' is-acked' : ''));
             const taps = (entry.taps || []).filter((tap) => tap !== null && tap !== undefined);
             row.appendChild(el('span', 'yf-extra-tap', taps.length ? 'Кран ' + taps.join(', ') : ''));
             const body = el('div');
             body.appendChild(el('div', 'yf-extra-name', entry.name));
-            body.appendChild(el('div', 'yf-extra-reason', entry.reason));
+            body.appendChild(el('div', 'yf-extra-reason',
+                (entry.acked ? 'Отмечено «Понятно». ' : '') + entry.reason));
             row.appendChild(body);
-            row.appendChild(el('span'));
+            const button = el('button', 'yf-btn yf-btn-sm', entry.acked ? 'Вернуть' : 'Понятно');
+            button.type = 'button';
+            button.title = entry.acked ? 'Снова считать непросмотренным' : 'Не подсвечивать бар из-за этого сорта';
+            button.addEventListener('click', () => acknowledge([entry.key], !entry.acked));
+            row.appendChild(button);
             list.appendChild(row);
         }
 

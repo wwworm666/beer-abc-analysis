@@ -1,12 +1,14 @@
 """Правки к позициям YML: скрыть, другое имя, цена или описание.
 
 Файл yml_overrides.json (на проде /kultura). Схема 2:
-    {"schema": 2, "feeds": {"kitchen": {offer_id: правка}, "bar1": {...}, ...}}
+    {"schema": 2, "feeds": {"kitchen": {offer_id: правка}, "bar1": {...}, ...},
+     "acks": {ключ предупреждения: когда отмечено «Всё верно»}}
 Кухня общая на все бары — её правки лежат в "kitchen". Пиво — по бару, ключ
 позиции привязан к сорту (core/taplist_yml.offer_id). Схема 1 (до 2026-09-27)
 хранила пиво по номеру крана; ensure_schema переносит её один раз.
 Правила и формулы — docs/yandex-feeds.md.
 """
+import hashlib
 import json
 import os
 import re
@@ -26,7 +28,8 @@ DESCRIPTION_LIMIT = 3000
 _ID = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$')
 _SCOPE = re.compile(r'^[a-z0-9-]{1,40}$')
 _OLD_TAP_ID = re.compile(r'^(bar\d+)-tap(\d+)-p05$')
-_CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f￾￿]')
+_ACK = re.compile(r'^[0-9a-f]{20}$')
+_CONTROL = re.compile('[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f\\ufffe\\uffff]')
 
 
 class OverridesCorrupted(Exception):
@@ -51,14 +54,16 @@ def _read(path):
         data = json.load(handle)
     if not isinstance(data, dict) or not isinstance(data.get('feeds', {}), dict):
         raise ValueError('не тот формат')
-    return {'schema': data.get('schema', 1), 'feeds': data.get('feeds') or {}}
+    acks = data.get('acks')
+    return {'schema': data.get('schema', 1), 'feeds': data.get('feeds') or {},
+            'acks': acks if isinstance(acks, dict) else {}}
 
 
 def load_document(path=None) -> dict:
-    """{'schema': N, 'feeds': {...}}. Битый файл — берётся копия .bak."""
+    """{'schema': N, 'feeds': {...}, 'acks': {...}}. Битый файл — берётся копия .bak."""
     path = str(path or overrides_path())
     if not os.path.exists(path):
-        return {'schema': SCHEMA, 'feeds': {}}
+        return {'schema': SCHEMA, 'feeds': {}, 'acks': {}}
     try:
         return _read(path)
     except (OSError, ValueError) as error:
@@ -201,8 +206,39 @@ def apply_changes(bar_id, changes, kitchen_ids, path=None) -> dict:
                 for scope in legacy_scopes(bar_id):
                     _set(feeds, scope, offer_id, {})
                 _set(feeds, bar_id, offer_id, stored)
-        _write(path, {'schema': SCHEMA, 'feeds': feeds})
+        _write(path, {'schema': SCHEMA, 'feeds': feeds, 'acks': document['acks']})
     return feeds
+
+
+def notice_key(text) -> str:
+    """Ключ предупреждения — хэш его текста. Текст включает блюда, цены, даты
+    приказов или причину, поэтому любое изменение ситуации даёт новый ключ,
+    и отмеченное «Всё верно» предупреждение появляется снова."""
+    return hashlib.sha1(str(text).encode('utf-8')).hexdigest()[:20]
+
+
+def load_acks(path=None) -> dict:
+    """{ключ предупреждения: когда отмечено «Всё верно»}."""
+    return load_document(path)['acks']
+
+
+def set_acks(keys, acknowledged, when, path=None) -> dict:
+    """Отметить предупреждения просмотренными (или вернуть). -> все отметки."""
+    keys = list(keys or [])
+    if not keys or any(not isinstance(key, str) or not _ACK.fullmatch(key) for key in keys):
+        raise ValueError('Некорректный ключ предупреждения')
+    path = str(path or overrides_path())
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+    with portalocker.Lock(path + '.lock', timeout=10):
+        document = load_document(path)
+        acks = dict(document['acks'])
+        for key in keys:
+            if acknowledged:
+                acks[key] = when
+            else:
+                acks.pop(key, None)
+        _write(path, {'schema': document['schema'], 'feeds': document['feeds'], 'acks': acks})
+    return acks
 
 
 def save_overrides(feed_id, changes, path=None) -> dict:
@@ -217,7 +253,7 @@ def save_overrides(feed_id, changes, path=None) -> dict:
         for offer_id, raw in (changes or {}).items():
             _check_id(offer_id)
             _set(feeds, feed_id, offer_id, normalize_override(raw))
-        _write(path, {'schema': document['schema'], 'feeds': feeds})
+        _write(path, {'schema': document['schema'], 'feeds': feeds, 'acks': document['acks']})
     return feeds
 
 
@@ -287,7 +323,7 @@ def ensure_schema(kitchen_ids, tap_to_beer, path=None):
         feeds, report = migrate_v1(document['feeds'], kitchen_ids, tap_to_beer())
         if not os.path.exists(path + '.v1.bak'):
             shutil.copyfile(path, path + '.v1.bak')
-        _write(path, {'schema': SCHEMA, 'feeds': feeds})
+        _write(path, {'schema': SCHEMA, 'feeds': feeds, 'acks': document['acks']})
     for line in report:
         print(f'[YML] перенос правок: {line}')
     return report

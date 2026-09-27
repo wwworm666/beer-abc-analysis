@@ -18,7 +18,7 @@ SHOP_URL = 'https://beerkultura.ru'
 CURRENCY = 'RUB'
 CATEGORY_IDS = {'bar1': '1', 'bar2': '2', 'bar3': '3', 'bar4': '4'}
 HALF_LITER = Decimal('0.5')
-_CONTROL = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]')
+_CONTROL = re.compile('[\\x00-\\x08\\x0b\\x0c\\x0e-\\x1f\\ufffe\\uffff]')
 # Порция навынос: размер «0,5 (б)» или блюдо «... (0,5) (б)» / «с собой».
 # В карточке заведения показываем цену в зале, навынос в фид не идёт.
 _TAKEAWAY = re.compile(r'\(\s*б\s*\)|с\s+собой|навынос', re.IGNORECASE)

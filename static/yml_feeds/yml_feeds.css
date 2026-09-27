@@ -300,6 +300,17 @@ body.yf-page { background: var(--yf-bg); }
 .yf-count b { font-family: var(--yf-mono); font-size: 16px; font-weight: 600; color: var(--yf-ink); }
 .yf-count span { font-size: 11px; color: var(--yf-ink4); }
 .yf-count.is-warn b { color: var(--yf-warn-ink); }
+.yf-count.is-link {
+    border: none;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.yf-count.is-link span { text-decoration: underline dotted; text-underline-offset: 3px; }
+.yf-count.is-link:focus-visible { outline: none; box-shadow: var(--yf-focus); }
 
 /* ==================== Баннеры ==================== */
 
@@ -328,7 +339,7 @@ body.yf-page { background: var(--yf-bg); }
 .yf-banner.is-bad { background: var(--yf-bad-soft); border-color: transparent; }
 .yf-banner.is-bad::before { background: var(--yf-bad); }
 .yf-banner b { color: var(--yf-ink); font-weight: 600; }
-.yf-banner .yf-btn { margin-left: auto; }
+.yf-banner-actions { margin-left: auto; display: flex; gap: 6px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
 
 /* ==================== Основная область ==================== */
 
@@ -626,6 +637,7 @@ body.yf-page { background: var(--yf-bg); }
     color: var(--yf-ink2);
 }
 .yf-note.is-warn { background: var(--yf-warn-soft); border-color: transparent; }
+.yf-note.is-muted { background: transparent; border-style: dashed; color: var(--yf-ink4); }
 .yf-note-actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
 
 /* ---------- не попали в фид и правки без позиций ---------- */
@@ -666,6 +678,8 @@ body.yf-page { background: var(--yf-bg); }
     font-size: 13px;
 }
 .yf-extra-item.is-removed { opacity: .5; text-decoration: line-through; }
+.yf-extra-item.is-acked { border-style: dashed; }
+.yf-extra-item.is-acked .yf-extra-name { color: var(--yf-ink3); }
 .yf-extra-tap { font-family: var(--yf-mono); font-size: 12px; color: var(--yf-ink4); }
 .yf-extra-name { color: var(--yf-ink); }
 .yf-extra-reason { font-size: 12px; color: var(--yf-ink3); margin-top: 2px; }
@@ -817,6 +831,8 @@ body.yf-page { background: var(--yf-bg); }
     .yf-row-name { white-space: normal; }
     .yf-edit { grid-template-columns: minmax(0, 1fr); padding: 4px 12px 14px; }
     .yf-note { flex-direction: column; }
+    .yf-banner { flex-wrap: wrap; }
+    .yf-banner-actions { margin-left: 17px; justify-content: flex-start; }
     .yf-note-actions { margin-left: 0; }
     .yf-extra-item { grid-template-columns: minmax(0, 1fr); }
     .yf-savebar { bottom: 0; width: 100%; border-radius: var(--yf-r-panel) var(--yf-r-panel) 0 0;

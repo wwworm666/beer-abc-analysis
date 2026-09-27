@@ -2,6 +2,8 @@
 
 Документация: docs/yandex-feeds.md.
 """
+from datetime import datetime
+
 from flask import Blueprint, jsonify, make_response, render_template, request
 
 from core import yml_scheduler as scheduler
@@ -14,8 +16,8 @@ from core.yml_feeds import (
     overrides_for_bar,
 )
 from core.yml_overrides import (
-    OverrideConflict, OverridesCorrupted, apply_changes, ensure_schema, load_overrides,
-    merge_offer, merge_offers,
+    OverrideConflict, OverridesCorrupted, apply_changes, ensure_schema, load_document,
+    load_overrides, merge_offer, merge_offers, notice_key, set_acks,
 )
 
 yml_bp = Blueprint('yml_feeds', __name__)
@@ -93,12 +95,35 @@ def render_bar_feed(bar_id):
     return build_yml(items=items, shop_name=f'{SHOP_COMPANY}, {BAR_NAMES[bar_id]}')
 
 
+def notices_for(item, acks):
+    """Предупреждения позиции с ключом и отметкой «Всё верно»."""
+    notices = []
+    for text in item.get('warnings') or []:
+        key = notice_key(text)
+        notices.append({'key': key, 'text': text, 'acked': key in acks})
+    return notices
+
+
+def excluded_key(bar_id, entry):
+    """Не попавший в файл сорт отмечается по бару: сорт, кран и причина. Сменилась
+    причина или кран — нужна новая отметка."""
+    return notice_key(f"excluded|{bar_id}|{entry.get('name')}|{entry.get('taps')}|{entry.get('reason')}")
+
+
+def attention_count(bar_id, beer, excluded, acks):
+    """Что ещё не просмотрено: предупреждения позиций и сорта не в файле."""
+    notices = sum(1 for item in beer for text in item.get('warnings') or []
+                  if notice_key(text) not in acks)
+    return notices + sum(1 for entry in excluded if excluded_key(bar_id, entry) not in acks)
+
+
 def feed_detail_data(bar_id):
     """Всё для страницы бара: позиции с правками, не попавшее в фид, правки без позиций."""
     ensure_overrides_schema()
     feed = feed_by_id(bar_id)
     beer, excluded, info = bar_state(bar_id)
-    stored = load_overrides()
+    document = load_document()
+    stored, acks = document['feeds'], document['acks']
     effective = overrides_for_bar(stored, bar_id)
     items = combine_offers(offers_for_bar(bar_id), beer)
     offers = []
@@ -108,7 +133,10 @@ def feed_detail_data(bar_id):
         merged['override'] = override
         merged['bar_only'] = bool(item['kind'] == 'kitchen' and override
                                   and bar_scoped(stored, bar_id, item['id']))
+        merged['notices'] = notices_for(item, acks)
         offers.append(merged)
+    excluded = [{**entry, 'key': excluded_key(bar_id, entry),
+                 'acked': excluded_key(bar_id, entry) in acks} for entry in excluded]
     present = {item['id'] for item in items}
     kitchen_stored = stored.get(KITCHEN_SCOPE) or {}
     orphans = [{'id': offer_id, 'override': override, 'kitchen': offer_id in kitchen_stored}
@@ -126,6 +154,8 @@ def feed_detail_data(bar_id):
             'kitchen': sum(item['kind'] == 'kitchen' for item in offers),
             'edited': sum(item['edited'] for item in offers),
             'excluded': len(excluded),
+            'excluded_open': sum(not entry['acked'] for entry in excluded),
+            'notices_open': sum(not notice['acked'] for item in offers for notice in item['notices']),
         },
     }
 
@@ -140,6 +170,10 @@ def list_feeds():
     """Бары и краткое состояние снимка — для переключателя баров."""
     data = scheduler.load_snapshot()
     bars = data['bars'] if scheduler.snapshot_ok(data) else {}
+    try:
+        acks = load_document()['acks']
+    except OverridesCorrupted:
+        acks = {}
     feeds = []
     for feed in feed_catalog():
         bar = bars.get(feed['bar_id']) if isinstance(bars.get(feed['bar_id']), dict) else None
@@ -148,6 +182,8 @@ def list_feeds():
             'public_url': _public_url(feed['public_path']),
             'beer': len(bar.get('beer') or []) if bar else None,
             'excluded': len(bar.get('excluded') or []) if bar else None,
+            'attention': attention_count(feed['bar_id'], bar.get('beer') or [],
+                                         bar.get('excluded') or [], acks) if bar else None,
             'error': bar.get('error') if bar else None,
         })
     return jsonify({'feeds': feeds, 'snapshot': scheduler.snapshot_status(data or {})})
@@ -192,6 +228,27 @@ def save_feed(feed_id):
     except Exception as error:
         print(f'[ERROR] YML save {feed_id}: {type(error).__name__}: {error}')
         return jsonify({'error': 'Не удалось сохранить правки'}), 500
+    return jsonify(feed_detail_data(feed_id))
+
+
+@yml_bp.route('/api/yml/feeds/<feed_id>/ack', methods=['POST'])
+def acknowledge(feed_id):
+    """«Всё верно»: скрыть предупреждения или сорта не в файле. {keys: [...], acked: true|false}.
+
+    Отметка хранится по тексту предупреждения: изменится ситуация — вернётся."""
+    if feed_by_id(feed_id) is None:
+        return jsonify({'error': 'Бар не найден'}), 404
+    payload = request.get_json(silent=True) or {}
+    keys = payload.get('keys')
+    if not isinstance(keys, list):
+        return jsonify({'error': 'Нет списка предупреждений'}), 400
+    try:
+        when = datetime.now(scheduler.MOSCOW).replace(microsecond=0).isoformat()
+        set_acks(keys, payload.get('acked') is not False, when)
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    except OverridesCorrupted as error:
+        return jsonify({'error': str(error)}), 503
     return jsonify(feed_detail_data(feed_id))
 
 

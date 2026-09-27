@@ -431,6 +431,42 @@ def test_refresh_needs_json_and_builds_snapshot(client):
     assert listing['feeds'][0]['beer'] == 1 and listing['feeds'][0]['excluded'] == 1
 
 
+def test_acknowledged_warnings_stop_counting_until_the_situation_changes(client, monkeypatch):
+    conflict = [serving('1580.00', 'ВО Квак (0,5)', '2024-01-10'), serving('1350.00', 'Квак (0,5)', '2026-03-01')]
+    _patch_taplist(monkeypatch, {'bar1': [row(servings=conflict)], 'bar4': [row(bar_id='bar4', servings=conflict)],
+                                 'bar2': [row(bar_id='bar2', mapping_status='unverified', untappd_beer_id=None)]})
+    client.post('/api/yml/refresh', json={})
+    listing = {feed['id']: feed for feed in client.get('/api/yml/feeds').get_json()['feeds']}
+    assert listing['bar1']['attention'] == 1 and listing['bar2']['attention'] == 1 and listing['bar3']['attention'] == 0
+    detail = client.get('/api/yml/feeds/bar1').get_json()
+    notice = detail['offers'][0]['notices'][0]
+    assert notice['acked'] is False and 'свежего приказа' in notice['text']
+    assert detail['counts']['notices_open'] == 1
+    acked = client.post('/api/yml/feeds/bar1/ack', json={'keys': [notice['key']], 'acked': True})
+    assert acked.status_code == 200
+    assert acked.get_json()['offers'][0]['notices'][0]['acked'] is True
+    assert acked.get_json()['counts']['notices_open'] == 0
+    listing = {feed['id']: feed for feed in client.get('/api/yml/feeds').get_json()['feeds']}
+    assert listing['bar1']['attention'] == 0
+    assert listing['bar4']['attention'] == 0, 'тот же текст предупреждения в другом баре тоже отмечен'
+    excluded = client.get('/api/yml/feeds/bar2').get_json()['excluded'][0]
+    assert excluded['acked'] is False
+    client.post('/api/yml/feeds/bar2/ack', json={'keys': [excluded['key']]})
+    assert client.get('/api/yml/feeds/bar2').get_json()['excluded'][0]['acked'] is True
+    # отметка переживает сохранение правок
+    client.put('/api/yml/feeds/bar1', json={'changes': {'ttk-s02': {'hidden': True}}})
+    assert client.get('/api/yml/feeds/bar1').get_json()['offers'][0]['notices'][0]['acked'] is True
+    # сменилась цена в iiko — новое предупреждение, отметки нет
+    changed = [serving('1590.00', 'ВО Квак (0,5)', '2024-01-10'), serving('1350.00', 'Квак (0,5)', '2026-03-01')]
+    _patch_taplist(monkeypatch, {'bar1': [row(servings=changed)]})
+    client.post('/api/yml/refresh', json={})
+    assert client.get('/api/yml/feeds/bar1').get_json()['offers'][0]['notices'][0]['acked'] is False
+    # вернуть и проверка ключей
+    client.post('/api/yml/feeds/bar1/ack', json={'keys': [notice['key']], 'acked': False})
+    assert client.post('/api/yml/feeds/bar1/ack', json={'keys': ['../../x']}).status_code == 400
+    assert client.post('/api/yml/feeds/bar1/ack', json={}).status_code == 400
+
+
 def test_orphan_override_is_listed_and_can_be_removed(client):
     client.put('/api/yml/feeds/bar1', json={'changes': {'bar1-u9999-p05': {'hidden': True}}})
     data = client.get('/api/yml/feeds/bar1').get_json()
