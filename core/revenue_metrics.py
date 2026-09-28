@@ -12,6 +12,7 @@ import json
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
+from core import msk_time
 from core.olap_reports import OlapReports
 from core.daily_plans_generator import get_daily_plan_for_date
 from core.storage_paths import get_data_path
@@ -174,8 +175,10 @@ class RevenueMetricsCalculator:
             end = datetime.strptime(date_to, '%Y-%m-%d')
             total_days = (end - start).days + 1
 
-            # Считаем сколько дней уже прошло (включая сегодня)
-            today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            # Считаем сколько дней уже прошло (включая сегодня). «Сегодня» — по Москве
+            # (core/msk_time): прод-контейнер живёт в UTC, наивный datetime.now() с 00:00
+            # до 03:00 МСК отставал на сутки.
+            today = datetime.combine(msk_time.today(), datetime.min.time())
             days_elapsed = min((today - start).days + 1, total_days)
 
             if days_elapsed <= 0:

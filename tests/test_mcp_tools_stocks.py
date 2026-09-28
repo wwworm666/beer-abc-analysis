@@ -177,6 +177,8 @@ def _fallback_check(schema, value, where='args'):
     if 'enum' in schema and value not in schema['enum']:
         errors.append(where + ': значение не из enum')
     if isinstance(value, str):
+        if 'minLength' in schema and len(value) < schema['minLength']:
+            errors.append(where + ': короче minLength')
         if 'maxLength' in schema and len(value) > schema['maxLength']:
             errors.append(where + ': длиннее maxLength')
         if 'pattern' in schema and not re.search(schema['pattern'], value):
@@ -423,9 +425,12 @@ def test_reverse_check_sees_known_reads():
     _args, fields = _request_reads(routes[('POST', '/api/orders/draft')][0])
     assert {'supplier', 'product_id', 'bar', 'qty', 'price'} <= fields, fields
     args, _fields = _request_reads(routes[('GET', '/api/stocks/order-board')][0])
-    assert args == {'bar'}, args
+    assert args == {'bar', 'supplier', 'only_to_order', 'limit'}, args
     args, _fields = _request_reads(routes[('GET', '/api/taps/taplist-full')][0])
-    assert args == {'bar_id', 'active_only'}, args
+    assert args == {'bar_id', 'active_only', 'compact'}, args
+    for path in ('/api/chz/stock', '/api/beers/draft', '/menu/api/items'):
+        args, _fields = _request_reads(routes[('GET', path)][0])
+        assert args == {'q', 'limit'}, (path, args)
 
 
 def test_heavy_matches_route_code():
@@ -461,7 +466,17 @@ def test_bad_args_rejected_by_schema():
     cases = [
         ('stocks_order_board', {}),
         ('stocks_order_board', {'bar': 'bar2'}),                     # не та система id
-        ('stocks_order_board', {'bar': 'Лиговский', 'supplier': 'Май'}),
+        ('stocks_order_board', {'bar': 'Лиговский', 'status': 'critical'}),     # лишнее поле
+        ('stocks_order_board', {'bar': 'Лиговский', 'only_to_order': True}),    # флаг — строка '1'
+        ('stocks_order_board', {'bar': 'Лиговский', 'limit': 0}),
+        ('stocks_order_board', {'bar': 'Лиговский', 'limit': 5000}),
+        ('stocks_order_board', {'bar': 'Лиговский', 'supplier': ''}),
+        ('stocks_taplist_full', {'compact': True}),
+        ('stocks_taplist_full', {'compact': 'yes'}),
+        ('stocks_chz_cache', {'limit': 0}),
+        ('stocks_chz_cache', {'gtin': '4610093628430'}),
+        ('stocks_beers_draft', {'q': ''}),
+        ('stocks_menu_items', {'limit': 1001}),
         ('stocks_order_draft_set', {'supplier': 'Май', 'product_id': 'p', 'bar': 'Общая', 'qty': 1}),
         ('stocks_order_draft_set', {'supplier': 'Май', 'product_id': 'p', 'bar': 'Лиговский', 'qty': -1}),
         ('stocks_order_draft_set', {'supplier': 'Май', 'product_id': 'p', 'bar': 'Лиговский', 'qty': 1,
@@ -571,6 +586,38 @@ def test_constants_match_code():
     supplier_fields = set(_tools()['stocks_supplier_upsert'].input_schema['properties']) - {'name', 'rename_to'}
     import routes.suppliers as rsup
     assert supplier_fields == set(rsup.EDITABLE_FIELDS), sorted(supplier_fields ^ set(rsup.EDITABLE_FIELDS))
+
+
+def test_narrowing_params_match_routes():
+    """Сужение больших ответов для агентов (2026-09-28): предел limit и флаги — те же, что в
+    маршрутах; флаги строкой '1'/'0' (маршруты сравнивают строго с '1')."""
+    import routes.menu_editor as rme
+    import routes.stocks as rst
+    import routes.taps as rtaps
+    assert stocks.LIST_LIMIT_MAX == rst.LIST_LIMIT_MAX == rtaps.LIST_LIMIT_MAX == rme.LIST_LIMIT_MAX
+    for name in ('stocks_order_board', 'stocks_chz_cache', 'stocks_beers_draft', 'stocks_menu_items'):
+        node = _prop(name, 'limit')
+        assert (node['minimum'], node['maximum']) == (1, stocks.LIST_LIMIT_MAX), name
+        assert 'limit' in _tools()[name].query_params, name
+    for name in ('stocks_chz_cache', 'stocks_beers_draft', 'stocks_menu_items'):
+        assert _prop(name, 'q')['minLength'] == 1 and 'q' in _tools()[name].query_params, name
+    assert _prop('stocks_taplist_full', 'compact')['enum'] == ['1', '0']
+    assert _prop('stocks_order_board', 'only_to_order')['enum'] == ['1', '0']
+    assert _tools()['stocks_order_board'].query_params == ('bar', 'supplier', 'only_to_order', 'limit')
+    assert rtaps.COMPACT_MAIN_PORTION == '0.5'
+    row = {'bar': 'Лиговский', 'bar_id': 'bar2', 'tap_number': 3, 'beer_name': 'Пилс', 'brewery': 'Б',
+           'style': 'Pilsner', 'abv': 4.8, 'ibu': 30, 'mapped': True, 'mapping_status': 'verified',
+           'price_status': 'verified', 'description': 'x' * 500, 'photo_url': 'https://img',
+           'servings': [{'portion_liters': '0.3', 'price_rub': '220.00', 'dish_name': 'Пилс 0,3'},
+                        {'portion_liters': '0.5', 'price_rub': '330.00', 'dish_name': 'Пилс 0,5'}]}
+    compact = rtaps.compact_tap_row(row)
+    assert set(compact) == {'bar', 'bar_id', 'tap_number', 'beer_name', 'brewery', 'style', 'abv', 'ibu',
+                            'mapped', 'mapping_status', 'price_status', 'price_0_5', 'prices'}
+    assert compact['price_0_5'] == '330.00'
+    assert compact['prices'] == [{'l': '0.3', 'rub': '220.00'}, {'l': '0.5', 'rub': '330.00'}]
+    two_prices = dict(row, servings=row['servings'] + [{'portion_liters': '0.5', 'price_rub': '390.00'}])
+    assert rtaps.compact_tap_row(two_prices)['price_0_5'] is None, 'две цены 0,5 л — не выбираем за владельца'
+    assert rtaps.compact_tap_row(dict(row, servings=[]))['price_0_5'] is None
 
 
 # --------------------------------------------------------------------------- тесты: пометки

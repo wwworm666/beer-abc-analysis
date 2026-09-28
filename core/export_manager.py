@@ -1,10 +1,62 @@
 """
 Менеджер экспорта данных
 Экспорт метрик в различные форматы
+
+Выгрузка дашборда в Excel и PDF (POST /api/export/excel, /api/export/pdf) строит
+строки одной функцией ExportManager.dashboard_rows — план и факт в ОДНИХ единицах
+и по тем же правилам, что карточки «Аналитики» (static/js/dashboard/modules/
+analytics.js, buildStats). Правила — в докстринге dashboard_rows.
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 import json
+
+from core.plans_manager import BUDGET_METRICS, plan_score
+
+# Строки выгрузки дашборда: (ключ экрана, подпись, единица). Ключ один для плана и
+# факта — как planKey/actualKey в static/js/dashboard/core/config.js. Порядок —
+# прежний порядок выгрузки: 16 базовых метрик, четыре метрики лояльности,
+# активность кранов последней. У «Чеков с картой», «Чеков без карты» и «Выручки по
+# картам» плана нет (на экране это вкладки карточки «Доля чеков с картой»).
+DASHBOARD_EXPORT_METRICS = (
+    ('revenue', 'Выручка', '₽'),
+    ('checks', 'Чеки', 'шт'),
+    ('averageCheck', 'Средний чек', '₽'),
+    ('draftShare', 'Доля розлива', '%'),
+    ('packagedShare', 'Доля фасовки', '%'),
+    ('kitchenShare', 'Доля кухни', '%'),
+    ('revenueDraft', 'Выручка розлив', '₽'),
+    ('revenuePackaged', 'Выручка фасовка', '₽'),
+    ('revenueKitchen', 'Выручка кухня', '₽'),
+    ('markupPercent', 'Наценка', '%'),
+    ('profit', 'Прибыль', '₽'),
+    ('markupDraft', 'Наценка розлив', '%'),
+    ('markupPackaged', 'Наценка фасовка', '%'),
+    ('markupKitchen', 'Наценка кухня', '%'),
+    ('loyaltyWriteoffs', 'Списания баллов', '₽'),
+    ('cardChecks', 'Чеки с картой', 'шт'),
+    ('nocardChecks', 'Чеки без карты', 'шт'),
+    ('cardChecksShare', 'Доля чеков с картой', '%'),
+    ('cardRevenue', 'Выручка по картам', '₽'),
+    ('tapActivity', 'Активность кранов', '%'),
+)
+
+# План активности кранов, если он не задан (нет плана за период или 0): 100 % —
+# правило экрана (analytics.js buildStats: «план всегда 100 %, если не задан вручную»).
+TAP_ACTIVITY_DEFAULT_PLAN = 100.0
+
+# Пороги светофора — те же, что на экране (utils.js getStatus): score ≥ 100 —
+# выполнено, 90–99 — почти, ниже 90 — не выполнено; score = plan_score (у
+# бюджетной метрики — зеркальный процент 200 − p).
+STATUS_OK_SCORE = 100.0
+STATUS_WARN_SCORE = 90.0
+
+
+def _as_number(value) -> Optional[float]:
+    """Число или None (нечисловое и отсутствующее значение)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 class ExportManager:
@@ -13,6 +65,60 @@ class ExportManager:
     def __init__(self):
         """Инициализация менеджера экспорта"""
         pass
+
+    def dashboard_rows(self, plan: Optional[Dict], fact: Dict) -> List[Dict]:
+        """Строки «Метрика | План | Факт | % плана | Разница» выгрузки дашборда.
+
+        Args:
+            plan: план за период (plans_manager.calculate_plan_for_period, ключи
+                  экрана, проценты — в процентах) или None / {} — плана нет
+            fact: факт за период ровно как на экране (routes.dashboard.
+                  get_dashboard_analytics_data: наценки уже ×100, tapActivity)
+
+        Правила (зеркало buildStats на экране):
+            - план метрики = plan[ключ]; у активности кранов без плана (нет или 0)
+              — TAP_ACTIVITY_DEFAULT_PLAN;
+            - план есть, если он не None и не 0 (у 0 процент выполнения не определён);
+            - % плана = факт / план × 100; разница = факт − план;
+            - без плана: plan, percent, diff = None («План не задан» на экране,
+              «—» в PDF, пустая ячейка в Excel);
+            - status: 'ok' | 'warn' | 'bad' по plan_score (у бюджетной метрики —
+              списаний баллов — план служит потолком), 'none' без плана.
+            Значения не округляются: округляет печать (Excel — 2 знака).
+
+        Returns:
+            [{key, label, unit, plan, fact, percent, diff, budget, score, status}]
+            в порядке DASHBOARD_EXPORT_METRICS.
+        """
+        plan = plan or {}
+        rows = []
+        for key, label, unit in DASHBOARD_EXPORT_METRICS:
+            plan_value = _as_number(plan.get(key))
+            if key == 'tapActivity' and not plan_value:
+                plan_value = TAP_ACTIVITY_DEFAULT_PLAN
+            fact_value = _as_number(fact.get(key)) or 0.0
+            has_plan = plan_value is not None and plan_value != 0
+            budget = key in BUDGET_METRICS
+            if has_plan:
+                percent = fact_value / plan_value * 100
+                score = plan_score(percent, budget)
+                if score >= STATUS_OK_SCORE:
+                    status = 'ok'
+                elif score >= STATUS_WARN_SCORE:
+                    status = 'warn'
+                else:
+                    status = 'bad'
+                diff = fact_value - plan_value
+            else:
+                plan_value = percent = score = diff = None
+                status = 'none'
+            rows.append({
+                'key': key, 'label': label, 'unit': unit,
+                'plan': plan_value, 'fact': fact_value,
+                'percent': percent, 'diff': diff,
+                'budget': budget, 'score': score, 'status': status,
+            })
+        return rows
 
     def prepare_excel_data(
         self,

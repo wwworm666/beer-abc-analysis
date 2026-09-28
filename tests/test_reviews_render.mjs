@@ -64,7 +64,12 @@ test('шаблон подключает стили и скрипты разде�
 });
 
 test('каркас страницы: body, сайдбар, шапка раздела внутри gh-wrap', () => {
-    assert.match(html, /<body class="gh-page gh-scope">/, 'нет классов страницы раздела на body');
+    assert.match(html, /<body class="gh-page gh-scope"[^>]*>/, 'нет классов страницы раздела на body');
+    // флаг администратора: ответ гостю наружу — только админ (routes/reviews.py send-reply -> 403)
+    assert.match(html, /<body[^>]*data-is-admin="\{\{ 'true' if current_user and current_user\.is_admin else 'false' \}\}"/,
+        'нет флага администратора на body');
+    assert.match(js, /function isAdmin\(/, 'нет проверки флага администратора в reviews.js');
+    assert.match(js, /aria-disabled="true"/, 'кнопка отправки гостю не блокируется для не-админа');
     assert.match(html, /\{% include 'shared\/nav\.html' %\}/, 'нет общего сайдбара');
     const wrap = html.indexOf('<div class="gh-wrap">');
     const head = html.indexOf("{% include 'shared/guest_hub_head.html' %}");
@@ -262,7 +267,8 @@ test('тексты страницы по спецификации', () => {
     assert.match(js, /Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную/,
         'нет пометки, что ответ не отправляется');
     for (const text of ['Сохранить ответ', 'Оставить без ответа', 'Вернуть в работу', 'Сделать материалом',
-                        'Открыть в контент-плане', 'Открыть в Маркетинге', 'Скопировать', 'Изменить', 'Удалить']) {
+                        'Открыть в контент-плане', 'Открыть в Маркетинге', 'Скопировать', 'Изменить', 'Удалить',
+                        'Отправить гостю в Telegram', 'Отправлено гостю']) {
         assert.ok(js.includes(text), `нет действия «${text}»`);
     }
     // Ссылка на гостя несёт запрос для поиска: /guests?q=<телефон>#guest.
@@ -316,7 +322,7 @@ test('каждое изменение обновляет и список, и п�
         const next = js.indexOf('\n    function ', at + 10);
         return js.slice(at, next < 0 ? js.length : next);
     };
-    for (const fn of ['doReply', 'doSkip', 'doReopen', 'doMaterial', 'doDelete', 'saveDialog']) {
+    for (const fn of ['doReply', 'doSkip', 'doReopen', 'doMaterial', 'doDelete', 'saveDialog', 'doSendGuest']) {
         assert.match(body(fn), /afterChange\(/, `${fn} не зовёт afterChange — полоса отстанет`);
     }
     assert.match(body('afterChange'), /GH\.loadAttention\(\)/, 'afterChange не обновляет полосу');
@@ -600,6 +606,149 @@ atest('черновик при уходе со страницы уходит с�
     assert.equal(last.url, '/api/reviews/r_1');
     assert.equal(last.init.keepalive, true, 'без keepalive браузер оборвёт запрос вместе со страницей');
     assert.equal(JSON.parse(last.init.body).reply_draft, 'Игорь, простите за ожидание. ', 'пробел в конце потерян');
+});
+
+// Ответ на отзыв из бота уходит гостю в Telegram кнопкой (routes/reviews.py send-reply).
+const ANSWERED = { status: 'answered', age_hours: null, response_hours: 1 };
+const botReply = (o) => Object.assign({ text: 'Спасибо, разберёмся', at: '2026-09-27T10:00', by: 'anna',
+                                        delivered: false }, o);
+
+atest('отзыв из бота: кнопка «Отправить гостю в Telegram», «Отправлено гостю», Яндекс — как раньше', async () => {
+    const reviews = [
+        rv(Object.assign({ id: 'r_send', source: 'bot', origin: 'import', can_send_to_guest: true,
+                           reply: botReply() }, ANSWERED)),
+        rv(Object.assign({ id: 'r_sent', source: 'bot', origin: 'import', can_send_to_guest: true,
+                           reply: botReply({ text: 'Новый текст', delivered: true, delivered_at: '2026-09-27T10:30',
+                                             delivered_text: 'Спасибо, разберёмся', delivered_via: 'telegram' }) },
+                         ANSWERED)),
+        rv(Object.assign({ id: 'r_manual', source: 'bot', origin: 'manual', can_send_to_guest: false,
+                           reply: botReply() }, ANSWERED)),
+        rv(Object.assign({ id: 'r_ya', source: 'yandex', can_send_to_guest: false, reply: botReply() }, ANSWERED)),
+    ];
+    const st = { attn: { reviews_unanswered: 0 }, list: listPayload(reviews, 0) };
+    const { ids } = bootPage({ search: '?month=all', respond: fakeServer(st) });
+    await tick();
+    const html = ids.rvList.innerHTML;
+    const card = (id) => html.split('<article ').find((c) => c.includes(`data-id="${id}"`)) || '';
+    assert.match(card('r_send'), /data-act="send-guest"[^>]*>Отправить гостю в Telegram</, 'нет кнопки отправки гостю');
+    assert.match(card('r_send'), /Гость ответа ещё не получил/);
+    assert.match(card('r_send'), /data-act="copy"/, 'у отзыва из бота пропало «Скопировать»');
+    assert.ok(!card('r_sent').includes('data-act="send-guest"'), 'отправленный ответ можно отправить второй раз');
+    assert.match(card('r_sent'), /class="gh-rv-send is-sent">Отправлено гостю 27 сентября( 2026)?, 10:30/);
+    assert.match(card('r_sent'), /после отправки ответ изменён — гость видел прежний текст/);
+    for (const id of ['r_manual', 'r_ya']) {
+        assert.ok(!card(id).includes('data-act="send-guest"'), `${id}: кнопка отправки гостю там, где чата нет`);
+        assert.match(card(id), /Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную/);
+        assert.match(card(id), /data-act="copy"/);
+    }
+});
+
+atest('«Отправить гостю в Telegram»: подтверждение, POST send-reply, затем список и полоса; 409 — перечитать', async () => {
+    const reviews = [rv(Object.assign({ id: 'r_send', source: 'bot', origin: 'import', can_send_to_guest: true,
+                                        reply: botReply() }, ANSWERED))];
+    const st = { attn: { reviews_unanswered: 0 }, list: listPayload(reviews, 0) };
+    let reply = { status: 200, body: { review: null, delivered_at: '2026-09-27T12:00' } };
+    const server = fakeServer(st);
+    const page = bootPage({ search: '?month=all', respond: (url, init) =>
+        (url.endsWith('/send-reply') ? reply : server(url, init)) });
+    await tick();
+    const asked = [];
+    page.window.GH.confirm = (opts) => { asked.push(opts); return Promise.resolve(true); };
+    const card = { getAttribute: () => 'r_send', querySelector: () => null };
+    const btn = {
+        getAttribute: (n) => (n === 'data-act' ? 'send-guest' : null), setAttribute() {}, disabled: false,
+        closest: (s) => (s === '[data-act]' ? btn : s === '.gh-rv-card' ? card : null),
+    };
+    page.ids.rvList.contains = () => true;
+    const clickAndCollect = async () => {
+        const before = page.calls.length;
+        page.ids.rvList.fire('click', { target: btn, preventDefault() {} });
+        for (let i = 0; i < 4; i++) await tick();
+        return page.calls.slice(before).map((c) => `${(c.init && c.init.method) || 'GET'} ${c.url}`);
+    };
+    let after = await clickAndCollect();
+    assert.equal(asked.length, 1, 'нет подтверждения перед отправкой');
+    assert.match(asked[0].text, /«Ответ бара «Большой пр\. В\.О» на ваш отзыв:»/);
+    assert.equal(after[0], 'POST /api/reviews/r_send/send-reply');
+    assert.ok(after.includes('GET /api/guest-hub/attention?bar='), `полоса не перечитана: ${after.join(', ')}`);
+    assert.ok(after.some((x) => x.startsWith('GET /api/reviews?')), 'список не перечитан');
+    // Гость заблокировал бота (409): ошибка показана, карточка перечитана.
+    reply = { status: 409, body: { error: 'Гость заблокировал бота — ответ не доставлен.', code: 'guest_blocked' } };
+    after = await clickAndCollect();
+    assert.equal(after[0], 'POST /api/reviews/r_send/send-reply');
+    assert.ok(after.some((x) => x.startsWith('GET /api/reviews?')), 'после 409 список не перечитан');
+    // Отказ в подтверждении — запроса нет.
+    page.window.GH.confirm = () => Promise.resolve(false);
+    after = await clickAndCollect();
+    assert.deepEqual(after, [], 'без подтверждения ушёл запрос');
+});
+
+// Проверка 2026-09-28, п. 1 и 8: «статус неизвестен» — повтор только отдельной кнопкой с
+// предупреждением и ?force=1; «отправляется» — без кнопки.
+atest('статус отправки: неизвестен — «Отправить ещё раз» с предупреждением и force=1; отправляется — без кнопки', async () => {
+    const reviews = [
+        rv(Object.assign({ id: 'r_unk', source: 'bot', origin: 'import', can_send_to_guest: true, send_state: 'unknown',
+                           reply: botReply({ send_unknown_at: '2026-09-27T11:05:30' }) }, ANSWERED)),
+        rv(Object.assign({ id: 'r_busy', source: 'bot', origin: 'import', can_send_to_guest: true, send_state: 'sending',
+                           reply: botReply({ sending_at: '2026-09-27T11:06:00' }) }, ANSWERED)),
+    ];
+    const st = { attn: { reviews_unanswered: 0 }, list: listPayload(reviews, 0) };
+    const server = fakeServer(st);
+    const page = bootPage({ search: '?month=all', respond: (url, init) =>
+        (url.includes('/send-reply') ? { status: 200, body: { review: null } } : server(url, init)) });
+    await tick();
+    const html = page.ids.rvList.innerHTML;
+    const card = (id) => html.split('<article ').find((c) => c.includes(`data-id="${id}"`)) || '';
+    assert.match(card('r_unk'), /class="gh-rv-send is-unknown">Статус отправки неизвестен \(попытка 27 сентября( 2026)?, 11:05\)/);
+    assert.match(card('r_unk'), /data-act="send-guest-force"[^>]*>Отправить ещё раз</);
+    assert.ok(!card('r_unk').includes('data-act="send-guest"'), 'при неизвестном статусе — не обычная отправка');
+    assert.match(card('r_busy'), /Ответ отправляется гостю/);
+    assert.ok(!/data-act="send-guest/.test(card('r_busy')), 'пока идёт отправка, кнопки нет');
+    const asked = [];
+    page.window.GH.confirm = (opts) => { asked.push(opts); return Promise.resolve(true); };
+    const cardEl = { getAttribute: () => 'r_unk', querySelector: () => null };
+    const btn = {
+        getAttribute: (n) => (n === 'data-act' ? 'send-guest-force' : null), setAttribute() {}, disabled: false,
+        closest: (s) => (s === '[data-act]' ? btn : s === '.gh-rv-card' ? cardEl : null),
+    };
+    page.ids.rvList.contains = () => true;
+    const before = page.calls.length;
+    page.ids.rvList.fire('click', { target: btn, preventDefault() {} });
+    for (let i = 0; i < 4; i++) await tick();
+    const after = page.calls.slice(before).map((c) => `${(c.init && c.init.method) || 'GET'} ${c.url}`);
+    assert.equal(asked.length, 1);
+    assert.equal(asked[0].danger, true, 'повтор при неизвестном статусе — предупреждение');
+    assert.match(asked[0].text, /могло дойти до гостя/);
+    assert.equal(after[0], 'POST /api/reviews/r_unk/send-reply?force=1');
+});
+
+// П. 3: отзыв из бота удаляется (просьба гостя, спам) — только «Удалить», с понятным текстом;
+// отзыв Яндекса — без меню.
+atest('отзыв из бота: в меню только «Удалить», подтверждение про контакты гостя; у Яндекса меню нет', async () => {
+    const reviews = [rv({ id: 'r_bot', source: 'bot', origin: 'import' }), rv({ id: 'r_ya', source: 'yandex', origin: 'import' }),
+                     rv({ id: 'r_man', source: 'yandex', origin: 'manual' })];
+    const st = { attn: { reviews_unanswered: 3 }, list: listPayload(reviews, 3) };
+    const page = bootPage({ search: '?month=all', respond: fakeServer(st) });
+    await tick();
+    const html = page.ids.rvList.innerHTML;
+    const card = (id) => html.split('<article ').find((c) => c.includes(`data-id="${id}"`)) || '';
+    assert.match(card('r_bot'), /data-act="delete"/);
+    assert.ok(!card('r_bot').includes('data-act="edit"'), 'отзыв гостя из бота не правится');
+    assert.ok(!card('r_ya').includes('data-act="menu"'), 'у отзыва Яндекса меню быть не должно');
+    assert.match(card('r_man'), /data-act="edit"/);
+    const asked = [];
+    page.window.GH.confirm = (opts) => { asked.push(opts); return Promise.resolve(false); };
+    const cardEl = { getAttribute: () => 'r_bot', querySelector: () => null };
+    const btn = {
+        getAttribute: (n) => (n === 'data-act' ? 'delete' : null), setAttribute() {}, disabled: false,
+        closest: (s) => (s === '[data-act]' ? btn : s === '.gh-rv-card' ? cardEl : null),
+    };
+    page.ids.rvList.contains = () => true;
+    page.ids.rvList.fire('click', { target: btn, preventDefault() {} });
+    await tick();
+    assert.equal(asked.length, 1);
+    assert.match(asked[0].text, /вместе с контактами гостя/);
+    assert.match(asked[0].text, /по просьбе гостя удалить его данные или если это спам/);
 });
 
 atest('/guests?q=…#guest: вкладка «Гость» подставляет запрос и ищет один раз', async () => {

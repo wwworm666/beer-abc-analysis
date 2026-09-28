@@ -6,10 +6,14 @@
    Отзывы приходят из Яндекс Бизнеса: сервер сверяется с кабинетом раз в
    сутки (core/yandex_reviews_sync.py, docs/yandex-reviews.md), состояние
    сверки — yandex_sync в ответе списка, строка над показателями (renderSync).
+   И из гостевого бота @kult_taplist_bot (core/taplist_polling.py).
    Ручного ввода нет (решение владельца 2026-09-28): кнопки добавления отзыва
    нет, диалог правки остался только для внесённых вручную раньше. Ответ
    отсюда в Яндекс не уходит: его публикуют в кабинете, и при следующей
-   сверке отзыв отмечается «Отвечен» / «Опубликован в Яндексе».
+   сверке отзыв отмечается «Отвечен» / «Опубликован в Яндексе». Ответ на
+   отзыв из бота (can_send_to_guest) владелец отправляет гостю в Telegram
+   кнопкой «Отправить гостю в Telegram» (с подтверждением) — POST send-reply;
+   после — «Отправлено гостю <время>» (reply.delivered_at).
 
    Источник истины — сервер (core/guest_reviews.py, routes/reviews.py):
      - показатели (count, avg_rating, unanswered_pct, median_response_hours,
@@ -49,6 +53,7 @@
         list: '/api/reviews',
         item: '/api/reviews/<id>',
         reply: '/api/reviews/<id>/reply',
+        sendReply: '/api/reviews/<id>/send-reply',
         action: '/api/reviews/<id>/action',
         toMaterial: '/api/reviews/<id>/to-material'
     };
@@ -510,14 +515,18 @@
             'Без ответа по решению') + '">без ответа по решению</span>';
     }
 
+    // Меню карточки: у внесённых вручную — «Изменить» и «Удалить»; у отзыва из бота —
+    // только «Удалить» (просьба гостя удалить его данные, спам; сам отзыв гостя не правим);
+    // у отзыва из Яндекса меню нет — он пришёл бы снова при следующей сверке.
     function menuHtml(r) {
-        if (r.origin !== 'manual') return '';
+        var manual = r.origin === 'manual';
+        if (!manual && r.source !== 'bot') return '';
         return '<div class="gh-rv-more">' +
             '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm gh-btn-icon" data-act="menu" ' +
                 'aria-haspopup="menu" aria-expanded="false" aria-label="Действия с отзывом">' + DOTS_SVG + '</button>' +
             '<div class="gh-menu is-right gh-rv-menu" role="menu" hidden>' +
                 '<div class="gh-menu-grab"></div>' +
-                '<button type="button" class="gh-menu-item" role="menuitem" data-act="edit"><span>Изменить</span></button>' +
+                (manual ? '<button type="button" class="gh-menu-item" role="menuitem" data-act="edit"><span>Изменить</span></button>' : '') +
                 '<button type="button" class="gh-menu-item is-danger" role="menuitem" data-act="delete"><span>Удалить</span></button>' +
             '</div>' +
         '</div>';
@@ -631,6 +640,49 @@
         return out;
     }
 
+    // Состояние отправки ответа гостю — send_state с сервера (core/guest_reviews.
+    // reply_send_state): delivered | sending | unknown | ready. Клиент только показывает.
+    function sendState(r) {
+        if (!r.can_send_to_guest || !r.reply) return null;
+        return r.send_state || (r.reply.delivered ? 'delivered' : 'ready');
+    }
+
+    // Строка под сохранённым ответом — что с ним в источнике:
+    //   отзыв из бота с чатом гостя (can_send_to_guest):
+    //     delivered — «Отправлено гостю <время>» (reply.delivered_at); ответ правили после
+    //       отправки — пометка, гость видел прежний текст (reply.delivered_text);
+    //     sending — отправка идёт (кнопки нет, второй клик сервер отклонит);
+    //     unknown — Telegram не ответил, а сообщение могло дойти: «проверьте у гостя»,
+    //       повтор — отдельной кнопкой с подтверждением (force=1);
+    //     ready — «ещё не получил» (кнопка «Отправить гостю в Telegram» рядом);
+    //   остальные (Яндекс) — «Опубликован в Яндексе» (сверка нашла ответ в кабинете)
+    //   или «скопируйте и опубликуйте вручную».
+    function deliveryHtml(r) {
+        var st = sendState(r);
+        if (st === 'delivered') {
+            var changed = r.reply.delivered_text && r.reply.delivered_text !== r.reply.text
+                ? ' · после отправки ответ изменён — гость видел прежний текст' : '';
+            return '<p class="gh-rv-send is-sent">Отправлено гостю ' + GH.esc(fmtWhen(r.reply.delivered_at)) +
+                GH.esc(changed) + '</p>';
+        }
+        if (st === 'sending') {
+            return '<p class="gh-rv-send">Ответ отправляется гостю — обновите страницу через минуту</p>';
+        }
+        if (st === 'unknown') {
+            var since = r.reply.send_unknown_at || r.reply.sending_at;
+            return '<p class="gh-rv-send is-unknown">Статус отправки неизвестен' +
+                (since ? ' (попытка ' + GH.esc(fmtWhen(since)) + ')' : '') +
+                ': Telegram не ответил, но сообщение могло дойти. Проверьте у гостя, прежде чем отправлять ещё раз.</p>';
+        }
+        if (st === 'ready') {
+            return '<p class="gh-rv-send">Гость ответа ещё не получил — отправьте его в Telegram кнопкой ниже</p>';
+        }
+        return r.reply.delivered
+            ? '<p class="gh-rv-send">Опубликован в Яндексе' + (r.reply.source_text && r.reply.source_text !== r.reply.text
+                ? ' с другим текстом: «' + GH.esc(r.reply.source_text) + '»' : '') + '</p>'
+            : '<p class="gh-rv-send">Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную</p>';
+    }
+
     function replyHtml(r) {
         var id = r.id;
         if (r.status === 'new') {
@@ -683,11 +735,24 @@
                     '<span class="gh-rv-hint">Время ответа не изменится: считается от первого сохранения.</span>' +
                   '</div>'
                 : '<div class="gh-rv-reply-t">' + GH.esc(r.reply.text) + '</div>' +
-                  (r.reply.delivered
-                      ? '<p class="gh-rv-send">Опубликован в Яндексе' + (r.reply.source_text && r.reply.source_text !== r.reply.text
-                          ? ' с другим текстом: «' + GH.esc(r.reply.source_text) + '»' : '') + '</p>'
-                      : '<p class="gh-rv-send">Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную</p>') +
+                  deliveryHtml(r) +
                   '<div class="gh-rv-actions">' +
+                    (sendState(r) === 'ready'
+                        ? '<button type="button" class="gh-btn gh-btn-primary gh-btn-sm" data-act="send-guest"' +
+                            (isAdmin() ? '' : ' aria-disabled="true"') + ' data-tip="' +
+                            GH.esc(isAdmin()
+                                ? 'Бот @kult_taplist_bot пришлёт гостю в Telegram: «Ответ бара «' + GH.barName(r.bar) +
+                                    '» на ваш отзыв:» и сохранённый текст. Перед отправкой — подтверждение.'
+                                : 'Только администратор') +
+                            '">Отправить гостю в Telegram</button>'
+                        : sendState(r) === 'unknown'
+                            ? '<button type="button" class="gh-btn gh-btn-sm" data-act="send-guest-force"' +
+                                (isAdmin() ? '' : ' aria-disabled="true"') + ' data-tip="' +
+                                GH.esc(isAdmin()
+                                    ? 'Прошлая отправка не подтвердилась: сообщение могло дойти. Повтор — только ' +
+                                        'после проверки у гостя, с подтверждением.'
+                                    : 'Только администратор') + '">Отправить ещё раз</button>'
+                            : '') +
                     '<button type="button" class="gh-btn gh-btn-sm" data-act="copy">Скопировать</button>' +
                     '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-act="edit-reply">Изменить ответ</button>' +
                     '<button type="button" class="gh-btn gh-btn-ghost gh-btn-sm" data-act="reopen">Вернуть в работу</button>' +
@@ -1044,11 +1109,58 @@
             delete state.drafts[id];
             delete state.draftState[id];
             delete state.editing[id];
-            GH.toast('Ответ сохранён. Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную.', 'success');
+            var before = findReview(id);
+            var toBot = before && before.can_send_to_guest;
+            var wasSent = toBot && before.reply && before.reply.delivered;
+            GH.toast(wasSent
+                ? 'Правка сохранена. Гость уже получил прежний текст — новый в Telegram не уходит.'
+                : toBot
+                    ? 'Ответ сохранён. Гость получит его, когда вы нажмёте «Отправить гостю в Telegram».'
+                    : 'Ответ сохранён. Отправка в источник не подключена — скопируйте ответ и опубликуйте вручную.',
+                'success');
             afterChange(id);
         }, function (err) {
             setBusy(btn, false);
             fail(err);
+        });
+    }
+
+    // Ответ на отзыв из бота — гостю в Telegram (POST send-reply, routes/reviews.py).
+    // Только по нажатию и после подтверждения: сообщение гостю не отозвать. Ошибку
+    // показывает сервер (гость заблокировал бота, статус неизвестен…); на 409, 502 и 503
+    // карточка перечитывается — видно настоящее состояние (например, «статус
+    // неизвестен» с кнопкой «Отправить ещё раз»). force — повтор при неизвестном статусе:
+    // отдельное предупреждение (гость может получить ответ дважды) и ?force=1.
+    function doSendGuest(id, btn, force) {
+        var r = findReview(id);
+        if (!r || !r.reply) return;
+        var ask = force
+            ? GH.confirm({
+                title: 'Отправить ответ ещё раз?',
+                text: 'Прошлая отправка не подтвердилась: Telegram не ответил, но сообщение могло дойти до гостя. ' +
+                    'Проверьте у гостя. Если ответ уже пришёл, повтор пришлёт его второй раз.',
+                ok: 'Отправить ещё раз',
+                danger: true
+            })
+            : GH.confirm({
+                title: 'Отправить ответ гостю?',
+                text: 'Бот @kult_taplist_bot пришлёт гостю в Telegram: «Ответ бара «' + GH.barName(r.bar) +
+                    '» на ваш отзыв:» и текст ответа. Отменить отправку нельзя.',
+                ok: 'Отправить'
+            });
+        ask.then(function (ok) {
+            if (!ok) return;
+            setBusy(btn, true);
+            queue(id, function () {
+                return call('POST', 'sendReply', id, null, force ? 'force=1' : null);
+            }).then(function () {
+                GH.toast('Ответ отправлен гостю в Telegram', 'success');
+                afterChange(id);
+            }, function (err) {
+                setBusy(btn, false);
+                fail(err);
+                if (err && (err.status === 409 || err.status === 502 || err.status === 503)) afterChange(id);
+            });
         });
     }
 
@@ -1138,10 +1250,17 @@
     function doDelete(id) {
         var r = findReview(id);
         if (!r) return;
+        // Отзыв из бота удаляют по просьбе гостя (удалить его данные) или как спам —
+        // вместе с контактами гостя; вернуть его нельзя: гость написал его в Telegram.
+        var text = r.origin !== 'manual' && r.source === 'bot'
+            ? 'Отзыв гостя из бота от ' + fmtWhen(r.created_at) + ' удалится вместе с контактами гостя и ' +
+                'исчезнет из показателей. Так делают по просьбе гостя удалить его данные или если это спам. ' +
+                'Отменить нельзя.'
+            : 'Отзыв ' + (r.author ? '«' + r.author + '» ' : '') + 'от ' + fmtWhen(r.created_at) +
+                ' исчезнет из списка и из показателей. Отменить нельзя.';
         GH.confirm({
             title: 'Удалить отзыв?',
-            text: 'Отзыв ' + (r.author ? '«' + r.author + '» ' : '') + 'от ' + fmtWhen(r.created_at) +
-                ' исчезнет из списка и из показателей. Отменить нельзя.',
+            text: text,
             ok: 'Удалить',
             danger: true
         }).then(function (ok) {
@@ -1204,6 +1323,14 @@
             doMaterial(id, t);
         } else if (act === 'copy') {
             doCopy(id);
+        } else if ((act === 'send-guest' || act === 'send-guest-force') && !isAdmin()) {
+            // Правило раздела «Гости»: всё, что уходит наружу, — только администратор
+            // (сервер тоже отвечает 403 admin_required).
+            GH.toast('Отправить ответ гостю может только администратор', 'warning');
+        } else if (act === 'send-guest') {
+            doSendGuest(id, t, false);
+        } else if (act === 'send-guest-force') {
+            doSendGuest(id, t, true);
         } else if (act === 'use-prev') {
             var r = findReview(id);
             var draftTa = card.querySelector('[data-draft]');
@@ -1376,6 +1503,14 @@
     }
 
     // ==================== запуск ====================
+
+    // Флаг администратора из шаблона (data-is-admin на body). Нет атрибута — считаем
+    // админом: сервер всё равно проверяет сам и ответит 403 admin_required.
+    function isAdmin() {
+        var body = typeof document !== 'undefined' ? document.body : null;
+        if (!body || typeof body.getAttribute !== 'function') return true;
+        return body.getAttribute('data-is-admin') !== 'false';
+    }
 
     function init() {
         if (!GH) return;

@@ -581,7 +581,7 @@ iOS (Apple Calendar) и Android (Google Calendar) понимают **iCalendar (
 |-------|------|-----------|
 | GET | `/api/schedule/employees[?all=1]` | реестр (+имена из истории смен) |
 | POST | `/api/schedule/employees/sync` | синк реестра с iiko по id (бэкофилл/дедуп/переименования); body опц. `{overrides}` |
-| PUT | `/api/schedule/employee/<iiko_id>` | short_label / active / sort_order (по id) |
+| PUT | `/api/schedule/employee/<iiko_id>` | short_label / active / sort_order (по id); нет ни одного поля или неверный тип (short_label не строка, active не true/false/1/0, sort_order не целое) — 400, 404 — только если такого iiko_id нет в реестре |
 | GET | `/api/schedule/roles`, `/api/schedule/locations` | справочники (roles c rate_per_hour) |
 | PUT | `/api/schedule/role/<id>/rate` | ставка за час роли (для ЗП) |
 | GET | `/api/schedule/hours-by-role?date_from=&date_to=` | часы по ролям + оплата за период (страница ЗП) |
@@ -637,6 +637,15 @@ iOS (Apple Calendar) и Android (Google Calendar) понимают **iCalendar (
 смен в календаре».
 
 ## Changelog
+
+### 2026-09-28 — правка реестра сотрудников: честный 400 вместо 404 и 500
+- `PUT /api/schedule/employee/<iiko_id>` без полей (или с одними null) отвечал 404
+  «Сотрудник не найден», хотя сотрудник есть; число в `short_label` и буквы в
+  `sort_order` давали 500, а строка `'false'` в `active` включала показ. Теперь тело
+  проверяет `_employee_update_fields` (`routes/schedule.py`): нет полей — 400 «Нечего
+  менять», неверный тип — 400 с понятным текстом, 404 — только когда iiko_id нет в
+  реестре. Форматы редактора графика (active 1/0, sort_order числом) и MCP
+  (true/false) работают как раньше. Тест: `tests/test_schedule_employee_update.py`.
 
 ### 2026-08-07 (29) — «Касса за месяц» стала регистром: правка в строке + штраф
 - Запрос владельца: «исправлять прямо в этом разделе, если где-то что-то не

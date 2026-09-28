@@ -177,7 +177,8 @@ def test_me_page_renders_for_unlinked_account():
 # --- чужие данные получить нельзя ---
 
 def test_api_me_has_no_employee_parameter():
-    """Любые параметры про сотрудника игнорируются: ответ тот же."""
+    """Не администратор: employee_iiko_id — 403 (даже со своим id), прочие параметры
+    про сотрудника (employee_id, user_id) игнорируются — ответ тот же, что без них."""
     mgr = _fresh_manager()
     uid = mgr.create_user('anna', 'Анна Смирнова', 'passpass')
     mgr.set_employee_link(uid, ID_A)
@@ -189,10 +190,48 @@ def test_api_me_has_no_employee_parameter():
                          _row(ID_B, 'Борис Петров', 222.0)])
         c = _login(_make_app(), 'anna', 'passpass')
         plain = c.get('/api/me').get_json()
-        spoofed = c.get('/api/me?employee_id=%s&employee_iiko_id=%s&user_id=2'
-                        % (ID_B, ID_B)).get_json()
+        spoofed = c.get('/api/me?employee_id=%s&user_id=2' % ID_B).get_json()
         assert plain['money']['total'] == 111.0
         assert spoofed == plain, 'параметры запроса не должны влиять на выдачу'
+        for target in (ID_B, ID_A, ''):
+            r = c.get('/api/me?employee_iiko_id=%s' % target)
+            assert r.status_code == 403, (target, r.status_code)
+            assert 'администратор' in r.get_json()['error']
+            assert 'money' not in r.get_json(), 'в отказе нет чужих денег'
+    finally:
+        restore_reg()
+        restore_dir()
+
+
+def test_api_me_admin_views_employee_cabinet():
+    """Администратор (и его ИИ-агент) открывает кабинет сотрудника по employee_iiko_id:
+    те же правила резолва, блок user — свой, блок viewing — чей кабинет."""
+    mgr = _fresh_manager()
+    mgr.create_user('boss', 'Владелец Сети', 'passpass', is_admin=True)
+    anna = mgr.create_user('anna', 'Анна Смирнова', 'passpass')
+    mgr.set_employee_link(anna, ID_A)
+    path, restore_dir = _tmp_snapshot_dir()
+    restore_reg = _fake_registry([(ID_A, 'Анна Смирнова'), (ID_B, 'Борис Петров')])
+    try:
+        _write_snapshot(path, ms.current_month(),
+                        [_row(ID_A, 'Анна Смирнова', 111.0),
+                         _row(ID_B, 'Борис Петров', 222.0)])
+        c = _login(_make_app(), 'boss', 'passpass')
+        own = c.get('/api/me').get_json()
+        assert own['identity']['status'] == 'not_linked' and 'viewing' not in own
+        boris = c.get('/api/me?employee_iiko_id=%s' % ID_B).get_json()
+        assert boris['identity']['status'] == 'ok', boris['identity']
+        assert boris['identity']['employee_id'] == ID_B
+        assert boris['identity']['employee_name'] == 'Борис Петров'
+        assert boris['money']['total'] == 222.0
+        assert boris['viewing'] == {'employee_iiko_id': ID_B, 'by_admin': 'boss'}
+        assert boris['user']['login'] == 'boss', 'блок user — аккаунт того, кто смотрит'
+        assert c.get('/api/me?employee_iiko_id=%s' % ID_A).get_json()['money']['total'] == 111.0
+        unknown = c.get('/api/me?employee_iiko_id=guid-zzzz').get_json()
+        assert unknown['identity']['status'] == 'unknown_employee' and unknown['money'] is None
+        for bad in ('guid zzzz', 'x' * 65, 'Иванов'):
+            assert c.get('/api/me', query_string={'employee_iiko_id': bad}).status_code == 400, bad
+        assert c.get('/api/me?employee_iiko_id=%s&month=2026-13' % ID_B).status_code == 400
     finally:
         restore_reg()
         restore_dir()

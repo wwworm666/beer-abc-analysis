@@ -14,6 +14,8 @@
 
 Содержит:
 - низкоуровневые вызовы Telegram Bot API (send_message, editMessageText, ...);
+- api_call_files — тот же путь с обходом блокировок, но с файлами (multipart):
+  им контент-план публикует фото и видео в каналы баров (core/content_publisher.py);
 - регистрацию webhook (set_webhook / delete_webhook / get_webhook_info);
 - обработку входящих апдейтов (handle_update) — команды + callback подписки.
 """
@@ -82,6 +84,43 @@ def _with_connect_retries(fn, attempts: int):
         except Exception as e:  # noqa: BLE001 — решаем по типу ниже
             if not _is_connect_error(e) or i == attempts - 1:
                 raise
+
+
+def _proves_not_sent(e: BaseException) -> bool:
+    """Ошибка ДОКАЗЫВАЕТ, что запрос до Telegram не дошёл — только тогда безопасно
+    слать его другим путём (safe_resend в api_call / api_call_files).
+
+    Не дошёл: соединение не установилось (ConnectTimeout; ConnectionError, в
+    причинах которого NewConnectionError — отказ, DNS) или не прошло TLS-рукопожатие
+    (SSLError). Всё прочее — ReadTimeout, обрыв посреди соединения («Connection
+    aborted», RemoteDisconnected), ChunkedEncodingError, ответ не JSON (страница
+    5xx прокси) — запрос мог дойти, и сообщение уже вышло: повтор дал бы дубль
+    (проверка 2026-09-28: 2–4 копии поста в канале)."""
+    if isinstance(e, (requests.exceptions.ConnectTimeout, requests.exceptions.SSLError)):
+        return True
+    if not isinstance(e, requests.exceptions.ConnectionError):
+        return False
+    import urllib3
+    stack, seen = [e], set()
+    while stack:
+        x = stack.pop()
+        if x is None or id(x) in seen:
+            continue
+        seen.add(id(x))
+        if isinstance(x, urllib3.exceptions.NewConnectionError):
+            return True
+        stack.append(getattr(x, 'reason', None))
+        stack.extend(a for a in getattr(x, 'args', ()) if isinstance(a, BaseException))
+        stack.append(x.__cause__)
+        stack.append(x.__context__)
+    return False
+
+
+def _report(outcome, value: str) -> None:
+    """Итог «ответа нет» для вызывающего (safe_resend): 'unknown' — запрос мог дойти,
+    'not_sent' — все пути отказали до отправки. outcome — список или None."""
+    if outcome is not None:
+        outcome.append(value)
 
 
 class _SNIAdapter(requests.adapters.HTTPAdapter):
@@ -157,16 +196,25 @@ def webhook_secret() -> str:
     return hashlib.sha256(("ocwh:" + (_token() or "")).encode()).hexdigest()[:40]
 
 
-def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str = None):
+def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str = None,
+             safe_resend: bool = False, outcome: list = None):
     # timeout=8 (было 20): webhook-хендлер вызывает api_call синхронно, а воркеров
     # всего 2 — долгий ответ Telegram не должен надолго занимать воркер.
     # timeout трактуется как read-timeout; на connect всегда 5с — заблокированный
     # IP отваливается на connect, и длинный read-timeout getUpdates его не ждёт.
     # token — чужой бот (таплист). Без аргумента используется open-check токен.
+    #
+    # safe_resend=True (отправка сообщений, которые нельзя задублировать: посты
+    # контент-плана, ответ гостю): другой путь пробуется ТОЛЬКО если ошибка доказывает,
+    # что запрос не дошёл (_proves_not_sent). ReadTimeout, обрыв посреди соединения,
+    # ответ не JSON — сразу None («статус неизвестен», запрос мог дойти). outcome —
+    # список, куда пишется причина None: 'unknown' или 'not_sent'. Без ключа
+    # (все прежние вызовы) — поведение как раньше: любой сбой -> следующий путь.
     global _primary_dead_until, _working_ip
     token = token or _token()
     if not token:
         log.error("TELEGRAM_OPEN_CHECK_BOT_TOKEN не задан")
+        _report(outcome, 'not_sent')
         return None
 
     if time.time() >= _primary_dead_until:
@@ -181,6 +229,11 @@ def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str 
             return data
         except Exception as e:
             _primary_dead_until = time.time() + _PRIMARY_COOLDOWN
+            if safe_resend and not _proves_not_sent(e):
+                log.warning("TG %s: ответа нет (%s) — запрос мог дойти, другим путём не повторяем",
+                            method, _scrub(e, token))
+                _report(outcome, 'unknown')
+                return None
             log.warning("TG %s: основной путь не работает (%s) — пробуем запасные IP",
                         method, _scrub(e, token))
 
@@ -191,6 +244,9 @@ def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str 
                 CONNECT_ATTEMPTS if n == 0 else 1)
         except Exception as e:
             log.warning("TG %s via %s failed: %s", method, ip, _scrub(e, token))
+            if safe_resend and not _proves_not_sent(e):
+                _report(outcome, 'unknown')
+                return None
             continue
         if _working_ip != ip:
             log.warning("TG: переключился на запасной IP %s", ip)
@@ -201,6 +257,106 @@ def api_call(method: str, payload: dict = None, timeout: int = 8, *, token: str 
 
     log.warning("TG %s failed: все пути исчерпаны (основной + %d запасных)",
                 method, len(_FALLBACK_IPS))
+    _report(outcome, 'not_sent')
+    return None
+
+
+# --- отправка файлов (multipart) — тем же путём, с обходом блокировок --------
+# Контент-план (core/content_publisher.py) публикует фото и видео в каналы баров:
+# sendPhoto / sendVideo / sendMediaGroup с файлами в теле multipart/form-data.
+# Путь тот же, что у api_call: основной адрес, при сбое — запасные IP с SNI, кэш
+# живого IP и «остывание» основного пути общие (глобалы выше). api_call для JSON
+# не меняется: это отдельная функция.
+#
+# Файлы передаются БАЙТАМИ, а не открытыми файлами: при повторе соединения тело
+# собирается заново, а открытый файл после первой попытки был бы уже дочитан до
+# конца (повтор ушёл бы с пустым файлом). Повтор тем же путём — только при обрыве
+# соединения (ConnectTimeout), как у api_call. Переход на запасной путь после сбоя
+# основного — с safe_resend=True (его передаёт отправщик контент-плана) только если
+# запрос точно не дошёл (_proves_not_sent): после ReadTimeout пост мог уже выйти.
+#
+# Таймаут чтения 120 с (у JSON — 8 с): видео до 50 МБ (предел Telegram на
+# загрузку ботом) на медленном канале уходит десятки секунд, а таймаут чтения
+# действует и на паузы при отправке тела.
+FILES_READ_TIMEOUT = 120
+
+
+def _files_arg(files) -> list:
+    """[(поле, имя файла, байты, mime)] -> формат requests: [(поле, (имя, байты, mime))]."""
+    return [(field, (filename, content, mime)) for field, filename, content, mime in (files or [])]
+
+
+def _post_files_via_ip(ip: str, method: str, token: str, fields: dict, files, timeout) -> dict:
+    """POST multipart к Bot API по голому IP (SNI + Host = api.telegram.org)."""
+    s = requests.Session()
+    s.mount("https://", _SNIAdapter())
+    try:
+        r = s.post(f"https://{ip}/bot{token}/{method}", data=fields or {}, files=_files_arg(files),
+                   headers={"Host": _API_HOST}, timeout=timeout)
+        return r.json()
+    finally:
+        s.close()
+
+
+def api_call_files(method: str, fields: dict = None, files=None, timeout: int = FILES_READ_TIMEOUT, *,
+                   token: str = None, safe_resend: bool = False, outcome: list = None):
+    """Вызов Bot API с файлами (multipart/form-data) — тем же путём, что api_call.
+
+    fields — обычные поля формы (chat_id, caption, media для sendMediaGroup —
+    строкой JSON); files — список (поле, имя файла, байты, mime).
+    Ответ — JSON Telegram ({'ok': ..., ...}) или None, если не сработал ни один
+    путь (как у api_call). token — бот, от имени которого идёт вызов; без
+    аргумента — бот open-check (как у api_call). safe_resend и outcome — как у
+    api_call: другой путь только если запрос точно не дошёл, иначе None и 'unknown'.
+    """
+    global _primary_dead_until, _working_ip
+    token = token or _token()
+    if not token:
+        log.error("TELEGRAM_OPEN_CHECK_BOT_TOKEN не задан")
+        _report(outcome, 'not_sent')
+        return None
+
+    if time.time() >= _primary_dead_until:
+        try:
+            r = _with_connect_retries(
+                lambda: requests.post(f"{_API}/bot{token}/{method}", data=fields or {}, files=_files_arg(files),
+                                      timeout=(CONNECT_TIMEOUT, timeout)),
+                CONNECT_ATTEMPTS)
+            data = r.json()
+            if not data.get("ok"):
+                log.warning("TG %s -> %s", method, data.get("description"))
+            return data
+        except Exception as e:
+            _primary_dead_until = time.time() + _PRIMARY_COOLDOWN
+            if safe_resend and not _proves_not_sent(e):
+                log.warning("TG %s: ответа нет (%s) — запрос мог дойти, другим путём не повторяем",
+                            method, _scrub(e, token))
+                _report(outcome, 'unknown')
+                return None
+            log.warning("TG %s: основной путь не работает (%s) — пробуем запасные IP",
+                        method, _scrub(e, token))
+
+    for n, ip in enumerate(_iter_candidate_ips()):
+        try:
+            data = _with_connect_retries(
+                lambda ip=ip: _post_files_via_ip(ip, method, token, fields, files, (CONNECT_TIMEOUT, timeout)),
+                CONNECT_ATTEMPTS if n == 0 else 1)
+        except Exception as e:
+            log.warning("TG %s via %s failed: %s", method, ip, _scrub(e, token))
+            if safe_resend and not _proves_not_sent(e):
+                _report(outcome, 'unknown')
+                return None
+            continue
+        if _working_ip != ip:
+            log.warning("TG: переключился на запасной IP %s", ip)
+            _working_ip = ip
+        if not data.get("ok"):
+            log.warning("TG %s -> %s", method, data.get("description"))
+        return data
+
+    log.warning("TG %s failed: все пути исчерпаны (основной + %d запасных)",
+                method, len(_FALLBACK_IPS))
+    _report(outcome, 'not_sent')
     return None
 
 
@@ -287,7 +443,7 @@ def _start_text(chat_id, subscribed: bool) -> str:
         "«Температура в барах» — текущая температура датчиков (команда /temp), "
         "«Возможная инкассация» — сколько наличных можно забрать с каждого бара "
         f"по последней сданной кассе (остаётся {CASH_CHANGE_FLOAT_RUB} ₽ на размен, команда /cash), "
-        "«Последние отзывы» — пять свежих отзывов с Яндекс Карт (команда /reviews). "
+        "«Последние отзывы» — пять свежих отзывов с Яндекс Карт и из бота (команда /reviews). "
         "Подписчикам новые отзывы приходят сами, раз в день утром."
     )
 

@@ -604,6 +604,70 @@ def rfm(store, period, meta, include_guests=True, venue=None):
     return out
 
 
+# Имена сегментов RFM (результат _rfm_segment) — допустимые значения фильтра segment=.
+RFM_SEGMENTS = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED')
+# Минимальная длина подстроки q= в списке гостей RFM — как у поиска гостя (§12,
+# /api/guests/search): одна цифра совпала бы с половиной базы.
+RFM_QUERY_MIN_LEN = 2
+
+
+def parse_rfm_segments(raw):
+    """Параметр segment= -> frozenset имён сегментов или None (фильтра нет).
+
+    Несколько сегментов — через запятую ('AT_RISK,CHURNED'); регистр не важен.
+    Raises:
+        ValueError: неизвестное имя — текст для ответа 400 (молча пустой список
+        выглядел бы как «таких гостей нет»).
+    """
+    names = [part.strip().upper() for part in str(raw or '').split(',') if part.strip()]
+    if not names:
+        return None
+    unknown = [name for name in names if name not in RFM_SEGMENTS]
+    if unknown:
+        raise ValueError('Неизвестный сегмент RFM: ' + ', '.join(unknown)
+                         + '. Сегменты: ' + ', '.join(RFM_SEGMENTS))
+    return frozenset(names)
+
+
+def rfm_filter_guests(guests, segments=None, q=None, limit=None):
+    """Фильтр СПИСКА гостей RFM (с 2026-09-28; полный ответ — 500+ тыс. знаков).
+
+    Меняется только список guests: segments и total_guests ответа по-прежнему
+    считаются по всем гостям окна, иначе доли сегментов зависели бы от фильтра.
+
+    Args:
+        guests: строки rfm()['guests'] — уже по убыванию выручки окна (monetary)
+        segments: множество имён из RFM_SEGMENTS или None — все сегменты
+        q: подстрока без учёта регистра в имени, номере карты или guest_id; для
+           телефона сравниваются только цифры ('+7 (921) 55' ищет '792155'), так
+           что лишняя ведущая 7 в витрине поиску по последним цифрам не мешает;
+           None или '' — без поиска
+        limit: сколько строк вернуть после фильтра (первые — самые ценные гости
+           окна); None — все
+
+    Returns:
+        (строки, matched) — matched = сколько подошло до обрезки limit.
+    """
+    needle = (q or '').strip().lower()
+    digits = ''.join(ch for ch in needle if ch.isdigit())
+    rows = []
+    for guest in guests:
+        if segments and guest.get('segment') not in segments:
+            continue
+        if needle:
+            text_hit = any(needle in str(guest.get(field) or '').lower()
+                           for field in ('name', 'card_number', 'guest_id'))
+            phone_digits = ''.join(ch for ch in str(guest.get('phone') or '') if ch.isdigit())
+            phone_hit = len(digits) >= RFM_QUERY_MIN_LEN and digits in phone_digits
+            if not (text_hit or phone_hit):
+                continue
+        rows.append(guest)
+    matched = len(rows)
+    if limit is not None:
+        rows = rows[:limit]
+    return rows, matched
+
+
 # ---------------------------------------------------------------- §8 LTV
 
 def ltv(store, period, meta):

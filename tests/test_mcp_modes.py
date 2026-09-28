@@ -115,6 +115,26 @@ def test_strip_foreign_links():
         'сайт пиво.рф/акция': 'сайт ' + NOTIFY_LINK_STUB,
         'Пиво 5.2% и 0.33 л, т.е. норм': 'Пиво 5.2% и 0.33 л, т.е. норм',
         'beerkultura.ru/reviews': 'beerkultura.ru/reviews',
+        # Кириллические зоны из явного списка и punycode (проверка 2026-09-28: раньше
+        # проходили evil.рус и пиво.москва).
+        'зайди на evil.рус/login': 'зайди на ' + NOTIFY_LINK_STUB,
+        'пиво.москва и акция.онлайн': NOTIFY_LINK_STUB + ' и ' + NOTIFY_LINK_STUB,
+        'бар.дети, пиво.сайт, клуб.орг, мой.ком': ', '.join([NOTIFY_LINK_STUB] * 4),
+        'сайт.укр сайт.бел сайт.срб сайт.мкд сайт.қаз': ' '.join([NOTIFY_LINK_STUB] * 5),
+        'ПИВО.РФ/Скидка': NOTIFY_LINK_STUB,
+        'магазин.бг, пиво.мон, пиво.ею, храм.католик': ', '.join([NOTIFY_LINK_STUB] * 4),
+        'evil.xn--p1ai/pay и xn--80ak6aa92e.com': NOTIFY_LINK_STUB + ' и ' + NOTIFY_LINK_STUB,
+        'sub.пиво.рф': NOTIFY_LINK_STUB,
+        # Голые IPv4 (с портом и путём); точка в конце фразы остаётся.
+        'Сервер 185.12.3.4/login': 'Сервер ' + NOTIFY_LINK_STUB,
+        'панель 10.0.0.1:8080/admin, резерв 192.168.1.254.': 'панель ' + NOTIFY_LINK_STUB + ', резерв '
+                                                               + NOTIFY_LINK_STUB + '.',
+        'https://1.2.3.4/x': NOTIFY_LINK_STUB,
+        # Не ссылки: даты, версии, сокращения, города, слова после «зоны».
+        'Смена 28.09.2026, версия 2.1.3, сборка 1.2.3.4.5': 'Смена 28.09.2026, версия 2.1.3, сборка 1.2.3.4.5',
+        'г.Москва, т.е. т.д. и т.п.': 'г.Москва, т.е. т.д. и т.п.',
+        'выручка 1 250.50 руб., 999.1.1.1 не адрес': 'выручка 1 250.50 руб., 999.1.1.1 не адрес',
+        'BEERKULTURA.RU/menu и www.beerkultura.ru': 'BEERKULTURA.RU/menu и www.beerkultura.ru',
     }
     for text, expected in cases.items():
         assert _strip_foreign_links(text) == expected, (text, _strip_foreign_links(text))

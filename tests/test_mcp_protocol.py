@@ -722,6 +722,104 @@ def test_concurrent_calls_capped_per_process():
         assert _result(env.rpc('/mcp', 'tools/call', {'name': 'common_echo'}))['isError'] is False
 
 
+def test_rate_limit_shared_between_processes():
+    """Два лимитера на одной mcp.db — как два gunicorn-воркера: счёт общий."""
+    import time as _time
+    with Env():
+        worker_a = protocol.RateLimiter(limit=3, window=60)
+        worker_b = protocol.RateLimiter(limit=3, window=60)
+        now = _time.time()
+        assert worker_a.hit('st_shared', now=now) is None
+        assert worker_b.hit('st_shared', now=now + 1) is None
+        assert worker_a.hit('st_shared', now=now + 2) is None
+        assert worker_b.hit('st_shared', now=now + 3) == 58, 'четвёртый вызов за минуту — отказ во втором воркере'
+        assert worker_a.hit('st_other', now=now + 3) is None, 'у другого токена свой счёт'
+        assert worker_b.hit('st_shared', now=now + 61) is None, 'окно скользит: через минуту снова можно'
+        # Строки «из будущего» (часы перевели назад больше чем на окно) удаляются, а не блокируют токен.
+        worker_a.hit('st_clock', now=now + 10000)
+        assert worker_b.hit('st_clock', now=now) is None
+        with db.read() as conn:
+            left = conn.execute("SELECT COUNT(*) AS n FROM rate_hits WHERE key='st_clock'").fetchone()['n']
+        assert left == 1, 'осталась только своя строка'
+
+
+def test_rate_limit_falls_back_to_process_memory():
+    """mcp.db недоступна — лимит считается в памяти процесса, а не пропадает и не роняет вызов."""
+    with Env() as env:
+        broken = os.path.join(env.tmp, 'dir_instead_of_db')
+        os.makedirs(broken)
+        db.set_db_path(broken)                   # sqlite не откроет каталог как файл БД
+        limiter = protocol.RateLimiter(limit=2, window=60)
+        assert limiter.hit('t', now=0) is None and limiter.hit('t', now=1) is None
+        assert limiter.hit('t', now=2) == 59
+        lease = protocol.CallLeases(limit=1).acquire('t', 'x')
+        assert lease == protocol.CallLeases.LOCAL_LEASE, 'без mcp.db остаётся предел процесса'
+        db.set_db_path(os.path.join(env.tmp, 'mcp.db'))
+
+
+def test_call_leases_shared_and_expire():
+    """Места вызовов общие на сервис: занятые «другим воркером» места дают «Сервер занят»;
+    аренда погибшего процесса истекает сама."""
+    import time as _time
+    with Env() as env:
+        leases = protocol.call_leases
+        other_worker = [leases.acquire('st_night', 'stocks_order_board') for _ in range(protocol.MAX_CONCURRENT_CALLS)]
+        assert all(other_worker) and leases.active() == protocol.MAX_CONCURRENT_CALLS
+        assert leases.acquire('st_x', 'y') is None, 'сверх предела — отказ'
+        busy = _result(env.rpc('/mcp', 'tools/call', {'name': 'common_echo', 'arguments': {'x': 1}}))
+        assert busy['isError'] is True and 'Сервер занят' in busy['content'][0]['text']
+        row = audit.recent(limit=1)[0]
+        assert row['status'] == 'denied' and row['http_status'] is None and 'Сервер занят' in row['error_preview']
+        leases.release(other_worker[0])
+        ok = _result(env.rpc('/mcp', 'tools/call', {'name': 'common_echo', 'arguments': {'x': 2}}))
+        assert ok['isError'] is False, 'место освободилось'
+        assert leases.active() == protocol.MAX_CONCURRENT_CALLS - 1, 'свой вызов вернул место'
+        for lease in other_worker[1:]:
+            leases.release(lease)
+        # Аренда с истёкшим сроком (процесс умер посреди вызова) не считается.
+        stale = protocol.CallLeases(limit=1, ttl=5)
+        assert stale.acquire('st_dead', 'x', now=_time.time() - 60)
+        assert stale.acquire('st_live', 'x') is not None, 'истёкшая аренда освободилась сама'
+        assert protocol.LEASE_TTL_S == 300 and protocol.MAX_CONCURRENT_CALLS == 3
+
+
+def test_mode_lines_name_owner_notice():
+    """Строка режима read/draft говорит, что сообщение владельцу доступно (сервер его пускает)."""
+    for mode in ('read', 'draft'):
+        line = protocol.MODE_LINES[mode]
+        assert 'common_notify_owner' in line and '\n' not in line, mode
+    assert 'common_notify_owner' not in protocol.MODE_LINES['full']
+
+
+def test_prompt_spec_validation_in_registry():
+    """Опечатка в mode_required не публикует сценарий (иначе он был бы виден в …/read)."""
+    from core.mcp.spec import validate_prompt_spec
+    good = PromptSpec(name='content_ok', domain='content', title='Ок', description='Норма',
+                      render=lambda a: 'x', mode_required='draft')
+    assert validate_prompt_spec(good) == []
+    cases = {
+        'mode_required': PromptSpec(name='content_typo', domain='content', title='Т', description='Опечатка',
+                                    render=lambda a: 'x', mode_required='drfat'),
+        'домен': PromptSpec(name='warehouse_x', domain='warehouse', title='Т', description='Д', render=lambda a: ''),
+        'начинаться': PromptSpec(name='stocks_x', domain='content', title='Т', description='Д', render=lambda a: ''),
+        'title': PromptSpec(name='content_notitle', domain='content', title=' ', description='Д', render=lambda a: ''),
+        'render': PromptSpec(name='content_norender', domain='content', title='Т', description='Д', render=None),
+        'повторяется': PromptSpec(name='content_dup', domain='content', title='Т', description='Д',
+                                  arguments=(PromptArg('m', 'a'), PromptArg('m', 'b')), render=lambda a: ''),
+        'имя аргумента': PromptSpec(name='content_badarg', domain='content', title='Т', description='Д',
+                                    arguments=(PromptArg('месяц', 'a'),), render=lambda a: ''),
+    }
+    for needle, prompt in cases.items():
+        errors = validate_prompt_spec(prompt)
+        assert any(needle in e for e in errors), (needle, errors)
+    modules = _modules()
+    modules['content'].PROMPTS.append(cases['mode_required'])
+    with Env(modules):
+        assert registry.get_prompt('content_typo') is None
+        assert any('mode_required' in e and 'content_typo' in e for e in registry.load_errors())
+        assert registry.get_prompt('content_week') is not None, 'остальные сценарии опубликованы'
+
+
 # ------------------------------------------------------------------ реестр и схемы
 
 def test_registry_instructions_and_visibility():

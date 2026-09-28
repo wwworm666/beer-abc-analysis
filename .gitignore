@@ -23,6 +23,10 @@ wheels/
 .installed.cfg
 *.egg
 
+# Локальные секреты и служебные заметки (пароли, токены): только на машине владельца,
+# в репозиторий и образ не попадают (.dockerignore исключает secrets/ тоже).
+secrets/
+
 # IDE
 .vscode/
 .idea/
@@ -45,6 +49,10 @@ data/guest_reviews.json
 # Контент-план раздела «Гости» и его фото/видео (на проде живут на /kultura)
 data/content_plan.json
 data/content_media/
+# Комментарии к периодам дашборда (core/plans_manager.PeriodCommentsStore; на проде — /kultura)
+data/period_comments.json*
+# Настройки «Каналы и отправка» контент-плана (core/content_channels.py; на проде — /kultura)
+data/content_channels.json*
 # Бриф сети для ИИ-агента (core/content_brief.py) и SQLite MCP-платформы
 # (токены, OAuth, журнал вызовов — core/mcp/db.py); на проде живут на /kultura
 data/content_brief.json

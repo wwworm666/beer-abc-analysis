@@ -2,9 +2,11 @@
 
 Зачем. Отзывы с Яндекс Карт и из бота собираются в одном месте, чтобы на
 каждый ответили и было видно, сколько отзывов ждут ответа и как быстро
-отвечаем. На этом этапе (2026-09-26) интеграций нет: отзывы вносятся вручную,
-ответ никуда не отправляется (reply.delivered всегда false) — его копируют и
-публикуют в источнике руками.
+отвечаем. Откуда приходят (2026-09-28): Яндекс — ежедневная сверка
+(core/yandex_reviews_sync.py), бот — гость пишет @kult_taplist_bot
+(core/taplist_polling.py). Ответ на отзыв Яндекса копируют и публикуют в
+кабинете руками (сверка потом ставит reply.delivered); ответ на отзыв из бота
+владелец отправляет гостю кнопкой (start_reply_delivery / finish_reply_delivery).
 
 Хранение. guest_reviews.json на постоянном томе (/kultura) или в data/ локально
 (core/storage_paths.get_data_path), формат {version: 1, reviews: {id: R}}.
@@ -29,9 +31,11 @@
                   набран — без обрезки пробелов по краям (см. «Проверка полей»)
     skip_reason   причина «оставить без ответа», до 500 знаков
     guest         null | {phone, telegram} — только у отзывов из бота
-    external_id   null | строка — id в источнике для будущего импорта
-                  (повтор (source, external_id) при импорте -> конфликт)
-    origin        'manual' (внесён вручную) | 'import' (будущая загрузка)
+    external_id   null | строка — id в источнике (повтор (source, external_id) при
+                  загрузке -> конфликт). У отзыва из бота — 'tg:<chat_id>:<message_id>'
+                  (core/taplist_polling.py): по нему ответ уходит гостю (guest_chat_id)
+    origin        'manual' (внесён вручную) | 'import' (загружен из Яндекса или
+                  оставлен гостем в боте @kult_taplist_bot)
     material_id   null | id материала контент-плана, сделанного из отзыва
                   (материал могут удалить в контент-плане — см. material_exists)
     added_at, added_by, updated_at, updated_by
@@ -76,7 +80,37 @@ reply_draft; source — только у внесённых вручную (ис�
 - reopen: skipped | answered -> new. Ответ и причина пропуска остаются для
   истории; новый ответ после возврата заменяет прежний (с новым reply.at —
   время ответа считается до него, см. response_hours).
-- delete: только origin 'manual' (импортированный отзыв пришёл бы снова).
+- delete: внесённый вручную (origin 'manual') и отзыв из бота (source 'bot': просьба
+  гостя удалить его данные, спам — интерфейс спрашивает подтверждение). Отзыв из
+  Яндекса — 409: он пришёл бы снова при следующей загрузке, его оставляют без ответа.
+- clear_guest_phone(chat_id): гость отписался (/stop) — телефон стирается и в его
+  отзывах из бота (external_id 'tg:<chat_id>:…'): бот обещает «телефон удалён».
+- Отправка ответа гостю (только отзыв из бота, 2026-09-28): start_reply_delivery
+  проверяет и «занимает» отправку, finish_reply_delivery ставит итог. Условия:
+  source 'bot' и известен чат гостя (guest_chat_id: external_id 'tg:<chat>:<msg>',
+  чат > 0 — личный) — иначе 400; статус answered с текстом ответа — иначе 400
+  («сначала сохраните ответ»). Состояние отправки — reply_send_state:
+    delivered  отправлен (reply.delivered) — повтор 409 всегда;
+    sending    идёт: reply.sending_at (с секундами) моложе REPLY_SEND_WINDOW
+               (5 минут) — повтор 409, двойной клик не пришлёт два сообщения;
+    unknown    итог неизвестен: Telegram не ответил, а сообщение могло дойти
+               (reply.send_unknown_at), или захват старше 5 минут без итога
+               (процесс упал; сообщение ушло, но отметка не записалась) — повтор
+               ТОЛЬКО с force (подтверждение владельца: «проверьте у гостя»),
+               иначе 409 с code 'send_unknown'; повтор с force пишется в
+               reply.forced_at / forced_by;
+    ready      можно отправлять.
+  Итог (outcome): sent — reply.delivered = true, delivered_at, delivered_by,
+  delivered_via 'telegram', delivered_text (что именно получил гость — ответ
+  потом можно править), telegram_message_id; not_sent — точно не ушло (Telegram
+  ответил ошибкой или запрос не дошёл): захват снимается, повтор свободный;
+  unknown — захват остаётся как send_unknown_at. Время захвата — с секундами:
+  с точностью до минуты окно «2 минуты» было фактически 61 с (проверка 2026-09-28).
+  Текст сообщения — guest_reply_text: «Ответ бара «<бар>» на ваш отзыв:»,
+  пустая строка, текст ответа (без разметки). У отзывов из Яндекса delivered
+  по-прежнему ставит только сверка (ответ опубликован в кабинете).
+- material_draft: у отзыва из бота подпись цитаты — «гость», а не имя из профиля
+  Telegram (пост публичный, а имя — личные данные гостя).
 - link_material: один материал на отзыв; повторно -> конфликт с id
   существующего материала. replace=<id> перезаписывает ссылку, только если
   в записи всё ещё этот id: так «Сделать материалом» заменяет ссылку на
@@ -106,6 +140,8 @@ reply_draft; source — только у внесённых вручную (ис�
                      удалили в контент-плане; «Сделать материалом» снова
                      доступно и заменит ссылку); null — ссылки нет или
                      контент-план недоступен («не проверялось»).
+    can_send_to_guest = отзыв из бота с известным чатом гостя: ответ можно
+                     отправить гостю в Telegram (кнопка на странице).
 Проверку материалов делает вызывающий (routes/reviews.py) функцией
 material_lookup(ids) -> {id: bool} | None: модуль отзывов от контент-плана не
 зависит. Она вызывается один раз на запрос — для всех разных id у отзывов
@@ -223,6 +259,21 @@ FUTURE_TOLERANCE = timedelta(minutes=5)
 # (Кременчугская); 2010 — с запасом. Было 2020, и загрузка из Яндекса отбрасывала
 # 19 отзывов 2018–2019 годов (2026-09-28).
 YEAR_MIN, YEAR_MAX = 2010, 2100
+
+# Отзыв из бота: external_id 'tg:<chat_id>:<message_id>' (core/taplist_polling.review_fields).
+# Отзыв принимается только в личном чате, id такого чата положительный: по нему
+# ответ уходит гостю. 20 цифр — с запасом (id Telegram укладываются в 52 бита).
+TG_EXTERNAL_RE = re.compile(r'^tg:(\d{1,20}):\d{1,20}$')
+# Пока ответ гостю отправляется, повторный запрос получает 409 (двойной клик не
+# пришлёт два сообщения). 5 минут — с запасом больше худшего случая одного вызова
+# Telegram с запасными адресами (~1,5 минуты). Захват старше — «статус неизвестен»
+# (процесс упал посреди отправки или сообщение ушло, а отметка не записалась):
+# повтор только с подтверждением владельца (force), не сам по себе.
+REPLY_SEND_WINDOW = timedelta(minutes=5)
+SEND_STAMP_FORMAT = '%Y-%m-%dT%H:%M:%S'
+SEND_STATES = ('ready', 'sending', 'unknown', 'delivered')
+TEXT_SEND_UNKNOWN = ('Статус неизвестен: Telegram не ответил, но сообщение могло дойти до гостя. '
+                     'Проверьте у гостя; повторить можно только с подтверждением.')
 
 DT_FORMAT = '%Y-%m-%dT%H:%M'
 _DT_RE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$')
@@ -508,6 +559,79 @@ def _optional_id(value, limit: int, field: str) -> Optional[str]:
     return s or None
 
 
+def guest_chat_id(review: Optional[Mapping]) -> Optional[int]:
+    """Личный чат гостя в Telegram для ответа или None.
+
+    Есть только у отзыва из бота, оставленного в самом боте: external_id
+    'tg:<chat_id>:<message_id>', chat_id > 0. У отзыва «Бот», внесённого вручную,
+    чата нет — ответ гостю туда не отправить.
+    """
+    if not review or review.get('source') != 'bot':
+        return None
+    m = TG_EXTERNAL_RE.match(str(review.get('external_id') or ''))
+    if not m:
+        return None
+    chat_id = int(m.group(1))
+    return chat_id if chat_id > 0 else None
+
+
+def guest_reply_text(review: Mapping) -> str:
+    """Сообщение гостю с ответом бара, без разметки:
+    «Ответ бара «<бар>» на ваш отзыв:», пустая строка, текст ответа.
+    Ответ до MAX_REPLY_LEN (4000) + заголовок — внутри предела Telegram 4096."""
+    bar = (VENUES.get(review.get('bar')) or {}).get('name') or str(review.get('bar') or '')
+    reply = review.get('reply') if isinstance(review.get('reply'), dict) else {}
+    return 'Ответ бара «%s» на ваш отзыв:\n\n%s' % (bar, str(reply.get('text') or '').strip())
+
+
+def _human_dt(stamp: Optional[str]) -> str:
+    """'2026-09-28T14:05' -> '28.09.2026 14:05'; пусто или не дата -> ''."""
+    try:
+        return parse_dt(stamp).strftime('%d.%m.%Y %H:%M')
+    except ValueError:
+        return ''
+
+
+def _exact_msk(dt: datetime) -> datetime:
+    """Наивный московский момент с точностью до секунды (для захвата отправки)."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(msk_time.MOSCOW_TZ).replace(tzinfo=None)
+    return dt.replace(microsecond=0)
+
+
+def _parse_send_stamp(value) -> Optional[datetime]:
+    """'YYYY-MM-DDTHH:MM:SS' (или без секунд — старые записи) -> datetime; иначе None."""
+    if not isinstance(value, str):
+        return None
+    m = _DT_RE.match(value.strip())
+    if not m:
+        return None
+    y, mo, d, h, mi = (int(m.group(i)) for i in range(1, 6))
+    try:
+        return datetime(y, mo, d, h, mi, int(m.group(6) or 0))
+    except ValueError:
+        return None
+
+
+def reply_send_state(reply: Optional[Mapping], now: datetime) -> str:
+    """Состояние отправки ответа гостю: delivered | sending | unknown | ready (докстринг модуля).
+
+    now — момент по Москве (наивный или aware). Захват без итога старше
+    REPLY_SEND_WINDOW — unknown: не знаем, ушло ли сообщение.
+    """
+    reply = reply if isinstance(reply, Mapping) else {}
+    if reply.get('delivered'):
+        return 'delivered'
+    if reply.get('send_unknown_at'):
+        return 'unknown'
+    started = _parse_send_stamp(reply.get('sending_at'))
+    if reply.get('sending_at'):
+        if started is None or _exact_msk(now) - started >= REPLY_SEND_WINDOW:
+            return 'unknown'
+        return 'sending'
+    return 'ready'
+
+
 def clean_core(data: Mapping, now: datetime) -> dict:
     """Проверить содержательные поля отзыва целиком; ValueError с текстом для 400.
 
@@ -641,7 +765,8 @@ def resolve_materials(reviews: Iterable[dict],
 
 
 def decorate(review: dict, now: datetime, materials: Optional[Mapping[str, bool]] = None) -> dict:
-    """Копия отзыва + age_hours (для new), response_hours (для answered), material_exists.
+    """Копия отзыва + age_hours (для new), response_hours (для answered), material_exists,
+    can_send_to_guest (отзыв из бота с известным чатом — guest_chat_id).
 
     materials — результат resolve_materials: {material_id: есть ли материал}
     или None (не проверялось). material_exists: true / false по нему; null —
@@ -651,6 +776,10 @@ def decorate(review: dict, now: datetime, materials: Optional[Mapping[str, bool]
     mid = r.get('material_id')
     exists = materials.get(mid) if (mid and materials is not None) else None
     r['material_exists'] = exists if isinstance(exists, bool) else None
+    r['can_send_to_guest'] = guest_chat_id(r) is not None
+    # Состояние отправки ответа гостю — только там, где отправка возможна и ответ сохранён.
+    r['send_state'] = (reply_send_state(r.get('reply'), now)
+                       if r['can_send_to_guest'] and r.get('status') == 'answered' and r.get('reply') else None)
     created = parse_dt(r['created_at'])
     r['age_hours'] = None
     r['response_hours'] = None
@@ -988,14 +1117,35 @@ class ReviewStore:
         return self._write(op)
 
     def delete(self, review_id: str) -> None:
+        """Удалить отзыв: внесённый вручную или из бота (просьба гостя удалить данные, спам);
+        отзыв из Яндекса — 409: он пришёл бы снова при следующей загрузке."""
         def op(reviews, now):
             rec = self._require(reviews, review_id)
-            if rec.get('origin') != 'manual':
+            if rec.get('origin') != 'manual' and rec.get('source') != 'bot':
                 raise ReviewConflict('Загруженный отзыв удалить нельзя: он придёт снова при следующей загрузке. '
                                      'Оставьте его без ответа.')
             del reviews[rec['id']]
             return None
         self._write(op)
+
+    def clear_guest_phone(self, chat_id) -> int:
+        """Гость отписался (/stop): стереть телефон в его отзывах из бота (external_id
+        'tg:<chat_id>:…'). Ник Telegram остаётся — он часть отзыва. Ответ — сколько отзывов
+        изменено. updated_at не трогается: это не правка отзыва сотрудником."""
+        prefix = 'tg:%d:' % int(str(chat_id).strip())
+
+        def op(reviews, now):
+            n = 0
+            for rec in reviews.values():
+                guest = rec.get('guest') if isinstance(rec.get('guest'), dict) else None
+                if (rec.get('source') == 'bot' and str(rec.get('external_id') or '').startswith(prefix)
+                        and guest and guest.get('phone')):
+                    guest['phone'] = ''
+                    if not guest.get('telegram'):
+                        rec['guest'] = None
+                    n += 1
+            return n
+        return self._write(op)
 
     def reply(self, review_id: str, text, user: Optional[dict]) -> dict:
         """Сохранить ответ: new -> answered; у answered — правка текста (reply.at не меняется)."""
@@ -1065,6 +1215,87 @@ class ReviewStore:
                 raise ReviewConflict('Материал из этого отзыва уже создан', material_id=current)
             rec['material_id'] = mid
             self._touch(rec, now, user)
+            return rec
+        return self._write(op)
+
+    # ----- ответ гостю в Telegram (отзывы из бота) ------------------------
+
+    def _exact_now(self) -> datetime:
+        return _exact_msk(self._clock())
+
+    def start_reply_delivery(self, review_id: str, user: Optional[dict], force: bool = False) -> dict:
+        """Проверить и «занять» отправку ответа гостю (правила — докстринг модуля).
+
+        Ответ — {'review', 'chat_id', 'text' (сообщение гостю), 'reply_text', 'forced'}.
+        ValueError (400): не отзыв из бота, чат гостя неизвестен, ответ не сохранён.
+        ReviewConflict (409, code в extra): already_delivered (delivered_at), sending
+        (идёт отправка, моложе REPLY_SEND_WINDOW), send_unknown (итог неизвестен —
+        повтор только с force=True; send_unknown_at в extra).
+        """
+        def op(reviews, now):
+            rec = self._require(reviews, review_id)
+            if rec.get('source') != 'bot':
+                raise ValueError('Отправить гостю в Telegram можно только ответ на отзыв из бота')
+            chat_id = guest_chat_id(rec)
+            if chat_id is None:
+                raise ValueError('Чат гостя неизвестен: отзыв внесён вручную — ответьте гостю сами')
+            reply = rec.get('reply') if isinstance(rec.get('reply'), dict) else None
+            if rec['status'] != 'answered' or not reply or not str(reply.get('text') or '').strip():
+                raise ValueError('Сначала сохраните ответ: гостю уходит сохранённый текст')
+            exact = self._exact_now()
+            state = reply_send_state(reply, exact)
+            if state == 'delivered':
+                when = _human_dt(reply.get('delivered_at'))
+                raise ReviewConflict('Ответ уже отправлен гостю' + (' ' + when if when else ''),
+                                     code='already_delivered', delivered_at=reply.get('delivered_at'))
+            if state == 'sending':
+                raise ReviewConflict('Ответ уже отправляется — подождите минуту и обновите страницу',
+                                     code='sending')
+            if state == 'unknown' and not force:
+                since = reply.get('send_unknown_at') or reply.get('sending_at')
+                when = _human_dt(since)
+                raise ReviewConflict('Статус отправки неизвестен' + (' (попытка ' + when + ')' if when else '') +
+                                     ': сообщение могло дойти до гостя. Проверьте у гостя; повторить можно '
+                                     'только с подтверждением.', code='send_unknown', send_unknown_at=since)
+            stamp = exact.strftime(SEND_STAMP_FORMAT)
+            if state == 'unknown':          # повтор с подтверждением владельца — след в записи
+                reply['forced_at'] = stamp
+                reply['forced_by'] = _user_login(user)
+            reply.pop('send_unknown_at', None)
+            reply['sending_at'] = stamp
+            return {'review': rec, 'chat_id': chat_id, 'text': guest_reply_text(rec),
+                    'reply_text': reply['text'], 'forced': state == 'unknown'}
+        return self._write(op)
+
+    def finish_reply_delivery(self, review_id: str, user: Optional[dict], *, outcome: str,
+                              sent_text: Optional[str] = None, message_id=None) -> dict:
+        """Итог отправки ответа гостю (outcome: sent | not_sent | unknown — докстринг модуля).
+
+        sent_text — текст ответа, который ушёл гостю (reply.delivered_text: ответ потом
+        можно править, а гость видел этот). Ответ — запись отзыва.
+        """
+        if outcome not in ('sent', 'not_sent', 'unknown'):
+            raise ValueError(f'Неизвестный итог отправки «{outcome}»')
+
+        def op(reviews, now):
+            rec = self._require(reviews, review_id)
+            reply = rec.get('reply') if isinstance(rec.get('reply'), dict) else None
+            if reply is None:
+                return rec
+            reply.pop('sending_at', None)
+            if outcome == 'unknown':
+                reply['send_unknown_at'] = self._exact_now().strftime(SEND_STAMP_FORMAT)
+                return rec
+            reply.pop('send_unknown_at', None)
+            if outcome == 'sent':
+                reply['delivered'] = True
+                reply['delivered_at'] = fmt_dt(now)
+                reply['delivered_by'] = _user_login(user)
+                reply['delivered_via'] = 'telegram'
+                reply['delivered_text'] = sent_text if sent_text is not None else reply.get('text')
+                if message_id is not None:
+                    reply['telegram_message_id'] = message_id
+                self._touch(rec, now, user)
             return rec
         return self._write(op)
 
@@ -1242,12 +1473,14 @@ def get_review_store(data_file: Optional[str] = None,
 def material_draft(review: dict) -> dict:
     """Поля материала контент-плана из отзыва (заголовок, текст-цитата, ссылка на отзыв).
 
-    base_text: «<текст>», перевод строки, «— <автор или "гость">». Нет текста -> ValueError.
+    base_text: «<текст>», перевод строки, «— <автор или "гость">»; у отзыва из бота — всегда
+    «— гость» (имя из профиля Telegram — личные данные гостя). Нет текста -> ValueError.
     """
     text = (review.get('text') or '').strip()
     if not text:
         raise ValueError('У отзыва нет текста — материал из него не сделать')
-    author = (review.get('author') or '').strip() or 'гость'
+    # У отзыва из бота имя — из профиля Telegram (личные данные): в публичный пост — «гость».
+    author = 'гость' if review.get('source') == 'bot' else ((review.get('author') or '').strip() or 'гость')
     return {
         'title': f'Отзыв гостя — {BAR_SHORT.get(review["bar"], review["bar"])}',
         'kind': 'fixed',

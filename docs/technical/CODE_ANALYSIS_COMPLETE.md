@@ -229,8 +229,13 @@ beer-abc-analysis/
 
 **Код:**
 ```python
-IIKO_PASSWORD = "ApiPass2024!"  # ⚠️ ХРАНИТСЯ В РЕПОЗИТОРИИ!
+IIKO_PASSWORD = "<пароль iiko API>"  # ХРАНИЛСЯ В РЕПОЗИТОРИИ!
 ```
+
+> Значение пароля из этой находки убрано из документа 2026-09-28: оно — в локальном
+> `secrets/LOCAL_NOTES.md` (раздел CODE_ANALYSIS_COMPLETE, файл не в git). Сверка
+> 2026-09-28: значение совпадает с действующим паролем iiko API, а в истории git
+> лежит открытым текстом — пароль нужно сменить.
 
 **Проблема:** Учетные данные iiko API хранятся в открытом виде и могут быть скомпрометированы.
 
@@ -247,7 +252,7 @@ if not IIKO_PASSWORD:
 **Render deployment:**
 ```bash
 # В настройках Render добавить Environment Variable:
-IIKO_PASSWORD = ApiPass2024!
+IIKO_PASSWORD = <пароль iiko API>
 ```
 
 ---
@@ -1335,3 +1340,12 @@ https://beerkultura.ru  (production — Selectel VPS)
 
 **Подготовил:** Claude Sonnet 4.5
 **Версия анализа:** 1.0
+
+---
+
+## Changelog
+
+- **2026-09-28** — Из находки A1 убрано значение пароля iiko API (в коде и в примере для
+  Render теперь `<пароль iiko API>`); значение — в локальном `secrets/LOCAL_NOTES.md`
+  (раздел CODE_ANALYSIS_COMPLETE, файл не в git). Остальной текст анализа 2025-11-16 не
+  менялся.

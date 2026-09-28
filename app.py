@@ -105,6 +105,13 @@ def _start_background_jobs():
     from core.yandex_reviews_scheduler import start_scheduler as start_yandex_reviews_scheduler
     start_yandex_reviews_scheduler()
 
+    # Отправка публикаций контент-плана раз в минуту: Telegram-каналы баров,
+    # напоминания об Instagram, рассылки гостям. Шлёт только то, что владелец
+    # включил в «Каналы и отправка» (по умолчанию всё выключено); без токена бота
+    # и при CONTENT_PUBLISH=0 не стартует. См. docs/content-plan.md.
+    from core.content_publisher_scheduler import start_scheduler as start_content_publisher
+    start_content_publisher()
+
 
 # BEER_SCHEDULERS=0 — импорт app без фоновых потоков (локальные скрипты, проверки).
 # Иначе импорт запускает рассылки с боевыми токенами из .env: 2026-09-26 локальный

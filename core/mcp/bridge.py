@@ -62,9 +62,41 @@ Content-Length — большой файл не читается в память
   вызова; ждём до HEAVY_WAIT_S секунд, потом isError «iiko занят». В проде два
   gunicorn-воркера, значит всего не больше 2 x HEAVY_CONCURRENCY одновременных.
   Число одновременных вызовов инструментов вообще ограничивает protocol.py
-  (MAX_CONCURRENT_CALLS): ожидание здесь держит поток воркера, который нужен сайту.
+  (MAX_CONCURRENT_CALLS, общий для процессов через mcp.db): протокол передаёт в
+  execute() «пропуск» admit — мост берёт его только когда действительно исполняет
+  маршрут (ответ из кэша места не занимает). Ожидание здесь держит поток воркера,
+  который нужен сайту.
 - Защита от рекурсии: пути /mcp…, /oauth…, /.well-known/… и /api/admin/mcp… мост не
   исполняет (агент не вызывает сам себя и не управляет доступом к себе).
+
+Кэш тяжёлых чтений (ResponseCache, с 2026-09-28). Агент часто спрашивает одно и то
+же дважды подряд (доска заказа бара, затем та же доска «ещё раз посмотреть»), а
+каждый такой вызов — живой отчёт iiko на 5–40 с. Поэтому результат запоминается:
+- что кэшируется: инструмент heavy и read_only, не open_world (живой ЧЗ и прочее
+  «вовне» — только живьём) и без пометки no_cache (проверка связи с iiko); в
+  аргументах нет force/refresh/full со значением «да» (1, '1', true, 'true', 'yes',
+  'on') — это явная просьба пересчитать, такой вызов идёт мимо кэша и в кэш не
+  кладётся. Новых аргументов «мимо кэша» нет и не будет: схемы запрещают лишние поля;
+- ключ — (инструмент, владелец токена, нормализованные аргументы с сортировкой
+  ключей): {'bar': 'Лиговский'} и тот же вызов через минуту — одно и то же;
+- в кэш идёт только успешный результат из одних текстовых блоков (JSON, CSV, XML):
+  ошибки, картинки и файлы (PDF, xlsx) — нет;
+- срок CACHE_TTL_S = 300 с (5 минут): свежее, чем кэш снимка остатков у самих
+  маршрутов (120 с) плюс время разговора; старше — уже заметно расходится с сайтом;
+- предел памяти: не больше CACHE_MAX_ENTRIES = 64 записей и CACHE_MAX_BYTES = 2 МБ
+  текста (UTF-8) на процесс; одна запись не больше четверти предела. Результат и так
+  не длиннее RESULT_TEXT_LIMIT (60 тыс. символов, до ~240 КБ), поэтому 64 записи в
+  2 МБ не влезают, и при нехватке вытесняются самые давно использованные (LRU).
+  Почему так мало: у воркера gunicorn своя память (2 воркера), а кэш — ускоритель
+  повторов в одном разговоре, а не хранилище отчётов;
+- в начале ответа (отдельным первым текстовым блоком, JSON во втором блоке остаётся
+  валидным) — строка «Данные на ЧЧ:ММ МСК (кэш до 5 минут)»: время, когда маршрут
+  посчитал эти данные; у свежего результата — время сейчас;
+- любая успешная запись через MCP (инструмент без read_only) очищает кэш процесса:
+  агент, который заменил кегу, следом увидит новый таплист, а не пятиминутный.
+  Поколение кэша (generation) защищает от гонки: чтение, начатое до записи, не
+  положит в кэш данные «до записи». Правки людей на сайте и записи во втором
+  воркере кэш не видит — старше 5 минут данные не бывают, и время на ответе названо.
 
 Инструмент без маршрута (handler): handler(args, principal) -> dict | list | str |
 ToolResult; упаковывается по тем же правилам. Обработчик может бросить ToolError —
@@ -81,14 +113,17 @@ import logging
 import re
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote, unquote, urlencode, urlsplit
 
 import flask
 from flask import current_app, has_request_context
 from werkzeug.datastructures import MultiDict
 
+from core import msk_time
 from core.mcp import schema_check
 from core.mcp.principal import Principal
 from core.mcp.spec import ToolSpec
@@ -129,6 +164,15 @@ ERROR_TEXT_LIMIT = 4000
 HEAVY_CONCURRENCY = 2
 HEAVY_WAIT_S = 10
 
+# Кэш тяжёлых чтений (правила и почему такие числа — в докстринге модуля).
+CACHE_TTL_S = 300                            # 5 минут
+CACHE_MAX_ENTRIES = 64                       # записей на процесс
+CACHE_MAX_BYTES = 2 * 1024 * 1024            # 2 МБ текста (UTF-8) на процесс
+CACHE_ENTRY_MAX_BYTES = CACHE_MAX_BYTES // 4  # одна запись не вытесняет весь кэш
+# Аргументы «пересчитай»: со значением «да» вызов идёт мимо кэша (у маршрутов они уже есть).
+FRESH_ARGS = ('force', 'refresh', 'full')
+TRUTHY_VALUES = ('1', 'true', 'yes', 'on')
+
 # Внешний адрес, если мост вызван вне HTTP-запроса (тесты, фоновые задачи).
 DEFAULT_BASE_URL = 'http://localhost/'
 
@@ -149,12 +193,19 @@ _HEAVY = threading.BoundedSemaphore(HEAVY_CONCURRENCY)
 
 @dataclass
 class ToolResult:
-    """Результат инструмента: блоки content MCP + признак ошибки + данные для журнала."""
+    """Результат инструмента: блоки content MCP + признак ошибки + данные для журнала.
+
+    denied — отказ ДО исполнения (нет свободного места для вызова): протокол пишет
+    его в журнал статусом 'denied', а не 'error'. cached — ответ взят из кэша
+    тяжёлых чтений (для тестов и отладки; агенту это говорит строка «Данные на …»).
+    """
     content: List[Dict[str, Any]]
     is_error: bool = False
     http_status: Optional[int] = None
     error: str = ''
     truncated: bool = False
+    denied: bool = False
+    cached: bool = False
 
     @classmethod
     def text(cls, text: str, *, is_error: bool = False, http_status: Optional[int] = None,
@@ -165,6 +216,13 @@ class ToolResult:
     @classmethod
     def fail(cls, message: str, http_status: Optional[int] = None) -> 'ToolResult':
         return cls.text(message, is_error=True, http_status=http_status)
+
+    @classmethod
+    def refuse(cls, message: str, http_status: Optional[int] = None) -> 'ToolResult':
+        """Отказ до исполнения (сервер занят): isError для агента, 'denied' для журнала."""
+        result = cls.fail(message, http_status=http_status)
+        result.denied = True
+        return result
 
     def to_mcp(self) -> Dict[str, Any]:
         """Поле result ответа tools/call (без structuredContent — контракт 4.2)."""
@@ -212,11 +270,20 @@ def current_call() -> Optional[CallContext]:
 # --------------------------------------------------------------------- исполнение
 
 def execute(spec: ToolSpec, args: Optional[Dict[str, Any]], principal: Principal,
-            connector: Optional[str] = None, mode: str = 'full') -> ToolResult:
+            connector: Optional[str] = None, mode: str = 'full',
+            admit: Optional[Callable[[], Any]] = None) -> ToolResult:
     """Исполнить инструмент. Никогда не бросает: любая беда -> ToolResult(is_error=True).
 
     mode — действующий режим доступа (его уже применил protocol.py к списку и вызову);
     мост передаёт его маршруту в g._current_user['mcp_mode'] и обработчикам в current_call().
+
+    admit — «пропуск» протокола: функция, возвращающая контекстный менеджер, который
+    отдаёт None (место есть, держим его до конца исполнения) или ToolResult отказа
+    («сервер занят», denied). Берётся только перед настоящим исполнением: проверка
+    аргументов и ответ из кэша места не занимают. None — без пропуска (тесты, фон).
+
+    Порядок: проверка аргументов -> кэш тяжёлых чтений -> пропуск -> семафор heavy ->
+    маршрут или обработчик -> кэш / очистка кэша после записи (см. докстринг модуля).
     """
     if args is None:
         args = {}
@@ -228,16 +295,173 @@ def execute(spec: ToolSpec, args: Optional[Dict[str, Any]], principal: Principal
     args = schema_check.normalize(spec.input_schema, args)
     token = _CALL.set(CallContext(principal=principal, connector=connector, tool=spec.name, mode=mode))
     try:
-        if spec.heavy:
-            if not _HEAVY.acquire(timeout=HEAVY_WAIT_S):
-                return ToolResult.fail('iiko занят: уже идут тяжёлые запросы к iiko. Повторите через минуту.')
-            try:
-                return _run(spec, args, principal, mode)
-            finally:
-                _HEAVY.release()
-        return _run(spec, args, principal, mode)
+        key = cache_key(spec, args, principal) if cacheable(spec, args) else None
+        if key is not None:
+            entry = response_cache.get(key)
+            if entry is not None:
+                return with_freshness(entry.result, entry.stored_at, cached=True)
+        generation = response_cache.generation
+        if admit is None:
+            result = _run_limited(spec, args, principal, mode)
+        else:
+            with admit() as refusal:
+                if refusal is not None:
+                    return refusal
+                result = _run_limited(spec, args, principal, mode)
+        if key is not None:
+            if not cache_worthy(result):
+                return result
+            stored_at = msk_time.now()
+            response_cache.put(key, result, stored_at, generation=generation)
+            return with_freshness(result, stored_at)
+        if not spec.read_only and not result.is_error:
+            # Запись через MCP: всё, что было в кэше, могло устареть (кега, заказ, план).
+            response_cache.clear()
+        return result
     finally:
         _CALL.reset(token)
+
+
+def _run_limited(spec: ToolSpec, args: Dict[str, Any], principal: Principal, mode: str) -> ToolResult:
+    """Исполнение с семафором тяжёлых вызовов (HEAVY_CONCURRENCY, ожидание HEAVY_WAIT_S)."""
+    if spec.heavy:
+        if not _HEAVY.acquire(timeout=HEAVY_WAIT_S):
+            return ToolResult.fail('iiko занят: уже идут тяжёлые запросы к iiko. Повторите через минуту.')
+        try:
+            return _run(spec, args, principal, mode)
+        finally:
+            _HEAVY.release()
+    return _run(spec, args, principal, mode)
+
+
+# --------------------------------------------------------------------- кэш тяжёлых чтений
+
+def wants_fresh(args: Dict[str, Any]) -> bool:
+    """В аргументах явная просьба пересчитать: force/refresh/full со значением «да»."""
+    for name in FRESH_ARGS:
+        value = args.get(name)
+        if value is True or (isinstance(value, (int, float)) and not isinstance(value, bool) and value == 1):
+            return True
+        if isinstance(value, str) and value.strip().lower() in TRUTHY_VALUES:
+            return True
+    return False
+
+
+def cacheable(spec: ToolSpec, args: Dict[str, Any]) -> bool:
+    """Можно ли брать ответ инструмента из кэша (правило — докстринг модуля)."""
+    if not (spec.heavy and spec.read_only) or spec.open_world or spec.no_cache:
+        return False
+    return not wants_fresh(args)
+
+
+def cache_key(spec: ToolSpec, args: Dict[str, Any], principal: Principal) -> str:
+    """Ключ: инструмент + владелец токена + аргументы (ключи отсортированы, JSON компактный)."""
+    return json.dumps([spec.name, getattr(principal, 'user_id', None), args], ensure_ascii=False,
+                      sort_keys=True, separators=(',', ':'), default=str)
+
+
+def cache_worthy(result: ToolResult) -> bool:
+    """В кэш — только успешный ответ из одних текстовых блоков (не ошибки, не файлы)."""
+    if result.is_error or result.denied or not result.content:
+        return False
+    return all(block.get('type') == 'text' for block in result.content)
+
+
+def freshness_line(stored_at: datetime) -> str:
+    """«Данные на ЧЧ:ММ МСК (кэш до 5 минут)» — первая строка ответа кэшируемого инструмента."""
+    return f'Данные на {stored_at.strftime("%H:%M")} МСК (кэш до {CACHE_TTL_S // 60} минут)'
+
+
+def with_freshness(result: ToolResult, stored_at: datetime, cached: bool = False) -> ToolResult:
+    """Копия результата с первым текстовым блоком «Данные на …» (сам результат не меняется)."""
+    return ToolResult([{'type': 'text', 'text': freshness_line(stored_at)}] + [dict(b) for b in result.content],
+                      is_error=result.is_error, http_status=result.http_status, error=result.error,
+                      truncated=result.truncated, cached=cached)
+
+
+@dataclass
+class CacheEntry:
+    result: ToolResult          # без строки свежести
+    stored_at: datetime         # МСК: когда маршрут посчитал данные
+    expires: float              # time.monotonic() истечения
+    size: int                   # байт текста (UTF-8)
+
+
+def _result_bytes(result: ToolResult) -> int:
+    return sum(len((block.get('text') or '').encode('utf-8')) for block in result.content)
+
+
+class ResponseCache:
+    """LRU-кэш ответов тяжёлых чтений в памяти процесса (правила — докстринг модуля).
+
+    Потокобезопасен: воркер gunicorn обслуживает несколько потоков. generation растёт
+    при каждой очистке; put() с устаревшим поколением ничего не кладёт — так чтение,
+    начатое до записи через MCP, не вернёт в кэш данные «до записи».
+    """
+
+    def __init__(self, ttl: float = CACHE_TTL_S, max_entries: int = CACHE_MAX_ENTRIES,
+                 max_bytes: int = CACHE_MAX_BYTES, entry_max_bytes: int = CACHE_ENTRY_MAX_BYTES):
+        self.ttl = ttl
+        self.max_entries = max_entries
+        self.max_bytes = max_bytes
+        self.entry_max_bytes = entry_max_bytes
+        self.generation = 0
+        self._data: 'OrderedDict[str, CacheEntry]' = OrderedDict()
+        self._bytes = 0
+        self._lock = threading.Lock()
+
+    def get(self, key: str, now: Optional[float] = None) -> Optional[CacheEntry]:
+        now = time.monotonic() if now is None else now
+        with self._lock:
+            entry = self._data.get(key)
+            if entry is None:
+                return None
+            if entry.expires <= now:
+                self._drop(key)
+                return None
+            self._data.move_to_end(key)            # недавно использованная — в конец очереди
+            return entry
+
+    def put(self, key: str, result: ToolResult, stored_at: datetime, generation: Optional[int] = None,
+            now: Optional[float] = None) -> bool:
+        """Положить ответ. False — не положен (другое поколение или слишком большой)."""
+        now = time.monotonic() if now is None else now
+        size = _result_bytes(result)
+        if size > self.entry_max_bytes:
+            return False
+        with self._lock:
+            if generation is not None and generation != self.generation:
+                return False
+            if key in self._data:
+                self._drop(key)
+            self._data[key] = CacheEntry(result=ToolResult([dict(b) for b in result.content],
+                                                           http_status=result.http_status,
+                                                           truncated=result.truncated),
+                                         stored_at=stored_at, expires=now + self.ttl, size=size)
+            self._bytes += size
+            for stale in [k for k, e in self._data.items() if e.expires <= now]:
+                self._drop(stale)
+            while self._data and (len(self._data) > self.max_entries or self._bytes > self.max_bytes):
+                self._drop(next(iter(self._data)))   # самая давно использованная
+            return key in self._data
+
+    def clear(self) -> None:
+        with self._lock:
+            self._data.clear()
+            self._bytes = 0
+            self.generation += 1
+
+    def stats(self) -> Dict[str, int]:
+        with self._lock:
+            return {'entries': len(self._data), 'bytes': self._bytes, 'generation': self.generation}
+
+    def _drop(self, key: str) -> None:
+        entry = self._data.pop(key, None)
+        if entry is not None:
+            self._bytes -= entry.size
+
+
+response_cache = ResponseCache()
 
 
 def _run(spec: ToolSpec, args: Dict[str, Any], principal: Principal, mode: str = 'full') -> ToolResult:

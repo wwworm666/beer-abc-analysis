@@ -1,218 +1,162 @@
 """
-Калькулятор сравнения периодов
-Сравнение двух периодов между собой, расчёт динамики
+Калькулятор сравнения двух периодов дашборда (POST /api/comparison/periods).
+
+Что сравнивается. Метрики «Аналитики» ровно как на экране: ключи и единицы ответа
+/api/dashboard-analytics (camelCase, наценка в процентах, активность кранов по
+журналу кранов). Набор и порядок метрик — как во вкладке «Сравнение» дашборда
+(static/js/dashboard/modules/comparison.js, getMetricsConfig): 20 строк.
+
+Соглашение о направлении — как на вкладке «Сравнение»:
+    период 1 — сравниваемый («Период 1», по умолчанию текущая неделя),
+    период 2 — база («было»).
+    Δ   = период 1 − период 2
+    Δ%  = Δ / период 2 × 100; у базы 0 — None (деление на ноль не определено;
+          вкладка в этом случае рисует 0 %)
+У метрик в процентах (доли, наценки, доля чеков с картой, активность кранов)
+Δ — в процентных пунктах (п.п.), Δ% — относительное изменение, как на вкладке.
+
+Округление: значения периодов — как пришли с сервера; Δ — 2 знака, Δ% — 1 знак
+(вкладка печатает toFixed(1)).
+
+«Лучше или хуже» (better): рост — хорошо, кроме бюджетных метрик
+(core.plans_manager.BUDGET_METRICS — списания баллов: рост — минус); без
+изменения — None. Та же логика, что цвет на вкладке «Сравнение».
+
+Топ изменений — как блок «Топ-3 изменения» вкладки: метрики, у которых оба
+значения не нули и |Δ%| не меньше 0,1, по убыванию |Δ%|; метрика с базой 0
+в топ не попадает (её Δ% не определён).
+
+До 2026-09-28 модуль сравнивал сырые ключи расчёта (наценка дробью) в обратном
+направлении (Δ = период 2 − период 1) и писал выводы с эмодзи, а маршрут
+/api/comparison/periods был заглушкой и модуль не вызывал.
 """
-from typing import Dict, List, Optional
-from core.dashboard_analysis import DashboardMetrics
+from typing import Dict, List
+
+from core.plans_manager import BUDGET_METRICS
+
+# (ключ экрана, подпись, единица). Порядок — getMetricsConfig вкладки «Сравнение».
+COMPARISON_METRICS = (
+    ('revenue', 'Выручка', '₽'),
+    ('checks', 'Чеки', 'шт'),
+    ('averageCheck', 'Средний чек', '₽'),
+    ('draftShare', 'Доля розлива', '%'),
+    ('packagedShare', 'Доля фасовки', '%'),
+    ('kitchenShare', 'Доля кухни', '%'),
+    ('revenueDraft', 'Выручка розлив', '₽'),
+    ('revenuePackaged', 'Выручка фасовка', '₽'),
+    ('revenueKitchen', 'Выручка кухня', '₽'),
+    ('markupPercent', 'Наценка', '%'),
+    ('profit', 'Прибыль', '₽'),
+    ('markupDraft', 'Наценка розлив', '%'),
+    ('markupPackaged', 'Наценка фасовка', '%'),
+    ('markupKitchen', 'Наценка кухня', '%'),
+    ('loyaltyWriteoffs', 'Списания баллов', '₽'),
+    ('cardChecks', 'Чеки с картой', 'шт'),
+    ('nocardChecks', 'Чеки без карты', 'шт'),
+    ('cardChecksShare', 'Доля чеков с картой', '%'),
+    ('cardRevenue', 'Выручка по картам', '₽'),
+    ('tapActivity', 'Активность кранов', '%'),
+)
+
+# Сколько изменений в «топе» (блок «Топ-3 изменения» вкладки).
+TOP_CHANGES = 3
+# Изменение меньше 0,1 % вкладка считает «без изменений» и в топ не берёт.
+MIN_TOP_CHANGE_PERCENT = 0.1
+
+FORMULA_TEXT = (
+    'Период 1 сравнивается с базой — периодом 2 (как на вкладке «Сравнение»: «было» — '
+    'период 2). Δ = период 1 − период 2; Δ% = Δ / период 2 × 100 (база 0 — Δ% нет). '
+    'У метрик в процентах Δ — в процентных пунктах. Числа каждого периода — те же, что '
+    'карточки «Аналитики» за эти даты. Для списаний баллов рост — хуже (бюджет).'
+)
+
+
+def _number(value) -> float:
+    """Число метрики; отсутствующее или нечисловое значение — 0 (как на вкладке)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value)
+
+
+def _fmt(value: float, unit: str) -> str:
+    """Число для текста вывода: рубли и штуки целыми с пробелами, проценты с 1 знаком."""
+    if unit == '%':
+        return ('%.1f' % value).replace('.', ',') + '%'
+    return '{:,.0f}'.format(value).replace(',', ' ') + ' ' + unit
 
 
 class ComparisonCalculator:
-    """Класс для сравнения метрик между двумя периодами"""
+    """Сравнение двух периодов по метрикам экрана (правила — в докстринге модуля)."""
 
-    def __init__(self):
-        """Инициализация калькулятора"""
-        self.calculator = DashboardMetrics()
-
-    def compare_periods(
-        self,
-        period1_data: Dict,
-        period2_data: Dict,
-        metrics_list: List[str] = None
-    ) -> Dict:
-        """
-        Сравнить два периода
+    def compare_periods(self, period1: Dict, period2: Dict) -> Dict[str, Dict]:
+        """Построчное сравнение.
 
         Args:
-            period1_data: Dict - метрики первого периода
-            period2_data: Dict - метрики второго периода
-            metrics_list: List[str] - список метрик для сравнения (опционально)
+            period1: метрики сравниваемого периода (ключи экрана)
+            period2: метрики базы
 
         Returns:
-            Dict - результаты сравнения с динамикой
+            {ключ: {label, unit, period1, period2, diff, diff_unit, diff_percent,
+                    trend: up|down|stable, budget, better: True|False|None}}
         """
-        # Если список метрик не указан, берём все
-        if not metrics_list:
-            metrics_list = [
-                'total_revenue', 'total_checks', 'avg_check',
-                'draft_share', 'bottles_share', 'kitchen_share',
-                'draft_revenue', 'bottles_revenue', 'kitchen_revenue',
-                'avg_markup', 'total_margin',
-                'draft_markup', 'bottles_markup', 'kitchen_markup',
-                'loyalty_points_written_off',
-                # Лояльность (чеки с картой / без карты)
-                'card_checks', 'nocard_checks', 'card_checks_share', 'card_revenue'
-            ]
-
         comparison = {}
-
-        for metric in metrics_list:
-            value1 = period1_data.get(metric, 0)
-            value2 = period2_data.get(metric, 0)
-
-            # Рассчитываем абсолютную и относительную разницу
-            diff_abs = value2 - value1
-            diff_percent = self._calculate_percent_change(value1, value2)
-
-            comparison[metric] = {
+        for key, label, unit in COMPARISON_METRICS:
+            value1 = _number(period1.get(key))
+            value2 = _number(period2.get(key))
+            diff = value1 - value2
+            diff_percent = round(diff / value2 * 100, 1) if value2 != 0 else None
+            budget = key in BUDGET_METRICS
+            if diff == 0:
+                better = None
+            else:
+                better = (diff < 0) if budget else (diff > 0)
+            comparison[key] = {
+                'label': label,
+                'unit': unit,
                 'period1': value1,
                 'period2': value2,
-                'diff_abs': diff_abs,
+                'diff': round(diff, 2),
+                'diff_unit': 'п.п.' if unit == '%' else unit,
                 'diff_percent': diff_percent,
-                'trend': 'up' if diff_abs > 0 else ('down' if diff_abs < 0 else 'stable')
+                'trend': 'up' if diff > 0 else ('down' if diff < 0 else 'stable'),
+                'budget': budget,
+                'better': better,
             }
-
         return comparison
 
-    def compare_venues(
-        self,
-        venues_data: Dict[str, Dict],
-        metric: str
-    ) -> List[Dict]:
-        """
-        Сравнить заведения по конкретной метрике
-
-        Args:
-            venues_data: Dict[str, Dict] - данные по заведениям
-                {
-                    'bolshoy': {метрики},
-                    'ligovskiy': {метрики},
-                    ...
-                }
-            metric: str - название метрики для сравнения
-
-        Returns:
-            List[Dict] - список заведений с сортировкой по метрике
-        """
-        comparison = []
-
-        for venue_key, metrics in venues_data.items():
-            if venue_key == 'all':  # Пропускаем сводные данные
-                continue
-
-            value = metrics.get(metric, 0)
-
-            comparison.append({
-                'venue_key': venue_key,
-                'value': value,
-                'metric': metric
-            })
-
-        # Сортируем по значению метрики (от большего к меньшему)
-        comparison.sort(key=lambda x: x['value'], reverse=True)
-
-        return comparison
-
-    def get_top_changes(
-        self,
-        comparison: Dict,
-        top_n: int = 5,
-        by: str = 'abs'
-    ) -> List[Dict]:
-        """
-        Получить топ изменений между периодами
-
-        Args:
-            comparison: Dict - результат compare_periods()
-            top_n: int - количество топовых изменений
-            by: str - по какому параметру сортировать ('abs' или 'percent')
-
-        Returns:
-            List[Dict] - топ изменений
-        """
+    def top_changes(self, comparison: Dict[str, Dict], top_n: int = TOP_CHANGES) -> List[Dict]:
+        """Метрики с наибольшим |Δ%| (правило отбора — в докстринге модуля)."""
         changes = []
-
-        for metric, data in comparison.items():
-            changes.append({
-                'metric': metric,
-                'diff_abs': data['diff_abs'],
-                'diff_percent': data['diff_percent'],
-                'trend': data['trend'],
-                'period1': data['period1'],
-                'period2': data['period2']
-            })
-
-        # Сортируем по абсолютному значению изменения
-        sort_key = 'diff_abs' if by == 'abs' else 'diff_percent'
-        changes.sort(key=lambda x: abs(x[sort_key]), reverse=True)
-
+        for key, row in comparison.items():
+            if row['period1'] == 0 and row['period2'] == 0:
+                continue
+            if row['diff_percent'] is None or abs(row['diff_percent']) < MIN_TOP_CHANGE_PERCENT:
+                continue
+            changes.append(dict(row, metric=key))
+        changes.sort(key=lambda row: abs(row['diff_percent']), reverse=True)
         return changes[:top_n]
 
-    def get_summary_insights(self, comparison: Dict) -> List[str]:
-        """
-        Получить текстовые выводы по сравнению
+    def insights(self, top: List[Dict]) -> List[str]:
+        """Короткие выводы по топу изменений: «Выручка: 1 050 000 ₽ против 1 000 000 ₽ (+5,0%)»."""
+        lines = []
+        for row in top:
+            percent = ('%+.1f' % row['diff_percent']).replace('.', ',') + '%'
+            text = (row['label'] + ': ' + _fmt(row['period1'], row['unit']) + ' против '
+                    + _fmt(row['period2'], row['unit']) + ' (' + percent + ')')
+            if row['better'] is False:
+                text += ' — хуже'
+            elif row['better'] is True:
+                text += ' — лучше'
+            lines.append(text)
+        return lines
 
-        Args:
-            comparison: Dict - результат compare_periods()
-
-        Returns:
-            List[str] - список выводов
-        """
-        insights = []
-
-        # Анализируем выручку
-        revenue = comparison.get('total_revenue', {})
-        if revenue.get('diff_percent', 0) > 0:
-            insights.append(
-                f"✅ Выручка выросла на {revenue['diff_percent']:.1f}% "
-                f"(+{revenue['diff_abs']:,.0f} ₽)"
-            )
-        elif revenue.get('diff_percent', 0) < 0:
-            insights.append(
-                f"❌ Выручка снизилась на {abs(revenue['diff_percent']):.1f}% "
-                f"({revenue['diff_abs']:,.0f} ₽)"
-            )
-
-        # Анализируем чеки
-        checks = comparison.get('total_checks', {})
-        if checks.get('diff_percent', 0) > 0:
-            insights.append(
-                f"✅ Количество чеков увеличилось на {checks['diff_percent']:.1f}%"
-            )
-        elif checks.get('diff_percent', 0) < 0:
-            insights.append(
-                f"⚠️ Количество чеков снизилось на {abs(checks['diff_percent']):.1f}%"
-            )
-
-        # Анализируем средний чек
-        avg_check = comparison.get('avg_check', {})
-        if avg_check.get('diff_percent', 0) > 0:
-            insights.append(
-                f"✅ Средний чек вырос на {avg_check['diff_percent']:.1f}%"
-            )
-
-        # Анализируем прибыль
-        margin = comparison.get('total_margin', {})
-        if margin.get('diff_percent', 0) > 0:
-            insights.append(
-                f"✅ Прибыль выросла на {margin['diff_percent']:.1f}%"
-            )
-        elif margin.get('diff_percent', 0) < 0:
-            insights.append(
-                f"❌ Прибыль снизилась на {abs(margin['diff_percent']):.1f}%"
-            )
-
-        # Анализируем доли категорий
-        draft_share = comparison.get('draft_share', {})
-        if abs(draft_share.get('diff_abs', 0)) > 2:
-            trend = "выросла" if draft_share['diff_abs'] > 0 else "снизилась"
-            insights.append(
-                f"ℹ️ Доля розлива {trend} на {abs(draft_share['diff_abs']):.1f}%"
-            )
-
-        return insights
-
-    def _calculate_percent_change(self, value1: float, value2: float) -> float:
-        """
-        Рассчитать процентное изменение
-
-        Args:
-            value1: float - значение периода 1
-            value2: float - значение периода 2
-
-        Returns:
-            float - процентное изменение
-        """
-        if value1 == 0:
-            return 0 if value2 == 0 else 100
-
-        return ((value2 - value1) / value1) * 100
+    def summary(self, period1: Dict, period2: Dict) -> Dict:
+        """Всё сравнение одним словарём: comparison, top_changes, insights, formula."""
+        comparison = self.compare_periods(period1, period2)
+        top = self.top_changes(comparison)
+        return {
+            'comparison': comparison,
+            'top_changes': top,
+            'insights': self.insights(top),
+            'formula': FORMULA_TEXT,
+        }

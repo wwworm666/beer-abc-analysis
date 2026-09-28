@@ -17,7 +17,17 @@
        пост» (agent_rationale) и «Что снять» (shot_list) с автосохранением;
        чип «Только от ИИ» (?origin=agent) и «Удалить черновики ИИ» рядом со
        сводкой; кнопка «Бриф для агента» — выдвижная карточка брифа сети
-       (GET / PUT /api/content-plan/brief, поля и пределы — из ответа сервера).
+       (GET / PUT /api/content-plan/brief, поля и пределы — из ответа сервера);
+     - «Попросить агента» — меню из трёх заданий (план следующего месяца,
+       проверка недели, разбор отзывов): пункт открывает Claude
+       (claude.ai/new?q=<задание>) в новой вкладке и копирует задание в буфер;
+     - отправка (2026-09-28): баннер состояния из delivery ответа месяца (не
+       подключено / выключено / включено и какие площадки уходят сами);
+       выдвижная карточка «Каналы и отправка» (GET / PUT /channels, проверка
+       канала, тестовое сообщение); у размещения — как оно ушло (вышло
+       автоматически со ссылкой на пост, отправляется, ошибка, «дошло N из M» у
+       рассылки и «Повторить неудавшимся»), «Отправить сейчас» и «Скачать для
+       Instagram»; размер аудитории рассылки — реальный (GET /audience).
 
    Источник истины — ответ GET /api/content-plan?month=. Состояние размещения
    (display_state, display_label, missing) и сводка материала (summary)
@@ -34,7 +44,8 @@
 
    Адрес: ?month=YYYY-MM, ?view=table|calendar, ?open=<id материала>,
    ?state=overdue|failed|incomplete|ready|scheduled|paused, ?origin=agent
-   (только материалы ИИ-агента), ?brief=1 (открыть бриф для агента).
+   (только материалы ИИ-агента), ?brief=1 (открыть бриф для агента),
+   ?channels=1 (открыть «Каналы и отправка»).
 
    Сквозной вид: ?state=overdue|failed БЕЗ ?month= (так ведут ссылки полосы
    «Требует внимания»: там считаются размещения любых месяцев) — страница
@@ -149,7 +160,91 @@
     var BOT_NOTE = 'Рассылка через бота добавляется отдельно и никогда не включается выбором всех баров.';
     var APPROVE_TEXT = 'Утверждаются только эти подготовленные материалы. Незаконченные остаются ' +
         'черновиками и не уходят.';
-    var SIZE_UNKNOWN = 'неизвестно: бот не подключён';
+    // Размер аудитории рассылки, если сервер его не назвал (нет данных о
+    // подписчиках или запрос не удался): число не выдумываем.
+    var SIZE_UNKNOWN = 'неизвестно';
+
+    // ---------- отправка (core/content_publisher.py, core/content_channels.py) ----------
+    // Числа ниже — зеркала констант сервера, только для текста пояснений на экране
+    // (отправляет и проверяет сервер; tests/test_content_plan_render.mjs сверяет
+    // их с ядром):
+    //   PUBLISH_TICK_SEC = 60 — планировщик раз в минуту отправляет утверждённые
+    //     размещения, время которых наступило (content_publisher_scheduler);
+    //   PUBLISH_GRACE_MIN = 120 — DELIVERY_GRACE_MINUTES (core/content_plan.py):
+    //     размещение, время которого прошло больше двух часов назад, пока сервер не
+    //     работал, само не уходит — получает ошибку «время выхода прошло», решает
+    //     владелец: старый пост не должен выйти молча с опозданием. Очередь повтора
+    //     старше двух часов тоже не считается «в работе». Публикации, время которых
+    //     прошло до подключения площадки, сервер не трогает — они остаются «Время
+    //     вышло» (core/content_channels.since_for);
+    //   SENDING_STALE_MIN = 10 — SENDING_STALE_MINUTES: отправка, которая «висит»
+    //     дольше 10 минут, не повторяется сама (иначе возможен дубль в канале), а
+    //     становится ошибкой «статус отправки неизвестен»;
+    //   BOT_RATE_PER_SEC = 25 — рассылка не чаще 25 сообщений в секунду (лимит
+    //     Telegram — 30 в секунду на бота, 5 — запас на остальные ответы бота);
+    //   REMINDER_MAX_MIN = 720 — напоминание для Instagram не раньше чем за 12
+    //     часов: раньше оно теряется в ленте чата, и пост выкладывают не вовремя.
+    var PUBLISH_TICK_SEC = 60;
+    var PUBLISH_GRACE_MIN = 120;
+    var SENDING_STALE_MIN = 10;
+    var BOT_RATE_PER_SEC = 25;
+    var REMINDER_MAX_MIN = 720;
+    // Пока у какого-то размещения идёт отправка (delivery.state 'sending'), план
+    // перечитывается раз в 15 с — итог (вышло или ошибка) появляется без
+    // обновления страницы. Чаще не нужно: отправка поста занимает секунды,
+    // рассылка — не больше минуты на 1500 подписчиков (25 в секунду).
+    var SENDING_POLL_MS = 15000;
+    // Кэш размера аудитории рассылки (GET /audience): подписчиков становится
+    // больше или меньше за минуты, а экран перерисовывается после каждой правки —
+    // запрос не чаще раза в 5 минут на пару (сегмент, бар).
+    var AUDIENCE_TTL_MS = 5 * 60 * 1000;
+    // Адрес чата — те же правила, что parse_chat в core/content_channels.py (сервер
+    // проверяет сам; здесь — чтобы сразу сказать, как надо): публичный канал —
+    // @имя по правилам Telegram (5–32 знака: латиница, цифры и «_», первая —
+    // буква, последняя — не «_»); ссылка t.me/имя сводится к @имя; закрытый канал
+    // или чат — числовой id (у каналов начинается с -100). Пригласительная ссылка
+    // (t.me/+…, t.me/joinchat/…) не подходит: бот по ней чат не найдёт. Ссылку на
+    // пост можно построить только для публичного канала: t.me/<имя>/<номер>.
+    var CHAT_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{3,30}[A-Za-z0-9]$/;
+    var CHAT_PUBLIC_RE = /^@[A-Za-z][A-Za-z0-9_]{3,30}[A-Za-z0-9]$/;
+    var CHAT_ID_RE = /^-?\d{1,20}$/;
+    var CHAT_TME_RE = /^(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\/(?:s\/)?([^\/?#]+)\/?$/i;
+    var CHAT_HINT = 'нужен @имя канала (5–32 знака: латиница, цифры, «_»), ссылка t.me/имя или числовой id ' +
+        'чата (-100…)';
+    var DELIVERY_NONE_TEXT = 'Отправка пока не подключена: утверждённые публикации не уходят автоматически. ' +
+        'Когда публикация вышла, отметьте её вручную.';
+    // Кто «вышел автоматически»: отправитель подписывает размещение этим именем
+    // (published_by, контракт 3.2); человек, отметивший выход, — своим логином.
+    var AUTO_PUBLISHER = 'бот';
+
+    // ---------- «Попросить агента» (ИИ-агент в Claude через MCP) ----------
+    // Задание открывается в Claude с готовым текстом (claude.ai/new?q=<текст>) и
+    // копируется в буфер. Текст короткий и называет коннектор и сценарий раздела
+    // (prompts в core/mcp/tools/content.py): правила раздела агент получает с
+    // подключением, шаги — из сценария. Без коннектора агент сайта не видит —
+    // поэтому в меню подсказка со ссылкой на «Доступ агентов» (/admin/mcp).
+    // Гостевой бот сети (TELEGRAM_BOT_TOKEN, core/taplist_polling.py): в нём гости
+    // подписываются на новости и оставляют отзывы. Бот, который публикует в каналы,
+    // может быть другим (TELEGRAM_CONTENT_BOT_TOKEN) — подписка всегда здесь.
+    var GUEST_BOT = '@kult_taplist_bot';
+    var SIGNUP_HINT = 'Гости увидят в ' + GUEST_BOT + ' кнопки «Подписаться на новости» и «Оставить отзыв». ' +
+        'Включайте после того, как проверили тексты.';
+    var AGENT_CONNECTOR = 'kultura-content';
+    var CLAUDE_NEW_URL = 'https://claude.ai/new?q=';
+    var MCP_ADMIN_URL = '/admin/mcp';
+
+    // ---------- права: что выпускает публикацию наружу — только администратор ----------
+    // Решение владельца после независимой проверки (2026-09-28): сервер отвечает
+    // 403 {code: 'admin_required'} не администратору на утверждение, «Отправить
+    // сейчас», повтор отправки и повтор неудавшимся, снятие паузы (у размещения и
+    // «Пауза» -> «Снять паузу»), на правку «Каналы и отправка», проверку и тест
+    // канала. Экран такие кнопки выключает с подсказкой ADMIN_TIP (карточка
+    // каналов — только просмотр); флаг — data-is-admin на body. Флаг — удобство,
+    // не защита: если он устарел, 403 обрабатывается (тост, план перечитывается,
+    // кнопки выключаются).
+    var ADMIN_ONLY_ACTIONS = ['approve', 'send_now', 'retry', 'retry_failed', 'resume'];
+    var ADMIN_TIP = 'Только администратор';
+    var ADMIN_DENIED_TEXT = 'Это действие доступно только администратору';
 
     // Пометка «ИИ»: материал создал ИИ-агент через MCP (сервер ставит origin
     // 'agent' при создании; копия, которую сделал человек, — уже не «ИИ»).
@@ -168,11 +263,11 @@
         incomplete: 'Черновик, которому чего-то не хватает для утверждения.',
         ready: 'Черновик заполнен полностью: его можно утвердить.',
         scheduled: 'Утверждено, время выхода ещё впереди.',
-        overdue: 'Утверждено, время выхода прошло, а выход не отмечен. Пока отправка не ' +
-            'подключена, отметьте выход вручную.',
+        overdue: 'Утверждено, время выхода прошло, а выход не отмечен: отправка в эту площадку не ' +
+            'подключена или выключена. Отметьте выход вручную или отправьте сейчас.',
         paused: 'Утверждено, но остановлено: не выйдет, пока паузу не снимут.',
-        published: 'Вышло (пока отмечается вручную).',
-        failed: 'Ошибка отправки. Можно повторить отправку.',
+        published: 'Вышло: отправлено автоматически или отмечено вручную.',
+        failed: 'Ошибка отправки: причина — в карточке размещения. Можно повторить отправку.',
         cancelled: 'Отменено: остаётся в плане для истории, можно вернуть.'
     };
 
@@ -189,7 +284,11 @@
     var ACTION_LABELS = {
         approve: 'Утвердить', pause: 'Пауза', resume: 'Снять паузу',
         unapprove: 'Снять утверждение', mark_published: 'Отметить вышедшим',
-        cancel: 'Отменить', restore: 'Вернуть', retry: 'Повторить отправку', delete: 'Удалить'
+        cancel: 'Отменить', restore: 'Вернуть', retry: 'Повторить отправку', delete: 'Удалить',
+        // Отправка (контракт 3.2 / 3.4): «Отправить сейчас» — у утверждённого, когда
+        // его площадка подключена; «Повторить неудавшимся» — у вышедшей рассылки,
+        // которая дошла не всем (только тем, кому не дошло).
+        send_now: 'Отправить сейчас', retry_failed: 'Повторить неудавшимся'
     };
 
     var X_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">' +
@@ -251,7 +350,23 @@
         briefDirty: {},          // ключ поля брифа -> несохранённое значение
         briefSaving: 0,
         briefSave: '',           // '' | 'dirty' | 'saving' | 'saved' | 'error'
-        briefError: ''
+        briefError: '',
+        // Каналы и отправка: {loading} | {error} | {data: ответ GET /channels,
+        // busy: {бар: 'check'|'test'}, tests: {бар: {at, link}}}.
+        chan: null,
+        chanDirty: {},           // ключ поля ('tg:<бар>', 'ig:chat', 'ig:min') -> набранное значение
+        chanErr: {},             // ключ поля -> почему не сохранено (ввод или ответ сервера)
+        chanSaving: 0,
+        chanSave: '',            // '' | 'dirty' | 'saving' | 'saved' | 'error'
+        chanError: '',
+        aud: {},                 // 'сегмент|бар' -> {loading, promise} | {size, note, total, at}
+        howOpen: {},             // ключ «Как считается» -> раскрыт (переживает перерисовку)
+        sendBusy: {},            // id размещения -> идёт «Отправить сейчас»
+        pollTimer: null,         // перечитать план, пока идёт отправка (SENDING_POLL_MS)
+        // Может ли пользователь выпускать публикации наружу (data-is-admin на body,
+        // см. ADMIN_ONLY_ACTIONS). По умолчанию true: без флага кнопки видны, а
+        // решает всё равно сервер (403 admin_required обрабатывается).
+        isAdmin: true
     };
 
     var el = {};
@@ -289,6 +404,16 @@
     function charLen(text) {
         return String(text || '').replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '_').length;
     }
+    // Длина для лимита площадки — как на сервере (core/content_plan.text_units): Telegram
+    // и бот считают в единицах UTF-16 (эмодзи = 2, это и есть .length строки JS),
+    // Instagram — в символах. Иначе счётчик показывал бы «влезает», а сервер не давал
+    // утвердить.
+    function unitsFor(channel) {
+        return channel === 'instagram' ? 'chars' : 'utf16';
+    }
+    function textLen(text, units) {
+        return units === 'utf16' ? String(text || '').length : charLen(text);
+    }
 
     // '9 окт' (без дня недели).
     function dayMon(iso) {
@@ -313,6 +438,23 @@
     }
     function mbText(bytes) {
         return bytes ? GH.fmtNum(bytes / MB, 0) + ' МБ' : '—';
+    }
+    function hasOwn(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
+
+    // «Как считается» — пояснение правила или расчёта, свёрнутое по умолчанию
+    // (решение владельца, .claude/CLAUDE.md): на экране — числа и выводы, текст
+    // пояснения целиком — в один клик, у своего блока. key — чтобы раскрытое
+    // осталось раскрытым после перерисовки карточки (S.howOpen, событие toggle).
+    // inner — готовая разметка (уже экранированная).
+    function howHtml(key, inner) {
+        return '<details class="gh-cp-how" data-how="' + esc(key) + '"' + (S.howOpen[key] ? ' open' : '') + '>' +
+            '<summary>Как считается</summary><div class="gh-cp-how-in">' + inner + '</div></details>';
+    }
+    // Список абзацев для «Как считается»: каждая строка экранируется.
+    function howList(lines) {
+        var html = '<ul>';
+        each(lines, function (line) { html += '<li>' + esc(line) + '</li>'; });
+        return html + '</ul>';
     }
 
     // ==================== справочники из ответа ====================
@@ -385,6 +527,306 @@
                 stateCls(key) + '"></span>' + esc(stateInfo(key).label) + '</span>';
         });
         return '<span class="gh-cp-legend" aria-label="Цвета состояний">' + html + '</span>';
+    }
+
+    // ==================== отправка: правила экрана ====================
+    // Отправляет сервер (core/content_publisher.py). Экран только показывает:
+    //   delivery месяца (core/content_channels.delivery_state): {enabled,
+    //     bot_configured, telegram: {<бар>: {connected, chat, title, reason}},
+    //     instagram: {connected, reminder_chat, reminder_minutes_before, reason},
+    //     bot: {connected, enabled, subscribers_total, reason}, error?};
+    //     connected считает сервер: главный выключатель включён, токен бота есть и
+    //     (Telegram) канал бара проверен / (Instagram) задан чат напоминаний /
+    //     (бот) включены рассылки гостям; reason — почему не подключено. Старый
+    //     ответ — только delivery_connected;
+    //   delivery размещения (delivery_view, без списков получателей): state
+    //     queued (в очереди: повтор, «Отправить сейчас» рассылки; retry_at) |
+    //     sending (started_at) | sent | partial (рассылка дошла не всем) | failed |
+    //     reminded | reminder_failed | reminder_late (Instagram), chat,
+    //     chat_username, message_ids, error, reminded_at, stats; post_url
+    //     размещения — ссылка на пост в публичном канале. Вышедшее ботом —
+    //     published_by 'бот'; ошибка — status failed и failed_error.
+
+    function deliveryOf(p) { return (p && p.delivery) || {}; }
+    function monthDelivery() { return (S.data && S.data.delivery) || null; }
+
+    // Вышло автоматически (а не отмечено человеком): подпись отправителя или
+    // следы отправки — номера сообщений, итог рассылки.
+    function isAutoPublished(p) {
+        if (!p || p.status !== 'published') return false;
+        var d = deliveryOf(p);
+        return p.published_by === AUTO_PUBLISHER || !!((d.message_ids && d.message_ids.length) || d.stats);
+    }
+
+    // Ссылка на пост: только у публичного канала (@имя) — https://t.me/<имя>/<номер>.
+    // У закрытого канала (-100…) общей ссылки на пост нет — пустая строка.
+    function postLink(chat, messageId) {
+        var c = String(chat || '').trim();
+        var id = parseInt(messageId, 10);
+        if (!CHAT_PUBLIC_RE.test(c) || !(id > 0)) return '';
+        return 'https://t.me/' + c.slice(1) + '/' + id;
+    }
+    // Ссылка на вышедший пост размещения: post_url сервера (он знает и имя
+    // закрытого по id канала, если Telegram его вернул), иначе — по chat.
+    function placementPostLink(p) {
+        if (p && p.post_url && /^https:\/\/t\.me\//.test(p.post_url)) return p.post_url;
+        var d = deliveryOf(p);
+        var chat = d.chat_username ? '@' + String(d.chat_username).replace(/^@/, '') : d.chat;
+        return postLink(chat, (d.message_ids || [])[0]);
+    }
+
+    // Размещение сейчас «в работе» у отправщика — те же правила, что in_flight в
+    // core/content_plan.py: отправляется (отметка моложе SENDING_STALE_MIN минут)
+    // или стоит в очереди (повтор, «Отправить сейчас» рассылки; retry_at моложе
+    // PUBLISH_GRACE_MIN). Зависшее и просроченное в работу не считается.
+    function minusMinutes(stamp, minutes) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(stamp || ''));
+        if (!m) return '';
+        var t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5] - minutes));
+        return t.getUTCFullYear() + '-' + pad2(t.getUTCMonth() + 1) + '-' + pad2(t.getUTCDate()) + 'T' +
+            pad2(t.getUTCHours()) + ':' + pad2(t.getUTCMinutes());
+    }
+    function nowStamp() { return (S.data && S.data.now) || GH.mskNow().datetime; }
+    function inFlight(p) {
+        var d = deliveryOf(p);
+        var now = nowStamp();
+        if (d.state === 'sending') {
+            var mark = String(d.heartbeat_at || '') > String(d.started_at || '') ? d.heartbeat_at : d.started_at;
+            return !!mark && String(mark).slice(0, 16) > minusMinutes(now, SENDING_STALE_MIN);
+        }
+        if (d.state === 'queued') {
+            return !!d.retry_at && String(d.retry_at).slice(0, 16) > minusMinutes(now, PUBLISH_GRACE_MIN);
+        }
+        return false;
+    }
+
+    // Адрес чата так, как его сохранит сервер (parse_chat): пробелы по краям
+    // срезаются; числовой id — как есть; ссылка t.me/<имя> (с https:// или без,
+    // также www., telegram.me и t.me/s/<имя>) и имя без @ становятся @<имя>.
+    // Неподходящее (пригласительная ссылка, лишние знаки) возвращается как
+    // набрано — его отклонит chatValid.
+    function normChat(value) {
+        var v = String(value === null || value === undefined ? '' : value).trim();
+        if (!v || CHAT_ID_RE.test(v)) return v;
+        var name = v;
+        var m = CHAT_TME_RE.exec(name);
+        if (m) name = m[1];
+        if (name.charAt(0) === '@') name = name.slice(1);
+        return CHAT_NAME_RE.test(name) ? '@' + name : v;
+    }
+    // Пусто (чат не задан) — можно; иначе @имя или числовой id.
+    function chatValid(value) {
+        return value === '' || CHAT_PUBLIC_RE.test(value) || CHAT_ID_RE.test(value);
+    }
+    // Почему адрес не подходит — текст для поля (как у сервера).
+    function chatWhy(raw) {
+        var m = CHAT_TME_RE.exec(String(raw || '').trim());
+        if (m && (m[1].charAt(0) === '+' || m[1].toLowerCase() === 'joinchat')) {
+            return 'Пригласительная ссылка не подходит — нужен @имя публичного канала или числовой id чата (-100…)';
+        }
+        return 'Адрес: ' + CHAT_HINT;
+    }
+
+    // Подключена ли площадка размещения сейчас (по delivery месяца, считает сервер).
+    function channelConnected(p) {
+        var d = monthDelivery();
+        if (!d || !d.enabled || !p) return false;
+        if (p.channel === 'telegram') return !!(d.telegram && d.telegram[p.bar] && d.telegram[p.bar].connected);
+        if (p.channel === 'instagram') return !!(d.instagram && d.instagram.connected);
+        if (p.channel === 'bot') return !!(d.bot && d.bot.connected);
+        return false;
+    }
+    // «Отправить сейчас»: утверждённое, площадка подключена, отправщик его ещё
+    // не взял (не в очереди). Размещение с отметкой «отправляется» кнопки не
+    // получает, даже если отметка зависла: статус неизвестен, и вторая отправка
+    // могла бы дать дубль — зависшую отправку сервер сам переводит в ошибку, а
+    // дальше решает человек («Повторить отправку»).
+    function canSendNow(p) {
+        return !!p && p.status === 'approved' && channelConnected(p) && !inFlight(p) &&
+            deliveryOf(p).state !== 'sending';
+    }
+    // Итог рассылки бота (delivery.stats сервера) или null: total — получателей в
+    // момент рассылки, sent — дошло, failed — не дошло (сбой, можно повторить),
+    // blocked — заблокировали бота (исключены), unsubscribed — отписались до
+    // отправки, unknown — статус неизвестен (отправка оборвалась).
+    function botStats(p) {
+        var st = deliveryOf(p).stats;
+        if (!st || typeof st.total !== 'number') return null;
+        return { total: st.total || 0, sent: st.sent || 0, failed: st.failed || 0, blocked: st.blocked || 0,
+                 unsubscribed: st.unsubscribed || 0, unknown: st.unknown || 0 };
+    }
+    // «Повторить неудавшимся»: вышедшая рассылка дошла не всем, и есть кому
+    // повторить (не дошло по сбою); повтор ещё не идёт. Заблокировавшим бота и
+    // отписавшимся повтор не поможет — их сервер исключает.
+    function canRetryFailed(p) {
+        if (!p || p.channel !== 'bot' || p.status !== 'published' || inFlight(p)) return false;
+        var st = botStats(p);
+        return !!st && st.sent < st.total && st.failed > 0;
+    }
+
+    // Состояние отправки для баннера над планом:
+    //   none  — отправка не подключена (выключена, и ничего не настроено);
+    //   off   — что-то настроено, но главный выключатель выключен владельцем;
+    //   idle  — выключатель включён, но нет токена бота или ни одна площадка не
+    //           подключена;
+    //   on    — включено: какие площадки уходят сами, какие — вручную;
+    //   error — файл настроек не читается (сервер: «ничего не подключено»).
+    // -> {mode, tone, html, action} (action — показать кнопку «Каналы и отправка»).
+    function deliveryState(data) {
+        if (!data) return null;
+        var d = data.delivery;
+        if (!d) {
+            // Старый ответ сервера: только delivery_connected.
+            var dc = data.delivery_connected || {};
+            var names = [];
+            each(CHANNEL_KEYS, function (k) { if (dc[k]) names.push(chName(k)); });
+            if (!names.length) return { mode: 'none', tone: 'accent', html: esc(DELIVERY_NONE_TEXT), action: true };
+            return { mode: 'on', tone: 'success', html: '<b>Отправка подключена:</b> ' + esc(names.join(', ')) + '.',
+                     action: false };
+        }
+        if (d.error) {
+            // Файл настроек каналов не читается: сервер считает «ничего не подключено».
+            return { mode: 'error', tone: 'danger', action: true,
+                     html: '<b>Настройки отправки недоступны.</b> ' + esc(d.error + '. Ничего не уходит само — ' +
+                        'отмечайте выход вручную и сообщите администратору.') };
+        }
+        var tg = d.telegram || {};
+        var tgOn = [];
+        var tgOff = [];
+        var configured = false;
+        each(GH.BARS, function (b) {
+            var x = tg[b.key] || {};
+            if (x.chat) configured = true;
+            (x.connected ? tgOn : tgOff).push(b.short);
+        });
+        var ig = !!(d.instagram && d.instagram.connected);
+        var bot = !!(d.bot && d.bot.connected);
+        if (d.instagram && d.instagram.reminder_chat) configured = true;
+        if (d.bot && d.bot.enabled) configured = true;
+        if (!d.enabled) {
+            if (!configured) return { mode: 'none', tone: 'accent', html: esc(DELIVERY_NONE_TEXT), action: true };
+            return { mode: 'off', tone: 'warning', action: true,
+                     html: '<b>Автоматическая отправка выключена.</b> ' + esc('Каналы настроены, но утверждённые ' +
+                        'публикации сами не уходят. Когда публикация вышла, отметьте её вручную.') };
+        }
+        if (d.bot_configured === false) {
+            return { mode: 'idle', tone: 'warning', action: true,
+                     html: '<b>Отправка включена, но бот не настроен.</b> ' + esc('На сервере нет токена бота — ' +
+                        'ничего не уходит. Пока публикации отмечайте вручную.') };
+        }
+        if (!tgOn.length && !ig && !bot) {
+            return { mode: 'idle', tone: 'warning', action: true,
+                     html: '<b>Отправка включена, но ни одна площадка не подключена.</b> ' + esc('Нужен проверенный ' +
+                        'канал бара, чат для напоминаний Instagram или включённые рассылки гостям. Пока публикации ' +
+                        'отмечайте вручную.') };
+        }
+        var auto = [];
+        var manual = [];
+        if (tgOn.length) auto.push('Telegram — ' + (tgOff.length ? tgOn.join(', ') : 'все бары'));
+        if (tgOff.length) manual.push('Telegram — ' + tgOff.join(', '));
+        if (ig) auto.push('Instagram — напоминание в чат');
+        else manual.push('Instagram');
+        var subs = d.bot && typeof d.bot.subscribers_total === 'number' ? d.bot.subscribers_total : null;
+        if (bot) {
+            auto.push('рассылки гостям' + (subs === null ? '' : ' (' + nText(subs, 'подписчик', 'подписчика',
+                'подписчиков') + ')'));
+        } else {
+            manual.push('рассылки гостям');
+        }
+        return { mode: 'on', tone: 'success', action: false,
+                 html: '<b>Отправка включена.</b> ' + esc('Сами уходят: ' + auto.join('; ') + '.' +
+                    (manual.length ? ' Вручную: ' + manual.join('; ') + '.' : '')) };
+    }
+
+    function renderDelivery() {
+        var st = deliveryState(S.data);
+        el.delivery.hidden = !st;
+        if (!st) return;
+        each(GH.TONES, function (t) { el.delivery.classList.remove('gh-tone-' + t); });
+        el.delivery.classList.add(GH.toneClass(st.tone));
+        el.delivery.setAttribute('data-mode', st.mode);
+        el.deliveryText.innerHTML = st.html;
+        el.deliveryBtn.hidden = !st.action;
+    }
+
+    // ----- размер аудитории рассылки -----
+    // Порядок: размер в самом размещении (audience_info.size — сервер считает его
+    // по сегменту и бару размещения) -> размер сегмента в ответе месяца
+    // (audiences[].size для охвата «Вся сеть», size_by_bar — для аудитории «по
+    // бару») -> GET /audience?segment=&bar= (один запрос на пару за
+    // AUDIENCE_TTL_MS). -> null | {loading} | {size (число или null), note, total}.
+    function audienceSize(seg, bar, info) {
+        if (info && typeof info.size === 'number') return { size: info.size, note: info.size_note || '' };
+        if (!seg) return null;
+        var place = bar || 'all';
+        var key = seg + '|' + place;
+        var got = S.aud[key];
+        if (got && (got.loading || Date.now() - got.at < AUDIENCE_TTL_MS)) return got;
+        var a = findIn(audiences(), seg);
+        if (a && place === 'all' && typeof a.size === 'number') return { size: a.size, note: a.size_note || '' };
+        if (a && place !== 'all' && a.size_by_bar && typeof a.size_by_bar[place] === 'number') {
+            return { size: a.size_by_bar[place], note: a.size_note || '' };
+        }
+        loadAudience(seg, place, key);
+        return S.aud[key];
+    }
+    function loadAudience(seg, bar, key) {
+        var entry = { loading: true };
+        entry.promise = GH.api('GET', API + '/audience?segment=' + enc(seg) + '&bar=' + enc(bar)).then(function (res) {
+            res = res || {};
+            S.aud[key] = { size: typeof res.size === 'number' ? res.size : null, note: res.size_note || '',
+                           total: typeof res.subscribers_total === 'number' ? res.subscribers_total : null,
+                           at: Date.now() };
+            afterAudience();
+            return S.aud[key];
+        }, function (err) {
+            S.aud[key] = { size: null, note: 'Размер не получен: ' + err.message, total: null, at: Date.now() };
+            afterAudience();
+            return S.aud[key];
+        });
+        S.aud[key] = entry;
+        return entry.promise;
+    }
+    // Размер пришёл — перерисовать то, где он показан (без запросов плана).
+    function afterAudience() {
+        if (S.approve && S.approve.data) renderApprove();
+        if (current() && drawerOpen()) renderDrawer();
+        if (S.chan && S.chan.data) renderChannels();
+    }
+    // -> Promise<{size, note}>: для подтверждения рассылки ждём число, если его ещё нет.
+    function audienceReady(seg, bar, info) {
+        var got = audienceSize(seg, bar, info);
+        if (got && got.loading && got.promise) return got.promise;
+        return Promise.resolve(got);
+    }
+    // '124 подписчика' / 'считаю…' / 'неизвестно'.
+    function sizeText(got) {
+        if (!got) return SIZE_UNKNOWN;
+        if (got.loading) return 'считаю…';
+        if (typeof got.size !== 'number') return SIZE_UNKNOWN;
+        return nText(got.size, 'подписчик', 'подписчика', 'подписчиков');
+    }
+
+    // ----- пока идёт отправка, план перечитывается сам -----
+    // Перечитывать есть смысл, только если итог может измениться: идёт отправка
+    // или очередь на подключённой площадке (без подключения отправщик её не
+    // возьмёт — очередь просто истечёт через PUBLISH_GRACE_MIN).
+    function anySending() {
+        var yes = false;
+        each(materials(), function (m) {
+            each(m.placements, function (p) {
+                if (!inFlight(p)) return;
+                if (deliveryOf(p).state === 'sending' || channelConnected(p)) yes = true;
+            });
+        });
+        return yes;
+    }
+    function pollSending() {
+        if (S.pollTimer || !anySending()) return;
+        S.pollTimer = setTimeout(function () {
+            S.pollTimer = null;
+            if (anySending()) load();
+        }, SENDING_POLL_MS);
     }
 
     // ==================== фильтры ====================
@@ -489,6 +931,7 @@
             pruneSelection();
             renderAll();
             afterLoad();
+            pollSending();
             return true;
         }, function (err) {
             if (my !== S.seq) return false;
@@ -588,10 +1031,44 @@
     }
 
     function reportError(err) {
+        if (isAdminDenied(err)) { adminDenied(err); return; }
         var message = (err && err.message) || 'Ошибка запроса';
         if (err && err.status === 503) showErr('Хранилище плана недоступно: ' + message +
             '. Файл не перезаписывается — сообщите администратору.');
         GH.toast(message, 'danger');
+    }
+
+    // ----- права (ADMIN_ONLY_ACTIONS) -----
+    function adminOnly(action) { return ADMIN_ONLY_ACTIONS.indexOf(action) >= 0; }
+    // 403 сервера «только администратор» (GH.api кладёт code из тела ответа).
+    function isAdminDenied(err) { return !!err && err.status === 403 && err.code === 'admin_required'; }
+    // Флаг страницы устарел (права сняли, пока страница открыта): кнопки
+    // выключаются, план перечитывается, человек видит, почему не вышло.
+    function adminDenied(err) {
+        S.isAdmin = false;
+        GH.toast((err && err.message) || ADMIN_DENIED_TEXT, 'warning');
+        applyAdmin();
+        reload();
+    }
+    // Нажатие на выключенную «только администратор» кнопку (на телефоне
+    // подсказки по наведению нет — объясняем тостом).
+    function adminBlocked() {
+        if (S.isAdmin) return false;
+        GH.toast(ADMIN_DENIED_TEXT, 'muted');
+        return true;
+    }
+    // Атрибуты «только администратор» для кнопки: aria-disabled (а не disabled —
+    // у выключенной кнопки нет наведения, и подсказка не показалась бы) и data-admin
+    // (нажатие объясняется тостом, adminBlocked).
+    function adminAttrs() {
+        return S.isAdmin ? '' : ' aria-disabled="true" data-admin="1"' + tip(ADMIN_TIP);
+    }
+    // Перерисовать всё, что зависит от прав (после смены флага).
+    function applyAdmin() {
+        if (!el.monthLabel) return;       // страница ещё не собрана (проверки в vm)
+        renderChrome();
+        if (current() && drawerOpen()) renderDrawer();
+        if (S.chan && S.chan.data) renderChannels();
     }
 
     // Изменение данных: запрос -> перечитать месяц -> перерисовать.
@@ -606,8 +1083,9 @@
             return reload({ material: res && res.material }).then(function () { return res || {}; });
         }, function (err) {
             reportError(err);
+            // 403 «только администратор» перечитывает план сам (adminDenied).
             if (err.status === 404 || err.status === 409) reload();
-            else if (current()) renderDrawer();
+            else if (current() && !isAdminDenied(err)) renderDrawer();
             return null;
         });
     }
@@ -647,6 +1125,8 @@
         renderView();
         renderBulk();
         if (S.openId && findMaterial(S.openId)) renderDrawer();
+        // «Каналы и отправка» показывает, что подключено, по delivery месяца.
+        if (S.chan && S.chan.data) renderChannels();
         if (Math.abs(window.pageYOffset - y) > 1) window.scrollTo(0, y);
     }
 
@@ -660,13 +1140,19 @@
         el.copyBtn.disabled = !!S.scope;
         el.approveBtn.title = scopeTip;
         el.copyBtn.title = scopeTip;
+        // Утверждает только администратор (ADMIN_ONLY_ACTIONS): кнопка выключена
+        // через aria-disabled — подсказка по наведению остаётся, нажатие объясняет тост.
+        if (S.isAdmin) {
+            el.approveBtn.removeAttribute('aria-disabled');
+            el.approveBtn.removeAttribute('data-tip');
+        } else {
+            el.approveBtn.setAttribute('aria-disabled', 'true');
+            el.approveBtn.setAttribute('data-tip', ADMIN_TIP + ': утверждает публикации администратор');
+        }
         el.barLabel.textContent = S.bar ? GH.barName(S.bar) : 'Все бары';
         el.chLabel.textContent = S.channel ? chName(S.channel) : 'Все площадки';
         GH.setSeg(el.viewSeg, S.view);
-        var dc = S.data && S.data.delivery_connected;
-        var anyConnected = false;
-        if (dc) for (var k in dc) if (Object.prototype.hasOwnProperty.call(dc, k) && dc[k]) anyConnected = true;
-        el.delivery.hidden = !dc || anyConnected;
+        renderDelivery();
     }
 
     function sumItem(stateKey, label, n, text, cls) {
@@ -937,6 +1423,10 @@
         var when = p.date ? GH.fmtDate(p.date) + (p.time ? ', ' + p.time : ', без времени') : 'без даты';
         var lines = [chName(p.channel) + ' · ' + GH.barName(p.bar) + ' · ' + when, p.display_label];
         if (p.audience_info) lines.push('Аудитория: ' + p.audience_info.name);
+        // Как ушло (отправка): «отправляется» и «в очереди» уже в подписи сервера
+        // (display_label); здесь — ушло само и текст ошибки.
+        if (isAutoPublished(p)) lines.push('Вышло автоматически' + (p.published_at ? ' ' + GH.fmtDateTime(p.published_at) : ''));
+        if (p.status === 'failed' && p.failed_error) lines.push('Ошибка: ' + p.failed_error);
         return lines.join('\n');
     }
 
@@ -1480,11 +1970,14 @@
         for (var k in savers) if (Object.prototype.hasOwnProperty.call(savers, k) && savers[k].pending()) return true;
         return false;
     }
-    // Сохранить всё несохранённое сразу: тексты (отложенное автосохранение) и
-    // набранную с клавиатуры дату/время (если значение целое). Вызывается при
-    // закрытии карточки, смене месяца, открытии диалогов и уходе со страницы.
+    // Сохранить всё несохранённое сразу: тексты (отложенное автосохранение),
+    // набранную с клавиатуры дату/время (если значение целое) и поля «Каналы и
+    // отправка». Вызывается при закрытии карточки, смене месяца, открытии
+    // диалогов и уходе со страницы. Поля каналов не сохраняются при скрытии
+    // вкладки (flushSavers): недописанный адрес канала сбросил бы его проверку.
     function flushAll() {
         dtFlushAll();
+        flushChannels();
         return flushSavers();
     }
     // Только отложенные тексты: карточки материала и брифа для агента.
@@ -1865,7 +2358,8 @@
             var lim = hasMedia ? ch.caption_limit : ch.text_limit;
             if (!lim) return;
             if (!best || lim < best.limit) {
-                best = { limit: lim, why: ch.name + (hasMedia && ch.caption_limit !== ch.text_limit ? ', с фото' : '') };
+                best = { limit: lim, units: unitsFor(p.channel),
+                         why: ch.name + (hasMedia && ch.caption_limit !== ch.text_limit ? ', с фото' : '') };
             }
         });
         return best;
@@ -1877,25 +2371,27 @@
                 ? ch.text_limit + ' без фото, ' + ch.caption_limit + ' с фото (подпись)'
                 : ch.text_limit));
         });
-        return 'Лимиты площадок, знаков: ' + parts.join('; ') + '. Длина считается в символах. ' +
+        return 'Лимиты площадок, знаков: ' + parts.join('; ') + '. Telegram и бот считают эмодзи за 2 знака, ' +
+            'Instagram — за 1. ' +
             'Текст длиннее лимита не даст утвердить размещение.';
     }
-    function counterHtml(key, text, limit, why) {
-        var n = charLen(text);
+    function counterHtml(key, text, limit, why, units) {
         if (!limit) {
             return '<span class="gh-counter" data-counter="' + esc(key) + '"' + tip(limitsTip()) + '>' +
-                nText(n, 'знак', 'знака', 'знаков') + '</span>';
+                nText(charLen(text), 'знак', 'знака', 'знаков') + '</span>';
         }
+        units = units || 'utf16';
+        var n = textLen(text, units);
         return '<span class="gh-counter' + (n > limit ? ' is-over' : '') + '" data-counter="' + esc(key) +
-            '" data-limit="' + limit + '"' + tip('Лимит ' + limit + ' — ' + why + '. ' + limitsTip()) + '>' +
-            n + ' / ' + limit + '</span>';
+            '" data-limit="' + limit + '" data-units="' + units + '"' +
+            tip('Лимит ' + limit + ' — ' + why + '. ' + limitsTip()) + '>' + n + ' / ' + limit + '</span>';
     }
     function updateCounter(input) {
         var key = input.getAttribute('data-save-key');
         var node = key ? el.drawer.querySelector('[data-counter="' + key + '"]') : null;
         if (!node) return;
-        var n = charLen(input.value);
         var limit = Number(node.getAttribute('data-limit')) || 0;
+        var n = limit ? textLen(input.value, node.getAttribute('data-units') || 'chars') : charLen(input.value);
         node.textContent = limit ? n + ' / ' + limit : nText(n, 'знак', 'знака', 'знаков');
         node.classList.toggle('is-over', !!limit && n > limit);
     }
@@ -1912,7 +2408,7 @@
                 'с подставленным таплистом видна в проверке на текущих данных (предел без площадки — 4096 ' +
                 'знаков, сообщение Telegram) и в предпросмотре каждого размещения — там предел своей ' +
                 'площадки. ' + limitsTip()) + '>' + nText(charLen(text), 'знак', 'знака', 'знаков') + ' в шаблоне</span>'
-            : counterHtml(key, text, lim && lim.limit, lim && lim.why);
+            : counterHtml(key, text, lim && lim.limit, lim && lim.why, lim && lim.units);
         html += field(live ? 'Шаблон' : 'Общий текст',
             '<textarea class="gh-textarea gh-cp-text" rows="8" data-fk="base_text" data-save-key="' + esc(key) + '" ' +
                 'aria-label="' + (live ? 'Шаблон' : 'Общий текст') + '" placeholder="' +
@@ -2125,18 +2621,61 @@
         });
         return html;
     }
-    function audienceNote(key) {
-        var a = findIn(audiences(), key);
-        var note = a && a.size_note ? a.size_note : 'Бот не подключён: размер аудитории появится после интеграции';
-        var bar = a && a.needs_bar ? ' Для этой аудитории нужен конкретный бар.' : '';
-        return '<div class="gh-field-hint">Размер: ' + (a && a.size !== null && a.size !== undefined ?
-            esc(GH.fmtNum(a.size, 0)) : 'неизвестно') + '. ' + esc(note) + '.' + esc(bar) + '</div>';
+    // Размер аудитории под выбором сегмента (редактор размещения и форма
+    // добавления): число подписчиков — на виду, как оно посчитано (size_note
+    // сервера) — под «Как считается». howKey — ключ раскрывашки.
+    function audienceNote(seg, bar, info, howKey) {
+        if (!seg) return '<div class="gh-field-hint">Выберите аудиторию — здесь появится её размер.</div>';
+        var a = findIn(audiences(), seg);
+        if (a && a.needs_bar && (!bar || bar === 'all')) {
+            return '<div class="gh-field-hint">Размер: выберите бар — эта аудитория считается по бару.</div>';
+        }
+        var got = audienceSize(seg, bar, info);
+        var html = '<div class="gh-field-hint">Размер: <b class="gh-cp-audn">' + esc(sizeText(got)) + '</b></div>';
+        var note = (got && got.note) || (a && a.size_note) || '';
+        if (note) html += howHtml(howKey, '<p>' + esc(note) + '</p>');
+        return html;
     }
 
+    // Действия размещения: переходы статуса (ACTIONS_BY_STATUS) и отправка —
+    // «Отправить сейчас» у утверждённого с подключённой площадкой, «Повторить
+    // неудавшимся» у рассылки, дошедшей не всем.
+    function actionList(p) {
+        // Пока размещение отправляется, сервер его не меняет (409 «Публикация
+        // сейчас отправляется») — действий нет, итог появится сам. Исключение —
+        // идущая рассылка бота: пауза и отмена останавливают её после текущей
+        // пачки (получившим сообщение оно остаётся), поэтому они остаются.
+        if (isSendingNow(p)) {
+            if (p.channel !== 'bot') return [];
+            return (ACTIONS_BY_STATUS[p.status] || []).filter(function (a) { return a === 'pause' || a === 'cancel'; });
+        }
+        var list = (ACTIONS_BY_STATUS[p.status] || []).slice();
+        if (canSendNow(p)) list.unshift('send_now');
+        if (canRetryFailed(p)) list.push('retry_failed');
+        return list;
+    }
+    // Остановка идущей рассылки (пауза или отмена во время отправки).
+    var MAILING_STOP_TEXT = 'Рассылка остановится после текущей пачки; кому уже ушло — останется.';
+    // Идёт отправка (отметка «отправляется» свежая) — как _guard_not_sending сервера.
+    function isSendingNow(p) { return deliveryOf(p).state === 'sending' && inFlight(p); }
+    // Архив для ручной публикации в Instagram (GET …/materials/<id>/download):
+    // подписи по размещениям и файлы материала.
+    function downloadUrl(m) { return API + '/materials/' + enc(m.id) + '/download'; }
+    var DOWNLOAD_TIP = 'Архив для публикации с телефона: подпись каждого размещения отдельным файлом и все фото и ' +
+        'видео материала. Instagram выкладывается вручную: после публикации отметьте выход.';
+
     function actionButtons(m, p) {
-        var list = ACTIONS_BY_STATUS[p.status] || [];
+        var list = actionList(p);
         var html = '';
-        each(list, function (a) {
+        // Instagram выкладывают руками: архив — рядом с «Напомнить сейчас», до
+        // переходов статуса.
+        var download = p.channel === 'instagram' && !isSendingNow(p) &&
+            (p.status === 'approved' || p.status === 'paused' || p.status === 'failed')
+            ? '<a class="gh-btn gh-btn-sm" href="' + esc(downloadUrl(m)) + '" download' + tip(DOWNLOAD_TIP) + '>' +
+                'Скачать для Instagram</a>'
+            : '';
+        if (download && list[0] !== 'send_now') html += download;
+        each(list, function (a, i) {
             var cls = 'gh-btn gh-btn-sm';
             var extra = '';
             if (a === 'approve') {
@@ -2144,24 +2683,43 @@
                 if (!p.ready) {
                     extra = ' disabled';
                 }
+            } else if (a === 'send_now') {
+                cls += ' gh-btn-primary gh-btn-outline';
+                if (S.sendBusy[p.id]) extra = ' disabled';
             } else if (a === 'delete') {
                 cls += ' gh-btn-ghost gh-cp-del';
             } else if (a === 'cancel') {
                 cls += ' gh-btn-ghost';
             }
+            var label = esc(ACTION_LABELS[a]);
+            // Instagram выкладывает человек: «сейчас» уходит напоминание в чат.
+            if (a === 'send_now' && p.channel === 'instagram') label = 'Напомнить сейчас';
+            if (a === 'send_now' && S.sendBusy[p.id]) label = '<span class="gh-spin"></span>Ставлю в очередь…';
+            // Что выпускает публикацию наружу — только администратор (ADMIN_ONLY_ACTIONS).
+            if (adminOnly(a)) extra += adminAttrs();
             html += '<button type="button" class="' + cls + '" data-act="pl-' + a + '" data-pid="' + esc(p.id) + '"' +
-                extra + '>' + esc(ACTION_LABELS[a]) + '</button>';
+                extra + '>' + label + '</button>';
+            if (i === 0 && a === 'send_now') html += download;
         });
-        if (!html) return '';
         var hint = '';
         if (p.status === 'draft' && !p.ready) hint = '<span class="gh-cp-acthint">Утвердить можно, когда всё заполнено</span>';
+        if (isSendingNow(p)) {
+            hint = '<span class="gh-cp-acthint">' + (p.channel === 'bot' && html
+                ? 'Идёт рассылка: пауза или отмена остановят её после текущей пачки'
+                : 'Пока идёт отправка, размещение не меняется: итог появится здесь сам') + '</span>';
+        }
+        if (!html && !hint) return '';
         return '<div class="gh-cp-pl-acts">' + html + hint + '</div>';
     }
 
     function placementMeta(m, p) {
         var parts = [];
         if (p.channel === 'bot') {
-            parts.push('Аудитория: ' + (p.audience_info ? p.audience_info.name + ' · размер: ' + SIZE_UNKNOWN : 'не выбрана'));
+            // Размер аудитории «на сейчас» — только пока рассылка не ушла: у ушедшей
+            // сколько получили — в строке отправки (delivery.stats).
+            var sized = p.status === 'draft' || p.status === 'approved' || p.status === 'paused';
+            parts.push('Аудитория: ' + (p.audience_info ? p.audience_info.name + (sized ? ' · размер: ' +
+                sizeText(audienceSize(p.audience_info.segment, p.bar, p.audience_info)) : '') : 'не выбрана'));
         }
         if (p.text !== null && p.text !== undefined) parts.push('своя версия текста');
         if (p.media !== null && p.media !== undefined) {
@@ -2170,12 +2728,93 @@
         if ((p.status === 'approved' || p.status === 'paused') && p.approved_at) {
             parts.push('утверждено ' + GH.fmtDateTime(p.approved_at) + (p.approved_by ? ', ' + p.approved_by : ''));
         }
-        if (p.status === 'published' && p.published_at) {
+        // Вышедшее автоматически описывает строка отправки (deliveryHtml); здесь —
+        // только отметка человека. Ошибка отправки — тоже там, крупно.
+        if (p.status === 'published' && p.published_at && !isAutoPublished(p)) {
             parts.push('вышло ' + GH.fmtDateTime(p.published_at) + (p.published_by ? ', отметил ' + p.published_by : ''));
         }
-        if (p.status === 'failed' && p.failed_error) parts.push('ошибка: ' + p.failed_error);
         if (!parts.length) return '';
         return '<div class="gh-cp-pl-meta">' + esc(parts.join(' · ')) + '</div>';
+    }
+
+    // Как размещение уходит или ушло (строка под заголовком размещения). Короткая
+    // подпись состояния — на бейдже (display_label сервера); здесь — подробности:
+    //   в очереди / отправляется — с какого времени (итог появится сам: pollSending);
+    //   ошибка — текст сервера целиком;
+    //   вышло автоматически — время и ссылка на пост (публичный канал); у
+    //     рассылки — получили, не дошло, заблокировали бота, отписались;
+    //   Instagram, утверждено — напоминание ушло / не ушло / придёт / не настроено.
+    function deliveryHtml(m, p) {
+        var d = deliveryOf(p);
+        if ((p.status === 'approved' || p.status === 'published') && inFlight(p)) {
+            var queued = d.state === 'queued';
+            var repeat = p.status === 'published';      // повтор рассылки неудавшимся
+            var text = queued ? (repeat ? 'Повтор неудавшимся в очереди' : 'В очереди на отправку')
+                : (repeat ? 'Повтор неудавшимся идёт' : 'Отправляется');
+            // Очередь ждёт подключённую площадку: без неё отправщик размещение не возьмёт.
+            if (queued) text += channelConnected(p) ? ': уйдёт в течение минуты'
+                : ', но площадка не подключена — не уйдёт, пока её не подключат в «Каналы и отправка»';
+            else if (d.started_at) text += ' с ' + GH.fmtDateTime(d.started_at);
+            return '<div class="gh-cp-deliv is-sending"' + tip(queued
+                ? 'Размещение в очереди отправки: сервер отправит его в ближайшую минуту, даже если время выхода ' +
+                    'прошло.'
+                : 'Сервер отправляет размещение. Если отправка «висит» дольше ' + SENDING_STALE_MIN + ' минут, ' +
+                    'второй раз она не уйдёт (чтобы не было дубля): размещение станет ошибкой «статус отправки ' +
+                    'неизвестен» — проверьте канал.') + '>' +
+                '<span class="gh-spin"></span><span>' + esc(text) + '</span></div>';
+        }
+        if (p.status === 'failed') {
+            return '<div class="gh-cp-deliv is-bad"><b>Ошибка отправки:</b> ' +
+                esc(p.failed_error || d.error || 'причина не сохранена') + '</div>';
+        }
+        if (isAutoPublished(p)) {
+            var when = p.published_at ? ' ' + GH.fmtDateTime(p.published_at) : '';
+            if (p.channel === 'bot') {
+                var st = botStats(p);
+                if (!st) return '<div class="gh-cp-deliv is-ok"><span>Рассылка ушла' + esc(when) + '</span></div>';
+                var parts = [st.sent === st.total ? 'дошло всем: ' + st.total : 'дошло ' + st.sent + ' из ' + st.total];
+                if (st.failed) parts.push('не дошло: ' + st.failed);
+                if (st.blocked) parts.push('заблокировали бота: ' + st.blocked);
+                if (st.unsubscribed) parts.push('отписались: ' + st.unsubscribed);
+                if (st.unknown) parts.push('статус неизвестен: ' + st.unknown);
+                return '<div class="gh-cp-deliv ' + (st.sent < st.total ? 'is-warn' : 'is-ok') + '"' +
+                    tip('Итог рассылки: сколько подписчиков было в аудитории в момент отправки и скольким сообщение ' +
+                        'дошло. Кто заблокировал бота или отписался, исключается из рассылок. «Повторить ' +
+                        'неудавшимся» шлёт только тем, кому не дошло из-за сбоя: тем, кому дошло, повторно не ' +
+                        'отправляется.') + '>' +
+                    '<span>Рассылка ушла' + esc(when) + ': ' + esc(parts.join(' · ')) + '</span>' +
+                    // Первая причина сбоя («Не дошло 3: …») — чтобы решить, повторять ли.
+                    (st.failed && d.error ? '<span class="gh-cp-deliv-s">' + esc(d.error) + '</span>' : '') + '</div>';
+            }
+            var link = placementPostLink(p);
+            var chat = d.chat || '';
+            return '<div class="gh-cp-deliv is-ok"><span>Вышло автоматически' + esc(when) + '</span>' +
+                (link ? '<a class="gh-link" href="' + esc(link) + '" target="_blank" rel="noopener noreferrer">пост в канале</a>'
+                    : (chat ? '<span class="gh-cp-deliv-s"' + tip('Ссылку на пост можно дать только для публичного ' +
+                        'канала (@имя). У закрытого канала пост открывается в самом Telegram.') + '>закрытый канал: ' +
+                        'ссылки на пост нет</span>' : '')) + '</div>';
+        }
+        if (p.channel === 'instagram' && (p.status === 'approved' || p.status === 'paused')) {
+            if (d.state === 'reminded' || d.reminded_at) {
+                return '<div class="gh-cp-deliv is-ok"><span>Напоминание отправлено' +
+                    (d.reminded_at ? ' ' + esc(GH.fmtDateTime(d.reminded_at)) : '') +
+                    ': выложите пост и отметьте выход</span></div>';
+            }
+            if (d.state === 'reminder_failed' || d.state === 'reminder_late') {
+                // Что случилось — на бейдже (подпись сервера); здесь — что делать.
+                return '<div class="gh-cp-deliv is-warn"><span>' + esc(d.state === 'reminder_late'
+                    ? 'Напоминание не ушло вовремя: выложите пост по плану сами и отметьте выход.'
+                    : 'Напоминание не ушло: выложите пост по плану сами и отметьте выход или повторите кнопкой ' +
+                        '«Напомнить сейчас».') + '</span></div>';
+            }
+            var ig = (monthDelivery() || {}).instagram || {};
+            var before = typeof ig.reminder_minutes_before === 'number' ? ig.reminder_minutes_before : 0;
+            return '<div class="gh-cp-deliv"><span>' + esc(channelConnected(p)
+                ? 'Напоминание с подписью и файлами придёт в чат ' + (before
+                    ? 'за ' + nText(before, 'минуту', 'минуты', 'минут') + ' до выхода' : 'во время выхода')
+                : 'Напоминания не настроены: выложите пост по плану сами и отметьте выход') + '</span></div>';
+        }
+        return '';
     }
 
     function editorHtml(m, p) {
@@ -2197,7 +2836,8 @@
             var seg = p.audience && p.audience.segment ? p.audience.segment : '';
             html += field('Аудитория рассылки', '<select class="gh-select" data-pf="audience" data-pid="' + esc(p.id) +
                 '" data-fk="pa:' + esc(p.id) + '" aria-label="Аудитория рассылки">' +
-                audienceOptions(seg, 'Выберите аудиторию') + '</select>' + audienceNote(seg));
+                audienceOptions(seg, 'Выберите аудиторию') + '</select>' +
+                audienceNote(seg, p.bar, p.audience_info, 'aud:' + p.id));
         }
         var own = p.text !== null && p.text !== undefined;
         html += '<label class="gh-cb gh-cp-own"><input type="checkbox" data-pf="own" data-pid="' + esc(p.id) + '"' +
@@ -2213,7 +2853,7 @@
             html += '<textarea class="gh-textarea gh-cp-owntext" rows="6" data-fk="pt:' + esc(p.id) +
                 '" data-save-key="' + esc(key) + '" aria-label="Своя версия текста">' + esc(text) + '</textarea>' +
                 '<div class="gh-cp-textfoot"><span class="gh-save" data-save></span>' +
-                counterHtml(key, text, limit, why) + '</div>';
+                counterHtml(key, text, limit, why, unitsFor(p.channel)) + '</div>';
         } else {
             html += '<div class="gh-field-hint">Используется общий текст материала.</div>';
         }
@@ -2255,7 +2895,8 @@
 
     function placementHtml(m, p) {
         var open = !!S.expanded[p.id];
-        var editable = p.status !== 'published' && p.status !== 'cancelled';
+        // Пока идёт отправка, сервер правку не примет (409) — редактор не открывается.
+        var editable = p.status !== 'published' && p.status !== 'cancelled' && !isSendingNow(p);
         var cls = 'gh-cp-pl' + (open && editable ? ' is-open' : '') + (S.focusPid === p.id ? ' is-focus' : '') +
             (p.status === 'cancelled' ? ' is-cancel' : '');
         var html = '<div class="' + cls + '" data-pl="' + esc(p.id) + '">' +
@@ -2277,6 +2918,7 @@
             html += '<div class="gh-cp-pl-miss">Не хватает: ' + esc(miss.join(', ')) + '</div>';
         }
         html += placementMeta(m, p);
+        html += deliveryHtml(m, p);
         html += sentHtml(m, p);
         html += actionButtons(m, p);
         if (open && editable) html += editorHtml(m, p);
@@ -2327,7 +2969,7 @@
         if (f.channel === 'bot') {
             html += field('Аудитория рассылки', '<select class="gh-select" data-add="audience" data-fk="add_aud" ' +
                 'aria-label="Аудитория рассылки">' + audienceOptions(f.audience, 'Выберите аудиторию') + '</select>' +
-                audienceNote(f.audience));
+                audienceNote(f.audience, f.bar, null, 'aud:add'));
             valid = !!f.audience;
         }
         html += '<div class="gh-form-row">' +
@@ -2437,7 +3079,7 @@
             }
         } else {
             text = p.effective_text || '';
-            length = charLen(text);
+            length = textLen(text, unitsFor(p.channel));
             limit = files.length ? ch.caption_limit : ch.text_limit;
         }
         var body;
@@ -2671,6 +3313,7 @@
     }
 
     function approveOne(m, p) {
+        if (adminBlocked()) return;
         var send = function (confirmBot) {
             GH.api('POST', API + '/approve', { placement_ids: [p.id], confirm_bot: !!confirmBot }).then(function (res) {
                 var skipped = (res && res.skipped) || [];
@@ -2683,23 +3326,94 @@
             }, function (err) { reportError(err); reload(); });
         };
         if (p.channel !== 'bot') { send(false); return; }
-        GH.confirm({
-            title: 'Утвердить рассылку через бота?',
-            text: 'Аудитория: ' + (p.audience_info ? p.audience_info.name : 'не выбрана') + '.\nРазмер: ' + SIZE_UNKNOWN +
-                '.\nПроверьте аудиторию: разосланное сообщение не отзовёшь.',
-            ok: 'Утвердить рассылку'
+        // Размер аудитории — реальный (сервер: подписчики бота); если его ещё
+        // нет в ответе, подтверждение ждёт один запрос /audience.
+        var info = p.audience_info;
+        audienceReady(info && info.segment, p.bar, info).then(function (got) {
+            return GH.confirm({
+                title: 'Утвердить рассылку через бота?',
+                text: 'Аудитория: ' + (info ? info.name : 'не выбрана') + '.\nРазмер: ' + sizeText(got) +
+                    '.\nПроверьте аудиторию: разосланное сообщение не отзовёшь.',
+                ok: 'Утвердить рассылку'
+            });
         }).then(function (ok) { if (ok) send(true); });
     }
 
+    // «Отправить сейчас»: утверждённое размещение встаёт в очередь отправки
+    // (POST /publish-now -> {queued: true, placement}) и уходит в течение минуты:
+    // его отправляет тот же планировщик, что и всё остальное (раз в минуту), а не
+    // сам запрос — отправка не зависит от того, дождалась ли страница ответа, и
+    // двух отправок сразу не бывает. Пока размещение в очереди, карточка
+    // показывает «В очереди на отправку», план перечитывается сам (pollSending).
+    // Только администратор (ADMIN_ONLY_ACTIONS).
+    var QUEUED_TEXT = 'Поставлено в очередь: уйдёт в течение минуты';
+    function sendNow(m, p) {
+        if (adminBlocked()) return;
+        if (S.sendBusy[p.id] || !canSendNow(p)) return;
+        var what = chName(p.channel) + ' · ' + GH.barName(p.bar) + ' · ' + whenText(p);
+        var d = monthDelivery() || {};
+        var where;
+        if (p.channel === 'telegram') {
+            var ch = (d.telegram && d.telegram[p.bar]) || {};
+            where = 'Пост встанет в очередь и уйдёт в канал ' + (ch.chat || 'бара') + ' в течение минуты, не ' +
+                'дожидаясь времени выхода.';
+        } else if (p.channel === 'bot') {
+            var info = p.audience_info;
+            where = 'Рассылка встанет в очередь и начнётся в течение минуты: ' +
+                (info ? info.name.toLowerCase() : 'аудитория') + ', ' +
+                sizeText(audienceSize(info && info.segment, p.bar, info)) + '.';
+        } else {
+            where = 'Напоминание с подписью и файлами встанет в очередь и придёт в чат в течение минуты: выложите ' +
+                'пост и отметьте выход.';
+        }
+        var ig = p.channel === 'instagram';
+        GH.confirm({
+            title: ig ? 'Напомнить сейчас?' : 'Отправить сейчас?',
+            text: what + '\n' + where + (ig ? '' : '\nОтправленное с сайта не отзовёшь.'),
+            ok: ig ? 'Напомнить сейчас' : 'Отправить сейчас'
+        }).then(function (ok) {
+            if (!ok) return;
+            S.sendBusy[p.id] = true;
+            if (current()) renderDrawer();
+            // Ответ {queued: true, placement}: размещение в очереди, итог (вышло или
+            // ошибка) появится в карточке сам. Итог прямо в ответе (сервер, который
+            // отправлял в самом запросе) тоже понимаем.
+            mutate('POST', API + '/publish-now', { placement_id: p.id }).then(function (res) {
+                delete S.sendBusy[p.id];
+                if (current()) renderDrawer();
+                if (!res) return;
+                var pl = res.placement || {};
+                var dd = pl.delivery || {};
+                if (res.queued) GH.toast(QUEUED_TEXT + ' — ' + what, 'success');
+                else if (pl.status === 'published') GH.toast('Отправлено: ' + what, 'success');
+                else if (pl.status === 'failed') GH.toast('Не отправлено: ' + (pl.failed_error || 'ошибка отправки'), 'danger');
+                else if (dd.state === 'reminded') GH.toast('Напоминание отправлено в чат: ' + what, 'success');
+                else if (dd.state === 'reminder_failed') {
+                    GH.toast('Напоминание не отправлено: ' + (dd.error || 'ошибка Telegram'), 'danger');
+                } else GH.toast(QUEUED_TEXT + ' — ' + what, 'success');
+            });
+        });
+    }
+
     function placementAction(m, p, action) {
+        // Повтор отправки, повтор неудавшимся, снятие паузы — только администратор.
+        if (adminOnly(action) && adminBlocked()) return;
         var run = function () {
             if (action === 'delete') return mutate('DELETE', API + '/placements/' + enc(p.id));
             return mutate('POST', API + '/placements/' + enc(p.id) + '/action', { action: action });
         };
         var what = chName(p.channel) + ' · ' + GH.barName(p.bar) + ' · ' + whenText(p);
-        if (action === 'cancel') {
-            GH.confirm({ title: 'Отменить размещение?', text: what + '\nРазмещение останется в плане как ' +
-                'отменённое, его можно вернуть.', ok: 'Отменить размещение', cancel: 'Не отменять', danger: true })
+        // Идёт рассылка бота: пауза и отмена останавливают её после текущей пачки.
+        var mailing = p.channel === 'bot' && isSendingNow(p);
+        if (action === 'pause' && mailing) {
+            GH.confirm({ title: 'Поставить рассылку на паузу?', text: what + '\n' + MAILING_STOP_TEXT +
+                ' Продолжить может администратор, сняв паузу.', ok: 'Поставить на паузу' })
+                .then(function (ok) { if (ok) run(); });
+        } else if (action === 'cancel') {
+            GH.confirm({ title: mailing ? 'Отменить рассылку?' : 'Отменить размещение?', text: what + '\n' +
+                (mailing ? MAILING_STOP_TEXT + ' ' : '') + 'Размещение останется в плане как отменённое, его можно ' +
+                'вернуть.', ok: mailing ? 'Отменить рассылку' : 'Отменить размещение', cancel: 'Не отменять',
+                danger: true })
                 .then(function (ok) { if (ok) run(); });
         } else if (action === 'mark_published') {
             GH.confirm({ title: 'Отметить как вышедшее?', text: what + '\nПосле отметки размещение нельзя изменить ' +
@@ -2708,6 +3422,26 @@
         } else if (action === 'delete') {
             GH.confirm({ title: 'Удалить размещение?', text: what + '\nРазмещение удаляется без возможности вернуть. ' +
                 'Чтобы оставить его в истории, отмените его вместо удаления.', ok: 'Удалить', danger: true })
+                .then(function (ok) { if (ok) run(); });
+        } else if (action === 'retry') {
+            // Повтор отправки ставит размещение в очередь: сервер отправит его в
+            // ближайшую минуту, даже если время выхода прошло. Если прошлая попытка
+            // всё-таки дошла (ошибка «статус отправки неизвестен»), будет дубль.
+            var live = channelConnected(p);
+            GH.confirm({ title: 'Повторить отправку?', text: what + '\n' + (live
+                ? 'Размещение встанет в очередь и уйдёт в ближайшую минуту, даже если время выхода прошло.' +
+                    (p.channel === 'bot' ? ' Рассылка уйдёт только тем, кому не дошла.'
+                        : ' Если прошлая попытка всё-таки дошла, будет дубль: сначала проверьте канал.')
+                : 'Размещение снова станет утверждённым, но эта площадка сейчас не подключена к отправке: после ' +
+                    'выхода отметьте его вручную.'), ok: 'Повторить отправку' })
+                .then(function (ok) { if (ok) run(); });
+        } else if (action === 'retry_failed') {
+            // Повтор рассылки: только тем, кому в прошлый раз не дошло (сервер
+            // хранит, кому ушло, — delivery.sent_to): дубля у получивших не будет.
+            var st = botStats(p) || { failed: 0 };
+            GH.confirm({ title: 'Повторить рассылку неудавшимся?', text: what + '\nСообщение уйдёт только ' +
+                nText(st.failed, 'подписчику', 'подписчикам', 'подписчикам') + ', которым не дошло в прошлый раз. ' +
+                'Тем, кому дошло, повторно не отправится; заблокировавшим бота — тоже.', ok: 'Повторить неудавшимся' })
                 .then(function (ok) { if (ok) run(); });
         } else {
             run();
@@ -2889,6 +3623,12 @@
         }
         var act = closest(t, '[data-act]');
         if (!act || act.disabled || !el.drawer.contains(act)) return;
+        // Кнопка «только администратор» выключена через aria-disabled (подсказка
+        // по наведению остаётся) — нажатие только объясняет.
+        if (act.getAttribute('aria-disabled') === 'true') {
+            if (act.getAttribute('data-admin')) adminBlocked();
+            return;
+        }
         var a = act.getAttribute('data-act');
         var pid = act.getAttribute('data-pid');
         var p = pid ? findPlacement(m, pid) : null;
@@ -2898,6 +3638,7 @@
         } else if (a.indexOf('pl-') === 0 && p) {
             var action = a.slice(3);
             if (action === 'approve') approveOne(m, p);
+            else if (action === 'send_now') sendNow(m, p);
             else placementAction(m, p, action);
         } else if (a === 'token') {
             insertToken(act.getAttribute('data-token'));
@@ -3170,6 +3911,7 @@
     }
 
     function openApprove() {
+        if (adminBlocked()) return;
         flushAll();
         S.approve = { loading: true, bots: {} };
         renderApprove();
@@ -3221,10 +3963,11 @@
                 html += '<p class="gh-cp-explain">Рассылка утверждается, только если её отметить. Проверьте аудиторию: ' +
                     'разосланное сообщение не отзовёшь.</p>';
                 each(bots, function (it) {
+                    var size = it.audience ? sizeText(audienceSize(it.audience.segment, it.bar, it.audience)) : SIZE_UNKNOWN;
                     html += '<label class="gh-cb gh-cp-ap-bot"><input type="checkbox" data-bot="' + esc(it.placement_id) + '"' +
                         (a.bots[it.placement_id] ? ' checked' : '') + '><span>' + aiMark(it, true) + '<b>' + esc(it.title) + '</b> · ' +
                         esc(apWhen(it)) + ' · ' + esc(GH.barName(it.bar)) + liveTag(itemKind(it)) + '<br>Аудитория: ' +
-                        esc(it.audience ? it.audience.name : 'не выбрана') + ' · размер: ' + esc(SIZE_UNKNOWN) +
+                        esc(it.audience ? it.audience.name : 'не выбрана') + ' · размер: ' + esc(size) +
                         '</span></label>';
                 });
             }
@@ -3258,6 +4001,7 @@
         el.approveGo.textContent = x.ids.length ? 'Утвердить ' + x.ids.length : 'Утвердить';
     }
     function submitApprove() {
+        if (adminBlocked()) return;
         var x = approveIds();
         if (!x.ids.length) return;
         S.approve.busy = true;
@@ -3808,10 +4552,785 @@
         }
     }
 
+    // ==================== каналы и отправка ====================
+    // Настройки хранит сервер (core/content_channels.py, content_channels.json):
+    //   {enabled — главный выключатель (по умолчанию выключен),
+    //    telegram: {<бар>: {chat: '@имя' | '-100…', title, checked_at,
+    //               check: {ok, can_post, error, chat_title, bot_username}}},
+    //    instagram: {reminder_chat, reminder_minutes_before (0..REMINDER_MAX_MIN)},
+    //    bot: {enabled — рассылки гостям, свой выключатель},
+    //    updated_at, updated_by}
+    // Ответ GET /channels несёт ещё bot_username и token_source ('content' —
+    // отдельный бот для каналов, 'taplist' — гостевой бот сети, null — токена нет).
+    // Сохраняется по одному полю (PUT с частичным слиянием): текстовые поля — при
+    // уходе из поля или Enter (адрес канала нужен целиком, обрывки серверу не
+    // нужны), выключатели — сразу; включение — только после подтверждения. После
+    // сохранения перечитывается план: баннер и «Отправить сейчас» зависят от
+    // delivery месяца, который считает сервер.
+
+    function chanData() { return (S.chan && S.chan.data) || null; }
+    function chanCfg() { var d = chanData(); return (d && d.channels) || {}; }
+    // Что подключено — из ответа /channels (свежее: считается по только что
+    // сохранённым настройкам), иначе из ответа месяца.
+    function chanDelivery() { var d = chanData(); return (d && d.delivery) || monthDelivery(); }
+    // Предел «минут заранее» — из ответа сервера (limits), иначе зеркало.
+    function reminderMax() {
+        var d = chanData();
+        return (d && d.limits && d.limits.reminder_minutes_max) || REMINDER_MAX_MIN;
+    }
+    function barCfg(bar) { var t = chanCfg().telegram || {}; return t[bar] || {}; }
+    function chanDirtyOr(key, value) { return hasOwn(S.chanDirty, key) ? S.chanDirty[key] : value; }
+
+    // Сохранённое значение поля: с ним сравнивается ввод («изменилось ли»).
+    function chanStored(key) {
+        if (key.indexOf('tg:') === 0) return barCfg(key.slice(3)).chat || '';
+        var ig = chanCfg().instagram || {};
+        if (key === 'ig:chat') return ig.reminder_chat || '';
+        if (key === 'ig:min') return typeof ig.reminder_minutes_before === 'number' ? ig.reminder_minutes_before : 0;
+        return null;
+    }
+    // Тело PUT для одного поля (сервер сливает переданное с остальным).
+    function chanBody(key, value) {
+        if (key.indexOf('tg:') === 0) {
+            var tg = {};
+            tg[key.slice(3)] = { chat: value };
+            return { telegram: tg };
+        }
+        if (key === 'ig:chat') return { instagram: { reminder_chat: value } };
+        if (key === 'ig:min') return { instagram: { reminder_minutes_before: value } };
+        return null;
+    }
+    // Проверка ввода до отправки -> {ok: true, value} | {ok: false, why}.
+    // Сервер проверяет сам; здесь — чтобы не слать заведомо неверное и сразу
+    // сказать, как надо.
+    function chanValue(key, raw) {
+        if (key.indexOf('tg:') === 0 || key === 'ig:chat') {
+            var chat = normChat(raw);
+            if (!chatValid(chat)) return { ok: false, why: chatWhy(raw) };
+            return { ok: true, value: chat };
+        }
+        if (key === 'ig:min') {
+            var s = String(raw === null || raw === undefined ? '' : raw).trim();
+            if (!/^\d+$/.test(s) || parseInt(s, 10) > reminderMax()) {
+                return { ok: false, why: 'Минут заранее: целое число от 0 до ' + reminderMax() };
+            }
+            return { ok: true, value: parseInt(s, 10) };
+        }
+        return { ok: false, why: 'Неизвестное поле' };
+    }
+
+    // Что будет отправляться, если включить выключатель (по настройкам, а не по
+    // delivery месяца: там при выключенном выключателе всё «не подключено»).
+    function chanReady() {
+        var d = chanData() || {};
+        var cfg = chanCfg();
+        var bars = [];
+        each(GH.BARS, function (b) {
+            var x = barCfg(b.key);
+            var chk = x.check;
+            if (x.chat && chk && chk.ok && chk.can_post && (!chk.chat || chk.chat === x.chat)) bars.push(b.short);
+        });
+        return { token: !!d.token_source, bars: bars, ig: !!(cfg.instagram && cfg.instagram.reminder_chat),
+                 bot: !!(cfg.bot && cfg.bot.enabled) };
+    }
+    // Бот, который отправляет: '@имя (гостевой бот сети)' или ''.
+    function botName() {
+        var d = chanData() || {};
+        var name = String(d.bot_username || '').replace(/^@/, '');
+        if (!d.token_source) return '';
+        return (name ? '@' + name : 'бот') + (d.token_source === 'content' ? ' (отдельный бот для каналов)'
+            : ' (гостевой бот сети)');
+    }
+    // Подписчики бота, согласившиеся на рассылку: delivery месяца, иначе /audience.
+    function subscribersTotal() {
+        var c = chanData();
+        if (c && typeof c.subscribers_total === 'number') return c.subscribers_total;
+        var d = chanDelivery();
+        if (d && d.bot && typeof d.bot.subscribers_total === 'number') return d.bot.subscribers_total;
+        var got = audienceSize('bot_all', 'all', null);
+        if (got && typeof got.total === 'number') return got.total;
+        return got && typeof got.size === 'number' ? got.size : null;
+    }
+
+    // Состояние канала бара по последней проверке -> {label, tone, note}.
+    // Проверка действительна только для адреса, с которым её делали (check.chat,
+    // как telegram_bar_ready на сервере): сменили адрес — «Не проверен».
+    function chanBarStatus(bar) {
+        var cfg = barCfg(bar);
+        var chk = cfg.check && (!cfg.check.chat || cfg.check.chat === cfg.chat) ? cfg.check : null;
+        var checked = cfg.checked_at ? ' · проверено ' + GH.fmtDateTime(cfg.checked_at) : '';
+        var d = chanDelivery();
+        var md = (d && d.telegram && d.telegram[bar]) || {};
+        if (!cfg.chat) {
+            return { label: 'Канал не задан', tone: 'muted', note: 'Публикации этого бара отмечаются вручную.' };
+        }
+        if (!chk) {
+            return { label: 'Не проверен', tone: 'muted', note: 'Нажмите «Проверить»: сервер спросит Telegram, видит ли ' +
+                'бот канал и может ли в нём публиковать.' };
+        }
+        var title = chk.chat_title ? 'Канал «' + chk.chat_title + '»' : 'Канал';
+        if (chk.ok && chk.can_post) {
+            return { label: 'Можно публиковать', tone: 'success', note: title + checked + '. ' + (md.connected
+                ? 'Публикации этого бара уходят сами.'
+                : 'Пока не уходят сами: ' + (md.reason || 'отправка выключена') + '.') };
+        }
+        if (chk.ok) {
+            return { label: 'Нет права публиковать', tone: 'warning', note: title + checked + ': бот видит канал, но не ' +
+                'может публиковать. Сделайте бота администратором с правом «Публикация сообщений» и проверьте снова.' };
+        }
+        return { label: 'Ошибка проверки', tone: 'danger', note: (chk.error || 'Telegram не ответил') + checked };
+    }
+
+    function chanStatusLine() {
+        var cfg = chanCfg();
+        if (!cfg.updated_at) return 'Ещё не настроено: всё выключено';
+        return 'Изменено ' + GH.fmtDateTime(cfg.updated_at) + (cfg.updated_by ? ', ' + cfg.updated_by : '');
+    }
+
+    // Не администратору выключатель виден, но выключен (карточка — только просмотр).
+    function switchHtml(name, on, label) {
+        var ro = !S.isAdmin;
+        return '<label class="gh-cp-switch' + (ro ? ' is-ro' : '') + '"' + (ro ? tip(ADMIN_TIP) : '') + '>' +
+            '<input type="checkbox" role="switch" data-cswitch="' + esc(name) + '" ' +
+            'data-fk="cs:' + esc(name) + '"' + (on ? ' checked' : '') + (ro ? ' disabled' : '') + '>' +
+            '<span class="gh-cp-switch-track" aria-hidden="true"></span><span class="gh-cp-switch-t">' + esc(label) +
+            '</span></label>';
+    }
+    // Поле настроек: не администратору — только чтение (readonly), подсказка — ADMIN_TIP.
+    function chanRo() { return S.isAdmin ? '' : ' readonly' + tip(ADMIN_TIP); }
+
+    function chanMainHtml() {
+        var cfg = chanCfg();
+        var on = !!cfg.enabled;
+        var bot = botName();
+        var st = on
+            ? (bot ? 'Включено: утверждённые публикации уходят в подключённые площадки в своё время.'
+                : 'Включено, но бот не настроен: на сервере нет токена бота — ничего не уходит.')
+            : 'Выключено: утверждённое само не уходит, выход отмечают вручную.';
+        return '<section class="gh-cp-sec gh-cp-chan-sec" data-csec="main">' +
+            sub('Автоматическая отправка', '') +
+            switchHtml('enabled', on, 'Отправлять автоматически') +
+            '<p class="gh-cp-chan-st' + (on && !bot ? ' is-warn' : '') + '">' + esc(st) + '</p>' +
+            '<p class="gh-cp-chan-note">' + esc(bot ? 'Отправляет ' + bot + '.'
+                : 'Бот не настроен: на сервере нет токена бота (TELEGRAM_CONTENT_BOT_TOKEN или TELEGRAM_BOT_TOKEN).') +
+            '</p>' +
+            howHtml('ch:main', howList([
+                'Раз в ' + (PUBLISH_TICK_SEC === 60 ? 'минуту' : PUBLISH_TICK_SEC + ' с') + ' сервер отправляет ' +
+                    'утверждённые размещения, время выхода которых наступило (не на паузе и не отменённые).',
+                'Площадка подключена, если включён этот выключатель, на сервере есть токен бота и: у Telegram — ' +
+                    'канал бара прошёл проверку; у Instagram — задан чат для напоминаний; у рассылок — включены ' +
+                    'рассылки гостям.',
+                'Сами уходят только публикации со временем выхода после того, как площадка подключена. Всё, что ' +
+                    'должно было выйти раньше, остаётся «Время вышло»: отметьте вручную или «Отправить сейчас» — ' +
+                    'включение не выпустит накопленный хвост разом.',
+                'Если сервер не работал и время выхода прошло больше чем на ' + (PUBLISH_GRACE_MIN / 60) + ' часа, ' +
+                    'публикация сама не уходит: она получает ошибку «время выхода прошло», и решение за вами. ' +
+                    'Старый пост не выйдет молча с опозданием.',
+                'Отправка, которая длится дольше ' + SENDING_STALE_MIN + ' минут, второй раз не уходит (чтобы в канале ' +
+                    'не было дубля): размещение получает ошибку «статус отправки неизвестен» — проверьте канал и, если ' +
+                    'поста нет, повторите.',
+                'Уходит то, что утверждено: текст и файлы из снимка утверждения. У материала с актуальными данными ' +
+                    'таплист подставляется в момент отправки; нет проверенных данных — публикация останавливается с ' +
+                    'ошибкой и текстом проблемы.',
+                'Кто отправляет: ' + (bot || 'никто — нет токена бота на сервере') + '. Выключатель ничего не удаляет: ' +
+                    'утверждения, каналы и расписание остаются.'
+            ])) +
+            '</section>';
+    }
+
+    function chanBarHtml(b) {
+        var cfg = barCfg(b.key);
+        var key = 'tg:' + b.key;
+        var value = chanDirtyOr(key, cfg.chat || '');
+        var st = chanBarStatus(b.key);
+        var busy = S.chan.busy[b.key];
+        var err = S.chanErr[key];
+        var test = S.chan.tests[b.key];
+        var html = '<div class="gh-cp-chan-bar" data-bar="' + esc(b.key) + '">' +
+            '<div class="gh-cp-chan-bar-h"><b>' + esc(b.name) + '</b>' +
+                '<span class="gh-badge ' + GH.toneClass(st.tone) + '">' + esc(st.label) + '</span></div>' +
+            '<div class="gh-cp-chan-row">' +
+                '<input type="text" class="gh-input' + (err ? ' is-invalid' : '') + '" data-chan="' + esc(key) + '" ' +
+                    'data-fk="chan:' + esc(key) + '" value="' + esc(value) + '" placeholder="@имя_канала" ' +
+                    'autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Канал Telegram — ' +
+                    esc(b.name) + '"' + chanRo() + '>' +
+                '<div class="gh-cp-chan-btns">' +
+                    '<button type="button" class="gh-btn gh-btn-sm" data-cact="check" data-bar="' + esc(b.key) + '" ' +
+                        'data-fk="cc:' + esc(b.key) + '"' + (cfg.chat && !busy ? '' : ' disabled') + adminAttrs() + '>' +
+                        (busy === 'check' ? '<span class="gh-spin"></span>' : '') + 'Проверить</button>' +
+                    '<button type="button" class="gh-btn gh-btn-sm gh-btn-ghost" data-cact="test" data-bar="' +
+                        esc(b.key) + '" data-fk="ct:' + esc(b.key) + '"' + (cfg.chat && !busy ? '' : ' disabled') +
+                        adminAttrs() + '>' +
+                        (busy === 'test' ? '<span class="gh-spin"></span>' : '') + 'Тестовое сообщение</button>' +
+                '</div>' +
+            '</div>';
+        if (err) html += '<div class="gh-field-err">' + esc(err) + '</div>';
+        html += '<div class="gh-cp-chan-note">' + esc(st.note) + '</div>';
+        if (test) {
+            html += '<div class="gh-cp-chan-note ' + (test.ok ? 'is-ok' : 'is-bad') + '">' + (test.ok
+                ? 'Тестовое сообщение отправлено ' + esc(GH.fmtDateTime(test.at)) + (test.link
+                    ? ' · <a class="gh-link" href="' + esc(test.link) + '" target="_blank" rel="noopener noreferrer">открыть</a>'
+                    : '')
+                : 'Тестовое сообщение не отправлено: ' + esc(test.error || 'ошибка Telegram')) + '</div>';
+        }
+        return html + '</div>';
+    }
+
+    function chanTelegramHtml() {
+        var html = '<section class="gh-cp-sec gh-cp-chan-sec" data-csec="telegram">' +
+            sub('Telegram', 'канал каждого бара');
+        each(GH.BARS, function (b) { html += chanBarHtml(b); });
+        html += howHtml('ch:tg', howList([
+            'Бот должен быть администратором канала бара с правом «Публикация сообщений»: добавьте его в ' +
+                'администраторы канала в самом Telegram.',
+            'Адрес — @имя публичного канала или числовой id закрытого (начинается с -100). Ссылку вида ' +
+                't.me/<имя> можно вставить целиком — она станет @именем.',
+            '«Проверить»: сервер спрашивает Telegram, видит ли бот канал и может ли в нём публиковать; результат ' +
+                'и время проверки сохраняются. Сменили адрес — проверьте снова.',
+            'Канал подключён, если последняя проверка прошла и включена автоматическая отправка.',
+            '«Тестовое сообщение» публикует в канале текст «Проверка связи с сайтом»: его увидят подписчики, ' +
+                'удалите его потом в Telegram.',
+            'Ссылка на вышедший пост есть только у публичного канала (@имя).'
+        ]));
+        return html + '</section>';
+    }
+
+    function chanInstagramHtml() {
+        var ig = chanCfg().instagram || {};
+        var chatKey = 'ig:chat';
+        var minKey = 'ig:min';
+        var chat = chanDirtyOr(chatKey, ig.reminder_chat || '');
+        var min = chanDirtyOr(minKey, String(typeof ig.reminder_minutes_before === 'number'
+            ? ig.reminder_minutes_before : 0));
+        var d = chanDelivery();
+        var md = (d && d.instagram) || {};
+        var st = !ig.reminder_chat ? 'Чат не задан: напоминаний нет, выкладывайте посты по плану сами.'
+            : md.connected ? 'Напоминания уходят в чат перед выходом каждого утверждённого поста.'
+                : 'Чат задан, но напоминания пока не уходят: ' + (md.reason || 'отправка выключена') + '.';
+        var errs = '';
+        each([chatKey, minKey], function (k) { if (S.chanErr[k]) errs += '<div class="gh-field-err">' + esc(S.chanErr[k]) + '</div>'; });
+        return '<section class="gh-cp-sec gh-cp-chan-sec" data-csec="instagram">' +
+            sub('Instagram', 'напоминание выложить пост') +
+            '<div class="gh-form-row gh-cp-chan-ig">' +
+                field('Чат для напоминаний', '<input type="text" class="gh-input' + (S.chanErr[chatKey] ? ' is-invalid' : '') +
+                    '" data-chan="' + chatKey + '" data-fk="chan:' + chatKey + '" value="' + esc(chat) + '" ' +
+                    'placeholder="id чата, например 123456789" inputmode="text" autocomplete="off" spellcheck="false" ' +
+                    'aria-label="Чат для напоминаний Instagram"' + chanRo() + '>') +
+                field('Минут заранее', '<input type="number" class="gh-input' + (S.chanErr[minKey] ? ' is-invalid' : '') +
+                    '" data-chan="' + minKey + '" data-fk="chan:' + minKey + '" value="' + esc(min) + '" min="0" max="' +
+                    reminderMax() + '" step="1" inputmode="numeric" aria-label="За сколько минут напомнить"' + chanRo() +
+                    '>',
+                    'gh-cp-chan-min') +
+            '</div>' + errs +
+            '<p class="gh-cp-chan-st">' + esc(st) + '</p>' +
+            howHtml('ch:ig', howList([
+                'Instagram выкладывает человек: API Instagram не подключён.',
+                'За указанное число минут до выхода (0 — ровно во время выхода; не больше ' + reminderMax() +
+                    ' минут) бот присылает в этот чат: «Instagram: пора выложить» с названием, датой и ссылкой на ' +
+                    'карточку материала, подпись отдельным сообщением (удобно скопировать), фото и видео альбомом.',
+                'Напоминание уходит один раз. Не ушло (ошибка Telegram) — повторите кнопкой «Напомнить сейчас» в ' +
+                    'карточке материала. Если сервер не работал и срок прошёл больше чем на ' + (PUBLISH_GRACE_MIN / 60) +
+                    ' часа, напоминание не шлётся — выложите пост по плану сами.',
+                'Размещение остаётся утверждённым, пока вы не нажмёте «Отметить вышедшим».',
+                'Чат — ваш личный чат с ботом (id — число) или группа, куда добавлен бот (id — отрицательное число). ' +
+                    'В личный чат бот может писать, только если вы сами начали с ним разговор (/start).',
+                '«Скачать для Instagram» в карточке материала — архив с подписями и файлами, если удобнее с компьютера.'
+            ])) +
+            '</section>';
+    }
+
+    function chanBotHtml() {
+        var bot = chanCfg().bot || {};
+        var on = !!bot.enabled;
+        var signup = !!bot.signup;
+        var botMd = (chanDelivery() || {}).bot || {};
+        var subs = subscribersTotal();
+        return '<section class="gh-cp-sec gh-cp-chan-sec" data-csec="bot">' +
+            sub('Гостевой бот', GUEST_BOT) +
+            switchHtml('bot', on, 'Рассылки гостям через бота') +
+            '<div class="gh-cp-chan-subs"><b>' + esc(subs === null ? '—' : GH.fmtNum(subs, 0)) + '</b>' +
+                '<span>' + esc(subs === null ? 'подписчиков: нет данных' : GH.plural(subs, 'подписчик', 'подписчика',
+                    'подписчиков') + ' ' + GH.plural(subs, 'согласился', 'согласились', 'согласились') +
+                    ' получать новости') + '</span></div>' +
+            '<p class="gh-cp-chan-st">' + esc(!on ? 'Выключено: рассылки сами не уходят, даже утверждённые.'
+                : botMd.connected ? 'Включено: утверждённые рассылки уходят подписчикам в своё время.'
+                    : 'Включено, но рассылки пока не уходят: ' + (botMd.reason || 'отправка выключена') + '.') + '</p>' +
+            // Отдельный выключатель: кнопки в самом боте (подписка и отзыв) — это
+            // не рассылка; без них подписчиков не прибавляется.
+            '<div class="gh-cp-chan-sub">' +
+                switchHtml('signup', signup, 'Кнопки подписки и отзывов в боте') +
+                '<p class="gh-cp-chan-note">' + esc(SIGNUP_HINT) + '</p>' +
+            '</div>' +
+            howHtml('ch:bot', howList([
+                'Подписчики — гости, которые в ' + GUEST_BOT + ' нажали «Подписаться на новости» и дали согласие; без ' +
+                    'отписавшихся и заблокировавших бота. Подписаться можно, только пока включены кнопки подписки и ' +
+                    'отзывов в боте.',
+                'Кому уходит рассылка — аудитория размещения: все подписчики, выбравшие бар, были в баре за последние ' +
+                    '30 дней, не были 60 дней и дольше. «Были» и «не были» считаются по визитам гостя в баре; ' +
+                    'подписчики без телефона в эти две аудитории не входят.',
+                'Скорость — не больше ' + BOT_RATE_PER_SEC + ' сообщений в секунду (лимит Telegram — 30 в секунду на ' +
+                    'бота).',
+                'Сбой посреди рассылки не отправит повторно тем, кому уже ушло: сервер помнит получателей. «Повторить ' +
+                    'неудавшимся» шлёт только тем, кому не дошло; заблокировавших бота исключает.',
+                'Каждую рассылку по-прежнему утверждают отдельно, с подтверждением аудитории.'
+            ])) +
+            '</section>';
+    }
+
+    // Журнал настроек (history сервера, до 100 записей): кто и когда включал
+    // отправку, менял и проверял каналы. На экране — последние 6 (столько правок
+    // бывает за одну настройку), остальные — по «Показать все».
+    var CHAN_LOG_SHOWN = 6;
+    function chanHistoryHtml() {
+        var list = (chanCfg().history || []).slice().reverse();
+        if (!list.length) return '';
+        var shown = S.chan.histAll ? list : list.slice(0, CHAN_LOG_SHOWN);
+        var html = '<section class="gh-cp-sec gh-cp-chan-sec" data-csec="history">' +
+            sub('Журнал настроек', nText(list.length, 'запись', 'записи', 'записей')) + '<ol class="gh-cp-log">';
+        each(shown, function (e) {
+            html += '<li class="gh-cp-log-i"><span class="gh-cp-log-at">' + esc(GH.fmtDateTime(e.at)) + '</span>' +
+                '<span class="gh-cp-log-t">' + esc(e.text) + '</span><span class="gh-cp-log-by">' + esc(e.by) +
+                '</span></li>';
+        });
+        html += '</ol>';
+        if (!S.chan.histAll && list.length > CHAN_LOG_SHOWN) {
+            html += '<button type="button" class="gh-link gh-cp-logmore" data-cact="hist-all">Показать все: ' +
+                list.length + '</button>';
+        }
+        return html + '</section>';
+    }
+
+    function renderChannels() {
+        var c = S.chan;
+        if (!c || !el.chanDrawer) return;
+        var focus = captureFocus(el.chanDrawer);
+        var oldBody = el.chanDrawer.querySelector('.gh-drawer-body');
+        var scroll = oldBody ? oldBody.scrollTop : 0;
+        var body;
+        if (c.loading && !c.data) {
+            body = '<div class="gh-cp-loading"><span class="gh-spin"></span>Загружаю настройки отправки…</div>';
+        } else if (c.error && !c.data) {
+            body = '<p class="gh-field-err">' + esc(c.error) + '</p>' +
+                '<button type="button" class="gh-btn gh-btn-sm" data-cact="retry">Повторить</button>';
+        } else {
+            body = (S.isAdmin ? '' : '<p class="gh-cp-chan-ro">' + esc('Только просмотр: каналы, выключатели и ' +
+                    'проверку канала меняет администратор.') + '</p>') +
+                chanMainHtml() + chanTelegramHtml() + chanInstagramHtml() + chanBotHtml() + chanHistoryHtml();
+        }
+        el.chanDrawer.innerHTML = '<div class="gh-drawer-head">' +
+                '<div class="gh-drawer-h"><div class="gh-drawer-t">Каналы и отправка</div>' +
+                    '<div class="gh-drawer-s">' + esc(c.data ? chanStatusLine() : 'Куда уходят утверждённые публикации') +
+                    '</div></div>' +
+                '<button type="button" class="gh-x" data-gh-close aria-label="Закрыть">' + X_SVG + '</button>' +
+            '</div>' +
+            '<div class="gh-drawer-body">' + body + '</div>' +
+            '<div class="gh-drawer-foot">' +
+                '<span class="gh-grow"></span>' +
+                '<span class="gh-save" data-csave></span>' +
+                '<button type="button" class="gh-btn gh-btn-sm" data-gh-close>Закрыть</button>' +
+            '</div>';
+        var newBody = el.chanDrawer.querySelector('.gh-drawer-body');
+        if (newBody) newBody.scrollTop = scroll;
+        restoreFocus(el.chanDrawer, focus);
+        updateChanSave();
+    }
+
+    function setChanSave(stateName, message) {
+        S.chanSave = stateName;
+        S.chanError = message || '';
+        updateChanSave();
+    }
+    function updateChanSave() {
+        var node = el.chanDrawer ? el.chanDrawer.querySelector('[data-csave]') : null;
+        if (!node) return;
+        var st = S.chanSave;
+        // Причину ошибки поля показывает само поле — внизу только отметка.
+        var fieldErr = false;
+        for (var k in S.chanErr) if (hasOwn(S.chanErr, k)) fieldErr = true;
+        node.textContent = st === 'saving' ? 'Сохраняется…' : st === 'dirty' ? 'Не сохранено: Enter или уйдите из поля'
+            : st === 'saved' ? 'Сохранено' : st === 'error'
+                ? (fieldErr ? 'Не сохранено — причина у поля' : 'Не сохранено: ' + (S.chanError || 'ошибка')) : '';
+        node.className = 'gh-save' + (st === 'saving' || st === 'dirty' ? ' is-saving' : st === 'saved' ? ' is-saved'
+            : st === 'error' ? ' is-error' : '');
+    }
+
+    function reportChanError(err) {
+        if (isAdminDenied(err)) { adminDenied(err); return; }
+        if (err && err.status === 503) {
+            GH.toast('Настройки отправки недоступны: ' + err.message + '. Файл не перезаписывается — сообщите ' +
+                'администратору.', 'danger');
+        } else {
+            GH.toast((err && err.message) || 'Ошибка запроса', 'danger');
+        }
+    }
+
+    function openChannels() {
+        flushAll();
+        S.chan = { loading: true, busy: {}, tests: {} };
+        S.chanDirty = {};
+        S.chanErr = {};
+        setChanSave('');
+        renderChannels();
+        GH.openDrawer(el.chanDrawer, { onClose: onChannelsClose });
+        GH.setParams({ channels: '1' });
+        loadChannels();
+    }
+    // Перечитать настройки; ошибка при уже показанных настройках — тостом.
+    function loadChannels() {
+        return GH.api('GET', API + '/channels').then(function (res) {
+            if (!S.chan) return;
+            S.chan.data = res || {};
+            S.chan.loading = false;
+            S.chan.error = null;
+            renderChannels();
+        }, function (err) {
+            if (!S.chan) return;
+            S.chan.loading = false;
+            if (S.chan.data) { reportChanError(err); return; }
+            S.chan.error = err.status === 503
+                ? 'Настройки отправки недоступны: ' + err.message + '. Файл не перезаписывается — сообщите администратору.'
+                : 'Настройки не загрузились: ' + err.message;
+            renderChannels();
+        });
+    }
+    function onChannelsClose() {
+        flushChannels();
+        S.chan = null;
+        S.chanDirty = {};
+        S.chanErr = {};
+        GH.setParams({ channels: null });
+    }
+
+    // Сохранить одно поле (ключ поля — data-chan). -> Promise<ответ | null>.
+    function chanSave(key) {
+        if (!hasOwn(S.chanDirty, key) || !S.chan || !S.chan.data) return Promise.resolve(null);
+        var raw = S.chanDirty[key];
+        var v = chanValue(key, raw);
+        if (!v.ok) {
+            S.chanErr[key] = v.why;
+            setChanSave('error', v.why);
+            renderChannels();
+            return Promise.resolve(null);
+        }
+        if (v.value === chanStored(key)) {
+            // Ничего не изменилось (или изменилось только написание: t.me/имя = @имя).
+            delete S.chanDirty[key];
+            delete S.chanErr[key];
+            setChanSave(S.chanSaving ? 'saving' : '');
+            renderChannels();
+            return Promise.resolve(null);
+        }
+        S.chanSaving++;
+        setChanSave('saving');
+        return GH.api('PUT', API + '/channels', chanBody(key, v.value), apiOpts()).then(function (res) {
+            S.chanSaving--;
+            if (S.chanDirty[key] === raw) delete S.chanDirty[key];
+            delete S.chanErr[key];
+            // Ответ — как GET /channels: настройки, что подключено, подписчики, пределы.
+            if (S.chan && S.chan.data && res && res.channels) S.chan.data = res;
+            setChanSave(S.chanSaving ? 'saving' : 'saved');
+            renderChannels();
+            reload();
+            return res || {};
+        }, function (err) {
+            S.chanSaving--;
+            if (isAdminDenied(err)) {
+                // Права сняли: набранное не сохранится — поле вернётся к сохранённому.
+                delete S.chanDirty[key];
+                delete S.chanErr[key];
+                setChanSave('');
+                adminDenied(err);
+                return null;
+            }
+            S.chanErr[key] = err.message;
+            setChanSave('error', err.message);
+            renderChannels();
+            if (err.status === 503) reportChanError(err);
+            return null;
+        });
+    }
+    // Всё набранное и не сохранённое — сохранить сейчас (закрытие карточки,
+    // уход со страницы). Неверный ввод не отправляется — тост объясняет.
+    function flushChannels() {
+        var out = [];
+        for (var key in S.chanDirty) {
+            if (!hasOwn(S.chanDirty, key)) continue;
+            var v = chanValue(key, S.chanDirty[key]);
+            if (!v.ok) { GH.toast('Не сохранено: ' + v.why, 'warning'); continue; }
+            out.push(chanSave(key));
+        }
+        return Promise.all(out);
+    }
+
+    // PUT выключателя или нескольких полей. okText — тост после сохранения.
+    function putChannels(body, okText) {
+        S.chanSaving++;
+        setChanSave('saving');
+        return GH.api('PUT', API + '/channels', body, apiOpts()).then(function (res) {
+            S.chanSaving--;
+            // Ответ — как GET /channels: настройки, что подключено, подписчики, пределы.
+            if (S.chan && S.chan.data && res && res.channels) S.chan.data = res;
+            setChanSave(S.chanSaving ? 'saving' : 'saved');
+            renderChannels();
+            if (okText) GH.toast(okText, 'success');
+            reload();
+            return res || {};
+        }, function (err) {
+            S.chanSaving--;
+            setChanSave('error', err.message);
+            // Перерисовка возвращает выключатель к сохранённому значению.
+            renderChannels();
+            reportChanError(err);
+            return null;
+        });
+    }
+
+    // Главный выключатель. Выключить — сразу (это безопасно); включить — после
+    // подтверждения со списком того, что начнёт уходить само.
+    function setAutoSend(on, input) {
+        if (adminBlocked()) { if (input) input.checked = !on; return; }
+        if (!on) {
+            putChannels({ enabled: false }, 'Автоматическая отправка выключена: утверждённое само не уходит');
+            return;
+        }
+        var r = chanReady();
+        var text = 'Утверждённые публикации начнут уходить сами, когда наступит их время:\n' +
+            '— Telegram: ' + (r.bars.length ? r.bars.join(', ') + ' (проверенные каналы)' : 'проверенных каналов пока нет') + ';\n' +
+            '— Instagram: ' + (r.ig ? 'напоминание в чат перед выходом' : 'чат напоминаний не задан — вручную') + ';\n' +
+            '— рассылки гостям: ' + (r.bot ? 'включены' : 'выключены') + '.\n\n' +
+            'Уходит только то, что должно выйти после включения. Публикации, время которых уже прошло («Время ' +
+            'вышло»), сами не уйдут: отметьте их вручную или отправьте кнопкой «Отправить сейчас». Отправленное с ' +
+            'сайта не отзовёшь.' +
+            (r.token ? '' : '\n\nБот не настроен: на сервере нет токена бота — пока его не добавят, ничего не уйдёт.');
+        GH.confirm({ title: 'Включить автоматическую отправку?', text: text, ok: 'Включить отправку' }).then(function (ok) {
+            if (!ok) {
+                if (input) input.checked = false;
+                return;
+            }
+            putChannels({ enabled: true }, 'Автоматическая отправка включена');
+        });
+    }
+    // Рассылки гостям — свой выключатель, включение — с подтверждением.
+    function setBotSend(on, input) {
+        if (adminBlocked()) { if (input) input.checked = !on; return; }
+        if (!on) {
+            putChannels({ bot: { enabled: false } }, 'Рассылки гостям выключены');
+            return;
+        }
+        var subs = subscribersTotal();
+        GH.confirm({
+            title: 'Включить рассылки гостям?',
+            text: 'Утверждённые рассылки бота начнут уходить подписчикам сами, в своё время' +
+                (subs === null ? '' : ' (сейчас подписчиков: ' + subs + ')') + '. Каждую рассылку вы по-прежнему ' +
+                'утверждаете отдельно, с подтверждением аудитории.\n\nРазосланное сообщение не отзовёшь.' +
+                (chanCfg().enabled ? '' : '\n\nГлавный выключатель «Отправлять автоматически» выключен: пока его не ' +
+                    'включите, рассылки не уйдут.'),
+            ok: 'Включить рассылки'
+        }).then(function (ok) {
+            if (!ok) {
+                if (input) input.checked = false;
+                return;
+            }
+            putChannels({ bot: { enabled: true } }, 'Рассылки гостям включены');
+        });
+    }
+
+    // Кнопки подписки и отзывов в гостевом боте (bot.signup) — свой выключатель:
+    // гости сразу увидят их в боте, поэтому включение — после подтверждения.
+    function setBotSignup(on, input) {
+        if (adminBlocked()) { if (input) input.checked = !on; return; }
+        if (!on) {
+            putChannels({ bot: { signup: false } }, 'Кнопки подписки и отзывов в боте скрыты');
+            return;
+        }
+        GH.confirm({
+            title: 'Показать гостям кнопки подписки и отзывов?',
+            text: SIGNUP_HINT + '\n\nПодписка — с согласием на новости и акции баров; отписаться гость может в ' +
+                'любой момент. Отзывы из бота попадут на страницу «Отзывы».',
+            ok: 'Показать кнопки'
+        }).then(function (ok) {
+            if (!ok) {
+                if (input) input.checked = false;
+                return;
+            }
+            putChannels({ bot: { signup: true } }, 'Кнопки подписки и отзывов появились в боте');
+        });
+    }
+
+    // «Проверить»: сначала сохраняется набранный адрес, потом сервер спрашивает
+    // Telegram (getChat + getChatMember) и сохраняет результат проверки.
+    function checkChannel(bar) {
+        if (adminBlocked()) return;
+        var key = 'tg:' + bar;
+        var saving = hasOwn(S.chanDirty, key) ? chanSave(key) : Promise.resolve(null);
+        saving.then(function () {
+            if (!S.chan || !S.chan.data || hasOwn(S.chanErr, key) || !barCfg(bar).chat) return;
+            S.chan.busy[bar] = 'check';
+            renderChannels();
+            GH.api('POST', API + '/channels/check', { bar: bar }).then(function (res) {
+                if (!S.chan) return;
+                delete S.chan.busy[bar];
+                var chk = (res && res.check) || {};
+                var good = !!(chk.ok && chk.can_post);
+                GH.toast(GH.barName(bar) + ': ' + (good ? 'бот может публиковать в канале'
+                    : chk.ok ? 'бот видит канал, но не может публиковать' : (chk.error || 'проверка не прошла')),
+                    good ? 'success' : 'warning');
+                // Ответ несёт и настройки (как GET /channels) — с сохранённой проверкой.
+                if (res && res.channels) S.chan.data = res;
+                renderChannels();
+                reload();
+            }, function (err) {
+                if (!S.chan) return;
+                delete S.chan.busy[bar];
+                renderChannels();
+                reportChanError(err);
+            });
+        });
+    }
+
+    // «Тестовое сообщение» в канал бара — после подтверждения: его увидят подписчики.
+    function testChannel(bar) {
+        if (adminBlocked()) return;
+        var chat = barCfg(bar).chat;
+        if (!chat || !S.chan) return;
+        GH.confirm({
+            title: 'Отправить тестовое сообщение?',
+            text: GH.barName(bar) + ': в канал ' + chat + ' уйдёт сообщение «Проверка связи с сайтом». Его увидят ' +
+                'подписчики канала; удалить его можно в самом Telegram.',
+            ok: 'Отправить'
+        }).then(function (ok) {
+            if (!ok || !S.chan) return;
+            S.chan.busy[bar] = 'test';
+            renderChannels();
+            GH.api('POST', API + '/channels/test', { bar: bar }).then(function (res) {
+                if (!S.chan) return;
+                delete S.chan.busy[bar];
+                var sent = !!(res && res.ok !== false);
+                S.chan.tests[bar] = { at: GH.mskNow().datetime, ok: sent, error: res && res.error,
+                                      link: sent ? postLink((res && res.chat) || chat, res && res.message_id) : '' };
+                renderChannels();
+                GH.toast(sent ? 'Тестовое сообщение отправлено в канал ' + chat
+                    : 'Не отправлено: ' + ((res && res.error) || 'ошибка Telegram'), sent ? 'success' : 'danger');
+            }, function (err) {
+                if (!S.chan) return;
+                delete S.chan.busy[bar];
+                S.chan.tests[bar] = { at: GH.mskNow().datetime, ok: false, error: err.message };
+                renderChannels();
+                reportChanError(err);
+            });
+        });
+    }
+
+    function onChanInput(e) {
+        var t = e.target;
+        var key = t.getAttribute && t.getAttribute('data-chan');
+        if (!key || !S.chan || !S.isAdmin) return;
+        S.chanDirty[key] = t.value;
+        setChanSave('dirty');
+    }
+    function onChanChange(e) {
+        var t = e.target;
+        if (!t.getAttribute || !S.chan) return;
+        if (!S.isAdmin) { adminBlocked(); renderChannels(); return; }
+        var key = t.getAttribute('data-chan');
+        if (key) { chanSave(key); return; }
+        var sw = t.getAttribute('data-cswitch');
+        if (sw === 'enabled') setAutoSend(t.checked, t);
+        else if (sw === 'bot') setBotSend(t.checked, t);
+        else if (sw === 'signup') setBotSignup(t.checked, t);
+    }
+    function onChanKey(e) {
+        // Enter в поле — «готово»: уход из поля сохраняет значение (change).
+        var t = e.target;
+        if (e.key === 'Enter' && t.getAttribute && t.getAttribute('data-chan')) {
+            e.preventDefault();
+            t.blur();
+        }
+    }
+    function onChanClick(e) {
+        var act = closest(e.target, '[data-cact]');
+        if (!act || act.disabled || !S.chan) return;
+        if (act.getAttribute('aria-disabled') === 'true') {
+            if (act.getAttribute('data-admin')) adminBlocked();
+            return;
+        }
+        var a = act.getAttribute('data-cact');
+        var bar = act.getAttribute('data-bar');
+        if (a === 'check' && bar) checkChannel(bar);
+        else if (a === 'test' && bar) testChannel(bar);
+        else if (a === 'hist-all') {
+            S.chan.histAll = true;
+            renderChannels();
+        } else if (a === 'retry') {
+            S.chan = { loading: true, busy: {}, tests: {} };
+            renderChannels();
+            loadChannels();
+        }
+    }
+
+    // ==================== «Попросить агента» ====================
+
+    // Три задания агенту контента в Claude. today — 'YYYY-MM-DD' (Москва).
+    // «План» — на следующий календарный месяц после текущего: план готовят
+    // заранее, одной сессией на месяц (концепция владельца). Текст задания
+    // короткий: коннектор и сценарий; правила агент берёт из подключения.
+    function agentTasks(today) {
+        var month = String(today || '').slice(0, 7);
+        var next = GH.addMonths(month, 1) || month;
+        var label = GH.monthLabel(next);
+        var lower = label.charAt(0).toLowerCase() + label.slice(1);
+        var lead = 'Коннектор ' + AGENT_CONNECTOR + ', сценарий ';
+        var list = [
+            { key: 'plan', label: 'План на ' + lower, hint: 'черновики публикаций месяца по брифу сети',
+              text: lead + 'content_plan_month: подготовь черновик контент-плана на ' + lower + ' (month=' + next +
+                  ') по брифу сети. Только черновики — ничего не утверждай.' },
+            { key: 'week', label: 'Проверить неделю', hint: 'что не готово и что можно утвердить',
+              text: lead + 'content_review_week: проверь публикации ближайшей недели — что не готово, чего не ' +
+                  'хватает, что можно утвердить. Ничего не меняй без моей просьбы.' },
+            { key: 'reviews', label: 'Разобрать отзывы', hint: 'черновики ответов гостям и идеи для постов',
+              text: lead + 'content_reviews_digest: разбери отзывы гостей без ответа — сохрани черновики ответов и ' +
+                  'предложи кандидатов в материалы. Окончательные ответы не сохраняй.' }
+        ];
+        each(list, function (t) { t.url = CLAUDE_NEW_URL + encodeURIComponent(t.text); });
+        return list;
+    }
+    function agentToday() { return (S.data && S.data.today) || GH.mskNow().date; }
+
+    function renderAgentMenu() {
+        var html = '<div class="gh-menu-grab" aria-hidden="true"></div><div class="gh-menu-cap">Задание агенту в Claude</div>';
+        each(agentTasks(agentToday()), function (t) {
+            html += '<a class="gh-menu-item gh-cp-agentitem" href="' + esc(t.url) + '" target="_blank" ' +
+                'rel="noopener noreferrer" data-agent-task="' + esc(t.key) + '">' +
+                '<span class="gh-cp-agentitem-t"><b>' + esc(t.label) + '</b><span>' + esc(t.hint) + '</span></span></a>';
+        });
+        html += '<div class="gh-cp-menu-note">Claude откроется в новой вкладке: задание уже в поле сообщения и ' +
+            'скопировано в буфер. Нужен коннектор <span class="gh-nowrap">' + esc(AGENT_CONNECTOR) + '</span>, ' +
+            'подключённый в Claude, — адрес и доступ: ' +
+            '<a class="gh-link" href="' + esc(MCP_ADMIN_URL) + '" target="_blank" rel="noopener">Доступ агентов</a>.</div>';
+        el.agentMenu.innerHTML = html;
+    }
+    // Пункт меню — ссылка: новую вкладку открывает сам браузер (target=_blank,
+    // без блокировки всплывающих окон); здесь — копия задания в буфер.
+    function onAgentMenuClick(e) {
+        var a = closest(e.target, '[data-agent-task]');
+        if (!a) return;
+        var key = a.getAttribute('data-agent-task');
+        var task = null;
+        each(agentTasks(agentToday()), function (t) { if (t.key === key) task = t; });
+        if (!task) return;
+        GH.copyText(task.text).then(function (ok) {
+            GH.toast(ok ? '«' + task.label + '»: задание открыто в Claude и скопировано. Если поле сообщения пустое — ' +
+                'вставьте его.' : '«' + task.label + '»: задание открыто в Claude (скопировать в буфер не удалось).',
+                ok ? 'success' : 'muted');
+        });
+    }
+
     // ==================== пауза ====================
 
-    function menuItem(attr, value, label, hint, on) {
-        return '<button type="button" class="gh-menu-item' + (on ? ' is-on' : '') + '" ' + attr + '="' + esc(value) + '">' +
+    // off — пункт выключен (например, «Снять паузу» не администратору).
+    function menuItem(attr, value, label, hint, on, off) {
+        return '<button type="button" class="gh-menu-item' + (on ? ' is-on' : '') + '" ' + attr + '="' + esc(value) + '"' +
+            (off ? ' disabled' : '') + '>' +
             '<span>' + esc(label) + '</span>' + (hint ? '<span class="gh-menu-hint">' + esc(hint) + '</span>' : '') +
             '</button>';
     }
@@ -3820,15 +5339,19 @@
         var html = '<div class="gh-menu-grab" aria-hidden="true"></div><div class="gh-menu-cap">Поставить на паузу</div>' +
             menuItem('data-pause', 'pause|all', 'Вся сеть', 'все бары и сеть');
         each(GH.BARS, function (b) { html += menuItem('data-pause', 'pause|' + b.key, b.name, b.short); });
-        html += '<div class="gh-menu-sep"></div><div class="gh-menu-cap">Снять паузу</div>' +
-            menuItem('data-pause', 'resume|all', 'Вся сеть', 'все бары и сеть');
-        each(GH.BARS, function (b) { html += menuItem('data-pause', 'resume|' + b.key, b.name, b.short); });
+        // Снять паузу — выпустить публикации снова: только администратор.
+        var off = !S.isAdmin;
+        html += '<div class="gh-menu-sep"></div><div class="gh-menu-cap">Снять паузу' +
+            (off ? ' · только администратор' : '') + '</div>' +
+            menuItem('data-pause', 'resume|all', 'Вся сеть', 'все бары и сеть', false, off);
+        each(GH.BARS, function (b) { html += menuItem('data-pause', 'resume|' + b.key, b.name, b.short, false, off); });
         html += '<div class="gh-cp-menu-note">Касается утверждённых публикаций, время которых ещё впереди. Пауза одного ' +
             'бара не останавливает публикации на всю сеть (например, общий Instagram).</div>';
         el.pauseMenu.innerHTML = html;
     }
 
     function bulkPause(action, bar) {
+        if (action === 'resume' && adminBlocked()) return;
         var scope = bar === 'all' ? 'всей сети' : 'бара «' + GH.barName(bar) + '»';
         var text;
         if (action === 'pause') {
@@ -4017,6 +5540,23 @@
         el.briefDrawer.addEventListener('input', onBriefInput);
         el.briefDrawer.addEventListener('click', onBriefClick);
         el.briefDrawer.addEventListener('focusout', onBriefFocusOut);
+        // Каналы и отправка: кнопка в ряду действий и кнопка баннера отправки.
+        el.chanBtn.addEventListener('click', openChannels);
+        el.deliveryBtn.addEventListener('click', openChannels);
+        el.chanDrawer.addEventListener('input', onChanInput);
+        el.chanDrawer.addEventListener('change', onChanChange);
+        el.chanDrawer.addEventListener('keydown', onChanKey);
+        el.chanDrawer.addEventListener('click', onChanClick);
+        // «Попросить агента»: меню заданий.
+        el.agentBtn.addEventListener('click', function () { renderAgentMenu(); GH.toggleMenu(el.agentMenu, el.agentBtn); });
+        el.agentMenu.addEventListener('click', onAgentMenuClick);
+        // «Как считается» остаётся раскрытым после перерисовки: toggle не
+        // всплывает, поэтому слушаем на фазе перехвата.
+        document.addEventListener('toggle', function (e) {
+            var d = e.target;
+            var key = d && d.getAttribute && d.getAttribute('data-how');
+            if (key) S.howOpen[key] = !!d.open;
+        }, true);
         el.pauseBtn.addEventListener('click', function () { renderPauseMenu(); GH.toggleMenu(el.pauseMenu, el.pauseBtn); });
         el.pauseMenu.addEventListener('click', function (e) {
             var item = closest(e.target, '[data-pause]');
@@ -4140,7 +5680,13 @@
             originN: byId('cpOriginN'),
             agentDel: byId('cpAgentDelBtn'),
             briefBtn: byId('cpBriefBtn'),
-            briefDrawer: byId('cpBriefDrawer')
+            briefDrawer: byId('cpBriefDrawer'),
+            deliveryText: byId('cpDeliveryText'),
+            deliveryBtn: byId('cpDeliveryBtn'),
+            chanBtn: byId('cpChanBtn'),
+            chanDrawer: byId('cpChanDrawer'),
+            agentBtn: byId('cpAgentBtn'),
+            agentMenu: byId('cpAgentMenu')
         };
         if (!GH) {
             if (el.msg) {
@@ -4163,9 +5709,14 @@
         S.origin = params.get('origin') === ORIGIN_AGENT ? ORIGIN_AGENT : '';
         S.bar = GH.getBar();
         S.pendingOpen = params.get('open') || null;
-        // ?brief=1 — открыть бриф для агента (ссылка «откройте бриф»); если в
-        // адресе есть и ?open=, главнее карточка материала.
+        // ?brief=1 — открыть бриф для агента (ссылка «откройте бриф»), ?channels=1
+        // — «Каналы и отправка»; если в адресе есть и ?open=, главнее карточка
+        // материала (одновременно открыта одна выдвижная карточка).
         var wantBrief = params.get('brief') === '1';
+        // Права: data-is-admin на body (сервер: current_user.is_admin); нет атрибута — true.
+        var adminFlag = document.body ? document.body.getAttribute('data-is-admin') : null;
+        if (adminFlag !== null) S.isAdmin = adminFlag === 'true';
+        var wantChannels = params.get('channels') === '1';
         bind();
         renderChrome();
         load().then(function (ok) {
@@ -4176,6 +5727,7 @@
                 return;
             }
             if (wantBrief) openBrief();
+            else if (wantChannels) openChannels();
         });
     }
 
@@ -4186,11 +5738,21 @@
     // исполняет файл в vm и вызывает чистые правила отсюда).
     window.__contentPlan = {
         state: S, load: load, openMaterial: openMaterial, setView: setView,
-        openApprove: openApprove, openCopy: openCopy, charLen: charLen, parseDays: parseDays,
+        openApprove: openApprove, openCopy: openCopy, charLen: charLen, textLen: textLen,
+        unitsFor: unitsFor, parseDays: parseDays,
         dayStats: dayStats, dtValue: dtValue, dtChange: dtChange, dtCommit: dtCommit,
         stateCls: stateCls, stateLabel: stateLabel, placementFiles: placementFiles, listUrl: listUrl,
         inTable: inTable, normTitle: normTitle, copyRules: copyRules,
         materialVisible: materialVisible, agentStats: agentStats, aiMark: aiMark, briefBody: briefBody,
-        deleteAgentDrafts: deleteAgentDrafts, openBrief: openBrief
+        deleteAgentDrafts: deleteAgentDrafts, openBrief: openBrief,
+        // Отправка и «Попросить агента».
+        deliveryState: deliveryState, postLink: postLink, normChat: normChat, chatValid: chatValid,
+        chanValue: chanValue, chanBody: chanBody, agentTasks: agentTasks, sizeText: sizeText,
+        audienceSize: audienceSize, actionList: actionList, deliveryHtml: deliveryHtml, sendNow: sendNow,
+        setAutoSend: setAutoSend, setBotSend: setBotSend, placementAction: placementAction,
+        isAutoPublished: isAutoPublished, canRetryFailed: canRetryFailed, openChannels: openChannels,
+        chanSave: chanSave, flushChannels: flushChannels, inFlight: inFlight, setBotSignup: setBotSignup,
+        actionButtons: actionButtons, reportError: reportError, switchHtml: switchHtml, bulkPause: bulkPause,
+        approveOne: approveOne, openApprove: openApprove, checkChannel: checkChannel, testChannel: testChannel
     };
 })();

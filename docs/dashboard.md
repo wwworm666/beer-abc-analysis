@@ -11,15 +11,15 @@
 
 ### Бэкенд
 - [`core/dashboard_analysis.py`](../core/dashboard_analysis.py) — расчёт 19 из 20 метрик из OLAP данных (двадцатая, активность кранов, считается в `routes/dashboard.py` из `taps_manager`); с 2026-09-04 сюда входят `card_checks`, `nocard_checks`, `card_checks_share`, `card_revenue`, `nocard_revenue` (чеки и выручка с картой лояльности / без карты: `_card_checks_split` + `revenue_card_split`)
-- [`core/comparison_calculator.py`](../core/comparison_calculator.py) — сравнение периодов
+- [`core/comparison_calculator.py`](../core/comparison_calculator.py) — сравнение двух периодов для `POST /api/comparison/periods` (20 метрик экрана, соглашение вкладки «Сравнение»)
 - [`core/trends_analyzer.py`](../core/trends_analyzer.py) — тренды по неделям
-- [`core/export_manager.py`](../core/export_manager.py) — экспорт Excel/PDF
-- [`core/plans_manager.py`](../core/plans_manager.py) — планы выручки
+- [`core/export_manager.py`](../core/export_manager.py) — экспорт Excel/PDF: `dashboard_rows` — строки «план | факт | % плана | разница» по правилам экрана
+- [`core/plans_manager.py`](../core/plans_manager.py) — планы выручки; `PeriodCommentsStore` — комментарии к периодам (отдельный файл `period_comments.json`, с 2026-09-28)
 - [`core/day_weights.py`](../core/day_weights.py) — вес дня (пт/сб = 2.0), override-aware
 - [`core/dashboard_details.py`](../core/dashboard_details.py) — детали внутри карточки (2026-09-04): реестр «метрика -> секции» и чистые функции над строками единого запроса; ленивые секции «Литры» (из блока `/draft`) и «Краны»
 - [`core/draft_loader.py`](../core/draft_loader.py) — общий загрузчик сырья `/draft` (`load_draft_kegs`, тот же ключ кэша `draft_kegs_*`): им пользуются и `/api/draft-kegs`, и вкладка «Литры» карточек розлива
 - [`core/taps_manager.py`](../core/taps_manager.py) — `tap_activity_by_tap`: активность кранов за период с разбивкой по кранам; карточка «Активность кранов» — обёртка над ним
-- [`routes/dashboard.py`](../routes/dashboard.py) — Flask endpoint'ы; `load_dashboard_sales` — единый OLAP-запрос из общего кэша для карточек, вкладки «Выручка», разбивки по сотрудникам и деталей карточки; `/api/dashboard-card-details` — секции одной карточки
+- [`routes/dashboard.py`](../routes/dashboard.py) — Flask endpoint'ы; `load_dashboard_sales` — единый OLAP-запрос из общего кэша для карточек, вкладки «Выручка», разбивки по сотрудникам и деталей карточки; `/api/dashboard-card-details` — секции одной карточки; `DASHBOARD_FRONTEND_KEYS` + `map_dashboard_metrics` — один словарь «ключ расчёта -> ключ экрана» (наценка ×100); `get_dashboard_analytics_data` — метрики ровно как на экране для выгрузок и сравнения периодов
 - [`routes/employee.py`](../routes/employee.py) — `/api/employee-metrics-breakdown`: разбивка карточки по сотрудникам из того же кэша (`calculate_metrics_by_employee`); с 2026-09-04 строка сотрудника несёт и ключи лояльности (`cardChecks`, `nocardChecks`, `cardChecksShare`, `cardRevenue`)
 
 ### Фронтенд
@@ -43,6 +43,9 @@
 - [`tests/test_plans_form.mjs`](../tests/test_plans_form.mjs) — поле «Доля чеков с картой (%)» в форме планов: шаблон, `formFields`, дефолт 70 = `PLAN_DEFAULTS` в Python (`node tests/test_plans_form.mjs`)
 - [`scripts/fill_plan_defaults.py`](../scripts/fill_plan_defaults.py) — проставить недостающие дефолты (сейчас `cardChecksShare` = 70) во все месячные планы: `--dry-run`, затем без флага; на проде `docker exec beer-app python scripts/fill_plan_defaults.py`
 - [`tests/test_dashboard_period.py`](../tests/test_dashboard_period.py) — пустой период, границы периода в `/api/revenue-metrics`
+- [`tests/test_dashboard_comments.py`](../tests/test_dashboard_comments.py) — комментарии к периоду: 200 вместо 500, свой текст у заведения, файл планов не трогается, перенос старых комментариев (один раз, файл планов не меняется, `legacy`), очистка, проверки ввода (400), битый файл — 503 без перезаписи, автор «логин · агент» (14)
+- [`tests/test_dashboard_compare_export.py`](../tests/test_dashboard_compare_export.py) — сравнение периодов и выгрузки: числа = `/api/dashboard-analytics` за те же даты, формулы Δ / Δ% / п.п., база 0, бюджет, топ-3 и выводы без эмодзи; Excel/PDF — наценка в процентах, активность кранов из журнала, пустая ячейка плана, пустой период — нули; 400/500; `ExportManager.dashboard_rows` (16)
+- [`tests/test_msk_today_routes.py`](../tests/test_msk_today_routes.py) — «сегодня» по Москве у `/api/revenue-metrics`, `/api/widget/revenue`, `/api/draft-analyze`, `RevenueMetricsCalculator`, `/api/weeks` и `WeeksGenerator`, месячного отчёта (текущий месяц, год и месяц по умолчанию, «данные на …») (11)
 - [`tests/test_dashboard_loyalty_checks.py`](../tests/test_dashboard_loyalty_checks.py) — чеки с картой / без карты: формула и инварианты, правило «любая строка», пустой период, строки `table_data`, поле `Delivery.CustomerCardNumber` в OLAP-запросе, сквозной `/api/dashboard-analytics` с замоканным OLAP (7)
 - [`tests/test_dashboard_employee_breakdown.py`](../tests/test_dashboard_employee_breakdown.py) — разбивка карточки по сотрудникам: формулы по `AuthUser` и инварианты сумм, пустой автор, чек с двумя авторами, поле `AuthUser` в OLAP-запросе, сквозной `/api/employee-metrics-breakdown` — `total` равен карточке и один поход в iiko на оба ответа (8)
 
@@ -170,11 +173,41 @@ datepicker), они перетирали друг друга и давали л�
 Формат выбран так намеренно:
 - совпадает с ключами недель из `/api/weeks` — `charts.js`/`trends.js` продолжают
   находить неделю по ключу;
-- **не похож** на ключ плана (`YYYY-MM` или `venue_YYYY-MM`). Это критично:
-  `POST /api/comments/<venue>/<key>` пишет комментарий в файл планов
-  ([`routes/dashboard.py`](../routes/dashboard.py) `save_comment`), и ключ вида
-  `2026-08` перезаписал бы боевой план;
+- **не похож** на ключ плана (`YYYY-MM` или `venue_YYYY-MM`). До 2026-09-28 это было
+  критично: `POST /api/comments/<venue>/<key>` писал комментарий в файл планов, и ключ
+  вида `2026-08` перезаписал бы боевой план. Теперь комментарии хранятся отдельно
+  (раздел «Комментарии к периоду»), но запись принимает только этот формат ключа;
 - безопасен для имени файла экспорта (`core/export_manager.py`).
+
+### Комментарии к периоду (с 2026-09-28)
+
+Текст «анализа» к периоду — `GET/POST /api/comments/<venue_key>/<period_key>`,
+хранилище `PeriodCommentsStore` в [`core/plans_manager.py`](../core/plans_manager.py),
+файл `period_comments.json` рядом с планами (`/kultura` на проде, `data/` локально).
+
+| Правило | Как |
+|---|---|
+| Ключ | (заведение, период): `venue_key` — `all` или ключ бара, `period_key` — `YYYY-MM-DD_YYYY-MM-DD` |
+| Чтение | свой текст заведения; иначе старый общий (сохранён до 2026-09-28 без заведения, `legacy: true`) — он виден у любого заведения; иначе `comment: null` |
+| Запись | заменяет текст заведения целиком; до 10 000 знаков, пробелы по краям обрезаются; пустой текст очищает комментарий заведения и скрывает у него старый общий |
+| Автор | `updated_by` — логин; через ИИ-агента (MCP) — «логин · агент»; `updated_at` — МСК |
+| Ошибки | 400 — неизвестный ключ заведения, неверный формат или даты периода, текст не строкой или длиннее предела, тело не объект; 503 — файл комментариев повреждён (не перезаписывается) |
+
+**Почему отдельный файл.** До 2026-09-28 комментарий читался и писался как поле
+`comment` ВНУТРИ записи файла планов по ключу периода и проходил проверку полного
+плана: для ключа периода дашборда записи плана нет, поэтому каждое сохранение
+отвечало 500 «Missing required field: revenue», а `venue_key` не использовался.
+
+**Перенос старых комментариев.** При первом обращении хранилище один раз копирует
+из `plansdashboard.json` все записи с непустым полем `comment` в слот `*` («любое
+заведение») под тем же ключом; время и список ключей — в `legacy_migrated_at` и
+`legacy_keys`. Сам файл планов не меняется. Если он не читается, перенос
+откладывается до следующего обращения. Чтение принимает любой ключ до 64 знаков,
+чтобы старые комментарии под ключом другого вида оставались доступны.
+
+Разметки комментария на странице сейчас нет (`templates/dashboard/components/comment_section.html`
+никуда не подключён), модуль `comments.js` только запрашивает текст при смене
+периода; маршрут нужен ИИ-агентам (`analytics_comment_get` / `analytics_comment_save`).
 
 ---
 
@@ -776,24 +809,52 @@ ratio = weighted_days(период в месяце) / weighted_days(весь м�
 
 ### Сравнение периодов
 
+Два пути с одинаковыми числами:
+- вкладка «Сравнение» ([`comparison.js`](../static/js/dashboard/modules/comparison.js))
+  считает в браузере из двух запросов `/api/dashboard-analytics`;
+- `POST /api/comparison/periods` (с 2026-09-28; до этого — заглушка с пустым
+  сравнением) считает то же на сервере одним вызовом — для ИИ-агентов
+  (`analytics_compare_periods`). Страница его не вызывает.
+
 #### Формулы
+
+Метрики каждого периода — ровно карточки «Аналитики» за эти даты
+(`get_dashboard_analytics_data`: тот же кэш OLAP, наценка в процентах, активность
+кранов по журналу). Направление — как на вкладке: **период 2 — база («было»)**.
 
 ```python
 # core/comparison_calculator.py
-diff_abs = current - previous
-diff_percent = ((current - previous) / previous * 100) if previous > 0 else 0
-trend = 'up' if diff_abs > 0 else 'down' if diff_abs < 0 else 'stable'
+diff = period1 - period2                          # 2 знака
+diff_percent = diff / period2 * 100 if period2 != 0 else None   # 1 знак
+diff_unit = 'п.п.' if unit == '%' else unit       # у долей, наценок, активности — пункты
+trend = 'up' if diff > 0 else 'down' if diff < 0 else 'stable'
+better = (diff < 0 if budget else diff > 0) if diff != 0 else None  # списания — бюджет
 ```
+
+Пример: выручка 1 500 ₽ против 1 000 ₽ → diff 500, diff_percent 50,0 %; кухня
+300 ₽ против 0 ₽ → diff_percent `null` (вкладка рисует здесь 0 %).
+
+Топ изменений — как блок «Топ-3 изменения»: метрики, где хотя бы одно значение не
+0 и |Δ%| ≥ 0,1, по убыванию |Δ%|, не больше трёх; метрика с базой 0 в топ не
+попадает. `insights` — те же строки фразами без эмодзи: «Выручка: 1 500 ₽ против
+1 000 ₽ (+50,0%) — лучше».
 
 #### Endpoint
 
 ```
-POST /api/compare/periods
-Body: {
-    "current": {"dateFrom": "...", "dateTo": "..."},
-    "previous": {"dateFrom": "...", "dateTo": "..."}
-}
+POST /api/comparison/periods
+Body: {"venue_key": "all" | "<ключ бара>" | "",
+       "period1_key": "YYYY-MM-DD_YYYY-MM-DD",   # сравниваемый период
+       "period2_key": "YYYY-MM-DD_YYYY-MM-DD"}   # база («было»)
+Response: {success, venue_key, base: "period2",
+           period1: {key, date_from, date_to, metrics}, period2: {...},
+           comparison: {<метрика>: {label, unit, period1, period2, diff, diff_unit,
+                                    diff_percent, trend, budget, better}},
+           top_changes: [...], insights: [...], formula}
 ```
+
+400 — неизвестное заведение или ключ периода не того вида (несуществующая дата,
+начало позже конца); 500 — сбой iiko. Метрики — те же 20, что строки выгрузки.
 
 ---
 
@@ -842,8 +903,9 @@ Body: {
 Response: { "revenue": ..., "checks": ..., ..., "table_data": [...] }
 ```
 
-С 2026-09-04 в ответе есть ключи лояльности (маппинг snake -> camel в
-`frontend_mapping`; словарь одинаковый в `dashboard_analytics` и `revenue_metrics`):
+С 2026-09-04 в ответе есть ключи лояльности (маппинг snake -> camel — с 2026-09-28
+один словарь `DASHBOARD_FRONTEND_KEYS` + `map_dashboard_metrics` на `dashboard_analytics`,
+`revenue_metrics`, сравнение периодов и выгрузки; наценка ×100 только там):
 `cardChecks`, `nocardChecks`, `cardChecksShare`, `cardRevenue`, `nocardRevenue`.
 В `table_data` — строки «Чеки с картой», «Чеки без карты», «Доля чеков с картой»,
 «Выручка по картам» сразу после «Списания баллов». Формулы — в разделе
@@ -937,6 +999,17 @@ Body: {
 периодом считается календарный месяц `date_from`, как было раньше; на месячном
 периоде обе ветки дают идентичные числа (проверено паритет-тестом).
 
+«Период закончился» = сегодня по Москве позже `period_to` (или факт уже за весь
+период). «Сегодня» — `core/msk_time.today()` (с 2026-09-28): прод-контейнер живёт в
+UTC, и с 00:00 до 03:00 МСК наивный `datetime.now()` давал вчера — в первую ночь
+после конца периода «Ожидаемая» ещё экстраполировалась вместо «= факт». Так же
+по Москве считают виджет выручки (`/api/widget/revenue`: «с 1-го по сегодня» — в
+ночь на 1-е число он показывал прошлый месяц), старый анализ розлива
+(`/api/draft-analyze`: окно «последние N дней»), список недель (`/api/weeks`,
+`core/weeks_generator.py`: год и текущая неделя — в ночь на понедельник текущей
+оставалась прошлая неделя) и месячный отчёт (год и месяц по умолчанию, граница
+текущего месяца, «данные на …» — [monthly-report.md](monthly-report.md)).
+
 ### Планы
 
 UI = единственный путь редактирования. См. подробнее [venues-plans.md](venues-plans.md).
@@ -965,9 +1038,21 @@ DELETE /api/plans/daily/<v>/<year>/<month>/<date> — сброс override вес
 ### Сравнение
 
 ```
-POST /api/compare/periods
-POST /api/compare/venues
+POST /api/comparison/periods   — сравнение двух периодов (раздел «Сравнение периодов»)
 ```
+
+Маршрута сравнения заведений нет: `API.COMPARISON_VENUES` (`/api/comparison/venues`)
+в `config.js` и `compareVenues` / `comparePeriods` в `api.js` — мёртвый код, их
+никто не вызывает.
+
+### Комментарии
+
+```
+GET  /api/comments/<venue_key>/<period_key>   — текст заведения за период (или старый общий)
+POST /api/comments/<venue_key>/<period_key>   — {comment}: сохранить / очистить
+```
+
+Правила — раздел «Комментарии к периоду».
 
 ### Тренды
 
@@ -982,18 +1067,35 @@ POST /api/export/excel
 POST /api/export/pdf
 ```
 
-В Excel (openpyxl и CSV-фолбэк) и PDF (reportlab и HTML-фолбэк) после строки
-«Списания баллов» идут четыре строки лояльности: «Чеки с картой (шт)», «Чеки без
-карты (шт)», «Доля чеков с картой (%)», «Выручка по картам (₽)». Списки метрик
-экспорта — `routes/dashboard.py` (`export_excel`, `export_pdf`) и
-`core/export_manager.py` (`metric_names`); сравнение периодов
-(`core/comparison_calculator.py`, `comparison.js`) знает те же четыре ключа.
-Экспорт планов (`plans_export`) не менялся.
+Тело: `{bar: 'all' | <ключ бара>, date_from, date_to}` — даты включительно, как у
+карточек (шлёт `export.js`: границы выбранного периода). 400 — неверный бар или
+даты, 500 — сбой iiko.
 
-В PDF (reportlab и HTML-фолбэк) у метрик без плана — в том числе у четырёх
-метрик лояльности — в колонках «План», «% плана» и «Разница» стоит «—», а не
-0,00 и красный 0 %: как «План не задан» на экране. В Excel план такой метрики
-записан числом 0.
+**Числа — как на экране (с 2026-09-28).** Факт = `get_dashboard_analytics_data`:
+ровно карточки «Аналитики» за те же даты (тот же кэш OLAP, наценки и доли в
+процентах, активность кранов по журналу кранов). План =
+`plans_manager.calculate_plan_for_period` за те же даты — его же экран берёт через
+`/api/plans/calculate`. Строки строит одна функция
+`ExportManager.dashboard_rows` ([`core/export_manager.py`](../core/export_manager.py)),
+зеркало `buildStats` экрана:
+
+| Правило | Значение |
+|---|---|
+| Строки | 20 (`DASHBOARD_EXPORT_METRICS`): 16 базовых, «Чеки с картой», «Чеки без карты», «Доля чеков с картой», «Выручка по картам», «Активность кранов» |
+| План есть | не пустой и не 0; у активности кранов без плана — 100 % (как на экране) |
+| % плана / Разница | факт / план × 100 / факт − план; без плана — пусто (Excel) и «—» (PDF) |
+| Светофор (HTML) | `plan_score`: ≥ 100 зелёный, 90–99 жёлтый, ниже — красный; у списаний баллов план — потолок, статус от 200 − p |
+| Пустой период | нули, как на экране (раньше 500) |
+
+До 2026-09-28 факт шёл отдельным запросом в iiko без кэша и в «сырых» единицах:
+«Наценка (%)» в Excel была `187.69 | 1.61` (план в процентах, факт дробью) при 160,87 %
+на экране, «Активность кранов» — `0` при 87,5 % на экране (замер на фикстуре).
+
+Excel — только openpyxl (обязательная зависимость `requirements.txt`); CSV-фолбэк
+убран — он писал текст в байтовый буфер и падал. PDF: reportlab в зависимостях нет,
+поэтому на проде отдаётся HTML-страница (`text/html`, файл `.html`) — её печатают
+в PDF из браузера; ветка reportlab сработает, только если библиотеку поставить.
+Экспорт планов (`plans_export`) не менялся.
 
 ---
 
@@ -1013,6 +1115,8 @@ POST /api/export/pdf
 
 ## Changelog
 
+- **2026-09-28 (2)** — «Сегодня» по Москве и в остальных местах, где дата бралась с часов сервера (UTC): `/api/weeks` и `core/weeks_generator.py` (год по умолчанию и текущая неделя), месячный отчёт (`core/monthly_report.py`: текущий месяц, год по умолчанию, «данные на …»; маршруты `/api/monthly-report*` — год и месяц по умолчанию и год `force` / `full`), имя файла выгрузки планов. Тесты: `tests/test_msk_today_routes.py` (11, было 5).
+- **2026-09-28** — Старые ошибки сервиса (агент E, контракт «доделать интеграцию», раздел 7). (1) Комментарий к периоду: `POST /api/comments/...` на любом ключе периода дашборда отвечал 500 «Missing required field: revenue» (текст писался в запись файла планов и проходил проверку полного плана), `venue_key` игнорировался. Теперь — отдельный файл `period_comments.json` (`PeriodCommentsStore` в `core/plans_manager.py`), ключ (заведение, период), старые комментарии один раз переносятся из файла планов в слот «любое заведение» (`legacy`), файл планов не меняется; 400 на кривой ввод, 503 на битый файл. (2) `POST /api/comparison/periods` был заглушкой (страница его не вызывает — вкладка «Сравнение» считает в браузере): теперь честный расчёт теми же числами, что карточки, соглашение вкладки (период 2 — база), `core/comparison_calculator.py` переписан (20 метрик экрана, Δ / Δ% / п.п., бюджет, топ-3, выводы без эмодзи), MCP `analytics_compare_periods` стал тяжёлым. (3) Выгрузки Excel/PDF: факт = `get_dashboard_analytics_data` (кэш дашборда, наценка в процентах, активность кранов из журнала), строки — `ExportManager.dashboard_rows` по правилам экрана, пустой период — нули, неверный бар или даты — 400; CSV-фолбэк Excel убран. (4) «Сегодня» по Москве (`core/msk_time`) у `/api/revenue-metrics`, `/api/widget/revenue`, `/api/draft-analyze` и `RevenueMetricsCalculator`. Общий словарь ключей экрана `DASHBOARD_FRONTEND_KEYS` вместо трёх копий. Тесты: `tests/test_dashboard_comments.py` (14), `tests/test_dashboard_compare_export.py` (16), `tests/test_msk_today_routes.py` (5), `tests/test_mcp_tools_analytics.py`. Разделы «Комментарии к периоду», «Сравнение периодов», «Метрики выручки», «Экспорт».
 - **2026-09-05 (3)** — Панель деталей под рядом и заметный шеврон (визуальные правки по замечанию владельца: «раскрытая карточка расширяется, соседи меняют размер и положение; стрелка в углу почти незаметна»). Карточка в сетке раскрывается панелью на всю ширину под своим рядом — элементом сетки после последней карточки ряда (`panelHost`, `rowEndCard`, `.metric-breakdown-panel`), сетка KPI неподвижна; связь с карточкой — акцентная рамка, «носик», название метрики в шапке; строки панели плиткой. Кликабельность: hover с акцентной рамкой и тенью, шеврон-SVG в кружке (`.mc-caret`, `.m-caret`), у раскрытой карточки залит акцентом и повёрнут. На телефоне карточка пары раскрывается под парой. Тесты: `tests/test_dashboard_render.mjs` (42). Скриншоты 1280/1000/390 и замер прямоугольников карточек до и после раскрытия.
 - **2026-09-05 (2)** — Одна карточка лояльности и её план. Владелец: «четыре новые карточки объединить в одну "Доля чеков с картой", остальные три положить внутрь неё, как сделано с остальными; у неё должен выставляться план, как у всех, по умолчанию 70% за все месяцы, с возможностью поменять через UI». В `config.js` остались 17 карточек (группа «Лояльность» — одна), бывшие «Чеки с картой», «Чеки без карты», «Выручка по картам» — вкладки «Чеки», «Выручка», «Гости» карточки (`CARD_SECTIONS['cardChecksShare']`, `sec_card_split` получил `sid`/`title`); их числа остались в API, сравнении периодов, экспорте и разбивке по сотрудникам. План: `PLAN_DEFAULTS`, `with_defaults`, необязательное поле в валидации с границами 0–100, `cardChecksShare` в относительных метриках расчёта периода, `fill_missing_defaults` + `scripts/fill_plan_defaults.py`, поле в форме планов. Тесты: `tests/test_dashboard_card_details.py`, `tests/test_dashboard_render.mjs`, новые `tests/test_plans_defaults.py` и `tests/test_plans_form.mjs`. Разделы «Группы метрик», «План доли чеков с картой».
 - **2026-09-05** — Два замечания владельца к деталям карточек. (1) У карточек долей (розлив, фасовка, кухня) убрана вкладка «Структура»: доля и есть структура, а рубли и наценка категорий стоят на соседних карточках; у «Доли розлива» осталась одна вкладка «Литры». (2) «Списания баллов» — бюджетная метрика (`config.js` `budget: true`): план — потолок 5% выручки, поэтому светофор, цвет отклонения, средние проценты (шапка, мобильная сводка, группа), сравнение периодов и HTML-экспорт считаются от зеркального процента 200 − p (`utils.js scorePercent`, `core/plans_manager.py plan_score`); подпись «бюджет» вместо «план», правило в подсказке карточки. Тесты: `tests/test_dashboard_card_details.py` (34), `tests/test_dashboard_render.mjs` (39). Раздел «Бюджетные метрики: списания баллов».

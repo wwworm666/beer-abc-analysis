@@ -326,11 +326,16 @@ CV = (Стандартное отклонение / Среднее) × 100
 ```python
 IIKO_SERVER = "first-federation.iiko.it"
 IIKO_PORT = "443"
-IIKO_LOGIN = "claude544"
-IIKO_PASSWORD = "ApiPass2024!"
+IIKO_LOGIN = "<логин iiko API>"
+IIKO_PASSWORD = "<пароль iiko API>"
 IIKO_BASE_URL = f"https://{IIKO_SERVER}:{IIKO_PORT}/resto/api"
 ```
 **Важно:** В production переместить в переменные окружения
+
+> Логин и пароль iiko API убраны из этого архивного документа 2026-09-28: значения — в
+> локальном `secrets/LOCAL_NOTES.md` (раздел PROJECT_OVERVIEW, файл не в git). Сверка
+> 2026-09-28: это действующая пара из `.env`, а в истории git она лежит открытым текстом —
+> пароль нужно сменить.
 
 ### requirements.txt
 ```

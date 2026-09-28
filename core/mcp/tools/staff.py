@@ -77,6 +77,9 @@ None (например, касса очистится); снятая помет�
 
 ## Changelog
 
+- 2026-09-28 — `staff_me` принимает `employee_iiko_id`: администратор (через MCP — владелец)
+  открывает кабинет любого сотрудника, зарплатный агент больше не упирается в «не привязан».
+  Шаблон id — `EMPLOYEE_ID_PATTERN`, тот же, что проверяет маршрут (routes/me.py).
 - 2026-09-27 — модуль создан: 59 инструментов (все API-маршруты домена, кроме
   управления доступом и webhook-инфраструктуры бота), 3 сценария, инструкции домена.
 """
@@ -95,6 +98,8 @@ DOMAIN = 'staff'
 DATE_PATTERN = r'^\d{4}-\d{2}-\d{2}$'
 MONTH_PATTERN = r'^\d{4}-(0[1-9]|1[0-2])$'
 HHMM_OR_EMPTY_PATTERN = r'^(([01]\d|2[0-3]):[0-5]\d)?$'
+# id сотрудника для кабинета /me другого человека — то же правило, что routes/me.EMPLOYEE_ID_RE.
+EMPLOYEE_ID_PATTERN = r'^[A-Za-z0-9_.:-]{1,64}$'
 
 # Имена складов iiko (OLAP Store.Name) — значения параметра `bar` на /employee
 # (extensions.BARS). Не venue_key и не подписи графика: см. common_bars_reference.
@@ -501,8 +506,9 @@ _SCHEDULE_TOOLS = [
         'Правка строки реестра графика по стабильному iiko_id (блок «Сотрудники» в редакторе '
         'графика): short_label — сокращение в сетке (пустая строка убирает), active — показывать '
         'в сетке и кисти (false скрывает, смены остаются), sort_order — порядок. Имя не '
-        'меняется — оно приходит из iiko синхронизацией. Передайте хотя бы одно поле, иначе '
-        'ответ 404. Пишется в журнал графика (employee_update).',
+        'меняется — оно приходит из iiko синхронизацией. Передайте хотя бы одно поле: без '
+        'полей или с неверным типом — 400 с текстом, сотрудника с таким iiko_id нет в реестре '
+        '— 404. Пишется в журнал графика (employee_update).',
         'PUT', '/api/schedule/employee/<emp_id>',
         _schema({
             'emp_id': _str('iiko_id сотрудника — поле id из staff_schedule_employees.'),
@@ -847,18 +853,25 @@ _SCHEDULE_MONEY_TOOLS = [
 
 _OTHER_TOOLS = [
     _tool(
-        'staff_me', 'Личный кабинет текущего аккаунта',
-        'Данные страницы «Я» (/me) для ТЕКУЩЕГО аккаунта — через MCP это владелец: identity '
-        '(status ok / not_linked / no_snapshot / ...), снимок показателей, KPI и денег '
-        '«начислено на сегодня» (money.total = часы x ставка + такси + передача смены + дневной '
-        'план + KPI - опоздания), нормы месяца, состояние пересчёта. У аккаунта без привязки к '
-        'сотруднику денег нет (not_linked) — это норма. Данные любого сотрудника — '
-        'staff_bonus_calculate, staff_kpi_calculate и staff_schedule_hours_by_role; формулы — '
-        'common_docs_read("me").',
+        'staff_me', 'Личный кабинет (свой или сотрудника)',
+        'Данные страницы «Я» (/me) за месяц: identity (status ok / not_linked / unknown_employee / '
+        'no_snapshot / not_in_snapshot / ambiguous_link, имя, предупреждения), снимок показателей, '
+        'KPI и денег «начислено на сегодня» (money.total = часы x ставка + такси + передача смены + '
+        'дневной план + KPI - опоздания), часы по ролям, нормы месяца, состояние пересчёта. Без '
+        'employee_iiko_id — кабинет ТЕКУЩЕГО аккаунта (через MCP — владельца; без привязки — '
+        'not_linked, это норма). С employee_iiko_id — кабинет этого сотрудника ровно как его видит '
+        'бармен (доступно только администратору, через MCP — владельцу; в ответе блок viewing), '
+        'тексты identity — от лица сотрудника. Снимок пересчитывается раз в сутки '
+        '(staff_me_refresh). Живой расчёт по всем — staff_bonus_calculate, staff_kpi_calculate и '
+        'staff_schedule_hours_by_role; формулы — common_docs_read("me").',
         'GET', '/api/me',
         _schema({'month': _str('Месяц YYYY-MM; по умолчанию текущий по Москве.',
-                               pattern=MONTH_PATTERN)}),
-        query_params=('month',), idempotent=True, examples=({}, {'month': '2026-09'})),
+                               pattern=MONTH_PATTERN),
+                 'employee_iiko_id': _str('id сотрудника из staff_schedule_employees (поле id, GUID '
+                                          'iiko) — открыть его кабинет. Не передавать — свой кабинет.',
+                                          pattern=EMPLOYEE_ID_PATTERN)}),
+        query_params=('month', 'employee_iiko_id'), idempotent=True,
+        examples=({}, {'month': '2026-09'})),
     _tool(
         'staff_me_refresh', 'Пересчитать снимок кабинетов',
         'Запускает фоновый пересчёт снимка показателей, KPI и денег /me для ВСЕХ сотрудников '
@@ -1049,7 +1062,8 @@ INSTRUCTIONS = '\n'.join([
     '  staff_me_refresh, staff_open_check_run_now и все синхронизации. По одному на период.',
     '- График: смены, факт часов, касса (вводит дневной бармен; правка в модалке 72 часа, позже —',
     '  регистр кассы), выходные, пожелания. KPI-цели — файл целей (staff_kpi_targets_get).',
-    '- Кабинет /me — снимок раз в сутки и по кнопке (staff_me_refresh), не живой расчёт.',
+    '- Кабинет /me — снимок раз в сутки и по кнопке (staff_me_refresh), не живой расчёт. Кабинет',
+    '  сотрудника глазами бармена — staff_me с employee_iiko_id (id из staff_schedule_employees).',
     '',
     'ЖУРНАЛ ГРАФИКА (staff_schedule_audit) — кто, когда и что менял: смены, факт часов, касса,',
     'выходные, ставки, выручка, реестр, штрафы кассы, выгрузки ЗП, пересчёт кабинетов. Это',

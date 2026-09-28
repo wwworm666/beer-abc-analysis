@@ -12,9 +12,13 @@ from core.dashboard_details import (
 from core.draft_loader import load_draft_kegs
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.daily_plans_generator import DailyPlansGenerator
-from core.plans_manager import BUDGET_METRICS, plan_score
+from core.plans_manager import (
+    PeriodCommentsStore, PeriodCommentsUnavailable, PERIOD_KEY_RE,
+    validate_comment_period_key, validate_comment_text, validate_comment_venue,
+)
 from core.weeks_generator import WeeksGenerator
-from core import monthly_report
+from core import monthly_report, msk_time
+from core.auth_guard import current_user
 from extensions import (
     venues_manager, plans_manager, notes_manager, taps_manager,
     comparison_calculator, trends_analyzer, export_manager,
@@ -95,6 +99,91 @@ def load_dashboard_sales(venue_key, date_from, date_to):
     return cached_olap(cache_key, _fetch_all_sales)
 
 
+# Ключи ответа «Аналитики»: snake_case расчёта (DashboardMetrics.calculate_metrics)
+# -> camelCase экрана (static/js/dashboard/core/config.js: actualKey = planKey).
+# Один словарь на всех: карточки (/api/dashboard-analytics), «Выручка»
+# (/api/revenue-metrics), сравнение периодов и выгрузки Excel/PDF. До 2026-09-28
+# у каждого маршрута была своя копия, и выгрузки брали сырые ключи — отсюда наценка
+# «Факт» дробью (2.24) против плана в процентах (200) и нулевая активность кранов.
+DASHBOARD_FRONTEND_KEYS = {
+    'total_revenue': 'revenue',
+    'total_checks': 'checks',
+    'avg_check': 'averageCheck',
+    'draft_share': 'draftShare',
+    'bottles_share': 'packagedShare',
+    'kitchen_share': 'kitchenShare',
+    'draft_revenue': 'revenueDraft',
+    'bottles_revenue': 'revenuePackaged',
+    'kitchen_revenue': 'revenueKitchen',
+    'avg_markup': 'markupPercent',
+    'total_margin': 'profit',
+    'draft_markup': 'markupDraft',
+    'bottles_markup': 'markupPackaged',
+    'tap_activity': 'tapActivity',
+    'kitchen_markup': 'markupKitchen',
+    'loyalty_points_written_off': 'loyaltyWriteoffs',
+    # Лояльность: чеки с картой / без карты (группа «Лояльность» на дашборде)
+    'card_checks': 'cardChecks',
+    'nocard_checks': 'nocardChecks',
+    'card_checks_share': 'cardChecksShare',
+    'card_revenue': 'cardRevenue',
+    'nocard_revenue': 'nocardRevenue'
+}
+
+# Наценка в расчёте — дробь (2.2448 = 224.48 %), в планах и на экране — проценты.
+# Множитель 100 применяется ровно к этим ключам и ровно здесь.
+MARKUP_FRONTEND_KEYS = ('markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen')
+
+
+def map_dashboard_metrics(metrics):
+    """Метрики расчёта -> ключи и единицы экрана (наценки ×100); лишние ключи отбрасываются."""
+    mapped = {}
+    for old_key, new_key in DASHBOARD_FRONTEND_KEYS.items():
+        if old_key in metrics:
+            value = metrics[old_key]
+            if new_key in MARKUP_FRONTEND_KEYS:
+                value = value * 100
+            mapped[new_key] = value
+    return mapped
+
+
+class DashboardDataUnavailable(RuntimeError):
+    """iiko не ответил: у маршрута это 500, как у /api/dashboard-analytics."""
+
+
+def dashboard_page_metrics(venue_key, date_from, date_to):
+    """Метрики «Аналитики» ровно как на экране: (сырые метрики, метрики экрана).
+
+    Шаги те же, что у /api/dashboard-analytics: единый OLAP-запрос из общего кэша
+    (load_dashboard_sales, 10 мин), DashboardMetrics.calculate_metrics, активность
+    кранов за период по журналу кранов (TapsManager.calculate_tap_activity_for_period),
+    map_dashboard_metrics. Пустой период даёт нули, а не ошибку.
+
+    Args:
+        venue_key: ключ заведения; '' и None равны 'all'
+        date_from, date_to: 'YYYY-MM-DD', обе даты включительно
+
+    Raises:
+        DashboardDataUnavailable: сбой iiko (не кэшируется).
+    """
+    venue_key = venue_key or 'all'
+    all_sales_data = load_dashboard_sales(venue_key, date_from, date_to)
+    if all_sales_data is None:
+        raise DashboardDataUnavailable('Не удалось получить данные из OLAP')
+    metrics = DashboardMetrics().calculate_metrics(all_sales_data)
+    metrics['tap_activity'] = taps_manager.calculate_tap_activity_for_period(
+        VENUE_TO_BAR_MAPPING.get(venue_key), date_from, date_to)
+    return metrics, map_dashboard_metrics(metrics)
+
+
+def _parse_iso_date(value):
+    """'YYYY-MM-DD' -> date или None (кривой ввод маршрут превращает в 400)."""
+    try:
+        return datetime.strptime(str(value), '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+
+
 @dashboard_bp.route('/api/dashboard-analytics', methods=['POST'])
 def dashboard_analytics():
     """API endpoint для получения всех метрик дашборда из сырых OLAP данных"""
@@ -139,45 +228,9 @@ def dashboard_analytics():
         metrics['tap_activity'] = tap_activity
         print(f"   [OK] Активность кранов: {tap_activity}%")
 
-        # Преобразуем ключи для совместимости с фронтендом
-        # Фронтенд ожидает camelCase, бэкенд возвращает snake_case
-        frontend_mapping = {
-            'total_revenue': 'revenue',
-            'total_checks': 'checks',
-            'avg_check': 'averageCheck',
-            'draft_share': 'draftShare',
-            'bottles_share': 'packagedShare',
-            'kitchen_share': 'kitchenShare',
-            'draft_revenue': 'revenueDraft',
-            'bottles_revenue': 'revenuePackaged',
-            'kitchen_revenue': 'revenueKitchen',
-            'avg_markup': 'markupPercent',
-            'total_margin': 'profit',
-            'draft_markup': 'markupDraft',
-            'bottles_markup': 'markupPackaged',
-            'tap_activity': 'tapActivity',
-            'kitchen_markup': 'markupKitchen',
-            'loyalty_points_written_off': 'loyaltyWriteoffs',
-            # Лояльность: чеки с картой / без карты (группа «Лояльность» на дашборде)
-            'card_checks': 'cardChecks',
-            'nocard_checks': 'nocardChecks',
-            'card_checks_share': 'cardChecksShare',
-            'card_revenue': 'cardRevenue',
-            'nocard_revenue': 'nocardRevenue'
-        }
-
-        # Применяем маппинг
-        mapped_metrics = {}
-        for old_key, new_key in frontend_mapping.items():
-            if old_key in metrics:
-                value = metrics[old_key]
-
-                # Наценка в API приходит как дробное число (1.95), а в планах как проценты (195)
-                # Умножаем на 100 для единообразия
-                if new_key in ['markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen']:
-                    value = value * 100
-
-                mapped_metrics[new_key] = value
+        # Ключи и единицы экрана (camelCase, наценка ×100) — общий словарь
+        # DASHBOARD_FRONTEND_KEYS: те же числа берут сравнение периодов и выгрузки.
+        mapped_metrics = map_dashboard_metrics(metrics)
 
         # Формируем ответ с преобразованными ключами
         response = {
@@ -281,14 +334,19 @@ def dashboard_card_details():
 # MONTHLY REPORT API - Месячный отчёт (вкладка дашборда, помесячная динамика)
 # ============================================================================
 
+# «Текущие» год и месяц месячного отчёта (значения по умолчанию и год пересчёта
+# force/full) — по Москве (core/msk_time): прод-контейнер живёт в UTC, и с 00:00 до
+# 03:00 МСК наивный datetime.now() давал прошлые сутки — в ночь на 1-е число
+# «текущим» был прошлый месяц, в новогоднюю ночь — прошлый год (с 2026-09-28).
+
 def _parse_years_arg(years_arg):
-    """'2026,2025' -> [2026, 2025] (уник., убыв., максимум 3). Пусто -> текущий год."""
+    """'2026,2025' -> [2026, 2025] (уник., убыв., максимум 3). Пусто -> текущий год (МСК)."""
     if years_arg:
         years = [int(y) for y in years_arg.split(',') if y.strip().isdigit()]
     else:
-        years = [datetime.now().year]
+        years = [msk_time.today().year]
     if not years:
-        years = [datetime.now().year]
+        years = [msk_time.today().year]
     return sorted(set(years), reverse=True)[:3]
 
 
@@ -302,7 +360,7 @@ def _maybe_refresh(block, venue):
     full = request.args.get('full', '') in ('1', 'true', 'yes')
     if not (force or full):
         return False
-    monthly_report.refresh_block(block, venue, datetime.now().year, force=full)
+    monthly_report.refresh_block(block, venue, msk_time.today().year, force=full)
     return True
 
 
@@ -328,7 +386,7 @@ def monthly_report_loyalty():
     """Лояльность помесячно за год: новые гости + выручка по картам/без карт."""
     try:
         venue = request.args.get('venue', 'all') or 'all'
-        year = int(request.args.get('year', datetime.now().year))
+        year = int(request.args.get('year', msk_time.today().year))
         _maybe_refresh('loyalty', venue)
         return jsonify(monthly_report.get_loyalty(venue, year))
     except Exception as e:
@@ -343,7 +401,7 @@ def monthly_report_draft_liters():
     """Проливы розлива в литрах по стилям, помесячно за год."""
     try:
         venue = request.args.get('venue', 'all') or 'all'
-        year = int(request.args.get('year', datetime.now().year))
+        year = int(request.args.get('year', msk_time.today().year))
         _maybe_refresh('liters', venue)
         return jsonify(monthly_report.get_draft_liters(venue, year))
     except Exception as e:
@@ -358,8 +416,9 @@ def monthly_report_top_guests():
     """ТОП гостей по тратам за конкретный месяц (свой селектор месяца)."""
     try:
         venue = request.args.get('venue', 'all') or 'all'
-        year = int(request.args.get('year', datetime.now().year))
-        month = int(request.args.get('month', datetime.now().month))
+        today = msk_time.today()
+        year = int(request.args.get('year', today.year))
+        month = int(request.args.get('month', today.month))
         _maybe_refresh('topguests', venue)
         return jsonify(monthly_report.get_top_guests(venue, year, month))
     except Exception as e:
@@ -390,10 +449,10 @@ def get_venues():
 
 @dashboard_bp.route('/api/weeks')
 def get_weeks():
-    """Получить список всех недель для текущего года"""
+    """Получить список всех недель для текущего года (год и текущая неделя — по Москве)"""
     try:
         print("\n[WEEKS API] Генерация недель для текущего года...")
-        current_year = datetime.now().year
+        current_year = msk_time.today().year
         weeks = WeeksGenerator.generate_weeks_for_year(current_year)
         current_week = WeeksGenerator.get_current_week()
         print(f"[WEEKS API] Сгенерировано недель: {len(weeks)}")
@@ -840,7 +899,7 @@ def plans_export():
         wb.save(output)
         output.seek(0)
 
-        filename = f"plans_export_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+        filename = f"plans_export_{msk_time.today().strftime('%Y-%m-%d')}.xlsx"
         print(f"[PLANS EXPORT] Сгенерирован xlsx: {len(rows)} строк, файл {filename}")
 
         return output.getvalue(), 200, {
@@ -855,106 +914,189 @@ def plans_export():
         return jsonify({'error': str(e)}), 500
 
 
+# Хранилище комментариев к периодам создаётся при первом обращении (а не при импорте
+# модуля): так импорт blueprint'а в тестах и в стенде не трогает файлы данных, а
+# тесты подменяют _comments_store своим экземпляром во временной папке.
+_comments_store = None
+
+
+def _period_comments():
+    """Хранилище комментариев; старые комментарии переносятся из файла планов."""
+    global _comments_store
+    if _comments_store is None:
+        _comments_store = PeriodCommentsStore(legacy_plans_file=plans_manager.data_file)
+    return _comments_store
+
+
+def _comment_author():
+    """Кто сохранил: логин; через MCP — «<логин> · агент» (как в контент-плане)."""
+    try:
+        user = current_user()
+    except Exception:  # вне сессии (голый Flask в тестах) — автор неизвестен
+        user = None
+    if not user:
+        return None
+    name = user.get('login') or user.get('display_name')
+    if user.get('via_mcp'):
+        name = (name or 'владелец') + ' · агент'
+    return name
+
+
 @dashboard_bp.route('/api/comments/<venue_key>/<period_key>', methods=['GET'])
 def get_comment(venue_key, period_key):
-    """Получить комментарий для периода и заведения"""
+    """Комментарий («анализ») к периоду дашборда для заведения.
+
+    Ответ 200: {comment: текст или null, venue_key, period_key, updated_at,
+    updated_by, legacy}. legacy=true — старый общий комментарий (сохранён до
+    2026-09-28, когда заведение не учитывалось): виден у любого заведения, пока у
+    заведения нет своего. 400 — неизвестное заведение или пустой/длинный ключ
+    периода; 503 — файл комментариев повреждён. Правила хранения —
+    core/plans_manager.PeriodCommentsStore.
+    """
     try:
-        print(f"\n[COMMENTS API] Получение комментария: {venue_key} / {period_key}")
-        plan = plans_manager.get_plan(period_key)
-        if plan and 'comment' in plan:
-            comment = plan['comment']
-            print(f"[COMMENTS API] Комментарий найден: {len(comment)} символов")
-            return jsonify({'comment': comment})
-        else:
-            print(f"[COMMENTS API] Комментарий не найден")
-            return jsonify({'comment': None})
-    except Exception as e:
-        print(f"[COMMENTS API ERROR] Ошибка при получении комментария: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        validate_comment_venue(venue_key)
+        validate_comment_period_key(period_key, for_write=False)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        found = _period_comments().get(venue_key, period_key)
+    except PeriodCommentsUnavailable as e:
+        print(f"[COMMENTS API ERROR] {e}")
+        return jsonify({'error': str(e)}), 503
+    if found is None:
+        return jsonify({'comment': None, 'venue_key': venue_key, 'period_key': period_key,
+                        'updated_at': None, 'updated_by': None, 'legacy': False})
+    return jsonify(found)
 
 
 @dashboard_bp.route('/api/comments/<venue_key>/<period_key>', methods=['POST'])
 def save_comment(venue_key, period_key):
-    """Сохранить комментарий для периода и заведения"""
+    """Сохранить комментарий к периоду дашборда для заведения.
+
+    Тело: {"comment": "текст"} — строка до 10 000 знаков, пробелы по краям
+    обрезаются; пустая строка очищает комментарий заведения. Ключ периода — только
+    'YYYY-MM-DD_YYYY-MM-DD' (формат дашборда), заведение — 'all' или ключ бара.
+    Комментарий хранится отдельно от планов (period_comments.json) и полей плана
+    не проверяет — до 2026-09-28 он писался в файл планов, и любое сохранение
+    отвечало 500 «Missing required field: revenue».
+
+    Ответ 200: {success: true, message, comment, venue_key, period_key, updated_at,
+    updated_by, legacy: false}; 400 — неверный ключ, заведение или текст;
+    503 — файл комментариев повреждён (не перезаписывается).
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Тело запроса — JSON-объект {"comment": "текст"}'}), 400
     try:
-        data = request.json
-        comment = data.get('comment', '').strip()
-
-        print(f"\n[COMMENTS API] Сохранение комментария: {venue_key} / {period_key}")
-        print(f"[COMMENTS API] Текст: {len(comment)} символов")
-
-        plan = plans_manager.get_plan(period_key)
-        if plan is None:
-            plan = {}
-
-        plan['comment'] = comment
-        success = plans_manager.save_plan(period_key, plan)
-
-        if success:
-            print(f"[COMMENTS API] Комментарий сохранен")
-            return jsonify({
-                'success': True,
-                'message': 'Comment saved successfully'
-            })
-        else:
-            return jsonify({'error': 'Failed to save comment'}), 500
-
-    except Exception as e:
-        print(f"[COMMENTS API ERROR] Ошибка при сохранении комментария: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        validate_comment_venue(venue_key)
+        validate_comment_period_key(period_key, for_write=True)
+        text = validate_comment_text(data.get('comment', ''))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    try:
+        saved = _period_comments().save(venue_key, period_key, text, author=_comment_author())
+    except PeriodCommentsUnavailable as e:
+        print(f"[COMMENTS API ERROR] {e}")
+        return jsonify({'error': str(e)}), 503
+    print(f"[COMMENTS API] Комментарий сохранён: {venue_key} / {period_key}, {len(text)} знаков")
+    return jsonify(dict(saved, success=True,
+                        message='Comment saved successfully' if text else 'Comment cleared'))
 
 
 # ========== COMPARISON, TRENDS & EXPORT APIs ==========
 
+def _period_from_key(period_key):
+    """'YYYY-MM-DD_YYYY-MM-DD' -> ('YYYY-MM-DD', 'YYYY-MM-DD') или None.
+
+    Даты обязаны существовать, начало — не позже конца.
+    """
+    match = PERIOD_KEY_RE.match(period_key) if isinstance(period_key, str) else None
+    if not match:
+        return None
+    start, end = _parse_iso_date(match.group(1)), _parse_iso_date(match.group(2))
+    if start is None or end is None or start > end:
+        return None
+    return start.isoformat(), end.isoformat()
+
+
 @dashboard_bp.route('/api/comparison/periods', methods=['POST'])
 def compare_periods():
-    """API для сравнения двух периодов"""
+    """Сравнение двух периодов по всем метрикам «Аналитики» (с 2026-09-28 — честный расчёт).
+
+    Тело: {venue_key: 'all' | ключ бара (пусто = 'all'), period1_key, period2_key},
+    ключи периодов — 'YYYY-MM-DD_YYYY-MM-DD' (как key у /api/weeks).
+
+    Числа каждого периода — ровно карточки «Аналитики» за эти даты
+    (get_dashboard_analytics_data: общий кэш OLAP, наценка в процентах, активность
+    кранов). Сравнение — core/comparison_calculator.py, соглашение вкладки
+    «Сравнение»: период 2 — база («было»), Δ = период 1 − период 2,
+    Δ% = Δ / период 2 × 100 (база 0 — null), у метрик в процентах Δ в п.п.
+
+    Страница сюда не ходит: вкладка «Сравнение» считает то же самое в браузере из
+    двух запросов /api/dashboard-analytics. Маршрут нужен ИИ-агентам (MCP
+    analytics_compare_periods) — один вызов вместо двух и арифметики в модели.
+    До 2026-09-28 здесь была заглушка с пустым сравнением.
+
+    Ответ 200: {success, venue_key, base: 'period2', period1: {key, date_from,
+    date_to, metrics}, period2: {...}, comparison: {метрика: {label, unit, period1,
+    period2, diff, diff_unit, diff_percent, trend, budget, better}}, top_changes,
+    insights, formula}. 400 — неверный бар или ключ периода; 500 — сбой iiko.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Тело запроса — JSON-объект {venue_key, period1_key, '
+                                 'period2_key}'}), 400
+    venue_key = data.get('venue_key') or 'all'
+    if venue_key not in VENUE_TO_BAR_MAPPING:
+        return jsonify({'error': 'Неизвестное заведение: ' + str(venue_key)[:40] + '. Ключи: '
+                                 + ', '.join(VENUE_TO_BAR_MAPPING)}), 400
+    periods = {}
+    for field in ('period1_key', 'period2_key'):
+        bounds = _period_from_key(data.get(field))
+        if bounds is None:
+            return jsonify({'error': field + ' — ключ периода YYYY-MM-DD_YYYY-MM-DD '
+                                             '(начало не позже конца), получено: '
+                                             + str(data.get(field))[:40]}), 400
+        periods[field] = bounds
     try:
-        data = request.json
-        venue_key = data.get('venue_key')
-        period1_key = data.get('period1_key')
-        period2_key = data.get('period2_key')
-
-        if not all([venue_key, period1_key, period2_key]):
-            return jsonify({'error': 'Missing required parameters'}), 400
-
-        return jsonify({
-            'success': True,
-            'comparison': {},
-            'insights': []
-        })
-
+        result = {'success': True, 'venue_key': venue_key, 'base': 'period2'}
+        metrics = {}
+        for field, name in (('period1_key', 'period1'), ('period2_key', 'period2')):
+            date_from, date_to = periods[field]
+            metrics[name] = get_dashboard_analytics_data(venue_key, date_from, date_to)
+            result[name] = {'key': data[field], 'date_from': date_from, 'date_to': date_to,
+                            'metrics': metrics[name]}
+        result.update(comparison_calculator.summary(metrics['period1'], metrics['period2']))
+        return jsonify(result)
+    except DashboardDataUnavailable as e:
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         print(f"[ERROR] /api/comparison/periods: {e}")
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"{type(e).__name__}: {str(e)}"}), 500
 
 
 def get_dashboard_analytics_data(bar, date_from, date_to):
-    """
-    Helper функция для получения аналитических данных дашборда
-    Используется в экспорте и других местах
-    """
-    bar_name = venues_manager.get_iiko_name(bar) if bar and bar != 'all' else None
-    date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
-    date_to_inclusive = (date_to_obj + timedelta(days=1)).strftime('%Y-%m-%d')
+    """Метрики «Аналитики» за период ровно как на экране — для выгрузок и сравнения.
 
-    olap = OlapReports()
-    if not olap.connect():
-        raise Exception('Не удалось подключиться к iiko API')
+    Ключи и единицы — как в ответе /api/dashboard-analytics без table_data:
+    camelCase, наценки в процентах (224.48, а не 2.2448), tapActivity по журналу
+    кранов; данные из того же кэша OLAP (load_dashboard_sales), поэтому выгрузка
+    совпадает с экраном за те же даты. Пустой период — нули (как на экране).
 
-    try:
-        all_sales_data = olap.get_all_sales_report(date_from, date_to_inclusive, bar_name)
-        if not all_sales_data or not all_sales_data.get('data'):
-            raise Exception('Не удалось получить данные из OLAP')
-        calculator = DashboardMetrics()
-        metrics = calculator.calculate_metrics(all_sales_data)
-        return metrics
-    finally:
-        olap.disconnect()
+    До 2026-09-28 функция ходила в iiko отдельно и без кэша, возвращала сырые
+    ключи расчёта (наценка дробью) без активности кранов и падала на пустом периоде.
+
+    Args:
+        bar: ключ заведения; '' и None равны 'all'
+        date_from, date_to: 'YYYY-MM-DD', обе даты включительно
+
+    Raises:
+        DashboardDataUnavailable: сбой iiko.
+    """
+    _raw, page_metrics = dashboard_page_metrics(bar, date_from, date_to)
+    return page_metrics
 
 
 @dashboard_bp.route('/api/revenue-metrics', methods=['POST'])
@@ -983,44 +1125,11 @@ def revenue_metrics():
         if all_sales_data is None:
             return jsonify({'error': 'Не удалось получить данные из OLAP'}), 500
 
-        # Считаем метрики из сырых OLAP данных
+        # Считаем метрики из сырых OLAP данных; ключи экрана — общий словарь
+        # DASHBOARD_FRONTEND_KEYS (как у dashboard_analytics).
         calculator = DashboardMetrics()
         metrics = calculator.calculate_metrics(all_sales_data)
-
-        # Применяем маппинг как в dashboard_analytics
-        frontend_mapping = {
-            'total_revenue': 'revenue',
-            'total_checks': 'checks',
-            'avg_check': 'averageCheck',
-            'draft_share': 'draftShare',
-            'bottles_share': 'packagedShare',
-            'kitchen_share': 'kitchenShare',
-            'draft_revenue': 'revenueDraft',
-            'bottles_revenue': 'revenuePackaged',
-            'kitchen_revenue': 'revenueKitchen',
-            'avg_markup': 'markupPercent',
-            'total_margin': 'profit',
-            'draft_markup': 'markupDraft',
-            'bottles_markup': 'markupPackaged',
-            'kitchen_markup': 'markupKitchen',
-            'tap_activity': 'tapActivity',
-            'loyalty_points_written_off': 'loyaltyWriteoffs',
-            # Лояльность: чеки с картой / без карты (тот же набор, что в dashboard_analytics)
-            'card_checks': 'cardChecks',
-            'nocard_checks': 'nocardChecks',
-            'card_checks_share': 'cardChecksShare',
-            'card_revenue': 'cardRevenue',
-            'nocard_revenue': 'nocardRevenue'
-        }
-
-        mapped = {}
-        for old_key, new_key in frontend_mapping.items():
-            if old_key in metrics:
-                value = metrics[old_key]
-                # Наценку умножаем на 100
-                if new_key in ['markupPercent', 'markupDraft', 'markupPackaged', 'markupKitchen']:
-                    value = value * 100
-                mapped[new_key] = value
+        mapped = map_dashboard_metrics(metrics)
 
         # 'revenue' = вся выручка после маппинга
         actual_revenue = mapped.get('revenue', 0)
@@ -1065,7 +1174,10 @@ def revenue_metrics():
 
         # Ожидаемая = факт + линейная экстраполяция средней на остаток периода.
         # Период закончился (или данных на весь период уже есть) -> ожидаемая = факт.
-        today_dt = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        # «Сегодня» — по Москве (core/msk_time): прод-контейнер живёт в UTC, и с 00:00
+        # до 03:00 МСК наивный datetime.now() давал вчерашнюю дату — в первую ночь
+        # после конца периода он ещё считался идущим, и «Ожидаемая» экстраполировалась.
+        today_dt = datetime.combine(msk_time.today(), datetime.min.time())
         period_finished = today_dt > period_end or total_days >= period_days
 
         if not period_finished and total_days > 0:
@@ -1122,8 +1234,10 @@ def widget_revenue():
 
         print(f"\n[WIDGET] Generatsiya dannykh dlya vidzheta (ODIN OLAP zapros)...")
 
-        # Период: с 1-го числа по сегодня
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        # Период: с 1-го числа по сегодня. «Сегодня» — по Москве (core/msk_time):
+        # прод-контейнер живёт в UTC, и с 00:00 до 03:00 МСК наивный datetime.now()
+        # давал вчера — а в ночь на 1-е число показывал процент ПРОШЛОГО месяца.
+        today = msk_time.today()
         month_start = today.replace(day=1)
         date_from = month_start.strftime('%Y-%m-%d')
         date_to = today.strftime('%Y-%m-%d')
@@ -1310,141 +1424,120 @@ def export_text():
         return jsonify({'error': str(e)}), 500
 
 
+def _export_request():
+    """Тело выгрузки дашборда: (bar, date_from, date_to, None) или (None, None, None, ответ 400).
+
+    bar — 'all' или ключ бара ('' и отсутствие = 'all'); даты 'YYYY-MM-DD'
+    включительно, начало не позже конца. До 2026-09-28 кривые даты давали 500.
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, None, None, (jsonify({'error': 'Тело запроса — JSON-объект '
+                                                    '{bar, date_from, date_to}'}), 400)
+    bar = data.get('bar') or 'all'
+    if bar not in VENUE_TO_BAR_MAPPING:
+        return None, None, None, (jsonify({'error': 'Неизвестное заведение: ' + str(bar)[:40]
+                                                    + '. Ключи: ' + ', '.join(VENUE_TO_BAR_MAPPING)}),
+                                  400)
+    start, end = _parse_iso_date(data.get('date_from')), _parse_iso_date(data.get('date_to'))
+    if start is None or end is None or start > end:
+        return None, None, None, (jsonify({'error': 'Нужны date_from и date_to в формате '
+                                                    'YYYY-MM-DD, начало не позже конца'}), 400)
+    return bar, start.isoformat(), end.isoformat(), None
+
+
+def _export_venue_name(bar):
+    """Название заведения для заголовка выгрузки (как в селекторе дашборда)."""
+    venue = venues_manager.get_venue(bar)
+    return (venue or {}).get('full_name') or (venue or {}).get('name') or bar
+
+
+def _fmt_export(value, unit=''):
+    """Число для PDF/HTML: 2 знака и разделитель тысяч; None — «—»."""
+    if value is None:
+        return '—'
+    text = f"{value:,.2f}"
+    return text + (' ' + unit if unit else '')
+
+
+# Цвета светофора HTML-выгрузки — как на экране: выполнено / почти / не выполнено /
+# плана нет (нейтральный серый вместо красного 0 %).
+_EXPORT_STATUS_COLORS = {'ok': '#4CAF50', 'warn': '#FFC107', 'bad': '#F44336', 'none': '#9E9E9E'}
+
+
 @dashboard_bp.route('/api/export/excel', methods=['POST'])
 def export_excel():
-    """API для экспорта в Excel (XLSX) формат"""
+    """Выгрузка дашборда в Excel (xlsx): «Метрика | План | Факт» за период.
+
+    Тело: {bar: 'all' | ключ бара, date_from, date_to} — даты включительно, как у
+    карточек. Факт — get_dashboard_analytics_data: ровно карточки «Аналитики» за
+    эти даты (тот же кэш OLAP, наценки и доли в процентах, активность кранов по
+    журналу кранов). План — plans_manager.calculate_plan_for_period за те же даты
+    (его же экран берёт через /api/plans/calculate). Строки и правила —
+    core/export_manager.ExportManager.dashboard_rows; метрика без плана — пустая
+    ячейка «План» (на экране «План не задан»). Пустой период — нули, как на экране.
+
+    До 2026-09-28 факт брался отдельным запросом без кэша и в сырых единицах:
+    наценка дробью (2.24) против плана в процентах (200), активность кранов 0,
+    пустой период — 500. CSV-фолбэк без openpyxl убран: openpyxl — обязательная
+    зависимость (requirements.txt), а фолбэк писал текст в байтовый буфер и падал.
+
+    Коды: 400 — неверный бар или даты; 500 — сбой iiko.
+    """
+    bar, date_from, date_to, error = _export_request()
+    if error:
+        return error
     try:
         from io import BytesIO
-        import csv
-
-        data = request.json
-        bar = data.get('bar')
-        date_from = data.get('date_from')
-        date_to = data.get('date_to')
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill
 
         print(f"\n[EXPORT EXCEL] Генерация Excel: {bar} / {date_from} - {date_to}")
+        fact = get_dashboard_analytics_data(bar, date_from, date_to)
+        plan = plans_manager.calculate_plan_for_period(bar, date_from, date_to) or {}
+        rows = export_manager.dashboard_rows(plan, fact)
+        venue_name = _export_venue_name(bar)
 
-        # Получаем данные
-        venue = venues_manager.get_venue(bar)
-        venue_name = venue['full_name'] if venue else bar
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Дашборд"
 
-        # Получаем фактические данные
-        actual_data = get_dashboard_analytics_data(bar, date_from, date_to)
+        ws.merge_cells('A1:C1')
+        ws['A1'] = f"{venue_name} | {date_from} - {date_to}"
+        ws['A1'].font = Font(size=14, bold=True)
+        ws['A1'].alignment = Alignment(horizontal='center')
+        ws['A2'] = ('Факт — как карточки «Аналитики» за эти даты; план — доля месячных '
+                    'планов по взвешенным дням. Доли, наценки и активность кранов — в '
+                    'процентах; пустой план — план не задан.')
 
-        # Получаем плановые данные (пропорционально по периоду)
-        plan_data = plans_manager.calculate_plan_for_period(bar, date_from, date_to) or {}
+        for col, header in enumerate(['Метрика', 'План', 'Факт'], 1):
+            cell = ws.cell(row=4, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
 
-        # Пробуем использовать openpyxl если установлен
-        try:
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, Alignment, PatternFill
+        for offset, row in enumerate(rows):
+            line = 5 + offset
+            ws.cell(row=line, column=1, value=f"{row['label']} ({row['unit']})")
+            ws.cell(row=line, column=2,
+                    value=round(row['plan'], 2) if row['plan'] is not None else None)
+            ws.cell(row=line, column=3, value=round(row['fact'], 2))
 
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "Дашборд"
+        ws.column_dimensions['A'].width = 30
+        ws.column_dimensions['B'].width = 18
+        ws.column_dimensions['C'].width = 18
 
-            # Заголовок
-            ws.merge_cells('A1:C1')
-            ws['A1'] = f"{venue_name} | {date_from} - {date_to}"
-            ws['A1'].font = Font(size=14, bold=True)
-            ws['A1'].alignment = Alignment(horizontal='center')
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
 
-            # Заголовки таблицы - простая таблица факт/план
-            headers = ['Метрика', 'План', 'Факт']
-            for col, header in enumerate(headers, 1):
-                cell = ws.cell(row=4, column=col, value=header)
-                cell.font = Font(bold=True)
-                cell.fill = PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid")
+        print(f"[EXPORT EXCEL] Excel файл сгенерирован: {len(rows)} строк")
+        return output.getvalue(), 200, {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.xlsx'
+        }
 
-            # Данные метрик (все 20 показателей: 16 базовых + 4 лояльности)
-            metrics = [
-                ('Выручка (₽)', 'revenue', 'total_revenue'),
-                ('Чеки (шт)', 'checks', 'total_checks'),
-                ('Средний чек (₽)', 'averageCheck', 'avg_check'),
-                ('Доля розлива (%)', 'draftShare', 'draft_share'),
-                ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
-                ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
-                ('Выручка розлив (₽)', 'revenueDraft', 'draft_revenue'),
-                ('Выручка фасовка (₽)', 'revenuePackaged', 'bottles_revenue'),
-                ('Выручка кухня (₽)', 'revenueKitchen', 'kitchen_revenue'),
-                ('Наценка (%)', 'markupPercent', 'avg_markup'),
-                ('Прибыль (₽)', 'profit', 'total_margin'),
-                ('Наценка розлив (%)', 'markupDraft', 'draft_markup'),
-                ('Наценка фасовка (%)', 'markupPackaged', 'bottles_markup'),
-                ('Наценка кухня (%)', 'markupKitchen', 'kitchen_markup'),
-                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
-                ('Чеки с картой (шт)', 'cardChecks', 'card_checks'),
-                ('Чеки без карты (шт)', 'nocardChecks', 'nocard_checks'),
-                ('Доля чеков с картой (%)', 'cardChecksShare', 'card_checks_share'),
-                ('Выручка по картам (₽)', 'cardRevenue', 'card_revenue'),
-                ('Активность кранов (%)', 'tapActivity', 'tap_activity'),
-            ]
-
-            row = 5
-            for metric_name, plan_key, actual_key in metrics:
-                plan_value = plan_data.get(plan_key, 0) or 0
-                actual_value = actual_data.get(actual_key, 0) or 0
-
-                ws.cell(row=row, column=1, value=metric_name)
-                ws.cell(row=row, column=2, value=round(plan_value, 2))
-                ws.cell(row=row, column=3, value=round(actual_value, 2))
-                row += 1
-
-            # Сохраняем в BytesIO
-            output = BytesIO()
-            wb.save(output)
-            output.seek(0)
-
-            print(f"[EXPORT EXCEL] Excel файл сгенерирован (openpyxl)")
-            return output.getvalue(), 200, {
-                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.xlsx'
-            }
-
-        except ImportError:
-            # Fallback to CSV if openpyxl not available
-            print("[EXPORT EXCEL] openpyxl не установлен, используем CSV")
-            output = BytesIO()
-            writer = csv.writer(output)
-
-            writer.writerow([f"{venue_name} | {date_from} - {date_to}"])
-            writer.writerow([])
-            writer.writerow(['Метрика', 'План', 'Факт'])
-
-            metrics = [
-                ('Выручка (₽)', 'revenue', 'total_revenue'),
-                ('Чеки (шт)', 'checks', 'total_checks'),
-                ('Средний чек (₽)', 'averageCheck', 'avg_check'),
-                ('Списания баллов (₽)', 'loyaltyWriteoffs', 'loyalty_points_written_off'),
-                ('Чеки с картой (шт)', 'cardChecks', 'card_checks'),
-                ('Чеки без карты (шт)', 'nocardChecks', 'nocard_checks'),
-                ('Доля чеков с картой (%)', 'cardChecksShare', 'card_checks_share'),
-                ('Выручка по картам (₽)', 'cardRevenue', 'card_revenue'),
-                ('Прибыль (₽)', 'profit', 'total_margin'),
-                ('% наценки', 'markupPercent', 'avg_markup'),
-                ('Доля розлива (%)', 'draftShare', 'draft_share'),
-                ('Доля фасовки (%)', 'packagedShare', 'bottles_share'),
-                ('Доля кухни (%)', 'kitchenShare', 'kitchen_share'),
-            ]
-
-            for metric_name, plan_key, actual_key in metrics:
-                plan_value = plan_data.get(plan_key, 0) or 0
-                actual_value = actual_data.get(actual_key, 0) or 0
-
-                # Для наценки конвертируем (API возвращает дробь, план в процентах)
-                if 'markup' in actual_key.lower():
-                    actual_value = actual_value * 100
-
-                writer.writerow([metric_name, plan_value, actual_value])
-
-            output.seek(0)
-
-            print(f"[EXPORT EXCEL] CSV файл сгенерирован (fallback)")
-            return output.getvalue(), 200, {
-                'Content-Type': 'text/csv',
-                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.csv'
-            }
-
+    except DashboardDataUnavailable as e:
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         print(f"[ERROR] /api/export/excel: {e}")
         import traceback
@@ -1454,92 +1547,58 @@ def export_excel():
 
 @dashboard_bp.route('/api/export/pdf', methods=['POST'])
 def export_pdf():
-    """API для экспорта в PDF формат"""
+    """Выгрузка дашборда в PDF: «Метрика | План | Факт | % плана | Разница».
+
+    Тело, факт, план и строки — как у export_excel (одна функция
+    ExportManager.dashboard_rows); % плана = факт / план × 100, разница = факт −
+    план, у метрики без плана — «—». Светофор HTML-варианта — как на экране: у
+    бюджетных метрик (списания баллов) план — потолок, статус от зеркального
+    процента (core.plans_manager.plan_score).
+
+    reportlab в requirements.txt нет, поэтому на проде отдаётся HTML-страница
+    (Content-Type text/html, файл .html) — её печатают в PDF из браузера; ветка
+    reportlab работает, только если библиотеку поставить.
+
+    Коды: 400 — неверный бар или даты; 500 — сбой iiko.
+    """
+    bar, date_from, date_to, error = _export_request()
+    if error:
+        return error
     try:
         from io import BytesIO
-
-        data = request.json
-        bar = data.get('bar')
-        date_from = data.get('date_from')
-        date_to = data.get('date_to')
+        from html import escape
 
         print(f"\n[EXPORT PDF] Генерация PDF: {bar} / {date_from} - {date_to}")
-
-        # Получаем данные
-        venue = venues_manager.get_venue(bar)
-        venue_name = venue['full_name'] if venue else bar
-
-        # Получаем фактические данные
-        actual_data = get_dashboard_analytics_data(bar, date_from, date_to)
-
-        # Получаем плановые данные (пропорционально по периоду)
-        plan_data = plans_manager.calculate_plan_for_period(bar, date_from, date_to) or {}
+        fact = get_dashboard_analytics_data(bar, date_from, date_to)
+        plan = plans_manager.calculate_plan_for_period(bar, date_from, date_to) or {}
+        rows = export_manager.dashboard_rows(plan, fact)
+        venue_name = _export_venue_name(bar)
 
         # Пробуем использовать reportlab если установлен
         try:
-            from reportlab.lib.pagesizes import letter, A4
+            from reportlab.lib.pagesizes import A4
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
 
             output = BytesIO()
             doc = SimpleDocTemplate(output, pagesize=A4)
-
-            elements = []
             styles = getSampleStyleSheet()
-
-            # Заголовок
-            title = Paragraph(f"<b>Дашборд - {venue_name}</b>", styles['Title'])
-            elements.append(title)
-            elements.append(Spacer(1, 12))
-
-            subtitle = Paragraph(f"Период: {date_from} - {date_to}", styles['Normal'])
-            elements.append(subtitle)
-            elements.append(Spacer(1, 20))
-
-            # Таблица метрик (все 20 показателей: 16 базовых + 4 лояльности)
-            data_table = [['Метрика', 'План', 'Факт', '% плана', 'Разница']]
-
-            metrics = [
-                ('Выручка', 'revenue', 'total_revenue', '₽'),
-                ('Чеки', 'checks', 'total_checks', 'шт'),
-                ('Средний чек', 'averageCheck', 'avg_check', '₽'),
-                ('Доля розлива', 'draftShare', 'draft_share', '%'),
-                ('Доля фасовки', 'packagedShare', 'bottles_share', '%'),
-                ('Доля кухни', 'kitchenShare', 'kitchen_share', '%'),
-                ('Выручка розлив', 'revenueDraft', 'draft_revenue', '₽'),
-                ('Выручка фасовка', 'revenuePackaged', 'bottles_revenue', '₽'),
-                ('Выручка кухня', 'revenueKitchen', 'kitchen_revenue', '₽'),
-                ('Наценка', 'markupPercent', 'avg_markup', '%'),
-                ('Прибыль', 'profit', 'total_margin', '₽'),
-                ('Наценка розлив', 'markupDraft', 'draft_markup', '%'),
-                ('Наценка фасовка', 'markupPackaged', 'bottles_markup', '%'),
-                ('Наценка кухня', 'markupKitchen', 'kitchen_markup', '%'),
-                ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
-                ('Чеки с картой', 'cardChecks', 'card_checks', 'шт'),
-                ('Чеки без карты', 'nocardChecks', 'nocard_checks', 'шт'),
-                ('Доля чеков с картой', 'cardChecksShare', 'card_checks_share', '%'),
-                ('Выручка по картам', 'cardRevenue', 'card_revenue', '₽'),
-                ('Активность кранов', 'tapActivity', 'tap_activity', '%'),
+            elements = [
+                Paragraph(f"<b>Дашборд - {escape(venue_name)}</b>", styles['Title']),
+                Spacer(1, 12),
+                Paragraph(f"Период: {date_from} - {date_to}", styles['Normal']),
+                Spacer(1, 20),
             ]
 
-            for metric_name, plan_key, actual_key, unit in metrics:
-                plan_value = plan_data.get(plan_key, 0) or 0
-                actual_value = actual_data.get(actual_key, 0) or 0
-
-                # Метрика без плана (например, группа «Лояльность») — «—» вместо
-                # нулевого плана и 0.0%: как «План не задан» на экране.
-                has_plan = plan_value > 0
-                percent = (actual_value / plan_value * 100) if has_plan else 0
-                diff = actual_value - plan_value
+            data_table = [['Метрика', 'План', 'Факт', '% плана', 'Разница']]
+            for row in rows:
                 data_table.append([
-                    f"{metric_name} ({unit})",
-                    f"{plan_value:,.2f}" if has_plan else "—",
-                    f"{actual_value:,.2f}",
-                    f"{percent:.1f}%" if has_plan else "—",
-                    f"{diff:,.2f}" if has_plan else "—"
+                    f"{row['label']} ({row['unit']})",
+                    _fmt_export(row['plan']),
+                    _fmt_export(row['fact']),
+                    f"{row['percent']:.1f}%" if row['percent'] is not None else '—',
+                    _fmt_export(row['diff']),
                 ])
 
             table = Table(data_table)
@@ -1553,9 +1612,7 @@ def export_pdf():
                 ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
                 ('GRID', (0, 0), (-1, -1), 1, colors.black)
             ]))
-
             elements.append(table)
-
             doc.build(elements)
             output.seek(0)
 
@@ -1566,64 +1623,23 @@ def export_pdf():
             }
 
         except ImportError:
-            # Fallback to HTML if reportlab not available
+            # reportlab нет (так на проде) — HTML-страница с теми же строками
             print("[EXPORT PDF] reportlab не установлен, используем HTML")
 
-            metrics = [
-                ('Выручка', 'revenue', 'total_revenue', '₽'),
-                ('Чеки', 'checks', 'total_checks', 'шт'),
-                ('Средний чек', 'averageCheck', 'avg_check', '₽'),
-                ('Доля розлива', 'draftShare', 'draft_share', '%'),
-                ('Доля фасовки', 'packagedShare', 'bottles_share', '%'),
-                ('Доля кухни', 'kitchenShare', 'kitchen_share', '%'),
-                ('Выручка розлив', 'revenueDraft', 'draft_revenue', '₽'),
-                ('Выручка фасовка', 'revenuePackaged', 'bottles_revenue', '₽'),
-                ('Выручка кухня', 'revenueKitchen', 'kitchen_revenue', '₽'),
-                ('Наценка', 'markupPercent', 'avg_markup', '%'),
-                ('Прибыль', 'profit', 'total_margin', '₽'),
-                ('Наценка розлив', 'markupDraft', 'draft_markup', '%'),
-                ('Наценка фасовка', 'markupPackaged', 'bottles_markup', '%'),
-                ('Наценка кухня', 'markupKitchen', 'kitchen_markup', '%'),
-                ('Списания баллов', 'loyaltyWriteoffs', 'loyalty_points_written_off', '₽'),
-                ('Чеки с картой', 'cardChecks', 'card_checks', 'шт'),
-                ('Чеки без карты', 'nocardChecks', 'nocard_checks', 'шт'),
-                ('Доля чеков с картой', 'cardChecksShare', 'card_checks_share', '%'),
-                ('Выручка по картам', 'cardRevenue', 'card_revenue', '₽'),
-                ('Активность кранов', 'tapActivity', 'tap_activity', '%'),
-            ]
+        cards = []
+        for row in rows:
+            color = _EXPORT_STATUS_COLORS[row['status']]
+            has_plan = row['plan'] is not None
+            # Бюджетная метрика: план — потолок («Бюджет», «Использовано»).
+            plan_label = 'Бюджет' if row['budget'] else 'План'
+            progress_label = 'Использовано' if row['budget'] else 'Выполнение'
+            plan_text = _fmt_export(row['plan'], row['unit']) if has_plan else 'не задан'
+            percent = row['percent'] if row['percent'] is not None else 0
+            percent_text = f"{percent:.1f}%" if has_plan else '—'
 
-            cards = []
-            for name, plan_key, actual_key, unit in metrics:
-                plan_val = plan_data.get(plan_key, 0) or 0
-                actual_val = actual_data.get(actual_key, 0) or 0
-
-                # Метрика без плана (например, группа «Лояльность») — «не задан»
-                # и нейтральный цвет вместо нулевого плана и красного 0.0%.
-                has_plan = plan_val > 0
-                percent = (actual_val / plan_val * 100) if has_plan else 0
-                diff = actual_val - plan_val
-                plan_text = f"{plan_val:,.2f} {unit}" if has_plan else "не задан"
-                percent_text = f"{percent:.1f}%" if has_plan else "—"
-
-                # Светофор как на экране: у бюджетных метрик (списания) план —
-                # потолок, поэтому статус берётся от зеркального процента
-                # (core.plans_manager.plan_score), а не от самого процента.
-                is_budget = plan_key in BUDGET_METRICS
-                score = plan_score(percent, is_budget)
-                plan_label = 'Бюджет' if is_budget else 'План'
-                progress_label = 'Использовано' if is_budget else 'Выполнение'
-                if not has_plan:
-                    color = '#9E9E9E'
-                elif score >= 100:
-                    color = '#4CAF50'
-                elif score >= 90:
-                    color = '#FFC107'
-                else:
-                    color = '#F44336'
-
-                cards.append(f"""
+            cards.append(f"""
                 <div class="metric-card">
-                    <div class="metric-name">{name}</div>
+                    <div class="metric-name">{escape(row['label'])}</div>
                     <div class="metric-values">
                         <div class="value-row">
                             <span class="label">{plan_label}:</span>
@@ -1631,12 +1647,12 @@ def export_pdf():
                         </div>
                         <div class="value-row">
                             <span class="label">Факт:</span>
-                            <span class="value" style="color: {color}; font-weight: bold;">{actual_val:,.2f} {unit}</span>
+                            <span class="value" style="color: {color}; font-weight: bold;">{_fmt_export(row['fact'], row['unit'])}</span>
                         </div>
                         <div class="value-row progress-row">
                             <span class="label">{progress_label}:</span>
                             <div class="progress-bar">
-                                <div class="progress-fill" style="width: {min(percent, 100)}%; background: {color};"></div>
+                                <div class="progress-fill" style="width: {min(max(percent, 0), 100)}%; background: {color};"></div>
                                 <span class="progress-text">{percent_text}</span>
                             </div>
                         </div>
@@ -1644,12 +1660,12 @@ def export_pdf():
                 </div>
                 """)
 
-            html_content = f"""
+        html_content = f"""
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="UTF-8">
-                <title>Дашборд - {venue_name}</title>
+                <title>Дашборд - {escape(venue_name)}</title>
                 <style>
                     * {{ margin: 0; padding: 0; box-sizing: border-box; }}
                     body {{
@@ -1680,6 +1696,11 @@ def export_pdf():
                     .period {{
                         color: #666;
                         font-size: 16px;
+                    }}
+                    .note {{
+                        color: #666;
+                        font-size: 13px;
+                        margin-top: 8px;
                     }}
                     .metrics-grid {{
                         display: grid;
@@ -1758,8 +1779,9 @@ def export_pdf():
             <body>
                 <div class="container">
                     <div class="header">
-                        <h1>{venue_name}</h1>
+                        <h1>{escape(venue_name)}</h1>
                         <div class="period">{date_from} - {date_to}</div>
+                        <div class="note">Факт — как карточки «Аналитики» за эти даты; план — доля месячных планов по взвешенным дням; доли, наценки и активность кранов — в процентах.</div>
                     </div>
                     <div class="metrics-grid">
                         {''.join(cards)}
@@ -1769,12 +1791,14 @@ def export_pdf():
             </html>
             """
 
-            print(f"[EXPORT PDF] HTML файл сгенерирован (fallback)")
-            return html_content.encode('utf-8'), 200, {
-                'Content-Type': 'text/html; charset=utf-8',
-                'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.html'
-            }
+        print(f"[EXPORT PDF] HTML файл сгенерирован (fallback)")
+        return html_content.encode('utf-8'), 200, {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Content-Disposition': f'attachment; filename=dashboard_{bar}_{date_from}_{date_to}.html'
+        }
 
+    except DashboardDataUnavailable as e:
+        return jsonify({'error': str(e)}), 500
     except Exception as e:
         print(f"[ERROR] /api/export/pdf: {e}")
         import traceback

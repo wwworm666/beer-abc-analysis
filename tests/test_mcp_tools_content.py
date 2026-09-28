@@ -19,8 +19,11 @@ Self-runnable: `py -3 tests/test_mcp_tools_content.py` (совместимо с 
 - перечисления и пределы схем совпадают с константами кода (core.content_plan,
   core.guest_reviews, core.content_media, routes.content_plan), поля брифа — с
   core.content_brief, если он есть;
-- пометки: GET — только чтение, удаления и необратимое — destructive, heavy и
-  open_world нет; примеры есть у всех инструментов чтения и нет у записи;
+- пометки: GET — только чтение, удаления и необратимое — destructive, heavy нет;
+  open_world — ровно зафиксированный набор отправки (OPEN_WORLD); примеры есть у всех
+  инструментов чтения и нет у записи;
+- отправка (2026-09-28): каналы, проверка, тестовое сообщение, «Отправить сейчас»,
+  аудитория, zip, учёт правок и compact — через мост, транспорт Telegram поддельный;
 - тексты: без эмодзи, описание не длиннее DESCRIPTION_MAX; INSTRUCTIONS — 40..90 строк;
   всё, что названо content_*, существует;
 - сценарии: имена, аргументы, render на пустых, верных и кривых аргументах;
@@ -324,6 +327,19 @@ def test_enums_and_limits_match_code():
         (cp.TG_TEXT_LIMIT, cp.TG_CAPTION_LIMIT, cp.IG_CAPTION_LIMIT)
     assert content.MEDIA_MAX == cp.TG_MEDIA_MAX == cp.IG_MEDIA_MAX
     assert content.MEDIA_NAME_PATTERN[:-1] + '\\Z' == cm.NAME_RE.pattern
+    import core.content_channels as cc
+    assert content.AGENT_EDITS_MONTHS_MAX == cp.AGENT_EDITS_MONTHS_MAX
+    assert content.REMINDER_MINUTES_MAX == cc.REMINDER_MINUTES_MAX
+    assert content.CHANNEL_TITLE_MAX == cc.TITLE_MAX
+    assert _prop('content_agent_edits', 'months')['maximum'] == cp.AGENT_EDITS_MONTHS_MAX
+    assert _prop('content_audience', 'segment')['enum'] == list(content.AUDIENCES)
+    assert _prop('content_channels_update', 'instagram', 'reminder_minutes_before')['maximum'] == \
+        cc.REMINDER_MINUTES_MAX
+    assert tuple(_prop('content_channels_update', 'telegram')['properties']) == cp.BAR_KEYS
+    assert tuple(_prop('content_channels_update', 'telegram', 'bolshoy')['properties']) == cc.BAR_FIELDS
+    assert tuple(_prop('content_channels_update', 'instagram')['properties']) == cc.INSTAGRAM_FIELDS
+    assert tuple(_prop('content_channels_update', 'bot')['properties']) == cc.BOT_FIELDS
+    assert set(_tools()['content_channels_update'].input_schema['properties']) == set(cc.TOP_KEYS)
     # новые поля материала (раздел 6 контракта): пределы, если хранилище их объявило
     for attr in ('AGENT_RATIONALE_MAX', 'SHOT_LIST_MAX', 'AGENT_TEXT_MAX'):
         if hasattr(cp, attr):
@@ -420,21 +436,35 @@ def test_agent_fields_match_store():
 
 # --------------------------------------------------------------------------- тесты: пометки
 
+# Выход в Telegram или разрешение выхода (2026-09-28): утверждение и повтор отправки
+# ставят публикацию в очередь, выключатель включает отправку, проверка канала ходит в
+# Telegram, тестовое сообщение и «Отправить сейчас» пишут в канал.
+OPEN_WORLD = {'content_approve', 'content_placement_action', 'content_channels_update',
+              'content_channel_check', 'content_channel_test', 'content_publish_now',
+              'content_review_send_reply', 'content_bulk_pause'}   # снятие паузы выпускает посты
+DESTRUCTIVE = {'content_approve', 'content_placement_action', 'content_materials_bulk', 'content_media_delete',
+               'content_material_delete', 'content_placement_delete', 'content_review_delete',
+               'content_agent_drafts_delete', 'content_channels_update', 'content_channel_test',
+               'content_publish_now', 'content_review_send_reply'}
+
+
 def test_annotations():
     tools = _tools()
     for spec in content.TOOLS:
         assert not spec.heavy, spec.name + ': контент-план и отзывы не ходят в iiko'
-        assert not spec.open_world, spec.name + ': отправки в площадки нет'
         if spec.method == 'GET':
             assert spec.read_only, spec.name
         if spec.method == 'DELETE':
             assert spec.destructive and not spec.read_only, spec.name
         if spec.read_only:
-            assert spec.method in ('GET', 'POST') and not spec.destructive, spec.name
-    for name in ('content_approve', 'content_placement_action', 'content_materials_bulk',
-                 'content_media_delete', 'content_material_delete', 'content_placement_delete',
-                 'content_review_delete', 'content_agent_drafts_delete'):
-        assert tools[name].destructive, name
+            assert spec.method in ('GET', 'POST') and not spec.destructive and not spec.open_world, spec.name
+        if spec.open_world:
+            assert not spec.draft_write, spec.name + ': выход наружу — не черновик'
+    assert {t.name for t in content.TOOLS if t.open_world} == OPEN_WORLD
+    assert {t.name for t in content.TOOLS if t.destructive} == DESTRUCTIVE
+    for name in ('content_channel_check',):
+        # пишет только итог проверки; сетевой вызов — не idempotent (проверка 2026-09-28, п. 11)
+        assert not tools[name].read_only and not tools[name].destructive and not tools[name].idempotent, name
     for name in ('content_live_preview_post',):
         assert tools[name].read_only and tools[name].method == 'POST', name
     for name in ('content_copy_month', 'content_material_repeat', 'content_material_shift',
@@ -546,17 +576,50 @@ OWNER = {'id': 1, 'login': 'owner', 'display_name': 'Владелец', 'is_admi
 FROZEN_NOW = (2026, 10, 7, 12, 0)     # среда; «сегодня» для хранилищ в тесте моста
 
 
+class _FakeTelegram:
+    """Поддельный транспорт Telegram (в настоящий ничего не уходит): отвечает как Bot API
+    на getMe / getChat / getChatMember / sendMessage / загрузку файла и пишет вызовы."""
+
+    token = 'test-token'
+
+    def __init__(self):
+        self.calls = []
+        self.next_id = 100
+
+    def _mid(self):
+        self.next_id += 1
+        return self.next_id
+
+    def call(self, method, payload=None):
+        self.calls.append((method, dict(payload or {})))
+        if method == 'getMe':
+            return {'ok': True, 'result': {'id': 42, 'username': 'kult_test_bot'}}
+        if method == 'getChat':
+            return {'ok': True, 'result': {'id': -1001, 'type': 'channel', 'title': 'Культура ВО',
+                                           'username': 'kult_vo'}}
+        if method == 'getChatMember':
+            return {'ok': True, 'result': {'status': 'administrator', 'can_post_messages': True}}
+        return {'ok': True, 'result': {'message_id': self._mid()}}
+
+    def upload(self, method, fields, files):
+        self.calls.append((method, dict(fields or {}), [f[0] for f in files]))
+        return {'ok': True, 'result': {'message_id': self._mid(), 'photo': [{'file_id': 'F-' + files[0][0]}]}}
+
+
 class _BridgeRig:
     """Мост core/mcp/bridge.py над голым Flask (content_plan + reviews) и временными
     хранилищами с замороженными часами. Точки подмены — те же, что в
     tests/test_content_plan.py и tests/test_guest_reviews.py; всё возвращается в __exit__.
-    current_user() настоящий: пользователя кладёт мост (g._current_user, via_mcp)."""
+    current_user() настоящий: пользователя кладёт мост (g._current_user, via_mcp).
+    Отправка: настройки каналов во временной папке, транспорт Telegram — _FakeTelegram,
+    аудитория бота — 7 подписчиков, фоновая рассылка — синхронно."""
 
     def __enter__(self):
         import tempfile
         from datetime import datetime
         from flask import Flask
         import core.content_brief as cb
+        import core.content_channels as cc
         import core.content_plan as cp
         import core.guest_reviews as gr
         import routes.content_plan as rcp
@@ -566,15 +629,31 @@ class _BridgeRig:
         self.bridge = bridge
         self.tmp = tempfile.mkdtemp(prefix='mcp_content_')
         clock = lambda: datetime(*FROZEN_NOW)  # noqa: E731
-        plan = cp.ContentPlanStore(os.path.join(self.tmp, 'content_plan.json'), now_fn=clock)
+        plan = cp.ContentPlanStore(os.path.join(self.tmp, 'content_plan.json'), now_fn=clock,
+                                   audience_fn=lambda segment, bar: (7, 'тестовые подписчики'))
         reviews = gr.ReviewStore(os.path.join(self.tmp, 'guest_reviews.json'), clock=clock)
         brief = cb.ContentBriefStore(os.path.join(self.tmp, 'content_brief.json'), now_fn=clock)
+        channels = cc.ChannelsStore(os.path.join(self.tmp, 'content_channels.json'), now_fn=clock)
+        self.telegram = _FakeTelegram()
+        self.plan = plan
         self.saved = [(rcp, '_store', rcp._store), (rcp, '_brief_store', rcp._brief_store),
+                      (rcp, '_channels', rcp._channels), (rcp, '_transport', rcp._transport),
+                      (rcp, '_guest_transport', rcp._guest_transport), (rcp, '_bot_token', rcp._bot_token),
+                      (rcp, '_guest_bot_token', rcp._guest_bot_token), (rcp, '_audience', rcp._audience),
+                      (rcp, '_subscribers_total', rcp._subscribers_total),
                       (rrev, 'get_review_store', rrev.get_review_store),
                       (rrev, '_content_plan_store', rrev._content_plan_store),
                       (bridge, 'owner_record', bridge.owner_record)]
         rcp._store = lambda: plan
         rcp._brief_store = lambda: brief
+        rcp._channels = lambda: channels
+        rcp._transport = lambda: self.telegram
+        rcp._guest_transport = lambda: self.telegram
+        rcp._bot_token = lambda: ('test-token', 'taplist')
+        rcp._guest_bot_token = lambda: ('test-token', 'taplist')
+        rcp._audience = lambda segment, bar: (7, 'тестовые подписчики')
+        rcp._subscribers_total = lambda: 7
+        self.channels = channels
         rrev.get_review_store = lambda *a, **k: reviews
         rrev._content_plan_store = lambda: plan
         bridge.owner_record = lambda principal: dict(OWNER, via_mcp=True, mcp_client=principal.client_name,
@@ -694,6 +773,77 @@ def test_bridge_agent_workflow():
         assert again.is_error and again.http_status == 409
         attention = rig.ok('content_attention', {'bar': 'bolshoy'})
         assert attention['reviews_unanswered'] == 1 and attention['content_available'] is True
+
+
+def test_bridge_publish_workflow():
+    """Отправка через мост (поддельный Telegram): каналы выключены по умолчанию, настройка
+    и проверка канала, «Отправить сейчас» до и после включения, тестовое сообщение,
+    компактный месяц, учёт правок, аудитория и zip. Раскладка аргументов (тело, запрос, путь)."""
+    if not _bridge_available():
+        return
+    with _BridgeRig() as rig:
+        state = rig.ok('content_channels_get', {})
+        assert state['channels']['enabled'] is False and state['token_source'] == 'taplist'
+        assert state['delivery']['telegram']['bolshoy']['connected'] is False
+        assert 'test-token' not in json_dumps(state)                              # токен не отдаётся
+
+        bad = rig.call('content_channels_update', {'telegram': {'bolshoy': {'chat': 't.me/+secretinvite'}}})
+        assert bad.is_error and bad.http_status == 400
+        saved = rig.ok('content_channels_update', {'telegram': {'bolshoy': {'chat': 'https://t.me/kult_vo',
+                                                                            'title': 'Культура ВО'}}})
+        assert saved['channels']['telegram']['bolshoy']['chat'] == '@kult_vo'
+        checked = rig.ok('content_channel_check', {'bar': 'bolshoy'})
+        assert checked['check']['ok'] and checked['check']['can_post'] and checked['bot_username'] == 'kult_test_bot'
+        assert [c[0] for c in rig.telegram.calls] == ['getMe', 'getChat', 'getChatMember']
+
+        material = rig.ok('content_material_create', {'title': 'Анонс', 'month': '2026-10',
+                                                      'base_text': 'Сегодня квиз в 20:00'})['material']
+        pid = rig.ok('content_placements_add', {'material_id': material['id'], 'channel': 'telegram',
+                                                'bars': ['bolshoy'], 'date': '2026-10-09',
+                                                'time': '18:00'})['created'][0]
+        rig.ok('content_approve', {'placement_ids': [pid]})
+        off = rig.call('content_publish_now', {'placement_id': pid})
+        assert off.is_error and off.http_status == 409 and 'выключена' in off.text_value
+        rig.ok('content_channels_update', {'enabled': True})
+        queued = rig.ok('content_publish_now', {'placement_id': pid})
+        assert queued['queued'] is True and queued['placement']['status'] == 'approved'   # в очередь
+        import core.content_publisher as pub
+        report = pub.publish_due(transport=rig.telegram, guest_transport=rig.telegram, store=rig.plan,
+                                 channels=rig.channels, sleep=lambda s: None, clock=lambda: 0.0)
+        assert report['sent'] == 1                                          # отправил планировщик
+        sent = rig.ok('content_material_get', {'material_id': material['id']})['material']['placements'][0]
+        assert sent['status'] == 'published' and sent['post_url'].startswith('https://t.me/kult_vo/')
+        assert rig.telegram.calls[-1][0] == 'sendMessage'
+        assert rig.telegram.calls[-1][1] == {'chat_id': '@kult_vo', 'text': 'Сегодня квиз в 20:00',
+                                             'disable_web_page_preview': False}
+        test = rig.ok('content_channel_test', {'bar': 'bolshoy'})
+        assert test['ok'] and test['message_id'] and rig.telegram.calls[-1][1]['text'] == 'Проверка связи с сайтом'
+
+        compact = rig.ok('content_plan_get', {'month': '2026-10', 'compact': True})
+        assert compact['compact'] is True and 'bars' not in compact
+        item = compact['materials'][0]
+        assert set(item) == {'id', 'title', 'kind', 'month', 'in_month', 'date', 'origin', 'agent_draft',
+                             'summary', 'placements'}
+        assert item['placements'][0] == {'id': pid, 'channel': 'telegram', 'bar': 'bolshoy', 'date': '2026-10-09',
+                                         'time': '18:00', 'display_state': 'published'}
+        full = rig.ok('content_plan_get', {'month': '2026-10'})
+        assert 'delivery' in full and 'delivery_connected' in full and full['audiences'][0]['size'] == 7
+
+        edits = rig.ok('content_agent_edits', {'months': 1})
+        assert edits['counts']['agent_materials'] == 1 and edits['items'] == []     # правок людей не было
+        audience = rig.ok('content_audience', {'segment': 'bot_bar', 'bar': 'ligovskiy'})
+        assert (audience['size'], audience['bar'], audience['subscribers_total']) == (7, 'ligovskiy', 7)
+        archive = rig.call('content_material_download', {'material_id': material['id']})
+        assert not archive.is_error
+        assert any(b.get('type') == 'resource' and b['resource']['mimeType'] == 'application/zip'
+                   for b in archive.content)
+        missing = rig.call('content_material_download', {'material_id': 'm_000000000000'})
+        assert missing.is_error and missing.http_status == 404
+
+
+def json_dumps(value):
+    import json
+    return json.dumps(value, ensure_ascii=False)
 
 
 # --------------------------------------------------------------------------- тесты: совместимость

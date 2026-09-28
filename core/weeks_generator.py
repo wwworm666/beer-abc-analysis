@@ -6,10 +6,17 @@
 - Определения текущей недели
 - Форматирования периодов для отображения
 - Конвертации дат в ключи для хранения планов
+
+«Сегодня» (текущий год по умолчанию, текущая неделя) — по Москве через
+core/msk_time, а не по часам сервера: прод-контейнер живёт в UTC, и с 00:00 до
+03:00 МСК наивный datetime.now() отставал на сутки — в ночь на понедельник
+текущей оставалась прошлая неделя, в новогоднюю ночь — прошлый год (с 2026-09-28).
 """
 
 from datetime import datetime, timedelta
 from typing import List, Dict, Tuple
+
+from core import msk_time
 
 
 class WeeksGenerator:
@@ -21,7 +28,7 @@ class WeeksGenerator:
         Генерировать все недели года (понедельник - воскресенье)
 
         Args:
-            year: Год для генерации (по умолчанию текущий)
+            year: Год для генерации (по умолчанию текущий по Москве)
 
         Returns:
             List[Dict]: Список словарей с информацией о неделях
@@ -37,7 +44,7 @@ class WeeksGenerator:
                 ]
         """
         if year is None:
-            year = datetime.now().year
+            year = msk_time.today().year
 
         weeks = []
 
@@ -87,7 +94,7 @@ class WeeksGenerator:
     @staticmethod
     def get_current_week() -> Dict:
         """
-        Определить текущую неделю (понедельник - воскресенье)
+        Определить текущую неделю (понедельник - воскресенье) по московской дате
 
         Returns:
             Dict: Информация о текущей неделе
@@ -98,7 +105,7 @@ class WeeksGenerator:
                     'end': '2024-11-24'
                 }
         """
-        today = datetime.now()
+        today = msk_time.today()   # date: календарный день по Москве
 
         # Находим понедельник текущей недели
         days_since_monday = today.weekday()

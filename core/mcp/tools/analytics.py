@@ -29,10 +29,9 @@
          set_override принимает любую строку кроме 'all' и записал бы мусорный
          ключ заведения;
        - ключ плана — только 'YYYY-MM' (формат интерфейса);
-       - ключ комментария — только 'YYYY-MM-DD_YYYY-MM-DD': комментарий пишется в
-         файл ПЛАНОВ по ключу периода, и месячный ключ плана (например
-         'bolshoy_2026-09') вписал бы комментарий внутрь боевого плана
-         (docs/dashboard.md, «Ключ периода»).
+       - ключ комментария — только 'YYYY-MM-DD_YYYY-MM-DD': единственный формат
+         дашборда; другой маршрут записи отвечает 400 (с 2026-09-28 комментарии
+         хранятся отдельно от планов, docs/dashboard.md, «Комментарии к периоду»).
     4. Флаги строк запроса (force/full) — строка '1', а не boolean: маршруты
        сравнивают значение со строками '1'/'true'/'yes', а булево значение в строке
        запроса превратилось бы в 'True' и молча не сработало бы.
@@ -57,12 +56,13 @@
     Отчёты «Маркетинга» (/api/guests/*, кроме синка) читают локальную витрину
     guests.db и тяжёлыми не считаются.
 
-Известные проблемы сервиса, описанные в инструментах, а не исправленные здесь
-    - POST /api/comments/... отвечает 500 «Missing required field: revenue» для любого
-      ключа периода дашборда (комментарий проходит проверку полного плана);
-    - /api/comparison/periods — заглушка, всегда пустое сравнение;
-    - выгрузки Excel/PDF пишут в «Факт» наценку дробью (2.24 = 224%) и активность
-      кранов 0 (calculate_metrics её не считает).
+Исправлено в сервисе 2026-09-28 (описания инструментов обновлены)
+    - комментарий к периоду хранится отдельно от планов, у каждого заведения свой
+      (раньше POST отвечал 500 «Missing required field: revenue», venue_key не читался);
+    - /api/comparison/periods считает сравнение по-настоящему (раньше — заглушка);
+    - выгрузки Excel/PDF берут факт ровно как карточки дашборда: наценка в процентах,
+      активность кранов по журналу кранов;
+    - RFM принимает фильтры списка segment, q, limit (полный ответ — 500+ тыс. знаков).
 
 Документация (формулы): docs/dashboard.md, docs/monthly-report.md,
 docs/venues-plans.md, docs/abc-xyz-analysis.md, docs/draft.md, docs/kitchen.md,
@@ -104,6 +104,15 @@ EXPLORER_METRICS: Tuple[str, ...] = ('revenue',)  # MVP: другие метри
 
 # Типы периода «Маркетинга» (core/guest_analytics.resolve_period).
 GUEST_PERIOD_TYPES: Tuple[str, ...] = ('week', 'month', 'quarter', 'year')
+
+# Сегменты RFM (core/guest_analytics.RFM_SEGMENTS) — фильтр segment= через запятую.
+RFM_SEGMENTS: Tuple[str, ...] = ('CHAMPIONS', 'LOYAL', 'POTENTIAL', 'NEW', 'AT_RISK', 'CHURNED')
+RFM_SEGMENT_PATTERN = ('^(' + '|'.join(RFM_SEGMENTS) + ')(,(' + '|'.join(RFM_SEGMENTS) + '))*$')
+# Потолок limit у агента. Строка гостя RFM — около 255 знаков JSON (замер 2026-09-28:
+# 2 214 гостей, 568 тыс. знаков), 200 строк — около 51 тыс.: ответ целиком помещается в
+# предел моста (60 тыс. знаков). Сам маршрут принимает любой limit от 1; полный список —
+# export='csv'.
+RFM_LIMIT_MAX = 200
 
 # Поля месячного плана (core/plans_manager.PlansManager.PLAN_SCHEMA).
 # cardChecksShare необязателен: PLAN_DEFAULTS подставляет 70.
@@ -309,26 +318,33 @@ _T_DASHBOARD = [
     ),
     _tool(
         name='analytics_compare_periods',
-        title='Сравнение периодов (заглушка)',
+        title='Сравнение двух периодов',
         description=(
-            'Заглушка сервиса: проверяет, что переданы venue_key, period1_key и period2_key, и '
-            'всегда возвращает {success: true, comparison: {}, insights: []} — ничего не считает. '
-            'Вкладка «Сравнение» на сайте строит сравнение в браузере из двух запросов метрик; '
-            'делайте так же: два вызова analytics_dashboard (период 1 и период 2) и разница по '
-            'каждой метрике — абсолютная и в % к периоду 1, с исходными числами. Инструмент '
-            'оставлен для полноты интерфейса.'),
+            'Сравнение двух периодов по всем 20 метрикам «Аналитики» одним вызовом — те же '
+            'числа, что вкладка «Сравнение» дашборда. Числа каждого периода — ровно '
+            'analytics_dashboard за эти даты (общий кэш iiko 10 минут; ответ: period1 / '
+            'period2 — key, date_from, date_to, metrics). Направление как на вкладке: период 2 '
+            '— база («было»), diff = период 1 − период 2, diff_percent = diff / период 2 × 100 '
+            '(база 0 — null); у метрик в % (доли, наценки, активность кранов) diff — в '
+            'процентных пунктах (diff_unit «п.п.»). comparison — по каждой метрике label, unit, '
+            'period1, period2, diff, diff_percent, trend (up / down / stable), better (рост — '
+            'лучше, у списаний баллов — хуже); top_changes — до 3 метрик с наибольшим '
+            '|diff_percent| (как «Топ-3 изменения»); insights — они же фразами; formula — '
+            'правило словами. Для «эта неделя против прошлой» передайте текущую неделю '
+            'period1_key, прошлую — period2_key (ключи — analytics_weeks). У идущего периода '
+            'факт только по сегодня: сравнивайте равные отрезки. Формулы — dashboard.md, '
+            '«Сравнение периодов».'),
         method='POST', path='/api/comparison/periods', body='json',
         input_schema=_obj({
-            'venue_key': {'type': 'string', 'minLength': 1,
-                          'description': 'Ключ заведения; маршрут только проверяет, что он не пуст.'},
-            'period1_key': {'type': 'string', 'minLength': 1,
-                            'description': "Ключ периода 1, например '2026-09-08_2026-09-14'."},
-            'period2_key': {'type': 'string', 'minLength': 1,
-                            'description': "Ключ периода 2, например '2026-09-15_2026-09-21'."},
-        }, required=('venue_key', 'period1_key', 'period2_key')),
-        read_only=True, idempotent=True,
-        examples=({'venue_key': 'all', 'period1_key': '2026-09-08_2026-09-14',
-                   'period2_key': '2026-09-15_2026-09-21'},),
+            'venue_key': _venue_key('По умолчанию вся сеть.', allow_empty=True),
+            'period1_key': {'type': 'string', 'pattern': PERIOD_KEY_PATTERN,
+                            'description': ("Сравниваемый период 'YYYY-MM-DD_YYYY-MM-DD', обе "
+                                            "даты включительно, например '2026-09-15_2026-09-21'.")},
+            'period2_key': {'type': 'string', 'pattern': PERIOD_KEY_PATTERN,
+                            'description': ("База сравнения («было») 'YYYY-MM-DD_YYYY-MM-DD', "
+                                            "например '2026-09-08_2026-09-14'.")},
+        }, required=('period1_key', 'period2_key')),
+        read_only=True, idempotent=True, heavy=True,
     ),
     _tool(
         name='analytics_venues',
@@ -689,8 +705,8 @@ _T_PLANS = [
 
 _PERIOD_KEY = {
     'type': 'string', 'pattern': PERIOD_KEY_PATTERN,
-    'description': ("Ключ периода дашборда 'YYYY-MM-DD_YYYY-MM-DD' (как key у analytics_weeks). "
-                    "Не месячный ключ плана: комментарий хранится в файле планов."),
+    'description': ("Ключ периода дашборда 'YYYY-MM-DD_YYYY-MM-DD' (как key у analytics_weeks), "
+                    'обе даты включительно. Месячный ключ плана не подходит.'),
 }
 
 _EXPORT_METRIC = {
@@ -709,13 +725,15 @@ _T_COMMENTS_EXPORTS = [
         name='analytics_comment_get',
         title='Комментарий к периоду',
         description=(
-            'Текст «анализа» к периоду дашборда: {comment: текст или null}. Ключ — период '
-            "дашборда 'YYYY-MM-DD_YYYY-MM-DD'; комментарий общий для всех заведений — venue_key "
-            'маршрут принимает, но не использует.'),
+            'Текст «анализа» к периоду дашборда для заведения: {comment: текст или null, '
+            'venue_key, period_key, updated_at (МСК), updated_by (логин; через агента — '
+            '«логин · агент»), legacy}. У каждого заведения свой комментарий; legacy=true — '
+            'старый общий текст, сохранённый до 2026-09-28 без заведения: он виден у любого '
+            'заведения, пока у заведения нет своего.'),
         method='GET', path='/api/comments/<venue_key>/<period_key>', body='none',
         path_params=('venue_key', 'period_key'),
         input_schema=_obj({
-            'venue_key': _venue_key('Маршрут его не использует.'),
+            'venue_key': _venue_key('Комментарий у каждого заведения свой.'),
             'period_key': _PERIOD_KEY,
         }, required=('venue_key', 'period_key')),
         read_only=True, idempotent=True,
@@ -725,19 +743,18 @@ _T_COMMENTS_EXPORTS = [
         name='analytics_comment_save',
         title='Сохранить комментарий к периоду',
         description=(
-            'ЗАПИСЬ. Сохраняет текст «анализа» к периоду дашборда (общий для всех заведений; '
-            'venue_key не используется). Известная проблема сервиса (проверено 2026-09-27): для '
-            'любого ключа периода дашборда маршрут отвечает 500 «Missing required field: revenue» '
-            '— комментарий пишется в файл планов и проходит проверку полного плана. Сообщите '
-            'владельцу и не обходите ошибку месячным ключом плана: комментарий записался бы '
-            'внутрь боевого плана, поэтому ключ ограничен форматом периода. Только по прямой '
-            'просьбе владельца.'),
+            'ЗАПИСЬ. Сохраняет (заменяет целиком) текст «анализа» к периоду дашборда для '
+            'одного заведения — как «Сохранить» у комментария на сайте. Хранится отдельно от '
+            'планов и плановых цифр не касается; прежний текст этого заведения за период '
+            'заменяется, поэтому сначала прочитайте его (analytics_comment_get) и покажите '
+            'владельцу «было → станет». Текст до 10 000 знаков, пробелы по краям обрезаются. '
+            'Только по прямой просьбе владельца.'),
         method='POST', path='/api/comments/<venue_key>/<period_key>', body='json',
         path_params=('venue_key', 'period_key'),
         input_schema=_obj({
-            'venue_key': _venue_key('Маршрут его не использует.'),
+            'venue_key': _venue_key("Заведение, к которому относится текст; 'all' — вся сеть."),
             'period_key': _PERIOD_KEY,
-            'comment': {'type': 'string', 'minLength': 1,
+            'comment': {'type': 'string', 'minLength': 1, 'maxLength': 10000,
                         'description': 'Текст комментария (пробелы по краям обрезаются).'},
         }, required=('venue_key', 'period_key', 'comment')),
         read_only=False, destructive=False, idempotent=True,
@@ -792,10 +809,10 @@ _T_COMMENTS_EXPORTS = [
         description=(
             'Файл xlsx «Дашборд» за период: 20 строк «Метрика | План | Факт» (выручки, чеки, '
             'доли, наценки, прибыль, списания, чеки и выручка с картой, активность кранов), как '
-            'кнопка Excel на дашборде. Факт — отдельный живой запрос в iiko без кэша, план — '
-            'пропорционально месячным (как analytics_plan_calculate). Известные огрехи выгрузки: '
-            'наценки в «Факт» — дробью (2.24 = 224%), активность кранов в факте — 0; для цифр '
-            'используйте analytics_dashboard. Пустой период — 500; результат — файл вложением.'),
+            'кнопка Excel на дашборде. Факт — ровно карточки analytics_dashboard за эти даты '
+            '(тот же кэш iiko; доли, наценки и активность кранов — в процентах), план — как '
+            'analytics_plan_calculate; метрика без плана — пустая ячейка. Пустой период — нули; '
+            'результат — файл вложением. Для чтения цифр удобнее analytics_dashboard.'),
         method='POST', path='/api/export/excel', body='json',
         input_schema=_obj({
             'bar': _venue_key(),
@@ -808,12 +825,12 @@ _T_COMMENTS_EXPORTS = [
         name='analytics_export_pdf',
         title='Дашборд в PDF',
         description=(
-            'Файл PDF (если на сервере нет reportlab — HTML-страница) с таблицей «Метрика | План '
-            '| Факт | % плана | Разница» за период, как кнопка PDF на дашборде; у метрик без '
-            'плана — «—». Факт — отдельный живой запрос в iiko без кэша. Известные огрехи '
-            'выгрузки: наценки в «Факт» — дробью (2.24 = 224%), поэтому их «% плана» неверен, '
-            'активность кранов в факте — 0; для цифр используйте analytics_dashboard. Результат — '
-            'файл вложением.'),
+            'Файл с таблицей «Метрика | План | Факт | % плана | Разница» за период, как кнопка '
+            'PDF на дашборде: reportlab на сервере не установлен, поэтому это HTML-страница '
+            '(для печати в PDF из браузера). Факт и план — как у analytics_export_excel (факт = '
+            'карточки analytics_dashboard, наценки в процентах); % плана = факт / план × 100, у '
+            'метрик без плана — «—», у списаний баллов план — потолок. Результат — файл '
+            'вложением; для чтения цифр удобнее analytics_dashboard.'),
         method='POST', path='/api/export/pdf', body='json',
         input_schema=_obj({
             'bar': _venue_key(),
@@ -906,7 +923,7 @@ _T_ANALYSIS = [
             "Ответ {<бар или 'Общая'>: {total_liters, total_portions, total_beers, kegs_30l, "
             'kegs_50l, total_revenue, beers}}. Для решений и потерь используйте '
             'analytics_draft_kegs — там литры из проводок и нынешние пороги. Живой iiko без кэша; '
-            'days читается всегда, без дат период = последние days дней по часам сервера.'),
+            'days читается всегда, без дат период = последние days дней по Москве.'),
         method='POST', path='/api/draft-analyze', body='json',
         input_schema=_obj({
             'bar': _iiko_bar(),
@@ -1075,18 +1092,34 @@ _T_GUESTS = [
         'последнего визита (пороги 7/14/30/60), F — визиты за окно (260/104/52/12: 5+ в неделю, '
         '2+ в неделю, раз в неделю, раз в месяц), M — выручка окна. Ответ: total_guests, '
         'segments (CHAMPIONS, LOYAL, POTENTIAL, NEW, AT_RISK, CHURNED — count, share_pct, '
-        'revenue ₽) и guests — ВСЕ гости окна с телефоном, картой, именем, recency_days, '
-        'frequency, orders, avg_check, monetary и сегментом (тысячи строк: мост урежет, итоги '
-        'только из segments). store — считать по чекам одной точки (сумма по барам больше '
-        "сети: гость двух баров в двух срезах); export='csv' — тот же список файлом CSV.",
+        'revenue ₽) и guests — гости окна с телефоном, картой, именем, recency_days, '
+        'frequency, orders, avg_check, monetary и сегментом, по убыванию выручки окна. Без '
+        'фильтров guests — ВСЕ гости (тысячи строк, 500+ тыс. знаков: мост урежет), поэтому '
+        'всегда передавайте limit (например 50) и при нужде segment и q; segments и '
+        'total_guests фильтр не меняет, guests_filter.matched — сколько гостей подошло до '
+        'limit. store — считать по чекам одной точки (сумма по барам больше сети: гость двух '
+        "баров в двух срезах); export='csv' — тот же список (с теми же фильтрами) файлом CSV.",
         '/api/guests/rfm',
         extra_props={
             'store': _venue_key("Только чеки этой точки; не передавать — вся сеть.",
                                 with_all=False),
+            'segment': {'type': 'string', 'pattern': RFM_SEGMENT_PATTERN,
+                        'description': ('Только эти сегменты, через запятую: CHAMPIONS, LOYAL, '
+                                        'POTENTIAL, NEW, AT_RISK, CHURNED (например '
+                                        "'AT_RISK,CHURNED').")},
+            'q': {'type': 'string', 'minLength': 2,
+                  'description': ('Поиск в списке: подстрока имени, номера карты или guest_id; '
+                                  'телефон сравнивается по цифрам (ищите по последним цифрам).')},
+            'limit': {'type': 'integer', 'minimum': 1, 'maximum': RFM_LIMIT_MAX,
+                      'description': ('Сколько гостей вернуть после фильтра — самые ценные по '
+                                      'выручке окна; до ' + str(RFM_LIMIT_MAX) + '.')},
             'export': {'type': 'string', 'enum': ['csv'],
                        'description': "'csv' — выгрузка списка гостей (CSV через «;»)."},
         },
-        extra_query=('store', 'export'),
+        extra_query=('store', 'segment', 'q', 'limit', 'export'),
+        examples=({'period_type': 'month', 'anchor': '2026-08-15', 'limit': 20},
+                  {'period_type': 'month', 'anchor': '2026-08-15', 'segment': 'AT_RISK,CHURNED',
+                   'limit': 20}),
         # Не also_in content: здесь каждый гость с телефоном и картой, а контент-агенту
         # хватает сводки (analytics_guests_summary). Проверка безопасности 2026-09-28.
     ),
@@ -1229,7 +1262,8 @@ INSTRUCTIONS = """\
 Откуда числа
 - Числа никогда не из модели: каждую цифру берите из ответа инструмента и называйте период,
   бар и инструмент. Допустима простая арифметика над числами из ответов (факт − план,
-  % выполнения, разница двух периодов) — всегда с формулой и исходными числами.
+  % выполнения) — всегда с формулой и исходными числами; разницу двух периодов по всем
+  метрикам готовой даёт analytics_compare_periods.
 - Не складывайте и не усредняйте списки сами: итоги уже есть в ответах (totals, total_*,
   grand_total, column_totals, segments, losses). Длинные массивы мост урезает (объект
   «_обрезано»); уникальные счётчики (чеки, гости) по барам и дням не складываются.
@@ -1261,7 +1295,7 @@ INSTRUCTIONS = """\
 - Неделя пн–вс; месяц, квартал, год — календарные. У идущего периода факт только по сегодня,
   а план — за весь период: сравнивайте с analytics_revenue_metrics или с планом тех же дат.
 - «Маркетинг»: period_type + anchor; дата среза = min(конец периода, сегодня); RFM — окно
-  365 дней на дату среза.
+  365 дней на дату среза, список гостей — всегда с limit (и segment / q по задаче).
 - Месячный отчёт — только закрытые месяцы (пересчёт ночью 1-го числа); текущий месяц там
   нули, берите analytics_dashboard.
 
@@ -1280,8 +1314,9 @@ ABC/XYZ (abc-xyz-analysis.md, draft.md, kitchen.md)
 
 Тяжёлые вызовы (живой iiko, от 1 до 20 с; мост пускает два одновременно)
 - analytics_dashboard, _dashboard_card_details, _revenue_metrics, _widget_revenue,
-  _export_excel, _export_pdf, _packaging, _kitchen, _draft_kegs, _draft_analyze, _discounts,
-  _explorer_pivot, месячный отчёт с force/full, синхронизация гостей.
+  _compare_periods, _export_excel, _export_pdf, _packaging, _kitchen, _draft_kegs,
+  _draft_analyze, _discounts, _explorer_pivot, месячный отчёт с force/full, синхронизация
+  гостей.
 - Один запрос за весь период вместо дробления: разбивку по дням, барам и категориям дают
   analytics_dashboard_card_details (тот же кэш) и analytics_explorer_pivot. Тот же бар и те же
   даты 10 минут отдаются из кэша. Тяжёлые вызовы делайте по очереди.

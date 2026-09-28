@@ -15,7 +15,7 @@
   GET  /menu                     — страница-редактор
   GET  /menu/card?id=N           — одиночное превью карточки (для Playwright/печати)
   GET  /menu/print?filter=tap|all— страница со всеми карточками (Ctrl+P)
-  GET/POST       /menu/api/items          — список / создание
+  GET/POST       /menu/api/items          — список (?q=, ?limit= — поиск для агентов) / создание
   PUT/DELETE     /menu/api/items/<id>      — обновление / удаление
   POST           /menu/api/refresh-prices  — обновить цены из iiko
   POST           /menu/api/render-pdf      — PDF одной карточки (Playwright)
@@ -268,9 +268,55 @@ def list_styles():
         return jsonify({"styles": []})
 
 
+# Поиск карточек для ИИ-агентов (?q=, ?limit=): вся библиотека — около 260 карточек,
+# ~60 тыс. знаков, а мост MCP режет ответ на 60 тыс. Предел limit — 1000: больше
+# карточек не бывает; весь список — без limit.
+LIST_LIMIT_MAX = 1000
+SEARCH_FIELDS = ("name", "latin", "brewery", "country", "style", "tags")
+
+
+def _search_key(value):
+    """Строка для поиска без учёта регистра; «ё» = «е»; список (tags) — через пробел."""
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v) for v in value)
+    return str(value or "").casefold().replace("ё", "е")
+
+
+def _search_args():
+    """?q= и ?limit= -> (подстрока или None, число или None); кривой limit -> ValueError."""
+    query = _search_key((request.args.get("q") or "").strip())
+    raw = (request.args.get("limit") or "").strip()
+    limit = None
+    if raw:
+        try:
+            limit = int(raw)
+        except ValueError:
+            limit = 0
+        if not 1 <= limit <= LIST_LIMIT_MAX:
+            raise ValueError("limit — целое число от 1 до %d" % LIST_LIMIT_MAX)
+    return query or None, limit
+
+
 @menu_editor_bp.route("/api/items", methods=["GET"])
 def list_items():
-    return jsonify(_load_items())
+    """Все карточки — список, как его читает страница /menu.
+
+    Для агентов: ?q= — подстрока в названии, латинском названии, пивоварне, стране,
+    стиле или дескрипторах (без учёта регистра и «ё»), ?limit= — не больше N карточек
+    (1..1000) в порядке файла. С любым из них ответ — объект {items, total (всего
+    карточек), matched (подошло до limit), q, limit}; без них — прежний список.
+    """
+    try:
+        query, limit = _search_args()
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    items = _load_items()
+    if query is None and limit is None:
+        return jsonify(items)
+    matched = items if query is None else [
+        i for i in items if query in " ".join(_search_key(i.get(f)) for f in SEARCH_FIELDS)]
+    return jsonify({"items": matched[:limit] if limit else matched, "total": len(items),
+                    "matched": len(matched), "q": query, "limit": limit})
 
 
 @menu_editor_bp.route("/api/items", methods=["POST"])

@@ -11,6 +11,7 @@ from core.draft_analysis import DraftAnalysis
 from core.draft_kegs import DraftKegAnalysis, strip_service_fields
 from core.draft_loader import load_draft_kegs
 from core.revenue_metrics import RevenueMetricsCalculator
+from core import msk_time
 from extensions import BARS, cached_olap
 
 analysis_bp = Blueprint('analysis', __name__)
@@ -190,9 +191,12 @@ def analyze_draft():
         print(f"\n[DRAFT] Zapusk analiza razlivnogo piva...")
         print(f"   Bar: {bar_name if bar_name else 'VSE'}")
 
-        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем
+        # Обработка дат: если переданы конкретные даты, используем их, иначе вычисляем.
+        # «Сегодня» — по Москве (core/msk_time), как у /api/packaging, /api/kitchen и
+        # /api/draft-kegs: прод-контейнер живёт в UTC, и с 00:00 до 03:00 МСК наивный
+        # datetime.now() сдвигал окно «последние N дней» на сутки назад.
         if not date_from or not date_to:
-            date_to_obj = datetime.now()
+            date_to_obj = msk_time.today()
             date_from = (date_to_obj - timedelta(days=days)).strftime("%Y-%m-%d")
             date_to = date_to_obj.strftime("%Y-%m-%d")
             print(f"   Period: {days} dney (computed: {date_from} - {date_to})")

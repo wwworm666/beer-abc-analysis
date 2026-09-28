@@ -381,6 +381,30 @@ def test_admin_set_employee_duplicate_returns_400():
         restore()
 
 
+def test_admin_profile_rejects_non_string_fields():
+    """Профиль: не строка в display_name / short_label и тело не объект — 400, а не 500.
+
+    До 2026-09-28 число доходило до .strip() в AuthManager.update_profile (AttributeError
+    -> 500). Строки и частичная правка работают как раньше.
+    """
+    mgr = _fresh_manager()
+    mgr.create_user('owner', 'Владелец', 'ownerpass', is_admin=True)
+    bob = mgr.create_user('bob', 'Боб', 'bobpass12')
+    app = _make_app()
+    c = app.test_client()
+    c.post('/login', data={'login': 'owner', 'password': 'ownerpass'})
+    url = '/api/auth/users/%d/profile' % bob
+    for body in ({'display_name': 123}, {'short_label': ['А']}, {'display_name': {'x': 1}}, [1]):
+        r = c.post(url, json=body)
+        assert r.status_code == 400, (body, r.status_code)
+        assert (r.get_json() or {}).get('error'), body
+    assert mgr.get_by_id(bob)['display_name'] == 'Боб', 'ничего не изменилось'
+    r = c.post(url, json={'display_name': 'Борис Б.', 'short_label': None})
+    assert r.status_code == 200, r.get_json()
+    assert mgr.get_by_id(bob)['display_name'] == 'Борис Б.'
+    assert c.post(url, json={'display_name': '   '}).status_code == 400, 'пустое имя — 400, как было'
+
+
 # --- гейт и потоки входа ---
 
 def test_gate_blocks_anonymous():

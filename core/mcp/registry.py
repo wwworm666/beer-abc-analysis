@@ -13,7 +13,9 @@
 - spec.validate_tool_spec(spec) пуст;
 - домен инструмента совпадает с доменом модуля (common — только в common.py);
 - имя уникально среди всех модулей (второй экземпляр отбрасывается).
-То же для подсказок (PromptSpec): имя по шаблону, уникальность.
+То же для сценариев (PromptSpec): spec.validate_prompt_spec (имя, домен, заголовки,
+render, аргументы, mode_required строго из MODES — с 2026-09-28), домен модуля,
+уникальность имени.
 
 Кому что видно (tools_for):
     None (полный /mcp)  — все инструменты;
@@ -27,7 +29,7 @@ import threading
 from types import ModuleType
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.mcp.spec import (COMMON_DOMAIN, DOMAINS, PROMPT_NAME_RE, PromptSpec, ToolSpec,
+from core.mcp.spec import (COMMON_DOMAIN, DOMAINS, PromptSpec, ToolSpec, validate_prompt_spec,
                            validate_tool_spec)
 
 log = logging.getLogger('mcp.registry')
@@ -112,17 +114,16 @@ def _collect(state: Dict[str, Any], mod_name: str, module: Any) -> None:
         if not isinstance(prompt, PromptSpec):
             state['errors'].append(f'{mod_name}: в PROMPTS не PromptSpec: {prompt!r:.80}')
             continue
-        problems = []
-        if not PROMPT_NAME_RE.match(prompt.name or ''):
-            problems.append(f'подсказка {prompt.name!r}: имя не подходит под {PROMPT_NAME_RE.pattern}')
+        # Правила сценария (имя, домен, заголовки, render, аргументы, mode_required из
+        # MODES) — spec.validate_prompt_spec; здесь — только то, что зависит от реестра.
+        problems = list(validate_prompt_spec(prompt))
         if prompt.domain != mod_name:
             problems.append(f'подсказка {prompt.name}: домен {prompt.domain!r} объявлен в модуле {mod_name}')
         if prompt.name in state['prompts_by_name']:
             problems.append(f'подсказка {prompt.name}: имя уже занято')
-        if not callable(prompt.render):
-            problems.append(f'подсказка {prompt.name}: render не функция')
         if problems:
             state['errors'].extend(f'{mod_name}: {p}' for p in problems)
+            log.warning('[MCP] сценарий %s не опубликован: %s', prompt.name, '; '.join(problems))
             continue
         state['prompts'].append(prompt)
         state['prompts_by_name'][prompt.name] = prompt

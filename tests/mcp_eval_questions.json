@@ -1,0 +1,274 @@
+{
+  "version": 1,
+  "about": "Эталонные вопросы к ИИ-агенту сервиса «Культура» через MCP (режим «Только чтение»). Прогон — scripts/mcp_eval.py: по умолчанию сухой режим (план), --run — настоящий прогон через claude -p (тратит токены подписки владельца). Ответ агента сверяется с числом из того же инструмента (reference), допуск — tolerance. Формат и правила пути reference.path — докстрока scripts/mcp_eval.py.",
+  "placeholders": {
+    "{today}": "сегодня по Москве, YYYY-MM-DD",
+    "{yesterday}": "вчера по Москве, YYYY-MM-DD",
+    "{year}": "текущий год (целое)",
+    "{month}": "текущий месяц YYYY-MM",
+    "{month_num}": "номер текущего месяца (целое)",
+    "{month_start}": "первое число текущего месяца, YYYY-MM-DD",
+    "{month_end}": "последнее число текущего месяца, YYYY-MM-DD",
+    "{prev_month}": "прошлый месяц YYYY-MM",
+    "{prev_month_year}": "год прошлого месяца (целое)",
+    "{prev_month_num}": "номер прошлого месяца (целое)",
+    "{prev_month_start}": "первое число прошлого месяца",
+    "{prev_month_end}": "последнее число прошлого месяца",
+    "{prev_week_start}": "понедельник прошлой недели",
+    "{prev_week_end}": "воскресенье прошлой недели"
+  },
+  "questions": [
+    {
+      "id": "content-plan-materials",
+      "domain": "content",
+      "question": "Сколько материалов в контент-плане на {month}?",
+      "expect_tools": ["content_plan_get"],
+      "reference": {"tool": "content_plan_get", "args": {"month": "{month}"}, "path": "stats.materials"},
+      "tolerance": {"abs": 0},
+      "unit": "материалов"
+    },
+    {
+      "id": "content-plan-placements",
+      "domain": "content",
+      "question": "Сколько всего размещений (публикаций по каналам и барам) в контент-плане на {month}?",
+      "expect_tools": ["content_plan_get"],
+      "reference": {"tool": "content_plan_get", "args": {"month": "{month}"}, "path": "stats.placements"},
+      "tolerance": {"abs": 0},
+      "unit": "размещений"
+    },
+    {
+      "id": "content-reviews-unanswered",
+      "domain": "content",
+      "question": "Сколько отзывов гостей сейчас ждут ответа по всей сети?",
+      "expect_tools": ["content_attention", "content_reviews_list"],
+      "reference": {"tool": "content_attention", "args": {}, "path": "reviews_unanswered"},
+      "tolerance": {"abs": 0},
+      "unit": "отзывов"
+    },
+    {
+      "id": "content-reviews-unanswered-ligovskiy",
+      "domain": "content",
+      "question": "Сколько отзывов без ответа у бара на Лиговском?",
+      "expect_tools": ["content_attention", "content_reviews_list"],
+      "reference": {"tool": "content_attention", "args": {"bar": "ligovskiy"}, "path": "reviews_unanswered"},
+      "tolerance": {"abs": 0},
+      "unit": "отзывов"
+    },
+    {
+      "id": "content-reviews-count-prev-month",
+      "domain": "content",
+      "question": "Сколько отзывов гостей пришло за {prev_month} по всей сети?",
+      "expect_tools": ["content_reviews_list", "content_reviews_daily"],
+      "reference": {"tool": "content_reviews_list", "args": {"month": "{prev_month}"}, "path": "metrics.total.count"},
+      "tolerance": {"abs": 0},
+      "unit": "отзывов"
+    },
+    {
+      "id": "content-reviews-avg-prev-month",
+      "domain": "content",
+      "question": "Какая средняя оценка отзывов гостей за {prev_month} по всей сети?",
+      "expect_tools": ["content_reviews_list"],
+      "reference": {"tool": "content_reviews_list", "args": {"month": "{prev_month}"}, "path": "metrics.total.avg_rating"},
+      "tolerance": {"abs": 0.05},
+      "unit": "баллов из 5"
+    },
+    {
+      "id": "content-publications-today",
+      "domain": "content",
+      "question": "Сколько публикаций контент-плана стоит на сегодня (утверждены, на паузе или уже вышли)?",
+      "expect_tools": ["content_attention", "content_plan_get"],
+      "reference": {"tool": "content_attention", "args": {}, "path": "publications_today"},
+      "tolerance": {"abs": 0},
+      "unit": "публикаций"
+    },
+    {
+      "id": "stocks-taps-active-bolshoy",
+      "domain": "stocks",
+      "question": "Сколько кранов сейчас подключено (активно) в баре на Большом пр. В.О?",
+      "expect_tools": ["stocks_taps_statistics", "stocks_taps_bar", "stocks_taps_bars", "stocks_taps_bar_stats"],
+      "reference": {"tool": "stocks_taps_statistics", "args": {"bar_id": "bar1"}, "path": "active_taps"},
+      "tolerance": {"abs": 0},
+      "unit": "кранов"
+    },
+    {
+      "id": "stocks-taps-empty-network",
+      "domain": "stocks",
+      "question": "Сколько пустых кранов прямо сейчас во всей сети?",
+      "expect_tools": ["stocks_taps_statistics", "stocks_taps_bars", "stocks_taps_bar", "stocks_taps_bar_stats"],
+      "reference": {"tool": "stocks_taps_statistics", "args": {}, "path": "empty_taps"},
+      "tolerance": {"abs": 0},
+      "unit": "кранов"
+    },
+    {
+      "id": "stocks-activity-7d-kremenchugskaya",
+      "domain": "stocks",
+      "question": "Какая активность кранов за последние 7 дней (процент кран-дней с подключённой кегой) в Кременчугской?",
+      "expect_tools": ["stocks_taps_bar_stats"],
+      "reference": {"tool": "stocks_taps_bar_stats", "args": {"bar_id": "bar3"}, "path": "activity_7d"},
+      "tolerance": {"abs": 0.1},
+      "unit": "%"
+    },
+    {
+      "id": "stocks-orders-in-transit",
+      "domain": "stocks",
+      "question": "Сколько заказов поставщикам сейчас в пути — отправлены или приехали, но ещё не оприходованы?",
+      "expect_tools": ["stocks_orders_list"],
+      "reference": {"tool": "stocks_orders_list", "args": {"status": "sent,received"}, "path": "orders|len"},
+      "tolerance": {"abs": 0},
+      "unit": "заказов"
+    },
+    {
+      "id": "stocks-kegs-catalog-total",
+      "domain": "stocks",
+      "question": "Сколько всего кег в справочнике для подключения на кран?",
+      "expect_tools": ["stocks_beers_draft"],
+      "reference": {"tool": "stocks_beers_draft", "args": {"limit": 1}, "path": "total"},
+      "tolerance": {"abs": 0},
+      "unit": "кег"
+    },
+    {
+      "id": "stocks-menu-cards-total",
+      "domain": "stocks",
+      "question": "Сколько карточек в библиотеке печатного пивного меню?",
+      "expect_tools": ["stocks_menu_items"],
+      "reference": {"tool": "stocks_menu_items", "args": {"limit": 1}, "path": "total"},
+      "tolerance": {"abs": 0},
+      "unit": "карточек"
+    },
+    {
+      "id": "stocks-order-board-decide-ligovskiy",
+      "domain": "stocks",
+      "question": "Сколько позиций на доске «К заказу» бара Лиговский требуют решения сегодня (секция decide)?",
+      "expect_tools": ["stocks_order_board"],
+      "reference": {"tool": "stocks_order_board", "args": {"bar": "Лиговский"}, "path": "decide_count"},
+      "tolerance": {"abs": 0},
+      "unit": "позиций"
+    },
+    {
+      "id": "stocks-order-board-to-order-ligovskiy",
+      "domain": "stocks",
+      "question": "Сколько позиций Лиговскому нужно заказать сегодня по рекомендации доски «К заказу» (рекомендация больше нуля)?",
+      "expect_tools": ["stocks_order_board"],
+      "reference": {"tool": "stocks_order_board", "args": {"bar": "Лиговский", "only_to_order": "1", "limit": 1}, "path": "filter.matched"},
+      "tolerance": {"abs": 0},
+      "unit": "позиций"
+    },
+    {
+      "id": "analytics-plan-revenue-month",
+      "domain": "analytics",
+      "question": "Какой план выручки всей сети на {month}, в рублях?",
+      "expect_tools": ["analytics_plan_get", "analytics_daily_plan_get", "analytics_plans_list"],
+      "reference": {"tool": "analytics_plan_get", "args": {"venue_key": "all", "period_key": "{month}"}, "path": "revenue"},
+      "tolerance": {"rel": 0.001},
+      "unit": "руб."
+    },
+    {
+      "id": "analytics-plan-checks-bolshoy",
+      "domain": "analytics",
+      "question": "Сколько чеков запланировано на {month} для бара на Большом пр. В.О?",
+      "expect_tools": ["analytics_plan_get", "analytics_plans_list"],
+      "reference": {"tool": "analytics_plan_get", "args": {"venue_key": "bolshoy", "period_key": "{month}"}, "path": "checks"},
+      "tolerance": {"abs": 1},
+      "unit": "чеков"
+    },
+    {
+      "id": "analytics-daily-plan-today",
+      "domain": "analytics",
+      "question": "Какой план выручки всей сети на сегодня ({today}), в рублях?",
+      "expect_tools": ["analytics_daily_plan_get"],
+      "reference": {"tool": "analytics_daily_plan_get", "args": {"venue_key": "all", "year": "{year}", "month": "{month_num}"}, "path": "days[date={today}].daily_plan"},
+      "tolerance": {"rel": 0.005},
+      "unit": "руб."
+    },
+    {
+      "id": "analytics-guests-base",
+      "domain": "analytics",
+      "question": "Сколько гостей в базе программы лояльности (хоть раз покупали с картой) на сегодня?",
+      "expect_tools": ["analytics_guests_summary"],
+      "reference": {"tool": "analytics_guests_summary", "args": {"period_type": "month", "anchor": "{today}"}, "path": "data.base_size"},
+      "tolerance": {"rel": 0.001},
+      "unit": "гостей"
+    },
+    {
+      "id": "analytics-revenue-yesterday",
+      "domain": "analytics",
+      "question": "Какая выручка всей сети была вчера ({yesterday}), в рублях?",
+      "expect_tools": ["analytics_dashboard", "analytics_revenue_metrics"],
+      "reference": {"tool": "analytics_dashboard", "args": {"bar": "all", "date_from": "{yesterday}", "date_to": "{yesterday}"}, "path": "revenue"},
+      "tolerance": {"rel": 0.005},
+      "unit": "руб."
+    },
+    {
+      "id": "analytics-checks-prev-week",
+      "domain": "analytics",
+      "question": "Сколько чеков было во всей сети за прошлую неделю ({prev_week_start} — {prev_week_end})?",
+      "expect_tools": ["analytics_dashboard", "analytics_revenue_metrics"],
+      "reference": {"tool": "analytics_dashboard", "args": {"bar": "all", "date_from": "{prev_week_start}", "date_to": "{prev_week_end}"}, "path": "checks"},
+      "tolerance": {"abs": 0},
+      "unit": "чеков"
+    },
+    {
+      "id": "staff-employees-active",
+      "domain": "staff",
+      "question": "Сколько активных сотрудников в реестре графика?",
+      "expect_tools": ["staff_schedule_employees"],
+      "reference": {"tool": "staff_schedule_employees", "args": {}, "path": "|len"},
+      "tolerance": {"abs": 0},
+      "unit": "сотрудников"
+    },
+    {
+      "id": "staff-locations",
+      "domain": "staff",
+      "question": "Сколько точек (баров) в графике смен?",
+      "expect_tools": ["staff_schedule_locations"],
+      "reference": {"tool": "staff_schedule_locations", "args": {}, "path": "|len"},
+      "tolerance": {"abs": 0},
+      "unit": "точек"
+    },
+    {
+      "id": "staff-role-rate-barman",
+      "domain": "staff",
+      "question": "Какая ставка в час у роли «бармен», в рублях?",
+      "expect_tools": ["staff_schedule_roles"],
+      "reference": {"tool": "staff_schedule_roles", "args": {}, "path": "[name=бармен].rate_per_hour"},
+      "tolerance": {"abs": 0},
+      "unit": "руб./ч"
+    },
+    {
+      "id": "staff-shifts-month",
+      "domain": "staff",
+      "question": "Сколько смен стоит в графике на {month} по всем точкам?",
+      "expect_tools": ["staff_schedule_month"],
+      "reference": {"tool": "staff_schedule_month", "args": {"year": "{year}", "month": "{month_num}"}, "path": "|len"},
+      "tolerance": {"abs": 0},
+      "unit": "смен"
+    },
+    {
+      "id": "staff-taxi-rate",
+      "domain": "staff",
+      "question": "Сколько рублей платят за такси за одну дневную смену?",
+      "expect_tools": ["staff_schedule_hours_by_role"],
+      "reference": {"tool": "staff_schedule_hours_by_role", "args": {"date_from": "{month_start}", "date_to": "{month_end}"}, "path": "taxi_rate"},
+      "tolerance": {"abs": 0},
+      "unit": "руб."
+    },
+    {
+      "id": "staff-cleanliness-not-marked",
+      "domain": "staff",
+      "question": "Сколько открывающих смен за {prev_month} осталось без отметки «Как принял бар?»?",
+      "expect_tools": ["staff_cleanliness_month"],
+      "reference": {"tool": "staff_cleanliness_month", "args": {"year": "{prev_month_year}", "month": "{prev_month_num}"}, "path": "totals.not_marked"},
+      "tolerance": {"abs": 0},
+      "unit": "смен"
+    },
+    {
+      "id": "staff-admin-accounts",
+      "domain": "staff",
+      "question": "Сколько аккаунтов сайта с правами администратора?",
+      "expect_tools": ["staff_auth_users"],
+      "reference": {"tool": "staff_auth_users", "args": {}, "path": "|count:is_admin=true"},
+      "tolerance": {"abs": 0},
+      "unit": "аккаунтов"
+    }
+  ]
+}

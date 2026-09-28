@@ -109,16 +109,20 @@ def test_service_docs_are_not_allowlisted():
 
 
 def test_credential_detector_catches_and_ignores():
+    # Все значения ниже ВЫДУМАНЫ (той же формы, что настоящие): настоящим паролям, логинам,
+    # ИНН/ОГРН и адресам серверов не место в репозитории даже как примерам (замечание
+    # оркестратора 2026-09-28 — прежние примеры повторяли настоящие значения). Адрес в
+    # безобидных — из документационного диапазона RFC 5737 (203.0.113.0/24).
     must_catch = (
-        'пароль: Qwerty123',
-        'Password = hunter2024',
-        'IIKO_PASSWORD = "ApiPass2024!"',
-        'REMOTE_PASS=chz2026',
+        'пароль: Vzlom4567',
+        'Password = kolobok1999',
+        'IIKO_PASSWORD = "Primer2031!"',
+        'REMOTE_PASS=bar1999',
         'TELEGRAM_BOT_TOKEN=12345678:abc',
-        'net user sshuser chz2026',
+        'net user demouser bar1999',
         'бот: 1234567890:AAH' + 'x' * 32,
-        'ИНН 7801234567',
-        'ОГРН: 1027800000000',
+        'ИНН 1234567890',
+        'ОГРН: 1000000000001',
     )
     for line in must_catch:
         assert credential_hits(line), f'детектор пропустил: {line}'
@@ -127,7 +131,7 @@ def test_credential_detector_catches_and_ignores():
         'PASSWORD=***',
         'IIKO_PASSWORD = os.environ.get("IIKO_PASSWORD")',
         'REMOTE_PASS=<из .env>',
-        'ssh root@139.100.200.92',
+        'ssh root@203.0.113.10',
         'MIN_PASSWORD_LEN = 4',
         'Пароль хранится только как хэш.',
         'password: ...',

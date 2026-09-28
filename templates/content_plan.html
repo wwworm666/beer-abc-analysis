@@ -16,7 +16,11 @@
     <link rel="stylesheet" href="/static/guest_hub/hub.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/guest_hub/content_plan.css?v={{ app_version }}">
 </head>
-<body class="gh-page gh-scope">
+<!-- data-is-admin — может ли пользователь выпускать публикации наружу (утверждать,
+     «Отправить сейчас», повторять отправку, снимать паузу, менять каналы). Это только
+     подсказка экрану (content_plan.js прячет и выключает такие кнопки): решает сервер,
+     остальным он отвечает 403 {code: 'admin_required'}. -->
+<body class="gh-page gh-scope" data-is-admin="{{ 'true' if current_user and current_user.is_admin else 'false' }}">
     <div class="container">
         {% set page_title = "Контент-план" %}
         {% set page_subtitle = "План публикаций и рассылок на месяц" %}
@@ -92,11 +96,15 @@
             </div>
         </div>
 
-        <!-- Отправка не подключена ни в одну площадку (delivery_connected — все
-             false): утверждённое никуда не уходит само, выход отмечают вручную. -->
-        <div class="gh-banner gh-tone-accent" id="cpDelivery" hidden>
+        <!-- Состояние отправки — из delivery ответа месяца (core/content_channels):
+             не подключено / выключено владельцем / включено, но ни одна площадка не
+             готова / включено и какие площадки уходят сами. Текст и тон рисует
+             content_plan.js (deliveryState, renderDelivery); кнопка открывает
+             «Каналы и отправка». -->
+        <div class="gh-banner gh-tone-accent gh-cp-dbanner" id="cpDelivery" hidden>
             <span class="gh-banner-ico"><svg viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7.2" stroke-width="1.5"/><path d="M9 8.2v4.3M9 5.6v.1" stroke-width="1.7" stroke-linecap="round"/></svg></span>
-            <span class="gh-banner-t">Отправка пока не подключена: утверждённые публикации не уходят автоматически. Когда публикация вышла, отметьте её вручную.</span>
+            <span class="gh-banner-t" id="cpDeliveryText"></span>
+            <span class="gh-banner-a"><button type="button" class="gh-btn gh-btn-sm" id="cpDeliveryBtn">Каналы и отправка</button></span>
         </div>
 
         <!-- Хранилище плана недоступно (503) или месяц не загрузился. -->
@@ -119,10 +127,26 @@
                 </button>
                 <button type="button" class="gh-btn gh-btn-sm gh-btn-danger gh-btn-outline" id="cpAgentDelBtn" hidden>Удалить черновики ИИ</button>
             </div>
+            <!-- Порядок кнопок важен для телефона (сетка в две колонки, см.
+                 content_plan.css): «Бриф» и «Попросить агента» — первой строкой,
+                 «Каналы и отправка» и «Пауза» — второй, длинная «Скопировать
+                 прошлый месяц» — своей строкой. -->
             <div class="gh-cp-bar-acts">
                 <button type="button" class="gh-btn gh-btn-sm gh-cp-briefbtn" id="cpBriefBtn"
                         data-tip="Постоянные правила сети для ИИ-агента: тон, рубрики, ритм, табу, реклама алкоголя, фото, бары, примеры постов. Агент читает бриф перед каждым черновиком.">Бриф для агента</button>
-                <button type="button" class="gh-btn gh-btn-sm" id="cpCopyBtn">Скопировать прошлый месяц</button>
+                <!-- «Попросить агента»: меню из трёх заданий. Пункт открывает Claude
+                     (claude.ai/new?q=<задание>) в новой вкладке и копирует задание в
+                     буфер; пункты и подсказку о коннекторе рисует content_plan.js. -->
+                <div class="gh-cp-menuwrap">
+                    <button type="button" class="gh-btn gh-btn-sm" id="cpAgentBtn" aria-haspopup="true" aria-expanded="false">
+                        Попросить агента
+                        <svg class="gh-chev" width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                    <div class="gh-menu gh-cp-agentmenu" id="cpAgentMenu" hidden></div>
+                </div>
+                <button type="button" class="gh-btn gh-btn-sm" id="cpChanBtn"
+                        data-tip="Куда и как уходят утверждённые публикации: каналы баров в Telegram, напоминания для Instagram, рассылки гостям через бота; главный выключатель автоматической отправки.">Каналы и отправка</button>
+                <button type="button" class="gh-btn gh-btn-sm gh-cp-copybtn" id="cpCopyBtn">Скопировать прошлый месяц</button>
                 <div class="gh-cp-menuwrap">
                     <button type="button" class="gh-btn gh-btn-sm" id="cpPauseBtn" aria-haspopup="true" aria-expanded="false">
                         Пауза
@@ -161,6 +185,13 @@
          агента» или адресом ?brief=1; одновременно открыта одна выдвижная
          карточка (common.js), поэтому карточка материала при этом закрывается. -->
     <aside class="gh-drawer gh-cp-drawer gh-cp-brief" id="cpBriefDrawer" hidden aria-label="Бриф для агента"></aside>
+
+    <!-- Каналы и отправка (GET / PUT /api/content-plan/channels, проверка канала и
+         тестовое сообщение): главный выключатель автоматической отправки, канал
+         Telegram каждого бара, чат напоминаний Instagram, рассылки гостям.
+         Открывается кнопкой «Каналы и отправка», кнопкой баннера отправки или
+         адресом ?channels=1; содержимое рисует content_plan.js. -->
+    <aside class="gh-drawer gh-cp-drawer gh-cp-chan" id="cpChanDrawer" hidden aria-label="Каналы и отправка"></aside>
 
     <!-- Выбор файлов для карточки. Поле живёт ВНЕ карточки: карточка
          перерисовывается целиком (автосохранение, ответы сервера), и поле внутри

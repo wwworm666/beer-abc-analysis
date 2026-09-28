@@ -62,10 +62,35 @@ MAX_REQUEST_BYTES + 1 байта даже без Content-Length) -> разбор
 Лимиты tools/call (порядок проверок):
 1) частота — RATE_LIMIT_PER_MINUTE на токен, считается ДО поиска инструмента: отказы
    и неизвестные имена тоже расходуют лимит, иначе ими можно было бы засыпать журнал;
-2) одновременность — не больше MAX_CONCURRENT_CALLS исполнений на процесс (см.
-   константу): сверх — isError «сервер занят»;
-3) тяжёлые вызовы iiko — отдельный семафор в bridge.py.
-Лимиты живут в памяти процесса: у двух gunicorn-воркеров — по своему счётчику.
+2) одновременность — не больше MAX_CONCURRENT_CALLS исполнений на ВЕСЬ сервис (см.
+   константу): сверх — isError «сервер занят» (в журнале 'denied'). Место берётся
+   только перед настоящим исполнением маршрута: ответ из кэша тяжёлых чтений
+   (bridge.py) места не занимает;
+3) тяжёлые вызовы iiko — отдельный семафор в bridge.py (на процесс).
+
+Общие для процессов лимиты (с 2026-09-28). В проде 2 gunicorn-воркера; пока счётчики
+жили в памяти процесса, фактический предел был вдвое больше заявленного (240 вызовов
+в минуту, 6 одновременных). Теперь оба счёта — в mcp.db (WAL, BEGIN IMMEDIATE,
+тот же приём, что журнал и лимит сообщений владельцу):
+- частота (RateLimiter, таблица rate_hits): скользящее окно RATE_WINDOW_S — строка
+  на каждый вызов (ключ = id токена, время = time.time(), общие часы процессов);
+  событие считается, пока с него прошло меньше окна. Проверка «сколько за окно» и
+  вставка — одна транзакция записи, поэтому два воркера не проскочат лимит вместе.
+  Устаревшие строки удаляются тем же запросом (таблица не растёт); строки «из
+  будущего» (часы сервера перевели назад больше чем на окно) — тоже, иначе токен
+  был бы заблокирован до тех пор, пока часы их не догонят;
+- одновременность (CallLeases, таблица call_leases): «аренда» места — строка с
+  истечением LEASE_TTL_S. Взять место = удалить истёкшие аренды, сосчитать живые,
+  если меньше предела — вставить свою (одна транзакция). Отпустить = удалить свою
+  строку. Истечение нужно на случай, когда процесс погиб посреди вызова (перезапуск
+  воркера, OOM): его аренда освободится сама не позже чем через LEASE_TTL_S.
+  Проверять «жив ли процесс» по pid нельзя: на Windows os.kill(pid, 0) завершает
+  процесс, а в контейнере pid переиспользуются;
+- память процесса осталась страховкой: call_slots (BoundedSemaphore на
+  MAX_CONCURRENT_CALLS) не даст одному воркеру занять больше мест, даже если mcp.db
+  недоступна. Если mcp.db не отвечает (сбой диска, блокировка дольше busy_timeout),
+  лимиты считаются в памяти процесса, как до 2026-09-28, и сбой пишется в лог:
+  агент не должен получать «сервер занят» из-за журнала на диске.
 
 Сознательно НЕ реализовано: сессии, SSE (в т.ч. потоковые ответы и прогресс),
 subscriptions/listen и уведомления list_changed (список меняется только с
@@ -77,16 +102,19 @@ import base64
 import binascii
 import json
 import logging
+import os
 import sys
 import threading
 import time
+import uuid
 from collections import deque
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from contextlib import contextmanager
+from typing import Any, Deque, Dict, Iterator, List, Optional, Tuple
 from urllib.parse import urlsplit
 
 from flask import Response, current_app
 
-from core.mcp import audit, auth, bridge, registry
+from core.mcp import audit, auth, bridge, db, registry
 from core.mcp.principal import Principal
 from core.mcp.spec import (COMMON_DOMAIN, DOMAINS, MODE_TITLES, MODES, PROMPT_NAME_RE, TOOL_NAME_RE,
                            allowed_in_mode, prompt_allowed_in_mode, stricter_mode)
@@ -140,18 +168,25 @@ SERVER_NAME = 'kultura'
 # быстро агент увидит новые инструменты после деплоя.
 LIST_TTL_MS = 5 * 60 * 1000
 
-# Лимит частоты на токен: 120 вызовов инструментов в минуту = 2 в секунду. Агенту
-# с живыми рассуждениями этого с запасом хватает; зацикленный агент упрётся и не
-# положит iiko и диск.
+# Лимит частоты на токен: 120 вызовов инструментов в минуту = 2 в секунду — на весь
+# сервис (оба воркера, счёт в mcp.db). Агенту с живыми рассуждениями этого с запасом
+# хватает; зацикленный агент упрётся и не положит iiko и диск.
 RATE_LIMIT_PER_MINUTE = 120
 RATE_WINDOW_S = 60
 
-# Одновременные исполнения tools/call на процесс. В проде gunicorn — 2 воркера по 4
-# потока; каждый вызов инструмента держит поток воркера (маршрут исполняется в нём
-# же). 3 из 4 — агентам, минимум один поток каждого воркера остаётся сайту, чтобы
-# бармены и владелец не ждали, пока агент гоняет отчёты. Сверх — isError «сервер
-# занят», агент повторит через минуту.
+# Одновременные исполнения tools/call на весь сервис (аренды в mcp.db) и, страховкой,
+# на процесс (call_slots). В проде gunicorn — 2 воркера по 4 потока; каждый вызов
+# инструмента держит поток воркера (маршрут исполняется в нём же). 3 на сервис: даже
+# если все три попадут в один воркер, у него останется поток для сайта, чтобы бармены
+# и владелец не ждали, пока агент гоняет отчёты. Столько же обещают агентам общие
+# правила (common.INSTRUCTIONS). Сверх — isError «сервер занят», агент повторит.
 MAX_CONCURRENT_CALLS = 3
+
+# Срок аренды места вызова. Самый долгий законный вызов — тяжёлый отчёт iiko с
+# повтором (2 попытки по 60 с + пауза, см. --timeout 180 в Dockerfile) — короче.
+# Аренда погибшего посреди вызова процесса освобождается сама не позже этого срока;
+# вызов дольше срока продолжится, но его место на время превысит предел на единицу.
+LEASE_TTL_S = 300
 
 # Пакет JSON-RPC (старые версии): 20 сообщений — с запасом для клиентов, которые
 # группируют initialize/list; сотни в одном POST — только способ обойти лимиты.
@@ -174,13 +209,18 @@ ALLOWED_ORIGIN_SUFFIXES = ('.claude.ai', '.claude.com')
 
 CAPABILITIES = {'tools': {'listChanged': False}, 'prompts': {'listChanged': False}}
 
-# Первая строка instructions: агент должен сразу знать границы подключения.
+# Первая строка instructions: агент должен сразу знать границы подключения. Одна
+# строка без переводов (тесты и клиенты берут её как первую). Сообщение владельцу
+# (common_notify_owner, пометка owner_notice) сервер разрешает в любом режиме — строка
+# называет это прямо, иначе агент расписания решил бы, что отчёт прислать нельзя.
 MODE_LINES = {
     'read': 'Режим этого подключения — «Только чтение»: инструменты, которые меняют данные или что-то '
-            'отправляют, здесь недоступны.',
+            'отправляют, здесь недоступны; исключение — сообщение владельцу в Telegram (common_notify_owner), '
+            'им присылают итог, когда об этом просит задание.',
     'draft': 'Режим этого подключения — «Чтение и черновики»: можно читать и готовить черновики внутри '
              'сервиса (они ждут утверждения владельца); утверждение, отправка, удаление и прочие изменения '
-             'здесь недоступны.',
+             'здесь недоступны; исключение — сообщение владельцу в Telegram (common_notify_owner), им '
+             'присылают итог, когда об этом просит задание.',
     'full': 'Режим этого подключения — «Полный доступ»: доступны все инструменты раздела; изменения — только '
             'по прямой просьбе владельца.',
 }
@@ -205,8 +245,36 @@ class RpcError(Exception):
 
 # ------------------------------------------------------------------ лимиты
 
-class RateLimiter:
-    """Скользящее окно: не больше limit событий за window секунд на ключ."""
+LIMITS_SCHEMA = (
+    '''CREATE TABLE IF NOT EXISTS rate_hits (
+        id  INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL,                 -- id токена ('st_…', 'oa_…')
+        at  REAL NOT NULL                  -- time.time(): общие часы процессов
+    )''',
+    'CREATE INDEX IF NOT EXISTS idx_rate_hits_key_at ON rate_hits(key, at)',
+    'CREATE INDEX IF NOT EXISTS idx_rate_hits_at ON rate_hits(at)',
+    '''CREATE TABLE IF NOT EXISTS call_leases (
+        id          TEXT PRIMARY KEY,      -- случайный uuid аренды
+        token_id    TEXT NOT NULL DEFAULT '',
+        tool        TEXT NOT NULL DEFAULT '',
+        pid         INTEGER NOT NULL DEFAULT 0,   -- для разбора; живость по нему не проверяется
+        acquired_at REAL NOT NULL,
+        expires_at  REAL NOT NULL
+    )''',
+    'CREATE INDEX IF NOT EXISTS idx_call_leases_expires ON call_leases(expires_at)',
+)
+
+
+def _ensure_limits_schema() -> None:
+    db.ensure_schema('limits', LIMITS_SCHEMA)
+
+
+class LocalRateLimiter:
+    """Скользящее окно в памяти процесса: не больше limit событий за window секунд на ключ.
+
+    Запасной счёт, когда mcp.db недоступна (и как было до 2026-09-28). Время —
+    переданное now или time.monotonic() (внутри процесса часы не прыгают).
+    """
 
     def __init__(self, limit: int = RATE_LIMIT_PER_MINUTE, window: float = RATE_WINDOW_S):
         self.limit = limit
@@ -234,8 +302,135 @@ class RateLimiter:
             self._hits.clear()
 
 
+class RateLimiter:
+    """Скользящее окно в mcp.db — один счёт на все процессы (правила — докстринг модуля).
+
+    hit(key, now) -> None (можно) или число секунд, через сколько повторить. Событие
+    считается, пока now - at < window: с limit=2, window=60 вызовы в 0 и 1 проходят,
+    в 2 — «подождите 59 с», в 61 — снова можно. Без now берётся time.time(): у
+    процессов общие только настенные часы. Сбой mcp.db — счёт в памяти процесса.
+    """
+
+    def __init__(self, limit: int = RATE_LIMIT_PER_MINUTE, window: float = RATE_WINDOW_S):
+        self.limit = limit
+        self.window = window
+        self.fallback = LocalRateLimiter(limit, window)
+
+    def hit(self, key: str, now: Optional[float] = None) -> Optional[int]:
+        """Учесть вызов. None — можно; число — сколько секунд подождать."""
+        at = time.time() if now is None else float(now)
+        try:
+            _ensure_limits_schema()
+            with db.write() as conn:
+                conn.execute('DELETE FROM rate_hits WHERE at <= ? OR at > ?',
+                             (at - self.window, at + self.window))
+                row = conn.execute('SELECT COUNT(*) AS n, MIN(at) AS first FROM rate_hits WHERE key = ?',
+                                   (key,)).fetchone()
+                if row['n'] >= self.limit:
+                    return max(1, int(self.window - (at - row['first'])) + 1)
+                conn.execute('INSERT INTO rate_hits (key, at) VALUES (?, ?)', (key, at))
+                return None
+        except Exception:  # noqa: BLE001 — сбой диска не должен останавливать агента
+            log.exception('[MCP] лимит частоты: mcp.db недоступна, считаю в памяти процесса')
+            return self.fallback.hit(key, None if now is None else now)
+
+    def reset(self) -> None:
+        """Забыть все вызовы (тесты)."""
+        self.fallback.reset()
+        try:
+            _ensure_limits_schema()
+            with db.write() as conn:
+                conn.execute('DELETE FROM rate_hits')
+        except Exception:  # noqa: BLE001
+            log.exception('[MCP] лимит частоты: не удалось очистить rate_hits')
+
+
+class CallLeases:
+    """Места одновременных вызовов на весь сервис: аренда с истечением в mcp.db.
+
+    acquire(token_id, tool) -> id аренды или None (мест нет); release(id) отпускает.
+    Сбой mcp.db — LOCAL_LEASE: вызов идёт под одной страховкой call_slots (на процесс).
+    """
+
+    LOCAL_LEASE = 'local'
+
+    def __init__(self, limit: int = MAX_CONCURRENT_CALLS, ttl: float = LEASE_TTL_S):
+        self.limit = limit
+        self.ttl = ttl
+
+    def acquire(self, token_id: str = '', tool: str = '', now: Optional[float] = None) -> Optional[str]:
+        at = time.time() if now is None else float(now)
+        lease_id = uuid.uuid4().hex
+        try:
+            _ensure_limits_schema()
+            with db.write() as conn:
+                conn.execute('DELETE FROM call_leases WHERE expires_at <= ?', (at,))
+                busy = conn.execute('SELECT COUNT(*) AS n FROM call_leases').fetchone()['n']
+                if busy >= self.limit:
+                    return None
+                conn.execute('INSERT INTO call_leases (id, token_id, tool, pid, acquired_at, expires_at) '
+                             'VALUES (?, ?, ?, ?, ?, ?)',
+                             (lease_id, str(token_id or '')[:64], str(tool or '')[:64], os.getpid(), at,
+                              at + self.ttl))
+            return lease_id
+        except Exception:  # noqa: BLE001
+            log.exception('[MCP] места вызовов: mcp.db недоступна, остаётся предел процесса')
+            return self.LOCAL_LEASE
+
+    def release(self, lease_id: Optional[str]) -> None:
+        if not lease_id or lease_id == self.LOCAL_LEASE:
+            return
+        try:
+            with db.write() as conn:
+                conn.execute('DELETE FROM call_leases WHERE id = ?', (lease_id,))
+        except Exception:  # noqa: BLE001 — аренда истечёт сама через ttl
+            log.exception('[MCP] не удалось отпустить место вызова %s (освободится через %s с)',
+                          lease_id, int(self.ttl))
+
+    def active(self, now: Optional[float] = None) -> int:
+        """Сколько мест занято сейчас (для тестов и страницы доступа)."""
+        at = time.time() if now is None else float(now)
+        _ensure_limits_schema()
+        with db.read() as conn:
+            return conn.execute('SELECT COUNT(*) AS n FROM call_leases WHERE expires_at > ?',
+                                (at,)).fetchone()['n']
+
+    def reset(self) -> None:
+        """Отпустить все места (тесты)."""
+        try:
+            _ensure_limits_schema()
+            with db.write() as conn:
+                conn.execute('DELETE FROM call_leases')
+        except Exception:  # noqa: BLE001
+            log.exception('[MCP] не удалось очистить call_leases')
+
+
 rate_limiter = RateLimiter()
+call_leases = CallLeases()
 call_slots = threading.BoundedSemaphore(MAX_CONCURRENT_CALLS)
+
+BUSY_MESSAGE = ('Сервер занят: уже идут другие вызовы агентов. Повторите через минуту — сайт '
+                'обслуживает сотрудников в первую очередь.')
+
+
+@contextmanager
+def admission(token_id: str, tool: str) -> Iterator[Optional['bridge.ToolResult']]:
+    """Пропуск на исполнение инструмента: None — место есть и держится до выхода из блока;
+    ToolResult (denied) — мест нет. Сначала страховка процесса, потом аренда на сервис."""
+    if not call_slots.acquire(blocking=False):
+        yield bridge.ToolResult.refuse(BUSY_MESSAGE, http_status=503)
+        return
+    try:
+        lease = call_leases.acquire(token_id, tool)
+        if lease is None:
+            yield bridge.ToolResult.refuse(BUSY_MESSAGE, http_status=503)
+            return
+        try:
+            yield None
+        finally:
+            call_leases.release(lease)
+    finally:
+        call_slots.release()
 
 
 # ------------------------------------------------------------------ помощники
@@ -645,16 +840,15 @@ class _Call:
             args = {}
         if not isinstance(args, dict):
             raise RpcError(INVALID_PARAMS, 'params.arguments должен быть объектом')
-        if not call_slots.acquire(blocking=False):
-            message = ('Сервер занят: уже идут другие вызовы агентов. Повторите через минуту — сайт '
-                       'обслуживает сотрудников в первую очередь.')
-            self._audit(name, args, 'denied', error=message)
-            return bridge.ToolResult.fail(message, http_status=503).to_mcp()
+        # Место для исполнения (на процесс и на сервис) мост берёт сам, только когда
+        # действительно исполняет маршрут: ответ из кэша тяжёлых чтений места не занимает.
+        token_id = self.principal.token_id
         started = time.monotonic()
-        try:
-            result = bridge.execute(spec, args, self.principal, connector=self.domain, mode=self.mode)
-        finally:
-            call_slots.release()
+        result = bridge.execute(spec, args, self.principal, connector=self.domain, mode=self.mode,
+                                admit=lambda: admission(token_id, name))
+        if result.denied:
+            self._audit(name, args, 'denied', error=result.error)
+            return result.to_mcp()
         duration = int((time.monotonic() - started) * 1000)
         self._audit(name, args, 'error' if result.is_error else 'ok', result, duration)
         return result.to_mcp()

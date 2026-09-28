@@ -25,10 +25,14 @@
 
 ## Безопасность
 
-Единственный вход идентичности — сессия: `current_user()['employee_iiko_id']`.
-Параметра «покажи сотрудника X» у эндпоинта НЕТ и быть не должно — иначе любой
-залогиненный получил бы чужую зарплату по номеру в URL. Все решения о том, чьи
-данные показать, принимает `core/me_identity.resolve_me`; любой отказ приходит
+Вход идентичности — сессия: `current_user()['employee_iiko_id']`. Параметр
+`?employee_iiko_id=` («покажи кабинет сотрудника X») принимается ТОЛЬКО у
+активного администратора (владелец на сайте и его ИИ-агент через MCP: зарплатный
+агент должен видеть кабинет бармена, а не «не привязан»). Любому другому аккаунту —
+403 на сам факт параметра, даже со своим id: иначе любой вошедший получил бы чужую
+зарплату по номеру в URL. Все решения о том, чьи данные показать, принимает
+`core/me_identity.resolve_me` (для администратора — с подставленным id, по тем же
+правилам: дубль привязки, нет в снимке — отказ статусом); любой отказ приходит
 статусом с человеческим текстом, а не нулями.
 
 ## Файлы
@@ -43,8 +47,12 @@
 
 ## Changelog
 
+- 2026-09-28 — `?employee_iiko_id=` для администратора (кабинет любого сотрудника,
+  блок `viewing` в ответе); остальным — 403.
 - 2026-08-13 — страница создана: живые блоки + каркас под снимок.
 """
+
+import re
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 
@@ -55,6 +63,11 @@ from core.me_identity import REFUSING_STATUSES, resolve_me
 from extensions import APP_VERSION, shifts_mgr
 
 me_bp = Blueprint('me', __name__)
+
+# Формат id сотрудника в ?employee_iiko_id=: GUID iiko (responsibleUserId) — латиница,
+# цифры и «-»; допускаем ещё «_», «.», «:» (старые id реестра) и не длиннее 64 символов
+# (как поле аккаунта). Пробелы, кириллица и управляющие символы — 400.
+EMPLOYEE_ID_RE = re.compile(r'^[A-Za-z0-9_.:-]{1,64}$')
 
 
 # Подписи, объясняющие смысл цифр. Держим на сервере, а не в шаблоне: те же
@@ -88,26 +101,47 @@ def api_me():
     меня» — это статусы в `identity`/`snapshot`, а не ошибки. 400 только на
     заведомо неверный `month`, 401 без входа (общий гейт).
 
-    Идентификатор сотрудника в запросе не принимается — см. докстроку модуля.
+    `?employee_iiko_id=<id>` — кабинет другого сотрудника; только администратору
+    (см. докстроку модуля). Не администратор — 403, даже если id свой; кривой id —
+    400. У администратора резолв идёт с подставленным id по обычным правилам, а в
+    ответе появляется `viewing` {employee_iiko_id, by_admin}: блок `user` остаётся
+    своим аккаунтом, тексты `identity` написаны от лица сотрудника («вас»).
     """
+    user = current_user() or {}
+    requested_id = request.args.get('employee_iiko_id')
+    viewing = None
+    if requested_id is not None:
+        if not user.get('is_admin'):
+            return jsonify({'error': 'Кабинет другого сотрудника открывает только администратор. '
+                                     'Свой кабинет — без параметра employee_iiko_id.'}), 403
+        requested_id = requested_id.strip()
+        if not EMPLOYEE_ID_RE.match(requested_id):
+            return jsonify({'error': 'employee_iiko_id — id сотрудника из реестра графика (поле id): '
+                                     'латиница, цифры, «-», до 64 символов.'}), 400
+        viewing = {'employee_iiko_id': requested_id, 'by_admin': user.get('login')}
+
     month = request.args.get('month') or me_snapshot.current_month()
     if not me_snapshot.valid_month(month):
         return jsonify({'error': "month обязателен в формате YYYY-MM"}), 400
 
-    user = current_user() or {}
     snapshot = me_snapshot.read_month(month)
     meta = me_snapshot.snapshot_meta(snapshot)
 
+    # Чей кабинет: свой (привязка аккаунта) или, у администратора, запрошенный id.
+    # display_name администратора резолверу не передаём: имя сотрудника берётся из
+    # реестра или снимка, а не подставляется именем того, кто смотрит.
+    subject = (dict(user, employee_iiko_id=viewing['employee_iiko_id'], display_name='')
+               if viewing else user)
     identity = resolve_me(
-        user, snapshot, month=_month_label(month),
+        subject, snapshot, month=_month_label(month),
         registry=_registry(),
-        linked_users=_linked_users(user.get('employee_iiko_id')),
+        linked_users=_linked_users(subject.get('employee_iiko_id')),
     )
 
     row = identity.get('row') or {}
     show_numbers = identity['status'] not in REFUSING_STATUSES
 
-    return jsonify({
+    payload = {
         'user': {
             'login': user.get('login'),
             'display_name': user.get('display_name'),
@@ -144,7 +178,10 @@ def api_me():
             'cooldown_min': me_snapshot.COOLDOWN_MIN,
             'last_error': me_snapshot.read_refresh_state().get('last_error'),
         },
-    })
+    }
+    if viewing is not None:
+        payload['viewing'] = viewing
+    return jsonify(payload)
 
 
 @me_bp.route('/api/me/refresh', methods=['POST'])

@@ -35,7 +35,7 @@ import tempfile
 import time
 import types
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -49,7 +49,9 @@ from core.guest_reviews import (ReviewConflict, ReviewNotFound, ReviewStore,  # 
                                 ReviewStoreUnavailable, build_daily, clean_core, compute_metrics,
                                 median, parse_list_query, round_half_up, FORMULAS, BARS)
 
-USER = {'login': 'anna', 'display_name': 'Анна'}
+USER = {'login': 'anna', 'display_name': 'Анна', 'is_admin': True}
+# Бармен со своим входом: ответ гостю наружу ему не положен (правило раздела «Гости»).
+STAFF = {'login': 'bartender', 'display_name': 'Бармен', 'is_admin': False}
 NOW = datetime(2026, 9, 26, 15, 0, tzinfo=msk_time.MOSCOW_TZ)
 
 
@@ -625,6 +627,348 @@ def test_api_crud_and_actions():
         assert r.status_code == 409 and 'удалить нельзя' in r.get_json()['error']
         assert c.delete(f'/api/reviews/{rid}').get_json() == {'deleted': True}
         assert c.delete(f'/api/reviews/{rid}').status_code == 404
+
+
+# --- отзыв из бота: удаление и ответ гостю в Telegram (send-reply) --------------------
+
+_TG_OK = {'ok': True, 'result': {'message_id': 777}}
+
+
+def _bot_review(s, answered=True, external_id='tg:555:42', **over):
+    """Отзыв из бота (как пишет core/taplist_polling); external_id=None — «Бот», внесённый вручную."""
+    fields = {'source': 'bot', 'bar': 'ligovskiy', 'rating': 2, 'text': 'Долго ждали',
+              'created_at': '2026-09-26T12:00', 'guest': {'telegram': '@anna', 'phone': ''},
+              'external_id': external_id}
+    fields.update(over)
+    rec = s.add(fields, {'login': 'Бот @kult_taplist_bot'}, origin='import' if external_id else 'manual')
+    if answered:
+        rec = s.reply(rec['id'], 'Спасибо, разберёмся!', USER)
+    return rec
+
+
+class _Tg:
+    """Поддельный Telegram для send-reply: отвечает result (None — ответа нет) и кладёт в
+    outcome то, что сообщил бы api_call (note: 'not_sent' — точно не дошло, 'unknown' —
+    могло дойти), или бросает exc."""
+
+    def __init__(self, result=_TG_OK, exc=None, note=None):
+        self.result, self.exc, self.note, self.calls = result, exc, note, []
+
+    def __call__(self, token, chat_id, text, outcome=None):
+        self.calls.append((token, chat_id, text))
+        if self.exc is not None:
+            raise self.exc
+        if self.note is not None and outcome is not None:
+            outcome.append(self.note)
+        return self.result
+
+
+@contextmanager
+def _telegram(fake, token='fake-guest-bot-token'):
+    """Подменить отправку гостю и токен гостевого бота (None — токена нет)."""
+    saved_send, saved_env = rrev._send_guest_message, os.environ.get('TELEGRAM_BOT_TOKEN')
+    rrev._send_guest_message = fake
+    if token is None:
+        os.environ.pop('TELEGRAM_BOT_TOKEN', None)
+    else:
+        os.environ['TELEGRAM_BOT_TOKEN'] = token
+    try:
+        yield fake
+    finally:
+        rrev._send_guest_message = saved_send
+        if saved_env is None:
+            os.environ.pop('TELEGRAM_BOT_TOKEN', None)
+        else:
+            os.environ['TELEGRAM_BOT_TOKEN'] = saved_env
+
+
+def test_delete_bot_review_allowed_yandex_refused():
+    """Проверка 2026-09-28, п. 3: отзыв из бота удаляется (просьба гостя удалить данные,
+    спам); отзыв Яндекса — 409, он пришёл бы снова."""
+    s = _store()
+    bot = _bot_review(s, answered=False)
+    s.delete(bot['id'])
+    assert s.get(bot['id']) is None
+    ya = s.add({'source': 'yandex', 'bar': 'bolshoy', 'rating': 5, 'created_at': '2026-09-02T10:00',
+                'external_id': 'y'}, USER, origin='import')
+    assert 'придёт снова при следующей загрузке' in str(_raises(ReviewConflict, s.delete, ya['id']))
+    with _client() as (c, s2):
+        rev = _bot_review(s2, answered=False)
+        assert c.delete(f'/api/reviews/{rev["id"]}').get_json() == {'deleted': True}
+
+
+def test_unsubscribe_clears_phone_in_bot_reviews():
+    """П. 3: /stop обещает «телефон удалён» — стирается и в отзывах этого чата (tg:<chat>:…),
+    чужие чаты (в том числе с похожим id) не трогаются."""
+    s = _store()
+    mine = _bot_review(s, answered=False, external_id='tg:555:42', guest={'telegram': '@anna', 'phone': '+79990000001'})
+    only_phone = _bot_review(s, answered=False, external_id='tg:555:43', guest={'phone': '+79990000001'})
+    other = _bot_review(s, answered=False, external_id='tg:5555:1', guest={'telegram': '@b', 'phone': '+79990000002'})
+    assert s.clear_guest_phone(555) == 2
+    assert s.get(mine['id'])['guest'] == {'telegram': '@anna', 'phone': ''}
+    assert s.get(only_phone['id'])['guest'] is None
+    assert s.get(other['id'])['guest']['phone'] == '+79990000002'
+    assert s.clear_guest_phone('555') == 0
+
+
+def test_material_draft_from_bot_review_hides_name():
+    """П. 11: в черновик публичного поста из отзыва бота — «гость», не имя из Telegram."""
+    from core.guest_reviews import material_draft
+    s = _store()
+    bot = _bot_review(s, answered=False, author='Анна Петрова', text='Отличный вечер')
+    assert material_draft(s.get(bot['id']))['base_text'] == '«Отличный вечер»\n— гость'
+    ya = _add(s, author='Иван', text='Хорошо')
+    assert material_draft(ya)['base_text'] == '«Хорошо»\n— Иван'
+
+
+def test_guest_chat_and_reply_message():
+    from core.guest_reviews import guest_chat_id, guest_reply_text
+    assert guest_chat_id({'source': 'bot', 'external_id': 'tg:555:42'}) == 555
+    for bad in ({'source': 'yandex', 'external_id': 'tg:555:42'}, {'source': 'bot', 'external_id': None},
+                {'source': 'bot', 'external_id': 'tg:-100:1'}, {'source': 'bot', 'external_id': 'tg:0:1'},
+                {'source': 'bot', 'external_id': 'tg:abc:1'}, {'source': 'bot', 'external_id': 'tg:555'}, None):
+        assert guest_chat_id(bad) is None, bad
+    assert guest_reply_text({'bar': 'ligovskiy', 'reply': {'text': '  Спасибо <b>!  '}}) == \
+        'Ответ бара «Лиговский» на ваш отзыв:\n\nСпасибо <b>!'
+    s = _store()
+    a, m, y = _bot_review(s), _bot_review(s, external_id=None, text='вручную'), _add(s)
+    listed = {r['id']: r for r in s.listing({'all': '1'})['reviews']}
+    assert {k: r['can_send_to_guest'] for k, r in listed.items()} == {a['id']: True, m['id']: False, y['id']: False}
+    assert listed[a['id']]['send_state'] == 'ready' and listed[m['id']]['send_state'] is None
+
+
+def test_send_reply_to_guest_success_repeat_and_edit():
+    with _client() as (c, s), _telegram(_Tg()) as tg:
+        rev = _bot_review(s)
+        r = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+        body = r.get_json()
+        assert r.status_code == 200, body
+        reply = body['review']['reply']
+        assert reply['delivered'] is True and reply['delivered_at'] == '2026-09-26T15:00' == body['delivered_at']
+        assert reply['delivered_by'] == 'anna' and reply['delivered_via'] == 'telegram'
+        assert reply['delivered_text'] == 'Спасибо, разберёмся!' and reply['telegram_message_id'] == 777
+        assert 'sending_at' not in reply and body['review']['can_send_to_guest'] is True
+        assert body['review']['send_state'] == 'delivered'
+        assert tg.calls == [('fake-guest-bot-token', 555,
+                             'Ответ бара «Лиговский» на ваш отзыв:\n\nСпасибо, разберёмся!')]
+        again = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+        assert again.status_code == 409 and 'уже отправлен гостю 26.09.2026 15:00' in again.get_json()['error']
+        assert again.get_json()['code'] == 'already_delivered' and len(tg.calls) == 1
+        forced = c.post(f'/api/reviews/{rev["id"]}/send-reply?force=1')      # force отправленный не шлёт
+        assert forced.status_code == 409 and len(tg.calls) == 1
+        # Правка после отправки: отметка остаётся, гость видел прежний текст.
+        edited = s.reply(rev['id'], 'Спасибо! Уже разобрались.', USER)
+        assert edited['reply']['delivered'] and edited['reply']['delivered_text'] == 'Спасибо, разберёмся!'
+        assert c.post(f'/api/reviews/{rev["id"]}/send-reply').status_code == 409 and len(tg.calls) == 1
+
+
+def test_send_reply_only_for_admin():
+    """Ответ гостю уходит наружу — только администратор (как выпуск публикаций)."""
+    with _client() as (c, s), _telegram(_Tg()) as tg:
+        review = _bot_review(s, external_id='tg:555:77')
+        rrev.current_user = lambda: STAFF
+        r = c.post(f'/api/reviews/{review["id"]}/send-reply')
+        assert r.status_code == 403 and r.get_json()['code'] == 'admin_required', r.get_json()
+        assert tg.calls == [], 'бармену ничего не отправлено'
+        assert not (s.get(review['id']).get('reply') or {}).get('delivered')
+
+
+def test_send_reply_refusals():
+    with _client() as (c, s), _telegram(_Tg()) as tg:
+        assert c.post('/api/reviews/r_nope/send-reply').status_code == 404
+        ya = s.reply(_add(s)['id'], 'Спасибо', USER)
+        r = c.post(f'/api/reviews/{ya["id"]}/send-reply')
+        assert r.status_code == 400 and 'только ответ на отзыв из бота' in r.get_json()['error']
+        manual = _bot_review(s, external_id=None)
+        r = c.post(f'/api/reviews/{manual["id"]}/send-reply')
+        assert r.status_code == 400 and 'Чат гостя неизвестен' in r.get_json()['error']
+        fresh = _bot_review(s, answered=False, external_id='tg:555:43')
+        r = c.post(f'/api/reviews/{fresh["id"]}/send-reply')
+        assert r.status_code == 400 and 'Сначала сохраните ответ' in r.get_json()['error']
+        reopened = _bot_review(s, external_id='tg:555:44')
+        s.reopen(reopened['id'], USER)                     # прежний ответ — история, не «сохранённый»
+        assert c.post(f'/api/reviews/{reopened["id"]}/send-reply').status_code == 400
+        assert tg.calls == []
+
+
+def test_send_reply_known_failures_release_claim_and_blocked_guest():
+    """Telegram ОТВЕТИЛ ошибкой или запрос точно не дошёл — сообщение не ушло: захват
+    снимается, повтор свободный; 403 — подписчик отмечен заблокировавшим бота."""
+    from core import guest_subscribers as gsubs
+    tmp = tempfile.mkdtemp(prefix='reviews_subs_')
+    atexit.register(shutil.rmtree, tmp, ignore_errors=True)
+    subs = gsubs.SubscriberStore(os.path.join(tmp, 'subs.db'), guests_db_path=os.path.join(tmp, 'none.db'))
+    subs.subscribe(555, first_name='Анна')
+    previous = gsubs.set_store(subs)
+    try:
+        cases = [
+            (_Tg({'ok': False, 'error_code': 403, 'description': 'Forbidden: bot was blocked by the user'}),
+             409, 'guest_blocked', 'заблокировал бота'),
+            (_Tg({'ok': False, 'error_code': 400, 'description': 'Bad Request: chat not found'}),
+             409, 'telegram_rejected', 'chat not found'),
+            (_Tg({'ok': False, 'error_code': 429, 'description': 'Too Many Requests', 'parameters': {'retry_after': 7}}),
+             502, 'telegram_busy', 'подождать 7 с'),
+            (_Tg({'ok': False, 'error_code': 502, 'description': 'Bad Gateway'}), 502, 'telegram_error', 'Bad Gateway'),
+            (_Tg(None, note='not_sent'), 502, 'telegram_unavailable', 'запрос не дошёл'),
+        ]
+        for fake, status, code, words in cases:
+            with _client() as (c, s), _telegram(fake):
+                rev = _bot_review(s)
+                r = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+                body = r.get_json()
+                assert r.status_code == status and body['code'] == code and words in body['error'], body
+                reply = s.get(rev['id'])['reply']
+                assert not reply.get('delivered') and 'sending_at' not in reply and 'send_unknown_at' not in reply
+                assert c.post(f'/api/reviews/{rev["id"]}/send-reply').status_code == status   # повтор свободный
+        assert subs.get(555)['blocked_at'], '403: подписчик не отмечен заблокировавшим бота'
+        with _client() as (c, s), _telegram(_Tg(), token=None) as tg:
+            rev = _bot_review(s)
+            r = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+            assert r.status_code == 503 and r.get_json()['code'] == 'bot_not_configured' and tg.calls == []
+            assert 'sending_at' not in s.get(rev['id'])['reply']
+    finally:
+        gsubs.set_store(previous)
+
+
+def test_send_reply_unknown_status_needs_force():
+    """Проверка 2026-09-28, п. 1: ответа нет, а сообщение могло дойти (ReadTimeout после
+    доставки, обрыв, исключение транспорта) — «статус неизвестен»: захват НЕ снимается,
+    повтор — 409, и только с force=1 (подтверждение владельца) сообщение уходит снова."""
+    for fake in (_Tg(None, note='unknown'), _Tg(None), _Tg(exc=ConnectionError('обрыв посреди ответа'))):
+        with _client() as (c, s), _telegram(fake):
+            rev = _bot_review(s)
+            r = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+            body = r.get_json()
+            assert r.status_code == 502 and body['code'] == 'send_unknown', body
+            assert 'Статус неизвестен' in body['error'] and 'только с подтверждением' in body['error']
+            reply = s.get(rev['id'])['reply']
+            assert reply['send_unknown_at'] == '2026-09-26T15:00:00' and 'sending_at' not in reply
+            assert not reply.get('delivered')
+            listed = {x['id']: x for x in s.listing({'all': '1'})['reviews']}
+            assert listed[rev['id']]['send_state'] == 'unknown'
+            again = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+            assert again.status_code == 409 and again.get_json()['code'] == 'send_unknown'
+            assert again.get_json()['send_unknown_at'] == '2026-09-26T15:00:00' and len(fake.calls) == 1
+        with _client() as (c, s2), _telegram(_Tg()) as ok:
+            rev = _bot_review(s2)
+            s2.start_reply_delivery(rev['id'], USER)
+            s2.finish_reply_delivery(rev['id'], USER, outcome='unknown')
+            forced = c.post(f'/api/reviews/{rev["id"]}/send-reply?force=1')
+            assert forced.status_code == 200 and len(ok.calls) == 1
+            reply = s2.get(rev['id'])['reply']
+            assert reply['delivered'] and reply['forced_by'] == 'anna' and reply['forced_at'] == '2026-09-26T15:00:00'
+            assert 'send_unknown_at' not in reply
+
+
+def test_send_reply_uses_safe_resend():
+    """П. 1: отправка гостю идёт с api_call(..., safe_resend=True, outcome=<список>) — другим
+    путём запрос не повторяется, если мог дойти."""
+    import core.open_check_telegram as oct_mod
+    seen = []
+
+    def fake_api_call(method, payload=None, timeout=8, *, token=None, safe_resend=False, outcome=None):
+        seen.append((method, payload, timeout, token, safe_resend, outcome))
+        if outcome is not None:
+            outcome.append('unknown')
+
+    saved = oct_mod.api_call
+    oct_mod.api_call = fake_api_call
+    try:
+        out = []
+        assert rrev._send_guest_message('fake-token', 555, 'текст', out) is None
+    finally:
+        oct_mod.api_call = saved
+    assert seen == [('sendMessage', {'chat_id': 555, 'text': 'текст', 'disable_web_page_preview': True}, 20,
+                     'fake-token', True, out)] and out == ['unknown']
+
+
+def test_send_reply_read_timeout_reaches_guest_once():
+    """П. 1 целиком, с настоящим api_call и подделанным requests: основной путь доставил
+    сообщение, но ответ не дочитан (ReadTimeout). Раньше api_call слал его ещё раз через
+    запасные адреса (2–5 копий у гостя); теперь — одна копия и «статус неизвестен»."""
+    import requests
+    import core.open_check_telegram as oct_mod
+    delivered = []
+
+    def primary_post(url, json=None, timeout=None, **kw):
+        delivered.append('primary')
+        raise requests.exceptions.ReadTimeout('read timed out (delivered)')
+
+    def session_post(self, url, json=None, headers=None, timeout=None, **kw):
+        delivered.append('fallback')
+        raise requests.exceptions.ReadTimeout('read timed out (delivered)')
+
+    def no_doh(*a, **k):
+        raise requests.exceptions.ConnectTimeout('doh')
+
+    saved = (requests.post, requests.Session.post, requests.get, oct_mod._primary_dead_until, oct_mod._working_ip)
+    requests.post, requests.Session.post, requests.get = primary_post, session_post, no_doh
+    oct_mod._primary_dead_until, oct_mod._working_ip = 0.0, None
+    try:
+        with _client() as (c, s):
+            os.environ['TELEGRAM_BOT_TOKEN'] = 'FAKE:TOKEN'
+            try:
+                rev = _bot_review(s)
+                r = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+                assert r.status_code == 502 and r.get_json()['code'] == 'send_unknown', r.get_json()
+                assert c.post(f'/api/reviews/{rev["id"]}/send-reply').status_code == 409
+            finally:
+                os.environ['TELEGRAM_BOT_TOKEN'] = ''
+    finally:
+        requests.post, requests.Session.post, requests.get = saved[0], saved[1], saved[2]
+        oct_mod._primary_dead_until, oct_mod._working_ip = saved[3], saved[4]
+    assert delivered == ['primary'], delivered
+
+
+def test_reply_delivery_claim_window_seconds():
+    """П. 8: захват — с секундами и окном 5 минут (раньше до минуты: окно «2 минуты» было
+    61 с); захват без итога старше окна — «статус неизвестен», повтор только с force."""
+    from core.guest_reviews import REPLY_SEND_WINDOW
+    assert REPLY_SEND_WINDOW >= timedelta(minutes=5)
+    clock = Clock()
+    clock.value = datetime(2026, 9, 26, 15, 0, 59, tzinfo=msk_time.MOSCOW_TZ)
+    s = _store(clock)
+    rev = _bot_review(s)
+    claim = s.start_reply_delivery(rev['id'], USER)
+    assert claim['chat_id'] == 555 and claim['reply_text'] == 'Спасибо, разберёмся!'
+    assert claim['text'] == 'Ответ бара «Лиговский» на ваш отзыв:\n\nСпасибо, разберёмся!'
+    assert s.get(rev['id'])['reply']['sending_at'] == '2026-09-26T15:00:59'
+    for seconds in (61, 120, 299):
+        clock.value = datetime(2026, 9, 26, 15, 0, 59, tzinfo=msk_time.MOSCOW_TZ) + timedelta(seconds=seconds)
+        e = _raises(ReviewConflict, s.start_reply_delivery, rev['id'], USER)
+        assert e.extra['code'] == 'sending' and 'уже отправляется' in str(e), seconds
+    clock.value = datetime(2026, 9, 26, 15, 6, 0, tzinfo=msk_time.MOSCOW_TZ)
+    e = _raises(ReviewConflict, s.start_reply_delivery, rev['id'], USER)
+    assert e.extra['code'] == 'send_unknown' and 'Статус отправки неизвестен' in str(e)
+    s.start_reply_delivery(rev['id'], USER, force=True)
+    s.finish_reply_delivery(rev['id'], USER, outcome='not_sent')
+    reply = s.get(rev['id'])['reply']
+    assert 'sending_at' not in reply and not reply['delivered'] and reply['forced_at'] == '2026-09-26T15:06:00'
+    s.start_reply_delivery(rev['id'], USER)                   # точно не ушло — повтор свободный
+
+
+def test_send_reply_sent_but_not_recorded():
+    """П. 8: сообщение ушло, а запись итога упала (замок, диск — любая ошибка) — не 500 и
+    не снятие захвата: 503 sent_not_recorded, дальше повтор — 409, потом только с force."""
+    for error in (ReviewStoreUnavailable('диск недоступен'), OSError('нет места'), TimeoutError('замок')):
+        clock = Clock()
+        with _client(clock=clock) as (c, s), _telegram(_Tg()) as tg:
+            rev = _bot_review(s)
+            original = s.finish_reply_delivery
+
+            def finish(review_id, user, *, outcome, error=error, original=original, **kw):
+                if outcome == 'sent':
+                    raise error
+                return original(review_id, user, outcome=outcome, **kw)
+            s.finish_reply_delivery = finish
+            r = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+            body = r.get_json()
+            assert r.status_code == 503 and body['code'] == 'sent_not_recorded', body
+            assert 'Не отправляйте повторно' in body['error'] and len(tg.calls) == 1
+            assert c.post(f'/api/reviews/{rev["id"]}/send-reply').get_json()['code'] == 'sending'
+            clock.value = clock.value + timedelta(minutes=6)
+            again = c.post(f'/api/reviews/{rev["id"]}/send-reply')
+            assert again.status_code == 409 and again.get_json()['code'] == 'send_unknown' and len(tg.calls) == 1
 
 
 def test_api_listing_and_daily():

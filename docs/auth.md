@@ -149,7 +149,7 @@ employee_iiko_id, password_hash, is_admin, active, created_at, last_login_at)`.
 | GET | `/admin/users` | страница: список + форма создания |
 | GET | `/api/auth/users` | список аккаунтов (без хэшей) |
 | POST | `/api/auth/users` | создать (login, display_name, short_label, password, is_admin) |
-| POST | `/api/auth/users/<id>/profile` | изменить имя и/или сокращение |
+| POST | `/api/auth/users/<id>/profile` | изменить имя и/или сокращение: тело — JSON-объект, поле не передано или null — не меняется; не строка или тело не объект — 400 |
 | POST | `/api/auth/users/<id>/employee` | привязать к сотруднику графика (employee_iiko_id; пусто = отвязать) |
 | POST | `/api/auth/users/<id>/password` | сбросить пароль |
 | POST | `/api/auth/users/<id>/active` | вкл/выкл аккаунт; выключение отзывает доступ его ИИ-агентов (ниже) |
@@ -282,6 +282,14 @@ MCP-токены (`core.mcp.tokens.revoke_all_for_user`) и все OAuth-под�
   `/kultura/secret_key` один раз. **Не ротировать** без причины — разлогинит всех.
 
 ## Changelog
+
+### 2026-09-28 — профиль аккаунта: 400 вместо 500 на кривом вводе
+- `POST /api/auth/users/<id>/profile` с `display_name` или `short_label` не строкой
+  (число, список) отвечал 500: значение доходило до `.strip()` в
+  `AuthManager.update_profile` (AttributeError). Теперь маршрут проверяет тело (JSON-объект)
+  и типы полей и отвечает 400 с понятным текстом; строки, частичная правка и пустое имя
+  (400 «Имя не может быть пустым») — как раньше.
+- Файлы: `routes/auth.py`, `tests/test_auth.py` (`test_admin_profile_rejects_non_string_fields`).
 
 ### 2026-09-28 — проверка безопасности MCP: open-redirect, отзыв доступа агентов
 - `_safe_next` целиком отклоняет `next` с управляющими символами и обратной косой:

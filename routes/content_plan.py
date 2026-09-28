@@ -2,15 +2,20 @@
 
 Модель, правила готовности, переходы статусов, копирование месяца и живые
 данные — core/content_plan.py (докстринг модуля); файлы фото/видео —
-core/content_media.py. Этот модуль только разбирает запрос, зовёт хранилище и
-переводит его исключения в коды ответа. Интеграций нет: ничего никуда не
-отправляется (DELIVERY_CONNECTED — все False), «вышло» отмечают вручную.
+core/content_media.py; отправка в площадки — core/content_publisher.py, настройки
+каналов — core/content_channels.py. Этот модуль только разбирает запрос, зовёт
+хранилища и переводит их исключения в коды ответа. Отправка — только то, что
+владелец включил в «Каналы и отправка»; остальное «вышло» отмечают вручную.
 
 Эндпоинты:
     GET    /content-plan                                  страница (templates/content_plan.html)
     GET    /api/content-plan?month=YYYY-MM                материалы месяца + справочники + stats
-                                                          (месяц по умолчанию — текущий по Москве;
-                                                          scope='month')
+                                                          + delivery (что подключено к отправке) и
+                                                          delivery_connected (прежний вид); размер
+                                                          аудиторий бота — настоящий (месяц по
+                                                          умолчанию — текущий по Москве;
+                                                          scope='month'); &compact=1 — компактный
+                                                          вид для агента (content_plan.compact_material)
     GET    /api/content-plan?state=overdue|failed         БЕЗ month — вид «по всем месяцам»: материалы
                                                           любого месяца с размещением в этом
                                                           состоянии (scope='state', state; см.
@@ -33,7 +38,11 @@ core/content_media.py. Этот модуль только разбирает з�
     PATCH  /api/content-plan/placements/<pid>             {channel?, bar?, date?, time?, text?, media?,
                                                            audience?} -> {material, unapproved}
     DELETE /api/content-plan/placements/<pid>             -> {material}; 409 если вышло
-    POST   /api/content-plan/placements/<pid>/action      {action} -> {material}; 409 — не тот статус
+    POST   /api/content-plan/placements/<pid>/action      {action} -> {material, notice?}; 409 — не тот
+                                                          статус; retry / retry_failed / resume — только
+                                                          администратор (403 admin_required); пауза или
+                                                          отмена идущей рассылки — notice «остановится
+                                                          после текущей пачки»
     POST   /api/content-plan/materials/<id>/shift         {days} -> {material}
     POST   /api/content-plan/materials/<id>/repeat        {weekdays:[0..6], month?} -> {created}
                                                           (month по умолчанию — месяц материала)
@@ -44,9 +53,10 @@ core/content_media.py. Этот модуль только разбирает з�
                                                           will_approve, bot, stays_draft}; origin
                                                           (agent|human) — фильтр «Только от ИИ»
     POST   /api/content-plan/approve                      {placement_ids:[..], confirm_bot?}
-                                                          -> {approved, skipped}
+                                                          -> {approved, skipped}; только администратор
     POST   /api/content-plan/bulk-pause                   {bar, action:'pause'|'resume'}
-                                                          -> {changed, skipped}
+                                                          -> {changed, skipped}; resume — только
+                                                          администратор
     POST   /api/content-plan/bulk                         {material_ids:[..], action:'shift'|'delete'|
                                                            'cancel', days?} -> {done, failed:[{id, error}]}
     POST   /api/content-plan/agent-drafts/delete          {month, material_ids?} -> {deleted: [id],
@@ -68,6 +78,31 @@ core/content_media.py. Этот модуль только разбирает з�
                                                           предел длины — по площадке (channel) и
                                                           наличию фото (has_media), см. live_preview
     GET    /api/content-plan/materials/<id>/log           -> {entries: [новые сверху]}
+    GET    /api/content-plan/materials/<id>/download      zip: тексты по размещениям, файлы и опись
+                                                          (для ручного Instagram)
+    GET    /api/content-plan/channels                     -> {channels (без токена), bot_username,
+                                                          token_source: content|taplist|null, delivery,
+                                                          delivery_connected, subscribers_total, limits}
+    PUT    /api/content-plan/channels                     {enabled?, telegram?: {бар: {chat?, title?}},
+                                                           instagram?: {reminder_chat?,
+                                                           reminder_minutes_before?}, bot?: {enabled?,
+                                                           signup?}} -> как GET; частичное слияние,
+                                                          неизвестное — 400 (signup — кнопки подписки
+                                                          и отзыва в гостевом боте)
+    POST   /api/content-plan/channels/check               {bar} -> {check, saved, ...как GET} —
+                                                          getMe/getChat/getChatMember в Telegram; сбой
+                                                          связи — saved=false, прежняя проверка остаётся
+    POST   /api/content-plan/channels/test                {bar} -> {ok, message_id, error, chat} —
+                                                          сообщение «Проверка связи с сайтом» в канал
+    POST   /api/content-plan/publish-now                  {placement_id} -> {placement, material,
+                                                          queued: true, message}: в очередь, уйдёт в
+                                                          течение минуты (отправляет планировщик); 409 —
+                                                          не утверждено, отправляется, отправка
+                                                          выключена, площадка не подключена
+    GET    /api/content-plan/audience?segment=&bar=       -> {segment, name, bar, size, size_note,
+                                                          subscribers_total} — подписчики бота на сейчас
+    GET    /api/content-plan/agent-edits?months=3         -> {months, from_month, now, counts, items} —
+                                                          правки людей в материалах агента (1..12 мес.)
 
 Необязательный ?month=YYYY-MM у изменяющих запросов задаёт месяц просмотра:
 по нему считается in_month материала в ответе (без него — true).
@@ -76,7 +111,18 @@ core/content_media.py. Этот модуль только разбирает з�
 409 — действие недопустимо в текущем статусе (+ поля из исключения); 413 —
 тело загрузки больше предела видео; 503 {error, code: 'content_plan_unavailable'}
 — файл плана есть, но не читается (он НЕ перезаписывается); 503 {error, code:
-'content_brief_unavailable'} — то же для файла брифа.
+'content_brief_unavailable'} — то же для файла брифа; 503 {error, code:
+'content_channels_unavailable'} — то же для настроек каналов.
+
+Только администратор (403 {error, code: 'admin_required'}): PUT /channels, POST
+/channels/check, /channels/test, /publish-now, /approve, действия retry, retry_failed,
+resume и bulk-pause с action resume — всё, что может выпустить публикацию наружу.
+
+Отправка в тестах: _transport, _guest_transport, _bot_token, _guest_bot_token, _channels,
+_audience и _subscribers_total — точки подмены (как _store); в настоящий Telegram
+тесты не ходят. Два бота: бот каналов (_transport: TELEGRAM_CONTENT_BOT_TOKEN, иначе
+TELEGRAM_BOT_TOKEN) — посты, проверка, тест, напоминание; гостевой (_guest_transport:
+только TELEGRAM_BOT_TOKEN) — рассылки гостям (см. core/content_channels.py).
 
 ИИ-агент (MCP): мост core/mcp/bridge.py исполняет эти же маршруты от имени
 владельца с 'via_mcp': True в current_user(). По нему хранилище ставит origin
@@ -85,15 +131,16 @@ core/content_media.py. Этот модуль только разбирает з�
 """
 from functools import wraps
 
-from flask import Blueprint, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
 
-from core import content_media
+from core import content_channels, content_media, content_publisher
 from core.auth_guard import current_user
 from core.content_brief import ContentBriefUnavailable, get_content_brief_store
-from core.content_plan import (CHANNELS, CROSS_MONTH_STATES, MATERIAL_MEDIA_MAX, ContentPlanConflict,
-                               ContentPlanNotFound, ContentPlanUnavailable, add_months,
-                               get_content_plan_store, parse_bool, parse_date, parse_days, parse_month,
-                               placement_content, render_live)
+from core.content_channels import ContentChannelsUnavailable, get_channels_store
+from core.content_plan import (AUDIENCE_BY_KEY, BAR_ALL, CHANNELS, CROSS_MONTH_STATES, MATERIAL_MEDIA_MAX,
+                               ContentPlanConflict, ContentPlanNotFound, ContentPlanUnavailable, add_months,
+                               get_content_plan_store, parse_bar, parse_bool, parse_date, parse_days,
+                               parse_month, placement_content, render_live)
 
 content_plan_bp = Blueprint('content_plan', __name__)
 
@@ -120,16 +167,38 @@ def _error(message: str, status: int = 400, **extra):
     return jsonify(payload), status
 
 
+class AdminRequired(Exception):
+    """Действие только для администратора (API 403, code 'admin_required')."""
+
+
+# Что может выпустить публикацию наружу — только администратор (решение
+# оркестратора 2026-09-28 по итогам проверки: у каждого бармена личный вход, все
+# аккаунты равны, лимита попыток входа нет). Чтение (каналы, аудитория, zip) — всем.
+# MCP работает от имени администратора-владельца (мост), его это не ограничивает.
+ADMIN_PLACEMENT_ACTIONS = {'retry': 'повторять отправку', 'retry_failed': 'повторять рассылку',
+                           'resume': 'снимать публикации с паузы'}
+
+
+def _require_admin(what: str) -> None:
+    user = current_user() or {}
+    if not user.get('is_admin'):
+        raise AdminRequired(f'Только администратор может {what}')
+
+
 def _guard(view):
-    """Исключения хранилища -> 400 / 404 / 409 / 503 (не 500 и не запись поверх)."""
+    """Исключения хранилища -> 400 / 403 / 404 / 409 / 503 (не 500 и не запись поверх)."""
     @wraps(view)
     def wrapper(*args, **kwargs):
         try:
             return view(*args, **kwargs)
+        except AdminRequired as e:
+            return _error(str(e), 403, code='admin_required')
         except ContentPlanUnavailable as e:
             return _error(str(e), 503, code='content_plan_unavailable')
         except ContentBriefUnavailable as e:
             return _error(str(e), 503, code='content_brief_unavailable')
+        except ContentChannelsUnavailable as e:
+            return _error(str(e), 503, code='content_channels_unavailable')
         except ContentPlanNotFound as e:
             return _error(str(e), 404)
         except ContentPlanConflict as e:
@@ -147,6 +216,61 @@ def _store():
 def _brief_store():
     """Хранилище брифа для агента (тесты подменяют так же, как _store)."""
     return get_content_brief_store()
+
+
+# ---- отправка: точки подмены для тестов (в настоящий Telegram тесты не ходят) ----
+
+def _channels():
+    """Настройки каналов и выключатели отправки (core/content_channels.py)."""
+    return get_channels_store()
+
+
+def _bot_token():
+    """(токен, источник) бота каналов — content_channels.channel_bot_token."""
+    return content_channels.channel_bot_token()
+
+
+def _guest_bot_token():
+    """(токен, источник) гостевого бота — только TELEGRAM_BOT_TOKEN (рассылки гостям)."""
+    return content_channels.guest_bot_token()
+
+
+def _transport():
+    """Транспорт бота каналов (посты, проверка, тест, напоминание) или None."""
+    token, _source = _bot_token()
+    return content_publisher.TelegramTransport(token) if token else None
+
+
+def _guest_transport():
+    """Транспорт гостевого бота @kult_taplist_bot (рассылки гостям) или None."""
+    token, _source = _guest_bot_token()
+    return content_publisher.TelegramTransport(token) if token else None
+
+
+def _audience(segment, bar):
+    """(размер, пояснение) аудитории рассылки бота на сейчас."""
+    return content_channels.audience_size(segment, bar)
+
+
+def _subscribers_total():
+    """Сколько гостей подписано на рассылки сейчас (None — не прочиталось)."""
+    return content_channels.subscribers_total()
+
+
+def _channels_payload(settings: dict) -> dict:
+    """Ответ маршрутов настроек каналов: сами настройки (без токена), имя бота,
+    откуда токен, что подключено (delivery) и пределы полей формы."""
+    token, source = _bot_token()
+    guest, guest_source = _guest_bot_token()
+    total = _subscribers_total()
+    delivery = content_channels.delivery_state(settings, bool(token), total, guest_token_present=bool(guest))
+    return {'channels': content_channels.public_view(settings),
+            'bot_username': content_channels.bot_username(settings, token),
+            'token_source': source, 'guest_token_source': guest_source, 'delivery': delivery,
+            'delivery_connected': content_channels.delivery_connected(delivery),
+            'subscribers_total': total,
+            'limits': {'reminder_minutes_max': content_channels.REMINDER_MINUTES_MAX,
+                       'title_max': content_channels.TITLE_MAX}}
 
 
 def _app_version() -> str:
@@ -181,14 +305,17 @@ def content_plan_page():
 @_guard
 def content_plan_month():
     """Месяц плана; ?state=overdue|failed без month — вид «по всем месяцам»
-    (ссылки полосы внимания: их счётчики считают любой месяц)."""
+    (ссылки полосы внимания: их счётчики считают любой месяц). ?compact=1 —
+    компактный вид для агента: материалы без текстов, файлов и справочников."""
     store = _store()
     raw = (request.args.get('month') or '').strip()
     state = (request.args.get('state') or '').strip()
+    raw_compact = request.args.get('compact')
+    compact = parse_bool(raw_compact, 'Компактный вид') if raw_compact not in (None, '') else False
     if not raw and state in CROSS_MONTH_STATES:
-        return jsonify(store.state_payload(state))
+        return jsonify(store.state_payload(state, compact=compact))
     month = parse_month(raw) if raw else _current_month(store)
-    return jsonify(store.month_payload(month))
+    return jsonify(store.month_payload(month, compact=compact))
 
 
 @content_plan_bp.route('/api/content-plan/materials/<material_id>', methods=['GET'])
@@ -201,6 +328,108 @@ def get_material(material_id):
 @_guard
 def material_log(material_id):
     return jsonify({'entries': _store().log_for(material_id)})
+
+
+@content_plan_bp.route('/api/content-plan/materials/<material_id>/download', methods=['GET'])
+@_guard
+def download_material(material_id):
+    """zip для ручного Instagram: тексты по размещениям, файлы и опись
+    (content_publisher.build_material_zip). 404 — материала нет."""
+    store = _store()
+    material = store.get_material_raw(material_id)
+    archive = content_publisher.build_material_zip(store, material)
+    return send_file(archive, mimetype='application/zip', as_attachment=True,
+                     download_name=f'kultura_{material["id"]}.zip', max_age=0)
+
+
+@content_plan_bp.route('/api/content-plan/agent-edits', methods=['GET'])
+@_guard
+def agent_edits():
+    """Правки людей в материалах агента за ?months= (1..12, по умолчанию 3) —
+    чтобы агент подстраивал тон (ContentPlanStore.agent_edits)."""
+    return jsonify(_store().agent_edits(request.args.get('months')))
+
+
+@content_plan_bp.route('/api/content-plan/audience', methods=['GET'])
+@_guard
+def audience():
+    """Размер аудитории рассылки бота на сейчас: ?segment= (обязателен), ?bar=
+    (пусто или all — вся сеть). Сегменту «выбравшие бар» без бара — size null."""
+    segment = (request.args.get('segment') or '').strip()
+    spec = AUDIENCE_BY_KEY.get(segment)
+    if spec is None:
+        raise ValueError('Аудитория: bot_all, bot_bar, bot_recent_30 или bot_lapsed_60')
+    raw_bar = (request.args.get('bar') or '').strip()
+    bar = None if raw_bar in ('', BAR_ALL) else parse_bar(raw_bar)
+    size, note = _audience(segment, bar)
+    return jsonify({'segment': segment, 'name': spec['name'], 'bar': bar or BAR_ALL, 'size': size,
+                    'size_note': note, 'subscribers_total': _subscribers_total()})
+
+
+# ------------------------------------------------------------------ каналы и отправка
+
+@content_plan_bp.route('/api/content-plan/channels', methods=['GET'])
+@_guard
+def get_channels():
+    """Настройки «Каналы и отправка» (без токена) и что подключено."""
+    return jsonify(_channels_payload(_channels().load()))
+
+
+@content_plan_bp.route('/api/content-plan/channels', methods=['PUT'])
+@_guard
+def update_channels():
+    """Частичная правка настроек каналов (content_channels.ChannelsStore.update):
+    неизвестный ключ, бар или поле, неверный адрес — 400, не сохраняется ничего.
+    Только администратор (403 admin_required)."""
+    _require_admin('менять каналы и отправку')
+    settings = _channels().update(request.get_json(silent=True), current_user())
+    return jsonify(_channels_payload(settings))
+
+
+def _bar_from_body() -> str:
+    bar = str(_json_body().get('bar') or '').strip()
+    if not bar:
+        raise ValueError('Не выбран бар')
+    return bar
+
+
+@content_plan_bp.route('/api/content-plan/channels/check', methods=['POST'])
+@_guard
+def check_channel():
+    """Проверить канал бара в Telegram (getMe, getChat, getChatMember); итог
+    сохраняется у бара (сбой связи — нет: saved=false, прежняя проверка остаётся).
+    Ошибка Telegram — не ошибка запроса: 200 и check.ok=false. Только администратор."""
+    _require_admin('проверять каналы')
+    result = content_publisher.check_channel(_bar_from_body(), current_user(), transport=_transport(),
+                                             channels=_channels())
+    payload = _channels_payload(result['channels'])
+    payload.update({'check': result['check'], 'saved': result['saved']})
+    return jsonify(payload)
+
+
+@content_plan_bp.route('/api/content-plan/channels/test', methods=['POST'])
+@_guard
+def test_channel():
+    """Тестовое сообщение «Проверка связи с сайтом» в канал бара -> {ok, message_id,
+    error, chat}. Его видят подписчики канала. Только администратор."""
+    _require_admin('отправлять тестовое сообщение')
+    return jsonify(content_publisher.send_test(_bar_from_body(), current_user(), transport=_transport(),
+                                               channels=_channels()))
+
+
+@content_plan_bp.route('/api/content-plan/publish-now', methods=['POST'])
+@_guard
+def publish_now():
+    """«Отправить сейчас»: утверждённое размещение встаёт в очередь, его отправит
+    планировщик в течение минуты (content_publisher.publish_now) -> {placement,
+    material, queued: true, message}. Только администратор."""
+    _require_admin('отправлять публикации')
+    placement_id = str(_json_body().get('placement_id') or '').strip()
+    if not placement_id:
+        raise ValueError('Не выбрано размещение')
+    return jsonify(content_publisher.publish_now(placement_id, current_user(), store=_store(),
+                                                 channels=_channels(), transport=_transport(),
+                                                 guest_transport=_guest_transport()))
 
 
 # ------------------------------------------------------------------ материалы
@@ -271,9 +500,18 @@ def delete_placement(placement_id):
 @content_plan_bp.route('/api/content-plan/placements/<placement_id>/action', methods=['POST'])
 @_guard
 def placement_action(placement_id):
-    material = _store().placement_action(placement_id, _json_body().get('action'), current_user(),
-                                         _view_month())
-    return jsonify({'material': material})
+    """Переход статуса размещения. retry, retry_failed и resume выпускают
+    публикацию наружу — только администратор (403). Пауза или отмена идущей
+    рассылки ставит её остановку: в ответе notice «остановится после текущей пачки»."""
+    action = str(_json_body().get('action') or '').strip()
+    if action in ADMIN_PLACEMENT_ACTIONS:
+        _require_admin(ADMIN_PLACEMENT_ACTIONS[action])
+    material = _store().placement_action(placement_id, action, current_user(), _view_month())
+    payload = {'material': material}
+    view = next((p for p in material.get('placements') or [] if p.get('id') == placement_id), None)
+    if view and (view.get('delivery') or {}).get('stop_requested'):
+        payload['notice'] = 'Рассылка остановится после текущей пачки: получившим повторно не уйдёт'
+    return jsonify(payload)
 
 
 # ------------------------------------------------------------------ утверждение и массовые
@@ -294,6 +532,9 @@ def approve_preview():
 @content_plan_bp.route('/api/content-plan/approve', methods=['POST'])
 @_guard
 def approve():
+    """Утвердить готовые черновики. Утверждённое уходит само, если площадка
+    подключена, — только администратор (403 admin_required)."""
+    _require_admin('утверждать публикации')
     body = _json_body()
     return jsonify(_store().approve(body.get('placement_ids'), current_user(),
                                     confirm_bot=body.get('confirm_bot', False)))
@@ -302,8 +543,12 @@ def approve():
 @content_plan_bp.route('/api/content-plan/bulk-pause', methods=['POST'])
 @_guard
 def bulk_pause():
+    """Пауза или снятие паузы по бару или сети. Снятие паузы выпускает публикации —
+    только администратор; пауза — всем (остановить можно любому)."""
     body = _json_body()
     action = str(body.get('action') or '').strip()
+    if action == 'resume':
+        _require_admin('снимать публикации с паузы')
     return jsonify(_store().bulk_pause(body.get('bar'), action, current_user()))
 
 

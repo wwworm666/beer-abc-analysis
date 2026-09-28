@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="/static/guest_hub/hub.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/guest_hub/reviews.css?v={{ app_version }}">
 </head>
-<body class="gh-page gh-scope">
+<body class="gh-page gh-scope" data-is-admin="{{ 'true' if current_user and current_user.is_admin else 'false' }}">
     <div class="container">
         {% set page_title = "Отзывы" %}
         {% set page_subtitle = "Яндекс Карты: ответы гостям" %}

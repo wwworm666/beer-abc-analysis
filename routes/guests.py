@@ -171,17 +171,55 @@ def api_cohorts_revenue():
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
 
+def _rfm_list_filter():
+    """Фильтр списка гостей RFM из строки запроса: (segments, q, limit) или ValueError.
+
+    ?segment=AT_RISK[,CHURNED] — сегменты (core.guest_analytics.RFM_SEGMENTS);
+    ?q=<подстрока> — имя, телефон (по цифрам), карта или guest_id, от 2 символов;
+    ?limit=N — первые N гостей после фильтра (список отсортирован по выручке окна),
+    целое ≥ 1. Без параметров список полный, как раньше (страница строит по нему
+    графики).
+    """
+    segments = ga.parse_rfm_segments(request.args.get('segment'))
+    q = (request.args.get('q') or '').strip()
+    if q and len(q) < ga.RFM_QUERY_MIN_LEN:
+        raise ValueError('q — минимум ' + str(ga.RFM_QUERY_MIN_LEN) + ' символа')
+    limit = None
+    raw_limit = (request.args.get('limit') or '').strip()
+    if raw_limit:
+        try:
+            limit = int(raw_limit)
+        except ValueError:
+            limit = 0            # '²', '1.5', 'abc' — то же, что ноль: 400 ниже
+        if limit < 1:
+            raise ValueError('limit — целое число от 1')
+    return segments, q or None, limit
+
+
 @guests_bp.route('/api/guests/rfm')
 def api_rfm():
     """RFM-сегментация на дату среза, окно 12 мес (ТЗ §7).
 
     ?store=<ключ точки> — считать только по чекам этой точки (вся сеть по умолчанию);
-    ?export=csv — выгрузка (учитывает тот же фильтр точки).
+    ?segment=, ?q=, ?limit= — фильтр СПИСКА гостей (_rfm_list_filter): segments и
+    total_guests считаются по всем гостям окна; в ответе guests_filter —
+    {segment, q, limit, matched, returned}. Неверный фильтр — 400;
+    ?export=csv — выгрузка (учитывает тот же фильтр точки и фильтр списка).
     """
     try:
+        try:
+            segments, q, limit = _rfm_list_filter()
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
         store, period, meta = _ctx()
         venue = request.args.get('store') or None
         data = ga.rfm(store, period, meta, include_guests=True, venue=venue)
+        rows, matched = ga.rfm_filter_guests(data['guests'], segments, q, limit)
+        data['guests'] = rows
+        data['guests_filter'] = {
+            'segment': sorted(segments) if segments else None,
+            'q': q, 'limit': limit, 'matched': matched, 'returned': len(rows),
+        }
         if request.args.get('export') == 'csv':
             buf = io.StringIO()
             w = csv.writer(buf, delimiter=';')

@@ -5,7 +5,9 @@
    только то, что есть на этой странице: таблица месяца, календарь, карточка
    материала (размещения, предпросмотр, файлы), диалоги утверждения и
    копирования, панель массовых действий, всё для ИИ-агента (пометка «ИИ»,
-   чип «Только от ИИ», карточка «Бриф для агента»).
+   чип «Только от ИИ», карточка «Бриф для агента», меню «Попросить агента»),
+   отправка (баннер состояния, строка «как ушло» у размещения, выключатели,
+   карточка «Каналы и отправка») и свёрнутые пояснения «Как считается».
 
    Правила: префикс gh-cp- у каждого класса; цвета — только токены --gh-* из
    hub.css (ни одного HEX: тёмная тема работает сама); без эмодзи.
@@ -1155,19 +1157,252 @@ button.gh-cp-originchip.is-on:hover { border-color: var(--gh-accent); }
 }
 .gh-cp-brief-total.is-over { color: var(--gh-bad-ink); font-weight: 700; }
 
+/* ==================== «Как считается» ====================
+   Пояснение правила или расчёта свёрнуто по умолчанию (решение владельца,
+   .claude/CLAUDE.md): стрелка-раскрывашка у своего блока. Вид — как .av-how на
+   /draft, /kitchen, /packaging (static/shared/abc_view.css), но на токенах
+   раздела «Гости». */
+
+.gh-cp-how { font-family: var(--gh-sans); }
+.gh-cp-how > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    list-style: none;
+    border-radius: 6px;
+    font: 500 11px/1.4 var(--gh-mono);
+    color: var(--gh-ink4);
+    cursor: pointer;
+}
+.gh-cp-how > summary::-webkit-details-marker { display: none; }
+.gh-cp-how > summary::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    margin-left: 2px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform .15s ease;
+}
+.gh-cp-how[open] > summary::before { transform: rotate(45deg); }
+.gh-cp-how > summary:hover { color: var(--gh-ink); }
+.gh-cp-how > summary:focus-visible { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-cp-how-in {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+    font: 400 12px/1.55 var(--gh-sans);
+    color: var(--gh-ink4);
+    overflow-wrap: anywhere;
+}
+.gh-cp-how-in p { margin: 0; }
+.gh-cp-how-in ul { display: grid; gap: 4px; margin: 0; padding-left: 16px; }
+
+/* ==================== Отправка ====================
+   Баннер состояния отправки над планом (#cpDelivery, тон ставит JS по
+   delivery месяца), строка «как ушло» у размещения, размер аудитории
+   рассылки, выдвижная карточка «Каналы и отправка». */
+
+/* Всё подключено — баннер спокойнее: это справка, а не предупреждение. */
+.gh-cp-dbanner[data-mode="on"] { padding-top: 9px; padding-bottom: 9px; }
+
+/* Строка отправки размещения: отправляется / вышло автоматически / ошибка /
+   рассылка дошла не всем / напоминание Instagram. */
+.gh-cp-deliv {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border: 1px solid var(--gh-line);
+    border-left: 3px solid var(--gh-ink6);
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-soft);
+    font: 400 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink2);
+    overflow-wrap: anywhere;
+}
+.gh-cp-deliv[data-tip] { cursor: help; }
+.gh-cp-deliv b { font-weight: 600; }
+.gh-cp-deliv .gh-link { font-weight: 600; }
+.gh-cp-deliv.is-ok {
+    border-left-color: var(--gh-ok);
+    background: color-mix(in srgb, var(--gh-ok) 7%, var(--gh-card));
+}
+.gh-cp-deliv.is-warn {
+    border-left-color: var(--gh-warn);
+    background: color-mix(in srgb, var(--gh-warn) 8%, var(--gh-card));
+}
+.gh-cp-deliv.is-bad {
+    border-color: color-mix(in srgb, var(--gh-bad) 28%, var(--gh-card));
+    border-left-color: var(--gh-bad);
+    background: color-mix(in srgb, var(--gh-bad) 7%, var(--gh-card));
+}
+.gh-cp-deliv.is-bad b { color: var(--gh-bad-ink); }
+.gh-cp-deliv.is-sending { border-left-color: var(--gh-accent); color: var(--gh-ink3); }
+.gh-cp-deliv-s { font: 500 11px/1.4 var(--gh-mono); color: var(--gh-ink5); }
+.gh-cp-deliv-s[data-tip] { cursor: help; }
+/* Ссылка «Скачать для Instagram» — кнопка того же вида, что соседние. */
+.gh-cp-pl-acts a.gh-btn { color: var(--gh-ink); }
+
+/* Размер аудитории рассылки: число — на виду. */
+.gh-cp-audn { font: 600 12px/1 var(--gh-mono); font-variant-numeric: tabular-nums; color: var(--gh-ink2); }
+.gh-cp-ed .gh-cp-how,
+.gh-cp-add .gh-cp-how { margin-top: 2px; }
+
+/* Выключатель (главный выключатель отправки, рассылки гостям). Сам флажок
+   скрыт (глобальный base.css красит все input), видна дорожка с бегунком. */
+.gh-cp-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: 11px;
+    font: 600 13.5px/1.3 var(--gh-sans);
+    color: var(--gh-ink);
+    cursor: pointer;
+}
+.gh-cp-switch input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    opacity: 0;
+    pointer-events: none;
+}
+.gh-cp-switch-track {
+    position: relative;
+    flex: none;
+    width: 38px;
+    height: 22px;
+    border: 1px solid var(--gh-line2);
+    border-radius: 999px;
+    background: var(--gh-track);
+    transition: background .15s ease, border-color .15s ease;
+}
+.gh-cp-switch-track::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--gh-card);
+    box-shadow: var(--gh-shadow-seg);
+    transition: transform .15s ease;
+}
+.gh-cp-switch:hover .gh-cp-switch-track { border-color: var(--gh-ink6); }
+.gh-cp-switch input:checked + .gh-cp-switch-track { background: var(--gh-accent); border-color: var(--gh-accent); }
+.gh-cp-switch input:checked + .gh-cp-switch-track::after { transform: translateX(16px); background: var(--gh-on-accent); }
+.gh-cp-switch input:focus-visible + .gh-cp-switch-track { outline: 2px solid var(--gh-accent-ink); outline-offset: 2px; }
+.gh-cp-switch-t { min-width: 0; }
+/* Не администратору выключатель виден, но выключен (подсказка — на всей подписи). */
+.gh-cp-switch.is-ro { cursor: help; }
+.gh-cp-switch.is-ro .gh-cp-switch-t { color: var(--gh-ink3); }
+.gh-cp-switch input:disabled + .gh-cp-switch-track { opacity: .5; }
+/* Карточка «Каналы и отправка» не администратору — только просмотр. */
+.gh-cp-chan-ro {
+    margin: 0 0 18px;
+    padding: 9px 12px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-tile);
+    background: var(--gh-soft);
+    font: 400 12.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink3);
+}
+
+/* Карточка «Каналы и отправка» (#cpChanDrawer). */
+.gh-cp-chan-sec { gap: 12px; }
+.gh-cp-chan-st { margin: 0; font: 400 12.5px/1.5 var(--gh-sans); color: var(--gh-ink3); }
+.gh-cp-chan-st.is-warn { color: var(--gh-warn-ink); }
+.gh-cp-chan-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--gh-line);
+    border-radius: var(--gh-r-in);
+    background: var(--gh-card);
+}
+.gh-cp-chan-bar-h {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    font: 600 13.5px/1.3 var(--gh-sans);
+    color: var(--gh-ink);
+}
+.gh-cp-chan-bar-h .gh-badge { margin-left: auto; }
+.gh-cp-chan-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gh-cp-chan-row > .gh-input { flex: 1 1 200px; width: auto; min-width: 0; }
+.gh-cp-chan-btns { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+.gh-cp-chan-note { font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); overflow-wrap: anywhere; }
+.gh-cp-chan-note.is-ok { color: var(--gh-ok-ink); }
+.gh-cp-chan-note.is-bad { color: var(--gh-bad-ink); }
+.gh-cp-chan-ig > .gh-field { flex: 1 1 220px; }
+.gh-cp-chan-ig > .gh-field.gh-cp-chan-min { flex: 0 1 150px; }
+.gh-cp-chan-subs { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.gh-cp-chan-subs b {
+    font: 700 22px/1 var(--gh-mono);
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--gh-ink);
+}
+.gh-cp-chan-subs span { font: 400 12.5px/1.4 var(--gh-sans); color: var(--gh-ink4); }
+/* Второй выключатель гостевого бота (кнопки подписки и отзывов) — отдельным
+   блоком под линией: это не рассылка, а то, что гости видят в самом боте. */
+.gh-cp-chan-sub {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--gh-hair);
+}
+/* Отметка сохранения внизу карточки: текст ошибки сервера бывает длинным — он
+   переносится, а не вылезает за край (hub.css держит .gh-save в одну строку). */
+.gh-cp-chan .gh-drawer-foot .gh-save { min-width: 0; white-space: normal; text-align: right; line-height: 1.35; }
+
+/* ==================== «Попросить агента» ==================== */
+
+.gh-cp-agentitem { align-items: flex-start; }
+.gh-cp-agentitem-t { display: flex; flex-direction: column; gap: 3px; }
+.gh-cp-agentitem-t b { font: 600 13px/1.3 var(--gh-sans); color: var(--gh-ink); }
+.gh-cp-agentitem-t span { font: 400 11.5px/1.35 var(--gh-sans); color: var(--gh-ink5); }
+.gh-cp-menu-note .gh-link { white-space: nowrap; }
+/* Ширина — только на широком экране: на телефоне меню — лист снизу во всю
+   ширину (hub.css), и своя ширина его бы сузила. */
+@media (min-width: 769px) {
+    .gh-menu.gh-cp-agentmenu { width: 320px; }
+}
+
 /* ==================== Телефон (<=768px, как hub.css) ==================== */
 
 @media (max-width: 768px) {
     .gh-cp-bar { flex-direction: column; align-items: stretch; gap: 10px; }
     .gh-cp-sum { margin-left: -6px; }
-    /* В колонке автоотступ сжал бы блок до ширины кнопок — здесь он во всю ширину. */
-    .gh-cp-bar-acts { display: flex; margin-left: 0; }
+    /* Действия — сеткой в две колонки во всю ширину (в колонке автоотступ сжал
+       бы блок до ширины кнопок): «Бриф» | «Попросить агента», «Каналы и
+       отправка» | «Пауза»; «Скопировать прошлый месяц» в 360px рядом с другой
+       кнопкой не помещается — своей строкой (dense ставит «Паузу» на место). */
+    .gh-cp-bar-acts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-flow: row dense;
+        gap: 8px;
+        margin-left: 0;
+    }
     .gh-cp-bar-acts > .gh-btn,
-    .gh-cp-menuwrap { flex: 1 1 0; min-width: 0; }
-    .gh-cp-menuwrap > .gh-btn { width: 100%; }
-    /* «Бриф для агента» — своей строкой: втроём с «Скопировать прошлый
-       месяц» и «Паузой» подписи в 360px не помещаются. */
-    .gh-cp-bar-acts > .gh-cp-briefbtn { flex: 1 1 100%; }
+    .gh-cp-menuwrap { min-width: 0; }
+    .gh-cp-bar-acts .gh-btn { width: 100%; padding: 0 10px; }
+    .gh-cp-bar-acts > .gh-cp-copybtn { grid-column: 1 / -1; }
 
     /* Таблица -> карточки: строка раскладывается сеткой, страница не
        прокручивается вбок. */
@@ -1220,6 +1455,10 @@ button.gh-cp-originchip.is-on:hover { border-color: var(--gh-accent); }
     .gh-cp-bulk .gh-btn { flex: 1 1 auto; }
 
     .gh-cp-title { font-size: 17px; }
+    /* Канал бара: поле — строкой, кнопки «Проверить» и «Тестовое сообщение» —
+       строкой ниже, поровну. */
+    .gh-cp-chan-btns { flex: 1 1 100%; }
+    .gh-cp-chan-btns .gh-btn { flex: 1 1 auto; }
     .gh-cp-log-i { grid-template-columns: minmax(0, 1fr) auto; }
     .gh-cp-log-at { grid-column: 1 / -1; }
     .gh-cp-ap-i { grid-template-columns: minmax(0, 1fr); }

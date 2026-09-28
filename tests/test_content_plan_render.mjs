@@ -17,6 +17,16 @@
  * черновики ИИ» (число и id — из agent_draft сервера, подтверждение);
  * карточка «Бриф для агента» (поля и пределы — из schema сервера, PUT одним
  * полем, сброс несохранённого при уходе, ?brief=1).
+ *
+ * Отправка (2026-09-28): баннер состояния по delivery месяца; «Каналы и
+ * отправка» (выключатели — включение только с подтверждением, адрес канала — те
+ * же правила, что parse_chat сервера, поля сохраняются по одному, пояснения
+ * свёрнуты в «Как считается»); строка «как ушло» у размещения (ссылка на пост,
+ * ошибка, «дошло N из M»), «Отправить сейчас», «Повторить неудавшимся», архив
+ * для Instagram; реальный размер аудитории; «Попросить агента» (claude.ai/new?q=,
+ * коннектор kultura-content и сценарии раздела); числа пояснений — зеркала
+ * констант сервера. Эти проверки исполняют страницу с НАСТОЯЩИМ common.js
+ * (даты и склонения — как в браузере).
  */
 
 import assert from 'node:assert/strict';
@@ -62,7 +72,9 @@ test('шаблон подключает стили и скрипты с кэш-�
 });
 
 test('каркас страницы: body, сайдбар, шапка раздела внутри .gh-wrap', () => {
-    assert.match(html, /<body class="gh-page gh-scope">/, 'нет классов страницы раздела на body');
+    // data-is-admin — права пользователя для экрана (решает сервер: 403 admin_required).
+    assert.match(html, /<body class="gh-page gh-scope" data-is-admin="\{\{ 'true' if current_user and current_user\.is_admin else 'false' \}\}">/,
+        'нет классов страницы раздела или флага прав на body');
     assert.match(html, /\{% include 'shared\/nav\.html' %\}/, 'нет общего сайдбара');
     const wrapAt = html.indexOf('class="gh-wrap');
     const headAt = html.indexOf("{% include 'shared/guest_hub_head.html' %}");
@@ -151,6 +163,15 @@ test('нужные спецификации вызовы действитель�
         'GET /api/content-plan/brief',
         'PUT /api/content-plan/brief',
         'POST /api/content-plan/agent-drafts/delete',
+        // Отправка (2026-09-28): каналы, проверка и тест канала, «Отправить сейчас»,
+        // размер аудитории, архив для Instagram (ссылка, метод — GET браузера).
+        'GET /api/content-plan/channels',
+        'PUT /api/content-plan/channels',
+        'POST /api/content-plan/channels/check',
+        'POST /api/content-plan/channels/test',
+        'POST /api/content-plan/publish-now',
+        'GET /api/content-plan/audience',
+        '* /api/content-plan/materials/<x>/download',
     ];
     const missing = need.filter((n) => !calls.includes(n));
     assert.deepEqual(missing, [], `нет вызова: ${missing.join('; ')}`);
@@ -253,8 +274,12 @@ test('адрес страницы: ?month, ?view, ?open, ?state', () => {
 });
 
 test('тексты спецификации на месте', () => {
-    assert.match(html, /Отправка пока не подключена: утверждённые публикации\s+не уходят автоматически\. Когда публикация вышла, отметьте её вручную\./,
-        'нет баннера про неподключённую отправку');
+    // Баннер отправки рисует JS по delivery месяца; «не подключено» — прежними словами.
+    assert.match(js, /Отправка пока не подключена: утверждённые публикации не уходят автоматически\. ' \+\s*'Когда публикация вышла, отметьте её вручную\./,
+        'нет текста «отправка не подключена»');
+    for (const label of ['Каналы и отправка', 'Попросить агента']) {
+        assert.ok(html.includes(label), `нет кнопки «${label}»`);
+    }
     assert.match(js, /При выходе подставляются только данные таплиста; остальной текст не меняется\. ' \+\s*'Если данных нет или они не проверены — публикация остановится\./,
         'нет пояснения к живым данным');
     assert.match(js, /Рассылка через бота добавляется отдельно и никогда не включается выбором всех баров\./,
@@ -467,7 +492,7 @@ test('название: пока поле в фокусе, сохранённо�
 });
 
 test('отклонённая правка (400): карточка перерисовывается из последнего ответа сервера', () => {
-    assert.match(fnBody('mutate'), /if \(err\.status === 404 \|\| err\.status === 409\) reload\(\);\s*else if \(current\(\)\) renderDrawer\(\);/,
+    assert.match(fnBody('mutate'), /if \(err\.status === 404 \|\| err\.status === 409\) reload\(\);\s*else if \(current\(\) && !isAdminDenied\(err\)\) renderDrawer\(\);/,
         'после 400 поле показывает отклонённое значение');
 });
 
@@ -740,6 +765,530 @@ test('бриф для агента: поля и пределы — из отве
     assert.ok(acts.includes('id="cpBriefBtn"'), 'кнопка «Бриф для агента» не в панели действий');
     assert.match(js, /params\.get\('brief'\) === '1'/, 'не читается ?brief=1');
     assert.match(fnBody('openBrief'), /GH\.openDrawer\(el\.briefDrawer/, 'бриф открывается не выдвижной карточкой');
+});
+
+// ---------------------------------------------------------------- отправка (2026-09-28)
+
+// Страница в vm с НАСТОЯЩИМ common.js (даты, склонения, esc — как в браузере),
+// но с подменёнными запросами, тостами и подтверждениями. GH.api записывает вызов
+// и возвращает промис, который не выполнится (проверяется, ЧТО ушло на сервер).
+// confirm — синхронный «промис» с ответом answer(opts) (по умолчанию «да»).
+const plain = (x) => JSON.parse(JSON.stringify(x));
+function loadReal({ answer = () => true, copy = true } = {}) {
+    const calls = [];
+    const toasts = [];
+    const confirms = [];
+    const ctx = {
+        window: {},
+        document: { readyState: 'loading', addEventListener() {}, activeElement: null },
+        console, setTimeout, clearTimeout, Promise, Date,
+    };
+    vm.createContext(ctx);
+    vm.runInContext(common, ctx);
+    const GH = ctx.window.GH;
+    GH.api = (...args) => { calls.push(args); return new Promise(() => {}); };
+    GH.toast = (...args) => { toasts.push(args); };
+    GH.loadAttention = () => { calls.push(['ATTENTION']); return Promise.resolve(null); };
+    GH.confirm = (opts) => { confirms.push(opts); const ok = answer(opts); return { then: (fn) => fn(ok) }; };
+    GH.copyText = () => Promise.resolve(copy);
+    GH.setParams = () => {};
+    vm.runInContext(js, ctx);
+    return { cp: ctx.window.__contentPlan, GH, calls, toasts, confirms };
+}
+
+// delivery месяца «как у сервера» (core/content_channels.delivery_state): всё выключено.
+function deliveryFixture(over = {}) {
+    const telegram = {};
+    for (const bar of ['bolshoy', 'ligovskiy', 'kremenchugskaya', 'varshavskaya']) {
+        telegram[bar] = { connected: false, chat: '', title: '', reason: 'канал не указан' };
+    }
+    return {
+        enabled: false, bot_configured: true, telegram,
+        instagram: { connected: false, reminder_chat: '', reminder_minutes_before: 0, reason: 'не указан чат для напоминаний' },
+        bot: { connected: false, enabled: false, subscribers_total: 0, reason: 'рассылки гостям выключены' },
+        ...over,
+    };
+}
+
+test('отправка: баннер по delivery месяца — не подключено / выключено / нет бота / ни одной площадки / что уходит само', () => {
+    const { cp } = loadReal();
+    const none = cp.deliveryState({ delivery: deliveryFixture() });
+    assert.equal(none.mode, 'none');
+    assert.match(none.html, /Отправка пока не подключена/);
+    assert.equal(none.action, true, 'в «не подключено» нет кнопки «Каналы и отправка»');
+    const off = deliveryFixture();
+    off.telegram.bolshoy.chat = '@kult_vo';
+    assert.equal(cp.deliveryState({ delivery: off }).mode, 'off', 'канал задан, выключатель выключен — не «выключено»');
+    const noBot = cp.deliveryState({ delivery: deliveryFixture({ enabled: true, bot_configured: false }) });
+    assert.equal(noBot.mode, 'idle');
+    assert.match(noBot.html, /бот не настроен/);
+    assert.equal(cp.deliveryState({ delivery: deliveryFixture({ enabled: true }) }).mode, 'idle');
+    const on = deliveryFixture({ enabled: true });
+    on.telegram.bolshoy = { connected: true, chat: '@kult_vo' };
+    on.telegram.ligovskiy = { connected: true, chat: '@kult_lig' };
+    on.bot = { connected: true, enabled: true, subscribers_total: 124 };
+    const st = cp.deliveryState({ delivery: on });
+    assert.equal(st.mode, 'on');
+    assert.equal(st.action, false);
+    assert.match(st.html, /Сами уходят: Telegram — ВО, Лиг; рассылки гостям \(124 подписчика\)\./);
+    assert.match(st.html, /Вручную: Telegram — Крем, Вар; Instagram\./);
+    const all = deliveryFixture({ enabled: true });
+    for (const bar of Object.keys(all.telegram)) all.telegram[bar] = { connected: true, chat: '@x_' + bar };
+    assert.match(cp.deliveryState({ delivery: all }).html, /Telegram — все бары/);
+    const broken = cp.deliveryState({ delivery: deliveryFixture({ error: 'Файл настроек каналов повреждён: <x>' }) });
+    assert.equal(broken.mode, 'error');
+    assert.equal(broken.tone, 'danger');
+    assert.ok(!broken.html.includes('<x>'), 'текст ошибки сервера не экранирован');
+    // Старый ответ сервера — только delivery_connected.
+    assert.equal(cp.deliveryState({ delivery_connected: { telegram: false, instagram: false, bot: false } }).mode, 'none');
+    assert.equal(cp.deliveryState({ delivery_connected: { telegram: true } }).mode, 'on');
+    assert.equal(cp.deliveryState(null), null);
+    // Шаблон: баннер рисует JS, его кнопка открывает «Каналы и отправка».
+    assert.match(html, /id="cpDelivery" hidden/);
+    for (const id of ['cpDeliveryText', 'cpDeliveryBtn']) assert.ok(html.includes(`id="${id}"`), `нет #${id}`);
+    assert.match(fnBody('renderChrome'), /renderDelivery\(\)/, 'баннер не перерисовывается');
+    assert.match(js, /el\.deliveryBtn\.addEventListener\('click', openChannels\)/);
+});
+
+test('отправка: адрес канала — те же правила, что parse_chat на сервере; поле сохраняется одним PUT', () => {
+    const { cp, calls } = loadReal();
+    assert.equal(cp.normChat(' https://t.me/kult_vo/ '), '@kult_vo');
+    assert.equal(cp.normChat('www.t.me/s/kult_vo'), '@kult_vo');
+    assert.equal(cp.normChat('kult_vo'), '@kult_vo');
+    assert.equal(cp.normChat('@kult_vo'), '@kult_vo');
+    assert.equal(cp.normChat('-1001234567890'), '-1001234567890');
+    for (const good of ['@kult_vo', '-1001234567890', '123456789', '']) assert.equal(cp.chatValid(good), true, good);
+    for (const bad of ['@kult', '@kult_', '@1kult', 't.me/+AbCdEf', 'https://t.me/joinchat/xyz', 'kult vo']) {
+        assert.equal(cp.chatValid(cp.normChat(bad)), false, `принят неверный адрес ${bad}`);
+    }
+    assert.match(plain(cp.chanValue('tg:bolshoy', 't.me/+AbCd')).why, /Пригласительная ссылка не подходит/);
+    assert.deepEqual(plain(cp.chanValue('tg:bolshoy', 'https://t.me/kult_vo')), { ok: true, value: '@kult_vo' });
+    assert.deepEqual(plain(cp.chanBody('tg:ligovskiy', '@kult_lig')), { telegram: { ligovskiy: { chat: '@kult_lig' } } });
+    assert.deepEqual(plain(cp.chanBody('ig:chat', '123456789')), { instagram: { reminder_chat: '123456789' } });
+    assert.deepEqual(plain(cp.chanBody('ig:min', 30)), { instagram: { reminder_minutes_before: 30 } });
+    // Правила имени и пределы — зеркала core/content_channels.py.
+    const channels = read('core/content_channels.py');
+    const pyName = channels.match(/_USERNAME_RE = re\.compile\(r'\^(.+?)\\Z'\)/)[1];
+    const jsName = js.match(/var CHAT_NAME_RE = \/\^(.+?)\$\/;/)[1];
+    assert.equal(jsName, pyName, 'правило имени канала разошлось с parse_chat сервера');
+    const max = Number(channels.match(/REMINDER_MINUTES_MAX = (\d+)/)[1]);
+    assert.match(js, new RegExp(`var REMINDER_MAX_MIN = ${max};`), 'предел «минут заранее» разошёлся с сервером');
+    assert.deepEqual(plain(cp.chanValue('ig:min', String(max))), { ok: true, value: max });
+    for (const bad of [String(max + 1), '1.5', '-1', 'полчаса']) assert.equal(cp.chanValue('ig:min', bad).ok, false, bad);
+    // Сохранение: неверное — не уходит; то же, что сохранено, — не уходит; верное — один PUT.
+    cp.state.chan = { data: { channels: { telegram: { bolshoy: { chat: '@kult_vo' } }, instagram: {}, bot: {} } },
+                      busy: {}, tests: {} };
+    cp.state.chanDirty['tg:bolshoy'] = 't.me/+invite';
+    cp.chanSave('tg:bolshoy');
+    assert.ok(cp.state.chanErr['tg:bolshoy'], 'неверный адрес без объяснения');
+    cp.state.chanDirty['tg:bolshoy'] = 'https://t.me/kult_vo';
+    cp.chanSave('tg:bolshoy');
+    assert.equal(calls.length, 0, `ушли запросы: ${JSON.stringify(calls)}`);
+    cp.state.chanDirty['tg:bolshoy'] = 't.me/kult_vo_new';
+    cp.chanSave('tg:bolshoy');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], 'PUT');
+    assert.equal(calls[0][1], '/api/content-plan/channels');
+    assert.deepEqual(plain(calls[0][2]), { telegram: { bolshoy: { chat: '@kult_vo_new' } } });
+    // Поля сохраняются при уходе из поля, закрытии карточки и уходе со страницы.
+    assert.match(fnBody('onChanChange'), /if \(key\) \{ chanSave\(key\); return; \}/);
+    assert.match(fnBody('flushAll'), /flushChannels\(\)/, 'несохранённый адрес теряется при уходе со страницы');
+    assert.match(fnBody('onChannelsClose'), /flushChannels\(\)/, 'несохранённый адрес теряется при закрытии');
+});
+
+test('отправка: главный выключатель и рассылки — включение только после подтверждения, выключение сразу', () => {
+    let answer = false;
+    const { cp, calls, confirms } = loadReal({ answer: () => answer });
+    cp.state.chan = { data: { channels: { enabled: false, telegram: {}, instagram: {}, bot: {} }, token_source: 'taplist' },
+                      busy: {}, tests: {} };
+    const puts = () => calls.filter((c) => c[0] === 'PUT');
+    const box = { checked: true };
+    cp.setAutoSend(true, box);
+    assert.equal(confirms.length, 1, 'включение без подтверждения');
+    assert.match(confirms[0].title, /Включить автоматическую отправку/);
+    assert.equal(box.checked, false, 'после отказа выключатель остался включённым');
+    assert.equal(puts().length, 0, 'отправка включена без согласия');
+    answer = true;
+    cp.setAutoSend(true, { checked: true });
+    assert.equal(puts().length, 1);
+    assert.equal(puts()[0][1], '/api/content-plan/channels');
+    assert.deepEqual(plain(puts()[0][2]), { enabled: true });
+    // Хвост «Время вышло» при включении сам не уходит — так и сказано.
+    assert.match(confirms[1].text, /Публикации, время которых уже прошло .*сами не уйдут/s);
+    cp.setAutoSend(false, { checked: false });
+    assert.equal(confirms.length, 2, 'выключение (безопасное) требует подтверждения');
+    assert.deepEqual(plain(puts()[1][2]), { enabled: false });
+    cp.setBotSend(true, { checked: true });
+    assert.equal(confirms.length, 3);
+    assert.match(confirms[2].title, /Включить рассылки гостям/);
+    assert.deepEqual(plain(puts()[2][2]), { bot: { enabled: true } });
+    cp.setBotSend(false, { checked: false });
+    assert.deepEqual(plain(puts()[3][2]), { bot: { enabled: false } });
+    // Кнопки подписки и отзывов в гостевом боте — свой выключатель (bot.signup), отдельно от рассылок.
+    answer = false;
+    const signupBox = { checked: true };
+    cp.setBotSignup(true, signupBox);
+    assert.equal(confirms.length, 4, 'кнопки в боте показаны гостям без подтверждения');
+    assert.equal(signupBox.checked, false);
+    assert.equal(puts().length, 4);
+    answer = true;
+    cp.setBotSignup(true, { checked: true });
+    assert.deepEqual(plain(puts()[4][2]), { bot: { signup: true } });
+    cp.setBotSignup(false, { checked: false });
+    assert.deepEqual(plain(puts()[5][2]), { bot: { signup: false } });
+    const botHtml = fnBody('chanBotHtml');
+    assert.match(botHtml, /switchHtml\('bot', on, 'Рассылки гостям через бота'\)/);
+    assert.match(botHtml, /switchHtml\('signup', signup, 'Кнопки подписки и отзывов в боте'\)/);
+    assert.match(js, /Гости увидят в ' \+ GUEST_BOT \+ ' кнопки «Подписаться на новости» и «Оставить отзыв»\. ' \+\s*'Включайте после того, как проверили тексты\./,
+        'нет подсказки к кнопкам подписки и отзывов');
+    assert.match(js, /var GUEST_BOT = '@kult_taplist_bot';/);
+    // Проверка и тест канала — через сервер; тестовое сообщение видят подписчики — с подтверждением.
+    assert.match(fnBody('checkChannel'), /GH\.api\('POST', API \+ '\/channels\/check', \{ bar: bar \}\)/);
+    assert.match(fnBody('testChannel'), /GH\.confirm\(/);
+    assert.match(fnBody('testChannel'), /GH\.api\('POST', API \+ '\/channels\/test', \{ bar: bar \}\)/);
+});
+
+test('отправка: «Отправить сейчас» — только утверждённое на подключённой площадке, с подтверждением', () => {
+    const { cp, calls, confirms } = loadReal();
+    const d = deliveryFixture({ enabled: true });
+    d.telegram.bolshoy = { connected: true, chat: '@kult_vo' };
+    cp.state.data = { now: '2026-10-09T15:00', today: '2026-10-09', delivery: d, materials: [] };
+    const p = { id: 'p1', status: 'approved', channel: 'telegram', bar: 'bolshoy', date: '2026-10-09', time: '16:00' };
+    assert.equal([...cp.actionList(p)][0], 'send_now', 'нет «Отправить сейчас» у утверждённого');
+    cp.sendNow({ id: 'm1' }, p);
+    assert.equal(confirms.length, 1, 'отправка без подтверждения');
+    assert.match(confirms[0].text, /@kult_vo/, 'подтверждение не называет канал');
+    const sent = calls.filter((c) => /^\/api\/content-plan\/publish-now/.test(c[1]));
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0][0], 'POST');
+    assert.deepEqual(plain(sent[0][2]), { placement_id: 'p1' });
+    for (const [why, q] of [['площадка не подключена', { ...p, bar: 'ligovskiy' }],
+                            ['не утверждено', { ...p, status: 'draft' }],
+                            ['уже отправляется', { ...p, delivery: { state: 'sending', started_at: '2026-10-09T14:58' } }],
+                            ['отправка зависла — статус неизвестен', { ...p, delivery: { state: 'sending', started_at: '2026-10-09T14:00' } }],
+                            ['в очереди', { ...p, delivery: { state: 'queued', retry_at: '2026-10-09T14:59' } }]]) {
+        assert.ok(![...cp.actionList(q)].includes('send_now'), `«Отправить сейчас» при: ${why}`);
+    }
+    cp.state.data.delivery = deliveryFixture();
+    assert.ok(![...cp.actionList(p)].includes('send_now'), '«Отправить сейчас» при выключенной отправке');
+});
+
+test('отправка: рассылка дошла не всем — «дошло N из M» и «Повторить неудавшимся» (только им, с подтверждением)', () => {
+    const { cp, calls, confirms } = loadReal();
+    cp.state.data = { now: '2026-10-09T18:00', today: '2026-10-09', delivery: deliveryFixture(), materials: [] };
+    const p = { id: 'p9', status: 'published', channel: 'bot', bar: 'all', published_by: 'бот',
+                published_at: '2026-10-09T16:00', display_label: 'Вышло: дошло 95 из 100',
+                delivery: { state: 'partial', stats: { total: 100, sent: 95, failed: 3, blocked: 2, unsubscribed: 0, unknown: 0 } } };
+    assert.equal(cp.canRetryFailed(p), true);
+    assert.ok([...cp.actionList(p)].includes('retry_failed'));
+    const line = cp.deliveryHtml({ id: 'm1' }, p);
+    assert.match(line, /Рассылка ушла 9 октября, 16:00: дошло 95 из 100 · не дошло: 3 · заблокировали бота: 2/);
+    cp.placementAction({ id: 'm1' }, p, 'retry_failed');
+    assert.equal(confirms.length, 1, 'повтор рассылки без подтверждения');
+    assert.match(confirms[0].text, /только 3 подписчикам/);
+    const act = calls.filter((c) => /\/placements\/p9\/action/.test(c[1]));
+    assert.equal(act.length, 1);
+    assert.deepEqual(plain(act[0][2]), { action: 'retry_failed' });
+    // Повторять некому (только заблокировавшие) или повтор уже в очереди — кнопки нет.
+    assert.equal(cp.canRetryFailed({ ...p, delivery: { state: 'partial', stats: { total: 100, sent: 98, failed: 0, blocked: 2 } } }), false);
+    assert.equal(cp.canRetryFailed({ ...p, delivery: { state: 'queued', retry_at: '2026-10-09T17:59', stats: p.delivery.stats } }), false);
+    // «Повторить отправку» после ошибки — тоже с подтверждением (уйдёт в ближайшую минуту).
+    cp.placementAction({ id: 'm1' }, { id: 'p8', status: 'failed', channel: 'telegram', bar: 'bolshoy' }, 'retry');
+    assert.equal(confirms.length, 2);
+    assert.deepEqual(plain(calls.filter((c) => /\/placements\/p8\/action/.test(c[1]))[0][2]), { action: 'retry' });
+});
+
+test('отправка: строка «как ушло» — ссылка на пост, ошибка целиком и экранирована, очередь, Instagram', () => {
+    const { cp } = loadReal();
+    cp.state.data = { now: '2026-10-09T18:00', today: '2026-10-09', delivery: deliveryFixture(), materials: [] };
+    const pub = { id: 'p1', status: 'published', channel: 'telegram', bar: 'bolshoy', published_by: 'бот',
+                  published_at: '2026-10-09T16:00', post_url: 'https://t.me/kult_vo/42',
+                  delivery: { state: 'sent', chat: '@kult_vo', message_ids: [42] } };
+    const line = cp.deliveryHtml({}, pub);
+    assert.match(line, /Вышло автоматически 9 октября, 16:00/);
+    assert.match(line, /href="https:\/\/t\.me\/kult_vo\/42" target="_blank" rel="noopener noreferrer"/);
+    const priv = cp.deliveryHtml({}, { ...pub, post_url: null, delivery: { state: 'sent', chat: '-1001234567890', message_ids: [42] } });
+    assert.ok(!/href=/.test(priv), 'ссылка на пост закрытого канала');
+    assert.match(priv, /закрытый канал/);
+    assert.equal(cp.postLink('@kult_vo', 42), 'https://t.me/kult_vo/42');
+    assert.equal(cp.postLink('-1001234567890', 42), '');
+    assert.equal(cp.isAutoPublished({ ...pub, published_by: 'anna', delivery: null }), false, 'отметка человека — «автоматически»');
+    const failed = cp.deliveryHtml({}, { id: 'p2', status: 'failed', channel: 'telegram', bar: 'bolshoy',
+                                         failed_error: 'Бот не <админ> канала' });
+    assert.match(failed, /Ошибка отправки:<\/b> Бот не &lt;админ&gt; канала/);
+    const sending = cp.deliveryHtml({}, { id: 'p3', status: 'approved', channel: 'telegram', bar: 'bolshoy',
+                                          delivery: { state: 'sending', started_at: '2026-10-09T17:58' } });
+    assert.match(sending, /Отправляется с 9 октября, 17:58/);
+    const queued = cp.deliveryHtml({}, { id: 'p4', status: 'approved', channel: 'bot', bar: 'all',
+                                         delivery: { state: 'queued', retry_at: '2026-10-09T17:59' } });
+    assert.match(queued, /В очереди на отправку/);
+    assert.equal(cp.inFlight({ delivery: { state: 'sending', started_at: '2026-10-09T17:40' } }), false,
+        'отправка дольше 10 минут считается идущей');
+    const ig = { id: 'p5', status: 'approved', channel: 'instagram', bar: 'all' };
+    assert.match(cp.deliveryHtml({}, { ...ig, delivery: { state: 'reminded', reminded_at: '2026-10-09T15:30' } }),
+        /Напоминание отправлено 9 октября, 15:30/);
+    // Что случилось — на бейдже (подпись сервера), в строке — что делать.
+    assert.match(cp.deliveryHtml({}, { ...ig, delivery: { state: 'reminder_failed', error: 'чат не найден' } }),
+        /Напоминание не ушло: выложите пост по плану сами и отметьте выход или повторите кнопкой «Напомнить сейчас»/);
+    assert.match(cp.deliveryHtml({}, ig), /Напоминания не настроены/);
+    // Instagram выкладывают руками: у утверждённого — архив с подписями и файлами.
+    assert.match(fnBody('actionButtons'), /p\.channel === 'instagram'[\s\S]*?Скачать для Instagram/);
+    assert.match(fnBody('downloadUrl'), /API \+ '\/materials\/' \+ enc\(m\.id\) \+ '\/download'/);
+});
+
+test('аудитория рассылки: реальный размер (размещение, ответ месяца, /audience), без «бот не подключён»', () => {
+    const { cp, calls } = loadReal();
+    cp.state.data = { materials: [], audiences: [
+        { key: 'bot_all', name: 'Все подписчики бота', needs_bar: false, size: 124, size_note: 'n' },
+        { key: 'bot_bar', name: 'Подписчики, выбравшие бар', needs_bar: true, size: null, size_by_bar: { ligovskiy: 31 } },
+        { key: 'bot_recent_30', name: 'Были за 30 дней', needs_bar: false, size: 12 },
+    ] };
+    assert.equal(cp.sizeText(cp.audienceSize('bot_all', 'all', { size: 7 })), '7 подписчиков', 'размер размещения не главный');
+    assert.equal(cp.sizeText(cp.audienceSize('bot_all', 'all', null)), '124 подписчика');
+    assert.equal(cp.sizeText(cp.audienceSize('bot_bar', 'ligovskiy', null)), '31 подписчик');
+    assert.equal(calls.length, 0, 'запрос размера, который уже есть в ответе месяца');
+    assert.equal(cp.sizeText(cp.audienceSize('bot_recent_30', 'bolshoy', null)), 'считаю…');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][1], '/api/content-plan/audience?segment=bot_recent_30&bar=bolshoy');
+    cp.audienceSize('bot_recent_30', 'bolshoy', null);
+    assert.equal(calls.length, 1, 'повторный запрос той же аудитории');
+    assert.equal(cp.sizeText(null), 'неизвестно');
+    assert.ok(!/бот не подключён/i.test(js), 'осталась подпись «бот не подключён»');
+    assert.match(fnBody('renderApprove'), /sizeText\(audienceSize\(it\.audience\.segment, it\.bar, it\.audience\)\)/,
+        'окно утверждения показывает не реальный размер');
+    assert.match(fnBody('approveOne'), /audienceReady\(/, 'подтверждение рассылки не ждёт размер аудитории');
+});
+
+test('«Как считается»: пояснения отправки свёрнуты (details без open), у каждого блока свои', () => {
+    for (const name of ['chanMainHtml', 'chanTelegramHtml', 'chanInstagramHtml', 'chanBotHtml']) {
+        assert.match(fnBody(name), /howHtml\('ch:/, `${name}: нет «Как считается»`);
+    }
+    const how = fnBody('howHtml');
+    assert.match(how, /<details class="gh-cp-how" data-how="' \+ esc\(key\) \+ '"' \+ \(S\.howOpen\[key\] \? ' open' : ''\)/,
+        '«Как считается» раскрыт по умолчанию или сворачивается при перерисовке');
+    assert.match(how, /<summary>Как считается<\/summary>/);
+    assert.match(js, /document\.addEventListener\('toggle', function \(e\)/, 'раскрытое не запоминается');
+    assert.match(fnBody('audienceNote'), /howHtml\(howKey/, 'пояснение размера аудитории не свёрнуто');
+    assert.match(fnBody('chanTelegramHtml'), /администратором канала бара с правом «Публикация сообщений»/,
+        'не сказано, что нужно для отправки в канал');
+    for (const sel of ['.gh-cp-how > summary', '.gh-cp-how[open] > summary::before', '.gh-cp-how-in']) {
+        assert.ok(css.includes(sel), `нет стиля ${sel}`);
+    }
+});
+
+test('«Каналы и отправка»: выдвижная карточка, кнопки в ряду действий, ?channels=1', () => {
+    assert.match(html, /<aside class="gh-drawer gh-cp-drawer gh-cp-chan" id="cpChanDrawer" hidden/);
+    assert.ok(html.indexOf('id="cpChanDrawer"') > html.indexOf('id="cpBriefDrawer"'), 'карточка каналов внутри страницы');
+    const acts = html.slice(html.indexOf('class="gh-cp-bar-acts"'), html.indexOf('id="cpPauseBtn"'));
+    for (const id of ['cpBriefBtn', 'cpAgentBtn', 'cpChanBtn', 'cpCopyBtn']) {
+        assert.ok(acts.includes(`id="${id}"`), `#${id} не в ряду действий`);
+    }
+    assert.match(js, /params\.get\('channels'\) === '1'/, 'не читается ?channels=1');
+    assert.match(fnBody('openChannels'), /GH\.openDrawer\(el\.chanDrawer/);
+    assert.match(fnBody('openChannels'), /GH\.api\('GET', API \+ '\/channels'\)|loadChannels\(\)/);
+    assert.match(fnBody('loadChannels'), /GH\.api\('GET', API \+ '\/channels'\)/);
+    // Телефон: сетка в две колонки, длинная кнопка — своей строкой.
+    assert.match(css, /\.gh-cp-bar-acts > \.gh-cp-copybtn \{ grid-column: 1 \/ -1; \}/);
+});
+
+test('«Попросить агента»: три задания, Claude в новой вкладке с текстом, копия в буфер, подсказка про коннектор', () => {
+    const { cp } = loadReal();
+    const tasks = [...cp.agentTasks('2026-12-15')];
+    assert.deepEqual(tasks.map((t) => t.key), ['plan', 'week', 'reviews']);
+    assert.equal(tasks[0].label, 'План на январь 2027', 'следующий месяц после декабря — январь следующего года');
+    assert.deepEqual(tasks.slice(1).map((t) => t.label), ['Проверить неделю', 'Разобрать отзывы']);
+    const scenarios = ['content_plan_month', 'content_review_week', 'content_reviews_digest'];
+    tasks.forEach((t, i) => {
+        assert.ok(t.url.startsWith('https://claude.ai/new?q='), `${t.key}: не claude.ai/new?q=`);
+        const text = decodeURIComponent(t.url.slice('https://claude.ai/new?q='.length));
+        assert.equal(text, t.text, `${t.key}: в адресе не тот текст`);
+        assert.match(text, /kultura-content/, `${t.key}: не назван коннектор`);
+        assert.ok(text.includes(scenarios[i]), `${t.key}: не назван сценарий ${scenarios[i]}`);
+        assert.ok(text.length <= 300, `${t.key}: задание длиннее 300 знаков`);
+    });
+    assert.match(tasks[0].text, /month=2027-01/);
+    assert.match(tasks[0].text, /ничего не утверждай/);
+    const mcpContent = read('core/mcp/tools/content.py');
+    for (const s of scenarios) assert.match(mcpContent, new RegExp(`name='${s}'`), `нет сценария ${s} в MCP`);
+    const menu = fnBody('renderAgentMenu');
+    assert.match(menu, /target="_blank" ' \+\s*'rel="noopener noreferrer"/, 'задание открывается не в новой вкладке');
+    assert.match(menu, /MCP_ADMIN_URL/, 'нет ссылки на «Доступ агентов»');
+    assert.match(js, /var MCP_ADMIN_URL = '\/admin\/mcp';/);
+    assert.match(read('routes/mcp.py'), /\/admin\/mcp/, 'нет страницы /admin/mcp');
+    assert.match(fnBody('onAgentMenuClick'), /GH\.copyText\(task\.text\)/, 'задание не копируется в буфер');
+    assert.match(js, /el\.agentBtn\.addEventListener\('click', function \(\) \{ renderAgentMenu\(\); GH\.toggleMenu\(el\.agentMenu, el\.agentBtn\); \}\)/);
+});
+
+test('отправка: числа в пояснениях — зеркала констант сервера', () => {
+    const core = read('core/content_plan.py');
+    const grace = core.match(/DELIVERY_GRACE_MINUTES = (\d+)/)[1];
+    const stale = core.match(/SENDING_STALE_MINUTES = (\d+)/)[1];
+    assert.match(js, new RegExp(`var PUBLISH_GRACE_MIN = ${grace};`), 'GRACE разошёлся с ядром');
+    assert.match(js, new RegExp(`var SENDING_STALE_MIN = ${stale};`), 'порог зависшей отправки разошёлся с ядром');
+    assert.match(core, /PUBLISHED_BY_BOT = 'бот'/);
+    assert.match(js, /var AUTO_PUBLISHER = 'бот';/, 'подпись отправителя разошлась с ядром');
+    const publisher = read('core/content_publisher.py');
+    const rate = publisher.match(/^BOT_RATE_PER_SEC = (\d+)/m)[1];
+    assert.match(js, new RegExp(`var BOT_RATE_PER_SEC = ${rate};`), 'скорость рассылки разошлась с отправщиком');
+});
+
+// ------------------------------------------ права: выпуск наружу — только администратор
+
+// Утверждённое в подключённый канал, ошибка, пауза, готовый черновик — у каждого
+// своя кнопка «только администратор».
+function adminFixture(cp) {
+    const d = deliveryFixture({ enabled: true });
+    d.telegram.bolshoy = { connected: true, chat: '@kult_vo' };
+    d.bot = { connected: true, enabled: true, subscribers_total: 7 };
+    cp.state.data = { now: '2026-10-09T15:00', today: '2026-10-09', delivery: d, materials: [] };
+    const base = { channel: 'telegram', bar: 'bolshoy', date: '2026-10-09', time: '16:00' };
+    return {
+        approved: { ...base, id: 'pa', status: 'approved' },
+        failed: { ...base, id: 'pf', status: 'failed', failed_error: 'нет права' },
+        paused: { ...base, id: 'pp', status: 'paused' },
+        ready: { ...base, id: 'pr', status: 'draft', ready: true },
+        partial: { id: 'pb', channel: 'bot', bar: 'all', status: 'published', published_by: 'бот',
+                   delivery: { state: 'partial', stats: { total: 10, sent: 8, failed: 2, blocked: 0 } } },
+    };
+}
+// <button ... data-act="pl-<action>" ...> из разметки действий.
+const buttonOf = (htmlText, action) => (htmlText.match(new RegExp(`<button[^>]*data-act="pl-${action}"[^>]*>`)) || [''])[0];
+
+test('права: не администратору кнопки выпуска наружу выключены с подсказкой «Только администратор»', () => {
+    const { cp } = loadReal();
+    const f = adminFixture(cp);
+    const cases = [['approved', 'send_now'], ['failed', 'retry'], ['paused', 'resume'], ['ready', 'approve'],
+                   ['partial', 'retry_failed']];
+    for (const [key, action] of cases) {
+        const admin = buttonOf(cp.actionButtons({ id: 'm1' }, f[key]), action);
+        assert.ok(admin, `${action}: нет кнопки у администратора`);
+        assert.ok(!/aria-disabled/.test(admin), `${action}: у администратора кнопка выключена`);
+    }
+    cp.state.isAdmin = false;
+    for (const [key, action] of cases) {
+        const btn = buttonOf(cp.actionButtons({ id: 'm1' }, f[key]), action);
+        assert.match(btn, /aria-disabled="true"/, `${action}: не выключена не администратору`);
+        assert.match(btn, /data-admin="1"/, `${action}: нажатие не объясняется`);
+        assert.match(btn, /data-tip="Только администратор"/, `${action}: нет подсказки`);
+    }
+    // Пауза, отмена, отметка выхода — не выпуск наружу: остаются.
+    for (const action of ['pause', 'cancel', 'mark_published']) {
+        assert.ok(!/aria-disabled/.test(buttonOf(cp.actionButtons({ id: 'm1' }, f.approved), action)),
+            `${action} выключена не администратору`);
+    }
+    assert.match(js, /var ADMIN_ONLY_ACTIONS = \['approve', 'send_now', 'retry', 'retry_failed', 'resume'\];/);
+    // Флаг — из data-is-admin на body; нажатие на выключенную кнопку объясняет тост.
+    assert.match(js, /getAttribute\('data-is-admin'\)/, 'флаг прав не читается');
+    assert.match(fnBody('onDrawerClick'), /aria-disabled[\s\S]*?adminBlocked\(\)/);
+    assert.match(fnBody('renderChrome'), /el\.approveBtn\.setAttribute\('aria-disabled', 'true'\)/,
+        '«Утвердить готовые» не выключается не администратору');
+    assert.match(fnBody('renderPauseMenu'), /menuItem\('data-pause', 'resume\|all', 'Вся сеть', 'все бары и сеть', false, off\)/,
+        '«Снять паузу» в меню паузы не выключается не администратору');
+});
+
+test('права: не администратору ничего не уходит на сервер, пауза и отмена — можно', () => {
+    const { cp, calls, confirms, toasts } = loadReal();
+    const f = adminFixture(cp);
+    cp.state.isAdmin = false;
+    cp.state.chan = { data: { channels: { enabled: false, telegram: { bolshoy: { chat: '@kult_vo' } }, instagram: {}, bot: {} },
+                              token_source: 'taplist' }, busy: {}, tests: {} };
+    cp.sendNow({ id: 'm1' }, f.approved);
+    cp.placementAction({ id: 'm1' }, f.failed, 'retry');
+    cp.placementAction({ id: 'm1' }, f.paused, 'resume');
+    cp.placementAction({ id: 'm1' }, f.partial, 'retry_failed');
+    cp.approveOne({ id: 'm1' }, f.ready);
+    cp.openApprove();
+    cp.bulkPause('resume', 'all');
+    const box = { checked: true };
+    cp.setAutoSend(true, box);
+    cp.setBotSend(true, { checked: true });
+    cp.setBotSignup(true, { checked: true });
+    cp.checkChannel('bolshoy');
+    cp.testChannel('bolshoy');
+    assert.deepEqual(calls, [], `не администратор отправил запросы: ${JSON.stringify(calls)}`);
+    assert.equal(confirms.length, 0, 'не администратору показано подтверждение выпуска');
+    assert.equal(box.checked, false, 'выключатель остался включённым');
+    assert.ok(toasts.length >= 1 && toasts.every((t) => /только администратору/.test(t[0])), 'нет объяснения');
+    // Не выпуск наружу — работает как раньше.
+    cp.bulkPause('pause', 'all');
+    assert.equal(confirms.length, 1, 'пауза сети недоступна не администратору');
+    cp.placementAction({ id: 'm1' }, f.approved, 'pause');
+    assert.ok(calls.some((c) => /\/placements\/pa\/action/.test(c[1]) && c[2] && c[2].action === 'pause'),
+        'пауза размещения недоступна не администратору');
+    // Карточка каналов — только просмотр.
+    assert.match(cp.switchHtml('enabled', true, 'Отправлять автоматически'), /disabled/);
+    assert.match(cp.switchHtml('enabled', true, 'Отправлять автоматически'), /data-tip="Только администратор"/);
+    assert.match(fnBody('renderChannels'), /Только просмотр: каналы, выключатели и ' \+\s*'проверку канала меняет администратор\./);
+    assert.match(fnBody('chanBarHtml'), /chanRo\(\)/, 'адрес канала можно править не администратору');
+    cp.state.isAdmin = true;
+    assert.ok(!/disabled/.test(cp.switchHtml('enabled', true, 'Отправлять автоматически')));
+});
+
+test('права: устаревший флаг — 403 admin_required обрабатывается (тост, перечитать, кнопки выключаются)', () => {
+    const { cp, calls, toasts } = loadReal();
+    cp.state.month = '2026-10';
+    cp.state.data = { materials: [] };      // план уже загружен (как на странице)
+    assert.equal(cp.state.isAdmin, true);
+    cp.reportError({ status: 403, code: 'admin_required', message: 'Только администратор может утверждать' });
+    assert.equal(cp.state.isAdmin, false, 'флаг прав не сброшен после 403');
+    assert.deepEqual(toasts.map((t) => t[0]), ['Только администратор может утверждать']);
+    assert.equal(toasts[0][1], 'warning');
+    assert.ok(calls.some((c) => c[0] === 'GET' && /^\/api\/content-plan\?month=2026-10/.test(c[1])), 'план не перечитан');
+    assert.ok(calls.some((c) => c[0] === 'ATTENTION'), 'полоса внимания не перечитана');
+    // Прочие 403 (не «только администратор») — обычная ошибка.
+    cp.reportError({ status: 403, code: null, message: 'Недостаточно прав' });
+    assert.equal(toasts[1][1], 'danger');
+    assert.match(fnBody('reportChanError'), /if \(isAdminDenied\(err\)\) \{ adminDenied\(err\); return; \}/);
+    assert.match(fnBody('chanSave'), /isAdminDenied\(err\)/, 'поле канала после 403 не возвращается');
+});
+
+test('«Отправить сейчас» — в очередь: уйдёт в течение минуты; карточка показывает «В очереди»', () => {
+    const { cp, calls, confirms } = loadReal();
+    const f = adminFixture(cp);
+    cp.sendNow({ id: 'm1' }, f.approved);
+    assert.match(confirms[0].text, /встанет в очередь и уйдёт в канал @kult_vo в течение минуты/);
+    assert.ok(!/сразу/.test(confirms[0].text), 'подтверждение обещает мгновенную отправку');
+    assert.equal(calls.filter((c) => /^\/api\/content-plan\/publish-now/.test(c[1])).length, 1);
+    assert.match(js, /var QUEUED_TEXT = 'Поставлено в очередь: уйдёт в течение минуты';/);
+    assert.match(fnBody('sendNow'), /if \(res\.queued\) GH\.toast\(QUEUED_TEXT/, 'тост ответа — не «в очереди»');
+    const queued = cp.deliveryHtml({}, { ...f.approved, delivery: { state: 'queued', retry_at: '2026-10-09T14:59' } });
+    assert.match(queued, /В очереди на отправку: уйдёт в течение минуты/);
+});
+
+test('идущая рассылка: пауза и отмена остановят её после текущей пачки (с подтверждением)', () => {
+    const { cp, calls, confirms } = loadReal();
+    adminFixture(cp);
+    const sending = { id: 'pm', channel: 'bot', bar: 'all', status: 'approved', date: '2026-10-09', time: '14:58',
+                      audience_info: { segment: 'bot_all', name: 'Все подписчики бота', size: 7 },
+                      delivery: { state: 'sending', started_at: '2026-10-09T14:58' } };
+    assert.deepEqual([...cp.actionList(sending)], ['pause', 'cancel'], 'у идущей рассылки не «пауза» и «отмена»');
+    assert.deepEqual([...cp.actionList({ ...sending, channel: 'telegram' })], [], 'у отправляемого поста есть действия');
+    cp.placementAction({ id: 'm1' }, sending, 'pause');
+    assert.match(confirms[0].text, /Рассылка остановится после текущей пачки; кому уже ушло — останется\./);
+    cp.placementAction({ id: 'm1' }, sending, 'cancel');
+    assert.match(confirms[1].text, /Рассылка остановится после текущей пачки; кому уже ушло — останется\./);
+    assert.equal(confirms[1].danger, true);
+    const acts = calls.filter((c) => /\/placements\/pm\/action/.test(c[1])).map((c) => c[2].action);
+    assert.deepEqual(acts, ['pause', 'cancel']);
+    // Обычная пауза (рассылка не идёт) — без подтверждения, как раньше.
+    cp.placementAction({ id: 'm1' }, { ...sending, id: 'pn', delivery: null }, 'pause');
+    assert.equal(confirms.length, 2);
+});
+
+test('счётчик длины считает как сервер: Telegram и бот — UTF-16 (эмодзи = 2), Instagram — символы', () => {
+    const { cp } = loadPage();
+    const smile = String.fromCodePoint(0x1F600);
+    assert.equal(cp.unitsFor('telegram'), 'utf16');
+    assert.equal(cp.unitsFor('bot'), 'utf16');
+    assert.equal(cp.unitsFor('instagram'), 'chars');
+    assert.equal(cp.textLen('ab' + smile, 'utf16'), 4, 'эмодзи в Telegram — 2 единицы');
+    assert.equal(cp.textLen('ab' + smile, 'chars'), 3, 'эмодзи в Instagram — 1 символ');
+    // счётчик несёт единицы в data-units, а обновление при вводе их читает
+    assert.match(fnBody('counterHtml'), /data-units=/);
+    assert.match(fnBody('updateCounter'), /data-units/);
+    // сервер считает так же (core/content_plan.text_units)
+    const core = read('core/content_plan.py');
+    assert.match(core, /def text_units\(/, 'нет серверной функции text_units');
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

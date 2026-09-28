@@ -18,14 +18,20 @@ core/monthly_report.py — витрина данных для вкладки «�
   revenue_card_split() (core/dashboard_analysis.py);
 - DraftAnalysis.get_style_summary() (core/draft_analysis.py);
 - OlapReports.get_new_guests_count()/get_rfm_report() (лояльность, ТОП-гости).
+
+«Сегодня» (какой месяц текущий, какой год по умолчанию) и время пересчёта
+(_refreshed_at, подпись «данные на …») — по Москве через core/msk_time с
+2026-09-28: прод-контейнер живёт в UTC, и с 00:00 до 03:00 МСК наивный
+datetime.now() отставал на сутки (только что закрытый месяц считался текущим,
+в новогоднюю ночь — прошлый год), а подпись времени отставала на 3 часа.
 """
 import os
 import json
 import time
-from datetime import datetime
 
 import pandas as pd
 
+from core import msk_time
 from core.olap_reports import OlapReports
 from core.dashboard_analysis import DashboardMetrics
 from core.draft_analysis import DraftAnalysis
@@ -156,7 +162,7 @@ def _compute_months(block, venue_key, year, compute_fn, force=False):
     - completed (нет в кэше) или force -> считаем через OLAP и пишем (заморозка).
     """
     bar_name = KEY_TO_IIKO_NAME.get(venue_key)
-    today = datetime.now().date()
+    today = msk_time.today()   # какой месяц текущий — по московской дате
     cache = _read_cache(block, venue_key, year)
     dirty = False
     olap = None
@@ -189,7 +195,9 @@ def _compute_months(block, venue_key, year, compute_fn, force=False):
             olap.disconnect()
 
     if dirty:
-        cache[META_KEY] = datetime.now().isoformat(timespec='seconds')
+        # Время по Москве со смещением (+03:00): страница печатает часы и минуты из
+        # строки как есть, и наивное UTC-время показывало «данные на» на 3 часа раньше.
+        cache[META_KEY] = msk_time.now().isoformat(timespec='seconds')
         _write_cache(block, venue_key, year, cache)
     return dirty
 
@@ -349,7 +357,7 @@ def get_core(venue_key, years):
     for year in years:
         months = _serve_months('core', venue_key, year, _compute_core)
         data[str(year)] = _to_series(months, CORE_KEYS)
-    primary = years[0] if years else datetime.now().year
+    primary = years[0] if years else msk_time.today().year
     return {
         'venue': venue_key,
         'years': years,
@@ -444,7 +452,7 @@ def refresh_all(venues=None, years=None, force=False):
     """
     venues = venues or PRECOMPUTE_VENUES
     if years is None:
-        cur = datetime.now().year
+        cur = msk_time.today().year
         years = [cur - i for i in range(BACKFILL_YEARS)]
 
     print(f"[MONTHLY] refresh_all: venues={venues} years={years} force={force}")

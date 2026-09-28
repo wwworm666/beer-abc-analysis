@@ -284,6 +284,225 @@ def test_sync_with_notifier_and_failing_notifier():
     assert state['status'] == 'ok' and 'telegram down' in state['notify']['error']
 
 
+# ----------------------------------------------------------------- отзыв из бота — сразу
+
+NOW = '2026-09-28T10:05'
+ON = dict(TOKEN, YANDEX_REVIEWS_NOTIFY=None)
+
+
+def _bot(store, ext='tg:555:42', rating=2, text='Долго ждали <b>', telegram='@anna'):
+    """Отзыв из бота, как его сохраняет core/taplist_polling (origin import, external_id tg:…)."""
+    return store.add({'source': 'bot', 'bar': 'ligovskiy', 'rating': rating, 'text': text,
+                      'created_at': '2026-09-28T10:00', 'author': 'Анна',
+                      'guest': {'telegram': telegram, 'phone': ''}, 'external_id': ext},
+                     {'login': 'Бот @kult_taplist_bot'}, origin='import')
+
+
+def _now_kwargs(fake):
+    return dict(send=fake.send, recipients=fake.recipients, queue=fake.queue)
+
+
+def test_bot_review_to_staff_bot_has_no_personal_data():
+    """Бот персонала открыт для подписки: об отзыве из бота — только бар, оценка, дата,
+    ссылка (проверка 2026-09-28, п. 2). Отзыв Яндекса — как раньше (он публичный)."""
+    s = _store(datetime(2026, 9, 28, 10, 5))
+    r = _bot(s, text='Бармен Вася хамил, мой номер 8 921 000 00 00', telegram='@anna')
+    s.update(r['id'], {'guest': {'telegram': '@anna', 'phone': '+79210000000'}}, {'login': 'owner'})
+    r = s.get(r['id'])
+    answered = s.reply(r['id'], 'Анна, простите нас', {'login': 'owner'})
+    for review in (r, answered):
+        t = rn.format_review(review)
+        assert t == '\n'.join(['<b>Новый отзыв — низкая оценка · Лиговский</b>', 'Бот · оценка 2 из 5',
+                               '28 сентября 2026, 10:00', '', rn.BOT_PRIVATE_NOTE, rn.BOT_REVIEWS_URL])
+        for private in ('Вася', '921', 'Анна', '@anna', '+7921', 'простите', 'Яндекс'):
+            assert private not in t, private
+    latest = rn.format_latest([r])
+    assert '<b>Лиговский</b> · из бота · 2 из 5 · 28 сентября 2026, 10:00' in latest
+    assert 'Текст и контакты — на сайте.' in latest
+    for private in ('Вася', '921', 'Анна', '@anna'):
+        assert private not in latest, private
+    overflow = rn.format_bot_overflow(25)
+    assert 'Новых отзывов из бота: 25' in overflow and rn.BOT_REVIEWS_URL in overflow
+    # Отзыв Яндекса — полностью, как раньше.
+    y = rn.format_review({'bar': 'bolshoy', 'source': 'yandex', 'rating': 5, 'author': 'Иван',
+                          'created_at': '2026-09-27T18:30', 'text': 'Отлично', 'status': 'new'})
+    assert 'Яндекс Карты · оценка 5 из 5 · Иван' in y and '«Отлично»' in y
+    assert 'из бота' not in rn.format_latest([_rv(1, '2026-09-20T12:00')])
+
+
+def test_notify_review_now_sends_once_and_daily_sync_skips_it():
+    s = _store(datetime(2026, 9, 28, 10, 5))
+    r = _bot(s)
+    fake = Fake()
+    with _Env(**ON):
+        res = rn.notify_review_now(s, r['id'], NOW, **_now_kwargs(fake))
+        assert res == {'review_id': r['id'], 'sent_messages': 1, 'queued_chats': 0, 'marked': True,
+                       'skipped': None}
+        assert len(fake.sent) == 1 and fake.sent[0][0] == ['1', '2'] and 'Бот · оценка 2 из 5' in fake.sent[0][1]
+        assert s.get(r['id'])['tg_notified_at'] == NOW
+        again = rn.notify_review_now(s, r['id'], '2026-09-28T10:06', **_now_kwargs(fake))
+        assert again['skipped'] == 'already_sent' and len(fake.sent) == 1
+        daily = fake.run(s, {'started_at': '2026-09-28T00:00'}, '2026-09-29T08:31')
+        assert daily['candidates'] == 0 and len(fake.sent) == 1        # утренняя сверка не повторяет
+
+
+def test_notify_review_now_switches_and_failures():
+    s = _store(datetime(2026, 9, 28, 10, 5))
+    r = _bot(s)
+    fake = Fake()
+    with _Env(**dict(TOKEN, YANDEX_REVIEWS_NOTIFY='0')):
+        assert rn.notify_review_now(s, r['id'], NOW, **_now_kwargs(fake))['skipped'] == 'disabled'
+    with _Env(TELEGRAM_OPEN_CHECK_BOT_TOKEN=None, YANDEX_REVIEWS_NOTIFY=None):
+        assert rn.notify_review_now(s, r['id'], NOW, **_now_kwargs(fake))['skipped'] == 'no_token'
+    with _Env(**ON):
+        assert rn.notify_review_now(s, 'r_nope', NOW, **_now_kwargs(fake))['skipped'] == 'not_found'
+        manual = s.add({'source': 'bot', 'bar': 'bolshoy', 'rating': 5, 'text': 'руками',
+                        'created_at': '2026-09-28T09:00'}, {'login': 'owner'})
+        assert rn.notify_review_now(s, manual['id'], NOW, **_now_kwargs(fake))['skipped'] == 'not_import'
+        nobody = Fake(chats=())
+        assert rn.notify_review_now(s, r['id'], NOW, **_now_kwargs(nobody))['skipped'] == 'no_recipients'
+    assert fake.sent == [] and not s.get(r['id'])['tg_notified_at']
+    # DRY-RUN: только первому, с пометкой; не дошло — не отмечен (подберёт сверка).
+    failing = Fake(fail={'1', '2'})
+    with _Env(TELEGRAM_OPEN_CHECK_BOT_TOKEN='x', OPEN_CHECK_DRY_RUN='1', YANDEX_REVIEWS_NOTIFY=None):
+        res = rn.notify_review_now(s, r['id'], NOW, **_now_kwargs(failing))
+    assert failing.sent[0][0] == ['1'] and failing.sent[0][1].startswith('[DRY-RUN] ') and not res['marked']
+    assert failing.queued == [] and not s.get(r['id'])['tg_notified_at']
+    # Не дошло одному — очередь досылки, отзыв отмечен.
+    partial = Fake(fail={'2'})
+    with _Env(**ON):
+        res = rn.notify_review_now(s, r['id'], NOW, **_now_kwargs(partial))
+    assert res['marked'] and res['queued_chats'] == 1 and partial.queued == [('2026-09-28', ['2'], '10:05')]
+
+
+def test_daily_sync_and_immediate_notify_do_not_double_send():
+    import threading
+    import time
+    s = _store(datetime(2026, 9, 28, 10, 5))
+    r = _bot(s)
+    gate, entered = threading.Event(), threading.Event()
+    slow_sent, fast_sent, out = [], [], {}
+
+    def slow_send(chats, text):
+        slow_sent.append(text)
+        entered.set()
+        gate.wait(5)
+        return {'sent': len(chats), 'failed': []}
+
+    def fast_send(chats, text):
+        fast_sent.append(text)
+        return {'sent': len(chats), 'failed': []}
+
+    def chats():
+        return ['1']
+
+    def no_queue(*args):
+        return None
+
+    with _Env(**ON):
+        daily = threading.Thread(target=lambda: out.update(daily=rn.notify_new_reviews(
+            s, {'started_at': '2026-09-28T00:00'}, '2026-09-28T10:06', send=slow_send, recipients=chats,
+            queue=no_queue)))
+        daily.start()
+        assert entered.wait(5), 'сверка не начала отправку'
+        now = threading.Thread(target=lambda: out.update(now=rn.notify_review_now(
+            s, r['id'], '2026-09-28T10:06', send=fast_send, recipients=chats, queue=no_queue)))
+        now.start()
+        time.sleep(0.3)
+        assert now.is_alive(), 'немедленная отправка не ждёт блокировку рассылки'
+        gate.set()
+        daily.join(5)
+        now.join(5)
+    assert len(slow_sent) == 1 and fast_sent == [] and out['now']['skipped'] == 'already_sent'
+    assert out['daily']['sent_messages'] == 1
+
+
+def test_background_notify_uses_shared_store():
+    import core.guest_reviews as gr
+    calls = []
+    saved = (rn.notify_review_now, gr.get_review_store)
+    rn.notify_review_now = lambda store, review_id, *a, **k: calls.append((store, review_id)) or {'skipped': None}
+    gr.get_review_store = lambda *a, **k: 'STORE'
+    try:
+        rn.notify_review_in_background('r_1').join(5)
+    finally:
+        rn.notify_review_now, gr.get_review_store = saved
+    assert calls == [('STORE', 'r_1')]
+
+
+def test_bot_notifications_capped_per_hour():
+    """П. 9а: не больше NOTIFY_BOT_PER_HOUR уведомлений об отзывах из бота в час; сверх —
+    немедленная отправка пропускается (rate_limited), подбор шлёт остаток одной сводкой."""
+    s = _store(datetime(2026, 9, 28, 10, 5))
+    cap = rn.NOTIFY_BOT_PER_HOUR
+    ids = [_bot(s, ext='tg:%d:1' % (1000 + i))['id'] for i in range(cap + 5)]
+    fake = Fake()
+    with _Env(**ON):
+        results = [rn.notify_review_now(s, rid, '2026-09-28T10:10', **_now_kwargs(fake)) for rid in ids]
+        assert [r['skipped'] for r in results[:cap]] == [None] * cap
+        assert [r['skipped'] for r in results[cap:]] == ['rate_limited'] * 5
+        assert len(fake.sent) == cap
+        # Подбор в тот же час: потолок исчерпан — остаток одной сводкой, отмечены все.
+        res = rn.notify_pending_bot_reviews(s, '2026-09-28T10:20', **_now_kwargs(fake))
+        assert res['pending'] == 5 and res['overflow'] == 5 and res['marked'] == 5
+        assert len(fake.sent) == cap + 1 and 'Новых отзывов из бота: 5' in fake.sent[-1][1]
+        assert all(r['tg_notified_at'] for r in s.all())
+        # Через час потолок снова свободен.
+        later = _bot(s, ext='tg:9999:1')
+        assert rn.notify_review_now(s, later['id'], '2026-09-28T11:30', **_now_kwargs(fake))['marked']
+
+
+def test_pending_bot_reviews_swept():
+    """П. 7 и проба p8: отзыв из бота, о котором сразу не сообщили (перезапуск, не было
+    подписчиков), подбирается без сверки Яндекса — отдельным сообщением и один раз."""
+    s = _store(datetime(2026, 9, 28, 10, 5))
+    missed = _bot(s, ext='tg:555:42')
+    old = _bot(s, ext='tg:555:43')
+    raw = s._read(use_cache=False)
+    raw[old['id']]['added_at'] = '2026-09-20T10:00'                 # старше 72 часов — не подбирается
+    from core.json_store import atomic_write_json
+    atomic_write_json(s.data_file, {'version': 1, 'reviews': raw})
+    yandex = s.upsert_imported('yandex', 'bolshoy', [_item('ya1')], history_cutoff='2026-08-29',
+                               complete=True, by=BY)
+    assert yandex['added_new'] == 1
+    fake = Fake()
+    with _Env(**ON):
+        res = rn.notify_pending_bot_reviews(s, '2026-09-28T10:15', **_now_kwargs(fake))
+        assert res == {'pending': 1, 'sent_messages': 1, 'queued_chats': 0, 'marked': 1, 'overflow': 0,
+                       'skipped': None}
+        assert len(fake.sent) == 1 and 'Бот · оценка 2 из 5' in fake.sent[0][1]
+        by_id = {r['id']: r for r in s.all()}
+        assert by_id[missed['id']]['tg_notified_at'] == '2026-09-28T10:15'
+        assert not by_id[old['id']]['tg_notified_at']
+        assert not [r for r in s.all() if r['source'] == 'yandex' and r['tg_notified_at']]   # Яндекс — сверка
+        again = rn.notify_pending_bot_reviews(s, '2026-09-28T10:25', **_now_kwargs(fake))
+        assert again['pending'] == 0 and len(fake.sent) == 1
+    with _Env(**dict(TOKEN, YANDEX_REVIEWS_NOTIFY='0')):
+        assert rn.notify_pending_bot_reviews(s, '2026-09-28T10:30', **_now_kwargs(fake))['skipped'] == 'disabled'
+    with _Env(TELEGRAM_OPEN_CHECK_BOT_TOKEN=None, YANDEX_REVIEWS_NOTIFY=None):
+        assert rn.notify_pending_bot_reviews(s, '2026-09-28T10:30', **_now_kwargs(fake))['skipped'] == 'no_token'
+
+
+def test_sweep_in_background_does_not_overlap():
+    """Подбор из цикла опроса — в фоне; пока прошлый идёт, новый не запускается."""
+    import threading
+    import core.guest_reviews as gr
+    gate, calls = threading.Event(), []
+    saved = (rn.notify_pending_bot_reviews, gr.get_review_store)
+    rn.notify_pending_bot_reviews = lambda store, *a, **k: calls.append(store) or gate.wait(5) or {'pending': 0}
+    gr.get_review_store = lambda *a, **k: 'STORE'
+    try:
+        first = rn.notify_pending_in_background()
+        assert first is not None and rn.notify_pending_in_background() is None
+        gate.set()
+        first.join(5)
+        third = rn.notify_pending_in_background()
+        third.join(5)
+    finally:
+        rn.notify_pending_bot_reviews, gr.get_review_store = saved
+    assert calls == ['STORE', 'STORE']
+
+
 if __name__ == '__main__':
     import inspect
     failed = 0

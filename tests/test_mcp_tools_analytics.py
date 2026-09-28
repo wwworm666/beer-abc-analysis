@@ -54,6 +54,8 @@ ROUTE_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 # Зафиксированные пометки (решение по коду маршрутов, см. докстринг analytics.py).
 EXPECTED_HEAVY = {
     'analytics_dashboard', 'analytics_dashboard_card_details', 'analytics_revenue_metrics',
+    # С 2026-09-28 сравнение периодов считает по-настоящему: два расчёта дашборда (iiko).
+    'analytics_compare_periods',
     'analytics_widget_revenue', 'analytics_monthly_report', 'analytics_monthly_loyalty',
     'analytics_monthly_draft_liters', 'analytics_monthly_top_guests', 'analytics_export_excel',
     'analytics_export_pdf', 'analytics_packaging', 'analytics_kitchen', 'analytics_draft_kegs',
@@ -93,6 +95,8 @@ SAMPLE_ARGS = {
     'analytics_revenue_metrics': {'bar': '', 'date_from': '2026-09-01', 'date_to': '2026-09-26',
                                   'period_from': '2026-09-01', 'period_to': '2026-09-30'},
     'analytics_widget_revenue': {},
+    'analytics_compare_periods': {'venue_key': 'all', 'period1_key': '2026-09-15_2026-09-21',
+                                  'period2_key': '2026-09-08_2026-09-14'},
     'analytics_monthly_report': {'venue': 'bolshoy', 'years': '2026', 'force': '1'},
     'analytics_export_excel': {'bar': 'all', 'date_from': '2026-09-01', 'date_to': '2026-09-07'},
     'analytics_export_pdf': {'bar': 'varshavskaya', 'date_from': '2026-09-01',
@@ -161,11 +165,26 @@ BAD_ARGS = [
      'агрегат all не редактируется'),
     ('analytics_comment_save', dict(SAMPLE_ARGS['analytics_comment_save'],
                                     period_key='bolshoy_2026-09'),
-     'месячный ключ плана вписал бы комментарий внутрь боевого плана'),
+     'ключ плана вместо ключа периода: маршрут записи ответит 400'),
     ('analytics_comment_save', dict(SAMPLE_ARGS['analytics_comment_save'], period_key='2026-09'),
      'ключ комментария — только период YYYY-MM-DD_YYYY-MM-DD'),
+    ('analytics_comment_save', dict(SAMPLE_ARGS['analytics_comment_save'], venue_key='Лиговский'),
+     'русское имя бара вместо ключа заведения: маршрут ответит 400'),
+    ('analytics_compare_periods', dict(SAMPLE_ARGS['analytics_compare_periods'],
+                                       period1_key='2026-09'),
+     'ключ периода — только YYYY-MM-DD_YYYY-MM-DD'),
+    ('analytics_compare_periods', dict(SAMPLE_ARGS['analytics_compare_periods'],
+                                       venue_key='Лиговский'),
+     'русское имя бара: маршрут ответит 400'),
+    ('analytics_compare_periods', {'venue_key': 'all', 'period1_key': '2026-09-15_2026-09-21'},
+     'нужны оба периода'),
     ('analytics_guests_rfm', {'store': 'all'}, 'точка RFM — физический бар, сеть = без store'),
     ('analytics_guests_rfm', {'period_type': 'day'}, 'такого типа периода нет (молча был бы месяц)'),
+    ('analytics_guests_rfm', {'segment': 'VIP'}, 'такого сегмента нет: маршрут ответит 400'),
+    ('analytics_guests_rfm', {'segment': 'at_risk'}, 'сегменты — прописными, как в ответе'),
+    ('analytics_guests_rfm', {'limit': 0}, 'limit — от 1'),
+    ('analytics_guests_rfm', {'limit': 5000}, 'больше 200 строк мост всё равно урежет'),
+    ('analytics_guests_rfm', {'q': '7'}, 'поиск по одной цифре совпал бы с половиной базы'),
     ('analytics_explorer_pivot', {'date_from': '2026-09-01', 'date_to': '2026-09-07'},
      'venue обязателен'),
     ('analytics_explorer_pivot', {'date_from': '2026-09-01', 'date_to': '2026-09-07',
@@ -563,6 +582,22 @@ def test_constants_match_code():
     assert '/'.join(str(x) for x in guest_analytics.RFM_R_THRESHOLDS) in rfm
     assert '/'.join(str(x) for x in guest_analytics.RFM_F_THRESHOLDS) in rfm
     assert str(guest_analytics.RFM_WINDOW_DAYS) + ' дней' in rfm
+    # Фильтр списка RFM (2026-09-28): сегменты и минимальная длина поиска — из кода.
+    assert analytics.RFM_SEGMENTS == tuple(guest_analytics.RFM_SEGMENTS)
+    assert all(name in rfm for name in guest_analytics.RFM_SEGMENTS)
+    assert _prop('analytics_guests_rfm', 'q')['minLength'] == guest_analytics.RFM_QUERY_MIN_LEN
+    assert _prop('analytics_guests_rfm', 'limit')['maximum'] == analytics.RFM_LIMIT_MAX
+    # Предел текста комментария: схема и описание = COMMENT_MAX_LEN хранилища.
+    from core import plans_manager
+    assert _prop('analytics_comment_save', 'comment')['maxLength'] == plans_manager.COMMENT_MAX_LEN
+    assert '{:,}'.format(plans_manager.COMMENT_MAX_LEN).replace(',', ' ') in \
+        texts['analytics_comment_save']
+    # Сравнение периодов: те же 20 метрик, что строки выгрузки и вкладка «Сравнение».
+    from core import comparison_calculator, export_manager
+    assert '20 метрикам' in texts['analytics_compare_periods']
+    assert len(comparison_calculator.COMPARISON_METRICS) == 20
+    assert {key for key, _l, _u in comparison_calculator.COMPARISON_METRICS} == \
+        {key for key, _l, _u in export_manager.DASHBOARD_EXPORT_METRICS}
     activity = [(lo, hi) for _name, lo, hi in guest_analytics.ACTIVITY_SEGMENTS]
     assert activity == [(0, 30), (31, 90), (91, 180), (181, None)]
     assert 'active ≤ 30' in texts['analytics_guests_activity']

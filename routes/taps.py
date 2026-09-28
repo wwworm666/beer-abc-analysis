@@ -389,12 +389,55 @@ def fetch_price_sources():
     return fetch()
 
 
+# Порция, цену которой компактный таплист выносит отдельным полем: 0,5 л — основная
+# порция разливного в меню и в фидах Яндекса. Строка — как portion_liters у servings
+# (core/taplist_pricing.number: Decimal без хвостовых нулей).
+COMPACT_MAIN_PORTION = '0.5'
+
+
+def compact_tap_row(row):
+    """Кран таплиста V2 в компактном виде для ИИ-агентов (?compact=1).
+
+    Полная строка — это ещё описание, фото, ссылки Untappd и подробности каждой порции
+    (id блюда, техкарта, источник цены): по бару 58–85 тыс. знаков, а мост MCP режет
+    ответ на 60 тыс. Здесь только то, что нужно для поста и заказа:
+      bar, bar_id, tap_number, beer_name, brewery, style, abv (%), ibu,
+      mapped / mapping_status (связь с Untappd проверена или почему нет),
+      price_status (verified / partial / unavailable — как в полном ответе),
+      prices — все продаваемые порции [{l: литры, rub: цена}] в порядке полного ответа,
+      price_0_5 — цена порции 0,5 л строкой «350.00», если у 0,5 л ровно одна цена;
+                  None — порции 0,5 л нет или у неё несколько разных цен (тогда
+                  варианты видны в prices: выбирать за владельца не будем).
+    Числа и строки те же, что в полном ответе, ничего не пересчитывается.
+    """
+    servings = row.get('servings') or []
+    main = {s.get('price_rub') for s in servings if s.get('portion_liters') == COMPACT_MAIN_PORTION}
+    return {
+        'bar': row.get('bar'), 'bar_id': row.get('bar_id'), 'tap_number': row.get('tap_number'),
+        'beer_name': row.get('beer_name'), 'brewery': row.get('brewery'), 'style': row.get('style'),
+        'abv': row.get('abv'), 'ibu': row.get('ibu'),
+        'mapped': row.get('mapped'), 'mapping_status': row.get('mapping_status'),
+        'price_status': row.get('price_status'),
+        'price_0_5': next(iter(main)) if len(main) == 1 else None,
+        'prices': [{'l': s.get('portion_liters'), 'rub': s.get('price_rub')} for s in servings],
+    }
+
+
 @taps_bp.route('/api/taps/taplist-full', methods=['GET'])
 def get_taplist_full():
+    """Проверенный таплист V2. ?compact=1 — краткий вид кранов для агентов (compact_tap_row);
+    без него (или compact=0) — полный ответ, как на странице. Другое значение — 400."""
+    compact = request.args.get('compact', '0')
+    if compact not in ('0', '1'):
+        return jsonify({'success': False, 'error': 'compact — 1 (кратко) или 0 (полностью)'}), 400
     try:
         rows = reviewed_taplist()
-        return jsonify({'success': True, 'count': len(rows),
-                        'mapped_count': sum(row['mapped'] for row in rows), 'taplist': rows})
+        payload = {'success': True, 'count': len(rows),
+                   'mapped_count': sum(row['mapped'] for row in rows), 'taplist': rows}
+        if compact == '1':
+            payload['compact'] = True
+            payload['taplist'] = [compact_tap_row(row) for row in rows]
+        return jsonify(payload)
     except PriceUnavailable:
         return jsonify({'success': False, 'error': 'Не удалось получить актуальный прайс iiko. Повторите выгрузку.'}), 503
     except KeyError:
@@ -547,11 +590,52 @@ def get_bar_stats(bar_id):
         print(f"[ERROR] /api/taps/{bar_id}/stats: {type(e).__name__}: {e}")
         return jsonify({'error': 'Не удалось посчитать краны'}), 503
 
+# Поиск в списке кег для агентов (?q=, ?limit=). Предел limit — 1000: кег в справочнике
+# сотни, больше за раз агенту не нужно (весь список — без limit).
+LIST_LIMIT_MAX = 1000
+BEER_SEARCH_FIELDS = ('name', 'beer_name', 'brewery', 'style', 'num', 'id')
+
+
+def _search_key(value):
+    """Строка для поиска без учёта регистра; «ё» = «е» (так пишут и так ищут)."""
+    return str(value or '').casefold().replace('ё', 'е')
+
+
+def search_args():
+    """?q= и ?limit= списка -> (подстрока поиска или None, число или None).
+
+    q — подстрока без учёта регистра и «ё»; пустая — поиска нет. limit — целое
+    1..LIST_LIMIT_MAX, иначе ValueError с текстом для ответа 400 (молча подменять
+    кривой предел нельзя: агент решил бы, что позиций меньше, чем есть).
+    """
+    query = _search_key((request.args.get('q') or '').strip())
+    raw = (request.args.get('limit') or '').strip()
+    limit = None
+    if raw:
+        try:
+            limit = int(raw)
+        except ValueError:
+            limit = 0
+        if not 1 <= limit <= LIST_LIMIT_MAX:
+            raise ValueError(f'limit — целое число от 1 до {LIST_LIMIT_MAX}')
+    return query or None, limit
+
+
 @taps_bp.route('/api/beers/draft', methods=['GET'])
 def get_draft_beers():
     """Кеги для выбора на странице кранов. У проверенных — название сорта и
     пивоварня из карточки Untappd, чтобы искать можно было и по «Festhaus»,
-    и по «ФестХаус»."""
+    и по «ФестХаус».
+
+    Для агентов: ?q= — подстрока в name, beer_name, brewery, style, num или id (без
+    учёта регистра и «ё»), ?limit= — не больше N записей (1..1000) после поиска, в
+    алфавитном порядке. С любым из них ответ — {beers, total (всего кег), matched
+    (подошло до limit), q, limit}; без них — прежний {beers} (страница /taps).
+    """
+    try:
+        query, limit = search_args()
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
     try:
         registry = load_registry()
         catalog = product_catalog(registry)
@@ -563,7 +647,13 @@ def get_draft_beers():
                           'beer_name': details['beer_name'] if mapped else None,
                           'brewery': details['brewery'] if mapped else None,
                           'style': details['style'] if mapped else None})
-        return jsonify({'beers': sorted(beers, key=lambda row: (row['name'], row['id']))})
+        beers.sort(key=lambda row: (row['name'], row['id']))
+        if query is None and limit is None:
+            return jsonify({'beers': beers})
+        matched = beers if query is None else [
+            b for b in beers if query in _search_key(' '.join(str(b.get(f) or '') for f in BEER_SEARCH_FIELDS))]
+        return jsonify({'beers': matched[:limit] if limit else matched, 'total': len(beers),
+                        'matched': len(matched), 'q': query, 'limit': limit})
     except Exception as error:
         print(f'[ERROR] Draft catalog: {error}')
         return jsonify({'error': 'Не удалось загрузить список кег'}), 503

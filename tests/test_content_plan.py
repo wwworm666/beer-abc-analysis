@@ -63,10 +63,14 @@ import core.content_plan as cp  # noqa: E402
 import routes.content_plan as rcp  # noqa: E402
 from routes.content_plan import content_plan_bp  # noqa: E402
 
-USER = {'login': 'anna', 'display_name': 'Анна'}
+# Владелец — администратор: утверждение и снятие паузы с 2026-09-28 только для
+# администратора (routes/content_plan.py, admin_required); права бармена —
+# tests/test_content_publisher.py::test_admin_only_routes.
+USER = {'login': 'anna', 'display_name': 'Анна', 'is_admin': True}
 # Тот же владелец, но через MCP: так его видит маршрут, когда мост
 # core/mcp/bridge.py исполняет инструмент агента (поле login прежнее).
-AGENT = {'login': 'anna', 'display_name': 'Анна', 'via_mcp': True, 'mcp_client': 'Claude', 'mcp_token_id': 't1'}
+AGENT = {'login': 'anna', 'display_name': 'Анна', 'is_admin': True, 'via_mcp': True, 'mcp_client': 'Claude',
+         'mcp_token_id': 't1'}
 NOW = datetime(2026, 10, 7, 12, 0)      # среда
 NOW_STR = '2026-10-07T12:00'
 MONTH = '2026-10'

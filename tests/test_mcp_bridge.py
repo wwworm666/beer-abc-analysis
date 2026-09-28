@@ -209,6 +209,7 @@ class Env:
         core_reviews._store = None
         core_orders._store = None
         stock_snapshot.get_stocks_nomenclature = lambda *a, **k: None     # справочник без iiko
+        bridge.response_cache.clear()     # кэш тяжёлых чтений общий на процесс: тесты не делят его
         self.mgr = am.AuthManager(db_path=os.path.join(self.tmp, 'auth.db'))
         am._auth_manager = self.mgr
         db.set_db_path(os.path.join(self.tmp, 'mcp.db'))
@@ -231,6 +232,7 @@ class Env:
         core_orders._store = self.saved['orders']
         stock_snapshot.get_stocks_nomenclature = self.saved['nomenclature']
         bridge.HEAVY_WAIT_S = self.saved['heavy_wait']
+        bridge.response_cache.clear()
         db.set_db_path(None)
         shutil.rmtree(self.tmp, ignore_errors=True)
         return False
@@ -631,7 +633,8 @@ def test_schema_check_before_execution():
 
 def test_heavy_semaphore_times_out():
     with Env() as env:
-        tool = spec('content_t_heavy', '/api/t/echo', heavy=True)
+        # no_cache: второй вызов должен идти в семафор, а не в кэш тяжёлых чтений.
+        tool = spec('content_t_heavy', '/api/t/echo', heavy=True, no_cache=True)
         assert not env.run(tool).is_error, 'свободный семафор — вызов проходит и отпускает место'
         bridge.HEAVY_WAIT_S = 0.2
         taken = 0
@@ -647,6 +650,143 @@ def test_heavy_semaphore_times_out():
             for _ in range(taken):
                 bridge._HEAVY.release()
         assert not env.run(tool).is_error
+
+
+# ------------------------------------------------------------------ кэш тяжёлых чтений
+
+_Q_SCHEMA = {'type': 'object', 'additionalProperties': False,
+             'properties': {'bar': {'type': 'string'}, 'force': {'type': 'string', 'enum': ['0', '1']},
+                            'n': {'type': 'integer'}}}
+
+
+def test_heavy_read_cached_with_freshness_line():
+    """Тяжёлое чтение: второй такой же вызов — из кэша, без маршрута; первая строка ответа
+    «Данные на ЧЧ:ММ МСК (кэш до 5 минут)», JSON во втором блоке валиден."""
+    import re as _re
+    with Env() as env:
+        tool = spec('content_t_heavy_read', '/api/t/echo', heavy=True, query_params=('bar', 'force', 'n'),
+                    input_schema=_Q_SCHEMA)
+        before = STATE['calls']
+        first = env.run(tool, {'bar': 'Лиговский', 'n': 2.0})
+        assert not first.is_error and not first.cached and STATE['calls'] == before + 1
+        assert [b['type'] for b in first.content] == ['text', 'text']
+        assert _re.fullmatch(r'Данные на \d\d:\d\d МСК \(кэш до 5 минут\)', first.content[0]['text']), \
+            first.content[0]['text']
+        payload = json.loads(first.content[1]['text'])
+        assert payload['args'] == {'bar': ['Лиговский'], 'n': ['2']}
+        again = env.run(tool, {'n': 2, 'bar': 'Лиговский'})        # порядок ключей и 2.0 -> 2 не важны
+        assert again.cached and STATE['calls'] == before + 1, 'повтор не пошёл в маршрут'
+        assert again.content[0]['text'] == first.content[0]['text'], 'время данных — время расчёта'
+        assert json.loads(again.content[1]['text']) == payload
+        other = env.run(tool, {'bar': 'Варшавская'})
+        assert not other.cached and STATE['calls'] == before + 2, 'другие аргументы — другой ключ'
+        # force='1' — явная просьба пересчитать: мимо кэша и без строки свежести.
+        forced = env.run(tool, {'bar': 'Лиговский', 'n': 2, 'force': '1'})
+        forced_again = env.run(tool, {'bar': 'Лиговский', 'n': 2, 'force': '1'})
+        assert STATE['calls'] == before + 4 and not forced.cached and not forced_again.cached
+        assert forced.content[0]['text'].startswith('{'), 'без строки «Данные на»'
+        # Другой владелец токена — свой ключ.
+        other_owner = Principal(user_id=env.owner['id'] + 100, login='owner', display_name='В', token_id='st_x',
+                                token_kind='static', client_name='x')
+        assert bridge.cache_key(tool, {'bar': 'Лиговский'}, env.principal) != \
+            bridge.cache_key(tool, {'bar': 'Лиговский'}, other_owner)
+
+
+def test_what_is_not_cached():
+    """Не кэшируются: лёгкие чтения, open_world, no_cache, ошибки, файлы; запись очищает кэш."""
+    with Env() as env:
+        light = spec('content_t_light', '/api/t/echo')
+        before = STATE['calls']
+        assert not env.run(light).is_error and not env.run(light).cached
+        assert STATE['calls'] == before + 2 and env.run(light).content[0]['text'].startswith('{')
+        for flags in ({'open_world': True}, {'no_cache': True}):
+            tool = spec('content_t_live', '/api/t/echo', heavy=True, **flags)
+            n = STATE['calls']
+            env.run(tool)
+            second = env.run(tool)
+            assert not second.cached and STATE['calls'] == n + 2, flags
+        failing = spec('content_t_err', '/api/t/error', heavy=True)
+        assert env.run(failing).is_error and not bridge.response_cache.stats()['entries']
+        pdf = spec('content_t_pdf_heavy', '/api/t/pdf', heavy=True)
+        result = env.run(pdf)
+        assert [b['type'] for b in result.content] == ['text', 'resource'], 'файл — без строки свежести'
+        assert bridge.response_cache.stats()['entries'] == 0
+        # Запись через MCP (read_only=False, успешно) сбрасывает кэш тяжёлых чтений.
+        heavy = spec('content_t_heavy_read', '/api/t/echo', heavy=True)
+        env.run(heavy)
+        assert env.run(heavy).cached and bridge.response_cache.stats()['entries'] == 1
+        write = spec('content_t_write', '/api/t/echo', method='POST', body='json', read_only=False)
+        assert not env.run(write).is_error
+        assert bridge.response_cache.stats()['entries'] == 0
+        n = STATE['calls']
+        assert not env.run(heavy).cached and STATE['calls'] == n + 1, 'после записи — снова маршрут'
+        # Неудачная запись (405 — маршрут не принимает POST) кэш не трогает.
+        assert env.run(heavy).cached
+        bad_write = spec('content_t_bad_write', '/api/t/error', method='POST', read_only=False)
+        assert env.run(bad_write).is_error
+        assert bridge.response_cache.stats()['entries'] == 1
+
+
+def test_response_cache_limits_ttl_and_generation():
+    """Пределы памяти (записи, байты, запись не больше четверти), срок, LRU, поколение."""
+    from datetime import datetime
+    stamp = datetime(2026, 9, 28, 14, 5)
+    text = ToolResult.text
+    cache = bridge.ResponseCache(ttl=300, max_entries=2, max_bytes=1000, entry_max_bytes=400)
+    assert cache.put('a', text('x' * 100), stamp, now=0) and cache.put('b', text('y' * 100), stamp, now=0)
+    assert cache.get('a', now=1) is not None                      # a — недавно использована
+    assert cache.put('c', text('z' * 100), stamp, now=2)
+    assert cache.get('b', now=3) is None, 'вытеснена самая давно использованная'
+    assert cache.get('a', now=3) is not None and cache.get('c', now=3) is not None
+    assert cache.get('a', now=1000) is None, 'срок 300 с истёк'
+    assert not cache.put('big', text('я' * 300), stamp, now=0), 'больше entry_max_bytes (600 байт UTF-8)'
+    by_bytes = bridge.ResponseCache(ttl=300, max_entries=10, max_bytes=500, entry_max_bytes=400)
+    for i in range(4):
+        by_bytes.put(str(i), text('q' * 200), stamp, now=0)
+    assert by_bytes.stats()['entries'] == 2 and by_bytes.stats()['bytes'] <= 500
+    gen = cache.generation
+    cache.clear()
+    assert not cache.put('late', text('старое'), stamp, generation=gen, now=0), \
+        'чтение, начатое до записи, не кладёт данные «до записи»'
+    assert cache.put('late', text('новое'), stamp, generation=cache.generation, now=0)
+    assert bridge.freshness_line(stamp) == 'Данные на 14:05 МСК (кэш до 5 минут)'
+    assert bridge.CACHE_TTL_S == 300 and bridge.CACHE_MAX_ENTRIES == 64
+    assert bridge.CACHE_MAX_BYTES == 2 * 1024 * 1024
+    for args, fresh in (({'force': '1'}, True), ({'refresh': True}, True), ({'full': 'true'}, True),
+                        ({'force': '0'}, False), ({'force': False}, False), ({}, False), ({'bar': '1'}, False)):
+        assert bridge.wants_fresh(args) is fresh, args
+
+
+def test_admission_taken_only_for_real_execution():
+    """Пропуск протокола (admit) берётся только перед исполнением: отказ — denied, маршрут не
+    вызывается; ответ из кэша и ошибка схемы пропуск не берут."""
+    from contextlib import contextmanager
+    taken = []
+
+    @contextmanager
+    def admit_ok():
+        taken.append('ok')
+        yield None
+
+    @contextmanager
+    def admit_busy():
+        taken.append('busy')
+        yield ToolResult.refuse('Сервер занят', http_status=503)
+
+    with Env() as env:
+        tool = spec('content_t_heavy_read', '/api/t/echo', heavy=True, query_params=('n',),
+                    input_schema=_Q_SCHEMA)
+        with env.app.test_request_context('/mcp/content', method='POST', base_url=OUTER_BASE):
+            before = STATE['calls']
+            refused = bridge.execute(tool, {'n': 1}, env.principal, admit=admit_busy)
+            assert refused.is_error and refused.denied and STATE['calls'] == before
+            first = bridge.execute(tool, {'n': 1}, env.principal, admit=admit_ok)
+            assert not first.is_error and STATE['calls'] == before + 1
+            cached = bridge.execute(tool, {'n': 1}, env.principal, admit=admit_busy)
+            assert cached.cached and not cached.is_error, 'кэш отвечает, даже когда мест нет'
+            bad = bridge.execute(tool, {'n': 'пять'}, env.principal, admit=admit_ok)
+            assert bad.is_error and not bad.denied
+        assert taken == ['busy', 'ok'], taken
 
 
 def test_recursion_guard():

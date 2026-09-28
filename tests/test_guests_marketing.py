@@ -119,6 +119,101 @@ class TestRfmVenueFilter(RfmVenueBase):
         self.assertTrue(all(v['name'] for v in d['venues']))
 
 
+class TestRfmListFilter(RfmVenueBase):
+    """Фильтр списка гостей RFM: segment=, q=, limit= (2026-09-28).
+
+    Полный ответ /api/guests/rfm — 500+ тыс. знаков (2 214 гостей), агент получал
+    обрезку. Фильтр меняет только список guests; segments и total_guests — по всем.
+    Гости (дата среза 2026-08-31): NEW — один визит 30.08 (500 ₽); LOYAL — два визита,
+    последний 25.08 (700 ₽); POTENTIAL — один визит 15.06 (1000 ₽).
+    """
+
+    ANCHOR = '2026-08-12'
+
+    def setUp(self):
+        super().setUp()
+        self.add_guest('79001112233', '2001', [('2026-08-30', 'bolshoy', 500.0)])
+        self.add_guest('79005556677', '2002', [('2026-08-20', 'bolshoy', 300.0),
+                                                ('2026-08-25', 'ligovskiy', 400.0)])
+        self.add_guest('79009990000', '2003', [('2026-06-15', 'varshavskaya', 1000.0)])
+        from flask import Flask
+        import routes.guests as rg
+        self.rg = rg
+        self.saved_get_store = rg.get_store
+        rg.get_store = lambda: self.store
+        app = Flask(__name__)
+        app.register_blueprint(rg.guests_bp)
+        self.client = app.test_client()
+
+    def tearDown(self):
+        self.rg.get_store = self.saved_get_store
+        super().tearDown()
+
+    def api(self, **params):
+        query = dict({'period_type': 'month', 'anchor': self.ANCHOR}, **params)
+        return self.client.get('/api/guests/rfm', query_string=query)
+
+    def test_segments_of_fixture(self):
+        segments = {g['guest_id']: g['segment'] for g in self.rfm()['guests']}
+        self.assertEqual({'79001112233': 'NEW', '79005556677': 'LOYAL',
+                          '79009990000': 'POTENTIAL'}, segments)
+
+    def test_parse_segments(self):
+        self.assertIsNone(ga.parse_rfm_segments(''))
+        self.assertIsNone(ga.parse_rfm_segments(None))
+        self.assertEqual(frozenset({'AT_RISK', 'CHURNED'}),
+                         ga.parse_rfm_segments(' at_risk , CHURNED '))
+        with self.assertRaises(ValueError):
+            ga.parse_rfm_segments('VIP')
+
+    def test_filter_function(self):
+        guests = self.rfm()['guests']
+        rows, matched = ga.rfm_filter_guests(guests, frozenset({'NEW', 'LOYAL'}), None, None)
+        self.assertEqual(['79005556677', '79001112233'], [g['guest_id'] for g in rows])
+        self.assertEqual(2, matched)
+        rows, matched = ga.rfm_filter_guests(guests, None, None, 1)
+        self.assertEqual(['79009990000'], [g['guest_id'] for g in rows], 'самый ценный первым')
+        self.assertEqual(3, matched)
+        # Телефон — по цифрам: скобки и пробелы в запросе не мешают.
+        rows, _ = ga.rfm_filter_guests(guests, None, '(555) 66', None)
+        self.assertEqual(['79005556677'], [g['guest_id'] for g in rows])
+        rows, _ = ga.rfm_filter_guests(guests, None, '2003', None)
+        self.assertEqual(['79009990000'], [g['guest_id'] for g in rows], 'по номеру карты')
+
+    def test_route_without_filter_unchanged(self):
+        body = self.api().get_json()['data']
+        self.assertEqual(3, len(body['guests']))
+        self.assertEqual({'segment': None, 'q': None, 'limit': None, 'matched': 3,
+                          'returned': 3}, body['guests_filter'])
+
+    def test_route_filters_list_but_not_summary(self):
+        full = self.api().get_json()['data']
+        body = self.api(segment='LOYAL,NEW', limit='1').get_json()['data']
+        self.assertEqual(['79005556677'], [g['guest_id'] for g in body['guests']])
+        self.assertEqual(2, body['guests_filter']['matched'])
+        self.assertEqual(1, body['guests_filter']['returned'])
+        self.assertEqual(['LOYAL', 'NEW'], body['guests_filter']['segment'])
+        self.assertEqual(full['segments'], body['segments'], 'сводка сегментов не зависит от фильтра')
+        self.assertEqual(3, body['total_guests'])
+        body = self.api(q='9990').get_json()['data']
+        self.assertEqual(['79009990000'], [g['guest_id'] for g in body['guests']])
+
+    def test_route_bad_filter_is_400(self):
+        for params in ({'segment': 'VIP'}, {'limit': '0'}, {'limit': 'abc'}, {'limit': '-1'},
+                       {'limit': '1.5'}, {'limit': '²'},
+                       {'q': '7'}):
+            response = self.api(**params)
+            self.assertEqual(400, response.status_code, params)
+            self.assertIn('error', response.get_json(), params)
+
+    def test_csv_respects_filter(self):
+        response = self.api(segment='POTENTIAL', export='csv')
+        self.assertEqual(200, response.status_code)
+        lines = response.data.decode('utf-8-sig').strip().splitlines()
+        self.assertEqual(2, len(lines), 'заголовок + один гость')
+        self.assertIn('POTENTIAL', lines[1])
+
+
 class TestDiscountAnalyzeFixes(unittest.TestCase):
     """Правки /api/discount-analyze, который обслуживает вкладку «Акции»."""
 

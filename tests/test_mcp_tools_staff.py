@@ -444,6 +444,20 @@ def test_payroll_tools_point_to_formulas():
     assert 'common_bars_reference' in by_name['staff_schedule_locations'].description
 
 
+def test_staff_me_employee_param_matches_route():
+    """Кабинет сотрудника для администратора (2026-09-28): параметр и шаблон id — как у маршрута
+    routes/me.py (не админу маршрут отвечает 403, это проверяет tests/test_me_routes.py)."""
+    import routes.me as rme
+    spec = next(t for t in _tools() if t.name == 'staff_me')
+    assert spec.query_params == ('month', 'employee_iiko_id')
+    node = spec.input_schema['properties']['employee_iiko_id']
+    assert node['pattern'] == staff.EMPLOYEE_ID_PATTERN == rme.EMPLOYEE_ID_RE.pattern
+    assert "request.args.get('employee_iiko_id')" in _view_source(_rule_for(spec))
+    assert not _check_value(spec.input_schema, {'employee_iiko_id': '0b7c9a1e-5f3d-4c2a-9e8b-1d2f3a4b5c6d'}, 'ok')
+    for bad in ('с пробелом и кириллицей', 'x' * 65, ''):
+        assert _check_value(spec.input_schema, {'employee_iiko_id': bad}, 'bad'), bad
+
+
 def test_schemas_serialize_to_json():
     for spec in _tools():
         text = json.dumps({'inputSchema': spec.input_schema,

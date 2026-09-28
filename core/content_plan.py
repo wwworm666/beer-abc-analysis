@@ -9,9 +9,12 @@
 может быть много размещений: «Октоберфест» — в четыре Telegram-канала баров и в
 Instagram сети.
 
-Этап «только интерфейс» (2026-09-26): НИЧЕГО никуда не отправляется. Хранение,
-статусы, проверки, предпросмотр, утверждение и журнал — настоящие. Отправка не
-подключена (`DELIVERY_CONNECTED` — все False), поэтому «вышло» отмечают вручную.
+Этап «только интерфейс» (2026-09-26): хранение, статусы, проверки, предпросмотр,
+утверждение и журнал. С 2026-09-28 утверждённое может уходить само
+(core/content_publisher.py): Telegram-каналы баров, напоминание об Instagram,
+рассылка гостям через бота — только когда владелец указал и проверил каналы и
+включил отправку (core/content_channels.py). Не подключено — «вышло» отмечают
+вручную, как раньше (`DELIVERY_CONNECTED` — значение по умолчанию: всё False).
 
 ## Файлы
 
@@ -20,8 +23,10 @@ Instagram сети.
 | `core/content_plan.py` | этот модуль: модель, правила, операции, живые данные |
 | `core/content_media.py` | файлы фото/видео на диске |
 | `core/content_brief.py` | бриф сети для ИИ-агента (правила, по которым он пишет черновики) |
+| `core/content_channels.py` | каналы и выключатели отправки, что подключено, аудитория бота |
+| `core/content_publisher.py` | отправка утверждённого в площадки (зовёт `delivery_update`) |
 | `routes/content_plan.py` | HTTP API и страница `/content-plan` (и бриф: `/api/content-plan/brief`) |
-| `tests/test_content_plan.py` | тесты (self-runnable) |
+| `tests/test_content_plan.py` | тесты (self-runnable); отправка — `tests/test_content_publisher.py` |
 
 Данные: `content_plan.json` на постоянном диске (`core/storage_paths`):
 `{version: 1, materials: {id: M}, log: [...]}`.
@@ -42,15 +47,22 @@ Instagram сети.
 ## Статусы размещения (хранятся)
 
 draft (черновик) → approved (утверждено, ждёт времени) ⇄ paused (утверждено, но
-остановлено) → published (вышло; пока отмечается вручную). failed — ошибка
-отправки (зарезервировано для будущей отправки). cancelled — отменено, остаётся
-для истории.
+остановлено) → published (вышло: отправил бот или отметили вручную). failed —
+ошибка отправки (ставит отправщик, текст — failed_error). cancelled — отменено,
+остаётся для истории.
 
 Переходы (`ACTIONS`), любой другой — 409:
 - pause: approved → paused; resume: paused → approved (400, если время выхода прошло);
 - unapprove: approved|paused → draft; mark_published: approved|paused|failed → published;
 - cancel: draft|approved|paused|failed → cancelled; restore: cancelled → draft;
-- retry: failed → approved.
+- retry: failed → approved и в очередь отправки (delivery.state 'queued',
+  retry_at = сейчас): отправщик отправит в ближайшую минуту, даже если время выхода
+  давно прошло; у рассылки бота — только тем, кому не дошло;
+- retry_failed: только вышедшая рассылка бота, которая дошла не всем
+  (delivery.failed_to не пуст) — статус остаётся published, в очередь встаёт
+  повтор неудавшимся.
+Пока размещение отправляется (delivery.state 'sending'), его действия, правка и
+удаление — 409 «Публикация сейчас отправляется».
 
 ## Готовность (вычисляется при чтении, не хранится)
 
@@ -84,10 +96,15 @@ ready = статус draft и список пуст. Сравнение врем
 
 draft + чего-то не хватает → incomplete «Не хватает: …»; draft + готово → ready
 «Готово к утверждению»; approved и время ещё впереди → scheduled «Запланировано»;
-approved и время прошло → overdue «Время вышло, выход не отмечен» (пока отправка
-не подключена, это напоминание отметить выход вручную); paused «На паузе»;
+approved и время прошло → overdue «Время вышло, выход не отмечен» (площадка не
+подключена к отправке — напоминание отметить выход вручную); paused «На паузе»;
 published «Вышло»; failed «Ошибка отправки»; cancelled «Отменено».
 Край: approved без даты/времени (старые данные) считается scheduled.
+Край: approved, который прямо сейчас отправляется или стоит в очереди повтора
+(`in_flight`), — scheduled с подписью «Отправляется» / «В очереди на отправку», а
+не overdue: время вышло, но выход уже в работе. Зависшая отправка (дольше
+SENDING_STALE_MINUTES) и очередь старше DELIVERY_GRACE_MINUTES в работу не
+считаются — снова overdue.
 
 У материала с актуальными данными (kind 'live') утверждён ШАБЛОН, а таплист
 подставится в момент выхода, поэтому scheduled подписывается «Шаблон утверждён,
@@ -275,6 +292,44 @@ stats — по этим материалам). С month — обычный ме�
 - approve_preview(origin=...) — окно «Утвердить готовые» под фильтром
   «Только от ИИ»; в каждой строке — origin материала.
 
+## Отправка (delivery, 2026-09-28)
+
+Отправщик (core/content_publisher.py) хранит ход отправки в размещении, в поле
+delivery (None — ничего не было):
+
+| state | Смысл |
+|---|---|
+| queued | повтор или «Отправить сейчас» рассылки: отправщик возьмёт в ближайшую минуту (retry_at) |
+| sending | отправляется (attempt_id, started_at, heartbeat_at) — второй отправщик не возьмёт |
+| sent | ушло (chat, message_ids; у бота — stats) |
+| partial | рассылка бота дошла не всем (stats, failed_to) — «Повторить неудавшимся» |
+| failed | ошибка (error; статус failed, текст — failed_error) |
+| reminded / reminder_failed / reminder_late | Instagram: напоминание ушло / не ушло / опоздало больше чем на 2 часа |
+
+Все переходы — `ContentPlanStore.delivery_update` под той же блокировкой, что правки
+людей. В ответе API delivery отдаётся без списков получателей (`delivery_view`:
+chat_id гостей не уходят на страницу и агенту), плюс post_url — ссылка на пост в
+публичном канале (https://t.me/<имя>/<id>). Снятие утверждения (`_to_draft`)
+стирает delivery: новый выход начинается с чистого листа.
+
+## Учёт правок владельца для агента (agent_original, 2026-09-28)
+
+Материал, созданный агентом (origin 'agent', в том числе копии, сделанные
+агентом), хранит agent_original = {base_text, placements: {pid: свой текст или
+null}} — последнюю версию агента: правки самого агента (через MCP) её обновляют,
+правки людей — нет. Поэтому «текущий текст ≠ agent_original» значит «текст менял
+человек». `agent_edits(months)` отдаёт такие материалы за последние N месяцев (и
+удалённые материалы агента — по журналу), чтобы агент подстраивал тон. В ответах
+API материала поле не отдаётся (оно только для agent-edits).
+
+## Компактный вид месяца (compact, 2026-09-28)
+
+`month_payload(month, compact=True)` / `state_payload(state, compact=True)` —
+материалы без тяжёлых полей: {id, title, kind, month, in_month, date, origin,
+agent_draft, summary: {label, state}, placements: [{id, channel, bar, date, time,
+display_state}]} и stats; без справочников. Для агента: месяц с 20+ материалами в
+полном виде — больше 100 тыс. знаков, мост MCP режет ответ на 60 тыс.
+
 ## Changelog
 
 - 2026-09-26 — модуль создан (этап «только интерфейс», без отправки).
@@ -289,6 +344,11 @@ stats — по этим материалам). С month — обычный ме�
   via_mcp), agent_rationale и shot_list, подпись «<login> · агент», флаг
   agent_draft и delete_agent_drafts, фильтр origin в approve_preview. Бриф
   сети для агента — отдельный модуль core/content_brief.py.
+- 2026-09-28 (отправка) — поле delivery размещения и delivery_update для
+  отправщика; retry ставит в очередь отправки, новое действие retry_failed;
+  защита «сейчас отправляется» (409); реальный размер аудитории бота и
+  delivery в ответе месяца (через подключаемые audience_fn/delivery_fn);
+  agent_original и agent_edits; компактный вид месяца.
 """
 
 import copy
@@ -349,10 +409,28 @@ CHANNELS = {
             'media_max': TG_MEDIA_MAX, 'media_required': False},
 }
 CHANNEL_ORDER = ('telegram', 'instagram', 'bot')
-# Отправка не реализована ни в одну площадку (этап «только интерфейс»).
+# Что подключено к отправке, когда хранилище создано без delivery_fn (тесты,
+# старый вид): ничего. На проде ответ месяца берёт настоящее состояние из
+# core/content_channels.payload_delivery (get_content_plan_store).
 DELIVERY_CONNECTED = {'telegram': False, 'instagram': False, 'bot': False}
 
-# Сегменты аудитории рассылки бота. Размер неизвестен, пока бот не подключён.
+# Отправка (core/content_publisher.py). Числа нужны и здесь: экран считает
+# «отправляется» / «в очереди» по тем же порогам, что отправщик.
+# 120 минут: если сервер лежал дольше, пост не выходит с опозданием молча — он
+# становится ошибкой «время выхода прошло», решение за владельцем; два часа —
+# предел, после которого таплист или анонс «на вечер» уже теряют смысл.
+DELIVERY_GRACE_MINUTES = 120
+# 10 минут: отправка одного поста — секунды (с обходом блокировок — до ~1,5 мин),
+# рассылка бота обновляет отметку heartbeat_at после каждой пачки. Дольше без
+# отметки — процесс умер посреди отправки, статус неизвестен.
+SENDING_STALE_MINUTES = 10
+# Состояния, при которых размещение «в работе» у отправщика (см. in_flight).
+DELIVERY_IN_FLIGHT = ('queued', 'sending')
+# Кто отметил выход при отправке ботом (published_by, журнал).
+PUBLISHED_BY_BOT = 'бот'
+
+# Сегменты аудитории рассылки бота. Размер — из core/guest_subscribers через
+# audience_fn хранилища; без него — неизвестен (AUDIENCE_SIZE_NOTE).
 AUDIENCES = (
     {'key': 'bot_all', 'name': 'Все подписчики бота', 'needs_bar': False},
     {'key': 'bot_bar', 'name': 'Подписчики, выбравшие бар', 'needs_bar': True},
@@ -361,6 +439,7 @@ AUDIENCES = (
 )
 AUDIENCE_BY_KEY = {a['key']: a for a in AUDIENCES}
 AUDIENCE_SIZE_NOTE = 'Бот не подключён: размер аудитории появится после интеграции'
+AUDIENCE_ERROR_NOTE = 'Не удалось прочитать подписчиков бота — размер неизвестен'
 
 # Живые данные: единственный источник — таплист бара.
 PLACEHOLDERS = ('{бар}', '{дата}', '{таплист}', '{кранов}')
@@ -500,6 +579,8 @@ ACTIONS = {
     'cancel': (('draft', 'approved', 'paused', 'failed'), 'cancelled'),
     'restore': (('cancelled',), 'draft'),
     'retry': (('failed',), 'approved'),
+    # Статус не меняется: вышедшая рассылка ставит в очередь повтор неудавшимся.
+    'retry_failed': (('published',), 'published'),
 }
 ACTION_CONFLICT = {
     'pause': 'На паузу ставится только утверждённая публикация',
@@ -509,12 +590,15 @@ ACTION_CONFLICT = {
     'cancel': 'Отменить можно только невышедшее и неотменённое размещение',
     'restore': 'Вернуть можно только отменённое размещение',
     'retry': 'Повторить отправку можно только после ошибки отправки',
+    'retry_failed': 'Повторить неудавшимся можно только у вышедшей рассылки бота',
 }
 ACTION_LOG = {
     'pause': 'Пауза', 'resume': 'Пауза снята', 'unapprove': 'Утверждение снято',
     'mark_published': 'Отмечено вышедшим', 'cancel': 'Отменено',
     'restore': 'Возвращено в черновики', 'retry': 'Повтор отправки',
+    'retry_failed': 'Повтор рассылки неудавшимся',
 }
+SENDING_CONFLICT = 'Публикация сейчас отправляется — подождите минуту и обновите страницу'
 
 # Конец строки — \Z, а не $: `$` пропускает завершающий перевод строки.
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}\Z')
@@ -806,16 +890,31 @@ def text_limit_for(channel: str, has_media: bool) -> int:
     return spec['caption_limit'] if has_media else spec['text_limit']
 
 
+def text_units(text: str, channel: Optional[str] = None) -> int:
+    """Длина текста так, как её считает площадка.
+
+    Telegram (и бот) считают длину в единицах UTF-16: символ вне основной плоскости
+    Unicode (эмодзи, редкие иероглифы) — 2 единицы, поэтому текст из 4000 букв и 60
+    эмодзи (4120) Telegram не примет, хотя len() = 4060 (проверка 2026-09-28).
+    Instagram — в символах (len). Площадка не выбрана — как Telegram (предел 4096 —
+    его)."""
+    text = text or ''
+    if channel == 'instagram':
+        return len(text)
+    return len(text.encode('utf-16-le')) // 2
+
+
 def limit_note_for(channel: Optional[str], has_media: bool) -> str:
     """Откуда взят предел длины — для подсказки у счётчика знаков."""
+    utf16 = ' (эмодзи считается за 2 знака, как в Telegram)'
     if not channel:
-        return f'Площадка не выбрана: проверка по пределу сообщения Telegram — {TG_TEXT_LIMIT} знаков'
+        return f'Площадка не выбрана: проверка по пределу сообщения Telegram — {TG_TEXT_LIMIT} знаков' + utf16
     spec = CHANNELS[channel]
     if spec['caption_limit'] == spec['text_limit']:
         return f'{spec["name"]}: подпись до {spec["text_limit"]} знаков'
     if has_media:
-        return f'{spec["name"]}, с фото или видео: подпись до {spec["caption_limit"]} знаков'
-    return f'{spec["name"]}, без фото: сообщение до {spec["text_limit"]} знаков'
+        return f'{spec["name"]}, с фото или видео: подпись до {spec["caption_limit"]} знаков' + utf16
+    return f'{spec["name"]}, без фото: сообщение до {spec["text_limit"]} знаков' + utf16
 
 
 def _segment(placement: dict) -> Optional[str]:
@@ -853,7 +952,7 @@ def readiness(material: dict, placement: dict, now_str: str) -> List[dict]:
         add('too_many_media', f'больше {spec["media_max"]} файлов')
     if not live:
         limit = text_limit_for(channel, bool(media))
-        if len(text) > limit:
+        if text_units(text, channel) > limit:
             add('text_too_long', f'текст длиннее {limit} знаков')
     if placement.get('bar') == BAR_ALL:
         if live:
@@ -872,15 +971,44 @@ def readiness(material: dict, placement: dict, now_str: str) -> List[dict]:
     return missing
 
 
+def delivery_of(placement: dict) -> dict:
+    """Поле delivery размещения (ход отправки) или {} (отправки не было)."""
+    value = placement.get('delivery')
+    return value if isinstance(value, dict) else {}
+
+
+def minus_minutes(stamp: str, minutes: int) -> str:
+    """'YYYY-MM-DDTHH:MM' минус minutes минут (в том же формате)."""
+    return fmt_stamp(datetime.strptime(stamp[:16], '%Y-%m-%dT%H:%M') - timedelta(minutes=minutes))
+
+
+def in_flight(placement: dict, now_str: str) -> bool:
+    """Размещение сейчас в работе у отправщика: отправляется (отметка
+    heartbeat_at/started_at моложе SENDING_STALE_MINUTES) или стоит в очереди
+    повтора (retry_at моложе DELIVERY_GRACE_MINUTES). Те же пороги отправщик
+    считает «зависло» и «опоздало» — строгое «>» здесь и «<=» там."""
+    delivery = delivery_of(placement)
+    state = delivery.get('state')
+    if state == 'sending':
+        mark = max(delivery.get('heartbeat_at') or '', delivery.get('started_at') or '')
+        return mark > minus_minutes(now_str, SENDING_STALE_MINUTES)
+    if state == 'queued':
+        return (delivery.get('retry_at') or '') > minus_minutes(now_str, DELIVERY_GRACE_MINUTES)
+    return False
+
+
 def display_state(material: dict, placement: dict, now_str: str) -> Tuple[str, List[dict]]:
-    """-> (display_state, missing)."""
+    """-> (display_state, missing). Утверждённое в работе у отправщика
+    (`in_flight`) — scheduled, даже если время выхода прошло."""
     status = placement.get('status')
     if status == 'draft':
         missing = readiness(material, placement, now_str)
         return ('incomplete' if missing else 'ready'), missing
     if status == 'approved':
         moment = placement_datetime(placement)
-        return ('overdue' if moment and moment < now_str else 'scheduled'), []
+        if moment and moment < now_str and not in_flight(placement, now_str):
+            return 'overdue', []
+        return 'scheduled', []
     return status, []
 
 
@@ -934,15 +1062,119 @@ def placement_place(placement: dict) -> str:
     return f'{channel} {bar_short}'
 
 
-def audience_info(placement: dict) -> Optional[dict]:
+def audience_info(placement: dict, sizer: Optional[Callable] = None) -> Optional[dict]:
+    """Аудитория рассылки бота: {segment, name, needs_bar, size, size_note}.
+
+    sizer(segment, bar) -> (размер или None, пояснение) — размер на сейчас из
+    подписчиков бота (хранилище передаёт его, если подключено audience_fn); bar
+    None — вся сеть. Без sizer — размер неизвестен (AUDIENCE_SIZE_NOTE)."""
     if placement.get('channel') != 'bot':
         return None
     segment = _segment(placement)
     spec = AUDIENCE_BY_KEY.get(segment)
     if not spec:
         return None
+    size, note = None, AUDIENCE_SIZE_NOTE
+    if sizer is not None:
+        bar = placement.get('bar')
+        size, note = sizer(segment, None if bar in (None, BAR_ALL) else bar)
     return {'segment': segment, 'name': spec['name'], 'needs_bar': spec['needs_bar'],
-            'size': None, 'size_note': AUDIENCE_SIZE_NOTE}
+            'size': size, 'size_note': note}
+
+
+# Поля delivery, которые видят страница и агент. Списки получателей (recipients,
+# sent_to, failed_to, blocked, unknown_to, pending) — chat_id гостей: наружу не
+# отдаются, вместо них — stats.
+DELIVERY_PUBLIC_KEYS = ('state', 'started_at', 'finished_at', 'retry_at', 'chat', 'chat_username',
+                        'message_ids', 'error', 'reminded_at', 'reminded_for', 'problems', 'stats',
+                        'send_now', 'continuation', 'stop_requested')
+# Instagram: состояния «напоминание уже было» — повторно для того же времени поста
+# не шлём (reminded_for — время поста, для которого оно было; пост перенесли — снова).
+REMINDED_STATES = ('reminded', 'reminder_failed', 'reminder_late')
+
+
+def reminder_is_current(placement: dict) -> bool:
+    """Напоминание (или его сбой / опоздание) относится к ТЕКУЩЕМУ времени поста.
+    Пост перенесли — старое напоминание не считается, напоминание взводится снова.
+    Старые записи без reminded_for считаются текущими (без повторов)."""
+    delivery = delivery_of(placement)
+    if delivery.get('state') not in REMINDED_STATES:
+        return False
+    stamp = delivery.get('reminded_for')
+    return stamp is None or stamp == placement_datetime(placement)
+
+
+def delivery_stats(delivery: dict) -> Optional[dict]:
+    """Итоги рассылки бота {total, sent, failed, blocked, unsubscribed, unknown};
+    None — это не рассылка (нет списка получателей)."""
+    if 'recipients' not in delivery and 'stats' not in delivery:
+        return None
+    stats = dict(delivery.get('stats') or {})
+    for key in ('total', 'sent', 'failed', 'blocked', 'unsubscribed', 'unknown'):
+        stats.setdefault(key, 0)
+    return stats
+
+
+def delivery_view(placement: dict) -> Optional[dict]:
+    """delivery для API: без списков получателей (DELIVERY_PUBLIC_KEYS)."""
+    delivery = delivery_of(placement)
+    if not delivery:
+        return None
+    out = {key: copy.deepcopy(delivery[key]) for key in DELIVERY_PUBLIC_KEYS
+           if key in delivery and key != 'stats'}
+    stats = delivery_stats(delivery)
+    if stats is not None:
+        out['stats'] = stats
+    return out
+
+
+def post_url(placement: dict) -> Optional[str]:
+    """Ссылка на вышедший пост в публичном канале: https://t.me/<имя>/<id>.
+    Закрытый канал (только числовой id) или пост не ботом — None."""
+    if placement.get('channel') != 'telegram' or placement.get('status') != 'published':
+        return None
+    delivery = delivery_of(placement)
+    ids = delivery.get('message_ids') or []
+    name = delivery.get('chat_username') or ''
+    chat = str(delivery.get('chat') or '')
+    if not name and chat.startswith('@'):
+        name = chat[1:]
+    if not name or not ids:
+        return None
+    return f'https://t.me/{name}/{ids[0]}'
+
+
+def delivery_label(placement: dict, state: str, now_str: str) -> Optional[str]:
+    """Подпись состояния с учётом отправки или None (подпись по display_state)."""
+    delivery = delivery_of(placement)
+    kind = delivery.get('state')
+    status = placement.get('status')
+    stats = delivery_stats(delivery)
+    stopping = ' · остановится после текущей пачки' if delivery.get('stop_requested') else ''
+    if status == 'approved':
+        if kind == 'sending' and in_flight(placement, now_str):
+            if placement.get('channel') == 'bot' and stats is not None and stats['total']:
+                return f'Рассылка идёт: дошло {stats["sent"]} из {stats["total"]}' + stopping
+            return 'Отправляется' + stopping
+        if kind == 'queued' and in_flight(placement, now_str):
+            if delivery.get('continuation') and stats is not None and stats['total']:
+                return f'Рассылка идёт: дошло {stats["sent"]} из {stats["total"]}, продолжится в течение минуты'
+            return 'В очереди на отправку: уйдёт в течение минуты'
+        if placement.get('channel') == 'instagram' and reminder_is_current(placement):
+            if kind == 'reminded':
+                return ('Напоминание отправлено, выход не отмечен' if state == 'overdue'
+                        else 'Напоминание отправлено')
+            if kind == 'reminder_failed':
+                return 'Напоминание не отправлено: ' + (delivery.get('error') or 'ошибка')
+            if kind == 'reminder_late':
+                return 'Напоминание не отправлено: время прошло, пока сервер не работал'
+        return None
+    if status == 'published' and placement.get('channel') == 'bot' and stats is not None:
+        label = f'Вышло: дошло {stats["sent"]} из {stats["total"]}'
+        if kind in DELIVERY_IN_FLIGHT and in_flight(placement, now_str):
+            label += ' · повтор неудавшимся ' + ('идёт' if kind == 'sending' else 'в очереди') + stopping
+        return label
+    return None
 
 
 def material_date(material: dict) -> Optional[str]:
@@ -1058,7 +1290,8 @@ def material_summary(states: list, live: bool = False) -> dict:
     return result(10, 'scheduled', LIVE_SCHEDULED_LABEL if live else 'Запланировано', 'success')
 
 
-def _placement_view(material: dict, placement: dict, now_str: str) -> Tuple[dict, str, List[dict]]:
+def _placement_view(material: dict, placement: dict, now_str: str,
+                    sizer: Optional[Callable] = None) -> Tuple[dict, str, List[dict]]:
     state, missing = display_state(material, placement, now_str)
     text, media, source = placement_content(material, placement)
     view = copy.deepcopy(placement)
@@ -1070,24 +1303,32 @@ def _placement_view(material: dict, placement: dict, now_str: str) -> Tuple[dict
         'missing': missing,
         'ready': state == 'ready',
         'display_state': state,
-        'display_label': display_label(state, missing, material.get('kind') == 'live'),
+        'display_label': (delivery_label(placement, state, now_str)
+                          or display_label(state, missing, material.get('kind') == 'live')),
         'datetime': placement_datetime(placement),
-        'audience_info': audience_info(placement),
+        'audience_info': audience_info(placement, sizer),
+        'delivery': delivery_view(placement),
+        'post_url': post_url(placement),
     })
     return view, state, missing
 
 
-def material_json(material: dict, now_str: str, month: Optional[str] = None) -> dict:
+def material_json(material: dict, now_str: str, month: Optional[str] = None,
+                  sizer: Optional[Callable] = None) -> dict:
     """Материал для API: хранимые поля + date, summary, in_month, agent_draft,
     media[].url и вычисленные поля размещений. in_month — принадлежит ли
     материал месяцу month (без month — True: ответ на правку относится к самому
-    материалу). agent_draft — `is_agent_draft` (для «Удалить черновики ИИ»)."""
+    материалу). agent_draft — `is_agent_draft` (для «Удалить черновики ИИ»).
+    sizer — размер аудитории бота (см. `audience_info`). agent_original в
+    ответ не входит (оно только для учёта правок, `agent_edits`); delivery —
+    без списков получателей (`delivery_view`)."""
     out = copy.deepcopy(material)
+    out.pop('agent_original', None)
     out['media'] = [dict(item, url=MEDIA_URL_PREFIX + item['name'])
                     for item in material.get('media') or []]
     views, states = [], []
     for placement in material.get('placements') or []:
-        view, state, missing = _placement_view(material, placement, now_str)
+        view, state, missing = _placement_view(material, placement, now_str, sizer)
         views.append(view)
         states.append((state, missing, placement_place(placement)))
     out['placements'] = views
@@ -1116,12 +1357,81 @@ def _placement_label(placement: dict) -> str:
     return f'{channel} · {bar_short} · {when}'
 
 
+# Публичное имя для отправщика (журнал «Вышло автоматически: Telegram · ВО · 9 окт 16:00»).
+placement_label = _placement_label
+
+
+def compact_material(view: dict) -> dict:
+    """Материал для компактного вида месяца (агенту): без текстов, файлов и
+    вычисленных подробностей (см. «Компактный вид месяца» в докстроке)."""
+    summary = view.get('summary') or {}
+    return {
+        'id': view['id'], 'title': view.get('title'), 'kind': view.get('kind'), 'month': view.get('month'),
+        'in_month': view.get('in_month'), 'date': view.get('date'), 'origin': view.get('origin'),
+        'agent_draft': view.get('agent_draft'),
+        'summary': {'label': summary.get('label'), 'state': summary.get('state')},
+        'placements': [{'id': p['id'], 'channel': p.get('channel'), 'bar': p.get('bar'), 'date': p.get('date'),
+                        'time': p.get('time'), 'display_state': p.get('display_state')}
+                       for p in view.get('placements') or []],
+    }
+
+
+def _guard_not_sending(placement: dict, now_str: str) -> None:
+    """Пока размещение отправляется, его не меняют: 409 (SENDING_CONFLICT)."""
+    if delivery_of(placement).get('state') == 'sending' and in_flight(placement, now_str):
+        raise ContentPlanConflict(SENDING_CONFLICT)
+
+
+# Действия, которые останавливают рассылку бота (placement_action), и как это звучит.
+MAILING_STOP_ACTIONS = ('pause', 'cancel')
+MAILING_STOP_WORDS = {'pause': 'поставлена на паузу', 'cancel': 'отменена'}
+
+
+def _requeue(now_str: str) -> dict:
+    """Поля delivery для «в очередь отправки сейчас» (retry, retry_failed): прежние
+    пометки «Отправить сейчас», продолжения и остановки снимаются."""
+    return {'state': 'queued', 'retry_at': now_str, 'error': None, 'send_now': None,
+            'continuation': None, 'stop_requested': None}
+
+
+def stop_mailing(placement: dict, reason: str, now_str: str, none_status: str = 'failed') -> dict:
+    """Остановить рассылку бота (пауза, отмена, выключатель): получатели, до которых
+    очередь не дошла, — в failed_to («Повторить неудавшимся» доведёт позже);
+    получившие и «статус неизвестен» не трогаются. Кому-то дошло — published,
+    delivery.state 'partial'; никому — статус none_status ('failed', 'paused' или
+    'cancelled'), delivery.state 'stopped'. Меняет placement на месте. -> stats."""
+    delivery = delivery_of(placement)
+    recipients = [str(c) for c in delivery.get('recipients') or []]
+    sent = [str(c) for c in delivery.get('sent_to') or []]
+    blocked = [str(c) for c in delivery.get('blocked') or []]
+    unknown = [str(c) for c in delivery.get('unknown_to') or []]
+    failed = [str(c) for c in delivery.get('failed_to') or []]
+    accounted = set(sent) | set(blocked) | set(unknown) | set(failed)
+    failed += [c for c in recipients if c not in accounted]
+    stats = dict(delivery.get('stats') or {}, total=len(recipients), sent=len(sent), failed=len(failed),
+                 blocked=len(blocked), unknown=len(unknown))
+    message = f'Рассылка остановлена ({reason}): дошло {len(sent)} из {len(recipients)}'
+    fields = dict(finished_at=now_str, failed_to=failed, pending=[], stats=stats, error=message,
+                  stop_requested=None, continuation=None, send_now=None)
+    if sent:
+        placement['status'] = 'published'
+        if not placement.get('published_at'):
+            placement['published_at'], placement['published_by'] = now_str, PUBLISHED_BY_BOT
+        placement['delivery'] = dict(delivery, state='partial' if failed else 'sent', **fields)
+    else:
+        placement['status'] = none_status
+        placement['failed_error'] = message if none_status == 'failed' else None
+        placement['delivery'] = dict(delivery, state='stopped', **fields)
+    return stats
+
+
 def _to_draft(placement: dict) -> None:
     placement['status'] = 'draft'
     placement['approved_at'] = None
     placement['approved_by'] = None
     placement['approved_snapshot'] = None
     placement['failed_error'] = None
+    placement['delivery'] = None
 
 
 # ---------------------------------------------------------------------------
@@ -1251,7 +1561,7 @@ def render_live(source, bar, template, pub_date=None, snapshot=None, registry=No
     # Один проход по шаблону: подставленное значение (название пива с «{…}»)
     # повторно не разбирается.
     text = _TOKEN_RE.sub(lambda m: values.get(m.group(0), m.group(0)), template)
-    length = len(text)
+    length = text_units(text, channel)      # Telegram: единицы UTF-16 (эмодзи — 2)
     if length > limit:
         add('text_too_long', f'текст длиннее {limit} знаков')
     return {'ok': not problems, 'text': text, 'problems': problems, 'length': length,
@@ -1271,11 +1581,13 @@ _MATERIAL_DEFAULTS = {
     'media_required': False, 'note': '', 'series': None, 'copied_from': None,
     'source_review_id': None, 'created_at': None, 'created_by': None, 'updated_at': None,
     'updated_by': None, 'origin': ORIGIN_HUMAN, 'agent_rationale': '', 'shot_list': '',
+    'agent_original': None,
 }
 _PLACEMENT_DEFAULTS = {
     'bar': BAR_ALL, 'date': None, 'time': None, 'text': None, 'media': None, 'audience': None,
     'approved_at': None, 'approved_by': None, 'approved_snapshot': None, 'published_at': None,
     'published_by': None, 'failed_error': None, 'updated_at': None, 'updated_by': None,
+    'delivery': None,
 }
 # origin сюда не входит: его ставит сервер при создании (см. `_reject_origin`).
 MATERIAL_EDITABLE = ('title', 'kind', 'live_source', 'planned_date', 'base_text', 'note', 'media_required',
@@ -1323,6 +1635,8 @@ def _check_data(data) -> dict:
         # значение, которого эта версия не понимает (как с типом выше).
         if material['origin'] not in ORIGINS:
             raise _broken(f'происхождение материала {mid}')
+        if not _valid_agent_original(material['agent_original']):
+            raise _broken(f'исходный текст агента в материале {mid}')
         for item in media:
             if not isinstance(item, dict) or not content_media.is_valid_name(item.get('name')):
                 raise _broken(f'файл материала {mid}')
@@ -1333,9 +1647,30 @@ def _check_data(data) -> dict:
                 raise _broken(f'размещение материала {mid}')
             for key, default in _PLACEMENT_DEFAULTS.items():
                 placement.setdefault(key, copy.deepcopy(default))
+            if not (placement['delivery'] is None or isinstance(placement['delivery'], dict)):
+                raise _broken(f'отправка размещения материала {mid}')
     data['log'] = log
     data['version'] = data.get('version', SCHEMA_VERSION)
     return data
+
+
+def _valid_agent_original(value) -> bool:
+    """agent_original: None или {base_text: str, placements: {pid: str | None}}."""
+    if value is None:
+        return True
+    if not isinstance(value, dict) or not isinstance(value.get('base_text'), str):
+        return False
+    placements = value.get('placements')
+    return isinstance(placements, dict) and all(
+        isinstance(k, str) and (v is None or isinstance(v, str)) for k, v in placements.items())
+
+
+def agent_original_of(material: dict) -> dict:
+    """Версия агента на сейчас: общий текст и свои тексты размещений (null —
+    размещение берёт общий текст). Ставится у материала, созданного агентом."""
+    return {'base_text': material.get('base_text') or '',
+            'placements': {p['id']: p.get('text') for p in material.get('placements') or []
+                           if p.get('status') != 'cancelled'}}
 
 
 def _clean_text(value, limit: int, field: str) -> str:
@@ -1442,7 +1777,7 @@ def _copy_placement(placement: dict, new_date: Optional[str], keep_content: bool
         'audience': copy.deepcopy(placement.get('audience')),
         'status': 'draft', 'approved_at': None, 'approved_by': None, 'approved_snapshot': None,
         'published_at': None, 'published_by': None, 'failed_error': None,
-        'updated_at': now_str, 'updated_by': login,
+        'updated_at': now_str, 'updated_by': login, 'delivery': None,
     }
 
 
@@ -1466,9 +1801,19 @@ def _copy_material(source: dict, month: str, planned_date: Optional[str], keep_c
         'origin': origin,
         'agent_rationale': source.get('agent_rationale') or '' if keep else '',
         'shot_list': source.get('shot_list') or '' if keep else '',
+        'agent_original': None,     # ставится после размещений, если копирует агент (_seal_copies)
         'created_at': now_str, 'created_by': login, 'updated_at': now_str, 'updated_by': login,
         'placements': [],
     }, keep
+
+
+def _seal_copies(copies: List[dict], origin: str) -> None:
+    """Копии, сделанные агентом, получают agent_original — это его версия
+    (учёт правок владельца, `agent_edits`). Копии людей — нет."""
+    if origin != ORIGIN_AGENT:
+        return
+    for clone in copies:
+        clone['agent_original'] = agent_original_of(clone)
 
 
 def copy_anchor(material: dict) -> Optional[str]:
@@ -1618,11 +1963,22 @@ def _material_sort_key(view: dict):
             (view.get('title') or '').casefold(), view.get('created_at') or '', view['id'])
 
 
+class _Unchanged(Exception):
+    """delivery_update: изменять нечего — файл не пишется."""
+
+
 class ContentPlanStore:
-    """Контент-план на диске. now_fn — часы (для тестов), media_dir — каталог файлов."""
+    """Контент-план на диске. now_fn — часы (для тестов), media_dir — каталог файлов.
+
+    audience_fn(segment, bar) -> (размер или None, пояснение) — размер аудитории
+    рассылки бота на сейчас; delivery_fn() -> {delivery, delivery_connected} — что
+    подключено к отправке. На проде их подключает get_content_plan_store
+    (core/content_channels); без них (тесты, отдельные экземпляры) размер
+    неизвестен, а отправка «не подключена» — как до 2026-09-28."""
 
     def __init__(self, data_file: Optional[str] = None, now_fn: Optional[Callable[[], datetime]] = None,
-                 media_dir: Optional[str] = None):
+                 media_dir: Optional[str] = None, audience_fn: Optional[Callable] = None,
+                 delivery_fn: Optional[Callable[[], dict]] = None):
         self.data_file = data_file or get_data_path(DATA_FILE_NAME)
         self._now_fn = now_fn or msk_time.now
         if media_dir is None:
@@ -1632,6 +1988,62 @@ class ContentPlanStore:
         self.media = content_media.MediaStore(media_dir)
         self._lock = threading.Lock()
         self._lock_path = self.data_file + '.lock'
+        self.audience_fn = audience_fn
+        self.delivery_fn = delivery_fn
+
+    # ----- подключаемые данные (аудитория бота, что подключено) ---------------
+
+    def sizer(self) -> Optional[Callable]:
+        """sizer для audience_info: audience_fn с запоминанием на один ответ
+        (размер одного сегмента не читается дважды); сбой — размер неизвестен."""
+        fn = self.audience_fn
+        if fn is None:
+            return None
+        cache: Dict[tuple, tuple] = {}
+
+        def size(segment, bar):
+            key = (segment, bar)
+            if key not in cache:
+                try:
+                    cache[key] = tuple(fn(segment, bar))
+                except Exception as e:  # noqa: BLE001 — размер аудитории не роняет план
+                    print(f'[CONTENT_PLAN] audience size failed: {e!r}')
+                    cache[key] = (None, AUDIENCE_ERROR_NOTE)
+            return cache[key]
+        return size
+
+    def _json(self, material: dict, now_str: str, month: Optional[str] = None,
+              sizer: Optional[Callable] = None) -> dict:
+        return material_json(material, now_str, month, sizer=sizer or self.sizer())
+
+    def _live_meta(self, sizer: Optional[Callable]) -> dict:
+        """Справочники ответа месяца + настоящие размеры аудиторий и delivery."""
+        meta = _meta()
+        if sizer is not None:
+            audiences = []
+            for spec in AUDIENCES:
+                item = dict(spec)
+                item['size'], item['size_note'] = sizer(spec['key'], None)
+                if spec['needs_bar']:
+                    item['size_by_bar'] = {bar: sizer(spec['key'], bar)[0] for bar in BAR_KEYS}
+                audiences.append(item)
+            meta['audiences'] = audiences
+        if self.delivery_fn is not None:
+            try:
+                extra = self.delivery_fn() or {}
+            except Exception as e:  # noqa: BLE001 — сбой настроек отправки не роняет план
+                print(f'[CONTENT_PLAN] delivery state failed: {e!r}')
+                extra = {}
+            if extra.get('delivery') is not None:
+                meta['delivery'] = extra['delivery']
+            if extra.get('delivery_connected') is not None:
+                meta['delivery_connected'] = extra['delivery_connected']
+        if 'delivery' not in meta:
+            # Без delivery_fn — «ничего не подключено» того же вида, что на проде.
+            from core import content_channels
+            meta['delivery'] = content_channels.delivery_state(content_channels.default_settings(), False, None,
+                                                               guest_token_present=False)
+        return meta
 
     # ----- время -------------------------------------------------------------
 
@@ -1722,6 +2134,10 @@ class ContentPlanStore:
                 continue
             if before[placement['id']] == _content_signature(material, placement):
                 continue
+            # Правка содержания того, что прямо сейчас отправляется, — 409, вся правка
+            # откатывается (проверка 2026-09-28: правка текста посреди рассылки стирала
+            # её ход, и после повторного утверждения гости получали её дважды).
+            _guard_not_sending(placement, now_str)
             _to_draft(placement)
             placement['updated_at'], placement['updated_by'] = now_str, login
             changed.append(placement['id'])
@@ -1738,24 +2154,26 @@ class ContentPlanStore:
     def meta(self) -> dict:
         return _meta()
 
-    def month_payload(self, month: str) -> dict:
+    def month_payload(self, month: str, compact: bool = False) -> dict:
         """Ответ GET /api/content-plan: материалы месяца + справочники + статистика.
 
         Материалы месяца M = материалы с month == M ПЛЮС материалы, у которых
         есть размещение с датой в M (in_month=False: таблица их не показывает,
         календарь показывает их размещения). Статистика размещений считается по
         размещениям материалов месяца и размещениям, датированным этим месяцем.
+        compact — компактный вид для агента (`compact_material`, без справочников).
         """
         month = parse_month(month)
         data = self._load()
         now_str = self.now_str()
+        sizer = self.sizer()
         materials, by_state = [], {}
         n_materials = n_placements = 0
         for material in data['materials'].values():
             in_month = material['month'] == month
             if not in_month and not any((p.get('date') or '')[:7] == month for p in material['placements']):
                 continue
-            view = material_json(material, now_str, month)
+            view = self._json(material, now_str, month, sizer)
             materials.append(view)
             n_materials += 1 if in_month else 0
             for placement in view['placements']:
@@ -1764,13 +2182,17 @@ class ContentPlanStore:
                     state = placement['display_state']
                     by_state[state] = by_state.get(state, 0) + 1
         materials.sort(key=_material_sort_key)
+        stats = {'materials': n_materials, 'placements': n_placements, 'by_state': by_state}
+        if compact:
+            return {'month': month, 'now': now_str, 'today': now_str[:10], 'scope': 'month', 'state': None,
+                    'compact': True, 'stats': stats, 'materials': [compact_material(v) for v in materials]}
         payload = {'month': month, 'now': now_str, 'today': now_str[:10], 'scope': 'month',
                    'state': None, 'materials': materials}
-        payload.update(_meta())
-        payload['stats'] = {'materials': n_materials, 'placements': n_placements, 'by_state': by_state}
+        payload.update(self._live_meta(sizer))
+        payload['stats'] = stats
         return payload
 
-    def state_payload(self, state) -> dict:
+    def state_payload(self, state, compact: bool = False) -> dict:
         """Вид «по всем месяцам»: материалы ЛЮБОГО месяца, у которых есть
         размещение в состоянии state (overdue или failed, `CROSS_MONTH_STATES`).
 
@@ -1790,28 +2212,39 @@ class ContentPlanStore:
         status = 'approved' if state == 'overdue' else 'failed'
         data = self._load()
         now_str = self.now_str()
+        sizer = self.sizer()
         materials, by_state = [], {}
         n_placements = 0
         for material in data['materials'].values():
             if not any(p['status'] == status and display_state(material, p, now_str)[0] == state
                        for p in material['placements']):
                 continue
-            view = material_json(material, now_str)
+            view = self._json(material, now_str, None, sizer)
             materials.append(view)
             for placement in view['placements']:
                 n_placements += 1
                 key = placement['display_state']
                 by_state[key] = by_state.get(key, 0) + 1
         materials.sort(key=_material_sort_key)
+        stats = {'materials': len(materials), 'placements': n_placements, 'by_state': by_state}
+        if compact:
+            return {'month': now_str[:7], 'now': now_str, 'today': now_str[:10], 'scope': 'state',
+                    'state': state, 'compact': True, 'stats': stats,
+                    'materials': [compact_material(v) for v in materials]}
         payload = {'month': now_str[:7], 'now': now_str, 'today': now_str[:10], 'scope': 'state',
                    'state': state, 'materials': materials}
-        payload.update(_meta())
-        payload['stats'] = {'materials': len(materials), 'placements': n_placements, 'by_state': by_state}
+        payload.update(self._live_meta(sizer))
+        payload['stats'] = stats
         return payload
 
     def get_material(self, material_id: str, month: Optional[str] = None) -> dict:
         data = self._load()
-        return material_json(self._material(data, material_id), self.now_str(), month)
+        return self._json(self._material(data, material_id), self.now_str(), month)
+
+    def snapshot_data(self) -> dict:
+        """Весь план, прочитанный с диска (для отправщика: выбрать, что пора
+        отправлять). Только чтение: менять — через delivery_update."""
+        return self._load()
 
     def get_material_raw(self, material_id: str) -> dict:
         return copy.deepcopy(self._material(self._load(), material_id))
@@ -1833,8 +2266,10 @@ class ContentPlanStore:
 
         publications_today — размещения с датой «сегодня» в статусах approved,
         paused, published; delivery_errors — failed за любую дату; overdue —
-        approved со временем раньше текущей минуты. Фильтр бара X: bar in (X, 'all');
-        '', None и 'all' — вся сеть. now — datetime или 'YYYY-MM-DDTHH:MM'.
+        approved со временем раньше текущей минуты, кроме тех, что прямо сейчас
+        отправляются или стоят в очереди повтора (`in_flight` — как display_state).
+        Фильтр бара X: bar in (X, 'all'); '', None и 'all' — вся сеть. now —
+        datetime или 'YYYY-MM-DDTHH:MM'.
         """
         bar = _norm_filter_bar(bar)
         data = self._load()
@@ -1857,7 +2292,7 @@ class ContentPlanStore:
                     errors += 1
                 if status == 'approved':
                     moment = placement_datetime(placement)
-                    if moment and moment < now_str:
+                    if moment and moment < now_str and not in_flight(placement, now_str):
                         overdue += 1
         return {'publications_today': publications, 'delivery_errors': errors, 'overdue': overdue}
 
@@ -1885,6 +2320,7 @@ class ContentPlanStore:
             raise ValueError('Происхождение: agent (от ИИ-агента) или human (от людей)')
         data = self._load()
         now_str = self.now_str()
+        sizer = self.sizer()
         will, bot, stays = [], [], []
         for material in data['materials'].values():
             material_origin = material.get('origin') or ORIGIN_HUMAN
@@ -1908,7 +2344,7 @@ class ContentPlanStore:
                 if missing:
                     stays.append(dict(item, missing=missing))
                 elif placement['channel'] == 'bot':
-                    bot.append(dict(item, audience=audience_info(placement)))
+                    bot.append(dict(item, audience=audience_info(placement, sizer)))
                 else:
                     will.append(item)
 
@@ -1950,17 +2386,19 @@ class ContentPlanStore:
             'media_required': clean.get('media_required', False), 'note': clean.get('note', ''),
             'series': None, 'copied_from': None, 'source_review_id': review_id or None,
             'origin': origin_of(user), 'agent_rationale': clean.get('agent_rationale', ''),
-            'shot_list': clean.get('shot_list', ''),
+            'shot_list': clean.get('shot_list', ''), 'agent_original': None,
             'created_at': now_str, 'created_by': login, 'updated_at': now_str, 'updated_by': login,
             'placements': [],
         }
+        if material['origin'] == ORIGIN_AGENT:
+            material['agent_original'] = agent_original_of(material)
         with self._tx() as (data, _after):
             data['materials'][material['id']] = material
             text = f'Создан материал «{material["title"]}»'
             if review_id:
                 text += ' из отзыва гостя'
             self._log(data, now_str, login, 'create', material['id'], None, text)
-        return material_json(material, now_str)
+        return self._json(material, now_str)
 
     def update_material(self, material_id: str, fields: dict, user: Optional[dict],
                         month: Optional[str] = None) -> Tuple[dict, List[str]]:
@@ -1996,7 +2434,12 @@ class ContentPlanStore:
                 self._log(data, now_str, login, 'edit', material['id'], None,
                           'Изменено: ' + ', '.join(FIELD_NAMES[k] for k in changed))
                 unapproved = self._auto_unapprove(data, material, before, now_str, login)
-            result = material_json(material, now_str, month)
+                original = material.get('agent_original')
+                # Версию агента обновляет только сам агент: правки людей — это и есть
+                # «правки владельца», которые агент потом читает (agent_edits).
+                if is_agent_user(user) and isinstance(original, dict) and 'base_text' in changed:
+                    original['base_text'] = material['base_text']
+            result = self._json(material, now_str, month)
         return result, unapproved
 
     def delete_material(self, material_id: str, user: Optional[dict]) -> bool:
@@ -2004,6 +2447,8 @@ class ContentPlanStore:
         now_str = self.now_str()
         with self._tx() as (data, after):
             material = self._material(data, material_id)
+            for placement in material['placements']:
+                _guard_not_sending(placement, now_str)
             if any(p['status'] == 'published' for p in material['placements']):
                 raise ContentPlanConflict('У материала есть вышедшие размещения: отмените остальные, '
                                           'а материал оставьте для истории')
@@ -2024,12 +2469,14 @@ class ContentPlanStore:
         with self._tx() as (data, _after):
             material = self._material(data, material_id)
             for placement in material['placements']:
+                _guard_not_sending(placement, now_str)
+            for placement in material['placements']:
                 if placement['status'] in ACTIONS['cancel'][0]:
                     placement['status'] = 'cancelled'
                     placement['updated_at'], placement['updated_by'] = now_str, login
                     self._log(data, now_str, login, 'cancel', material['id'], placement['id'],
                               f'Отменено: {_placement_label(placement)}')
-            result = material_json(material, now_str, month)
+            result = self._json(material, now_str, month)
         return result
 
     def delete_agent_drafts(self, month, user: Optional[dict], material_ids=None) -> dict:
@@ -2162,14 +2609,17 @@ class ContentPlanStore:
                     'audience': clean.get('audience') if channel == 'bot' else None,
                     'status': 'draft', 'approved_at': None, 'approved_by': None,
                     'approved_snapshot': None, 'published_at': None, 'published_by': None,
-                    'failed_error': None, 'updated_at': now_str, 'updated_by': login,
+                    'failed_error': None, 'updated_at': now_str, 'updated_by': login, 'delivery': None,
                 }
                 material['placements'].append(placement)
                 created.append(placement['id'])
                 self._log(data, now_str, login, 'add_placement', material['id'], placement['id'],
                           f'Добавлено размещение: {_placement_label(placement)}')
+                original = material.get('agent_original')
+                if is_agent_user(user) and isinstance(original, dict):
+                    original['placements'][placement['id']] = placement['text']
             material['updated_at'], material['updated_by'] = now_str, login
-            result = material_json(material, now_str, month)
+            result = self._json(material, now_str, month)
         return result, created
 
     def update_placement(self, placement_id: str, fields: dict, user: Optional[dict],
@@ -2183,6 +2633,7 @@ class ContentPlanStore:
         with self._tx() as (data, _after):
             material, placement = self._placement(data, placement_id)
             guard_draft_mode(user, material)
+            _guard_not_sending(placement, now_str)
             if placement['status'] == 'published':
                 raise ValueError('Размещение уже вышло')
             if placement['status'] == 'cancelled':
@@ -2217,7 +2668,11 @@ class ContentPlanStore:
                 self._log(data, now_str, login, 'edit_placement', material['id'], placement['id'],
                           f'{_placement_label(placement)}: изменено — '
                           + ', '.join(FIELD_NAMES[k] for k in changed))
-            result = material_json(material, now_str, month)
+                original = material.get('agent_original')
+                if (is_agent_user(user) and isinstance(original, dict) and 'text' in changed
+                        and placement['id'] in original['placements']):
+                    original['placements'][placement['id']] = placement['text']
+            result = self._json(material, now_str, month)
         return result, unapproved
 
     def delete_placement(self, placement_id: str, user: Optional[dict],
@@ -2226,18 +2681,33 @@ class ContentPlanStore:
         now_str = self.now_str()
         with self._tx() as (data, _after):
             material, placement = self._placement(data, placement_id)
+            _guard_not_sending(placement, now_str)
             if placement['status'] == 'published':
                 raise ContentPlanConflict('Размещение уже вышло — оно остаётся в истории')
             material['placements'].remove(placement)
             material['updated_at'], material['updated_by'] = now_str, login
             self._log(data, now_str, login, 'delete_placement', material['id'], placement['id'],
                       f'Удалено размещение: {_placement_label(placement)}')
-            result = material_json(material, now_str, month)
+            result = self._json(material, now_str, month)
         return result
 
     def placement_action(self, placement_id: str, action: str, user: Optional[dict],
                          month: Optional[str] = None) -> dict:
-        """Переход статуса размещения (таблица ACTIONS). Неподходящий статус — 409."""
+        """Переход статуса размещения (таблица ACTIONS). Неподходящий статус — 409.
+
+        retry: failed -> approved и в очередь отправки (delivery.state 'queued',
+        retry_at): отправщик отправит в ближайшую минуту; у рассылки бота
+        сохраняется, кому уже дошло, — повтор только остальным.
+        retry_failed: вышедшая рассылка бота, у которой есть неудавшиеся
+        получатели (delivery.failed_to), — статус не меняется, повтор им встаёт в
+        очередь. Иначе 409. Пока размещение отправляется — 409 SENDING_CONFLICT.
+
+        Остановка рассылки бота (проверка 2026-09-28: идущую рассылку нельзя было
+        остановить): pause и cancel у рассылки, которая сейчас отправляется, ставят
+        флаг delivery.stop_requested — отправщик останавливается перед следующей
+        пачкой (≤ 25 сообщений), не получившие — в failed_to («Повторить
+        неудавшимся» доведёт позже). Рассылка, которая уже кому-то дошла и ждёт
+        продолжения в следующем проходе (continuation), останавливается сразу."""
         action = str(action or '').strip()
         if action not in ACTIONS:
             raise ValueError('Неизвестное действие')
@@ -2247,8 +2717,34 @@ class ContentPlanStore:
         with self._tx() as (data, _after):
             material, placement = self._placement(data, placement_id)
             status = placement['status']
+            delivery = delivery_of(placement)
+            label = _placement_label(placement)
+            if placement['channel'] == 'bot' and action in MAILING_STOP_ACTIONS:
+                if delivery.get('state') == 'sending' and in_flight(placement, now_str):
+                    placement['delivery'] = dict(delivery, stop_requested={'action': action, 'at': now_str,
+                                                                           'by': login})
+                    placement['updated_at'], placement['updated_by'] = now_str, login
+                    self._log(data, now_str, login, action, material['id'], placement['id'],
+                              f'{ACTION_LOG[action]}: {label} — рассылка остановится после текущей пачки')
+                    return self._json(material, now_str, month)
+                if delivery.get('state') == 'queued' and delivery.get('continuation') and delivery.get('sent_to'):
+                    stats = stop_mailing(placement, MAILING_STOP_WORDS[action], now_str)
+                    placement['updated_at'], placement['updated_by'] = now_str, login
+                    self._log(data, now_str, login, action, material['id'], placement['id'],
+                              f'{ACTION_LOG[action]}: {label} — рассылка остановлена: дошло {stats["sent"]} '
+                              f'из {stats["total"]}')
+                    return self._json(material, now_str, month)
+            _guard_not_sending(placement, now_str)
             if status not in allowed:
                 raise ContentPlanConflict(f'{ACTION_CONFLICT[action]} (сейчас: {STATUS_NAMES[status]})')
+            text = f'{ACTION_LOG[action]}: {label}'
+            if action == 'retry_failed':
+                failed = list(delivery.get('failed_to') or [])
+                if placement['channel'] != 'bot' or not failed:
+                    raise ContentPlanConflict('Повторить неудавшимся можно только у рассылки бота, которая дошла '
+                                              'не всем: повторять некому')
+                placement['delivery'] = dict(delivery, **_requeue(now_str))
+                text += f' ({len(failed)})'
             if action == 'resume':
                 moment = placement_datetime(placement)
                 if moment and moment < now_str:
@@ -2263,10 +2759,12 @@ class ContentPlanStore:
                 placement['published_at'], placement['published_by'] = now_str, login
             if action == 'retry':
                 placement['failed_error'] = None
+                # Повтор = отправить в ближайшую минуту: иначе ошибка «время выхода
+                # прошло» повторилась бы сразу. У рассылки остаётся, кому уже дошло.
+                placement['delivery'] = dict(delivery_of(placement), **_requeue(now_str))
             placement['updated_at'], placement['updated_by'] = now_str, login
-            self._log(data, now_str, login, action, material['id'], placement['id'],
-                      f'{ACTION_LOG[action]}: {_placement_label(placement)}')
-            result = material_json(material, now_str, month)
+            self._log(data, now_str, login, action, material['id'], placement['id'], text)
+            result = self._json(material, now_str, month)
         return result
 
     def approve(self, placement_ids, user: Optional[dict], confirm_bot=False) -> dict:
@@ -2365,6 +2863,7 @@ class ContentPlanStore:
             for placement in material['placements']:
                 if placement['status'] in ('published', 'cancelled') or not placement.get('date'):
                     continue
+                _guard_not_sending(placement, now_str)
                 new_day = date.fromisoformat(placement['date']) + timedelta(days=days)
                 if not YEAR_MIN <= new_day.year <= YEAR_MAX:
                     raise ValueError('Сдвиг выводит дату за допустимые годы')
@@ -2386,7 +2885,7 @@ class ContentPlanStore:
             sign = '+' if days > 0 else ''
             self._log(data, now_str, login, 'shift', material['id'], None,
                       f'Сдвиг на {sign}{days} дн.: размещений {len(moves)}')
-            result = material_json(material, now_str, month)
+            result = self._json(material, now_str, month)
         return result
 
     def repeat(self, material_id: str, weekdays, month, user: Optional[dict]) -> dict:
@@ -2435,6 +2934,7 @@ class ContentPlanStore:
                         continue
                     clone['placements'].append(_copy_placement(placement, iso, True, now_str, login))
                 copies.append(clone)
+            _seal_copies(copies, origin)
             if copies:
                 union = sorted(set((series or {}).get('weekdays') or []) | set(weekdays))
                 new_series = {'id': series_id or _new_id('s_'), 'weekdays': union}
@@ -2604,6 +3104,7 @@ class ContentPlanStore:
                            'порядок и интервалы размещений сохранены')
                 past_note(title, dates)
 
+            _seal_copies(created, origin)
             for clone in created:
                 data['materials'][clone['id']] = clone
                 self._log(data, now_str, login, 'copy_month', clone['id'], None,
@@ -2634,7 +3135,7 @@ class ContentPlanStore:
             material['updated_at'], material['updated_by'] = now_str, login
             self._log(data, now_str, login, 'media_add', material['id'], None, f'Добавлен файл «{original}»')
             unapproved = self._auto_unapprove(data, material, before, now_str, login)
-            result = material_json(material, now_str, month)
+            result = self._json(material, now_str, month)
         return result, unapproved
 
     def remove_media(self, material_id: str, name: str, user: Optional[dict],
@@ -2665,8 +3166,161 @@ class ContentPlanStore:
             unapproved = self._auto_unapprove(data, material, before, now_str, login)
             if not self._media_referenced(data, name):
                 after.append(lambda: self.media.delete(name))
-            result = material_json(material, now_str, month)
+            result = self._json(material, now_str, month)
         return result, unapproved
+
+    # ----- отправка (core/content_publisher.py) --------------------------------
+
+    def delivery_update(self, placement_id: str, fn: Callable, view: bool = False,
+                        now_str: Optional[str] = None):
+        """Изменение хода отправки под блокировкой хранилища — единственный путь,
+        которым отправщик меняет план (те же блокировки, что у правок людей).
+
+        fn(material, placement, now_str) правит размещение на месте и возвращает:
+        None — ничего не менять (файл не пишется); 'save' — записать без журнала
+        (прогресс рассылки); (action, by, text) — записать, отметить updated_* и
+        добавить запись журнала. now_str — момент (по умолчанию — часы хранилища).
+        -> материал в JSON-форме API (view=True) или True; None — fn ничего не
+        поменяла. ContentPlanNotFound — размещения нет (например, материал удалили)."""
+        stamp = now_str or self.now_str()
+        try:
+            with self._tx() as (data, _after):
+                material, placement = self._placement(data, placement_id)
+                outcome = fn(material, placement, stamp)
+                if outcome is None:
+                    raise _Unchanged()
+                if outcome != 'save':
+                    action, by, text = outcome
+                    placement['updated_at'], placement['updated_by'] = stamp, by
+                    self._log(data, stamp, by, action, material['id'], placement['id'], text)
+                result = self._json(material, stamp) if view else True
+        except _Unchanged:
+            return None
+        return result
+
+    def log_event(self, material_id: Optional[str], placement_id: Optional[str], action: str, by: str,
+                  text: str) -> None:
+        """Запись журнала без изменения плана — например, отправщик потерял свою
+        попытку (размещение изменили или удалили во время отправки): что ушло, должно
+        быть видно в истории материала, даже если записать итог в размещение нельзя."""
+        stamp = self.now_str()
+        with self._tx() as (data, _after):
+            self._log(data, stamp, by, action, material_id, placement_id, text)
+
+    # ----- учёт правок владельца для агента ----------------------------------
+
+    def agent_edits(self, months=None) -> dict:
+        """Что люди поменяли в материалах агента за последние months месяцев.
+
+        Окно: материалы с month не раньше (текущий месяц − months + 1); текущий и
+        будущие месяцы — всегда (план следующего месяца правят сейчас). Материал
+        агента попадает в items, если текст менялся человеком: общий текст или
+        итоговый текст размещения, созданного агентом, отличается от
+        agent_original (версия агента; свои правки агент в неё вносит сам). У
+        вышедших и ошибочных размещений итоговый текст — из снимка утверждения
+        (что ушло). Удалённые людьми материалы агента — по журналу (removed:
+        true, текста нет). Материалы агента до 2026-09-28 не имеют
+        agent_original — они только в counts.without_original.
+        -> {months, from_month, now, counts, items} (новые сверху)."""
+        months = parse_months_window(months)
+        data = self._load()
+        now_str = self.now_str()
+        first = add_months(now_str[:7], -(months - 1))
+        counts = {'agent_materials': 0, 'without_original': 0, 'changed': 0, 'unchanged': 0, 'removed': 0}
+        items: List[dict] = []
+        for material in data['materials'].values():
+            if material.get('origin') != ORIGIN_AGENT or material['month'] < first:
+                continue
+            counts['agent_materials'] += 1
+            original = material.get('agent_original')
+            if not isinstance(original, dict):
+                counts['without_original'] += 1
+                continue
+            item = _agent_edit_item(material, original, now_str)
+            if item['changed']:
+                counts['changed'] += 1
+                items.append(item)
+            else:
+                counts['unchanged'] += 1
+        created_by_agent = set()
+        deleted: Dict[str, dict] = {}
+        for entry in data['log']:
+            mid = entry.get('material_id')
+            if not mid or entry.get('placement_id'):
+                continue
+            action = entry.get('action')
+            by = str(entry.get('by') or '')
+            if action in ('create', 'repeat', 'copy_month') and by.endswith(AGENT_SUFFIX):
+                created_by_agent.add(mid)
+            elif action == 'delete' and not by.endswith(AGENT_SUFFIX):
+                deleted[mid] = entry
+        for mid, entry in deleted.items():
+            if mid in data['materials'] or mid not in created_by_agent:
+                continue
+            if (entry.get('at') or '') < first + '-01':
+                continue
+            match = re.search(r'«(.+)»', entry.get('text') or '')
+            counts['removed'] += 1
+            items.append({'material_id': mid, 'title': match.group(1) if match else None, 'month': None,
+                          'kind': None, 'status': 'deleted', 'status_label': 'Удалён', 'removed': True,
+                          'removed_by': entry.get('by'), 'removed_at': entry.get('at'), 'changed': False,
+                          'changed_at': entry.get('at'), 'original': None, 'current': None})
+        items.sort(key=lambda item: (item.get('changed_at') or '', item['material_id']), reverse=True)
+        return {'months': months, 'from_month': first, 'now': now_str, 'counts': counts, 'items': items}
+
+
+# Окно учёта правок: по умолчанию 3 месяца (сезон — тон брифа тот же), не больше
+# 12 (год: дальше другой сезон и, скорее всего, другие правила брифа).
+AGENT_EDITS_MONTHS_DEFAULT = 3
+AGENT_EDITS_MONTHS_MAX = 12
+
+
+def parse_months_window(value) -> int:
+    """Число месяцев 1..12 (строка из адреса или число); пусто — 3."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return AGENT_EDITS_MONTHS_DEFAULT
+    text = f'Период: целое число месяцев от 1 до {AGENT_EDITS_MONTHS_MAX}'
+    if isinstance(value, bool):
+        raise ValueError(text)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(text) from None
+    if number != number or number != int(number) or not 1 <= number <= AGENT_EDITS_MONTHS_MAX:
+        raise ValueError(text)
+    return int(number)
+
+
+def _agent_edit_item(material: dict, original: dict, now_str: str) -> dict:
+    """Одна строка agent_edits: версия агента и текущая (у вышедших — снимок)."""
+    base_now = material.get('base_text') or ''
+    base_changed = base_now != (original.get('base_text') or '')
+    rows, changed = [], base_changed
+    known = original.get('placements') or {}
+    for placement in material.get('placements') or []:
+        if placement['id'] not in known:
+            continue
+        agent_text = known[placement['id']]
+        agent_effective = agent_text if agent_text is not None else (original.get('base_text') or '')
+        text, _media, source = placement_content(material, placement)
+        row_changed = text != agent_effective
+        changed = changed or row_changed
+        rows.append({'id': placement['id'], 'channel': placement.get('channel'), 'bar': placement.get('bar'),
+                     'date': placement.get('date'), 'time': placement.get('time'),
+                     'status': placement.get('status'), 'text': text, 'text_source': source,
+                     'changed': row_changed})
+    present = {p['id'] for p in material.get('placements') or []}
+    removed_placements = [pid for pid in known if pid not in present]
+    if not changed:
+        return {'material_id': material['id'], 'changed': False}
+    summary = material_json(material, now_str)['summary']
+    return {'material_id': material['id'], 'title': material.get('title'), 'month': material.get('month'),
+            'kind': material.get('kind'), 'status': summary['state'],
+            'status_label': summary['label'], 'removed': False, 'removed_by': None, 'removed_at': None,
+            'changed': changed, 'changed_at': material.get('updated_at'), 'base_text_changed': base_changed,
+            'removed_placements': removed_placements,
+            'original': {'base_text': original.get('base_text') or '', 'placements': dict(known)},
+            'current': {'base_text': base_now, 'placements': rows}}
 
 
 _store: Optional[ContentPlanStore] = None
@@ -2675,11 +3329,17 @@ _store_guard = threading.Lock()
 
 def get_content_plan_store(data_file: Optional[str] = None) -> ContentPlanStore:
     """Ленивый синглтон на процесс. data_file (для тестов) заменяет синглтон
-    магазином на этом файле — последующие вызовы без аргумента вернут его же."""
+    магазином на этом файле — последующие вызовы без аргумента вернут его же.
+
+    Синглтон сервиса (без data_file) получает настоящие размер аудитории бота и
+    состояние отправки (core/content_channels: audience_size, payload_delivery);
+    импорт ленивый — content_channels сам импортирует этот модуль."""
     global _store
     with _store_guard:
         if data_file is not None and (_store is None or _store.data_file != data_file):
             _store = ContentPlanStore(data_file)
         elif _store is None:
-            _store = ContentPlanStore()
+            from core import content_channels
+            _store = ContentPlanStore(audience_fn=content_channels.audience_size,
+                                      delivery_fn=content_channels.payload_delivery)
         return _store

@@ -16,7 +16,7 @@ from core.stock_consumption import (INTERNAL_TRANSFER as INTERNAL_TRANSFER_TYPE,
 from core.purchase_price import line_sum, resolve_prices
 from core.stock_snapshot import get_stock_snapshot, get_stocks_nomenclature
 from core.order_store import get_order_store
-from core.supplier_directory import get_supplier_directory
+from core.supplier_directory import get_supplier_directory, normalize_name
 from core.supplier_calendar import next_delivery_date, delivery_after
 from extensions import taps_manager, BARS
 
@@ -487,6 +487,99 @@ def _bar_from_request():
             'known_bars': list(BARS) + ['Общая'],
         }), 400)
     return bar, store_id, kpp, None
+
+
+# Предел ?limit= у списков для ИИ-агентов (доска «К заказу», кэш ЧЗ): позиций на доске
+# бара и GTIN в кэше ЧЗ — сотни (кэш на 2026-05 — 555), 1000 покрывает любой список.
+# Весь список — без limit.
+LIST_LIMIT_MAX = 1000
+
+
+def _parse_limit(raw):
+    """Значение ?limit= → целое 1..LIST_LIMIT_MAX или None (не задано).
+
+    Кривое значение — ValueError с текстом для 400, а не молчаливая подмена: агент
+    решил бы, что позиций меньше, чем есть на самом деле.
+    """
+    text = str(raw or '').strip()
+    if not text:
+        return None
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if not 1 <= value <= LIST_LIMIT_MAX:
+        raise ValueError(f'limit — целое число от 1 до {LIST_LIMIT_MAX}')
+    return value
+
+
+def _search_key(value):
+    """Строка для поиска без учёта регистра; «ё» = «е»."""
+    return str(value or '').casefold().replace('ё', 'е')
+
+
+def _board_filters():
+    """Фильтры доски «К заказу» для агентов: ?supplier=, ?only_to_order=, ?limit=.
+
+    Фильтры меняют только СОСТАВ выдачи, не расчёт: рекомендации, минимальный заказ
+    группы и счётчики верхнего уровня считаются по всей доске бара, как без них.
+      supplier       — имя поставщика или написание category из iiko (регистр и
+                       кавычки не важны: справочник сводит их к одному имени);
+      only_to_order  — '1': только позиции с recommended > 0 (что заказать);
+      limit          — первые N позиций после фильтров (порядок — срочность).
+    Возвращает dict {supplier, only_to_order, limit, active}; кривое значение — ValueError.
+    """
+    supplier = (request.args.get('supplier') or '').strip()
+    only = (request.args.get('only_to_order') or '0').strip()
+    if only not in ('0', '1'):
+        raise ValueError('only_to_order — 1 (только к заказу) или 0')
+    limit = _parse_limit(request.args.get('limit'))
+    return {'supplier': supplier or None, 'only_to_order': only == '1', 'limit': limit,
+            'active': bool(supplier) or only == '1' or limit is not None}
+
+
+def _apply_board_filters(items, supplier_states, flt, directory):
+    """(позиции, состояния поставщиков, пояснение фильтра) после _board_filters.
+
+    С supplier в suppliers остаётся только его группа (минимальный заказ — по всей
+    группе, как на экране). Поставщик не нашёлся на доске — пустой список и
+    known_suppliers: имена, которые есть на доске этого бара.
+    """
+    selected = list(items)
+    suppliers = supplier_states
+    info = {'supplier': None, 'only_to_order': flt['only_to_order'], 'limit': flt['limit']}
+    if flt['supplier']:
+        wanted = directory.resolve(flt['supplier'])
+        key = normalize_name(wanted)
+        selected = [it for it in selected if normalize_name(it['supplier']) == key]
+        suppliers = {name: st for name, st in supplier_states.items() if normalize_name(name) == key}
+        # В ответе — имя, как оно стоит на доске (не написание из запроса).
+        info['supplier'] = next(iter(suppliers), wanted)
+        if not selected:
+            info['known_suppliers'] = sorted(supplier_states)
+    if flt['only_to_order']:
+        selected = [it for it in selected if (it.get('recommended') or 0) > 0]
+    info['matched'] = len(selected)
+    if flt['limit'] is not None:
+        selected = selected[:flt['limit']]
+    info['returned'] = len(selected)
+    info['total_items'] = len(items)
+    return selected, suppliers, info
+
+
+def _chz_filters():
+    """?q= и ?limit= кэша ЧЗ → (подстрока поиска или None, число или None).
+
+    q ищется без учёта регистра и «ё» в названии и бренде, а цифры — ещё и в GTIN
+    (штрихкод EAN-13 — это GTIN без ведущего нуля, поэтому подстрока находит и его).
+    """
+    query = _search_key((request.args.get('q') or '').strip())
+    return query or None, _parse_limit(request.args.get('limit'))
+
+
+def _chz_item_matches(item, query):
+    text = _search_key(' '.join(str(item.get(k) or '') for k in ('name', 'brand', 'gtin')))
+    return query in text
 
 
 def _load_stock_data():
@@ -1022,7 +1115,18 @@ def get_chz_stocks():
 
 @stocks_bp.route('/api/chz/stock', methods=['GET'])
 def get_chz_stock_api():
-    """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json."""
+    """Остатки ЧЗ с датами годности. Читает из кеша chz_stock.json.
+
+    Для агентов (весь кэш — сотни GTIN, ~0,5 млн знаков): ?q= — подстрока в названии,
+    бренде или GTIN (без учёта регистра и «ё»; штрихкод EAN-13 тоже находится),
+    ?limit= — не больше N позиций (1..1000) в порядке файла. С любым из них ответ —
+    {items, updated_at, total (позиций в кэше), matched (подошло до limit), q, limit};
+    без них — прежний {items, updated_at}. Кривой limit — 400.
+    """
+    try:
+        query, limit = _chz_filters()
+    except ValueError as error:
+        return jsonify({'items': [], 'updated_at': None, 'error': str(error)}), 400
     try:
         mtime = os.path.getmtime(str(_CHZ_CACHE_FILE))
         updated_at = datetime.fromtimestamp(mtime).isoformat()
@@ -1033,7 +1137,11 @@ def get_chz_stock_api():
     except (json.JSONDecodeError, OSError):
         return jsonify({'items': [], 'updated_at': None, 'error': 'cache corrupted or updating'}), 500
 
-    return jsonify({'items': items, 'updated_at': updated_at})
+    if query is None and limit is None:
+        return jsonify({'items': items, 'updated_at': updated_at})
+    matched = items if query is None else [it for it in items if _chz_item_matches(it, query)]
+    return jsonify({'items': matched[:limit] if limit else matched, 'updated_at': updated_at,
+                    'total': len(items), 'matched': len(matched), 'q': query, 'limit': limit})
 
 
 def start_chz_refresh() -> tuple[dict, int]:
@@ -1313,11 +1421,21 @@ def get_order_board():
     Срочность: см. _urgency_level; считается по effective, но отрицательный
     физический остаток остаётся critical (учётная ошибка не лечится заказом).
     days_left («хватит дн.») — по физическому остатку на полке.
+
+    Фильтры для ИИ-агентов (_board_filters; страница их не передаёт): ?supplier=,
+    ?only_to_order=1, ?limit=. Расчёт не меняют — только состав items и suppliers;
+    в ответе появляется filter {supplier, only_to_order, limit, matched, returned,
+    total_items[, known_suppliers]}. Счётчики верхнего уровня — по всей доске бара.
+    Кривое значение фильтра — 400 до похода в iiko.
     """
     try:
         bar, target_store_id, target_kpp, err = _bar_from_request()
         if err:
             return err
+        try:
+            board_filter = _board_filters()
+        except ValueError as error:
+            return jsonify({'error': str(error)}), 400
         snapshot, nomenclature, err = _load_stock_data()
         if err:
             return err
@@ -1527,7 +1645,13 @@ def get_order_board():
 
         items.sort(key=sort_key)
 
-        return jsonify({
+        # Фильтры агента — после расчёта и сортировки: состав выдачи, не цифры.
+        shown_items, shown_suppliers, filter_info = items, supplier_states, None
+        if board_filter['active']:
+            shown_items, shown_suppliers, filter_info = _apply_board_filters(
+                items, supplier_states, board_filter, directory)
+
+        payload = {
             'bar': bar,
             'today': snapshot['today'],
             'updated_at': snapshot['fetched_at'],
@@ -1556,9 +1680,12 @@ def get_order_board():
             'default_keg_liters': DEFAULT_KEG_LITERS,
             'orders_available': orders_error is None,
             'orders_error': orders_error,
-            'suppliers': supplier_states,
-            'items': items,
-        })
+            'suppliers': shown_suppliers,
+            'items': shown_items,
+        }
+        if filter_info is not None:
+            payload['filter'] = filter_info
+        return jsonify(payload)
 
     except Exception as e:
         print(f"[ERROR] Oshibka v /api/stocks/order-board: {e}")

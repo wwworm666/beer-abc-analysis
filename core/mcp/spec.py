@@ -39,6 +39,16 @@
     draft_write — запись, которая остаётся черновиком внутри сервиса и никуда не
                   уходит без утверждения владельца (создать/поправить черновик
                   материала контент-плана). Разрешена в режиме «чтение и черновики».
+    no_cache    — результат всегда живой: мост не кэширует его, даже если инструмент
+                  тяжёлый и только читает (проверка связи с iiko: «связь есть» из
+                  кэша пятиминутной давности — неправда). Правило кэша — докстрока
+                  core/mcp/bridge.py, раздел «Кэш тяжёлых чтений».
+
+Сценарий (PromptSpec) проверяет validate_prompt_spec: имя по шаблону, известный
+домен, непустые заголовок и описание, render — функция, аргументы — PromptArg с
+именами-идентификаторами без повторов и mode_required — ровно значение из MODES.
+Опечатка в mode_required ('drfat') без проверки считалась бы 'read' (mode_rank), и
+сценарий, который пишет черновики, показывался бы в коннекторе «Только чтение».
 
 Режимы доступа (MODES, решение по итогам проверки безопасности 2026-09-28):
     full  — все инструменты коннектора (живой разговор владельца с агентом);
@@ -152,6 +162,7 @@ class ToolSpec:
     heavy: bool = False
     draft_write: bool = False                    # черновик внутри сервиса: можно в режиме draft
     owner_notice: bool = False                   # сообщение только владельцу: можно в любом режиме
+    no_cache: bool = False                       # мост не кэширует результат (живые проверки)
     also_in: Tuple[str, ...] = ()                # другие домены, где инструмент тоже нужен
     examples: Tuple[dict, ...] = ()              # безопасные аргументы для дымовых тестов
     handler: Optional[Callable] = None           # служебный инструмент без маршрута:
@@ -295,4 +306,53 @@ def validate_tool_spec(spec: ToolSpec) -> List[str]:
                       f'не destructive и не open_world')
     if spec.owner_notice and spec.route_backed:
         errors.append(f'{where}: owner_notice — только служебный инструмент без маршрута (handler)')
+    return errors
+
+
+PROMPT_ARG_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,63}$')
+
+
+def validate_prompt_spec(prompt: PromptSpec) -> List[str]:
+    """Статическая проверка сценария. Пустой список — сценарий корректен.
+
+    Правила (реестр не публикует сценарий с ошибкой — core/mcp/registry.py):
+    - имя по PROMPT_NAME_RE; домен — common или ключ DOMAINS; для доменного
+      сценария имя начинается с «<домен>_» (как у инструментов);
+    - title и description не пустые (длину не требуем: короткое описание — не ошибка);
+    - render — функция;
+    - arguments — PromptArg с именами-идентификаторами (латиница, цифры, «_»), без
+      повторов: имя аргумента клиент подставляет как ключ;
+    - mode_required — ровно одно из MODES. Иначе mode_rank посчитал бы опечатку
+      режимом read, и сценарий, которому нужны черновики, увидел бы коннектор
+      «Только чтение» (агент упёрся бы в отказ сервера на первой записи).
+    """
+    errors: List[str] = []
+    name = getattr(prompt, 'name', '') or ''
+    where = f'сценарий {name or "<без имени>"}'
+    if not PROMPT_NAME_RE.match(name):
+        errors.append(f'{where}: имя не подходит под {PROMPT_NAME_RE.pattern}')
+    domain = getattr(prompt, 'domain', None)
+    if domain != COMMON_DOMAIN and domain not in DOMAINS:
+        errors.append(f'{where}: неизвестный домен {domain!r}')
+    elif domain != COMMON_DOMAIN and name and not name.startswith(str(domain) + '_'):
+        errors.append(f'{where}: имя должно начинаться с «{domain}_»')
+    if not str(getattr(prompt, 'title', '') or '').strip():
+        errors.append(f'{where}: пустой title')
+    if not str(getattr(prompt, 'description', '') or '').strip():
+        errors.append(f'{where}: пустое описание')
+    if not callable(getattr(prompt, 'render', None)):
+        errors.append(f'{where}: render не функция')
+    seen = set()
+    for arg in getattr(prompt, 'arguments', ()) or ():
+        if not isinstance(arg, PromptArg):
+            errors.append(f'{where}: аргумент не PromptArg: {arg!r:.60}')
+            continue
+        if not PROMPT_ARG_RE.match(arg.name or ''):
+            errors.append(f'{where}: имя аргумента {arg.name!r} не подходит под {PROMPT_ARG_RE.pattern}')
+        elif arg.name in seen:
+            errors.append(f'{where}: аргумент {arg.name} повторяется')
+        seen.add(arg.name)
+    mode = getattr(prompt, 'mode_required', None)
+    if mode not in MODES:
+        errors.append(f'{where}: mode_required {mode!r} не из {list(MODES)}')
     return errors

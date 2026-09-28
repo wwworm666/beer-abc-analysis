@@ -68,9 +68,13 @@ New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server' -Enabled True -Dire
 
 ### Создание пользователя для SSH
 
+Пароль sshuser — значение в локальном `secrets/LOCAL_NOTES.md` (раздел CHZ_TEST_README;
+файл не в git). До 2026-09-28 он был записан здесь открытым текстом и остался в истории
+git — сменить.
+
 ```powershell
 # Создать пользователя
-New-LocalUser -Name "sshuser" -Password (ConvertTo-SecureString "chz2026" -AsPlainText -Force) -PasswordNeverExpires
+New-LocalUser -Name "sshuser" -Password (ConvertTo-SecureString "<ПАРОЛЬ>" -AsPlainText -Force) -PasswordNeverExpires
 
 # Добавить в группу администраторов (ОБЯЗАТЕЛЬНО для доступа к сертификату)
 Add-LocalGroupMember -Group "Администраторы" -Member "sshuser"
@@ -275,10 +279,12 @@ python chz.py stock 2024-01-01
 
 С локальной машины (Python + paramiko):
 ```python
+import os
 import paramiko
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect('IP-бара', username='sshuser', password='chz2026')
+# Пароль sshuser — из переменной окружения (значение: secrets/LOCAL_NOTES.md)
+client.connect('IP-бара', username='sshuser', password=os.environ['REMOTE_PASS'])
 
 stdin, stdout, stderr = client.exec_command(
     'cd /d C:\\chz_test && python chz.py report', timeout=300

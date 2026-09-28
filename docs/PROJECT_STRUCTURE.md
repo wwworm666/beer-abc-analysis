@@ -32,8 +32,17 @@ beer-abc-analysis/
 │                           #   test_mcp_bridge.py, test_mcp_tokens.py, test_mcp_oauth.py, test_mcp_coverage.py,
 │                           #   test_mcp_docs_allowlist.py, test_mcp_modes.py,
 │                           #   test_mcp_tools_{content,stocks,analytics,staff}.py,
-│                           #   test_mcp_admin_render.mjs)
+│                           #   test_mcp_admin_render.mjs, test_mcp_narrowing.py, test_mcp_eval.py +
+│                           #   mcp_eval_questions.json (эталонные вопросы к агенту);
+│                           #   отправка и бот: test_content_publisher.py, test_guest_subscribers.py,
+│                           #   test_taplist_polling.py, test_review_notify.py; старые ошибки:
+│                           #   test_dashboard_comments.py, test_dashboard_compare_export.py,
+│                           #   test_msk_today_routes.py, test_schedule_employee_update.py,
+│                           #   test_docs_secrets_moved.py; conftest.py — пустые боевые токены
+│                           #   для каждого прогона pytest)
 ├── docs/                   # Документация проекта (SoT)
+├── secrets/                # ТОЛЬКО локально (в .gitignore и .dockerignore): LOCAL_NOTES.md —
+│                           #   пароли и токены, вынесенные из документов 2026-09-28
 ├── .claude/                # Принципы + индекс для агентов
 ├── memory/                 # Persistent-память (auto-managed)
 ├── knowledge_graph/        # MCP knowledge graph
@@ -74,7 +83,7 @@ beer-abc-analysis/
 | `draft_kegs.py` | **Проливы** для `/draft`: литры из проводок iiko, деньги из продаж, связка и объём порции через техкарты, разрез по барменам |
 | `draft_analysis.py` | Разливное по названиям блюд (2-этапная нормализация) — месячный отчёт, меню, скрипты |
 | `trends_analyzer.py` | Тренды по неделям |
-| `comparison_calculator.py` | Сравнение периодов |
+| `comparison_calculator.py` | Сравнение двух периодов для `POST /api/comparison/periods` теми же числами, что карточки дашборда (Δ, Δ%, п.п.) |
 | `revenue_metrics.py` | Единая точка чтения метрик выручки |
 | `explorer.py` | **build_pivot()** для конструктора отчётов |
 
@@ -84,7 +93,7 @@ beer-abc-analysis/
 | `employee_analysis.py` | Метрики по AuthUser, word-set matching имён |
 | `employee_plans.py` | KPI-каталог, **BAR_NAME_MAPPING** (cashshifts vs OLAP) |
 | `kpi_calculator.py` | KPI бонусы |
-| `plans_manager.py` | CRUD планов + **portalocker** cross-worker; `PLAN_DEFAULTS` (cardChecksShare 70%), `fill_missing_defaults`, `BUDGET_METRICS`/`plan_score` |
+| `plans_manager.py` | CRUD планов + **portalocker** cross-worker; `PLAN_DEFAULTS` (cardChecksShare 70%), `fill_missing_defaults`, `BUDGET_METRICS`/`plan_score`; `PeriodCommentsStore` — комментарии к периодам дашборда отдельно от планов (`period_comments.json`, с 2026-09-28) |
 | `shifts_manager.py` | SQLite + WAL pragma |
 | `meeting_notes.py` | Заметки совещаний |
 | `order_store.py` | Заказы поставщикам: общий черновик, статусы, «в пути», сверка с накладными iiko, текст для чата |
@@ -99,17 +108,20 @@ beer-abc-analysis/
 | `bar_acceptance.py` | **Приёмка бара** «Как принял бар?»: правила ответа, окно, сборка журнала месяца |
 | `bar_photo_store.py` | Фото приёмки на диске: имя, проверка сигнатуры JPEG, атомарная запись |
 
-### Раздел «Гости» (8)
+### Раздел «Гости» (11)
 | Файл | Что делает |
 |---|---|
-| `content_plan.py` | **Контент-план**: материалы и размещения, готовность, сводка, утверждение, пауза, сдвиг, повтор, копирование месяца, живые данные таплиста, журнал (`content_plan.json`); ИИ-агент: `origin`, «Почему этот пост», «Что снять», черновики ИИ — [content-plan.md](content-plan.md) |
+| `content_plan.py` | **Контент-план**: материалы и размещения, готовность, сводка, утверждение, пауза, сдвиг, повтор, копирование месяца, живые данные таплиста, журнал (`content_plan.json`); ИИ-агент: `origin`, «Почему этот пост», «Что снять», черновики ИИ; состояние отправки `delivery` размещений — [content-plan.md](content-plan.md) |
+| `content_channels.py` | **Каналы и отправка** (с 2026-09-28): канал Telegram каждого бара с проверкой, чат напоминаний об Instagram, главный выключатель, выключатели рассылок и кнопок подписки в боте, «что подключено» (`content_channels.json`; всё выключено по умолчанию) — [content-plan.md](content-plan.md) |
+| `content_publisher.py` | **Отправка публикаций** (с 2026-09-28): `publish_due` — пост в канал бара, напоминание об Instagram, рассылка подписчикам бота; «отправляется» под блокировкой плана, без дублей (`safe_resend`), проверка канала и тестовое сообщение, zip для Instagram — [content-plan.md](content-plan.md) |
+| `guest_subscribers.py` | **Подписчики гостевого бота** (с 2026-09-28): согласие с версией текста, бары, телефон (канон — только российские формы), сегменты рассылки, шаги диалога бота (`guest_subscribers.db`) — [guides/TELEGRAM_BOT_GUIDE.md](guides/TELEGRAM_BOT_GUIDE.md) |
 | `content_brief.py` | **Бриф сети для ИИ-агента** контент-плана: разделы, бары, примеры, пределы, слияние правок, затравка (`content_brief.json`) — [content-plan.md](content-plan.md), раздел «ИИ-агент» |
 | `content_media.py` | Фото и видео контент-плана на диске: имя `cp_<дата>_<12 hex>`, проверка сигнатуры, атомарная запись (`content_media/`) |
 | `guest_reviews.py` | **Отзывы гостей**: хранилище, проверка полей, статусы, метрики и формулы, слой календаря (`guest_reviews.json`) — [reviews.md](reviews.md) |
 | `yandex_business.py` | Клиент кабинета Яндекс Бизнеса (только чтение): организации, филиалы сетей, отзывы, разбор — [yandex-reviews.md](yandex-reviews.md) |
 | `yandex_reviews_sync.py` | Сверка отзывов Яндекса с «Отзывами» (бары по `permanent_id`, состояние `yandex_reviews_sync.json`) — [yandex-reviews.md](yandex-reviews.md) |
 | `yandex_reviews_scheduler.py` | Сверка раз в сутки, 08:30 МСК, + стартовая, если свежей нет |
-| `review_notify.py` | Новые отзывы — подписчикам бота kulturaopenclosed после сверки |
+| `review_notify.py` | Новые отзывы — подписчикам бота kulturaopenclosed: из Яндекса — после сверки; из гостевого бота — сразу, только бар, оценка, дата и ссылка, не больше 20 в час, подбор пропущенных раз в 10 минут |
 
 ### Краны и остатки (2)
 | Файл | Что делает |
@@ -117,13 +129,15 @@ beer-abc-analysis/
 | `taps_manager.py` | CRUD 60 кранов, atomic-write через tmp+fsync+replace |
 | `expiry_recommend.py` | `classify_tier()` + `recommend()` для Shelf-Life Cockpit |
 
-### Шедулеры и боты (5)
+### Шедулеры и боты (8)
 | Файл | Что делает |
 |---|---|
 | `chz_scheduler.py` | Daemon-thread, ЧЗ refresh в 03:00 МСК + atomic lock |
 | `open_check_scheduler.py` | Daemon-thread, open-check в 14:59 МСК + atomic lock |
+| `content_publisher_scheduler.py` | Daemon-thread, отправка контент-плана раз в минуту (hh:mm:01), один процесс (flock `data/.content_publisher.lock`); без токена бота и при `CONTENT_PUBLISH=0` не стартует |
+| `taplist_polling.py` | Long-polling гостевого бота @kult_taplist_bot: краны, подписка на новости с согласием, отзывы, выключатель `bot.signup` и меню команд |
 | `open_check_bot.py` | Логика проверки + форматирование |
-| `open_check_telegram.py` | Telegram Bot API sync, меню подписки (кнопка) + команды /start /status |
+| `open_check_telegram.py` | Telegram Bot API sync с обходом блокировок (`api_call`, файлы — `api_call_files`; `safe_resend` — запасной путь только при доказанном «не ушло»), меню подписки (кнопка) + команды /start /status |
 | `open_check_subscribers.py` | Хранилище самоподписавшихся чатов (единый список, portalocker) |
 | `open_check_polling.py` | Long-polling getUpdates (входящие команды/кнопки) |
 
@@ -143,8 +157,8 @@ beer-abc-analysis/
 | `mcp/principal.py` | `Principal` — кто вызывает: владелец, токен, клиент, разделы токена |
 | `mcp/spec.py` | `ToolSpec` (пометки `draft_write`, `owner_notice`), `PromptSpec` (`mode_required`), `DOMAINS`, режимы доступа `MODES` (`allowed_in_mode`, `prompt_allowed_in_mode`, `stricter_mode`), статическая проверка описаний |
 | `mcp/registry.py` | Сбор инструментов по разделам, видимость по коннекторам, инструкции агентам, исключения |
-| `mcp/protocol.py` | JSON-RPC и методы MCP двух эпох (2026-07-28 и `initialize`), режим подключения (строже из адреса и токена), проверки HTTP, лимиты частоты и одновременности, журнал |
-| `mcp/bridge.py` | Мост: тот же Flask-маршрут от имени владельца (`via_mcp`, `mcp_mode`), сверка пути с картой маршрутов, упаковка ответа, обрезание 60 000, семафор тяжёлых |
+| `mcp/protocol.py` | JSON-RPC и методы MCP двух эпох (2026-07-28 и `initialize`), режим подключения (строже из адреса и токена), проверки HTTP, лимиты частоты и одновременности (с 2026-09-28 — общие для воркеров, в `mcp.db`), журнал |
+| `mcp/bridge.py` | Мост: тот же Flask-маршрут от имени владельца (`via_mcp`, `mcp_mode`), сверка пути с картой маршрутов, упаковка ответа, обрезание 60 000, семафор тяжёлых, кэш тяжёлых чтений на 5 минут |
 | `mcp/schema_check.py` | Проверка аргументов по JSON Schema с русскими сообщениями |
 | `mcp/auth.py` | Проверка `Authorization: Bearer`: статический токен или OAuth, активный админ, раздел |
 | `mcp/tokens.py` | Статические токены для Claude Code (`kmcp_…`, sha256, режим доступа), `revoke_all_for_user` |
@@ -266,7 +280,10 @@ data/
 ├── content_media/          # Фото и видео контент-плана cp_<дата>_<hex>.<ext> (на проде /kultura, в git нет)
 ├── guest_reviews.json      # Отзывы гостей (на проде /kultura, в git нет)
 ├── content_brief.json      # Бриф сети для ИИ-агента контент-плана (на проде /kultura, в git нет)
-├── mcp.db                  # MCP: токены, OAuth, журнал вызовов, настройки (на проде /kultura, в git нет)
+├── content_channels.json   # «Каналы и отправка» контент-плана: каналы баров, выключатели (на проде /kultura, в git нет)
+├── guest_subscribers.db    # Подписчики гостевого бота и шаги его диалога, SQLite WAL (на проде /kultura, в git нет)
+├── period_comments.json    # Комментарии к периодам дашборда (на проде /kultura, в git нет)
+├── mcp.db                  # MCP: токены, OAuth, журнал вызовов, настройки, общие лимиты (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
 ├── olap_all_fields.json    # Справочник OLAP-полей
@@ -276,7 +293,7 @@ data/
 │   ├── nomenclature_full.json       # OLAP nomenclature
 │   ├── kitchen_report.json, store_operations_report.json
 │   └── ...
-└── .chz_refresh_lock_*, .open_check_lock_*   # Atomic locks от шедулеров
+└── .chz_refresh_lock_*, .open_check_lock_*, .content_publisher.lock   # Atomic locks от шедулеров
 ```
 
 **Persistence на Selectel:** docker volumes — `/srv/beer/data → /app/data` и `/srv/beer/chz_debug → /app/chz_test/debug`. На локальном dev — обычная директория. Маршрутизация — через [core/storage_paths.py](../core/storage_paths.py).
@@ -411,6 +428,7 @@ scripts/
 ├── analysis/                # analyze_*, calculate_*, search_*
 ├── maintenance/             # backup.bat, daily_update_mapping.bat, convert_pdf_to_md.py
 ├── fill_plan_defaults.py    # Проставить дефолты планов (cardChecksShare = 70) во все месяцы; --dry-run; на проде через docker exec
+├── mcp_eval.py              # Эталонные вопросы к ИИ-агенту (tests/mcp_eval_questions.json): по умолчанию сухой план; --run — прогон через claude -p в режиме read (тратит токены подписки) — docs/mcp.md
 └── yandex_reviews_probe.py  # Диагностика отзывов Яндекс Бизнеса: вход, филиалы, последние отзывы (только чтение) — docs/yandex-reviews.md
 ```
 
@@ -423,6 +441,8 @@ scripts/
 | Файл | Описание |
 |------|----------|
 | `.env` | Переменные окружения (секреты, не в git) |
+| `secrets/LOCAL_NOTES.md` | Только на машине владельца (`secrets/` в `.gitignore` и `.dockerignore`): пароли, токен бота и реквизиты, вынесенные из документов 2026-09-28; в документах — ссылка на раздел этого файла |
+| `tests/conftest.py` | Для каждого прогона pytest — пустые переменные, через которые код шлёт вовне (токены ботов, чаты, ключи Google, сессия Яндекса): `load_dotenv` при импорте иначе приносит боевые значения из `.env` |
 | `.env.example` | Пример .env с описанием всех переменных |
 | `.gitignore` | Игнорируемые файлы (test_*.json, .chz_lock, и т.д.) |
 | `Dockerfile`, `docker-compose.yml`, `Caddyfile` | **Актуальный** деплой на Selectel VPS |

@@ -202,8 +202,19 @@ def api_create_user():
 @auth_bp.route('/api/auth/users/<int:user_id>/profile', methods=['POST'])
 @admin_required
 def api_update_profile(user_id):
-    """Изменить имя и/или сокращение аккаунта (сокращение вводится вручную)."""
-    data = request.get_json() or {}
+    """Изменить имя и/или сокращение аккаунта (сокращение вводится вручную).
+
+    Тело — JSON-объект {display_name?, short_label?}; поле не передано или null — не
+    меняется. Не объект или поле не строкой — 400 (до 2026-09-28 число в
+    display_name доходило до .strip() в AuthManager и давало 500).
+    """
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Тело запроса — JSON-объект с полями display_name '
+                                 'и/или short_label'}), 400
+    for field in ('display_name', 'short_label'):
+        if data.get(field) is not None and not isinstance(data.get(field), str):
+            return jsonify({'error': field + ' должен быть строкой'}), 400
     try:
         get_auth_manager().update_profile(
             user_id,

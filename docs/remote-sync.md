@@ -65,8 +65,12 @@ Set-Service -Name sshd -StartupType Automatic
 
 ```cmd
 net user sshuser /add
-net user sshuser chz2026
+net user sshuser <ПАРОЛЬ>
 ```
+
+Пароль sshuser — значение в локальном `secrets/LOCAL_NOTES.md` (раздел REMOTE_SYNC;
+файл не в git). До 2026-09-28 он был записан здесь открытым текстом и остался в
+истории git — сменить.
 
 ### 3. Настройка SSH-ключа
 
@@ -131,3 +135,9 @@ Match Group administrators
 - OpenSSH Server: запущен, работает
 - Tailscale: подключён, ping работает
 - Пользователь SSH: Администратор (подпись csptest.exe требует прав администратора)
+
+## Changelog
+
+- **2026-09-28** — Пароль sshuser убран из команды `net user` (теперь `<ПАРОЛЬ>`), значение —
+  в локальном `secrets/LOCAL_NOTES.md` (раздел REMOTE_SYNC, файл не в git). Прежнее
+  значение осталось в истории git — сменить.

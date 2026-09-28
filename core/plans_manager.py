@@ -9,6 +9,10 @@
 
 Файл планов хранится в /kultura/plansdashboard.json
 Если /kultura недоступна, используется fallback на data/plansdashboard.json
+
+Здесь же — хранилище комментариев к периодам дашборда (PeriodCommentsStore,
+отдельный файл period_comments.json): до 2026-09-28 комментарий писался В ФАЙЛ
+ПЛАНОВ и проходил проверку полного плана, см. докстринг класса.
 """
 
 import json
@@ -22,8 +26,11 @@ from typing import Dict, Optional, List, Tuple
 import threading
 import shutil
 import portalocker
+from core import msk_time
+from core.json_store import atomic_write_json, file_lock
 from core.storage_paths import get_data_path
 from core.day_weights import weighted_days
+from core.venues_config import VENUES
 
 
 # Бюджетные метрики: план — потолок, а не цель, меньше плана хорошо.
@@ -784,6 +791,288 @@ class PlansManager:
             import traceback
             traceback.print_exc()
             return None
+
+
+# ============================================================================
+# Комментарии к периодам дашборда («анализ периода»)
+# ============================================================================
+
+# Имя файла на постоянном диске (/kultura) или в data/ локально.
+COMMENTS_FILE = 'period_comments.json'
+COMMENTS_SCHEMA_VERSION = 1
+# Предел длины текста. Ответ ИИ-анализа периода — 1–3 тыс. знаков; 10 000 оставляют
+# запас на ручную правку и отсекают случайную вставку целого отчёта или мусора.
+COMMENT_MAX_LEN = 10000
+# Слот «любое заведение» для комментариев, сохранённых до 2026-09-28: тогда маршрут
+# игнорировал venue_key, и один текст был виден при любом заведении. После переноса
+# так и остаётся: старый текст показывается у всех заведений, пока у заведения нет
+# своего. '*' не бывает ключом заведения, поэтому слоты не пересекаются.
+LEGACY_VENUE = '*'
+# Ключ периода дашборда (static/js/dashboard/core/period_model.js, WeeksGenerator):
+# 'YYYY-MM-DD_YYYY-MM-DD', обе даты включительно. Только такой ключ принимает ЗАПИСЬ.
+PERIOD_KEY_RE = re.compile(r'^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$')
+# Предел длины ключа при ЧТЕНИИ. Чтение принимает любой ключ, под которым мог
+# лежать старый комментарий в файле планов (формат не проверялся), но не
+# произвольно длинную строку.
+PERIOD_KEY_MAX_LEN = 64
+
+
+class PeriodCommentsUnavailable(RuntimeError):
+    """Файл комментариев не читается. Запись запрещена: иначе она стёрла бы все
+    остальные комментарии (урок docs/lessons.md «Backup перед записью»)."""
+
+
+def validate_comment_venue(venue_key) -> str:
+    """Ключ заведения комментария: 'all' или ключ бара из core/venues_config.VENUES.
+
+    Raises:
+        ValueError: неизвестный ключ (русское имя бара, опечатка) — текст для 400.
+    """
+    if not isinstance(venue_key, str) or venue_key not in VENUES:
+        raise ValueError('Неизвестное заведение: ' + str(venue_key)[:40]
+                         + '. Ключи: ' + ', '.join(VENUES))
+    return venue_key
+
+
+def validate_comment_period_key(period_key, for_write: bool) -> str:
+    """Ключ периода комментария.
+
+    Запись (for_write=True): только 'YYYY-MM-DD_YYYY-MM-DD' с настоящими датами и
+    началом не позже конца — это единственный формат, который выдаёт дашборд.
+    Чтение: любая непустая строка до PERIOD_KEY_MAX_LEN знаков — старые
+    комментарии из файла планов могли лежать под ключом другого вида, и
+    читаться они обязаны.
+
+    Raises:
+        ValueError: текст для ответа 400.
+    """
+    if not isinstance(period_key, str) or not period_key.strip():
+        raise ValueError('Нужен ключ периода YYYY-MM-DD_YYYY-MM-DD')
+    if len(period_key) > PERIOD_KEY_MAX_LEN:
+        raise ValueError('Ключ периода длиннее ' + str(PERIOD_KEY_MAX_LEN) + ' знаков')
+    if not for_write:
+        return period_key
+    match = PERIOD_KEY_RE.match(period_key)
+    if not match:
+        raise ValueError('Ключ периода — YYYY-MM-DD_YYYY-MM-DD (как у дашборда), '
+                         'получено: ' + period_key)
+    try:
+        start = datetime.strptime(match.group(1), '%Y-%m-%d').date()
+        end = datetime.strptime(match.group(2), '%Y-%m-%d').date()
+    except ValueError:
+        raise ValueError('В ключе периода несуществующая дата: ' + period_key)
+    if start > end:
+        raise ValueError('Начало периода позже конца: ' + period_key)
+    return period_key
+
+
+def validate_comment_text(text) -> str:
+    """Текст комментария: строка до COMMENT_MAX_LEN знаков, пробелы по краям обрезаются.
+
+    Пустая строка допустима: это «очистить комментарий» (см. PeriodCommentsStore.save).
+
+    Raises:
+        ValueError: не строка или слишком длинный текст — текст для 400.
+    """
+    if not isinstance(text, str):
+        raise ValueError('comment должен быть строкой')
+    text = text.strip()
+    if len(text) > COMMENT_MAX_LEN:
+        raise ValueError('Комментарий длиннее ' + str(COMMENT_MAX_LEN) + ' знаков ('
+                         + str(len(text)) + ')')
+    return text
+
+
+class PeriodCommentsStore:
+    """Комментарии к периодам дашборда: отдельный файл, ключ (заведение, период).
+
+    Почему отдельно от планов. До 2026-09-28 POST /api/comments/<venue>/<period>
+    читал ЗАПИСЬ ПЛАНА по ключу периода, дописывал в неё поле comment и сохранял
+    через save_plan — с проверкой всех 16 полей плана. Для ключа периода дашборда
+    ('2026-09-14_2026-09-20') плана нет, поэтому каждое сохранение падало с 500
+    «Missing required field: revenue»; venue_key при этом не использовался вовсе.
+    Теперь комментарий — отдельная сущность без полей плана, и у каждого
+    заведения свой текст.
+
+    Модель файла (period_comments.json):
+        {version: 1,
+         comments: {<venue_key>: {<period_key>: {text, updated_at, updated_by}}},
+         legacy_migrated_at: ISO-время переноса старых комментариев (МСК),
+         legacy_keys: [ключи периодов, перенесённые из файла планов]}
+    venue_key — 'all' или ключ бара; LEGACY_VENUE ('*') — перенесённые старые.
+
+    Чтение get(venue, period):
+        1. свой комментарий заведения;
+        2. иначе старый общий (слот '*') — как раньше, он виден у любого заведения;
+        3. иначе None.
+    Пустой текст у заведения (очищенный комментарий) скрывает и старый общий:
+    человек очистил комментарий — показывать нечего.
+
+    Перенос старых комментариев (_ensure_migrated): один раз на файл — записи
+    файла планов с непустым строковым полем comment копируются в слот '*' под
+    тем же ключом. Файл планов НЕ меняется (поле comment внутри записи плана
+    ни на что не влияет, а запись в файл планов без нужды — лишний риск для
+    боевых планов). Файл планов не читается — перенос откладывается до
+    следующего обращения, комментарии при этом работают.
+
+    Надёжность записи — как у core/supplier_directory.py: in-process Lock +
+    межпроцессный file_lock, строгое перечитывание под замком, атомарная запись.
+    Битый файл -> PeriodCommentsUnavailable (маршрут отвечает 503), файл не
+    перезаписывается.
+    """
+
+    def __init__(self, data_file: str = None, legacy_plans_file: str = None):
+        """
+        Args:
+            data_file: путь к файлу комментариев (тесты); по умолчанию
+                get_data_path(COMMENTS_FILE) — /kultura на проде, data/ локально
+            legacy_plans_file: путь к plansdashboard.json для переноса старых
+                комментариев; None — переносить нечего
+        """
+        self.data_file = data_file or get_data_path(COMMENTS_FILE, seed_from_local=False)
+        self.legacy_plans_file = legacy_plans_file
+        self._lock = threading.Lock()
+        self._lock_path = self.data_file + '.lock'
+        self._migrated = False
+
+    # ------------------------------------------------------------ файл
+
+    @staticmethod
+    def _empty() -> Dict:
+        return {'version': COMMENTS_SCHEMA_VERSION, 'comments': {}}
+
+    def _read(self) -> Dict:
+        """Содержимое файла; нет файла — пустая структура; битый — исключение."""
+        if not os.path.exists(self.data_file):
+            return self._empty()
+        try:
+            with open(self.data_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (OSError, ValueError) as e:
+            raise PeriodCommentsUnavailable(
+                'Файл комментариев не читается (' + type(e).__name__ + '): ' + self.data_file)
+        if not isinstance(data, dict) or not isinstance(data.get('comments'), dict):
+            raise PeriodCommentsUnavailable(
+                'Файл комментариев повреждён (нет раздела comments): ' + self.data_file)
+        for venue_slot in data['comments'].values():
+            if not isinstance(venue_slot, dict):
+                raise PeriodCommentsUnavailable(
+                    'Файл комментариев повреждён (раздел заведения не словарь): '
+                    + self.data_file)
+        return data
+
+    def _legacy_comments(self) -> Dict[str, Dict]:
+        """{ключ периода: запись} из файла планов — записи с непустым полем comment.
+
+        Ошибки чтения файла планов пробрасываются: решает _ensure_migrated.
+        """
+        if not self.legacy_plans_file or not os.path.exists(self.legacy_plans_file):
+            return {}
+        with open(self.legacy_plans_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        plans = data.get('plans') if isinstance(data, dict) else None
+        found = {}
+        for key, plan in (plans or {}).items():
+            if not isinstance(plan, dict):
+                continue
+            text = plan.get('comment')
+            if isinstance(text, str) and text.strip():
+                found[key] = {
+                    'text': text.strip()[:COMMENT_MAX_LEN],
+                    # Время записи плана — лучшее, что известно о времени комментария.
+                    'updated_at': plan.get('updatedAt') or plan.get('createdAt'),
+                    'updated_by': None,
+                }
+        return found
+
+    def _ensure_migrated(self):
+        """Один раз перенести старые комментарии из файла планов (сам файл не меняется)."""
+        if self._migrated:
+            return
+        with self._lock, file_lock(self._lock_path):
+            data = self._read()
+            if data.get('legacy_migrated_at'):
+                self._migrated = True
+                return
+            try:
+                legacy = self._legacy_comments()
+            except (OSError, ValueError) as e:
+                print('[COMMENTS WARN] Файл планов не читается, перенос старых комментариев '
+                      'отложен: ' + type(e).__name__ + ': ' + str(e))
+                return
+            slot = data['comments'].setdefault(LEGACY_VENUE, {})
+            moved = []
+            for key in sorted(legacy):
+                if key not in slot:
+                    slot[key] = legacy[key]
+                    moved.append(key)
+            data['version'] = COMMENTS_SCHEMA_VERSION
+            data['legacy_migrated_at'] = msk_time.now().isoformat(timespec='seconds')
+            data['legacy_keys'] = moved
+            atomic_write_json(self.data_file, data)
+            self._migrated = True
+            if moved:
+                print('[COMMENTS] Перенесено старых комментариев из файла планов: '
+                      + str(len(moved)) + ' (' + ', '.join(moved) + ')')
+
+    # ------------------------------------------------------------ API
+
+    def get(self, venue_key: str, period_key: str) -> Optional[Dict]:
+        """Комментарий периода для заведения или None (правила — в докстринге класса).
+
+        Returns:
+            {comment, venue_key, period_key, updated_at, updated_by, legacy} или None;
+            legacy=True — старый общий комментарий (сохранён до 2026-09-28 без заведения).
+        """
+        self._ensure_migrated()
+        comments = self._read()['comments']
+        own = (comments.get(venue_key) or {}).get(period_key)
+        if own is not None:
+            if not own.get('text'):
+                return None
+            return self._view(venue_key, period_key, own, legacy=False)
+        old = (comments.get(LEGACY_VENUE) or {}).get(period_key)
+        if old is not None and old.get('text'):
+            return self._view(venue_key, period_key, old, legacy=True)
+        return None
+
+    def save(self, venue_key: str, period_key: str, text: str,
+             author: Optional[str] = None) -> Dict:
+        """Сохранить (заменить) комментарий заведения за период.
+
+        Аргументы уже проверены validate_comment_* (маршрут отвечает 400 до вызова).
+        Пустой text — «очистить»: запись остаётся пустой, чтобы старый общий
+        комментарий этого периода у заведения больше не показывался.
+
+        Returns:
+            {comment, venue_key, period_key, updated_at, updated_by, legacy: False}
+        Raises:
+            PeriodCommentsUnavailable: файл битый — он не перезаписывается.
+        """
+        self._ensure_migrated()
+        record = {
+            'text': text,
+            'updated_at': msk_time.now().isoformat(timespec='seconds'),
+            'updated_by': author,
+        }
+        with self._lock, file_lock(self._lock_path):
+            data = self._read()
+            data['version'] = COMMENTS_SCHEMA_VERSION
+            data['comments'].setdefault(venue_key, {})[period_key] = record
+            atomic_write_json(self.data_file, data)
+        return self._view(venue_key, period_key, record, legacy=False)
+
+    @staticmethod
+    def _view(venue_key: str, period_key: str, record: Dict, legacy: bool) -> Dict:
+        return {
+            'comment': record.get('text') or None,
+            'venue_key': venue_key,
+            'period_key': period_key,
+            'updated_at': record.get('updated_at'),
+            'updated_by': record.get('updated_by'),
+            'legacy': legacy,
+        }
+
 
 # Тестирование модуля
 if __name__ == "__main__":

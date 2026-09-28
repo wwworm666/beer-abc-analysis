@@ -193,31 +193,72 @@ def schedule_sync_employees():
     return jsonify(report)
 
 
+# Поля реестра, которые правит PUT /api/schedule/employee/<id> (имя — только из iiko).
+EMPLOYEE_EDIT_FIELDS = ('short_label', 'active', 'sort_order')
+INT_RE = re.compile(r'^-?\d+$')
+
+
+def _employee_update_fields(data):
+    """Проверить тело правки реестра: ({поле: значение}, None) или (None, текст 400).
+
+    Правила (до 2026-09-28 кривой ввод давал 404 «не найден» или 500):
+    - хотя бы одно из short_label / active / sort_order, не null — иначе менять нечего;
+    - short_label — строка (пустая убирает сокращение);
+    - active — true/false или 0/1 (редактор графика шлёт 1/0; строку 'false'
+      менеджер счёл бы истиной и показал бы скрытого);
+    - sort_order — целое число или строка из цифр.
+    """
+    if not isinstance(data, dict):
+        return None, 'Тело запроса — JSON-объект с полями short_label, active или sort_order'
+    fields = {key: data[key] for key in EMPLOYEE_EDIT_FIELDS if data.get(key) is not None}
+    if not fields:
+        return None, 'Нечего менять: передайте short_label, active или sort_order'
+    if 'short_label' in fields and not isinstance(fields['short_label'], str):
+        return None, 'short_label должен быть строкой'
+    if 'active' in fields and not (isinstance(fields['active'], bool)
+                                   or (isinstance(fields['active'], int)
+                                       and fields['active'] in (0, 1))):
+        return None, 'active — true или false (либо 1 или 0)'
+    if 'sort_order' in fields:
+        value = fields['sort_order']
+        if isinstance(value, bool) or not (isinstance(value, int)
+                                           or (isinstance(value, str) and INT_RE.match(value))):
+            return None, 'sort_order должен быть целым числом'
+        fields['sort_order'] = int(value)
+    return fields, None
+
+
 @schedule_bp.route('/api/schedule/employee/<emp_id>', methods=['PUT'])
 def schedule_update_employee(emp_id):
     """Обновить сотрудника в реестре по стабильному iiko_id: short_label, active,
-    sort_order. Имя приходит из iiko (синк), здесь не редактируется."""
-    data = request.get_json(silent=True) or {}
+    sort_order. Имя приходит из iiko (синк), здесь не редактируется.
+
+    400 — нет ни одного поля или неверный тип (_employee_update_fields); 404 —
+    сотрудника с таким iiko_id нет в реестре."""
+    data = request.get_json(silent=True)
+    fields, error = _employee_update_fields(data if data is not None else {})
+    if error:
+        return jsonify({'error': error}), 400
     # снимок до изменения — для журнала (защита от саботажа держится на истории)
     before = next((e for e in shifts_mgr.get_schedule_employees(include_inactive=True)
                    if str(e.get('id')) == str(emp_id)), None)
     ok = shifts_mgr.update_schedule_employee(
         iiko_id=emp_id,
-        short_label=data.get('short_label'),
-        active=data.get('active'),
-        sort_order=data.get('sort_order'),
+        short_label=fields.get('short_label'),
+        active=fields.get('active'),
+        sort_order=fields.get('sort_order'),
     )
     if not ok:
         return jsonify({'error': 'Сотрудник не найден'}), 404
     name = (before or {}).get('name') or emp_id
     parts = []
-    if data.get('short_label') is not None:
+    if 'short_label' in fields:
         parts.append(f"метка «{(before or {}).get('short_label') or '—'}»"
-                     f" -> «{(data.get('short_label') or '').strip() or '—'}»")
-    if data.get('active') is not None:
-        parts.append('показан в сетке' if data.get('active') else 'скрыт из сетки')
-    if data.get('sort_order') is not None:
-        parts.append(f"порядок -> {data.get('sort_order')}")
+                     f" -> «{fields['short_label'].strip() or '—'}»")
+    if 'active' in fields:
+        parts.append('показан в сетке' if fields['active'] else 'скрыт из сетки')
+    if 'sort_order' in fields:
+        parts.append(f"порядок -> {fields['sort_order']}")
     _audit('employee_update',
            f"Реестр: {name} — " + ('; '.join(parts) if parts else 'изменён'),
            entity_date=_today_iso(), employee_name=name)

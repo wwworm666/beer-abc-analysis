@@ -211,6 +211,10 @@
     white-space: pre-wrap;
 }
 .gh-rv-send { margin: 8px 0 0; font: 400 12px/1.45 var(--gh-sans); color: var(--gh-ink4); }
+/* Ответ на отзыв из бота ушёл гостю в Telegram (reply.delivered_at). */
+.gh-rv-send.is-sent { color: var(--gh-ok-ink); }
+/* Статус отправки неизвестен: сообщение могло дойти — проверить у гостя до повтора. */
+.gh-rv-send.is-unknown { color: var(--gh-warn-ink); }
 
 /* Прежний ответ или причина пропуска у отзыва, возвращённого в работу. */
 .gh-rv-hist {
