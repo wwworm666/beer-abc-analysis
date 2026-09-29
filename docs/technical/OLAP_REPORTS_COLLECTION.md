@@ -54,7 +54,7 @@
 |---|---|---|---|---|---|
 | 1 | Номенклатура товаров (TRANSACTIONS) | `/v2/reports/olap` | TRANSACTIONS | PRODUCTION | `core/olap_reports.py:101-121` |
 | 2 | Продажи кухни (без официанта) | `/v2/reports/olap` | SALES | PRODUCTION | `core/olap_reports.py:613-653` |
-| 3 | Конструктор отчётов /explorer (расширенная иерархия категорий) | `/v2/reports/olap` | SALES | PRODUCTION | `core/olap_reports.py:686-719` |
+| 3 | Конструктор отчётов /explorer (расширенная иерархия категорий) | `/v2/reports/olap` | SALES | УДАЛЁН 2026-09-29 | был `get_explorer_sales` |
 | 4 | Комплексные продажи (все категории за один запрос) | `/v2/reports/olap` | SALES | PRODUCTION | `core/olap_reports.py:756-793` |
 | 5 | Продажи пива (розлив/фасовка, опционально с официантом) | `/v2/reports/olap` | SALES | PRODUCTION | `core/olap_reports.py:831-865` |
 | 6 | Подсчёт количества чеков (заказов) | `/v2/reports/olap` | SALES | PRODUCTION | `core/olap_reports.py:897-920` |
@@ -181,6 +181,11 @@
 ```
 
 ### 3. Конструктор отчётов /explorer (расширенная иерархия категорий)
+
+> **Удалён 2026-09-29.** Страница /explorer стала конструктором OLAP-отчётов iiko: тело
+> запроса больше не захардкожено, его собирает `core/olap_constructor.py::olap_body` из
+> заявки пользователя (любые поля каталога iiko, фильтры, период) — правила сборки и
+> примеры в [../explorer.md](../explorer.md). Ниже — тело старого MVP для истории.
 
 - ID: `explorer_sales`
 - Источник: `core/olap_reports.py:686-719` — builder `get_explorer_sales`
@@ -1404,7 +1409,7 @@
 - `core/draft_loader.py:load_draft_kegs(bar_name, date_from, date_to)` — единственный вызывающий с 2026-09-04: три запроса под одним ключом кэша `draft_kegs_{бар|ALL}_{from}_{to+1}`; потребители — `routes/analysis.py:/api/draft-kegs` и `routes/dashboard.py:/api/dashboard-card-details?section=draft_liters` (вкладка «Литры» карточек розлива)
 
 ### `get_explorer_sales`
-- `core/explorer.py:75 — data = olap.get_explorer_sales(date_from, date_to_inclusive, bar_name)`
+- удалён 2026-09-29 вместе со старым конструктором; новые тела собирает `core/olap_constructor.py::olap_body`
 
 ### `get_orders_count`
 - _вызовов не найдено (потенциально мёртвый код)_

@@ -1,0 +1,1185 @@
+{
+  "Sum.PartOfIncome": {
+    "name": "% от выручки",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Финансы"
+    ]
+  },
+  "Sum.PartOfTotalIncome": {
+    "name": "% от общей выручки",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "P&L",
+      "Финансы"
+    ]
+  },
+  "PercentOfSummary.ByCol": {
+    "name": "% по столбцу",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "PercentOfSummary.ByRow": {
+    "name": "% по строке",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Оплата"
+    ]
+  },
+  "Sum.PartOfSummaryByCol": {
+    "name": "% суммы от итога по столбцам",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Финансы"
+    ]
+  },
+  "Sum.PartOfSummaryByRow": {
+    "name": "% суммы от итога по строкам",
+    "type": "PERCENT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Финансы"
+    ]
+  },
+  "Session.GroupId": {
+    "name": "ID группы",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "OrderId": {
+    "name": "ID заказа",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "Product.Category.Id": {
+    "name": "ID категории номенклатуры",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Counteragent.Id": {
+    "name": "ID контрагента",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Product.Tags.IdsCombo": {
+    "name": "ID пользовательских свойств (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.Tag.Id": {
+    "name": "ID пользовательского свойства",
+    "type": "ID",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Account.Id": {
+    "name": "ID счета",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Product.Id": {
+    "name": "ID элемента номенклатуры",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.Num": {
+    "name": "Артикул элемента номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.AccountingCategory": {
+    "name": "Бухгалтерская категория",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "DateTime.Year": {
+    "name": "Год",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "Session.Group": {
+    "name": "Группа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Contr-Product.AlcoholClass.Group": {
+    "name": "Группа алкогольной продукции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Корреспондент"
+    ]
+  },
+  "Product.AlcoholClass.Group": {
+    "name": "Группа алкогольной продукции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Номенклатура"
+    ]
+  },
+  "Contr-Account.Group": {
+    "name": "Группа корр.счета",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Product.TopParent": {
+    "name": "Группа номенклатуры 1-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.SecondParent": {
+    "name": "Группа номенклатуры 2-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.ThirdParent": {
+    "name": "Группа номенклатуры 3-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Account.Group": {
+    "name": "Группа счета",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "P&L",
+      "Счета"
+    ]
+  },
+  "DateTime.Typed": {
+    "name": "Дата и время",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "DateSecondary.DateTimeTyped": {
+    "name": "Дата и время проводки",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "DateSecondary.DateTyped": {
+    "name": "Дата проводки",
+    "type": "DATE",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "TransactionSide": {
+    "name": "Дебет/Кредит",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "DateTime.DayOfWeak": {
+    "name": "День недели",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "Product.MeasureUnit": {
+    "name": "Единица измерения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.Hierarchy": {
+    "name": "Иерархия номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "CashFlowCategory.Hierarchy": {
+    "name": "Иерархия статей ДДС",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств"
+    ]
+  },
+  "Account.AccountHierarchyFull": {
+    "name": "Иерархия счета",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Session.CashRegister": {
+    "name": "Касса",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category1": {
+    "name": "Категория 1",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category2": {
+    "name": "Категория 2",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category3": {
+    "name": "Категория 3",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category4": {
+    "name": "Категория 4",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Department.Category5": {
+    "name": "Категория 5",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Product.Category": {
+    "name": "Категория номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "DateTime.Quarter": {
+    "name": "Квартал",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "Contr-Product.AlcoholClass": {
+    "name": "Класс алкогольной продукции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Корреспондент"
+    ]
+  },
+  "Product.AlcoholClass": {
+    "name": "Класс алкогольной продукции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Номенклатура"
+    ]
+  },
+  "Contr-Product.AlcoholClass.Code": {
+    "name": "Код класса алкогольной продукции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Корреспондент"
+    ]
+  },
+  "Product.AlcoholClass.Code": {
+    "name": "Код класса алкогольной продукции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Номенклатура"
+    ]
+  },
+  "Conception.Code": {
+    "name": "Код концепции",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "Contr-Account.Code": {
+    "name": "Код корр.счета",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Department.Code": {
+    "name": "Код подразделения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Account.Code": {
+    "name": "Код счета",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "P&L",
+      "Счета"
+    ]
+  },
+  "TransactionType.Code": {
+    "name": "Код транзакции",
+    "type": "OBJECT",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "Amount": {
+    "name": "Количество",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Номенклатура",
+      "ОСВ"
+    ]
+  },
+  "Comment": {
+    "name": "Комментарий",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "FinalBalance.Money": {
+    "name": "Конечный денежный остаток",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "ОСВ"
+    ]
+  },
+  "FinalBalance.Amount": {
+    "name": "Конечный остаток товара",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "ОСВ"
+    ]
+  },
+  "Counteragent.Name": {
+    "name": "Контрагент",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Conception": {
+    "name": "Концепция",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация",
+      "Организация"
+    ]
+  },
+  "Contr-Product.Category.Id": {
+    "name": "Корр.ID категории номенклатуры",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Tags.IdsCombo": {
+    "name": "Корр.ID пользовательских свойств (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Id": {
+    "name": "Корр.ID эл.номенклатуры",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Num": {
+    "name": "Корр.Артикул элемента номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.AccountingCategory": {
+    "name": "Корр.Бухгалтерская категория",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.TopParent": {
+    "name": "Корр.Группа номенклатуры 1-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.SecondParent": {
+    "name": "Корр.Группа номенклатуры 2-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.ThirdParent": {
+    "name": "Корр.Группа номенклатуры 3-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.MeasureUnit": {
+    "name": "Корр.Единица измерения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Hierarchy": {
+    "name": "Корр.Иерархия номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Category": {
+    "name": "Корр.Категория номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Tags.NamesCombo": {
+    "name": "Корр.Пользовательские свойства (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Account.Name": {
+    "name": "Корр.Счет/Склад",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.CookingPlaceType": {
+    "name": "Корр.Тип места приготовления",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Type": {
+    "name": "Корр.Тип элемента номенклатуры",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Product.Name": {
+    "name": "Корр.Элемент номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Contr-Amount": {
+    "name": "Корр.количество",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "DateTime.Month": {
+    "name": "Месяц",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "StartBalance.Money": {
+    "name": "Начальный денежный остаток",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "ОСВ"
+    ]
+  },
+  "StartBalance.Amount": {
+    "name": "Начальный остаток товара",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "ОСВ"
+    ]
+  },
+  "DateTime.WeekInYear": {
+    "name": "Неделя года",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "DateTime.WeekInMonth": {
+    "name": "Неделя месяца",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "Document": {
+    "name": "Номер документа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "OrderNum": {
+    "name": "Номер заказа",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "Amount.StoreInOutTyped": {
+    "name": "Оборот эл.номенклатуры",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Номенклатура",
+      "ОСВ"
+    ]
+  },
+  "Session.RestaurantSection": {
+    "name": "Отделение",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Product.Tags.NamesCombo": {
+    "name": "Пользовательские свойства (комб.)",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Product.Tag.Name": {
+    "name": "Пользовательское свойство",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Amount.In": {
+    "name": "Приход (кол-во)",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Номенклатура",
+      "ОСВ"
+    ]
+  },
+  "Amount.Out": {
+    "name": "Расход (кол-во)",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Номенклатура",
+      "ОСВ"
+    ]
+  },
+  "Store": {
+    "name": "Склад",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Организация"
+    ]
+  },
+  "Account.StoreOrAccount": {
+    "name": "Склад/счет",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Product.AvgSum": {
+    "name": "Средняя цена",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "CashFlowCategory": {
+    "name": "Статья ДДС",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств"
+    ]
+  },
+  "CashFlowCategory.HierarchyLevel1": {
+    "name": "Статья ДДС 1-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств"
+    ]
+  },
+  "CashFlowCategory.HierarchyLevel2": {
+    "name": "Статья ДДС 2-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств"
+    ]
+  },
+  "CashFlowCategory.HierarchyLevel3": {
+    "name": "Статья ДДС 3-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств"
+    ]
+  },
+  "Sum.ResignedSum": {
+    "name": "Сумма",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "P&L",
+      "Финансы"
+    ]
+  },
+  "Sum.Incoming": {
+    "name": "Сумма прихода",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "ОСВ",
+      "Финансы"
+    ]
+  },
+  "Sum.Outgoing": {
+    "name": "Сумма расхода",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": [
+      "ОСВ",
+      "Финансы"
+    ]
+  },
+  "Account.Name": {
+    "name": "Счет",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "P&L",
+      "Счета"
+    ]
+  },
+  "Account.AccountHierarchyTop": {
+    "name": "Счет 1-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Account.AccountHierarchySecond": {
+    "name": "Счет 2-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Account.AccountHierarchyThird": {
+    "name": "Счет 3-го уровня",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Contr-Product.AlcoholClass.Type": {
+    "name": "Тип алкогольной продукции",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Корреспондент"
+    ]
+  },
+  "Product.AlcoholClass.Type": {
+    "name": "Тип алкогольной продукции",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Алкоголь",
+      "Номенклатура"
+    ]
+  },
+  "Account.CounteragentType": {
+    "name": "Тип контрагента",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Счета"
+    ]
+  },
+  "Contr-Account.Type": {
+    "name": "Тип корр.счета",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корреспондент"
+    ]
+  },
+  "Product.CookingPlaceType": {
+    "name": "Тип места приготовления",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "CashFlowCategory.Type": {
+    "name": "Тип статьи ДДС",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств"
+    ]
+  },
+  "Account.Type": {
+    "name": "Тип счета",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "P&L",
+      "Счета"
+    ]
+  },
+  "TransactionType": {
+    "name": "Тип транзакции",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Транзакция"
+    ]
+  },
+  "Product.Type": {
+    "name": "Тип элемента номенклатуры",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Department": {
+    "name": "Торговое предприятие",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  },
+  "Account.IsCashFlowAccount": {
+    "name": "Участвует ли счет в ДДС",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Движение денежных средств",
+      "Счета"
+    ]
+  },
+  "DateTime.DateTyped": {
+    "name": "Учетный день",
+    "type": "DATE",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "DateTime.Hour": {
+    "name": "Час",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Дата и время"
+    ]
+  },
+  "Product.Name": {
+    "name": "Элемент номенклатуры",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Номенклатура"
+    ]
+  },
+  "Department.JurPerson": {
+    "name": "Юридическое лицо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": [
+      "Корпорация"
+    ]
+  }
+}

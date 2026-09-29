@@ -7,7 +7,7 @@
 Покрывает:
 - Дашборд План/Факт (20 метрик × 4 точки + общая)
 - ABC/XYZ-анализ ассортимента пива, разливного и кухни
-- Конструктор отчётов с pivot-агрегацией OLAP-данных
+- Конструктор OLAP-отчётов iiko (/explorer): любые поля в строки, столбцы и показатели, фильтры, итоги как в iikoOffice, Excel, сохранённые отчёты
 - Управление 60 разливными кранами (START/STOP/REPLACE)
 - Остатки + сводный заказ с velocity-классификацией
 - Shelf-Life Cockpit (tier-логика срочности уценки)
@@ -48,7 +48,7 @@
 | `schedule_bp` | `/api` | график смен по барам | [routes/schedule.py](../routes/schedule.py) |
 | `misc_bp` | `/api` | dish-group, wiki, Telegram webhook | [routes/misc.py](../routes/misc.py) |
 | `expiration_bp` | `/api` | Shelf-Life Cockpit (board, recommend) | [routes/expiration.py](../routes/expiration.py) |
-| `explorer_bp` | `/`, `/api` | Конструктор отчётов (pivot iiko) | [routes/explorer.py](../routes/explorer.py) |
+| `explorer_bp` | `/`, `/api` | Конструктор OLAP-отчётов iiko | [routes/explorer.py](../routes/explorer.py) |
 | `open_check_bp` | `/api`, `/telegram/openbot` | ручной run + webhook open-check бота | [routes/open_check.py](../routes/open_check.py) |
 | `yml_bp` | `/yandex`, `/api/yml`, `/feeds/kitchen/<bar>` | фиды Яндекса: страница правок, API, публичный YML бара ([yandex-feeds.md](yandex-feeds.md)) | [routes/yml_feeds.py](../routes/yml_feeds.py) |
 
@@ -56,7 +56,7 @@
 
 #### iiko-интеграция и данные
 - [iiko_api.py](../core/iiko_api.py) — auth (SHA-1), cashshifts v2, attendance, POS-mapping
-- [olap_reports.py](../core/olap_reports.py) — OLAP v2 (all_sales, beer, draft, kitchen, **explorer_sales** с ThirdParent для конструктора), nomenclature, store_balances, store_operations
+- [olap_reports.py](../core/olap_reports.py) — OLAP v2 (all_sales, beer, draft, kitchen), nomenclature, store_balances, store_operations
 - [iiko_barcodes.py](../core/iiko_barcodes.py) — парсер XML iiko `/products` → `{gtin14: [iiko_pid]}` (для стыковки с ЧЗ)
 - [data_processor.py](../core/data_processor.py) — генерация недель (ISO), бакетирование
 
@@ -68,7 +68,7 @@
 - [waiter_analysis.py](../core/waiter_analysis.py) — анализ по официантам
 - [trends_analyzer.py](../core/trends_analyzer.py), [comparison_calculator.py](../core/comparison_calculator.py) — тренды и сравнение периодов
 - [revenue_metrics.py](../core/revenue_metrics.py) — единая точка чтения метрик выручки
-- [explorer.py](../core/explorer.py) — `build_pivot()` для конструктора отчётов
+- [olap_constructor.py](../core/olap_constructor.py), [olap_catalog.py](../core/olap_catalog.py), [olap_client.py](../core/olap_client.py), [olap_export.py](../core/olap_export.py), [olap_saved_reports.py](../core/olap_saved_reports.py) — конструктор OLAP-отчётов (заявка, каталог полей, запросы к iiko, Excel, сохранённые отчёты)
 
 #### Сотрудники и планы
 - [employee_analysis.py](../core/employee_analysis.py) — метрики по AuthUser, word-set matching имён
@@ -137,7 +137,8 @@ data/
 ├── meeting_notes.json      # Заметки совещаний
 ├── open_check_subscribers.json  # Самоподписавшиеся чаты open-check бота
 ├── nomenclature_cache.json # Кэш номенклатуры iiko (24ч диск + 15 мин память)
-├── olap_all_fields.json    # Справочник OLAP-полей
+├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns; запасная копия конструктора)
+├── olap_transactions_fields.json  # То же для проводок (снят 2026-09-20)
 ├── beer_report.json, kegs_products.json, keg_mapping.json
 ├── cache/
 │   ├── nomenclature__products.xml  # iiko /products XML (баркоды для ЧЗ)
@@ -226,7 +227,7 @@ data/
 4. **BAR_NAME_MAPPING vs IIKO_NAME_TO_KEY** — кассовые смены и OLAP отдают разные имена точек («Пивная культура» vs «Кременчугская»). См. [lessons.md](lessons.md).
 5. **Atomic-write для JSON** — все mutable JSON-файлы (`taps_data.json`, `plansdashboard.json`, `meeting_notes.json`, subscribers) пишутся через tmp+fsync+`os.replace`, защищены `portalocker` cross-worker и `threading.Lock` in-process.
 6. **Шедулеры под `--workers 2`** — каждый daemon-thread защищён atomic lock-файлом `data/.XXX_lock_YYYY-MM-DD` (`O_CREAT|O_EXCL`), чтобы один воркер взял задачу, другой тихо вышел.
-7. **Кеши OLAP** — `DASHBOARD_OLAP_CACHE` (TTL 10 мин) в [extensions.py](../extensions.py). Explorer использует префикс `explorer_*` (другой состав полей).
+7. **Кеши OLAP** — `DASHBOARD_OLAP_CACHE` (TTL 10 мин) в [extensions.py](../extensions.py). Конструктор отчётов держит свой кэш ответов в [core/olap_client.py](../core/olap_client.py) (10 мин; ключ — вся серия запросов отчёта; до 1 000 000 значений на процесс): его ответы бывают десятки мегабайт.
 8. **Без эмодзи** в коде/UI/документации (см. [.claude/CLAUDE.md](../.claude/CLAUDE.md)).
 
 ---
@@ -246,7 +247,7 @@ data/
 | Orders | `/api/orders/draft`, `/api/orders/send`, `/api/orders`, `/api/orders/<id>/received|close|cancel` | GET/POST | [orders.md](orders.md) |
 | Suppliers | `/api/suppliers`, `/api/suppliers/<name>`, `/api/suppliers/<name>/aliases` | GET/PUT/DELETE/POST | [suppliers.md](suppliers.md) |
 | Expiration | `/api/expiration/board?bars=...` | GET | [expiration.md](expiration.md) |
-| Explorer | `/api/explorer/pivot` | GET | [explorer.md](explorer.md) |
+| Explorer | `/api/explorer/columns`, `/values`, `/report`, `/export`, `/presets`, `/saved` | GET/POST/DELETE | [explorer.md](explorer.md) |
 | Open-check | `/api/admin/open-check/run-now`, `/telegram/openbot/*` | POST/GET | [open-check-bot.md](open-check-bot.md) |
 
 ---

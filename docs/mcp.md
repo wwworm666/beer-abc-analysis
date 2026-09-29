@@ -75,7 +75,7 @@ Claude на компьютере и телефоне, задачи Claude по �
 |---|---|---|
 | content | `routes/content_plan.py` (33: с 2026-09-28 — каналы и отправка, zip для Instagram, аудитория бота, правки владельца), `routes/reviews.py` (10, включая полосу `/api/guest-hub/attention` и ответ гостю `send-reply`) | 43 |
 | stocks | `routes/stocks.py` (9), `routes/orders.py` (10), `routes/suppliers.py` (4), `routes/expiration.py` (1), `routes/taps.py` (17, включая `/feeds/taplist.yml` и `/feeds/kitchen.yml`), `routes/yml_feeds.py` (6, включая `/feeds/kitchen/<bar_id>`), `routes/menu_editor.py` (8, `/menu/api/*`) | 55 |
-| analytics | `routes/dashboard.py` (26), `routes/analysis.py` (5), `routes/explorer.py` (1), `routes/guests.py` (18) | 50 |
+| analytics | `routes/dashboard.py` (26), `routes/analysis.py` (5), `routes/explorer.py` (8: с 2026-09-29 — конструктор OLAP-отчётов iiko: каталог полей, значения, отчёт, Excel, отчёты iikoOffice, сохранённые отчёты — [explorer.md](explorer.md)), `routes/guests.py` (18) | 57 |
 | staff | `routes/employee.py` (10), `routes/salary.py` (4), `routes/schedule.py` (32, включая `/schedule/cal.ics`), `routes/me.py` (3), `routes/cleanliness.py` (4), `routes/temperature.py` (2), `routes/open_check.py` (1), `routes/auth.py` (2: список аккаунтов, имя и сокращение) | 58 |
 | common | `routes/misc.py` (1: `/api/connection-status`) + 7 служебных инструментов без маршрута | 8 |
 

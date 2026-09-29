@@ -63,7 +63,7 @@ beer-abc-analysis/
 | Файл | Что делает |
 |---|---|
 | `iiko_api.py` | Auth (SHA-1), cashshifts v2, attendance, POS-mapping |
-| `olap_reports.py` | OLAP v2 (all_sales, beer, draft, kitchen, **explorer_sales**), nomenclature, store_balances, store_operations |
+| `olap_reports.py` | OLAP v2 (all_sales, beer, draft, kitchen), nomenclature, store_balances, store_operations |
 | `iiko_barcodes.py` | Парсер XML `/products` → `{gtin14: [iiko_pid]}` для стыковки с ЧЗ |
 
 ### Аналитика (14)
@@ -85,7 +85,11 @@ beer-abc-analysis/
 | `trends_analyzer.py` | Тренды по неделям |
 | `comparison_calculator.py` | Сравнение двух периодов для `POST /api/comparison/periods` теми же числами, что карточки дашборда (Δ, Δ%, п.п.) |
 | `revenue_metrics.py` | Единая точка чтения метрик выручки |
-| `explorer.py` | **build_pivot()** для конструктора отчётов |
+| `olap_constructor.py` | Конструктор OLAP-отчётов: заявка, тела запросов, план, сводная и список с итогами |
+| `olap_catalog.py` | Каталог полей OLAP iiko: живой `/columns`, запасные копии, правило итогов, запреты, коды |
+| `olap_client.py` | Доступ конструктора к iiko: сессия, ошибки iiko текстом, 2 запроса одновременно, кэш |
+| `olap_export.py` | Excel конструктора: «Отчёт», «Данные», «Параметры» |
+| `olap_saved_reports.py` | Сохранённые отчёты конструктора (`explorer_reports.json`) |
 
 ### Сотрудники, ЗП и планы (11)
 | Файл | Что делает |
@@ -212,7 +216,7 @@ templates/
 ├── stocks.html          # 6 вкладок: К заказу / К отправке / Таплист / Фасовка / Сроки / Меню кухни
 ├── suppliers.html       # Справочник поставщиков (/suppliers)
 ├── expiration.html      # Shelf-Life Cockpit
-├── explorer.html        # Конструктор отчётов
+├── explorer.html        # Конструктор OLAP-отчётов iiko (/explorer)
 ├── schedule.html, salary.html, bonus.html
 ├── packaging.html, draft.html   # draft.html: кеги + бармены (waiters.html удалён)
 ├── kitchen.html         # «Кухня»: клон packaging.html (стили фасовки, id kt*)
@@ -243,6 +247,7 @@ static/
 │   ├── draft/           # draft.js — весь экран «Розлив — ABC/XYZ и потери»
 │   ├── packaging/       # packaging.js — весь экран «Фасовка — ABC/XYZ и потери»
 │   ├── kitchen/         # kitchen.js — «Кухня — ABC/XYZ и потери», клон packaging.js
+│   ├── explorer/        # конструктор OLAP: page.js (поля, зоны, фильтры, сохранение), grid.js (сводная)
 │   ├── shared/          # общие блоки страниц: kpi_breakdown.js, abc_view.js (вкладки /draft, /packaging, /kitchen)
 │   ├── employee/
 │   ├── guests/          # «Маркетинг»; views-guest.js подставляет ?q= в поиск гостя
@@ -254,6 +259,7 @@ static/
 │   └── stocks/
 ├── draft/               # draft.css — оформление /draft по макету (токены --dr-*)
 ├── packaging/           # packaging.css — оформление /packaging как /draft (токены --pk-*)
+├── explorer/            # explorer.css — конструктор отчётов (токены --ex-*, тёмная тема)
 ├── shared/              # kpi_breakdown.css, abc_view.css (цвета — токены страницы)
 ├── me/                  # me.css — оформление /me по макету (токены --me-*)
 ├── guest_hub/           # hub.css (токены --gh-* на .gh-scope, тёмная тема), content_plan.css, reviews.css
@@ -286,7 +292,8 @@ data/
 ├── mcp.db                  # MCP: токены, OAuth, журнал вызовов, настройки, общие лимиты (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
-├── olap_all_fields.json    # Справочник OLAP-полей
+├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns; запасная копия конструктора)
+├── olap_transactions_fields.json  # То же для проводок (снят 2026-09-20)
 ├── beer_report.json, kegs_products.json, keg_mapping.json
 ├── cache/
 │   ├── nomenclature__products.xml   # iiko /products (баркоды → ЧЗ)

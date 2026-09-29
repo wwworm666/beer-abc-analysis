@@ -59,8 +59,11 @@ EXPECTED_HEAVY = {
     'analytics_widget_revenue', 'analytics_monthly_report', 'analytics_monthly_loyalty',
     'analytics_monthly_draft_liters', 'analytics_monthly_top_guests', 'analytics_export_excel',
     'analytics_export_pdf', 'analytics_packaging', 'analytics_kitchen', 'analytics_draft_kegs',
-    'analytics_draft_analyze', 'analytics_discounts', 'analytics_explorer_pivot',
-    'analytics_guests_sync',
+    'analytics_draft_analyze', 'analytics_discounts', 'analytics_guests_sync',
+    # Конструктор OLAP (routes/explorer.py): каталог, значения, отчёт, Excel и отчёты
+    # iikoOffice ходят в iiko; список сохранённых отчётов и запись — только файл сервиса.
+    'analytics_explorer_columns', 'analytics_explorer_values', 'analytics_explorer_report',
+    'analytics_explorer_export', 'analytics_explorer_presets',
 }
 # Запись: имя -> (destructive, idempotent, open_world).
 EXPECTED_WRITES = {
@@ -70,6 +73,9 @@ EXPECTED_WRITES = {
     'analytics_daily_plan_reset_weight': (True, True, False),
     'analytics_comment_save': (False, True, False),
     'analytics_guests_sync': (False, False, True),
+    # Сохранённые отчёты конструктора: новый отчёт при каждом вызове без id — не идемпотентно.
+    'analytics_explorer_saved_save': (False, False, False),
+    'analytics_explorer_saved_delete': (True, True, False),
 }
 # RFM (каждый гость с телефоном) контент-агенту не открыт — проверка безопасности 2026-09-28.
 EXPECTED_ALSO_CONTENT = {'analytics_guests_summary'}
@@ -82,8 +88,10 @@ EXPECTED_ALSO_STAFF = {
 # Признаки того, что view в момент вызова может пойти в iiko (прямо или через загрузчик).
 IIKO_MARKERS = (
     'OlapReports(', 'load_dashboard_sales(', 'load_draft_kegs(', 'load_packaging(',
-    'load_kitchen(', 'build_pivot(', 'get_dashboard_analytics_data(', '_maybe_refresh(',
+    'load_kitchen(', 'get_dashboard_analytics_data(', '_maybe_refresh(',
     'start_background_sync(',
+    # Конструктор OLAP: каталог полей, значения поля, отчёт, выгрузка, отчёты iikoOffice.
+    'get_catalog(', 'run_report(', 'field_values(', 'iiko_presets(', 'export_report(',
 )
 # Разумные аргументы тяжёлых и пишущих инструментов: в examples их нет (дымовой прогон
 # не должен ходить в iiko и менять данные), но схема обязана их принимать.
@@ -107,9 +115,35 @@ SAMPLE_ARGS = {
                              'date_to': '2026-09-26'},
     'analytics_draft_analyze': {'bar': 'Кременчугская', 'days': 14},
     'analytics_discounts': {'bar': '', 'date_from': '2026-09-01', 'date_to': '2026-09-26'},
-    'analytics_explorer_pivot': {'date_from': '2026-09-01', 'date_to': '2026-09-26',
-                                 'venue': 'all', 'granularity': 'week', 'group_by': 'dish_name',
-                                 'top_category': 'kitchen', 'metric': 'revenue'},
+    'analytics_explorer_columns': {'report_type': 'TRANSACTIONS', 'q': 'списан', 'compact': '1'},
+    'analytics_explorer_values': {'report_type': 'SALES', 'field': 'Store.Name',
+                                  'period': 'last_month', 'q': 'Лиг', 'limit': 50},
+    'analytics_explorer_report': {
+        'report_type': 'SALES', 'rows': ['DishName'], 'columns': [],
+        'measures': ['DishDiscountSumInt', 'UniqOrderId'],
+        'filters': [{'field': 'Store.Name', 'op': 'in', 'values': ['Лиговский']},
+                    {'field': 'DishGroup.TopParent', 'op': 'not_in', 'values': ['ЕДА', None]},
+                    {'field': 'OpenTime', 'op': 'date_range', 'from': '2026-09-01T18:00',
+                     'to': '2026-09-30T23:59', 'include_high': True}],
+        'period': 'last_month', 'format': 'flat', 'sort': 'DishDiscountSumInt',
+        'order': 'desc', 'limit': 20,
+        'having': [{'measure': 'DishDiscountSumInt', 'op': '>', 'value': 1000}],
+    },
+    'analytics_explorer_export': {
+        'report_type': 'TRANSACTIONS', 'rows': ['Account.Name', 'Product.Name'],
+        'measures': ['Amount.Out', 'Sum.Outgoing'],
+        'filters': [{'field': 'TransactionType', 'op': 'in', 'values': ['WRITEOFF']}],
+        'date_from': '2026-09-01', 'date_to': '2026-09-28', 'include_deleted': True,
+    },
+    'analytics_explorer_presets': {'refresh': '1'},
+    'analytics_explorer_saved_save': {
+        'name': 'Списания по барам',
+        'config': {'report_type': 'TRANSACTIONS', 'rows': ['Account.Name'],
+                   'columns': ['DateTime.Month'], 'measures': ['Sum.Outgoing'],
+                   'filters': [{'field': 'TransactionType', 'op': 'in', 'values': ['WRITEOFF']}],
+                   'include_deleted': True, 'period': {'preset': 'last_month'}},
+    },
+    'analytics_explorer_saved_delete': {'report_id': '0123456789ab'},
     'analytics_plan_save': {
         'venue_key': 'bolshoy', 'period_key': '2026-10', 'revenue': 1600000, 'checks': 1000,
         'averageCheck': 1600, 'draftShare': 62, 'packagedShare': 20, 'kitchenShare': 18,
@@ -189,11 +223,25 @@ BAD_ARGS = [
     ('analytics_guests_rfm', {'limit': 0}, 'limit — от 1'),
     ('analytics_guests_rfm', {'limit': 5000}, 'больше 200 строк мост всё равно урежет'),
     ('analytics_guests_rfm', {'q': '7'}, 'поиск по одной цифре совпал бы с половиной базы'),
-    ('analytics_explorer_pivot', {'date_from': '2026-09-01', 'date_to': '2026-09-07'},
-     'venue обязателен'),
-    ('analytics_explorer_pivot', {'date_from': '2026-09-01', 'date_to': '2026-09-07',
-                                  'venue': 'all', 'metric': 'checks'},
-     'в MVP только revenue'),
+    ('analytics_explorer_report', {'rows': ['Store.Name'], 'period': 'last_week'},
+     'без показателей отчёт не строится'),
+    ('analytics_explorer_report', {'report_type': 'OLAP', 'measures': ['DishDiscountSumInt']},
+     'неизвестный тип отчёта'),
+    ('analytics_explorer_report', {'measures': ['DishDiscountSumInt'], 'period': 'week'},
+     'такого пресета периода нет (есть this_week / last_week)'),
+    ('analytics_explorer_report', {'measures': ['DishDiscountSumInt'], 'limit': 10000},
+     'flat больше 5000 строк не отдаёт'),
+    ('analytics_explorer_report', {'measures': ['DishDiscountSumInt'],
+                                   'filters': [{'field': 'Store.Name', 'op': 'eq',
+                                                'values': ['Лиговский']}]},
+     'операция фильтра не из списка in / not_in / range / date_range'),
+    ('analytics_explorer_report', {'measures': ['DishDiscountSumInt'],
+                                   'having': [{'measure': 'DishDiscountSumInt', 'op': '>'}]},
+     'у условия having нет порога'),
+    ('analytics_explorer_values', {'report_type': 'SALES'}, 'поле обязательно'),
+    ('analytics_explorer_saved_save', {'name': 'x'}, 'без конфигурации сохранять нечего'),
+    ('analytics_explorer_saved_delete', {'report_id': '../../etc'},
+     'id — 12 шестнадцатеричных знаков'),
     ('analytics_monthly_report', {'years': '2026;2025'}, 'годы — через запятую'),
     ('analytics_guests_search', {'q': '7'}, 'меньше 2 символов маршрут не ищет'),
     ('analytics_plan_get', {'venue_key': 'bolshoy'}, 'параметр пути обязателен'),
@@ -540,7 +588,7 @@ def test_bar_ids_match_code():
     # Где ждут ключ заведения, а где русское имя iiko.
     for tool, field in (('analytics_dashboard', 'bar'), ('analytics_revenue_metrics', 'bar'),
                         ('analytics_dashboard_card_details', 'venue_key'),
-                        ('analytics_explorer_pivot', 'venue'), ('analytics_monthly_report', 'venue'),
+                        ('analytics_monthly_report', 'venue'),
                         ('analytics_plan_get', 'venue_key'), ('analytics_export_excel', 'bar')):
         values = set(_prop(tool, field)['enum']) - {''}
         assert values == set(venues_config.VENUES), tool
@@ -569,13 +617,25 @@ def test_bar_ids_match_code():
 
 
 def test_constants_match_code():
-    from core import abc_thresholds, day_weights, dashboard_details, explorer, guest_analytics
+    from core import abc_thresholds, day_weights, dashboard_details, guest_analytics
     from core import monthly_report
     assert analytics.DASHBOARD_METRIC_IDS == tuple(dashboard_details.METRIC_IDS)
     assert analytics.CARD_LAZY_SECTIONS == tuple(dashboard_details.LAZY_SECTIONS)
-    assert set(analytics.EXPLORER_GRANULARITIES) == set(explorer.GRANULARITIES)
-    assert set(analytics.EXPLORER_GROUP_BY) == set(explorer.GROUP_BY_FIELD)
-    assert set(analytics.EXPLORER_TOP_CATEGORIES) == set(explorer.TOP_CATEGORY_FILTERS)
+    # Конструктор OLAP: типы отчётов, пресеты периода, операции, форматы и пределы — как в коде.
+    from core import olap_catalog, olap_constructor
+    assert analytics.EXPLORER_REPORT_TYPES == tuple(olap_catalog.REPORT_TYPES)
+    assert analytics.EXPLORER_PERIODS == tuple(olap_constructor.PERIOD_PRESETS)
+    assert analytics.EXPLORER_FILTER_OPS == tuple(olap_constructor.FILTER_OPS)
+    assert analytics.EXPLORER_HAVING_OPS == tuple(olap_constructor.HAVING_OPS)
+    assert analytics.EXPLORER_FORMATS == tuple(olap_constructor.FORMATS)
+    assert (analytics.EXPLORER_MAX_ROWS, analytics.EXPLORER_MAX_COLUMNS,
+            analytics.EXPLORER_MAX_MEASURES, analytics.EXPLORER_MAX_FILTERS,
+            analytics.EXPLORER_MAX_FILTER_VALUES, analytics.EXPLORER_FLAT_MAX_LIMIT,
+            analytics.EXPLORER_VALUES_MAX) == (
+        olap_constructor.MAX_ROW_FIELDS, olap_constructor.MAX_COLUMN_FIELDS,
+        olap_constructor.MAX_MEASURES, olap_constructor.MAX_FILTERS,
+        olap_constructor.MAX_FILTER_VALUES, olap_constructor.FLAT_MAX_LIMIT,
+        olap_constructor.VALUES_MAX)
     for period_type in analytics.GUEST_PERIOD_TYPES:
         assert guest_analytics.resolve_period(period_type, '2026-08-15')['type'] == period_type
     # Неизвестный тип молча становится месяцем — поэтому в схеме enum.
