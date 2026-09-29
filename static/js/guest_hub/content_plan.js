@@ -5389,7 +5389,7 @@
             menuItem('data-bar', '', 'Все бары', 'вся сеть', S.bar === '');
         each(GH.BARS, function (b) { html += menuItem('data-bar', b.key, b.name, b.short, S.bar === b.key); });
         html += '<div class="gh-cp-menu-note">Показываются размещения бара и размещения на всю сеть. Фильтр общий ' +
-            'для контент-плана и отзывов.</div>';
+            'для контент-плана, отзывов и маркетинга.</div>';
         el.barMenu.innerHTML = html;
     }
     function renderChMenu() {

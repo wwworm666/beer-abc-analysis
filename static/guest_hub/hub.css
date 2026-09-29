@@ -565,6 +565,12 @@ button.gh-month-val:hover { background: var(--gh-hover); }
     color: var(--gh-ink5);
     white-space: nowrap;
 }
+/* Пояснение внизу меню (например, «выбор общий для раздела» у бара на /guests). */
+.gh-menu-note {
+    padding: 8px 12px 6px;
+    font: 400 11.5px/1.45 var(--gh-sans);
+    color: var(--gh-ink5);
+}
 /* Затемнение под нижним листом: только на телефоне (common.js держит его в
    синхроне с открытым меню). */
 .gh-menu-scrim { display: none; }

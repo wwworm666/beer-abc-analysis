@@ -8,13 +8,19 @@ Guests.registerView('growth', function (pane) {
     ]).then(function (results) {
         var growth = results[0].data;
         var dyn = results[1].data;
+        var meta = results[0].meta;
         var p = growth.period, y = growth.ytd;
+        // Посчитано по бару: подписи говорят, к чему привязаны регистрации и
+        // первые заказы — иначе число бара читается как «сетевое».
+        var byBar = !!meta.venue;
 
         var html = '<div class="metric-grid">' +
             G.metricCard('registrations', 'Регистрации за период',
-                G.fmtNum(p.registrations), 'YTD: ' + G.fmtNum(y.registrations)) +
+                G.fmtNum(p.registrations),
+                (byBar ? 'за баром первой покупки · ' : '') + 'YTD: ' + G.fmtNum(y.registrations)) +
             G.metricCard('first_orders', 'Первые заказы за период',
-                G.fmtNum(p.first_orders), 'YTD: ' + G.fmtNum(y.first_orders)) +
+                G.fmtNum(p.first_orders),
+                (byBar ? 'первый чек в баре · ' : '') + 'YTD: ' + G.fmtNum(y.first_orders)) +
             G.metricCard('conversion', 'Конверсия в заказ',
                 p.conversion_pct === null ? '—' : G.fmtPct(p.conversion_pct),
                 'YTD: ' + (y.conversion_pct === null ? '—' : G.fmtPct(y.conversion_pct))) +
@@ -24,7 +30,7 @@ Guests.registerView('growth', function (pane) {
                 'YTD: ' + (y.avg_days_to_first_order === null ? '—'
                     : String(y.avg_days_to_first_order).replace('.', ','))) +
             G.metricCard('base_size', 'Размер базы', G.fmtNum(growth.lifetime.base_size),
-                'все зарегистрированные с чеком') +
+                byBar ? 'все, у кого был чек в баре' : 'все зарегистрированные с чеком') +
             '</div>';
 
         html += '<div class="gcard"><h3>Динамика базы по месяцам' +
@@ -47,7 +53,7 @@ Guests.registerView('growth', function (pane) {
         html += '</tbody></table></div></div>';
 
         html += G.howBlock(['registrations', 'first_orders', 'conversion',
-                            'avg_days_to_first', 'base_dynamics']);
+                            'avg_days_to_first', 'base_dynamics'], meta);
         pane.innerHTML = html;
 
         var pal = GCharts.palette();

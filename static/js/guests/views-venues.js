@@ -1,11 +1,21 @@
-/* Вкладка «Точки» (ТЗ §11): первая/любимая точка, распределение, миграции. */
+/* Вкладка «Точки» (ТЗ §11): первая/любимая точка, распределение, миграции.
+
+   Отчёт межбарный, поэтому при выбранном баре он не сужается до чеков бара, а
+   показывает ГОСТЕЙ бара и их визиты во все бары (core/guest_analytics.py,
+   venues_analytics) — об этом видимая подпись сверху. */
 
 Guests.registerView('venues', function (pane) {
     var G = Guests;
     return G.api('/api/guests/venues').then(function (resp) {
         var d = resp.data;
+        var meta = resp.meta;
 
-        var html = '<div class="gcard-grid-2">';
+        var html = meta.venue
+            ? G.scopeNote('Гости бара «' + G.esc(meta.venue_name) + '» — все, у кого есть ' +
+                          'хоть один чек в нём (' + G.fmtNum(d.guests_total) + '), и их визиты ' +
+                          'во все бары сети.')
+            : '';
+        html += '<div class="gcard-grid-2">';
         html += '<div class="gcard"><h3>Первая точка гостей' + G.helpIcon('first_store') +
             '</h3><div class="chart-box"><canvas id="firstStoreChart"></canvas></div></div>';
         html += '<div class="gcard"><h3>Любимая точка гостей' + G.helpIcon('favorite_store') +
@@ -37,7 +47,8 @@ Guests.registerView('venues', function (pane) {
         html += '<div class="gcard"><h3>Миграции между точками' + G.helpIcon('migrations') +
             '</h3><div class="note-line" style="margin-bottom:10px">Гостей с визитами в 2+ бара: <b>' +
             G.fmtNum(d.multi_store_guests) + '</b> (' + G.fmtPct(d.multi_store_share_pct) +
-            ' базы). Матрица: строка — первая точка, столбец — любимая.</div>';
+            (meta.venue ? ' гостей бара' : ' базы') +
+            '). Матрица: строка — первая точка, столбец — любимая.</div>';
 
         var stores = d.first_store.map(function (r) { return r.store; });
         var names = {};
@@ -60,7 +71,10 @@ Guests.registerView('venues', function (pane) {
         });
         html += '</tbody></table></div></div>';
 
-        html += G.howBlock(['first_store', 'favorite_store', 'migrations', 'visit']);
+        // Не howBlock(keys, meta): правило «только чеки бара» к этому отчёту не
+        // относится, у него своё — venue_guests.
+        html += G.howBlock((meta.venue ? ['venue_guests'] : []).concat(
+            ['first_store', 'favorite_store', 'migrations', 'visit']));
         pane.innerHTML = html;
 
         var pal = GCharts.palette();

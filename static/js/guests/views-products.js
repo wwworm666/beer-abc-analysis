@@ -37,7 +37,7 @@ Guests.registerView('products', function (pane) {
         });
         html += '</tbody></table></div>' +
             (rankNote ? '<div class="note-line">' + rankNote + '</div>' : '') + '</div>' +
-            G.howBlock([helpKey, 'revenue']);
+            G.howBlock([helpKey, 'revenue'], resp.meta);
         pane.innerHTML = html;
         bind();
     }
@@ -72,7 +72,7 @@ Guests.registerView('products', function (pane) {
                 html += '</tbody></table></div>' +
                     '<div class="note-line">Чеков с 2+ разными позициями: ' +
                     G.fmtNum(d.checks_with_2plus_items) + '. A→B — доля чеков с товаром A, ' +
-                    'где есть и B.</div></div>' + G.howBlock(['pairs', 'order']);
+                    'где есть и B.</div></div>' + G.howBlock(['pairs', 'order'], resp.meta);
                 pane.innerHTML = html;
                 bind();
                 pane.querySelectorAll('.sub-btn[data-pscope]').forEach(function (b) {
@@ -89,7 +89,7 @@ Guests.registerView('products', function (pane) {
                 var html = switcher() +
                     '<div class="gcard"><h3>Динамика популярности (топ-10 за 12 месяцев, шт)</h3>' +
                     '<div class="chart-box tall"><canvas id="trendChart"></canvas></div></div>' +
-                    G.howBlock(['revenue']);
+                    G.howBlock(['revenue'], resp.meta);
                 pane.innerHTML = html;
                 bind();
                 if (!d.series.length) return;

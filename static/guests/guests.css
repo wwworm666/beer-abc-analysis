@@ -24,6 +24,34 @@
 .period-label { min-width: 150px; text-align: center; font-weight: 600;
     font-size: 0.95rem; }
 
+/* --- Бар: общий фильтр раздела «Гости» ---
+   Кнопка — в стиле панели периода (капсула той же высоты, что переключатель
+   типов), меню — .gh-menu из hub.css, как на «Контент-плане» и «Отзывах»
+   (обёртка несёт .gh-scope с токенами). position: relative — меню
+   позиционируется от обёртки. Выбранный бар подсвечен: фильтр включён. */
+.bar-pick { position: relative; display: flex; }
+.bar-pick-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px;
+    padding: 0 16px; border: 1px solid var(--border-color);
+    background: var(--bg-secondary); border-radius: 999px; cursor: pointer;
+    font-family: inherit; font-size: 0.85rem; color: var(--text-primary);
+    transition: all .15s ease; }
+.bar-pick-btn:hover { border-color: var(--accent); }
+.bar-pick-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bar-pick-cap { font-size: 0.7rem; font-weight: 600; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-tertiary); }
+.bar-pick-val { font-weight: 600; white-space: nowrap; }
+.bar-pick-chev { flex: none; fill: none; stroke: var(--text-tertiary); }
+.bar-pick.is-set .bar-pick-btn { border-color: var(--accent); }
+.bar-pick.is-set .bar-pick-val { color: var(--accent); }
+
+/* Подпись над отчётом, который при выбранном баре считается не «только по
+   чекам бара» (вся сеть или гости бара во всех барах): без неё число
+   читается неверно. */
+.scope-note { font-size: 0.8rem; line-height: 1.45; color: var(--text-secondary);
+    background: var(--bg-secondary); border: 1px solid var(--border-color);
+    border-left: 3px solid var(--accent); border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 16px; }
+
 .coverage-banner { margin-left: auto; font-size: 0.75rem;
     color: var(--text-tertiary); text-align: right; line-height: 1.35; }
 .sync-btn { border: 1px solid var(--border-color); background: var(--bg-secondary);
@@ -147,6 +175,10 @@
 .guests-controls.own-period .period-types,
 .guests-controls.own-period .period-nav,
 .guests-controls.own-period .coverage-banner { display: none; }
+/* Бар тоже: у «Акций» свой фильтр точки (живой OLAP по имени бара в iiko), и
+   два фильтра с разными значениями над одним отчётом путали бы. Общий бар
+   подставляется в её «Точку» только как начальное значение (views-promo.js). */
+.guests-controls.own-period .bar-pick { display: none; }
 /* Распорку, прижимавшую кнопку синка вправо, несёт .coverage-banner
    (margin-left: auto). Скрыли её — переносим распорку на саму кнопку, иначе на
    этой вкладке кнопка прыгает к левому краю. */

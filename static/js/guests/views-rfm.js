@@ -10,7 +10,10 @@
    Со старой страницы сюда перенесены точечная диаграмма, гистограмма давности и
    фильтр по точке — всё, чего здесь не хватало. Клиентский пересчёт сегментов и
    клиентский CSV не перенесены: сегмент приходит с сервера по каждому гостю,
-   выгрузка тоже серверная (единый источник истины). */
+   выгрузка тоже серверная (единый источник истины).
+
+   Свой переключатель точек убран 2026-09-29: бар теперь общий для всей страницы
+   (кнопка «Бар» над вкладками, common.js добавляет store ко всем запросам). */
 
 Guests.registerView('rfm', function (pane) {
     var G = Guests;
@@ -18,12 +21,8 @@ Guests.registerView('rfm', function (pane) {
     // читаться, а браузер — тормозить. Прореживаем РОВНОМЕРНО и говорим об этом.
     var SCATTER_MAX = 2500;
 
-    function venue() { return pane.dataset.rvenue || ''; }
-
     function render() {
-        var v = venue();
-        pane.innerHTML = '<div class="pane-loading">Загрузка…</div>';
-        return G.api('/api/guests/rfm', v ? { store: v } : {}).then(function (resp) {
+        return G.api('/api/guests/rfm').then(function (resp) {
             var d = resp.data;
             var segTitles = {
                 CHAMPIONS: 'Чемпионы', LOYAL: 'Лояльные', NEW: 'Новички',
@@ -51,12 +50,10 @@ Guests.registerView('rfm', function (pane) {
                 CHURNED: 'rfm_seg_churned', POTENTIAL: 'rfm_seg_potential'
             };
 
-            var html = venueSwitch(d);
-
             // Карточки сегментов кликабельны: клик подставляет сегмент в фильтр
             // таблицы. На старой странице это было, и без этого «увидел 120
             // уходящих» не превращается в «вот их список».
-            html += '<div class="metric-grid">';
+            var html = '<div class="metric-grid">';
             d.segments.forEach(function (s) {
                 var title = segTitles[s.segment] || s.segment;
                 html += '<div class="rfm-seg-pick" data-seg="' + G.esc(title) + '">' +
@@ -70,11 +67,7 @@ Guests.registerView('rfm', function (pane) {
             html += '<div class="note-line">Окно — 12 месяцев на дату среза (' +
                 G.fmtDate(d.window_start) + ' — ' + G.fmtDate(d.asof) + '). ' +
                 'Переключатель периода вверху сдвигает дату среза, длину окна он ' +
-                'не меняет.' +
-                (d.venue ? ' Точка: <b>' + G.esc(d.venue_name) + '</b> — R, F и M ' +
-                    'считаются только по чекам этой точки, поэтому сумма по четырём ' +
-                    'точкам больше сетевой: гость двух баров попадает в оба среза.'
-                    : ' Считается по всей сети.') + '</div>';
+                'не меняет.</div>';
 
             html += '<div class="gcard-grid-2">';
             html += '<div class="gcard"><h3>Давность последнего визита' +
@@ -105,9 +98,9 @@ Guests.registerView('rfm', function (pane) {
                 ' дней. Пороги F (визитов за окно 12 мес): ' + d.f_thresholds.join(' / ') +
                 ' — постоянный (5+ в неделю) / частый (2+ в неделю) / раз в неделю / раз в месяц.</div></div>';
 
-            html += G.howBlock(['rfm', 'rfm_recency_hist', 'rfm_scatter', 'visit', 'revenue']);
+            html += G.howBlock(['rfm', 'rfm_recency_hist', 'rfm_scatter', 'visit', 'revenue'],
+                               resp.meta);
             pane.innerHTML = html;
-            bindVenue();
 
             renderRecency(d, pal);
             renderScatter(d, segTitles, segColors);
@@ -121,32 +114,6 @@ Guests.registerView('rfm', function (pane) {
         pane.querySelectorAll('.rfm-seg-pick').forEach(function (el) {
             el.addEventListener('click', function () {
                 if (table) table.filterBy(el.dataset.seg);
-            });
-        });
-    }
-
-    function venueSwitch(d) {
-        var v = d.venue || '';
-        var items = [['', 'Вся сеть']].concat((d.venues || []).map(function (x) {
-            return [x.key, x.name];
-        }));
-        return '<div class="sub-switch">' + items.map(function (it) {
-            return '<button class="sub-btn' + (v === it[0] ? ' active' : '') +
-                '" data-rvenue="' + G.esc(it[0]) + '">' + G.esc(it[1]) + '</button>';
-        }).join('') + '</div>';
-    }
-
-    function bindVenue() {
-        pane.querySelectorAll('.sub-btn[data-rvenue]').forEach(function (b) {
-            b.addEventListener('click', function () {
-                pane.dataset.rvenue = b.dataset.rvenue;
-                // .catch обязателен: этот render() вызывается не из фреймворка,
-                // и без обработчика отказ API оставил бы вкладку в «Загрузка…»
-                // навсегда (ошибка ушла бы в unhandledrejection).
-                render().catch(function (e) {
-                    pane.innerHTML = '<div class="pane-error">Ошибка: ' +
-                        G.esc(e.message) + '</div>';
-                });
             });
         });
     }

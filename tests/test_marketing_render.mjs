@@ -177,13 +177,16 @@ test('скрытие глобального периода описано в CSS
 // ---------------------------------------------------------------- формулы
 test('все ключи формул, на которые ссылаются виды, существуют', () => {
     const keys = new Set();
-    for (const src of [promo, rfm]) {
+    // Все виды страницы плюс common.js (правило бара venue_scope подставляет он).
+    const sources = TABS.map((tab) => read(`static/js/guests/views-${tab}.js`)).concat([common]);
+    for (const src of sources) {
         for (const re of [/helpIcon\('([a-z0-9_]+)'\)/g,
                           /metricCard\('([a-z0-9_]+)'/g]) {
             let m;
             while ((m = re.exec(src)) !== null) keys.add(m[1]);
         }
-        const hb = /howBlock\(\[([^\]]+)\]\)/g;
+        // Без закрывающей скобки: у howBlock бывает второй аргумент (meta ответа).
+        const hb = /howBlock\(\[([^\]]+)\]/g;
         let m;
         while ((m = hb.exec(src)) !== null) {
             for (const raw of m[1].split(',')) {
@@ -192,9 +195,67 @@ test('все ключи формул, на которые ссылаются в�
             }
         }
     }
-    assert.ok(keys.size > 5, `ключей подозрительно мало: ${keys.size}`);
+    assert.ok(keys.size > 20, `ключей подозрительно мало: ${keys.size}`);
+    for (const k of ['venue_scope', 'venue_guests']) keys.add(k);
     const missing = [...keys].filter((k) => !new RegExp(`^\\s{4}${k}:`, 'm').test(formulas));
     assert.deepEqual(missing, [], `нет в GUEST_FORMULAS: ${missing.join(', ')}`);
+});
+
+// ---------------------------------------------------------------- бар (2026-09-29)
+test('кнопка «Бар» стоит в панели периода, меню — .gh-menu раздела в .gh-scope', () => {
+    const controls = html.slice(html.indexOf('class="guests-controls"'),
+                                html.indexOf('class="period-types"'));
+    for (const id of ['barPick', 'barPickBtn', 'barPickLabel', 'barPickMenu']) {
+        assert.ok(controls.includes(`id="${id}"`), `нет #${id} в начале панели периода`);
+    }
+    assert.ok(/class="bar-pick gh-scope"/.test(controls),
+        'обёртка без .gh-scope: у меню не будет токенов цвета');
+    assert.ok(/class="gh-menu" id="barPickMenu" role="menu" hidden/.test(controls),
+        'меню бара — не .gh-menu раздела или видно сразу');
+    // Модуль раздела (window.GH: getBar/setBar/toggleMenu) обязан быть на странице.
+    assert.ok(html.includes('/static/js/guest_hub/common.js'), 'нет модуля раздела');
+    assert.ok(common.includes('gh.getBar()') && common.includes('gh.setBar(key)'),
+        'бар не берётся из общего фильтра раздела');
+});
+
+test('классы кнопки бара и подписи охвата описаны в CSS', () => {
+    const hub = read('static/guest_hub/hub.css');
+    const used = new Set();
+    for (const src of [html, common, ...TABS.map((t) => read(`static/js/guests/views-${t}.js`))]) {
+        for (const m of src.matchAll(/(?<![\w-])((?:bar-pick|scope-note|gh-menu)[a-z0-9-]*)(?![\w-])/g)) {
+            used.add(m[1]);
+        }
+    }
+    assert.ok(used.has('bar-pick-btn') && used.has('scope-note') && used.has('gh-menu-note'),
+        'не найдены классы бара: ' + [...used].join(', '));
+    const missing = [...used].filter((c) => !css.includes('.' + c) && !hub.includes('.' + c));
+    assert.deepEqual(missing, [], `классы без стилей: ${missing.join(', ')}`);
+    assert.ok(css.includes('.guests-controls.own-period .bar-pick'),
+        'на «Акциях» (свой фильтр точки) общий бар не скрыт');
+});
+
+test('отчёты витрины передают meta в howBlock — правило бара в «Как считается»', () => {
+    // Виды, которые считаются по бару «только его чеки». «Точки» (своё правило
+    // venue_guests), «Не купившие» и «Гость» (по всей сети) — отдельно.
+    for (const tab of ['summary', 'growth', 'activity', 'cohorts', 'rfm', 'ltv', 'products']) {
+        const src = read(`static/js/guests/views-${tab}.js`);
+        const calls = [];
+        let at = src.indexOf('howBlock(');
+        while (at >= 0) {
+            let depth = 0;
+            let end = at + 'howBlock'.length;
+            for (; end < src.length; end++) {
+                if (src[end] === '(') depth++;
+                else if (src[end] === ')' && --depth === 0) break;
+            }
+            calls.push(src.slice(at, end + 1));
+            at = src.indexOf('howBlock(', end);
+        }
+        assert.ok(calls.length > 0, `${tab}: нет блока «Как считается»`);
+        const bare = calls.filter((c) => !/meta\)$/.test(c.replace(/\s+/g, '')));
+        assert.deepEqual(bare, [], `${tab}: howBlock без meta — правило бара не покажется`);
+    }
+    assert.ok(common.includes("['venue_scope'].concat(keys)"), 'howBlock не добавляет правило бара');
 });
 
 test('формулы не ссылаются на удалённую страницу', () => {

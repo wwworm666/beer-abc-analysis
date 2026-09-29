@@ -8,8 +8,12 @@
 Параметры периода (одинаково у всех отчётных эндпоинтов):
     ?period_type=week|month|quarter|year&anchor=YYYY-MM-DD
 anchor — любая дата внутри периода; дефолт: текущий календарный месяц.
-Каждый ответ несёт meta: границы срезов (P/YTD/asof), покрытие витрины,
-доля fallback-регистраций.
+Бар (с 2026-09-29, у всех отчётов витрины, кроме «Не купивших» и карточки
+гостя): ?store=<ключ бара из PHYSICAL_VENUES> — отчёт считается только по чекам
+этого бара (правила — докстринг core/guest_analytics.py); без него или с
+неизвестным ключом — вся сеть.
+Каждый ответ несёт meta: границы срезов (P/YTD/asof), бар (venue, venue_name),
+покрытие витрины, доля fallback-регистраций.
 
 Авторизация: глобальный гейт _auth_gate закрывает всё для неавторизованных;
 ручной запуск синка — только админ. Кэш тяжёлых отчётов — cached_olap
@@ -34,20 +38,31 @@ from extensions import APP_VERSION, BARS, cached_olap
 guests_bp = Blueprint('guests', __name__)
 
 
-def _ctx():
-    """Общий разбор параметров периода: (store, period, meta)."""
+def _ctx(by_venue=True):
+    """Общий разбор параметров: (store, period, meta, venue).
+
+    store — витрина; venue — ключ бара из ?store= или None (вся сеть).
+    by_venue=False — отчёт на бары не делится (Orderia, карточка гостя): ?store=
+    не читается, и meta.venue = None честно говорит, что ответ по всей сети.
+    """
     store = get_store()
     period = ga.resolve_period(
         request.args.get('period_type', 'month'),
         request.args.get('anchor'))
-    meta = ga.build_meta(store, period)
-    return store, period, meta
+    venue = ga.resolve_venue(request.args.get('store')) if by_venue else None
+    meta = ga.build_meta(store, period, venue)
+    return store, period, meta, venue
 
 
 def _cache_key(name, meta, *extra):
-    """Ключ кэша отчёта: имя + период + версия данных витрины."""
+    """Ключ кэша отчёта: имя + период + бар + версия данных витрины.
+
+    Бар берётся из meta, а не из параметров маршрута: так ни один отчёт не
+    может забыть его и отдать срез одного бара вместо другого.
+    """
     version = meta['last_synced_at'] or ''
-    parts = [name, meta['p_start'], meta['p_end'], version] + [str(e) for e in extra]
+    parts = [name, meta['p_start'], meta['p_end'], meta['venue'] or 'all',
+             version] + [str(e) for e in extra]
     return 'guests_' + '_'.join(parts)
 
 
@@ -75,12 +90,12 @@ def guests_page():
 def api_summary():
     """Сводка (ТЗ §14)."""
     try:
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         # В ключ входит метка среза Orderia: сводка теперь берёт из §15
         # регистрации и конверсию, и должна пересчитаться после его обновления.
         never_version = store.never_sync_state()['fetched_at'] or ''
         data = cached_olap(_cache_key('summary', meta, never_version),
-                           lambda: ga.summary(store, period, meta))
+                           lambda: ga.summary(store, period, meta, venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -90,8 +105,8 @@ def api_summary():
 def api_base_growth():
     """Рост клиентской базы (ТЗ §1)."""
     try:
-        store, period, meta = _ctx()
-        return jsonify({'meta': meta, 'data': ga.base_growth(store, period, meta)})
+        store, period, meta, venue = _ctx()
+        return jsonify({'meta': meta, 'data': ga.base_growth(store, period, meta, venue)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
@@ -101,9 +116,9 @@ def api_base_dynamics():
     """Динамика базы помесячно (ТЗ §13). ?months=24"""
     try:
         months = min(max(int(request.args.get('months', 24)), 3), 60)
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('dynamics', meta, months),
-                           lambda: ga.base_dynamics(store, period, meta, months))
+                           lambda: ga.base_dynamics(store, period, meta, months, venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -113,8 +128,8 @@ def api_base_dynamics():
 def api_activity():
     """Активность базы на дату среза (ТЗ §3)."""
     try:
-        store, period, meta = _ctx()
-        return jsonify({'meta': meta, 'data': ga.activity(store, period, meta)})
+        store, period, meta, venue = _ctx()
+        return jsonify({'meta': meta, 'data': ga.activity(store, period, meta, venue)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
@@ -123,8 +138,8 @@ def api_activity():
 def api_frequency():
     """Частота посещений за период (ТЗ §4)."""
     try:
-        store, period, meta = _ctx()
-        return jsonify({'meta': meta, 'data': ga.frequency(store, period, meta)})
+        store, period, meta, venue = _ctx()
+        return jsonify({'meta': meta, 'data': ga.frequency(store, period, meta, venue)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
@@ -133,9 +148,9 @@ def api_frequency():
 def api_cohorts_lifecycle():
     """Когорты жизненного цикла от регистрации (ТЗ §2)."""
     try:
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('lifecycle', meta),
-                           lambda: ga.lifecycle_cohorts(store, period, meta))
+                           lambda: ga.lifecycle_cohorts(store, period, meta, venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -148,9 +163,10 @@ def api_retention():
         basis = request.args.get('basis', 'first_order')
         if basis not in ('first_order', 'registration'):
             basis = 'first_order'
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('retention', meta, basis),
-                           lambda: ga.cohort_retention(store, period, meta, basis))
+                           lambda: ga.cohort_retention(store, period, meta, basis,
+                                                       venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -163,9 +179,10 @@ def api_cohorts_revenue():
         basis = request.args.get('basis', 'registration')
         if basis not in ('registration', 'first_order'):
             basis = 'registration'
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('cohort_rev', meta, basis),
-                           lambda: ga.cohort_revenue(store, period, meta, basis))
+                           lambda: ga.cohort_revenue(store, period, meta, basis,
+                                                     venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -211,8 +228,7 @@ def api_rfm():
             segments, q, limit = _rfm_list_filter()
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
-        store, period, meta = _ctx()
-        venue = request.args.get('store') or None
+        store, period, meta, venue = _ctx()
         data = ga.rfm(store, period, meta, include_guests=True, venue=venue)
         rows, matched = ga.rfm_filter_guests(data['guests'], segments, q, limit)
         data['guests'] = rows
@@ -246,8 +262,8 @@ def api_rfm():
 def api_ltv():
     """LTV: средний, YTD, по точкам (ТЗ §8)."""
     try:
-        store, period, meta = _ctx()
-        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta)})
+        store, period, meta, venue = _ctx()
+        return jsonify({'meta': meta, 'data': ga.ltv(store, period, meta, venue)})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
 
@@ -259,9 +275,9 @@ def api_products():
         mode = request.args.get('mode', 'top')
         if mode not in ('top', 'first', 'repeat', 'trend'):
             mode = 'top'
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('products', meta, mode),
-                           lambda: ga.products(store, period, meta, mode))
+                           lambda: ga.products(store, period, meta, mode, venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -274,9 +290,10 @@ def api_product_pairs():
         scope = request.args.get('scope', 'lifetime')
         if scope not in ('lifetime', 'period'):
             scope = 'lifetime'
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('pairs', meta, scope),
-                           lambda: ga.product_pairs(store, period, meta, scope))
+                           lambda: ga.product_pairs(store, period, meta, scope,
+                                                    venue=venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -286,9 +303,9 @@ def api_product_pairs():
 def api_venues():
     """Аналитика по точкам (ТЗ §11)."""
     try:
-        store, period, meta = _ctx()
+        store, period, meta, venue = _ctx()
         data = cached_olap(_cache_key('venues', meta),
-                           lambda: ga.venues_analytics(store, period, meta))
+                           lambda: ga.venues_analytics(store, period, meta, venue))
         return jsonify({'meta': meta, 'data': data})
     except Exception as e:
         return jsonify({'error': f'{type(e).__name__}: {e}'}), 500
@@ -303,7 +320,8 @@ def api_never_buyers():
     иначе рассылка «вы у нас ещё не были» уйдёт постоянным гостям.
     """
     try:
-        store, period, meta = _ctx()
+        # На бары не делится: карта без покупок к бару не привязана.
+        store, period, meta, _venue = _ctx(by_venue=False)
         want_csv = request.args.get('export') == 'csv'
         if want_csv:
             data = ga.never_buyers(store, period, meta, include_list=True)
@@ -344,7 +362,8 @@ def api_search():
 def api_guest_card(guest_id):
     """Карточка гостя (ТЗ §12)."""
     try:
-        store, period, meta = _ctx()
+        # Карточка — весь гость по всем барам (чеки в ней подписаны баром).
+        store, period, meta, _venue = _ctx(by_venue=False)
         data = ga.guest_card(store, guest_id, period, meta)
         if data is None:
             return jsonify({'error': 'Гость не найден'}), 404

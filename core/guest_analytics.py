@@ -26,6 +26,18 @@
 1 знак. Недозревшие ячейки когорт (конец месяца когорты + окно > даты среза)
 отдаются как None и показываются в UI прочерком.
 
+Разбивка по барам (параметр venue, с 2026-09-29) — «бар как отдельное
+заведение»: берутся только чеки выбранного бара. Гость бара — тот, у кого есть
+хоть один чек в нём; первый заказ, последний визит, визиты, чеки, выручка и
+активность — только по этому бару. Поэтому сумма по четырём барам больше сети:
+гость двух баров посчитан в обоих (так же считал RFM по точке и прежний RFM
+на /discounts). Исключение — регистрация: карта одна на всю сеть, бара
+регистрации iiko не хранит, поэтому регистрация закрепляется за баром ПЕРВОЙ
+покупки в сети (как в «Регистраций на точку»), и регистрации по барам в сумме
+дают сеть. Сравнения баров между собой (LTV и регистрации по точкам) считаются
+только для всей сети; §11 «Точки» с баром — его гости и их визиты во все бары;
+§15 (Orderia) и карточка гостя на бары не делятся.
+
 Документация: docs/guests.md
 """
 
@@ -128,8 +140,24 @@ def resolve_period(period_type='month', anchor=None):
             'prev_start': prev_start, 'prev_end': prev_end, 'label': label}
 
 
-def build_meta(store, period):
-    """meta каждого ответа: границы срезов, покрытие витрины, режим регистраций."""
+def resolve_venue(raw):
+    """Параметр ?store= -> ключ бара из PHYSICAL_VENUES или None (вся сеть).
+
+    Неизвестное значение (русское имя, 'all', опечатка) означает всю сеть — так
+    было и у RFM: пустой отчёт или 500 на кривом параметре хуже, а какой срез
+    посчитан на самом деле, ответ говорит сам (meta.venue). Значение сверяется
+    со списком, поэтому в SQL попадает только известный ключ, и то параметром.
+    """
+    return raw if raw in PHYSICAL_VENUES else None
+
+
+def build_meta(store, period, venue=None):
+    """meta каждого ответа: границы срезов, бар, покрытие витрины, режим регистраций.
+
+    venue и venue_name — бар, по которому посчитан ответ (None — вся сеть). Режим
+    регистраций (fallback) — свойство источника, поэтому считается по всей базе.
+    """
+    venue = resolve_venue(venue)
     cov = store.coverage()
     today = msk_time.today()
     p_end = period['p_end']
@@ -146,6 +174,8 @@ def build_meta(store, period):
         'p_end': p_end.isoformat(),
         'asof': asof.isoformat(),
         'ytd_start': date(p_end.year, 1, 1).isoformat(),
+        'venue': venue,
+        'venue_name': VENUES.get(venue, {}).get('name') if venue else None,
         'coverage_from': cov['date_from'],
         'coverage_to': cov['date_to'],
         'last_synced_at': cov['last_synced_at'],
@@ -156,30 +186,74 @@ def build_meta(store, period):
 
 # ---------------------------------------------------------------- загрузчики
 
-def _load_guests(conn):
-    """Все гости: список dict-строк таблицы guests."""
+def _venue_cond(venue, column='store'):
+    """Кусок WHERE «только этот бар» и его параметры.
+
+    -> (" AND <column> = ?", [venue]) или ("", []) для всей сети. column —
+    колонка с ключом бара (store, i.store, first_order_store).
+    """
+    if venue:
+        return f" AND {column} = ?", [venue]
+    return "", []
+
+
+def _first_order_sql(venue):
+    """Подзапрос (guest_id, f): дата первого заказа гостя -> (sql, params).
+
+    Вся сеть — денормализованная guests.first_order_date; с баром — первый чек
+    гостя ИМЕННО В ЭТОМ баре (новый гость бара, даже если в сети он давно).
+    """
+    if venue:
+        return ("SELECT guest_id, MIN(open_date) AS f FROM receipts "
+                "WHERE store = ? GROUP BY guest_id"), [venue]
+    return "SELECT guest_id, first_order_date AS f FROM guests", []
+
+
+def _load_guests(conn, venue=None):
+    """Гости: список dict-строк таблицы guests.
+
+    venue — бар или None. С баром в выборке только гости, у которых есть чек в
+    этом баре, а first_order_date и last_visit_date — первый и последний визит
+    именно в него. reg_here — регистрация гостя закреплена за этим баром (бар
+    первой покупки в сети); для всей сети — всегда 1.
+    """
+    if not venue:
+        return [dict(r) for r in conn.execute(
+            "SELECT guest_id, name, phone, card_number, registration_date, "
+            "registration_source, first_order_date, first_order_store, "
+            "last_visit_date, 1 AS reg_here FROM guests")]
     return [dict(r) for r in conn.execute(
-        "SELECT guest_id, name, phone, card_number, registration_date, "
-        "registration_source, first_order_date, first_order_store, "
-        "last_visit_date FROM guests")]
+        """
+        SELECT g.guest_id, g.name, g.phone, g.card_number, g.registration_date,
+               g.registration_source, v.first_visit AS first_order_date,
+               g.first_order_store, v.last_visit AS last_visit_date,
+               CASE WHEN g.first_order_store = ? THEN 1 ELSE 0 END AS reg_here
+        FROM guests g
+        JOIN (SELECT guest_id, MIN(open_date) AS first_visit,
+                     MAX(open_date) AS last_visit
+              FROM receipts WHERE store = ? GROUP BY guest_id) v
+          ON v.guest_id = g.guest_id
+        """, (venue, venue))]
 
 
-def _load_visits(conn):
-    """{guest_id: [даты визитов по возрастанию]} за всю историю."""
+def _load_visits(conn, venue=None):
+    """{guest_id: [даты визитов по возрастанию]} за всю историю; с баром — в него."""
+    store_sql, params = ("WHERE store = ? ", [venue]) if venue else ("", [])
     visits = {}
     for r in conn.execute(
-            "SELECT guest_id, open_date FROM receipts "
-            "GROUP BY guest_id, open_date ORDER BY guest_id, open_date"):
+            "SELECT guest_id, open_date FROM receipts " + store_sql +
+            "GROUP BY guest_id, open_date ORDER BY guest_id, open_date", params):
         visits.setdefault(r['guest_id'], []).append(r['open_date'])
     return visits
 
 
-def _load_guest_totals(conn):
-    """{guest_id: {'orders': n, 'revenue': x}} за всю историю."""
+def _load_guest_totals(conn, venue=None):
+    """{guest_id: {'orders': n, 'revenue': x}} за всю историю; с баром — его чеки."""
+    store_sql, params = ("WHERE store = ? ", [venue]) if venue else ("", [])
     return {r['guest_id']: {'orders': r['orders'], 'revenue': r['revenue'] or 0.0}
             for r in conn.execute(
                 "SELECT guest_id, COUNT(*) orders, SUM(revenue) revenue "
-                "FROM receipts GROUP BY guest_id")}
+                "FROM receipts " + store_sql + "GROUP BY guest_id", params)}
 
 
 def _visits_between(dates_list, d_from, d_to):
@@ -208,9 +282,14 @@ def _registration_basis(meta):
 
 
 def _reg_date(g, basis):
-    """Дата регистрации гостя в выбранном базисе (может быть None)."""
+    """Дата регистрации гостя в выбранном базисе (может быть None).
+
+    С выбранным баром регистрация из iiko есть только у гостей, чья первая
+    покупка в сети была в этом баре (reg_here, см. _load_guests). В fallback-
+    базисе регистрация = первая покупка, а с баром — первая покупка в нём.
+    """
     if basis == 'iiko':
-        if g['registration_source'] == 'iiko':
+        if g['registration_source'] == 'iiko' and g['reg_here']:
             return g['registration_date']
         return None
     return g['first_order_date']
@@ -222,31 +301,42 @@ def _pct(part, total, digits=1):
 
 # ---------------------------------------------------------------- §1 Рост базы
 
-def base_growth(store, period, meta):
+def base_growth(store, period, meta, venue=None):
     """Регистрации, первые заказы, конверсия, время до первого заказа (P + YTD).
 
     Ограничение источника (принято владельцем): OLAP видит только гостей с >=1
     чеком за историю, поэтому «регистрации» — по купившим хоть раз; свежие
     периоды дорастают задним числом. В fallback-режиме конверсия и время до
     первого заказа не определены (регистрация = первая покупка) и отдаются None.
+
+    venue — бар или None. С баром первые заказы — гости, чей первый чек В ЭТОМ
+    БАРЕ попал в срез (новые гости бара, в том числе пришедшие из других баров);
+    регистрации, конверсия и дни до заказа — по гостям, чья первая покупка в сети
+    была в этом баре (за ним закреплена регистрация); размер базы — гости с хотя
+    бы одним чеком в баре.
     """
     p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
     ytd_start = meta['ytd_start']
     fallback = meta['fallback_mode']
+    venue = resolve_venue(venue)
+    first_sql, first_params = _first_order_sql(venue)
+    reg_sql, reg_params = _venue_cond(venue, 'first_order_store')
 
     def slice_metrics(conn, d_from, d_to):
-        regs = first = conv = avg_days = None
+        regs = conv = avg_days = None
         first = conn.execute(
-            "SELECT COUNT(*) n FROM guests WHERE first_order_date >= ? "
-            "AND first_order_date <= ?", (d_from, d_to)).fetchone()['n']
+            f"SELECT COUNT(*) n FROM ({first_sql}) WHERE f >= ? AND f <= ?",
+            first_params + [d_from, d_to]).fetchone()['n']
         if not fallback:
             regs = conn.execute(
                 "SELECT COUNT(*) n FROM guests WHERE registration_source='iiko' "
-                "AND registration_date >= ? AND registration_date <= ?",
-                (d_from, d_to)).fetchone()['n']
+                "AND registration_date >= ? AND registration_date <= ?" + reg_sql,
+                [d_from, d_to] + reg_params).fetchone()['n']
             # MAX(0, ...): чек последнего часа смены попадает в учётный день
             # НАКАНУНЕ календарной даты создания карты (бар работает за полночь),
-            # отсюда формальные «-1 день» — считаем их нулём.
+            # отсюда формальные «-1 день» — считаем их нулём. С баром здесь только
+            # гости, чья первая покупка в сети была в нём, и first_order_date —
+            # это и первый чек в баре.
             row = conn.execute(
                 """
                 SELECT COUNT(*) converted,
@@ -255,20 +345,24 @@ def base_growth(store, period, meta):
                 FROM guests
                 WHERE registration_source='iiko'
                   AND registration_date >= ? AND registration_date <= ?
-                  AND first_order_date <= ?
-                """, (d_from, d_to, d_to)).fetchone()
+                  AND first_order_date <= ?""" + reg_sql,
+                [d_from, d_to, d_to] + reg_params).fetchone()
             conv = _pct(row['converted'], regs) if regs else None
             avg_days = round(row['days'], 1) if row['days'] is not None else None
         return {'registrations': regs, 'first_orders': first,
                 'conversion_pct': conv, 'avg_days_to_first_order': avg_days}
 
     with store.conn() as conn:
+        if venue:
+            base_size = conn.execute(
+                "SELECT COUNT(DISTINCT guest_id) n FROM receipts WHERE store = ?",
+                (venue,)).fetchone()['n']
+        else:
+            base_size = conn.execute("SELECT COUNT(*) n FROM guests").fetchone()['n']
         out = {
             'period': slice_metrics(conn, p_start, p_end),
             'ytd': slice_metrics(conn, ytd_start, p_end),
-            'lifetime': {
-                'base_size': conn.execute("SELECT COUNT(*) n FROM guests").fetchone()['n'],
-            },
+            'lifetime': {'base_size': base_size},
         }
     return out
 
@@ -292,14 +386,19 @@ def _activity_counts(guests, visits, asof_iso):
     return counts
 
 
-def activity(store, period, meta):
-    """Статусы базы на дату среза + сравнение с предыдущим периодом (ТЗ §3)."""
+def activity(store, period, meta, venue=None):
+    """Статусы базы на дату среза + сравнение с предыдущим периодом (ТЗ §3).
+
+    С баром (venue) — гости бара и их визиты только в него: статус считается от
+    последнего визита В ЭТОТ бар.
+    """
     today = msk_time.today()
     asof = min(period['p_end'], today).isoformat()
     prev_asof = min(period['prev_end'], today).isoformat()
+    venue = resolve_venue(venue)
     with store.conn() as conn:
-        guests = _load_guests(conn)
-        visits = _load_visits(conn)
+        guests = _load_guests(conn, venue)
+        visits = _load_visits(conn, venue)
     cur = _activity_counts(guests, visits, asof)
     prev = _activity_counts(guests, visits, prev_asof)
     total = sum(cur.values())
@@ -319,16 +418,20 @@ def activity(store, period, meta):
 
 # ---------------------------------------------------------------- §4 Частота
 
-def frequency(store, period, meta):
-    """Частота визитов за Primary Period (ТЗ §4): сегменты и средняя частота."""
+def frequency(store, period, meta, venue=None):
+    """Частота визитов за Primary Period (ТЗ §4): сегменты и средняя частота.
+
+    С баром (venue) — визиты только в этот бар.
+    """
     p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
     ytd_start = meta['ytd_start']
+    store_sql, store_params = _venue_cond(resolve_venue(venue))
 
     def calc(conn, d_from, d_to):
         rows = conn.execute(
             "SELECT guest_id, COUNT(DISTINCT open_date) v FROM receipts "
-            "WHERE open_date >= ? AND open_date <= ? GROUP BY guest_id",
-            (d_from, d_to)).fetchall()
+            "WHERE open_date >= ? AND open_date <= ?" + store_sql + " GROUP BY guest_id",
+            [d_from, d_to] + store_params).fetchall()
         seg_counts = {label: 0 for label, _, _ in FREQUENCY_SEGMENTS}
         total_visits = 0
         for r in rows:
@@ -355,7 +458,7 @@ def frequency(store, period, meta):
 
 # ------------------------------------------------- §2/§5 Когорты и retention
 
-def lifecycle_cohorts(store, period, meta, months_limit=24):
+def lifecycle_cohorts(store, period, meta, months_limit=24, venue=None):
     """Когорты жизненного цикла (ТЗ §2): когорта = месяц регистрации.
 
     Воронка внутри когорты — Lifetime: доля гостей с >= 2 и >= 5 чеками за всю
@@ -372,14 +475,19 @@ def lifecycle_cohorts(store, period, meta, months_limit=24):
 
     В fallback-режиме базис автоматически «первая покупка» (совпадает с §5) —
     помечено в meta.
+
+    С баром (venue) в когорте — гости, чья регистрация закреплена за баром
+    (первая покупка в сети — в нём); чеки и активность — только в этом баре:
+    «сколько из тех, кого привёл бар, остались ЕГО гостями».
     """
     basis = _registration_basis(meta)
     asof = meta['asof']
     active_from = (_parse_date(asof) - timedelta(days=ACTIVITY_SEGMENTS[0][2])).isoformat()
+    venue = resolve_venue(venue)
     with store.conn() as conn:
-        guests = _load_guests(conn)
-        totals = _load_guest_totals(conn)
-        visits = _load_visits(conn)
+        guests = _load_guests(conn, venue)
+        totals = _load_guest_totals(conn, venue)
+        visits = _load_visits(conn, venue)
     cohorts = {}
     for g in guests:
         reg = _reg_date(g, basis)
@@ -409,20 +517,25 @@ def lifecycle_cohorts(store, period, meta, months_limit=24):
     return {'basis': basis, 'cohorts': rows}
 
 
-def cohort_retention(store, period, meta, basis='first_order', months_limit=24):
+def cohort_retention(store, period, meta, basis='first_order', months_limit=24,
+                     venue=None):
     """Возвраты когорт (ТЗ §5, а с basis='registration' — retention-слой §2).
 
     Когорта = месяц первой покупки (или регистрации). Возврат = визит в окне
     (первая покупка, первая покупка + N дней], N из RETENTION_WINDOWS.
     Ячейка зрелая, только если конец месяца когорты + N <= дата среза; иначе
     None (в UI прочерк) — недозревшие когорты не занижают проценты.
+
+    С баром (venue) первая покупка и возвраты — только в этом баре: вернулся ли
+    гость именно сюда.
     """
     if basis == 'registration':
         basis = _registration_basis(meta)
     asof = meta['asof']
+    venue = resolve_venue(venue)
     with store.conn() as conn:
-        guests = _load_guests(conn)
-        visits = _load_visits(conn)
+        guests = _load_guests(conn, venue)
+        visits = _load_visits(conn, venue)
     cohorts = {}
     for g in guests:
         anchor = _reg_date(g, basis) if basis != 'first_order' else g['first_order_date']
@@ -453,16 +566,23 @@ def cohort_retention(store, period, meta, basis='first_order', months_limit=24):
 
 # ---------------------------------------------------------------- §6 Доходы
 
-def cohort_revenue(store, period, meta, basis='registration', months_limit=24):
-    """Когортные доходы (ТЗ §6): накопительные выручка/заказы/LTV по когортам."""
+def cohort_revenue(store, period, meta, basis='registration', months_limit=24,
+                   venue=None):
+    """Когортные доходы (ТЗ §6): накопительные выручка/заказы/LTV по когортам.
+
+    С баром (venue) — выручка и чеки только этого бара; когорта по регистрации —
+    гости, чья регистрация закреплена за баром, по первой покупке — первый чек
+    в нём.
+    """
     if basis == 'registration':
         eff_basis = _registration_basis(meta)
     else:
         eff_basis = 'first_order'
     asof = meta['asof']
+    venue = resolve_venue(venue)
     with store.conn() as conn:
-        guests = _load_guests(conn)
-        totals = _load_guest_totals(conn)
+        guests = _load_guests(conn, venue)
+        totals = _load_guest_totals(conn, venue)
     cohorts = {}
     for g in guests:
         anchor = (_reg_date(g, eff_basis) if eff_basis != 'first_order'
@@ -547,9 +667,9 @@ def rfm(store, period, meta, include_guests=True, venue=None):
     """
     asof = meta['asof']
     win_start = (_parse_date(asof) - timedelta(days=RFM_WINDOW_DAYS - 1)).isoformat()
-    venue = venue if venue in PHYSICAL_VENUES else None
-    venue_sql = " AND r.store = ?" if venue else ""
-    params = [win_start, asof] + ([venue] if venue else [])
+    venue = resolve_venue(venue)
+    venue_sql, venue_params = _venue_cond(venue, 'r.store')
+    params = [win_start, asof] + venue_params
     with store.conn() as conn:
         rows = conn.execute(
             f"""
@@ -670,18 +790,27 @@ def rfm_filter_guests(guests, segments=None, q=None, limit=None):
 
 # ---------------------------------------------------------------- §8 LTV
 
-def ltv(store, period, meta):
-    """LTV (ТЗ §8): средний Lifetime, YTD-вариант, по точкам (по когортам — §6)."""
+def ltv(store, period, meta, venue=None):
+    """LTV (ТЗ §8): средний Lifetime, YTD-вариант, по точкам (по когортам — §6).
+
+    С баром (venue) — выручка и гости только этого бара: LTV гостя В ЭТОМ баре.
+    by_venue — сравнение баров между собой (гость закреплён за баром первого
+    заказа, выручка — по всей сети), поэтому считается только для всей сети;
+    с баром это пустой список, как профиль баров на /packaging и /kitchen.
+    """
     p_end = period['p_end'].isoformat()
     ytd_start = meta['ytd_start']
+    venue = resolve_venue(venue)
+    store_sql, store_params = _venue_cond(venue)
     with store.conn() as conn:
         life = conn.execute(
             "SELECT COUNT(DISTINCT guest_id) n, SUM(revenue) rev FROM receipts"
-        ).fetchone()
+            + (" WHERE store = ?" if venue else ""), store_params).fetchone()
         ytd_row = conn.execute(
             "SELECT COUNT(DISTINCT guest_id) n, SUM(revenue) rev FROM receipts "
-            "WHERE open_date >= ? AND open_date <= ?", (ytd_start, p_end)).fetchone()
-        by_venue = conn.execute(
+            "WHERE open_date >= ? AND open_date <= ?" + store_sql,
+            [ytd_start, p_end] + store_params).fetchone()
+        by_venue = [] if venue else conn.execute(
             """
             SELECT g.first_order_store store, COUNT(*) guests, SUM(t.rev) revenue
             FROM guests g JOIN (
@@ -715,7 +844,7 @@ def ltv(store, period, meta):
 
 # ---------------------------------------------------------------- §13 Динамика
 
-def base_dynamics(store, period, meta, months=24):
+def base_dynamics(store, period, meta, months=24, venue=None):
     """Динамика базы по месяцам (ТЗ §13).
 
     active_start(M) = визит в [начало M - 30 дн, начало M);
@@ -724,10 +853,15 @@ def base_dynamics(store, period, meta, months=24):
     на начало месяца; active_end(M) = визит в [конец M - 30 дн, конец M];
     churned(M) = active_start + new + reactivated - active_end (остаточный член
     баланса — прямые определения см. docs/guests.md).
+
+    С баром (venue) — визиты и первая покупка только в этом баре: «новый» —
+    первый визит именно сюда. Баланс сходится так же, потому что все четыре
+    величины считаются по одним и тем же визитам.
     """
+    venue = resolve_venue(venue)
     with store.conn() as conn:
-        guests = _load_guests(conn)
-        visits = _load_visits(conn)
+        guests = _load_guests(conn, venue)
+        visits = _load_visits(conn, venue)
     end_anchor = min(period['p_end'], msk_time.today())
     ym_list = []
     y, m = end_anchor.year, end_anchor.month
@@ -777,53 +911,64 @@ def base_dynamics(store, period, meta, months=24):
 
 # ---------------------------------------------------------------- §9 Товары
 
-def products(store, period, meta, mode='top', limit=30):
-    """Товарные отчёты (ТЗ §9) по позициям чеков гостей программы лояльности."""
+def products(store, period, meta, mode='top', limit=30, venue=None):
+    """Товарные отчёты (ТЗ §9) по позициям чеков гостей программы лояльности.
+
+    С баром (venue) — только позиции чеков этого бара; «первые покупки» — что
+    гость взял в день первого визита именно в этот бар, «повторные» — позиции
+    после него. При равенстве главного показателя порядок — по названию:
+    иначе порядок равных зависел бы от плана запроса SQLite.
+    """
     p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    venue = resolve_venue(venue)
+    items_sql, items_params = _venue_cond(venue)
+    i_sql, i_params = _venue_cond(venue, 'i.store')
+    first_sql, first_params = _first_order_sql(venue)
     with store.conn() as conn:
         if mode == 'top':
             rows = conn.execute(
-                """
+                f"""
                 SELECT dish_name, ROUND(SUM(amount), 1) amount, SUM(revenue) revenue,
                        COUNT(DISTINCT guest_id) guests
-                FROM receipt_items WHERE open_date >= ? AND open_date <= ?
-                GROUP BY dish_name ORDER BY SUM(revenue) DESC LIMIT ?
-                """, (p_start, p_end, limit)).fetchall()
+                FROM receipt_items WHERE open_date >= ? AND open_date <= ?{items_sql}
+                GROUP BY dish_name ORDER BY SUM(revenue) DESC, dish_name LIMIT ?
+                """, [p_start, p_end] + items_params + [limit]).fetchall()
         elif mode == 'first':
             # Первые покупки: позиции чеков в день первого заказа гостей,
             # чей первый заказ попал в период.
             rows = conn.execute(
-                """
+                f"""
                 SELECT i.dish_name, ROUND(SUM(i.amount), 1) amount,
                        SUM(i.revenue) revenue, COUNT(DISTINCT i.guest_id) guests
                 FROM receipt_items i
-                JOIN guests g ON g.guest_id = i.guest_id
-                             AND i.open_date = g.first_order_date
-                WHERE g.first_order_date >= ? AND g.first_order_date <= ?
-                GROUP BY i.dish_name ORDER BY COUNT(DISTINCT i.guest_id) DESC
+                JOIN ({first_sql}) fo ON fo.guest_id = i.guest_id AND i.open_date = fo.f
+                WHERE fo.f >= ? AND fo.f <= ?{i_sql}
+                GROUP BY i.dish_name
+                ORDER BY COUNT(DISTINCT i.guest_id) DESC, i.dish_name
                 LIMIT ?
-                """, (p_start, p_end, limit)).fetchall()
+                """, first_params + [p_start, p_end] + i_params + [limit]).fetchall()
         elif mode == 'repeat':
             # Повторные покупки: позиции чеков после дня первого заказа.
             rows = conn.execute(
-                """
+                f"""
                 SELECT i.dish_name, ROUND(SUM(i.amount), 1) amount,
                        SUM(i.revenue) revenue, COUNT(DISTINCT i.guest_id) guests
                 FROM receipt_items i
-                JOIN guests g ON g.guest_id = i.guest_id
-                WHERE i.open_date > g.first_order_date
-                  AND i.open_date >= ? AND i.open_date <= ?
-                GROUP BY i.dish_name ORDER BY SUM(i.revenue) DESC LIMIT ?
-                """, (p_start, p_end, limit)).fetchall()
+                JOIN ({first_sql}) fo ON fo.guest_id = i.guest_id
+                WHERE i.open_date > fo.f
+                  AND i.open_date >= ? AND i.open_date <= ?{i_sql}
+                GROUP BY i.dish_name ORDER BY SUM(i.revenue) DESC, i.dish_name
+                LIMIT ?
+                """, first_params + [p_start, p_end] + i_params + [limit]).fetchall()
         else:  # trend: динамика топ-10 товаров за 12 месяцев к концу периода
             end_d = period['p_end']
             start_d = date(end_d.year - 1, end_d.month, 1) + timedelta(days=0)
             top = [r['dish_name'] for r in conn.execute(
-                """
+                f"""
                 SELECT dish_name FROM receipt_items
-                WHERE open_date >= ? AND open_date <= ?
-                GROUP BY dish_name ORDER BY SUM(revenue) DESC LIMIT 10
-                """, (start_d.isoformat(), p_end)).fetchall()]
+                WHERE open_date >= ? AND open_date <= ?{items_sql}
+                GROUP BY dish_name ORDER BY SUM(revenue) DESC, dish_name LIMIT 10
+                """, [start_d.isoformat(), p_end] + items_params).fetchall()]
             if not top:
                 return {'mode': 'trend', 'months': [], 'series': []}
             placeholders = ','.join('?' * len(top))
@@ -832,10 +977,10 @@ def products(store, period, meta, mode='top', limit=30):
                 SELECT substr(open_date, 1, 7) ym, dish_name,
                        ROUND(SUM(amount), 1) amount
                 FROM receipt_items
-                WHERE open_date >= ? AND open_date <= ?
+                WHERE open_date >= ? AND open_date <= ?{items_sql}
                   AND dish_name IN ({placeholders})
                 GROUP BY ym, dish_name ORDER BY ym
-                """, [start_d.isoformat(), p_end] + top).fetchall()
+                """, [start_d.isoformat(), p_end] + items_params + top).fetchall()
             months_axis = sorted({r['ym'] for r in data})
             series = {d: {ym: 0 for ym in months_axis} for d in top}
             for r in data:
@@ -852,45 +997,49 @@ def products(store, period, meta, mode='top', limit=30):
 
 # ---------------------------------------------------------------- §10 Пары
 
-def product_pairs(store, period, meta, scope='lifetime', limit=30):
+def product_pairs(store, period, meta, scope='lifetime', limit=30, venue=None):
     """Сочетаемость товаров (ТЗ §10): пары в одном чеке.
 
     Поддержка = чеки с парой / чеки с >= 2 разными позициями;
     уверенность A->B = чеки с парой / чеки с товаром A (в том же охвате).
+    С баром (venue) — только чеки этого бара (чек и так всегда в одном баре).
     """
     if scope == 'period':
         d_from, d_to = period['p_start'].isoformat(), period['p_end'].isoformat()
     else:
         scope = 'lifetime'
         d_from, d_to = '0000-01-01', '9999-12-31'
+    venue = resolve_venue(venue)
+    store_sql, store_params = _venue_cond(venue)
+    a_sql, a_params = _venue_cond(venue, 'a.store')
     with store.conn() as conn:
         checks2plus = conn.execute(
-            """
+            f"""
             SELECT COUNT(*) n FROM (
                 SELECT 1 FROM receipt_items
-                WHERE open_date >= ? AND open_date <= ?
+                WHERE open_date >= ? AND open_date <= ?{store_sql}
                 GROUP BY open_date, store, order_num, guest_id
                 HAVING COUNT(DISTINCT dish_name) >= 2)
-            """, (d_from, d_to)).fetchone()['n']
+            """, [d_from, d_to] + store_params).fetchone()['n']
         dish_checks = {r['dish_name']: r['n'] for r in conn.execute(
-            """
+            f"""
             SELECT dish_name, COUNT(*) n FROM (
                 SELECT DISTINCT open_date, store, order_num, guest_id, dish_name
-                FROM receipt_items WHERE open_date >= ? AND open_date <= ?)
+                FROM receipt_items WHERE open_date >= ? AND open_date <= ?{store_sql})
             GROUP BY dish_name
-            """, (d_from, d_to)).fetchall()}
+            """, [d_from, d_to] + store_params).fetchall()}
         pairs = conn.execute(
-            """
+            f"""
             SELECT a.dish_name da, b.dish_name db, COUNT(*) n
             FROM receipt_items a
             JOIN receipt_items b
               ON a.open_date = b.open_date AND a.store = b.store
              AND a.order_num = b.order_num AND a.guest_id = b.guest_id
              AND a.dish_name < b.dish_name
-            WHERE a.open_date >= ? AND a.open_date <= ?
+            WHERE a.open_date >= ? AND a.open_date <= ?{a_sql}
             GROUP BY a.dish_name, b.dish_name
             ORDER BY COUNT(*) DESC LIMIT ?
-            """, (d_from, d_to, limit)).fetchall()
+            """, [d_from, d_to] + a_params + [limit]).fetchall()
     out = []
     for r in pairs:
         out.append({
@@ -904,18 +1053,30 @@ def product_pairs(store, period, meta, scope='lifetime', limit=30):
 
 # ---------------------------------------------------------------- §11 Точки
 
-def venues_analytics(store, period, meta):
-    """Аналитика по точкам (ТЗ §11)."""
+def venues_analytics(store, period, meta, venue=None):
+    """Аналитика по точкам (ТЗ §11).
+
+    С баром (venue) правило «только чеки бара» здесь не работает — отчёт по
+    природе межбарный. Поэтому население сужается до гостей бара (хоть один чек
+    в нём), а их визиты берутся по ВСЕМ барам сети: откуда они пришли (первая
+    точка), какой бар любимый, где ещё бывают и какую долю визитов отдают этому
+    бару. guests_total — размер этого населения.
+    """
     p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
+    venue = resolve_venue(venue)
+    # Фильтр «гости бара» — по guest_id, а не по store: визиты в другие бары нужны.
+    pop_cond = "guest_id IN (SELECT guest_id FROM receipts WHERE store = ?)"
+    pop_and, pop_where = (" AND " + pop_cond, " WHERE " + pop_cond) if venue else ("", "")
+    pop_params = [venue] if venue else []
 
     def dist(conn, d_from, d_to):
         rows = conn.execute(
-            """
+            f"""
             SELECT store, COUNT(*) visits, COUNT(DISTINCT guest_id) guests
             FROM (SELECT DISTINCT store, guest_id, open_date FROM receipts
-                  WHERE open_date >= ? AND open_date <= ?)
+                  WHERE open_date >= ? AND open_date <= ?{pop_and})
             GROUP BY store ORDER BY visits DESC
-            """, (d_from, d_to)).fetchall()
+            """, [d_from, d_to] + pop_params).fetchall()
         total = sum(r['visits'] for r in rows)
         return [{'store': r['store'],
                  'store_name': VENUES.get(r['store'], {}).get('name', r['store']),
@@ -924,19 +1085,19 @@ def venues_analytics(store, period, meta):
 
     with store.conn() as conn:
         first_dist = conn.execute(
-            """
+            f"""
             SELECT first_order_store store, COUNT(*) guests FROM guests
-            WHERE first_order_store IS NOT NULL
+            WHERE first_order_store IS NOT NULL{pop_and}
             GROUP BY first_order_store ORDER BY guests DESC
-            """).fetchall()
+            """, pop_params).fetchall()
         total_guests = sum(r['guests'] for r in first_dist)
         # Любимая точка гостя: максимум дней-визитов; при равенстве — порядок
         # PHYSICAL_VENUES, затем алфавит (детерминированный tie-break).
         per_guest_store = conn.execute(
-            """
+            f"""
             SELECT guest_id, store, COUNT(DISTINCT open_date) v
-            FROM receipts GROUP BY guest_id, store
-            """).fetchall()
+            FROM receipts{pop_where} GROUP BY guest_id, store
+            """, pop_params).fetchall()
         first_store_map = {r['guest_id']: r['first_order_store'] for r in conn.execute(
             "SELECT guest_id, first_order_store FROM guests")}
         dist_period = dist(conn, p_start, p_end)
@@ -977,6 +1138,7 @@ def venues_analytics(store, period, meta):
                            for s, n in sorted(fav_counts.items(), key=lambda kv: -kv[1])],
         'distribution_period': dist_period,
         'distribution_lifetime': dist_lifetime,
+        'guests_total': len(stores_per_guest),
         'multi_store_guests': multi_store_guests,
         'multi_store_share_pct': _pct(multi_store_guests, len(stores_per_guest)),
         'migration_matrix': {fs: {ts: n for ts, n in row.items()}
@@ -1342,29 +1504,61 @@ def never_buyers(store, period, meta, months=24, include_list=False):
 
 # ---------------------------------------------------------------- §14 Сводка
 
-def summary(store, period, meta):
+def _summary_never(never):
+    """Блок never сводки из §15; never=None — выбран бар, Orderia его не знает.
+
+    Карта без покупок к бару не привязана (Orderia бара не передаёт, а чека,
+    по которому его можно было бы определить, у такой карты нет), поэтому с
+    баром блок недоступен с причиной reason='venue', и сводка берёт регистрации
+    и конверсию из витрины, как без Orderia.
+    """
+    if never is None:
+        return {'available': False, 'reason': 'venue', 'source_status': None,
+                'registered_total': None, 'bought': None, 'never_period': None,
+                'never_total': None, 'conversion_pct': None}
+    return {
+        # available = срез Orderia есть и период внутри его покрытия
+        'available': never['period']['conversion_available'],
+        'reason': None,
+        'source_status': never['source']['status'],
+        'registered_total': never['period']['registered_total'],
+        'bought': never['period']['bought'],
+        'never_period': never['period']['never'],
+        'never_total': never['totals']['confirmed'],
+        'conversion_pct': never['period']['conversion_pct'],
+    }
+
+
+def summary(store, period, meta, venue=None):
     """Дашборд маркетолога (ТЗ §14): сводные показатели из готовых функций.
 
     Регистрации и конверсия берутся из §15, если данные Orderia есть: только там
     известен полный знаменатель. Без Orderia остаётся прежнее поведение — виден
     лишь тот, кто купил, и конверсия обречена быть около 100% (показывается
     справочно). Признак `never.available` говорит UI, какой из двух случаев.
+
+    С баром (venue) все показатели — по этому бару (правила — в докстрингах
+    частей). На бар не делятся: §15 (never.available=False, reason='venue') и
+    «Регистраций на точку» — сравнение баров, с баром пустой список.
     """
     p_start, p_end = period['p_start'].isoformat(), period['p_end'].isoformat()
-    growth = base_growth(store, period, meta)
-    act = activity(store, period, meta)
-    freq = frequency(store, period, meta)
-    ltv_block = ltv(store, period, meta)
-    never = never_buyers(store, period, meta)
+    venue = resolve_venue(venue)
+    growth = base_growth(store, period, meta, venue)
+    act = activity(store, period, meta, venue)
+    freq = frequency(store, period, meta, venue)
+    ltv_block = ltv(store, period, meta, venue)
+    never = None if venue else never_buyers(store, period, meta)
+    store_sql, store_params = _venue_cond(venue)
     with store.conn() as conn:
         chk = conn.execute(
             "SELECT COUNT(*) orders, SUM(revenue) rev FROM receipts "
-            "WHERE open_date >= ? AND open_date <= ?", (p_start, p_end)).fetchone()
+            "WHERE open_date >= ? AND open_date <= ?" + store_sql,
+            [p_start, p_end] + store_params).fetchone()
         chk_ytd = conn.execute(
             "SELECT COUNT(*) orders, SUM(revenue) rev FROM receipts "
-            "WHERE open_date >= ? AND open_date <= ?",
-            (meta['ytd_start'], p_end)).fetchone()
-        regs_by_store = conn.execute(
+            "WHERE open_date >= ? AND open_date <= ?" + store_sql,
+            [meta['ytd_start'], p_end] + store_params).fetchone()
+        regs_by_store = [] if venue else conn.execute(
             """
             SELECT first_order_store store, COUNT(*) n FROM guests
             WHERE registration_source='iiko'
@@ -1395,14 +1589,5 @@ def summary(store, period, meta):
             {'store': r['store'],
              'store_name': VENUES.get(r['store'], {}).get('name', r['store']),
              'count': r['n']} for r in regs_by_store],
-        'never': {
-            # available = срез Orderia есть и период внутри его покрытия
-            'available': never['period']['conversion_available'],
-            'source_status': never['source']['status'],
-            'registered_total': never['period']['registered_total'],
-            'bought': never['period']['bought'],
-            'never_period': never['period']['never'],
-            'never_total': never['totals']['confirmed'],
-            'conversion_pct': never['period']['conversion_pct'],
-        },
+        'never': _summary_never(never),
     }

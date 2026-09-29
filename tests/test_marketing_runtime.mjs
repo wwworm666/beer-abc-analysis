@@ -74,25 +74,58 @@ function makeDom() {
     const byId = {};
     // Элементы, которые ищет common.js при инициализации и виды при рендере.
     for (const id of ['periodPrev', 'periodNext', 'periodLabel', 'coverageBanner',
-                      'pane-promo', 'pane-rfm', 'promoFrom', 'promoTo', 'promoBar',
+                      'pane-summary', 'pane-growth', 'pane-activity', 'pane-cohorts',
+                      'pane-rfm', 'pane-ltv', 'pane-promo', 'pane-products', 'pane-venues',
+                      'pane-never', 'pane-guest',
+                      'barPick', 'barPickBtn', 'barPickMenu', 'barPickLabel',
+                      'promoFrom', 'promoTo', 'promoBar',
                       'promoName', 'promoLoad', 'promoStale', 'promoGuestRows',
                       'promoGuestNote', 'promoFilter', 'rfmFilter', 'rfmTbody',
                       'rfmMore', 'rfmScatterNote']) {
         byId[id] = makeEl(id.startsWith('pane') ? 'div' : 'input');
     }
+    // DOMContentLoaded копим: тесты общего бара запускают init страницы сами.
+    const ready = [];
     const document = {
         getElementById(id) { return byId[id] || null; },
         querySelector() { return makeEl(); },
         querySelectorAll() { return []; },
         createElement: makeEl,
-        addEventListener() {},          // DOMContentLoaded нам не нужен
+        addEventListener(ev, fn) { if (ev === 'DOMContentLoaded') ready.push(fn); },
         documentElement: makeEl(),
     };
-    return { document, byId };
+    return { document, byId, ready };
+}
+
+// Заглушка window.GH (static/js/guest_hub/common.js): общий фильтр бара раздела.
+function makeGh(initialBar) {
+    const gh = {
+        bar: initialBar || '',
+        setCalls: [],
+        menuToggles: 0,
+        BARS: [
+            { key: 'bolshoy', name: 'Большой пр. В.О', short: 'ВО' },
+            { key: 'ligovskiy', name: 'Лиговский', short: 'Лиг' },
+            { key: 'kremenchugskaya', name: 'Кременчугская', short: 'Крем' },
+            { key: 'varshavskaya', name: 'Варшавская', short: 'Вар' },
+        ],
+        getBar() { return gh.bar; },
+        setBar(key) {
+            gh.setCalls.push(key);
+            gh.bar = gh.BARS.some((b) => b.key === key) ? key : '';
+            return gh.bar;
+        },
+        barName(key) {
+            const b = gh.BARS.find((x) => x.key === key);
+            return b ? b.name : 'Все бары';
+        },
+        toggleMenu() { gh.menuToggles++; return true; },
+    };
+    return gh;
 }
 
 function loadGuests(opts) {
-    const { document, byId } = makeDom();
+    const { document, byId, ready } = makeDom();
     const fetchCalls = [];
     const sandbox = {
         console,
@@ -130,6 +163,7 @@ function loadGuests(opts) {
     sandbox.globalThis = sandbox;
     sandbox.GUESTS_CONFIG = { bars: ['Лиговский', 'Варшавская'] };
     sandbox.window.GUESTS_CONFIG = sandbox.GUESTS_CONFIG;
+    if (opts && opts.gh) sandbox.GH = opts.gh;
 
     const ctx = vm.createContext(sandbox);
     for (const f of ['static/js/guests/formulas.js',
@@ -138,7 +172,22 @@ function loadGuests(opts) {
                      ...(opts && opts.views ? opts.views : [])]) {
         vm.runInContext(read(f), ctx, { filename: f });
     }
+    // init страницы (как по DOMContentLoaded) — только если тест просит.
+    if (opts && opts.init) ready.forEach((fn) => fn());
     return { sandbox, byId, fetchCalls };
+}
+
+// Параметры запроса: '/api/guests/rfm?period_type=month&store=x' -> URLSearchParams.
+function query(url) {
+    return new URLSearchParams(String(url).split('?')[1] || '');
+}
+
+// Ответ витрины с meta: venue — бар, по которому сервер посчитал отчёт.
+function metaOf(venue, venueName) {
+    return { period_label: 'Август 2026', p_end: '2026-08-31', asof: '2026-08-13',
+             coverage_from: '2017-12-18', coverage_to: '2026-08-12',
+             last_synced_at: '2026-08-13T05:10:00',
+             venue: venue || null, venue_name: venueName || null };
 }
 
 // ---------------------------------------------------------------- вкладка «Акции»
@@ -261,7 +310,10 @@ test('вкладка RFM открывается, запрашивает витр
                 'не тот эндпоинт: ' + fetchCalls[0].url);
             const html = byId['pane-rfm'].innerHTML;
             assert.ok(html.includes('Чемпионы'), 'нет карточек сегментов');
-            assert.ok(html.includes('Вся сеть'), 'нет переключателя точек');
+            // Своего переключателя точек у RFM больше нет (2026-09-29): бар общий
+            // для страницы, и без выбранного бара store в запрос не уходит.
+            assert.ok(!html.includes('data-rvenue'), 'у RFM снова свой переключатель точек');
+            assert.ok(!query(fetchCalls[0].url).has('store'), 'store без выбранного бара');
             assert.ok(html.includes('Давность последнего визита'), 'нет гистограммы');
             assert.ok(html.includes('Частота против давности'), 'нет диаграммы');
             assert.ok(html.includes('rfmTbody'), 'нет таблицы гостей');
@@ -295,8 +347,150 @@ test('панель периода скрывается на «Акциях» и 
         'класс залип после уход с «Акций»');
 });
 
+// ---------------------------------------------------------------- общий бар (2026-09-29)
+// Бар — общий фильтр раздела «Гости» (GH.getBar / GH.setBar). Страница берёт его
+// при init, показывает в кнопке «Бар» и шлёт параметром store во все отчёты.
+
+const SUMMARY = {
+    base_size: 100, active_guests: 10, registrations: 5, registrations_ytd: 50,
+    first_orders: 6, first_orders_ytd: 60, conversion_pct: 100, avg_days_to_first_order: 0,
+    avg_frequency: 1.5, avg_check: 1500, avg_check_ytd: 1400, avg_ltv: 9000,
+    revenue_period: 150000, orders_period: 100,
+    activity_segments: [{ segment: 'active', count: 10 }],
+    registrations_by_store: [{ store: 'bolshoy', store_name: 'Большой пр. В.О', count: 5 }],
+    never: { available: false, reason: null, source_status: 'ok' },
+};
+
+// Шаг асинхронного сценария: ждём, пока fetch-промисы и отрисовка отработают.
+function later(fn) {
+    return new Promise((resolve) => setTimeout(() => {
+        try {
+            fn();
+        } catch (e) {
+            failed++;
+            passed--;
+            console.log('      (общий бар) ' + e.message);
+        }
+        resolve();
+    }, 30));
+}
+
+test('общий бар: кнопка и меню из фильтра раздела, store уходит в запросы', () => {
+    const gh = makeGh('ligovskiy');
+    const { sandbox, byId, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-summary.js'],
+        gh, init: true,
+        respond: (url) => {
+            const store = query(url).get('store');
+            const name = store ? gh.barName(store) : null;
+            // Сервер с баром отдаёт пустое сравнение баров и never с reason=venue.
+            const data = store
+                ? Object.assign({}, SUMMARY, { registrations_by_store: [],
+                                               never: { available: false, reason: 'venue' } })
+                : SUMMARY;
+            return { meta: metaOf(store, name), data };
+        },
+    });
+    assert.equal(byId.barPickLabel.textContent, 'Лиговский', 'кнопка не показывает бар раздела');
+    assert.ok(byId.barPick.classList.contains('is-set'), 'выбранный бар не подсвечен');
+    assert.equal(query(fetchCalls[0].url).get('store'), 'ligovskiy',
+        'первая загрузка ушла без бара: ' + fetchCalls[0].url);
+    return later(() => {
+        const html = byId['pane-summary'].innerHTML;
+        assert.ok(html.includes('за баром первой покупки'), 'у регистраций нет подписи бара');
+        assert.ok(html.includes('по барам не делится'), 'Orderia не помечена «по барам не делится»');
+        assert.ok(!html.includes('Регистраций на точку'), 'сравнение баров показано в режиме бара');
+        assert.ok(html.includes('Выбран бар'), 'в «Как считается» нет правила бара');
+        // Меню: пункты раздела и пояснение; открывает его общий GH.toggleMenu.
+        byId.barPickBtn.click();
+        assert.equal(gh.menuToggles, 1, 'меню не открывается через GH.toggleMenu');
+        const menu = byId.barPickMenu.innerHTML;
+        for (const needle of ['data-bar=""', 'data-bar="varshavskaya"', 'Все бары', 'gh-menu-note']) {
+            assert.ok(menu.includes(needle), 'в меню нет ' + needle);
+        }
+        const pick = (key) => byId.barPickMenu.listeners.click[0]({
+            target: { closest: () => ({ getAttribute: () => key }) },
+        });
+        pick('varshavskaya');
+        assert.deepEqual(gh.setCalls, ['varshavskaya'], 'выбор не записан в общий фильтр');
+        assert.equal(byId.barPickLabel.textContent, 'Варшавская');
+        const last = fetchCalls[fetchCalls.length - 1];
+        assert.equal(query(last.url).get('store'), 'varshavskaya', 'вкладка не перезагрузилась по бару');
+        pick('');
+        const all = fetchCalls[fetchCalls.length - 1];
+        assert.ok(!query(all.url).has('store'), '«Все бары» отправили store');
+        assert.ok(!byId.barPick.classList.contains('is-set'), 'подсветка осталась на «Все бары»');
+    });
+});
+
+test('без модуля раздела (GH) страница работает по всей сети', () => {
+    const { sandbox, fetchCalls } = loadGuests({
+        views: ['static/js/guests/views-summary.js'], init: true,
+        respond: () => ({ meta: metaOf(null), data: SUMMARY }),
+    });
+    assert.equal(sandbox.Guests.state.bar, '');
+    assert.ok(!query(fetchCalls[0].url).has('store'));
+});
+
+test('«Не купившие» при выбранном баре подписаны «по всей сети»', () => {
+    const never = {
+        source: { status: 'ok', fetched_at: '2026-08-13T05:10:00', error: null, reported: 3 },
+        coverage: { from: '2024-02-29', to: '2026-08-12' },
+        totals: { reported: 3, confirmed: 2, junk: 0, false_positives: 1, fp_same_card: 1,
+                  fp_other_card: 0, fp_guests: 1, fp_revenue: 1000, reachable_telegram: 2 },
+        period: { registered_total: 5, bought: 3, never: 2, conversion_pct: 60,
+                  conversion_available: true },
+        by_month: [], by_balance: [], false_positives: [],
+    };
+    const { sandbox, byId } = loadGuests({
+        views: ['static/js/guests/views-never.js'], gh: makeGh('bolshoy'), init: true,
+        // Сервер ?store= у этого отчёта не читает: meta.venue = null.
+        respond: () => ({ meta: metaOf(null), data: never }),
+    });
+    sandbox.Guests.activateTab('never');
+    return later(() => {
+        const html = byId['pane-never'].innerHTML;
+        assert.ok(html.includes('scope-note') && html.includes('по всей сети'),
+            'нет подписи, что отчёт по всей сети');
+    });
+});
+
+test('LTV при выбранном баре не рисует сравнение баров', () => {
+    const { sandbox, byId } = loadGuests({
+        views: ['static/js/guests/views-ltv.js'], gh: makeGh('ligovskiy'), init: true,
+        respond: () => ({ meta: metaOf('ligovskiy', 'Лиговский'), data: {
+            lifetime: { guests: 10, revenue: 50000, avg_ltv: 5000 },
+            ytd: { guests: 5, revenue: 10000, avg_revenue_per_guest: 2000 },
+            by_venue: [] } }),
+    });
+    sandbox.Guests.activateTab('ltv');
+    return later(() => {
+        const html = byId['pane-ltv'].innerHTML;
+        assert.ok(!html.includes('LTV по точкам'), 'сравнение баров показано в режиме бара');
+        assert.ok(html.includes('при выборе «Все бары»'), 'нет подсказки, где сравнение');
+    });
+});
+
+test('«Акции»: бар страницы — начальное значение «Точки», чужое имя — все точки', () => {
+    const first = loadGuests({
+        views: ['static/js/guests/views-promo.js'], gh: makeGh('ligovskiy'), init: true,
+    });
+    first.sandbox.Guests.activateTab('promo');
+    const html = first.byId['pane-promo'].innerHTML;
+    assert.ok(html.includes('<option value="Лиговский" selected>'), 'точка не взята из бара страницы');
+    assert.equal(first.fetchCalls.length, 0, 'вкладка «Акции» сама пошла в iiko');
+    // Бара нет среди вариантов селекта (config.bars) — не выдумываем имя для iiko.
+    const second = loadGuests({
+        views: ['static/js/guests/views-promo.js'], gh: makeGh('bolshoy'), init: true,
+    });
+    second.sandbox.Guests.activateTab('promo');
+    assert.ok(!second.byId['pane-promo'].innerHTML.includes(' selected>Большой'),
+        'подставлено имя, которого нет в списке точек');
+    assert.ok(second.byId['pane-promo'].innerHTML.includes('<option value="">Все точки</option>'));
+});
+
 // Итог печатаем после того, как отработают асинхронные проверки.
 setTimeout(() => {
     console.log(`\n${passed} ok, ${failed} failed`);
     process.exit(failed ? 1 : 0);
-}, 200);
+}, 400);

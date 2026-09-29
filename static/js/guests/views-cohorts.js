@@ -52,7 +52,7 @@ Guests.registerView('cohorts', function (pane) {
                 'только купившие, и доля всегда была бы 100%. Сколько человек ' +
                 'зарегистрировалось и не купило — на вкладке «Не купившие».</div>' +
                 basisNote + '</div>' +
-                G.howBlock(['lifecycle_cohort', 'order', 'activity_status']);
+                G.howBlock(['lifecycle_cohort', 'order', 'activity_status'], resp.meta);
             pane.innerHTML = html;
             bindSwitcher();
         });
@@ -76,7 +76,7 @@ Guests.registerView('cohorts', function (pane) {
             html += '</tbody></table></div>' +
                 '<div class="note-line">Прочерк — когорта ещё не дозрела до окна ' +
                 '(конец месяца когорты + окно позже даты среза).</div></div>' +
-                G.howBlock(['retention', 'visit']);
+                G.howBlock(['retention', 'visit'], resp.meta);
             pane.innerHTML = html;
             bindSwitcher();
         });
@@ -118,7 +118,8 @@ Guests.registerView('cohorts', function (pane) {
                     '<td class="num">' + G.fmtNum(c.orders) + '</td>' +
                     '<td class="num">' + G.fmtMoney(c.ltv) + '</td></tr>';
             });
-            html += '</tbody></table></div></div>' + G.howBlock(['cohort_revenue', 'ltv']);
+            html += '</tbody></table></div></div>' +
+                G.howBlock(['cohort_revenue', 'ltv'], resp.meta);
             pane.innerHTML = html;
             bindSwitcher();
             pane.querySelectorAll('.sub-btn[data-basis]').forEach(function (b) {

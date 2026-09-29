@@ -36,8 +36,24 @@
             {% include 'shared/guest_hub_strip.html' %}
         </div>
 
-        <!-- Период: тип + навигация стрелками -->
+        <!-- Бар + период: тип и навигация стрелками -->
         <div class="guests-controls">
+            {#- Бар — общий фильтр раздела «Гости» (GH.getBar / GH.setBar), тот же,
+                что на контент-плане и отзывах: по нему считаются и отчёты, и
+                счётчики полосы выше. Меню — .gh-menu раздела (на телефоне — лист
+                снизу), поэтому обёртка несёт свой .gh-scope с токенами цвета.
+                Наполняет bindBar в common.js страницы. -#}
+            <div class="bar-pick gh-scope" id="barPick">
+                <button type="button" class="bar-pick-btn" id="barPickBtn"
+                        aria-haspopup="menu" aria-expanded="false">
+                    <span class="bar-pick-cap">Бар</span>
+                    <span class="bar-pick-val" id="barPickLabel">Все бары</span>
+                    <svg class="bar-pick-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+                        <path d="M2 3.5 5 6.5 8 3.5" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <div class="gh-menu" id="barPickMenu" role="menu" hidden></div>
+            </div>
             <div class="period-types" id="periodTypes">
                 <button class="ptype-btn" data-ptype="week">Неделя</button>
                 <button class="ptype-btn active" data-ptype="month">Месяц</button>

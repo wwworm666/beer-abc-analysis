@@ -179,6 +179,10 @@ BAD_ARGS = [
     ('analytics_compare_periods', {'venue_key': 'all', 'period1_key': '2026-09-15_2026-09-21'},
      'нужны оба периода'),
     ('analytics_guests_rfm', {'store': 'all'}, 'точка RFM — физический бар, сеть = без store'),
+    ('analytics_guests_summary', {'store': 'Лиговский'},
+     'русское имя вместо ключа: маршрут молча посчитал бы всю сеть'),
+    ('analytics_guests_never_bought', {'store': 'ligovskiy'},
+     'Orderia на бары не делится — маршрут store не читает'),
     ('analytics_guests_rfm', {'period_type': 'day'}, 'такого типа периода нет (молча был бы месяц)'),
     ('analytics_guests_rfm', {'segment': 'VIP'}, 'такого сегмента нет: маршрут ответит 400'),
     ('analytics_guests_rfm', {'segment': 'at_risk'}, 'сегменты — прописными, как в ответе'),
@@ -547,6 +551,21 @@ def test_bar_ids_match_code():
                  'analytics_daily_plan_reset_weight'):
         assert set(_prop(tool, 'venue_key')['enum']) == set(venues_config.PHYSICAL_VENUES), tool
     assert set(_prop('analytics_guests_rfm', 'store')['enum']) == set(venues_config.PHYSICAL_VENUES)
+    # Бар «Маркетинга» (2026-09-29): store — у всех отчётов витрины, кроме тех, что на
+    # бары не делятся (Orderia, поиск и карточка гостя: routes/guests.py, _ctx(by_venue=False)).
+    network_only = {'analytics_guests_never_bought', 'analytics_guests_search',
+                    'analytics_guest_card', 'analytics_guests_sync',
+                    'analytics_guests_sync_status'}
+    guest_tools = [spec for spec in analytics.TOOLS if spec.path.startswith('/api/guests/')]
+    assert len(guest_tools) == 18, len(guest_tools)
+    for spec in guest_tools:
+        props = spec.input_schema.get('properties', {})
+        if spec.name in network_only:
+            assert 'store' not in props, spec.name + ': отчёт на бары не делится'
+            continue
+        assert set(props['store']['enum']) == set(venues_config.PHYSICAL_VENUES), spec.name
+        assert 'store' in spec.query_params, spec.name
+        assert 'store —' in spec.description, spec.name + ': описание не объясняет store'
 
 
 def test_constants_match_code():
@@ -733,6 +752,10 @@ def test_prompts():
     text = review.render({'month': '2026-08', 'bar': 'Лиговский'})
     assert 'date_from=2026-08-01' in text and 'date_to=2026-08-31' in text
     assert 'bar=ligovskiy' in text and 'years=2026,2025' in text
+    # Сводка «Маркетинга» — по тому же бару (store, с 2026-09-29), у сети — без store.
+    assert 'anchor=2026-08-01, store=ligovskiy)' in text and 'по этому бару' in text
+    network = review.render({'month': '2026-08'})
+    assert 'anchor=2026-08-01)' in network and 'по всей сети' in network
     assert 'не в формате' in review.render({'month': 'август'})
     assert 'common_bars_reference' in review.render({'month': '2026-08', 'bar': 'nevsky'})
     assert 'ещё не начался' in review.render({'month': '2099-01'})

@@ -36,7 +36,13 @@ Guests.registerView('never', function (pane) {
               ' Цифры не устареют молча — дата среза выше.</div></div>'
             : '';
 
-        var html = staleWarning + '<div class="metric-grid">';
+        // Выбран бар, а отчёт по всей сети: карта без покупок к бару не привязана
+        // (сервер ?store= здесь не читает и отвечает meta.venue = null).
+        var scope = G.state.bar && !resp.meta.venue
+            ? G.scopeNote('Не купившие — по всей сети: карта без покупок к бару не ' +
+                          'привязана (Orderia бар не передаёт).')
+            : '';
+        var html = scope + staleWarning + '<div class="metric-grid">';
         html += G.metricCard('never_buyers', 'Не купили ни разу', G.fmtNum(t.confirmed),
             'подтверждено витриной');
         html += G.metricCard('never_false_positive', 'Ложных срабатываний',

@@ -1,4 +1,4 @@
-/* Раздел «Гости»: состояние периода, загрузка API, форматирование, вкладки.
+/* Раздел «Гости»: состояние периода и бара, загрузка API, форматирование, вкладки.
    Простые скрипты без ES-модулей (паттерн schedule). Документация: docs/guests.md */
 
 window.Guests = (function () {
@@ -7,6 +7,7 @@ window.Guests = (function () {
     var state = {
         periodType: 'month',
         anchor: new Date(),          // любая дата внутри периода
+        bar: '',                     // ключ бара (GH.BARS) или '' — все бары
         activeTab: 'summary',
         meta: null                   // meta последнего успешного ответа
     };
@@ -54,14 +55,16 @@ window.Guests = (function () {
         return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
                '-' + String(d.getDate()).padStart(2, '0');
     }
-    function periodKey() {
-        return state.periodType + ':' + anchorISO();
+    // Срез отчётов витрины: период + бар. Смена любого из них делает вкладки
+    // устаревшими.
+    function scopeKey() {
+        return state.periodType + ':' + anchorISO() + ':' + state.bar;
     }
     // Ключ кэша отрисовки вкладки. Вкладка со своим периодом (например «Акции»,
     // где произвольный диапазон дат) не должна считаться устаревшей при сдвиге
     // глобального периода — иначе повторное открытие заново дёрнет iiko.
     function viewKey(tab) {
-        return (viewOpts[tab] && viewOpts[tab].ownPeriod) ? 'own' : periodKey();
+        return (viewOpts[tab] && viewOpts[tab].ownPeriod) ? 'own' : scopeKey();
     }
     function ownsPeriod(tab) {
         return !!(viewOpts[tab] && viewOpts[tab].ownPeriod);
@@ -84,7 +87,7 @@ window.Guests = (function () {
         onPeriodChanged();
     }
     function onPeriodChanged() {
-        // Устарели только вкладки, которые живут по глобальному периоду.
+        // Устарели только вкладки, которые живут по глобальному периоду и бару.
         // Вкладка со своим диапазоном сохраняет загруженные данные.
         Object.keys(rendered).forEach(function (tab) {
             if (!ownsPeriod(tab)) delete rendered[tab];
@@ -92,11 +95,78 @@ window.Guests = (function () {
         renderActive();
     }
 
+    // ---------------- бар ----------------
+    // Общий фильтр раздела «Гости» (GH.getBar / GH.setBar, localStorage 'gh.bar')
+    // — тот же, что на «Контент-плане» и «Отзывах». По нему же считаются
+    // счётчики полосы «требует внимания» над страницей: свой выбор здесь
+    // разъехался бы с ней (сверху «Лиговский», а отчёты — по всей сети).
+    // Модуль раздела (static/js/guest_hub/common.js) подключён после видов, но
+    // до DOMContentLoaded, поэтому к init он уже есть; без него — все бары.
+    function hub() {
+        return window.GH || null;
+    }
+    function barName(key) {
+        var gh = hub();
+        return gh ? gh.barName(key) : 'Все бары';
+    }
+    function renderBarPick() {
+        var label = document.getElementById('barPickLabel');
+        if (label) label.textContent = barName(state.bar);
+        var wrap = document.getElementById('barPick');
+        if (wrap) wrap.classList.toggle('is-set', !!state.bar);
+    }
+    function barMenuHtml() {
+        var gh = hub();
+        function item(key, name, hint) {
+            var on = key === state.bar;
+            return '<button type="button" class="gh-menu-item' + (on ? ' is-on' : '') +
+                '" role="menuitemradio" aria-checked="' + (on ? 'true' : 'false') +
+                '" data-bar="' + esc(key) + '"><span>' + esc(name) + '</span>' +
+                (hint ? '<span class="gh-menu-hint">' + esc(hint) + '</span>' : '') +
+                '</button>';
+        }
+        var html = '<div class="gh-menu-grab" aria-hidden="true"></div>' +
+            '<div class="gh-menu-cap">Бар</div>' + item('', 'Все бары', 'вся сеть');
+        (gh ? gh.BARS : []).forEach(function (b) { html += item(b.key, b.name, b.short); });
+        return html + '<div class="gh-menu-note">Выбор общий для раздела «Гости»: ' +
+            'контент-план, отзывы и маркетинг.</div>';
+    }
+    function setBar(key) {
+        var gh = hub();
+        // GH.setBar сам отбрасывает неизвестный ключ и обновляет полосу «требует внимания».
+        var value = gh ? gh.setBar(key) : '';
+        if (value === state.bar) return;
+        state.bar = value;
+        renderBarPick();
+        onPeriodChanged();
+    }
+    function bindBar() {
+        var gh = hub();
+        var btn = document.getElementById('barPickBtn');
+        var menu = document.getElementById('barPickMenu');
+        if (!gh || !btn || !menu) return;
+        state.bar = gh.getBar();
+        renderBarPick();
+        btn.addEventListener('click', function () {
+            menu.innerHTML = barMenuHtml();
+            gh.toggleMenu(menu, btn);
+        });
+        // Меню закрывает общий обработчик GH после клика по пункту.
+        menu.addEventListener('click', function (e) {
+            var item = e.target.closest ? e.target.closest('[data-bar]') : null;
+            if (item) setBar(item.getAttribute('data-bar'));
+        });
+    }
+
     // ---------------- API ----------------
+    // Бар уходит параметром store во все отчёты. Отчёт, который на бары не
+    // делится («Не купившие», карточка гостя), его не читает и отвечает
+    // meta.venue = null — виды сверяются с meta, а не с выбором.
     function api(path, params) {
         var q = new URLSearchParams(params || {});
         if (!q.has('period_type')) q.set('period_type', state.periodType);
         if (!q.has('anchor')) q.set('anchor', anchorISO());
+        if (state.bar && !q.has('store')) q.set('store', state.bar);
         return fetch(path + '?' + q.toString())
             .then(function (r) {
                 return r.json().then(function (j) {
@@ -145,8 +215,12 @@ window.Guests = (function () {
         if (!f) return '';
         return '<span class="metric-help" title="' + esc(f.text) + '">?</span>';
     }
-    function howBlock(keys) {
-        var items = keys.map(function (k) {
+    // meta — ответ отчёта: если он посчитан по бару (meta.venue), первым пунктом
+    // идёт правило «бар как отдельное заведение». Берётся из ответа, а не из
+    // выбора: отчёт, который на бары не делится, отвечает meta.venue = null.
+    function howBlock(keys, meta) {
+        var list = (meta && meta.venue) ? ['venue_scope'].concat(keys) : keys;
+        var items = list.map(function (k) {
             var f = window.GUEST_FORMULAS[k];
             if (!f) return '';
             return '<div class="how-item"><b>' + esc(f.title) + '.</b> ' + esc(f.text) + '</div>';
@@ -159,6 +233,13 @@ window.Guests = (function () {
             '<div class="gmetric-value">' + value + '</div>' +
             (sub ? '<div class="gmetric-sub">' + sub + '</div>' : '') +
             '</div>';
+    }
+    // Короткая видимая подпись над отчётом, когда выбран бар, а отчёт считается
+    // иначе, чем «только чеки бара» (по всей сети или по гостям бара во всех
+    // барах). Без неё число читается неверно, поэтому её не прячем в «Как
+    // считается». html — готовая разметка вида (имена баров экранирует вид).
+    function scopeNote(html) {
+        return '<div class="scope-note">' + html + '</div>';
     }
 
     // ---------------- вкладки ----------------
@@ -244,6 +325,9 @@ window.Guests = (function () {
             b.addEventListener('click', function () { activateTab(b.dataset.tab); });
         });
         bindSync();
+        // Бар — до первой отрисовки: иначе вкладка сначала загрузилась бы по
+        // всей сети, а потом ещё раз по бару.
+        bindBar();
         var hash = (location.hash || '').replace('#', '');
         if (hash && document.getElementById('pane-' + hash)) state.activeTab = hash;
         activateTab(state.activeTab);
@@ -257,8 +341,11 @@ window.Guests = (function () {
         post: post,
         activateTab: activateTab,
         registerView: registerView,
+        setBar: setBar,
+        barName: barName,
         fmtNum: fmtNum, fmtMoney: fmtMoney, fmtPct: fmtPct,
         fmtDate: fmtDate, fmtMonth: fmtMonth, esc: esc,
-        helpIcon: helpIcon, howBlock: howBlock, metricCard: metricCard
+        helpIcon: helpIcon, howBlock: howBlock, metricCard: metricCard,
+        scopeNote: scopeNote
     };
 })();

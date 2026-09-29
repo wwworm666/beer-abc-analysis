@@ -21,7 +21,7 @@
          (например русское имя) -> iiko-фильтра нет -> цифры всей сети;
        - фасовка/кухня/розлив/акции ждут русское имя iiko: ключ `bolshoy` уходит
          фильтром Store.Name и даёт «Нет данных»;
-       - /api/guests/*: неизвестный period_type -> месяц, неизвестная точка RFM ->
+       - /api/guests/*: неизвестный period_type -> месяц, неизвестный бар (store) ->
          вся сеть, неизвестный mode/basis/scope -> значение по умолчанию.
     3. Защитные ограничения на ЗАПИСЬ (сознательно уже, чем принимает маршрут):
        - планы и веса дней пишутся только для четырёх физических баров: «все
@@ -38,7 +38,7 @@
 
 Две системы идентификаторов баров (полная таблица — common_bars_reference)
     - ключ заведения: bolshoy / ligovskiy / kremenchugskaya / varshavskaya / all —
-      дашборд, выручка, планы, месячный отчёт, конструктор, RFM по точке;
+      дашборд, выручка, планы, месячный отчёт, конструктор, «Маркетинг» (store);
     - русское имя iiko (extensions.BARS): «Большой пр. В.О», «Лиговский»,
       «Кременчугская», «Варшавская»; '' — вся сеть — фасовка, кухня, розлив, акции.
     Списки продублированы константами ниже, чтобы модуль описаний не импортировал
@@ -204,7 +204,18 @@ def _guest_period_props() -> dict:
 
 _GUEST_META_NOTE = ('Считается по локальной витрине чеков гостей с картой лояльности (ночная '
                     'синхронизация), в iiko не ходит; meta ответа — границы периода, дата среза '
-                    'asof, покрытие витрины и last_synced_at.')
+                    'asof, бар (venue; null — вся сеть), покрытие витрины и last_synced_at.')
+
+# Бар отчётов «Маркетинга» (routes/guests.py::_ctx, core/guest_analytics.py, докстринг).
+_GUEST_VENUE_NOTE = ('store — бар: отчёт считается так, будто в сети один этот бар (только '
+                     'его чеки; гость бара — хоть один чек в нём, поэтому сумма по барам '
+                     'больше сети; регистрация — за баром первой покупки, по барам в сумме '
+                     'даёт сеть); без store — вся сеть.')
+
+
+def _guest_store_prop() -> dict:
+    """Бар отчёта «Маркетинга»: ключ из PHYSICAL_VENUES; сеть = не передавать."""
+    return _venue_key('Только чеки этого бара; не передавать — вся сеть.', with_all=False)
 
 
 def _tool(**kwargs) -> ToolSpec:
@@ -993,14 +1004,24 @@ _T_ANALYSIS = [
 
 
 def _guests_tool(name, title, description, path, extra_props=None, extra_query=(),
-                 examples=None, **flags) -> ToolSpec:
-    """Отчёт витрины гостей: period_type + anchor плюс свои параметры строки запроса."""
+                 examples=None, by_venue=True, **flags) -> ToolSpec:
+    """Отчёт витрины гостей: period_type + anchor (+ store) плюс свои параметры.
+
+    by_venue=False — отчёт на бары не делится (маршрут зовёт _ctx(by_venue=False)
+    и store не читает), поэтому поля store в схеме нет.
+    """
     props = _guest_period_props()
+    query = ('period_type', 'anchor')
+    notes = [_GUEST_META_NOTE]
+    if by_venue:
+        props['store'] = _guest_store_prop()
+        query += ('store',)
+        notes.insert(0, _GUEST_VENUE_NOTE)
     props.update(extra_props or {})
     return _tool(
-        name=name, title=title, description=description + ' ' + _GUEST_META_NOTE,
+        name=name, title=title, description=description + ' ' + ' '.join(notes),
         method='GET', path=path, body='none',
-        query_params=('period_type', 'anchor') + tuple(extra_query),
+        query_params=query + tuple(extra_query),
         input_schema=_obj(props),
         read_only=True, idempotent=True,
         examples=examples if examples is not None else ({'period_type': 'month',
@@ -1018,7 +1039,8 @@ _T_GUESTS = [
         'avg_days_to_first_order, avg_frequency (визитов на гостя), avg_check (₽ = выручка / '
         'чеки), revenue_period и orders_period (только чеки с картой), avg_ltv (₽), '
         'registrations_by_store, never — регистрации без покупок (Orderia) и честная конверсия. '
-        'Формулы — guests.md, §14.',
+        'С store: never.available=false и reason=venue (карта без покупок к бару не привязана), '
+        'registrations_by_store пуст (это сравнение баров). Формулы — guests.md, §14.',
         '/api/guests/summary', also_in=('content',),
     ),
     _guests_tool(
@@ -1026,7 +1048,10 @@ _T_GUESTS = [
         'Рост клиентской базы (§1), за период и YTD: registrations (гости с датой регистрации '
         'карты в периоде), first_orders (гости с первым чеком в периоде), conversion_pct '
         '(зарегистрированные в периоде с заказом до конца периода / регистрации; справочно — '
-        'видны только купившие), avg_days_to_first_order; lifetime.base_size — размер базы.',
+        'видны только купившие), avg_days_to_first_order; lifetime.base_size — размер базы. '
+        'С store: first_orders — первый чек гостя именно в этом баре (новые гости бара); '
+        'registrations и conversion_pct — гости, чья первая покупка в сети была в этом баре; '
+        'base_size — гости с хотя бы одним чеком в баре.',
         '/api/guests/base-growth',
     ),
     _guests_tool(
@@ -1097,12 +1122,10 @@ _T_GUESTS = [
         'фильтров guests — ВСЕ гости (тысячи строк, 500+ тыс. знаков: мост урежет), поэтому '
         'всегда передавайте limit (например 50) и при нужде segment и q; segments и '
         'total_guests фильтр не меняет, guests_filter.matched — сколько гостей подошло до '
-        'limit. store — считать по чекам одной точки (сумма по барам больше сети: гость двух '
-        "баров в двух срезах); export='csv' — тот же список (с теми же фильтрами) файлом CSV.",
+        "limit. С store R, F и M — по чекам этого бара; export='csv' — тот же список (с теми "
+        'же фильтрами) файлом CSV.',
         '/api/guests/rfm',
         extra_props={
-            'store': _venue_key("Только чеки этой точки; не передавать — вся сеть.",
-                                with_all=False),
             'segment': {'type': 'string', 'pattern': RFM_SEGMENT_PATTERN,
                         'description': ('Только эти сегменты, через запятую: CHAMPIONS, LOYAL, '
                                         'POTENTIAL, NEW, AT_RISK, CHURNED (например '
@@ -1116,7 +1139,7 @@ _T_GUESTS = [
             'export': {'type': 'string', 'enum': ['csv'],
                        'description': "'csv' — выгрузка списка гостей (CSV через «;»)."},
         },
-        extra_query=('store', 'segment', 'q', 'limit', 'export'),
+        extra_query=('segment', 'q', 'limit', 'export'),
         examples=({'period_type': 'month', 'anchor': '2026-08-15', 'limit': 20},
                   {'period_type': 'month', 'anchor': '2026-08-15', 'segment': 'AT_RISK,CHURNED',
                    'limit': 20}),
@@ -1127,7 +1150,8 @@ _T_GUESTS = [
         'analytics_guests_ltv', 'Гости: LTV',
         'LTV (§8): lifetime — guests, revenue и avg_ltv = вся выручка / все гости (₽); ytd — '
         'выручка с 1 января по конец периода / гости с визитом в этом интервале; by_venue — LTV '
-        'по точке первого заказа гостя (store, store_name, guests, ltv).',
+        'по точке первого заказа гостя (store, store_name, guests, ltv). С store — выручка и '
+        'гости только этого бара, by_venue пуст (сравнение баров — только для всей сети).',
         '/api/guests/ltv',
     ),
     _guests_tool(
@@ -1157,8 +1181,10 @@ _T_GUESTS = [
         'analytics_guests_venues', 'Гости: точки',
         'Аналитика по точкам (§11): first_store — бар первого чека гостя; favorite_store — бар с '
         'наибольшим числом дней-визитов; distribution_period и distribution_lifetime — визиты и '
-        'гости по барам с долями; multi_store_guests и multi_store_share_pct — гости 2+ баров; '
-        'migration_matrix — «первая точка → любимая».',
+        'гости по барам с долями; guests_total — гостей в отчёте; multi_store_guests и '
+        'multi_store_share_pct — гости 2+ баров; migration_matrix — «первая точка → любимая». '
+        'С store отчёт остаётся межбарным, но только по гостям этого бара (хоть один чек в '
+        'нём) и их визитам во ВСЕ бары: откуда пришли, где ещё бывают.',
         '/api/guests/venues',
     ),
     _guests_tool(
@@ -1170,11 +1196,12 @@ _T_GUESTS = [
         'conversion_pct (регистрация → покупка; null для периодов до 2024-02, начала данных '
         "Orderia); by_month, by_balance. export='csv' — список подтверждённых для реактивации "
         '(карта, имя, телефон, Telegram, дата регистрации, баланс); срез Orderia обновляется '
-        'ночью.',
+        'ночью. На бары не делится (карта без покупок к бару не привязана) — всегда вся сеть.',
         '/api/guests/never',
         extra_props={'export': {'type': 'string', 'enum': ['csv'],
                                 'description': "'csv' — выгрузка подтверждённых карт."}},
         extra_query=('export',),
+        by_venue=False,
     ),
     _tool(
         name='analytics_guests_search',
@@ -1285,7 +1312,7 @@ INSTRUCTIONS = """\
 
 Бары
 - Ключи заведений bolshoy, ligovskiy, kremenchugskaya, varshavskaya, all (сеть = сумма
-  баров): дашборд, выручка, планы, месячный отчёт, конструктор, RFM по точке.
+  баров): дашборд, выручка, планы, месячный отчёт, конструктор, «Маркетинг» (store).
 - Русские имена iiko «Большой пр. В.О», «Лиговский», «Кременчугская», «Варшавская»
   ('' — вся сеть): фасовка, кухня, розлив, акции. Полная таблица — common_bars_reference.
 
@@ -1447,7 +1474,8 @@ def _render_month_review(args: dict) -> str:
         '5. Гости: analytics_monthly_loyalty(venue=' + venue_arg + ', year=' + str(year) + '), '
         'analytics_monthly_top_guests(venue=' + venue_arg + ', year=' + str(year) + ', month='
         + str(month) + '), analytics_guests_summary(period_type=month, anchor='
-        + first.isoformat() + ') — сводка «Маркетинга» по всей сети.',
+        + first.isoformat() + (', store=' + venue if venue else '') + ') — сводка «Маркетинга» '
+        + ('по этому бару.' if venue else 'по всей сети.'),
         '6. Розлив: analytics_monthly_draft_liters(venue=' + venue_arg + ', year=' + str(year)
         + ') — литры по стилям (оценка); точные литры и потери — только если владелец спросит '
         '(analytics_draft_kegs, тяжёлый).',

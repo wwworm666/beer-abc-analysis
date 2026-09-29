@@ -58,7 +58,7 @@ Guests.registerView('activity', function (pane) {
             G.fmtNum(freq.ytd.guests_with_visits) + '</b>, средняя частота <b>' +
             String(freq.ytd.avg_visits_per_guest).replace('.', ',') + '</b>.</div></div></div>';
 
-        html += G.howBlock(['activity_status', 'visit', 'avg_frequency']);
+        html += G.howBlock(['activity_status', 'visit', 'avg_frequency'], results[0].meta);
         pane.innerHTML = html;
 
         var pal = GCharts.palette();

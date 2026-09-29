@@ -4,6 +4,10 @@ Guests.registerView('ltv', function (pane) {
     var G = Guests;
     return G.api('/api/guests/ltv').then(function (resp) {
         var d = resp.data;
+        // Посчитано по бару: LTV гостя в этом баре. Сравнение баров между собой
+        // (LTV по точке первого заказа) есть только у всей сети — сервер отдаёт
+        // пустой by_venue, как профиль баров на «Фасовке» и «Кухне».
+        var byBar = !!resp.meta.venue;
         var html = '<div class="metric-grid">' +
             G.metricCard('ltv', 'Средний LTV', G.fmtMoney(d.lifetime.avg_ltv),
                 G.fmtNum(d.lifetime.guests) + ' гостей · ' + G.fmtMoney(d.lifetime.revenue) + ' всего') +
@@ -12,24 +16,30 @@ Guests.registerView('ltv', function (pane) {
                 G.fmtNum(d.ytd.guests) + ' гостей с визитами YTD') +
             '</div>';
 
-        html += '<div class="gcard-grid-2">';
-        html += '<div class="gcard"><h3>LTV по точкам' + G.helpIcon('first_store') +
-            '</h3><div class="chart-box"><canvas id="ltvVenueChart"></canvas></div>' +
-            '<div class="note-line">Гость закрепляется за точкой первого заказа.</div></div>';
-        html += '<div class="gcard"><h3>Таблица по точкам</h3><div class="gtable-wrap">' +
-            '<table class="gtable"><thead><tr><th>Точка</th><th class="num">Гостей</th>' +
-            '<th class="num">LTV</th></tr></thead><tbody>';
-        d.by_venue.forEach(function (v) {
-            html += '<tr><td>' + G.esc(v.store_name) + '</td>' +
-                '<td class="num">' + G.fmtNum(v.guests) + '</td>' +
-                '<td class="num"><b>' + G.fmtMoney(v.ltv) + '</b></td></tr>';
-        });
-        html += '</tbody></table></div></div></div>';
+        if (byBar) {
+            html += '<div class="note-line">Сравнение баров по LTV — при выборе «Все бары».</div>';
+        } else {
+            html += '<div class="gcard-grid-2">';
+            html += '<div class="gcard"><h3>LTV по точкам' + G.helpIcon('first_store') +
+                '</h3><div class="chart-box"><canvas id="ltvVenueChart"></canvas></div>' +
+                '<div class="note-line">Гость закрепляется за точкой первого заказа.</div></div>';
+            html += '<div class="gcard"><h3>Таблица по точкам</h3><div class="gtable-wrap">' +
+                '<table class="gtable"><thead><tr><th>Точка</th><th class="num">Гостей</th>' +
+                '<th class="num">LTV</th></tr></thead><tbody>';
+            d.by_venue.forEach(function (v) {
+                html += '<tr><td>' + G.esc(v.store_name) + '</td>' +
+                    '<td class="num">' + G.fmtNum(v.guests) + '</td>' +
+                    '<td class="num"><b>' + G.fmtMoney(v.ltv) + '</b></td></tr>';
+            });
+            html += '</tbody></table></div></div></div>';
+        }
 
         html += '<div class="note-line">LTV по когортам — на вкладке «Когорты» → «Доходы».</div>';
-        html += G.howBlock(['ltv', 'ytd_ltv', 'first_store']);
+        html += G.howBlock(byBar ? ['ltv', 'ytd_ltv'] : ['ltv', 'ytd_ltv', 'first_store'],
+                           resp.meta);
         pane.innerHTML = html;
 
+        if (byBar) return;
         GCharts.hbar('ltvVenueChart',
             d.by_venue.map(function (v) { return v.store_name; }),
             [{ label: 'LTV, ₽', data: d.by_venue.map(function (v) { return v.ltv; }),

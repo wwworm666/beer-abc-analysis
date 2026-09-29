@@ -33,7 +33,15 @@ Guests.registerView('promo', function (pane) {
     function defaults() {
         var now = new Date();
         var from = new Date(now.getFullYear(), 0, 1);   // с 1 января, как было
-        return { from: iso(from), to: iso(now), bar: '', promo: '' };
+        return { from: iso(from), to: iso(now), bar: pageBar(), promo: '' };
+    }
+    // Бар страницы (общий фильтр раздела) — начальное значение «Точки», пока её
+    // не трогали. Живой OLAP ждёт русское имя бара iiko, поэтому имя берётся из
+    // того же списка, что варианты селекта (config.bars): нет совпадения — все
+    // точки, а не запрос с именем, которого iiko не знает.
+    function pageBar() {
+        var name = G.state.bar ? G.barName(G.state.bar) : '';
+        return (G.config.bars || []).indexOf(name) >= 0 ? name : '';
     }
     function iso(d) {
         return d.getFullYear() + '-' +
@@ -46,7 +54,8 @@ Guests.registerView('promo', function (pane) {
         return {
             from: d.pfrom || def.from,
             to: d.pto || def.to,
-            bar: d.pbar || '',
+            // undefined — «Точку» ещё не трогали; '' — выбраны все точки.
+            bar: d.pbar !== undefined ? d.pbar : def.bar,
             promo: d.ppromo || ''
         };
     }

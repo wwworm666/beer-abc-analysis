@@ -5,6 +5,9 @@ Guests.registerView('summary', function (pane) {
     return G.api('/api/guests/summary').then(function (resp) {
         var d = resp.data, meta = resp.meta;
         var nv = d.never || {};
+        // Посчитано по бару: регистрации закреплены за баром первой покупки,
+        // первый заказ — первый чек в этом баре (правило — «Как считается»).
+        var byBar = !!meta.venue;
 
         // Регистрации и конверсия: если срез Orderia есть, знаменатель полный —
         // купившие плюс не купившие. Если нет, остаётся прежняя картина, где
@@ -19,17 +22,22 @@ Guests.registerView('summary', function (pane) {
             neverSub = 'всего в базе ' + G.fmtNum(nv.never_total);
         } else {
             regsValue = G.fmtNum(d.registrations);
-            regsSub = 'только купившие · YTD: ' + G.fmtNum(d.registrations_ytd);
+            regsSub = (byBar ? 'за баром первой покупки' : 'только купившие') +
+                ' · YTD: ' + G.fmtNum(d.registrations_ytd);
             conv = d.conversion_pct === null ? '—' : G.fmtPct(d.conversion_pct);
             convSub = d.conversion_pct === null
                 ? 'нет данных о регистрации'
                 : 'справочно: источник видит только купивших';
             neverValue = '—';
-            neverSub = nv.source_status === 'error'
-                ? 'данные Orderia недоступны'
-                : (nv.source_status === 'never_run'
-                    ? 'интеграция с Orderia не настроена'
-                    : 'период старше данных Orderia');
+            // Карта без покупок к бару не привязана: Orderia бар не передаёт,
+            // а чека, по которому его можно было бы узнать, у неё нет.
+            neverSub = nv.reason === 'venue'
+                ? 'по барам не делится'
+                : (nv.source_status === 'error'
+                    ? 'данные Orderia недоступны'
+                    : (nv.source_status === 'never_run'
+                        ? 'интеграция с Orderia не настроена'
+                        : 'период старше данных Orderia'));
         }
 
         var html = '<div class="metric-grid">' +
@@ -38,7 +46,7 @@ Guests.registerView('summary', function (pane) {
                 'визит за 30 дней на ' + G.fmtDate(meta.asof)) +
             G.metricCard('registrations', 'Новые регистрации', regsValue, regsSub) +
             G.metricCard('first_orders', 'Первые заказы', G.fmtNum(d.first_orders),
-                'YTD: ' + G.fmtNum(d.first_orders_ytd)) +
+                (byBar ? 'первый чек в баре · ' : '') + 'YTD: ' + G.fmtNum(d.first_orders_ytd)) +
             G.metricCard('never_buyers', 'Не купили ни разу', neverValue, neverSub) +
             G.metricCard(nv.available ? 'never_conversion' : 'conversion',
                 'Конверсия в заказ', conv, convSub) +
@@ -51,25 +59,31 @@ Guests.registerView('summary', function (pane) {
                 G.fmtNum(d.orders_period) + ' чеков за период') +
             '</div>';
 
-        html += '<div class="gcard-grid-2">';
-        html += '<div class="gcard"><h3>Активность базы' + G.helpIcon('activity_status') +
+        var activityCard = '<div class="gcard"><h3>Активность базы' + G.helpIcon('activity_status') +
                 '</h3><div class="chart-box"><canvas id="sumActivityChart"></canvas></div></div>';
-        html += '<div class="gcard"><h3>Регистраций на точку' + G.helpIcon('regs_by_store') +
-                '</h3><div class="gtable-wrap"><table class="gtable"><thead><tr>' +
-                '<th>Точка</th><th class="num">Регистраций за период</th></tr></thead><tbody>';
-        if (d.registrations_by_store.length === 0) {
-            html += '<tr><td colspan="2" class="dim">Нет регистраций за период</td></tr>';
+        if (byBar) {
+            // «Регистраций на точку» — сравнение баров: при выбранном баре его нет,
+            // как профиля баров на «Фасовке» и «Кухне».
+            html += activityCard;
+        } else {
+            html += '<div class="gcard-grid-2">' + activityCard;
+            html += '<div class="gcard"><h3>Регистраций на точку' + G.helpIcon('regs_by_store') +
+                    '</h3><div class="gtable-wrap"><table class="gtable"><thead><tr>' +
+                    '<th>Точка</th><th class="num">Регистраций за период</th></tr></thead><tbody>';
+            if (d.registrations_by_store.length === 0) {
+                html += '<tr><td colspan="2" class="dim">Нет регистраций за период</td></tr>';
+            }
+            d.registrations_by_store.forEach(function (r) {
+                html += '<tr><td>' + G.esc(r.store_name) + '</td><td class="num">' +
+                    G.fmtNum(r.count) + '</td></tr>';
+            });
+            html += '</tbody></table></div></div></div>';
         }
-        d.registrations_by_store.forEach(function (r) {
-            html += '<tr><td>' + G.esc(r.store_name) + '</td><td class="num">' +
-                G.fmtNum(r.count) + '</td></tr>';
-        });
-        html += '</tbody></table></div></div></div>';
 
         html += G.howBlock(['base_size', 'active_guests', 'registrations', 'first_orders',
                             'never_buyers', nv.available ? 'never_conversion' : 'conversion',
                             'avg_frequency', 'avg_check', 'ltv', 'revenue',
-                            'visit', 'order', 'coverage']);
+                            'visit', 'order', 'coverage'], meta);
         pane.innerHTML = html;
 
         var p = GCharts.palette();

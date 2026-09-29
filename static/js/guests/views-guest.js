@@ -9,7 +9,12 @@ Guests.registerView('guest', function (pane) {
     var statusTitles = { active: 'Active', sleeping: 'Sleeping', at_risk: 'At Risk', lost: 'Lost' };
 
     function shell() {
+        // Карточка — весь гость: при выбранном баре она не сужается (чеки в
+        // ней подписаны баром), и об этом нужно сказать, иначе «Показатели по
+        // срезам» читаются как показатели бара.
         pane.innerHTML =
+            (G.state.bar ? G.scopeNote('Карточка гостя — по всем барам сети: чеки ' +
+                                       'подписаны баром.') : '') +
             '<div class="guest-search"><input type="text" id="guestQ" ' +
             'placeholder="Телефон, номер карты или имя (минимум 2 символа)"></div>' +
             '<div class="search-results" id="guestHits"></div>' +
