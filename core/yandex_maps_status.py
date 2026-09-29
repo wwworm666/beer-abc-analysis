@@ -243,10 +243,20 @@ def compare(ours, maps_items) -> dict:
 
 
 def _parse_time(value):
+    """'2026-09-28T09:38:57.802503Z' -> datetime МСК.
+
+    Дробная часть секунд приводится к 6 цифрам, 'Z' — к '+00:00': Python 3.10 (прод)
+    в fromisoformat принимает только 3 или 6 цифр и не знает 'Z'.
+    """
     if not value:
         return None
+    text = str(value).strip().replace('Z', '+00:00')
+    match = re.match(r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(.*)$', text)
+    if match:
+        fraction = '.' + match.group(2)[:6].ljust(6, '0') if match.group(2) else ''
+        text = match.group(1) + fraction + match.group(3)
     try:
-        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
     if parsed.tzinfo is None:
