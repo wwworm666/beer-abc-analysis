@@ -206,10 +206,23 @@
         return '';
     }
 
+    const MAPS_HINT = {
+        synced: 'на Картах совпадает с файлом',
+        review: 'на Картах пока прежняя версия, новый файл на проверке у Яндекса',
+        waiting: 'на Картах прежняя версия, Яндекс ещё не забрал новый файл',
+        error: 'Карты не проверились',
+        unknown: 'Карты ещё не проверяли',
+    };
+
     function barHint(feed) {
-        if (feed.error) return 'Ошибка снимка пива: ' + feed.error;
-        if (feed.attention) return 'Есть что проверить: ' + feed.attention + '. Откройте бар — список вверху страницы.';
-        return 'Всё в порядке';
+        const parts = [];
+        if (feed.error) parts.push('Ошибка снимка пива: ' + feed.error);
+        else if (feed.attention) parts.push('Есть что проверить: ' + feed.attention + '. Откройте бар — список вверху страницы.');
+        else parts.push('Всё в порядке');
+        if (feed.maps && MAPS_HINT[feed.maps.state]) {
+            parts.push(MAPS_HINT[feed.maps.state] + (feed.maps.differences ? ' (расходится: ' + feed.maps.differences + ')' : ''));
+        }
+        return parts.join('; ');
     }
 
     function renderBars() {
@@ -285,6 +298,7 @@
         $('yf-open').href = data.feed.public_url;
         $('yf-preview-title').textContent = 'Пивная культура, ' + data.feed.title;
         renderStatus();
+        renderMaps();
         renderBanners();
         renderChips();
         renderList();
@@ -355,6 +369,128 @@
                 : 'Предупреждение снова показывается');
         } catch (error) {
             toast(error.message || 'Не удалось сохранить отметку', true);
+        }
+    }
+
+    // ---------- что сейчас на Яндекс Картах ----------
+
+    const MAPS_TITLE = {
+        synced: ['Совпадает с файлом', 'is-ok'],
+        review: ['На проверке у Яндекса', 'is-warn'],
+        waiting: ['Ждём, пока Яндекс заберёт файл', 'is-warn'],
+        error: ['Не удалось проверить Карты', 'is-bad'],
+        unknown: ['Ещё не проверяли', ''],
+    };
+
+    function mapsLine(maps) {
+        const diff = maps.diff || { total: 0 };
+        const tail = diff.total ? ' Расходится позиций: ' + diff.total + '.' : '';
+        if (maps.state === 'synced') {
+            return 'Позиции и цены на Картах совпадают с файлом. Опубликовано ' + when(maps.last_update) + '.';
+        }
+        if (maps.state === 'review') {
+            return 'Яндекс получил новый файл ' + when(maps.last_upload) + ', на Картах пока версия от '
+                + when(maps.last_update) + '. Обычно Яндекс публикует файл за 2–4 дня.' + tail;
+        }
+        if (maps.state === 'waiting') {
+            return 'На Картах версия от ' + when(maps.last_update) + ', Яндекс последний раз скачивал файл '
+                + (maps.last_upload ? when(maps.last_upload) : '—') + '. Файл он заберёт сам.' + tail;
+        }
+        if (maps.state === 'error') return (maps.error || 'Карты не ответили') + '.';
+        return 'Сервер проверяет Карты раз в 3 часа. Можно проверить сейчас.';
+    }
+
+    function renderMaps() {
+        const box = $('yf-maps');
+        const maps = state.data && state.data.maps;
+        box.textContent = '';
+        if (!maps || maps.state === 'no_card') {
+            box.hidden = true;
+            return;
+        }
+        box.hidden = false;
+        const [title, tone] = MAPS_TITLE[maps.state] || MAPS_TITLE.unknown;
+        const head = el('div', 'yf-maps-head');
+        head.appendChild(el('span', 'yf-maps-label', 'На Яндекс Картах'));
+        head.appendChild(el('span', 'yf-badge ' + tone, title));
+        const actions = el('div', 'yf-maps-actions');
+        if (maps.maps_url) {
+            const open = el('a', 'yf-btn yf-btn-sm yf-btn-ghost', 'Открыть на Картах');
+            open.href = maps.maps_url;
+            open.target = '_blank';
+            open.rel = 'noopener noreferrer';
+            actions.appendChild(open);
+        }
+        const check = el('button', 'yf-btn yf-btn-sm', 'Проверить сейчас');
+        check.type = 'button';
+        check.id = 'yf-maps-check';
+        check.addEventListener('click', checkMapsNow);
+        actions.appendChild(check);
+        head.appendChild(actions);
+        box.appendChild(head);
+
+        box.appendChild(el('p', 'yf-maps-line', mapsLine(maps)));
+        const meta = [];
+        if (maps.checked_at) meta.push('Проверено ' + when(maps.checked_at));
+        if (maps.error && maps.state !== 'error') meta.push('последняя попытка ' + when(maps.attempt_at) + ' не удалась: ' + maps.error);
+        if (meta.length) box.appendChild(el('p', 'yf-maps-meta', meta.join('; ') + '.'));
+
+        const diff = maps.diff;
+        if (diff && diff.total) {
+            const details = el('details', 'yf-maps-diff');
+            details.appendChild(el('summary', null, 'Что расходится (' + diff.total + ')'));
+            const list = el('ul');
+            for (const item of diff.price) {
+                list.appendChild(el('li', null, item.title + ': в файле ' + money(item.file) + ', на Картах ' + money(item.maps)));
+            }
+            for (const name of diff.missing) list.appendChild(el('li', null, 'Нет на Картах: ' + name));
+            for (const name of diff.extra) list.appendChild(el('li', null, 'На Картах, но нет в файле: ' + name));
+            details.appendChild(list);
+            box.appendChild(details);
+        }
+        const how = el('details', 'yf-maps-how');
+        how.appendChild(el('summary', null, 'Как сверяется'));
+        how.appendChild(el('p', null,
+            'Раз в 3 часа сервер открывает публичную страницу бара на Яндекс Картах — ту же, что видит гость, '
+            + 'без входа в кабинет — и сравнивает позиции с этим файлом (без скрытых): по названию (регистр, '
+            + 'лишние пробелы и «ё» не важны) и по цене. Время «получил файл» и «опубликовано» Яндекс показывает '
+            + 'на странице сам. Получил позже, чем опубликовал, — новый файл у него на проверке. Кнопка '
+            + '«Обновить» в кабинете Яндекс Бизнеса только ставит бар в очередь, быстрее Яндекс не публикует.'));
+        box.appendChild(how);
+    }
+
+    async function checkMapsNow() {
+        const button = $('yf-maps-check');
+        if (button) {
+            button.disabled = true;
+            button.classList.add('is-busy');
+            button.textContent = 'Проверяю…';
+        }
+        try {
+            const response = await fetch('/api/yml/maps/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Не удалось проверить Карты');
+            const failed = Object.values(data.bars || {}).filter((bar) => bar.error).length;
+            await loadFeeds();
+            if (dirtyCount()) {
+                toast('Карты проверены. Сохраните правки, чтобы увидеть сравнение.');
+            } else {
+                await openBar(state.barId);
+                toast(failed ? 'Карты проверены, у ' + failed + ' бар(ов) не получилось' : 'Карты проверены', Boolean(failed));
+            }
+        } catch (error) {
+            toast(error.message || 'Не удалось проверить Карты', true);
+        } finally {
+            const again = $('yf-maps-check');
+            if (again) {
+                again.disabled = false;
+                again.classList.remove('is-busy');
+                again.textContent = 'Проверить сейчас';
+            }
         }
     }
 

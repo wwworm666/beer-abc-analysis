@@ -801,7 +801,8 @@ TOOLS: List[ToolSpec] = [
         'stocks_yml_feeds', 'Фиды Яндекса: список',
         'Бары для фидов Яндекс Карт (переключатель на /yandex): id и bar_id (bar1..bar4), public_url '
         'фида, по снимку пива — beer (сортов в файле), excluded (не попало), attention (неотмеченные '
-        'предупреждения и сорта не в файле), error; snapshot — время снимка (ежедневно 05:00 МСК), '
+        'предупреждения и сорта не в файле), error, maps (state и differences — совпадает ли прайс на '
+        'Яндекс Картах с файлом); snapshot — время снимка (ежедневно 05:00 МСК), '
         'stale (старше 26 ч), next_refresh. Только снимок, в iiko не ходит.',
         path='/api/yml/feeds', also_in=ALSO_CONTENT, examples=[{}],
     ),
@@ -810,7 +811,10 @@ TOOLS: List[ToolSpec] = [
         'Всё для страницы бара на /yandex: offers — позиции фида (пиво 0,5 л и кухня) с исходными и '
         'итоговыми названием, ценой (руб.) и описанием, hidden, edited, override (действующая правка), '
         'notices (предупреждения с key и acked); excluded — сорта на кранах, не попавшие в файл, с '
-        'причиной; orphans — правки без позиции; counts; snapshot. Цена пива — обычный прайс iiko '
+        'причиной; orphans — правки без позиции; counts; snapshot; maps — что сейчас на Яндекс Картах: '
+        'state (synced — совпадает, review — новый файл у Яндекса на проверке, waiting — Яндекс ещё не '
+        'забрал файл, error, unknown), last_upload / last_update, diff (price, missing, extra). '
+        'Цена пива — обычный прайс iiko '
         '(ценовые категории не применяются по решению владельца). Правила — '
         'common_docs_read(\'yandex-feeds\'). Тяжёлый только без снимка пива.',
         _obj({'feed_id': _bar_id('Фид бара.')}, required=['feed_id']),
@@ -855,6 +859,16 @@ TOOLS: List[ToolSpec] = [
         'который не собрался, сохраняет прошлый список до 48 ч. Уже идёт — 409, iiko недоступен — 503 '
         '(остаётся прошлый снимок). Ответ: snapshot и по барам beer, excluded, error.',
         method='POST', path='/api/yml/refresh', body='json', read_only=False, open_world=True, heavy=True,
+    ),
+    _tool(
+        'stocks_yml_maps_check', 'Проверить прайсы на Яндекс Картах',
+        'Кнопка «Проверить сейчас» на /yandex: сервер заново открывает публичные страницы баров на Яндекс '
+        'Картах (как гость, без кабинета) и сохраняет, что там опубликовано: позиции, цены, время, когда '
+        'Яндекс скачал файл и когда опубликовал. Обычно это делается само раз в 3 часа; проверка младше '
+        '2 минут не повторяется. Сравнение с файлом — в maps ответа stocks_yml_feed. Уже идёт — 409. '
+        'Ответ: по барам error и attempt_at.',
+        _obj({'bar_id': _bar_id('Один бар; без него — все четыре.')}),
+        method='POST', path='/api/yml/maps/check', body='json', read_only=False, idempotent=True,
     ),
     _tool(
         'stocks_feed_bar_yml', 'Публичный YML бара',

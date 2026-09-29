@@ -77,6 +77,11 @@ def _start_background_jobs():
     from core.yml_scheduler import start_scheduler as start_yml_scheduler
     start_yml_scheduler()
 
+    # Фиды Яндекса: раз в 3 часа сверить, что показывают Яндекс Карты в прайсе
+    # каждого бара (публичная страница, без кабинета). См. docs/yandex-feeds.md.
+    from core.yandex_maps_status import start_watcher as start_yml_maps_watcher
+    start_yml_maps_watcher()
+
     # Запустить фоновый пересчёт витрины «Месячный отчёт» (ночной + стартовый бэкфилл)
     from core.monthly_report_scheduler import start_scheduler as start_monthly_report_scheduler
     start_monthly_report_scheduler()

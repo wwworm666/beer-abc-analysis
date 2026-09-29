@@ -86,6 +86,7 @@
 - [chz_scheduler.py](../core/chz_scheduler.py) — daemon-thread, авторефреш ЧЗ-кэша в 03:00 МСК + atomic lock-файл
 - [open_check_scheduler.py](../core/open_check_scheduler.py) — daemon-thread, проверка открытых смен в 14:59 МСК + atomic lock-файл
 - [yml_scheduler.py](../core/yml_scheduler.py) — daemon-thread, снимок пива для фидов Яндекса в 05:00 МСК (и по кнопке), повторы и тревога ([yandex-feeds.md](yandex-feeds.md))
+- [yandex_maps_status.py](../core/yandex_maps_status.py) — daemon-thread, раз в 3 часа сверяет прайсы баров на Яндекс Картах с нашими файлами (публичная страница, без кабинета)
 - Все фоновые задачи запускаются при импорте [app.py](../app.py); `BEER_SCHEDULERS=0` отключает их (локальные скрипты и проверки — иначе рассылки уйдут с боевыми токенами из `.env`)
 - [open_check_bot.py](../core/open_check_bot.py) — логика проверки + форматирование сообщений
 - [open_check_telegram.py](../core/open_check_telegram.py) — Telegram Bot API (sync через `requests`), меню подписки (кнопка) + команды `/start` `/status`

@@ -6,6 +6,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, make_response, render_template, request
 
+from core import yandex_maps_status as maps_status
 from core import yml_scheduler as scheduler
 from core.kitchen_menu import catalog_offers
 from core.kitchen_yml import offers_for_bar
@@ -117,6 +118,16 @@ def attention_count(bar_id, beer, excluded, acks):
     return notices + sum(1 for entry in excluded if excluded_key(bar_id, entry) not in acks)
 
 
+def file_items(offers):
+    """Что сейчас в публичном файле бара: видимые позиции с итоговыми названием и ценой."""
+    return [{'name': item['name'], 'price': item['price']} for item in offers if not item.get('hidden')]
+
+
+def bar_file_items(bar_id, stored):
+    """Файл бара для сверки с Картами — без предупреждений и прочего, как отдаёт /feeds/kitchen/<bar>."""
+    return file_items(merge_offers(bar_items(bar_id), overrides_for_bar(stored, bar_id)))
+
+
 def feed_detail_data(bar_id):
     """Всё для страницы бара: позиции с правками, не попавшее в фид, правки без позиций."""
     ensure_overrides_schema()
@@ -144,6 +155,7 @@ def feed_detail_data(bar_id):
     return {
         'feed': {**feed, 'public_url': _public_url(feed['public_path'])},
         'snapshot': info,
+        'maps': maps_status.status_for(bar_id, file_items(offers), maps_status.load_status()),
         'offers': offers,
         'excluded': excluded,
         'orphans': orphans,
@@ -171,12 +183,22 @@ def list_feeds():
     data = scheduler.load_snapshot()
     bars = data['bars'] if scheduler.snapshot_ok(data) else {}
     try:
-        acks = load_document()['acks']
+        document = load_document()
     except OverridesCorrupted:
-        acks = {}
+        document = {'feeds': None, 'acks': {}}
+    acks = document['acks']
+    maps_stored = maps_status.load_status()
     feeds = []
     for feed in feed_catalog():
         bar = bars.get(feed['bar_id']) if isinstance(bars.get(feed['bar_id']), dict) else None
+        maps = None
+        if bar and document['feeds'] is not None:
+            try:
+                state = maps_status.status_for(feed['bar_id'], bar_file_items(feed['bar_id'], document['feeds']),
+                                               maps_stored)
+                maps = {'state': state['state'], 'differences': (state.get('diff') or {}).get('total', 0)}
+            except Exception as error:
+                print(f'[ERROR] YML maps state {feed["bar_id"]}: {type(error).__name__}: {error}')
         feeds.append({
             **feed,
             'public_url': _public_url(feed['public_path']),
@@ -185,6 +207,7 @@ def list_feeds():
             'attention': attention_count(feed['bar_id'], bar.get('beer') or [],
                                          bar.get('excluded') or [], acks) if bar else None,
             'error': bar.get('error') if bar else None,
+            'maps': maps,
         })
     return jsonify({'feeds': feeds, 'snapshot': scheduler.snapshot_status(data or {})})
 
@@ -250,6 +273,31 @@ def acknowledge(feed_id):
     except OverridesCorrupted as error:
         return jsonify({'error': str(error)}), 503
     return jsonify(feed_detail_data(feed_id))
+
+
+@yml_bp.route('/api/yml/maps/check', methods=['POST'])
+def check_maps_now():
+    """«Проверить сейчас»: заново открыть прайсы баров на Яндекс Картах.
+
+    {bar_id?: 'bar1'} — один бар, без него — все. Проверка шла меньше 2 минут
+    назад — возвращается сохранённое (Карты за это время не меняются).
+    """
+    if not request.is_json:
+        return jsonify({'error': 'Нужен JSON'}), 415
+    bar_id = (request.get_json(silent=True) or {}).get('bar_id')
+    if bar_id is not None and bar_id not in maps_status.ORG_BY_BAR:
+        return jsonify({'error': 'Бар не найден'}), 404
+    try:
+        maps_status.refresh([bar_id] if bar_id else None, manual=True)
+    except maps_status.MapsCheckBusy:
+        return jsonify({'error': 'Проверка Карт уже идёт, подождите минуту'}), 409
+    except Exception as error:
+        print(f'[ERROR] YML maps check: {type(error).__name__}: {error}')
+        return jsonify({'error': 'Не удалось проверить Карты'}), 503
+    stored = maps_status.load_status()
+    return jsonify({'bars': {bar: {'error': (stored.get(bar) or {}).get('error'),
+                                   'attempt_at': (stored.get(bar) or {}).get('attempt_at')}
+                             for bar in FEED_ORDER}})
 
 
 @yml_bp.route('/api/yml/refresh', methods=['POST'])
