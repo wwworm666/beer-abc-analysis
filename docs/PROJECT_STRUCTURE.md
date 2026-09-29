@@ -250,7 +250,7 @@ static/
 │   ├── draft/           # draft.js — весь экран «Розлив — ABC/XYZ и потери»
 │   ├── packaging/       # packaging.js — весь экран «Фасовка — ABC/XYZ и потери»
 │   ├── kitchen/         # kitchen.js — «Кухня — ABC/XYZ и потери», клон packaging.js
-│   ├── explorer/        # конструктор OLAP: page.js (поля, зоны, фильтры, сохранение), grid.js (сводная)
+│   ├── explorer/        # конструктор OLAP: page.js (поля, зоны, фильтры, сохранение), grid.js (сводная), cube.js (3D-куб — схема раскладки)
 │   ├── shared/          # общие блоки страниц: kpi_breakdown.js, abc_view.js (вкладки /draft, /packaging, /kitchen)
 │   ├── employee/
 │   ├── guests/          # «Маркетинг»; views-guest.js подставляет ?q= в поиск гостя

@@ -127,8 +127,13 @@
             </div>
           </div>
 
-          <!-- Загрузка, ошибка и пустой ответ — одно место: страница не остаётся молча пустой. -->
-          <div class="ex-msg ex-card" id="exMsg"></div>
+          <!-- Загрузка, ошибка и пустой ответ — одно место: страница не остаётся молча пустой.
+               Пока отчёт не построен или строится — куб OLAP со схемой раскладки (cube.js). -->
+          <div class="ex-msg ex-card" id="exMsg">
+            <div id="exCube"></div>
+            <div class="ex-msg-main"><div class="ex-msg-body" id="exMsgBody"></div>
+              <div class="ex-cube-legend" id="exCubeLegend"></div></div>
+          </div>
 
           <div class="ex-result ex-card" id="exResult" hidden>
             <div class="ex-result-bar">
@@ -159,6 +164,7 @@
 
     <script type="application/json" id="exBoot">{{ bootstrap | tojson }}</script>
     <script src="/static/js/explorer/grid.js?v={{ app_version }}"></script>
+    <script src="/static/js/explorer/cube.js?v={{ app_version }}"></script>
     <script src="/static/js/explorer/page.js?v={{ app_version }}"></script>
     <script src="/static/logo.js"></script>
 </body>

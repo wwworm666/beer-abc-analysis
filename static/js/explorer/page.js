@@ -20,6 +20,7 @@
 
     var boot = JSON.parse(document.getElementById('exBoot').textContent || '{}');
     var Grid = window.ExplorerGrid;
+    var Cube = window.ExplorerCube;   // куб OLAP — схема раскладки (static/js/explorer/cube.js)
     var LS_KEY = 'explorer.draft.v1';
     var ZONES = ['rows', 'columns', 'measures'];
     var ZONE_TITLES = { rows: 'строки', columns: 'столбцы', measures: 'показатели', filters: 'фильтры' };
@@ -44,6 +45,7 @@
         resultKey: null,
         building: false,
         rebuild: false,          // построить заново сразу после текущего построения
+        unfold: false,           // свежий ответ: строки таблицы «ложатся» из куба
         shares: 'none',
         sort: null,
         expanded: {},
@@ -397,6 +399,7 @@
         renderFields();
         renderZones();
         renderContext();
+        renderCube();
         if (!state.result) showIdle();
     }
 
@@ -404,8 +407,34 @@
         renderZones();
         renderFields();
         renderContext();
+        renderCube();
         persist();
         if (!state.result) showIdle();
+    }
+
+    // Куб OLAP повторяет раскладку зон (правила — в static/js/explorer/cube.js). Поле
+    // переехало между строками и столбцами при видимом кубе — он поворачивается (pivot).
+    var cubeLayout = null;
+    function renderCube() {
+        if (!el.cube) return;
+        var schema = {
+            rows: state.rows.map(fieldName), columns: state.columns.map(fieldName),
+            measures: state.measures.map(fieldName), filters: state.filters.length,
+            period: (periodDates() || {}).title || ''
+        };
+        var layout = { rows: state.rows.slice(), columns: state.columns.slice() };
+        var turn = !el.msg.hidden && Cube.pivoted(cubeLayout, layout);
+        cubeLayout = layout;
+        if (turn) el.cube.pivot(schema);
+        else el.cube.update(schema);
+    }
+
+    // Карточка сообщения: kind 'cube' — сборка, готовность и построение (с кубом),
+    // 'error' — ошибка (без куба).
+    function setMsg(kind, html) {
+        el.msg.hidden = false;
+        el.msg.className = 'ex-msg ex-card' + (kind === 'error' ? ' is-error' : (el.cube ? ' is-cube' : ''));
+        el.msgBody.innerHTML = html;
     }
 
     // ==================== меню ====================
@@ -816,26 +845,23 @@
 
     function showIdle() {
         if (state.building) return;
-        el.msg.hidden = false;
-        el.msg.className = 'ex-msg ex-card';
         var empty = !state.rows.length && !state.columns.length;
-        el.msg.innerHTML = empty || !state.measures.length
+        setMsg('cube', empty || !state.measures.length
             ? '<span class="ex-msg-t">Соберите отчёт</span>Перетащите поля из списка слева в «Строки», «Столбцы» и ' +
               '«Показатели» или нажмите на поле. Затем — «Построить».'
             : '<span class="ex-msg-t">Отчёт готов к построению</span>Нажмите «Построить» — сервер запросит данные ' +
-              'у iiko (обычно 1–20 секунд).';
+              'у iiko (обычно 1–20 секунд).');
+        if (el.cube) el.cube.setMode('idle');
     }
 
     function showError(err) {
-        el.msg.hidden = false;
-        el.msg.className = 'ex-msg ex-card is-error';
         var extra = '';
         if (err.code === 'too_many_rows' || err.code === 'too_many_cells') {
             extra = '<br><button type="button" class="ex-btn" data-export>Выгрузить в Excel</button>';
         } else if (err.status === 401) {
             extra = '<br><a class="ex-btn" href="/login?next=/explorer">Войти заново</a>';
         }
-        el.msg.innerHTML = '<span class="ex-msg-t">Отчёт не построен</span>' + esc(err.message) + extra;
+        setMsg('error', '<span class="ex-msg-t">Отчёт не построен</span>' + esc(err.message) + extra);
     }
 
     function build() {
@@ -849,10 +875,9 @@
         if (!state.measures.length) { toast('Добавьте хотя бы один показатель.'); return; }
         var key = configKey();
         setBuilding(true);
-        el.msg.hidden = false;
-        el.msg.className = 'ex-msg ex-card';
-        el.msg.innerHTML = '<span class="ex-msg-t">Строю отчёт в iiko…</span>Период ' +
-            esc((periodDates() || {}).title || '') + '. Большие отчёты за год строятся до минуты.';
+        setMsg('cube', '<span class="ex-msg-t">Строю отчёт в iiko…</span>Период ' +
+            esc((periodDates() || {}).title || '') + '. Большие отчёты за год строятся до минуты.');
+        if (el.cube) el.cube.setMode('building');
         api('POST', '/api/explorer/report', requestPayload('pivot')).then(function (data) {
             if (state.rebuild) return;
             state.result = Grid.prepare(data);
@@ -861,6 +886,7 @@
             state.expanded = {};
             state.defaultOpen = (data.leaf_count || 0) <= OPEN_ALL_MAX_LEAVES;
             state.maxRows = ROWS_STEP;
+            state.unfold = true;
             el.msg.hidden = true;
             renderResult();
             renderContext();
@@ -897,7 +923,10 @@
                 shares: state.shares, sort: state.sort, expanded: state.expanded,
                 defaultOpen: state.defaultOpen, maxRows: state.maxRows
             });
+            // Только свежий ответ: сортировка, раскрытие групп и «Показать ещё» — без анимации.
+            if (state.unfold && Cube) Cube.unfold(el.gridWrap);
         }
+        state.unfold = false;
         var leaves = result.leaf_count || 0;
         var parts = [];
         if (fields.rows.length) parts.push(leaves + ' ' + plural(leaves, 'строка', 'строки', 'строк'));
@@ -1447,7 +1476,8 @@
             run: $('exRun'), spin: $('exSpin'), runLabel: $('exRunLabel'),
             context: $('exContext'), fields: $('exFields'), fieldsSrc: $('exFieldsSrc'),
             fieldsClose: $('exFieldsClose'), fieldSearch: $('exFieldSearch'), fieldList: $('exFieldList'),
-            msg: $('exMsg'), result: $('exResult'), resultT: $('exResultT'), shares: $('exShares'),
+            msg: $('exMsg'), msgBody: $('exMsgBody'),
+            result: $('exResult'), resultT: $('exResultT'), shares: $('exShares'),
             expand: $('exExpand'), collapse: $('exCollapse'), gridWrap: $('exGridWrap'),
             more: $('exMore'), warnings: $('exWarnings'), how: $('exHow'),
             pop: $('exPop'), modal: $('exModal'), modalBack: $('exModalBack'), toast: $('exToast'),
@@ -1457,6 +1487,8 @@
             el.zoneBody[zone] = document.querySelector('[data-body="' + zone + '"]');
             el.zoneCount[zone] = document.querySelector('[data-count="' + zone + '"]');
         });
+        // Без cube.js (не загрузился) страница работает как раньше — без куба.
+        el.cube = Cube ? Cube.create($('exCube'), $('exCubeLegend')) : null;
         bind();
 
         var reportId = null;

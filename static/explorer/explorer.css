@@ -38,6 +38,19 @@ body.explorer-page {
     --ex-warn-ink: #B45309;
     --ex-bad-ink: #B91C1C;
 
+    /* Куб OLAP (static/js/explorer/cube.js): цвета осей — и в подписи рядом с кубом. */
+    --ex-axis-rows: #D97757;      /* строки — цвет акцента */
+    --ex-axis-cols: #5E8C6A;      /* столбцы */
+    --ex-axis-time: #5B7FA6;      /* период */
+    --ex-cube-gap: #EFE3DC;       /* фон грани между ячейками */
+    --ex-cube-front: #F4D9CD;
+    --ex-cube-top: #FAE9E1;
+    --ex-cube-side: #EBC6B6;
+    --ex-cube-back: #E6BCAA;
+    --ex-cube-edge: rgba(217, 119, 87, .28);
+    --ex-cube-wire: #CFC8BC;      /* контур пустой ячейки: нет показателей */
+    --ex-cube-slice: rgba(217, 119, 87, .10);
+
     --ex-shadow: 0 1px 2px rgba(28, 25, 23, .04);
     --ex-shadow-menu: 0 14px 36px rgba(28, 25, 23, .14);
     --ex-backdrop: rgba(28, 25, 23, .34);
@@ -83,6 +96,18 @@ body.explorer-page[data-theme="dark"] {
     --ex-warn: #FBBF24;
     --ex-warn-ink: #FBBF24;
     --ex-bad-ink: #F87171;
+
+    --ex-axis-rows: #E89779;
+    --ex-axis-cols: #8FB596;
+    --ex-axis-time: #8AAACB;
+    --ex-cube-gap: #2E2622;
+    --ex-cube-front: #6B4636;
+    --ex-cube-top: #7C5241;
+    --ex-cube-side: #58392D;
+    --ex-cube-back: #4C3127;
+    --ex-cube-edge: rgba(232, 151, 121, .35);
+    --ex-cube-wire: #5E5850;
+    --ex-cube-slice: rgba(232, 151, 121, .14);
 
     --ex-shadow: 0 1px 2px rgba(0, 0, 0, .35);
     --ex-shadow-menu: 0 14px 36px rgba(0, 0, 0, .5);
@@ -434,6 +459,200 @@ body.explorer-page .container { padding: 0; }
 .ex-msg .ex-btn { margin-top: 12px; }
 .ex-msg-t { display: block; font: 600 14px/1.4 var(--ex-sans); color: var(--ex-ink); margin-bottom: 4px; }
 .ex-msg.is-error .ex-msg-t { color: var(--ex-bad-ink); }
+
+/* Карточка с кубом: «Соберите отчёт», «Отчёт готов», «Строю отчёт». Ошибка — без куба. */
+.ex-msg.is-cube {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    padding: 18px 24px;
+    text-align: left;
+}
+.ex-msg-main { min-width: 0; }
+.ex-msg.is-cube .ex-msg-main { max-width: 560px; }
+.ex-msg:not(.is-cube) .ex-cube,
+.ex-msg:not(.is-cube) .ex-cube-legend { display: none; }
+
+/* ==================== Куб OLAP (static/js/explorer/cube.js) ==================== */
+
+.ex-cube {
+    --ex-cube-s: 88px;            /* ребро куба */
+    --ex-cube-h: calc(var(--ex-cube-s) / 2);
+    flex: none;
+    box-sizing: border-box;
+    width: 156px;
+    height: 168px;
+    padding-bottom: 10px;         /* ось периода уходит вниз-вправо: место под неё */
+    display: grid;
+    place-items: center;
+}
+.ex-cube-scene { width: var(--ex-cube-s); height: var(--ex-cube-s); perspective: 540px; }
+.ex-cube-tilt,
+.ex-cube-sway,
+.ex-cube-spin,
+.ex-cube-body { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+.ex-cube-tilt { transform: rotateX(-24deg); }
+.ex-cube-sway { transform: rotateY(-34deg); animation: exCubeSway 7s ease-in-out infinite alternate; will-change: transform; }
+@keyframes exCubeSway { from { transform: rotateY(-46deg); } to { transform: rotateY(-22deg); } }
+.ex-cube[data-mode="building"] .ex-cube-spin { animation: exCubeSpin 4.8s linear infinite; will-change: transform; }
+@keyframes exCubeSpin { to { transform: rotateY(360deg); } }
+/* Pivot: поле переехало между строками и столбцами — поворот вокруг оси глубины. */
+.ex-cube-body { transition: transform 640ms cubic-bezier(.45, .05, .2, 1); }
+.ex-cube-body.is-pivot { transform: rotateZ(90deg); }
+.ex-cube-body.no-anim,
+.ex-cube-body.no-anim * { transition: none !important; }
+
+.ex-cube-face {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 4px;
+    background: var(--ex-cube-gap);
+    backface-visibility: hidden;
+}
+.ex-cube-face[data-face="front"]  { transform: translateZ(var(--ex-cube-h));
+    grid-template: repeat(var(--ex-cube-ny), 1fr) / repeat(var(--ex-cube-nx), 1fr); --ex-cube-cell: var(--ex-cube-front); }
+.ex-cube-face[data-face="back"]   { transform: rotateY(180deg) translateZ(var(--ex-cube-h));
+    grid-template: repeat(var(--ex-cube-ny), 1fr) / repeat(var(--ex-cube-nx), 1fr); --ex-cube-cell: var(--ex-cube-back); }
+.ex-cube-face[data-face="right"]  { transform: rotateY(90deg) translateZ(var(--ex-cube-h));
+    grid-template: repeat(var(--ex-cube-ny), 1fr) / repeat(var(--ex-cube-nz), 1fr); --ex-cube-cell: var(--ex-cube-side); }
+.ex-cube-face[data-face="left"]   { transform: rotateY(-90deg) translateZ(var(--ex-cube-h));
+    grid-template: repeat(var(--ex-cube-ny), 1fr) / repeat(var(--ex-cube-nz), 1fr); --ex-cube-cell: var(--ex-cube-side); }
+.ex-cube-face[data-face="top"]    { transform: rotateX(90deg) translateZ(var(--ex-cube-h));
+    grid-template: repeat(var(--ex-cube-nz), 1fr) / repeat(var(--ex-cube-nx), 1fr); --ex-cube-cell: var(--ex-cube-top); }
+.ex-cube-face[data-face="bottom"] { transform: rotateX(-90deg) translateZ(var(--ex-cube-h));
+    grid-template: repeat(var(--ex-cube-nz), 1fr) / repeat(var(--ex-cube-nx), 1fr); --ex-cube-cell: var(--ex-cube-back); }
+
+.ex-cube-cell {
+    display: block;
+    border-radius: 2px;
+    background: var(--ex-cube-cell);
+    box-shadow: inset 0 0 0 1px var(--ex-cube-edge);
+    transition: opacity 300ms ease, background-color 300ms ease;
+}
+.ex-cube-cell.is-new { animation: exCubeCellIn 320ms ease-out backwards; animation-delay: calc(var(--ex-cube-delay) / 3); }
+@keyframes exCubeCellIn { from { opacity: 0; transform: scale(.55); } }
+/* Нет показателей — пустой каркас: видны и задние рёбра. */
+.ex-cube.is-hollow .ex-cube-face { background: transparent; backface-visibility: visible; }
+.ex-cube.is-hollow .ex-cube-cell { background: transparent; box-shadow: inset 0 0 0 1px var(--ex-cube-wire); }
+.ex-cube.is-hollow .ex-cube-slice { background: transparent; }
+/* Фильтры — плоскость среза; задний слой за ней гаснет. */
+.ex-cube-slice {
+    position: absolute;
+    inset: -8px;
+    border: 1.5px solid var(--ex-accent);
+    border-radius: 5px;
+    background: var(--ex-cube-slice);
+    transform: translateZ(calc(var(--ex-cube-s) / -6));
+    opacity: 0;
+    transition: opacity 300ms ease;
+}
+.ex-cube.has-slice .ex-cube-slice { opacity: 1; }
+.ex-cube.has-slice .ex-cube-cell[data-back] { opacity: .38; }
+/* Идёт построение: волна «наполнения» по слоям снизу вверх. */
+.ex-cube[data-mode="building"] .ex-cube-cell {
+    animation: exCubeFill 1.9s ease-in-out infinite;
+    animation-delay: var(--ex-cube-delay, 0ms);
+}
+@keyframes exCubeFill {
+    0%, 55%, 100% { transform: scale(1); opacity: 1; }
+    22% { transform: scale(.55); opacity: .45; }
+}
+
+/* Оси: строки — вниз по левому ребру, столбцы — вправо по верхнему, период — вглубь. */
+.ex-cube-axis {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    border-radius: 2px;
+    background: var(--ex-cube-axis);
+    transition: opacity 200ms ease;
+}
+.ex-cube-axis::after { content: ''; position: absolute; border: 5px solid transparent; }
+.ex-cube-axis[data-axis="rows"] {
+    --ex-cube-axis: var(--ex-axis-rows);
+    width: 3px;
+    height: calc(var(--ex-cube-s) + 4px);
+    transform: translate(-50%, -50%) translate3d(calc(var(--ex-cube-h) * -1 - 10px), 0, var(--ex-cube-h));
+}
+.ex-cube-axis[data-axis="rows"]::after { left: 50%; bottom: -9px; margin-left: -5px; border-top: 7px solid var(--ex-cube-axis); border-bottom: 0; }
+.ex-cube-axis[data-axis="columns"] {
+    --ex-cube-axis: var(--ex-axis-cols);
+    width: calc(var(--ex-cube-s) + 4px);
+    height: 3px;
+    transform: translate(-50%, -50%) translate3d(0, calc(var(--ex-cube-h) * -1 - 10px), var(--ex-cube-h));
+}
+.ex-cube-axis[data-axis="columns"]::after { top: 50%; right: -9px; margin-top: -5px; border-left: 7px solid var(--ex-cube-axis); border-right: 0; }
+.ex-cube-axis[data-axis="time"] {
+    --ex-cube-axis: var(--ex-axis-time);
+    width: calc(var(--ex-cube-s) + 4px);
+    height: 3px;
+    transform: translate(-50%, -50%) translate3d(calc(var(--ex-cube-h) + 10px), calc(var(--ex-cube-h) + 10px), 0) rotateY(90deg);
+}
+.ex-cube-axis[data-axis="time"]::after { top: 50%; right: -9px; margin-top: -5px; border-left: 7px solid var(--ex-cube-axis); border-right: 0; }
+.ex-cube-body.is-pivot .ex-cube-axis { opacity: 0; }
+/* Ось без полей — бледная: по ней куб не делится. */
+.ex-cube.no-rows .ex-cube-axis[data-axis="rows"],
+.ex-cube.no-cols .ex-cube-axis[data-axis="columns"] { opacity: .28; }
+
+/* Подпись к кубу: оси и зоны теми же цветами. */
+.ex-cube-legend {
+    display: grid;
+    gap: 3px;
+    margin-top: 10px;
+    font: 400 12.5px/1.45 var(--ex-sans);
+    color: var(--ex-ink2);
+}
+.ex-cube-li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ex-cube-mk { flex: none; display: block; width: 12px; height: 12px; position: relative; }
+.ex-cube-mk::before { content: ''; position: absolute; left: 50%; top: 50%; border-radius: 2px; background: var(--ex-cube-mark); }
+.ex-cube-li[data-axis="rows"] .ex-cube-mk { --ex-cube-mark: var(--ex-axis-rows); }
+.ex-cube-li[data-axis="rows"] .ex-cube-mk::before { width: 3px; height: 12px; transform: translate(-50%, -50%); }
+.ex-cube-li[data-axis="columns"] .ex-cube-mk { --ex-cube-mark: var(--ex-axis-cols); }
+.ex-cube-li[data-axis="columns"] .ex-cube-mk::before { width: 12px; height: 3px; transform: translate(-50%, -50%); }
+.ex-cube-li[data-axis="time"] .ex-cube-mk { --ex-cube-mark: var(--ex-axis-time); }
+.ex-cube-li[data-axis="time"] .ex-cube-mk::before { width: 13px; height: 3px; transform: translate(-50%, -50%) rotate(-38deg); }
+.ex-cube-li[data-axis="measures"] .ex-cube-mk::before {
+    width: 10px; height: 10px; transform: translate(-50%, -50%);
+    background: var(--ex-cube-front); box-shadow: inset 0 0 0 1px var(--ex-cube-edge);
+}
+.ex-cube-lk { flex: none; width: 78px; font: 600 10px/1.2 var(--ex-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ex-ink4); }
+.ex-cube-lv { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--ex-ink); }
+.ex-cube-lv small { color: var(--ex-ink4); font-size: 12px; }
+.ex-cube-lv.is-empty { color: var(--ex-ink5); }
+.ex-cube-li.is-empty .ex-cube-mk { opacity: .35; }
+
+/* Ответ пришёл: первые строки таблицы «ложатся» из глубины куба. */
+.ex-unfolding thead,
+.ex-unfolding tfoot { animation: exFadeIn 280ms ease-out backwards; }
+.ex-unfold-row {
+    transform-origin: 50% 0;
+    animation: exRowIn 520ms cubic-bezier(.22, .61, .36, 1) backwards;
+    animation-delay: calc(var(--ex-unfold-i, 0) * 18ms);
+}
+@keyframes exRowIn {
+    from { opacity: 0; transform: perspective(900px) rotateX(-70deg) translateY(-6px); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes exFadeIn { from { opacity: 0; } }
+
+@media (max-width: 600px) {
+    .ex-msg.is-cube { flex-direction: column; gap: 6px; padding: 16px; }
+    .ex-cube { --ex-cube-s: 70px; width: 132px; height: 146px; padding-bottom: 14px; }
+    .ex-msg.is-cube .ex-msg-body { text-align: center; }
+    .ex-cube-lk { width: 72px; }
+}
+
+/* «Уменьшить движение» в системе — куб неподвижен, строки появляются сразу. */
+@media (prefers-reduced-motion: reduce) {
+    .ex-cube *,
+    .ex-unfolding thead,
+    .ex-unfolding tfoot,
+    .ex-unfold-row { animation: none !important; transition: none !important; }
+}
 
 /* ==================== Результат ==================== */
 
