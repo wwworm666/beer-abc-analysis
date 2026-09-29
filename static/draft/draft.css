@@ -414,9 +414,11 @@ body.draft-page .container { padding: 0; }
 }
 .dr-table-in { padding: 6px 18px 4px; }
 /* Без колонки XYZ (с 2026-09-26 спрос — третья буква кода) таблица кегов
-   влезает в страницу: раньше min-width 1240px при контенте 1198px срезал XYZ. */
-.dr-kegs .dr-table-in { min-width: 1140px; }
-.dr-cats .dr-table-in { min-width: 1140px; }
+   влезает в страницу: раньше min-width 1240px при контенте 1198px срезал XYZ.
+   С 2026-09-29 долей три (выручка, литры, маржа): колонки долей сужены до 108px
+   (полоса 44 + зазор 8 + «100,0%» ~43), и таблицы по-прежнему не шире 1198px. */
+.dr-kegs .dr-table-in { min-width: 1180px; }
+.dr-cats .dr-table-in { min-width: 1192px; }
 .dr-bts .dr-table-in { min-width: 980px; }
 
 .dr-row {
@@ -425,10 +427,10 @@ body.draft-page .container { padding: 0; }
     align-items: center;
 }
 .dr-kegs .dr-row {
-    grid-template-columns: 30px minmax(200px, 1.5fr) 80px 72px 100px 128px 128px 84px 72px 62px;
+    grid-template-columns: 30px minmax(200px, 1.5fr) 80px 72px 100px 108px 108px 108px 84px 72px 62px;
 }
 .dr-cats .dr-row {
-    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 128px 128px 104px 84px 56px;
+    grid-template-columns: 30px minmax(170px, 1.5fr) 74px 82px 112px 108px 108px 108px 104px 84px 56px;
 }
 .dr-bts .dr-row {
     grid-template-columns: 30px minmax(175px, 1.4fr) 100px 92px 84px 60px 106px 102px 78px 90px;

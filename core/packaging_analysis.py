@@ -589,6 +589,15 @@ class PackagingAnalysis:
                 _markup_share(entry['TotalRevenue'], entry['TotalCost']), self.A_MIN, self.B_MIN
             )
 
+        # Доля категории в марже — тем же способом, что у позиции
+        # (MarginSharePercent из _assign_abc_by_cumulative): маржа / сумма
+        # ПОЛОЖИТЕЛЬНЫХ маржей категорий. Убыточная категория получает 0%, её минус
+        # виден в колонке «Маржа»; колонка складывается в 100%, как доля выручки.
+        margin_base = sum(max(e['TotalMargin'], 0.0) for e in categories)
+        for entry in categories:
+            entry['MarginSharePercent'] = (max(entry['TotalMargin'], 0.0) / margin_base * 100
+                                           if margin_base > 0 else 0.0)
+
         # База долей категорий нужна карточке категории для формулы «выручка /
         # база = доля». Она НЕ равна базе позиций (revenue_abc_base): возврат,
         # ставший отдельной позицией, в базе позиций обнулён, а в категории он

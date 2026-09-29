@@ -393,7 +393,9 @@ body.packaging-page .container { padding: 0; }
     overflow-x: auto;
 }
 .pk-table-in { padding: 6px 18px 4px; }
-.pk-cats .pk-table-in { min-width: 1140px; }
+/* С 2026-09-29 долей три (выручка, штуки/порции, маржа): колонки долей сужены
+   до 108px, чтобы таблица категорий не стала шире контента страницы (1198px). */
+.pk-cats .pk-table-in { min-width: 1182px; }
 /* Колонки XYZ нет с 2026-09-26: она повторяла третью букву кода и при min-width
    1280px не влезала в контент страницы (1198px). */
 .pk-pos .pk-table-in { min-width: 1140px; }
@@ -404,10 +406,10 @@ body.packaging-page .container { padding: 0; }
     align-items: center;
 }
 .pk-cats .pk-row {
-    grid-template-columns: 30px minmax(190px, 1.5fr) 74px 82px 112px 128px 128px 104px 84px 46px;
+    grid-template-columns: 30px minmax(170px, 1.5fr) 74px 82px 112px 108px 108px 108px 104px 84px 46px;
 }
 .pk-pos .pk-row {
-    grid-template-columns: 30px minmax(200px, 1.6fr) minmax(120px, .8fr) 72px 100px 128px 128px 78px 62px;
+    grid-template-columns: 30px minmax(200px, 1.6fr) minmax(120px, .8fr) 72px 100px 108px 108px 108px 78px 62px;
 }
 .pk-row.is-head { padding: 10px 0 9px; }
 .pk-row.is-body {

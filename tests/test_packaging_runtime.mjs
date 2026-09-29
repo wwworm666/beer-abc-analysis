@@ -274,9 +274,14 @@ test('таблица категорий: ВСЕ категории, без ур�
     assert.equal(rows, BLOCK.categories.length,
         `строк ${rows}, категорий ${BLOCK.categories.length} — список урезан`);
     assert.ok(rows > 10, 'в фикстуре меньше 11 категорий — тест ничего не доказывает');
-    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
-    const qtyAt = html.indexOf('ДОЛЯ В ШТУКАХ');
-    assert.ok(revAt >= 0 && qtyAt > revAt, 'в категориях нет доли выручки и доли штук');
+    const revAt = html.indexOf('ДОЛЯ ВЫРУЧКИ');
+    const qtyAt = html.indexOf('ДОЛЯ ШТУК');
+    const marAt = html.indexOf('ДОЛЯ МАРЖИ');
+    assert.ok(revAt >= 0 && qtyAt > revAt && marAt > qtyAt,
+        'в категориях нет трёх долей: выручки, штук и маржи');
+    const total = html.match(/class="pk-row is-total"[\s\S]*?<\/div>/);
+    assert.equal((total[0].match(/100,0%/g) || []).length, 3,
+        'в итоге категорий должны быть три стопроцентные доли');
     assert.match(html, /Итого · \d+ категор/, 'нет строки итога');
     assert.match(env.byId.pkCatCount.textContent, /· все$/, 'не подписано, что показаны все');
 });
@@ -299,9 +304,11 @@ test('таблица позиций: все позиции, итог и напр
     const html = env.byId.pkPos.innerHTML;
     const rows = (html.match(/class="pk-row is-body"/g) || []).length;
     assert.equal(rows, BLOCK.positions.length, `строк ${rows}, позиций ${BLOCK.positions.length}`);
-    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
-    const qtyAt = html.indexOf('ДОЛЯ В ШТУКАХ');
-    assert.ok(revAt >= 0 && qtyAt > revAt, 'в позициях нет доли выручки и доли штук');
+    const revAt = html.indexOf('ДОЛЯ ВЫРУЧКИ');
+    const qtyAt = html.indexOf('ДОЛЯ ШТУК');
+    const marAt = html.indexOf('ДОЛЯ МАРЖИ');
+    assert.ok(revAt >= 0 && qtyAt > revAt && marAt > qtyAt,
+        'в позициях нет трёх долей: выручки, штук и маржи');
     assert.ok(!/>ДОЛЯ</.test(html), 'старая колонка «ДОЛЯ» ещё в таблице позиций');
     assert.match(html, /ВЫРУЧКА ↓/, 'не показано направление сортировки');
     assert.match(html, /Итого · \d+ позиц/, 'нет строки итога');
@@ -565,6 +572,31 @@ test('сортировка по наценке не ставит «нет дан
             const firstValue = html.search(/class="pk-num">\d/);
             assert.ok(firstDash > firstValue,
                 'позиции без наценки встали первыми, как будто их наценка худшая');
+        });
+    } finally {
+        api.state.posSort = { key: 'TotalRevenue', dir: -1 };
+        api.render();
+    }
+});
+
+test('доля маржи: значения с сервера, сортировка и итог 100%', () => {
+    // Колонка берёт MarginSharePercent из ответа: у позиции — доля в сумме
+    // положительных маржей, у категории — то же по категориям. Страница не пересчитывает.
+    const sum = BLOCK.positions.reduce((a, p) => a + p.MarginSharePercent, 0);
+    assert.ok(Math.abs(sum - 100) < 1e-6, 'доли позиций в марже не складываются в 100%');
+    const catSum = BLOCK.categories.reduce((a, c) => a + c.MarginSharePercent, 0);
+    assert.ok(Math.abs(catSum - 100) < 1e-6, 'доли категорий в марже не складываются в 100%');
+    const top = BLOCK.positions.slice().sort((a, b) => b.MarginSharePercent - a.MarginSharePercent)[0];
+    api.state.posSort = { key: 'MarginSharePercent', dir: -1 };
+    try {
+        withAllRows(() => {
+            const html = env.byId.pkPos.innerHTML;
+            assert.match(html, /ДОЛЯ МАРЖИ ↓/, 'не показано направление сортировки');
+            const firstRow = html.match(/class="pk-row is-body"[\s\S]*?(?=class="pk-row)/)[0];
+            assert.ok(firstRow.includes(api.esc(top.Beer)), 'первая строка не лидер по марже');
+            assert.ok(firstRow.includes(api.pct(top.MarginSharePercent, 1)), 'доля маржи не из ответа');
+            const total = html.match(/class="pk-row is-total"[\s\S]*?<\/div>/)[0];
+            assert.equal((total.match(/100,0%/g) || []).length, 3, 'в итоге позиций не три доли по 100%');
         });
     } finally {
         api.state.posSort = { key: 'TotalRevenue', dir: -1 };

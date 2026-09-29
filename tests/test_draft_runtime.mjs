@@ -281,10 +281,13 @@ test('таблица кегов: все позиции, итог и сортир
     assert.equal(rows, BLOCK.kegs.length, `строк ${rows}, кегов ${BLOCK.kegs.length}`);
     assert.match(html, /Итого · 33 кега/, 'нет строки итога');
     assert.match(html, /ЛИТРЫ ↓/, 'не показано направление сортировки');
-    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
-    const litAt = html.indexOf('ДОЛЯ В ЛИТРАХ');
-    assert.ok(revAt >= 0 && litAt > revAt, 'доли кега стоят не в порядке выручка, затем литры');
+    const revAt = html.indexOf('ДОЛЯ ВЫРУЧКИ');
+    const litAt = html.indexOf('ДОЛЯ ЛИТРОВ');
+    const marAt = html.indexOf('ДОЛЯ МАРЖИ');
+    assert.ok(revAt >= 0 && litAt > revAt && marAt > litAt,
+        'доли кега стоят не в порядке выручка, литры, маржа');
     assert.ok(!html.includes('ДОЛЯ ПО Л'), 'старая колонка «доля по л» ещё в таблице кегов');
+    assert.ok(html.includes('data-sort="MarginSharePercent"'), 'доля маржи не сортируется');
     assert.ok(html.includes(env.sandbox.window.__draft.pct(BLOCK.kegs[0].LitersSharePercent, 1)),
         'доля кега по литрам не выведена');
     assert.ok(html.includes(env.sandbox.window.__draft.pct(BLOCK.kegs[0].RevenueSharePercent, 1)),
@@ -476,17 +479,21 @@ test('категории: таблица со всеми стилями, ито�
         'доли категорий не складываются в 100%');
     assert.ok(Math.abs(BLOCK.categories.reduce((a, c) => a + c.LitersSharePercent, 0) - 100) < 1e-6,
         'доли по литрам не складываются в 100%');
-    const revAt = html.indexOf('ДОЛЯ В ВЫРУЧКЕ');
-    const litAt = html.indexOf('ДОЛЯ В ЛИТРАХ');
-    assert.ok(revAt >= 0 && litAt > revAt, 'колонка «доля в литрах» стоит не после доли в выручке');
+    assert.ok(Math.abs(BLOCK.categories.reduce((a, c) => a + c.MarginSharePercent, 0) - 100) < 1e-6,
+        'доли в марже не складываются в 100%');
+    const revAt = html.indexOf('ДОЛЯ ВЫРУЧКИ');
+    const litAt = html.indexOf('ДОЛЯ ЛИТРОВ');
+    const marAt = html.indexOf('ДОЛЯ МАРЖИ');
+    assert.ok(revAt >= 0 && litAt > revAt && marAt > litAt,
+        'доли категорий стоят не в порядке выручка, литры, маржа');
     const shown = BLOCK.categories[0];
     assert.ok(html.includes(dapi.pct(shown.LitersSharePercent, 1)),
         'доля категории по литрам не выведена');
     const total = html.match(/class="dr-row is-total"[\s\S]*?<\/div>/);
-    assert.equal((total[0].match(/100,0%/g) || []).length, 2,
-        'в итоге должны быть две стопроцентные доли');
+    assert.equal((total[0].match(/100,0%/g) || []).length, 3,
+        'в итоге должны быть три стопроцентные доли');
     for (const key of ['Category', 'KegsCount', 'TotalLiters', 'TotalRevenue',
-                       'RevenueSharePercent', 'LitersSharePercent', 'TotalMargin',
+                       'RevenueSharePercent', 'LitersSharePercent', 'MarginSharePercent', 'TotalMargin',
                        'MarkupPercent', 'ABC_Category']) {
         assert.ok(html.includes(`data-sort="${key}"`), `нет сортировки столбца ${key}`);
     }
@@ -532,7 +539,7 @@ test('категории: клик сортирует название, доли
     clickCatSort('LitersSharePercent');
     assert.equal(catNames()[0], dapi.esc(byLiters[0].Category),
         'первая строка не лидер по литрам');
-    assert.match(env.byId.drCats.innerHTML, /ДОЛЯ В ЛИТРАХ ↓/);
+    assert.match(env.byId.drCats.innerHTML, /ДОЛЯ ЛИТРОВ ↓/);
 
     const byName = BLOCK.categories.map((c) => dapi.esc(c.Category))
         .sort((a, b) => b.localeCompare(a, 'ru'));

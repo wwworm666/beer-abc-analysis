@@ -983,6 +983,15 @@ class DraftKegAnalysis:
             entry['bucket_stats'] = _count_by(members, 'ABC_Bucket')
             entry['KegIds'] = [r['KegId'] for r in ordered]
 
+        # Доля категории в марже — тем же способом, что у кега (MarginSharePercent,
+        # _assign_margin_letters): маржа / сумма ПОЛОЖИТЕЛЬНЫХ маржей категорий.
+        # Убыточная категория получает 0%, её минус виден в колонке «Маржа»; зато
+        # колонка складывается в 100%, как доли выручки и литров.
+        margin_base = sum(max(e['TotalMargin'], 0.0) for e in groups.values())
+        for entry in groups.values():
+            entry['MarginSharePercent'] = (max(entry['TotalMargin'], 0.0) / margin_base * 100
+                                           if margin_base > 0 else 0.0)
+
         categories = sorted(groups.values(),
                             key=lambda c: (-c['TotalRevenue'], c['Category']))
         # Буква категории — Парето по выручке среди категорий, как у фасовки.

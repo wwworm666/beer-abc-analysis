@@ -141,6 +141,8 @@ Beer ABC/XYZ Analysis (Flask + iiko + ЧЗ)
 
 ## Changelog (по версиям документации)
 
+- **2026-09-29 (6):** **«Доля маржи» в таблицах розлива, фасовки и кухни.** Запись CHANGELOG 2026-09-29 (6). [draft.md](../docs/draft.md), [abc-xyz-analysis.md](../docs/abc-xyz-analysis.md) — три доли (выручка, литры/штуки, маржа), формула доли категории в марже от положительной базы с примером, ширина колонок 108 px; [kitchen.md](../docs/kitchen.md) — «ДОЛЯ ПОРЦИЙ» и «ДОЛЯ МАРЖИ».
+
 - **2026-09-29 (5):** **Конструктор OLAP-отчётов iiko.** Запись CHANGELOG 2026-09-29 (5). [explorer.md](../docs/explorer.md) переписан целиком (каталог полей, контракт API, правила сборки запроса, итоги и план запросов с примером, форматы ответа, Excel, пределы, MCP, что не перенесено); [mcp.md](../docs/mcp.md) — 8 инструментов конструктора, analytics 57; [olap-agent.md](../docs/olap-agent.md) — исполнитель готов; [overview.md](../docs/overview.md), [PROJECT_STRUCTURE.md](../docs/PROJECT_STRUCTURE.md), [technical/OLAP_REPORTS_COLLECTION.md](../docs/technical/OLAP_REPORTS_COLLECTION.md) — старое тело `explorer_sales` помечено удалённым.
 
 - **2026-09-29 (4):** **«Маркетинг»: разбивка по барам.** Запись CHANGELOG 2026-09-29 (4). [guests.md](../docs/guests.md) — раздел «Разбивка по барам» (правило, исключение для регистрации, пример, таблица по отчётам, что не делится на бары), API `?store=` и `meta.venue`, «Что сломается», файлы и тесты; [reviews.md](../docs/reviews.md), [content-plan.md](../docs/content-plan.md) — общий фильтр бара раздела теперь и на «Маркетинге».

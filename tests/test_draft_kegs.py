@@ -135,6 +135,27 @@ class TestCategories:
         assert top['ABC_Category'] == 'A' and top['CumulativePercent'] == 80.0
         assert top['MarkupPercent'] == 300.0
 
+    def test_category_margin_share_uses_positive_base(self):
+        """Доля категории в марже — от суммы положительных маржей категорий, как у
+        кега: убыточная категория получает 0%, колонка складывается в 100%."""
+        block = self._block([
+            sale('Лиговский', DISH_A_05, '2026-08-04', 80, 80000.0, 20000.0, style='ИПА (Р)'),
+            sale('Лиговский', DISH_B_05, '2026-08-05', 20, 4000.0, 5000.0, style='Хели (Р)'),
+        ])
+        by_cat = {c['Category']: c for c in block['categories']}
+        assert by_cat['Хели (Р)']['TotalMargin'] < 0, 'тест ничего не доказывает'
+        assert by_cat['Хели (Р)']['MarginSharePercent'] == 0.0
+        assert abs(by_cat['ИПА (Р)']['MarginSharePercent'] - 100.0) < 1e-9
+        assert abs(sum(c['MarginSharePercent'] for c in block['categories']) - 100.0) < 1e-9
+
+    def test_category_margin_share_is_zero_without_profit(self):
+        """Ни у одной категории нет положительной маржи — доли 0%, без деления на ноль."""
+        block = self._block([
+            sale('Лиговский', DISH_A_05, '2026-08-04', 10, 1000.0, 2000.0, style='ИПА (Р)'),
+            sale('Лиговский', DISH_B_05, '2026-08-05', 10, 1000.0, 3000.0, style='Хели (Р)'),
+        ])
+        assert {c['MarginSharePercent'] for c in block['categories']} == {0.0}
+
     def test_zero_revenue_category_gets_no_leader(self):
         """Вся категория без выручки: буквы внутри категории нет смысла раздавать,
         иначе кег, не заработавший ничего, объявляется лидером. Как на фасовке — C."""

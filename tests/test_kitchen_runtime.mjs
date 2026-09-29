@@ -181,7 +181,7 @@ test('таблица позиций: 30 строк, итог по всем, за
     assert.equal(rows(html), 30);
     assert.match(html, new RegExp(`Итого · ${BLOCK.positions.length} позиц`));
     assert.match(html, /ПОРЦИЙ/);
-    assert.match(html, /ДОЛЯ В ПОРЦИЯХ/);
+    assert.match(html, /ДОЛЯ ПОРЦИЙ[\s\S]*ДОЛЯ МАРЖИ/, 'нет доли порций и доли маржи');
     assert.ok(!/ШТУК/.test(html), 'остался заголовок фасовки');
     for (const m of BLOCK.modifiers.items) {
         assert.ok(!BLOCK.positions.some((p) => p.Beer === m.Name), `модификатор ${m.Name} стал позицией`);
@@ -199,6 +199,12 @@ test('категории: третий уровень, второй и «Без 
     for (const name of ['Пицца', 'Горячее', 'Орехи', 'Без категории (К)']) {
         assert.ok(html.includes(api.esc(name)), `нет категории ${name}`);
     }
+    // Три доли, как у фасовки: выручка, порции, маржа (наследник PackagingAnalysis).
+    assert.match(html, /ДОЛЯ ВЫРУЧКИ[\s\S]*ДОЛЯ ПОРЦИЙ[\s\S]*ДОЛЯ МАРЖИ/);
+    const catSum = BLOCK.categories.reduce((a, c) => a + c.MarginSharePercent, 0);
+    assert.ok(Math.abs(catSum - 100) < 1e-6, 'доли категорий в марже не складываются в 100%');
+    const total = html.match(/class="pk-row is-total"[\s\S]*?<\/div>/)[0];
+    assert.equal((total.match(/100,0%/g) || []).length, 3, 'в итоге категорий не три доли по 100%');
 });
 
 test('клик по группе открывает таблицу позиций с фильтром', () => {

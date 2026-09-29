@@ -354,6 +354,27 @@ def test_abc_bases_are_reported_so_the_formula_reproduces():
                - good['RevenueShareInCategoryPercent']) < 1e-9
 
 
+def test_category_margin_share_uses_positive_base():
+    """Доля категории в марже — от суммы ПОЛОЖИТЕЛЬНЫХ маржей категорий.
+
+    Так же, как у позиции (MarginSharePercent): убыточная категория получает 0%,
+    а её минус виден в колонке «Маржа». Колонка складывается в 100%, как доли
+    выручки и штук, — иначе у прибыльных категорий доля была бы больше 100%.
+    """
+    rows = [
+        row('Бар А', 'Лагер 1', '2026-01-05', 10, 3000, 1000, style='Лагер (Ф)'),    # +2000
+        row('Бар А', 'Стаут 1', '2026-01-05', 10, 1500, 1000, style='Стаут (Ф)'),    # +500
+        row('Бар А', 'Сидр 1', '2026-01-05', 10, 500, 900, style='Сидр (Ф)'),        # −400
+    ]
+    block = PackagingAnalysis(rows, '2026-01-05', '2026-02-01').build(None)
+    by_cat = {c['Category']: c for c in block['categories']}
+    assert abs(by_cat['Лагер (Ф)']['MarginSharePercent'] - 80.0) < 1e-9     # 2000 / 2500
+    assert abs(by_cat['Стаут (Ф)']['MarginSharePercent'] - 20.0) < 1e-9     # 500 / 2500
+    assert by_cat['Сидр (Ф)']['MarginSharePercent'] == 0.0
+    assert by_cat['Сидр (Ф)']['TotalMargin'] < 0, 'тест ничего не доказывает'
+    assert abs(sum(c['MarginSharePercent'] for c in block['categories']) - 100.0) < 1e-9
+
+
 def test_category_and_country_follow_the_money():
     """При переклассификации в номенклатуре побеждает вариант с большей выручкой.
 
@@ -573,6 +594,8 @@ if __name__ == '__main__':
          test_sales_outside_window_are_counted_and_flagged)
     _run('базы долей отдаются, формула воспроизводится',
          test_abc_bases_are_reported_so_the_formula_reproduces)
+    _run('доля категории в марже — от положительной базы',
+         test_category_margin_share_uses_positive_base)
     _run('категория и страна выбираются по выручке', test_category_and_country_follow_the_money)
     _run('порядок баров детерминирован', test_by_bar_order_is_deterministic)
     _run('перевёрнутый период отвергается', test_inverted_period_is_rejected)

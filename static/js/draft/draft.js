@@ -466,6 +466,9 @@
         var maxLiters = rows.reduce(function (acc, c) {
             return Math.max(acc, c.LitersSharePercent || 0);
         }, 0);
+        var maxMargin = rows.reduce(function (acc, c) {
+            return Math.max(acc, c.MarginSharePercent || 0);
+        }, 0);
 
         var html = '<div class="dr-row is-head">' +
             '<span class="dr-th">#</span>' +
@@ -473,8 +476,11 @@
             catHead('r', 'КЕГОВ', 'KegsCount') +
             catHead('r', 'ЛИТРЫ', 'TotalLiters') +
             catHead('r', 'ВЫРУЧКА', 'TotalRevenue') +
-            catHead('r', 'ДОЛЯ В ВЫРУЧКЕ', 'RevenueSharePercent') +
-            catHead('r', 'ДОЛЯ В ЛИТРАХ', 'LitersSharePercent') +
+            // Три доли рядом: выручка, литры, маржа. Заголовки короткие, иначе
+            // три колонки не помещаются в ширину страницы (1198 px контента).
+            catHead('r', 'ДОЛЯ ВЫРУЧКИ', 'RevenueSharePercent') +
+            catHead('r', 'ДОЛЯ ЛИТРОВ', 'LitersSharePercent') +
+            catHead('r', 'ДОЛЯ МАРЖИ', 'MarginSharePercent') +
             catHead('r', 'МАРЖА', 'TotalMargin') +
             catHead('r', 'НАЦЕНКА', 'MarkupPercent') +
             catHead('c', 'ABC', 'ABC_Category') +
@@ -489,6 +495,7 @@
                 '<span class="dr-num strong">' + money(cat.TotalRevenue) + '</span>' +
                 shareCell(cat.RevenueSharePercent, maxShare) +
                 shareCell(cat.LitersSharePercent, maxLiters) +
+                shareCell(cat.MarginSharePercent, maxMargin) +
                 '<span class="dr-num">' + money(cat.TotalMargin) + '</span>' +
                 '<span class="dr-num">' +
                     markupPct(cat.MarkupPercent, 0) + '</span>' +
@@ -507,6 +514,7 @@
                 '<span class="dr-total-v">' + (data.total_kegs || 0) + '</span>' +
                 '<span class="dr-total-v strong">' + num(data.total_liters) + '</span>' +
                 '<span class="dr-total-v strong">' + money(data.total_revenue) + '</span>' +
+                '<span class="dr-total-v">100,0%</span>' +
                 '<span class="dr-total-v">100,0%</span>' +
                 '<span class="dr-total-v">100,0%</span>' +
                 '<span class="dr-total-v">' + money(data.total_margin) + '</span>' +
@@ -680,6 +688,9 @@
         var maxRevenueShare = rows.reduce(function (acc, keg) {
             return Math.max(acc, keg.RevenueSharePercent || 0);
         }, 0);
+        var maxMarginShare = rows.reduce(function (acc, keg) {
+            return Math.max(acc, keg.MarginSharePercent || 0);
+        }, 0);
 
         var total = data.total_kegs || 0;
         el.kegCount.textContent = (query || bucket)
@@ -695,10 +706,13 @@
                 sortMark(state.kegSort, 'TotalPortions') + '</span>' +
             '<span class="dr-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
                 sortMark(state.kegSort, 'TotalRevenue') + '</span>' +
-            '<span class="dr-th r s" data-sort="RevenueSharePercent">ДОЛЯ В ВЫРУЧКЕ' +
+            '<span class="dr-th r s" data-sort="RevenueSharePercent">ДОЛЯ ВЫРУЧКИ' +
                 sortMark(state.kegSort, 'RevenueSharePercent') + '</span>' +
-            '<span class="dr-th r s" data-sort="LitersSharePercent">ДОЛЯ В ЛИТРАХ' +
+            '<span class="dr-th r s" data-sort="LitersSharePercent">ДОЛЯ ЛИТРОВ' +
                 sortMark(state.kegSort, 'LitersSharePercent') + '</span>' +
+            // Доля в марже — с сервера (MarginSharePercent, та же, что в карточке кега).
+            '<span class="dr-th r s" data-sort="MarginSharePercent">ДОЛЯ МАРЖИ' +
+                sortMark(state.kegSort, 'MarginSharePercent') + '</span>' +
             '<span class="dr-th r s" data-sort="PricePerLiter">ЦЕНА/Л' +
                 sortMark(state.kegSort, 'PricePerLiter') + '</span>' +
             '<span class="dr-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
@@ -716,6 +730,7 @@
                 '<span class="dr-num strong">' + money(keg.TotalRevenue) + '</span>' +
                 shareCell(keg.RevenueSharePercent, maxRevenueShare) +
                 shareCell(keg.LitersSharePercent, maxLitersShare) +
+                shareCell(keg.MarginSharePercent, maxMarginShare) +
                 '<span class="dr-num">' + money(keg.PricePerLiter) + '</span>' +
                 '<span class="dr-num">' +
                     markupPct(keg.MarkupPercent, 0) + '</span>' +
@@ -734,6 +749,7 @@
             var sumCost = rows.reduce(function (a, k) { return a + k.TotalCost; }, 0);
             var sumLitersShare = rows.reduce(function (a, k) { return a + k.LitersSharePercent; }, 0);
             var sumRevenueShare = rows.reduce(function (a, k) { return a + k.RevenueSharePercent; }, 0);
+            var sumMarginShare = rows.reduce(function (a, k) { return a + (k.MarginSharePercent || 0); }, 0);
             html += '<div class="dr-row is-total">' +
                 '<span></span>' +
                 '<span class="dr-total-n">Итого · ' + rows.length + ' ' +
@@ -743,6 +759,7 @@
                 '<span class="dr-total-v strong">' + money(sumRevenue) + '</span>' +
                 '<span class="dr-total-v">' + pct(sumRevenueShare, 0) + '</span>' +
                 '<span class="dr-total-v">' + pct(sumLitersShare, 0) + '</span>' +
+                '<span class="dr-total-v">' + pct(sumMarginShare, 0) + '</span>' +
                 '<span class="dr-total-v">' +
                     money(sumLiters > 0 ? sumRevenue / sumLiters : 0) + '</span>' +
                 '<span class="dr-total-v">' +

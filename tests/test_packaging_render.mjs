@@ -325,6 +325,30 @@ test('прочерк вместо буквы объяснён, а не выда�
     assert.ok(js.includes('Прочерк честнее буквы'), 'в карточке нет объяснения прочерка');
 });
 
+// Минимальная ширина грида: фиксированные колонки + минимумы minmax + зазоры 12px
+// + боковые паддинги таблицы 2 × 18px. Нужна, чтобы проверить, что колонки
+// помещаются в min-width таблицы, а min-width — в контент страницы.
+function gridMinWidth(cols) {
+    const tracks = cols.match(/minmax\(\d+px,[^)]*\)|\d+px/g);
+    const sum = tracks.reduce((a, t) => a + parseInt(t.replace('minmax(', ''), 10), 0);
+    return { count: tracks.length, width: sum + 12 * (tracks.length - 1) + 36 };
+}
+
+test('три доли (выручка, штуки, маржа) помещаются в страницу в обеих таблицах', () => {
+    // С 2026-09-29 третья доля — маржа; packaging.css общий с кухней.
+    const wrap = parseInt(css.match(/\.pk-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
+    for (const [table, count] of [['cats', 11], ['pos', 10]]) {
+        const cols = css.match(new RegExp(`\\.pk-${table} \\.pk-row \\{\\s*grid-template-columns: ([^;]+);`))[1];
+        const minWidth = parseInt(css.match(new RegExp(`\\.pk-${table} \\.pk-table-in \\{ min-width: (\\d+)px; \\}`))[1], 10);
+        const grid = gridMinWidth(cols);
+        assert.equal(grid.count, count, `в гриде ${table} ${grid.count} колонок вместо ${count}`);
+        assert.ok(grid.width <= minWidth, `колонки ${table} (${grid.width}px) шире min-width ${minWidth}px`);
+        assert.ok(minWidth <= wrap - 42, `таблица ${table} ${minWidth}px шире контента ${wrap - 42}px`);
+    }
+    assert.equal((js.match(/data-sort="MarginSharePercent">ДОЛЯ МАРЖИ/g) || []).length, 2,
+        'доля маржи не в обеих таблицах');
+});
+
 test('без эмодзи в разметке и скрипте', () => {
     const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/u;
     assert.ok(!emoji.test(html), 'эмодзи в шаблоне — запрещено Style Rules проекта');

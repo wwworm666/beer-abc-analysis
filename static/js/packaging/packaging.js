@@ -417,6 +417,9 @@
         var maxQtyShare = rows.reduce(function (acc, c) {
             return Math.max(acc, c.QtySharePercent || 0);
         }, 0);
+        var maxMarginShare = rows.reduce(function (acc, c) {
+            return Math.max(acc, c.MarginSharePercent || 0);
+        }, 0);
 
         el.catCount.textContent = rows.length + ' ' +
             plural(rows.length, 'категория', 'категории', 'категорий') + ' · все';
@@ -433,10 +436,14 @@
             // Только доля: накопленный процент в ячейку не влезает, и
             // заголовок, обещающий два числа при одном показанном, врёт.
             // Накопленный итог есть в карточке категории.
-            '<span class="pk-th r s" data-sort="RevenueSharePercent">ДОЛЯ В ВЫРУЧКЕ' +
+            // Три доли рядом: выручка, количество, маржа. Заголовки короткие, иначе
+            // три колонки не помещаются в ширину страницы (1198 px контента).
+            '<span class="pk-th r s" data-sort="RevenueSharePercent">ДОЛЯ ВЫРУЧКИ' +
                 sortMark(state.catSort, 'RevenueSharePercent') + '</span>' +
-            '<span class="pk-th r s" data-sort="QtySharePercent">ДОЛЯ В ШТУКАХ' +
+            '<span class="pk-th r s" data-sort="QtySharePercent">ДОЛЯ ШТУК' +
                 sortMark(state.catSort, 'QtySharePercent') + '</span>' +
+            '<span class="pk-th r s" data-sort="MarginSharePercent">ДОЛЯ МАРЖИ' +
+                sortMark(state.catSort, 'MarginSharePercent') + '</span>' +
             '<span class="pk-th r s" data-sort="TotalMargin">МАРЖА' +
                 sortMark(state.catSort, 'TotalMargin') + '</span>' +
             '<span class="pk-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
@@ -453,6 +460,7 @@
                 '<span class="pk-num strong">' + money(cat.TotalRevenue) + '</span>' +
                 shareCell(cat.RevenueSharePercent, maxShare) +
                 shareCell(cat.QtySharePercent, maxQtyShare) +
+                shareCell(cat.MarginSharePercent, maxMarginShare) +
                 '<span class="pk-num">' + money(cat.TotalMargin) + '</span>' +
                 '<span class="pk-num">' +
                     markupPct(cat.MarkupPercent, 0) + '</span>' +
@@ -472,6 +480,7 @@
                 '<span class="pk-total-v">' + t.sku + '</span>' +
                 '<span class="pk-total-v">' + num(t.qty, 0) + '</span>' +
                 '<span class="pk-total-v strong">' + money(t.revenue) + '</span>' +
+                '<span class="pk-total-v">100,0%</span>' +
                 '<span class="pk-total-v">100,0%</span>' +
                 '<span class="pk-total-v">100,0%</span>' +
                 '<span class="pk-total-v">' + money(t.margin) + '</span>' +
@@ -506,6 +515,9 @@
         var maxQtyShare = rows.reduce(function (acc, p) {
             return Math.max(acc, p.QtySharePercent || 0);
         }, 0);
+        var maxMarginShare = rows.reduce(function (acc, p) {
+            return Math.max(acc, p.MarginSharePercent || 0);
+        }, 0);
 
         var total = (data.positions || []).length;
         el.posCount.textContent = (query || bucket)
@@ -520,10 +532,13 @@
                 sortMark(state.posSort, 'TotalQty') + '</span>' +
             '<span class="pk-th r s" data-sort="TotalRevenue">ВЫРУЧКА' +
                 sortMark(state.posSort, 'TotalRevenue') + '</span>' +
-            '<span class="pk-th r s" data-sort="RevenueSharePercent">ДОЛЯ В ВЫРУЧКЕ' +
+            '<span class="pk-th r s" data-sort="RevenueSharePercent">ДОЛЯ ВЫРУЧКИ' +
                 sortMark(state.posSort, 'RevenueSharePercent') + '</span>' +
-            '<span class="pk-th r s" data-sort="QtySharePercent">ДОЛЯ В ШТУКАХ' +
+            '<span class="pk-th r s" data-sort="QtySharePercent">ДОЛЯ ШТУК' +
                 sortMark(state.posSort, 'QtySharePercent') + '</span>' +
+            // Доля в марже — с сервера (MarginSharePercent, та же, что в карточке позиции).
+            '<span class="pk-th r s" data-sort="MarginSharePercent">ДОЛЯ МАРЖИ' +
+                sortMark(state.posSort, 'MarginSharePercent') + '</span>' +
             '<span class="pk-th r s" data-sort="MarkupPercent">НАЦЕНКА' +
                 sortMark(state.posSort, 'MarkupPercent') + '</span>' +
             // Колонки XYZ нет (с 2026-09-26): она повторяла третью букву кода.
@@ -539,6 +554,7 @@
                 '<span class="pk-num strong">' + money(p.TotalRevenue) + '</span>' +
                 shareCell(p.RevenueSharePercent, maxShare) +
                 shareCell(p.QtySharePercent, maxQtyShare) +
+                shareCell(p.MarginSharePercent, maxMarginShare) +
                 '<span class="pk-num' + (p.MarkupPercent === null ? ' dash' : '') + '">' +
                     markupPct(p.MarkupPercent, 0) + '</span>' +
                 '<span class="pk-cell-c"><span class="pk-abc ' + abcClass(p.ABC_Revenue) +
@@ -556,6 +572,7 @@
             var sumCost = rows.reduce(function (a, p) { return a + p.TotalCost; }, 0);
             var sumShare = rows.reduce(function (a, p) { return a + p.RevenueSharePercent; }, 0);
             var sumQtyShare = rows.reduce(function (a, p) { return a + (p.QtySharePercent || 0); }, 0);
+            var sumMarginShare = rows.reduce(function (a, p) { return a + (p.MarginSharePercent || 0); }, 0);
             html += '<div class="pk-row is-total">' +
                 '<span></span>' +
                 '<span class="pk-total-n">Итого · ' + rows.length + ' ' +
@@ -565,6 +582,7 @@
                 '<span class="pk-total-v strong">' + money(sumRevenue) + '</span>' +
                 '<span class="pk-total-v">' + pct(sumShare, 1) + '</span>' +
                 '<span class="pk-total-v">' + pct(sumQtyShare, 1) + '</span>' +
+                '<span class="pk-total-v">' + pct(sumMarginShare, 1) + '</span>' +
                 '<span class="pk-total-v">' +
                     (sumCost > 0 ? markupPct((sumRevenue - sumCost) / sumCost * 100, 0) : '—') +
                     '</span>' +

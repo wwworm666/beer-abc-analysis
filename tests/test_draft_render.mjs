@@ -216,6 +216,15 @@ test('расшифровка букв на экране и честна про �
     assert.ok(!/по третям/.test(key[2]), 'в пояснении осталась маржа по третям');
 });
 
+// Минимальная ширина грида: фиксированные колонки + минимумы minmax + зазоры 12px
+// + боковые паддинги таблицы 2 × 18px. Нужна, чтобы проверить, что колонки
+// помещаются в min-width таблицы, а min-width — в контент страницы.
+function gridMinWidth(cols) {
+    const tracks = cols.match(/minmax\(\d+px,[^)]*\)|\d+px/g);
+    const sum = tracks.reduce((a, t) => a + parseInt(t.replace('minmax(', ''), 10), 0);
+    return { count: tracks.length, width: sum + 12 * (tracks.length - 1) + 36 };
+}
+
 test('в таблице кегов нет колонки XYZ, и таблица влезает в страницу', () => {
     // Колонка XYZ повторяла третью букву кода и при min-width 1240px не влезала
     // в контент страницы (max-width 1240px минус отступы = 1198px).
@@ -225,6 +234,23 @@ test('в таблице кегов нет колонки XYZ, и таблица 
     const minWidth = parseInt(css.match(/\.dr-kegs \.dr-table-in \{ min-width: (\d+)px; \}/)[1], 10);
     const wrap = parseInt(css.match(/\.dr-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
     assert.ok(minWidth <= wrap - 2 * 20 - 2, `таблица кегов ${minWidth}px шире контента ${wrap - 42}px`);
+});
+
+test('три доли (выручка, литры, маржа) помещаются в страницу в обеих таблицах', () => {
+    // С 2026-09-29 у кегов и категорий третья доля — маржа. Колонки долей 108px.
+    const wrap = parseInt(css.match(/\.dr-wrap \{[^}]*max-width: (\d+)px/)[1], 10);
+    for (const [table, count] of [['kegs', 11], ['cats', 11]]) {
+        const cols = css.match(new RegExp(`\\.dr-${table} \\.dr-row \\{\\s*grid-template-columns: ([^;]+);`))[1];
+        const minWidth = parseInt(css.match(new RegExp(`\\.dr-${table} \\.dr-table-in \\{ min-width: (\\d+)px; \\}`))[1], 10);
+        const grid = gridMinWidth(cols);
+        assert.equal(grid.count, count, `в гриде ${table} ${grid.count} колонок вместо ${count}`);
+        assert.ok(grid.width <= minWidth, `колонки ${table} (${grid.width}px) шире min-width ${minWidth}px`);
+        assert.ok(minWidth <= wrap - 42, `таблица ${table} ${minWidth}px шире контента ${wrap - 42}px`);
+    }
+    for (const fn of ['renderKegs', 'renderCategories']) {
+        const body = js.match(new RegExp(`function ${fn}[\\s\\S]*?\\n    }\\n`))[0];
+        assert.ok(body.includes('MarginSharePercent'), `${fn}: нет колонки доли маржи`);
+    }
 });
 
 test('решения по ассортименту: группы с сервера на «Обзоре» и фильтром над таблицей', () => {

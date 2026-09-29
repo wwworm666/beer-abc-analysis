@@ -4322,6 +4322,7 @@
         "KegIds": [
           "ba7ede81-1cf1-4155-a756-e100d51df438"
         ],
+        "MarginSharePercent": 30.532759029681273,
         "CumulativePercent": 27.717382278801526,
         "ABC_Category": "A"
       },
@@ -4373,6 +4374,7 @@
           "83468676-ae29-4625-9516-296e6c421e47",
           "7755e9f7-ed05-4b94-9c54-f2e0618c7033"
         ],
+        "MarginSharePercent": 18.378158027505552,
         "CumulativePercent": 47.053174849100934,
         "ABC_Category": "A"
       },
@@ -4399,6 +4401,7 @@
         "KegIds": [
           "d9eb2c76-3b8e-4f57-8205-7351d95f7cda"
         ],
+        "MarginSharePercent": 11.979481825684614,
         "CumulativePercent": 59.410755126387116,
         "ABC_Category": "A"
       },
@@ -4425,6 +4428,7 @@
         "KegIds": [
           "187da644-32ed-4da6-9a03-ba8b7ed57988"
         ],
+        "MarginSharePercent": 9.50773157035239,
         "CumulativePercent": 68.00660450827438,
         "ABC_Category": "A"
       },
@@ -4451,6 +4455,7 @@
         "KegIds": [
           "cca6a13c-e37e-4c39-8a37-8aeca590e9af"
         ],
+        "MarginSharePercent": 5.991157185460195,
         "CumulativePercent": 74.2174327347908,
         "ABC_Category": "A"
       },
@@ -4480,6 +4485,7 @@
           "db7be4b8-e4ae-4995-9e72-9294ea1dcb3f",
           "07d76d5f-38ff-4ff3-9453-b735fdd84fa2"
         ],
+        "MarginSharePercent": 5.448703456243774,
         "CumulativePercent": 80.20893493023691,
         "ABC_Category": "A"
       },
@@ -4508,6 +4514,7 @@
           "e35afa89-c4af-4dea-a312-6c0e8f2647c1",
           "432fc9e7-d190-41d9-96f7-94d0ea627b02"
         ],
+        "MarginSharePercent": 4.9604637219644445,
         "CumulativePercent": 85.67289362607511,
         "ABC_Category": "B"
       },
@@ -4534,6 +4541,7 @@
         "KegIds": [
           "252096ff-d05a-4932-a1a6-61d26c7734f2"
         ],
+        "MarginSharePercent": 4.660976207357888,
         "CumulativePercent": 90.81561667085423,
         "ABC_Category": "B"
       },
@@ -4563,6 +4571,7 @@
           "9963ae82-d3b3-438e-aa1c-48e75935ef16",
           "3cd79006-ccde-4759-941a-7179053b3909"
         ],
+        "MarginSharePercent": 3.1337431916041716,
         "CumulativePercent": 94.0416226743843,
         "ABC_Category": "B"
       },
@@ -4589,6 +4598,7 @@
         "KegIds": [
           "cacc62b5-a12f-4479-9d3a-70546615159b"
         ],
+        "MarginSharePercent": 2.296263078628144,
         "CumulativePercent": 96.5828302713272,
         "ABC_Category": "B"
       },
@@ -4618,6 +4628,7 @@
           "2fce9b39-1ee6-48f3-b3f5-202e76787f39",
           "69639867-b0d8-4e74-bc6f-78ac3c22328f"
         ],
+        "MarginSharePercent": 1.6407224109619014,
         "CumulativePercent": 98.39756320528485,
         "ABC_Category": "C"
       },
@@ -4644,6 +4655,7 @@
         "KegIds": [
           "b4cf62a0-c58d-448f-87a0-dde3f97359b1"
         ],
+        "MarginSharePercent": 1.4232797993284616,
         "CumulativePercent": 99.9572613837113,
         "ABC_Category": "C"
       },
@@ -4670,6 +4682,7 @@
         "KegIds": [
           "e08b4353-f66a-4d9d-b779-28f8a2ec743e"
         ],
+        "MarginSharePercent": 0.0465604952271842,
         "CumulativePercent": 100.0,
         "ABC_Category": "C"
       }
