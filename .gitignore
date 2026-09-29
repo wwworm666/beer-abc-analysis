@@ -100,6 +100,10 @@ data/.guests_sync_startup_*
 # API ключи и секреты
 апи
 .env
+# Копии .env рядом с ним (.env.bak-iiko и т. п.): на сервере неотслеживаемый файл в
+# /opt/beer останавливает выкладку («Server checkout has local changes», 2026-09-29).
+.env.bak*
+.env.*.bak
 api_key.txt
 *.key
 

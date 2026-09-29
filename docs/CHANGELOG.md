@@ -22,6 +22,11 @@
   static/js/yml_feeds/page.js, static/yml_feeds/yml_feeds.css, core/mcp/tools/stocks.py,
   tests/test_yml_maps_status.py, docs/yandex-feeds.md, docs/overview.md.
 
+- Выкладка 29.09 остановилась на сервере: в `/opt/beer` лежала копия `.env`
+  (`.env.bak-iiko`), скрипт считает её локальным изменением. Копия перенесена в
+  `/root/env-backups/` (с «ок» владельца), выпуск `ddd6d45` выложен; `.gitignore` теперь
+  пропускает `.env.bak*`, случай описан в [guides/deploy.md](guides/deploy.md).
+
 **Что сломается, если ошибиться:** ложное «совпадает» скроет старые цены на Картах; при смене
 разметки Карт блок честно покажет «Не удалось проверить», фиды это не затрагивает.
 
