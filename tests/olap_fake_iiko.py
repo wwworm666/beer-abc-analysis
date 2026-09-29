@@ -1,7 +1,7 @@
 """Поддельный iiko для тестов конструктора OLAP (core/olap_constructor.py и соседи).
 
 Ведёт себя как iiko Server на уровне, нужном конструктору:
-- GET /v2/reports/olap/columns — каталог из снимков в data/ (как у живого сервера);
+- GET /v2/reports/olap/columns — каталог из снимков в resources/ (как у живого сервера);
 - GET /v2/reports/olap/presets — список PRESETS;
 - POST /v2/reports/olap — настоящая группировка «фактов» (строк позиций чеков) по
   groupByRowFields с фильтрами IncludeValues / ExcludeValues / Range / DateRange
@@ -83,7 +83,7 @@ SNAPSHOTS = {'SALES': 'olap_all_fields.json', 'TRANSACTIONS': 'olap_transactions
 
 
 def load_snapshot(report_type):
-    with open(os.path.join(REPO, 'data', SNAPSHOTS[report_type]), encoding='utf-8') as handle:
+    with open(os.path.join(REPO, 'resources', SNAPSHOTS[report_type]), encoding='utf-8') as handle:
         return json.load(handle)
 
 

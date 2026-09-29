@@ -123,12 +123,23 @@ def test_catalog_falls_back_to_repo_snapshot_and_errors_without_one():
     _fresh(fail_columns=True)
     cat = olap_catalog.get_catalog('TRANSACTIONS')
     assert cat.source == 'repo' and cat.live_error and len(cat.fields) == 116
+    assert cat.fetched_at == '2026-09-20'            # дата снимка, а не время выкладки
     try:
         olap_catalog.get_catalog('DELIVERIES')
     except IikoError as error:
         assert 'запасной копии нет' in error.message
     else:
         raise AssertionError('у доставки нет снимка — должна быть ошибка')
+
+
+def test_catalog_snapshots_live_outside_mounted_data():
+    """В проде /app/data перекрыт диском сервера (файлы data/ из образа не видны), а релиз,
+    меняющий data/, скрипт выкладки не выпускает — снимки каталога только в resources/."""
+    for report_type, (name, stamp) in olap_catalog.REPO_SNAPSHOTS.items():
+        path = os.path.join(olap_catalog.RESOURCES_DIR, name)
+        assert os.path.basename(os.path.dirname(path)) == 'resources', path
+        assert os.path.exists(path), path
+        assert len(stamp) == 10 and stamp[4] == '-', (report_type, stamp)
 
 
 # ------------------------------------------------------------------ период

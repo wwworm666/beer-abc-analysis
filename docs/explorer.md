@@ -46,7 +46,7 @@ iikoOffice.
 | [static/js/explorer/grid.js](../static/js/explorer/grid.js) | Отрисовка сводной: группы, сортировка, доли, закреплённые шапка, первая колонка и итог |
 | [static/js/explorer/page.js](../static/js/explorer/page.js) | Страница: каталог, зоны, перетаскивание, фильтры, период, построение, Excel, сохранение и открытие |
 | [core/mcp/tools/analytics.py](../core/mcp/tools/analytics.py) | Инструменты MCP `analytics_explorer_*` (раздел «MCP» ниже) |
-| [data/olap_all_fields.json](../data/olap_all_fields.json), [data/olap_transactions_fields.json](../data/olap_transactions_fields.json), [data/olap_stock_fields.json](../data/olap_stock_fields.json) | Снимки каталога полей — запасная копия, если iiko недоступен |
+| [resources/olap_all_fields.json](../resources/olap_all_fields.json), [resources/olap_transactions_fields.json](../resources/olap_transactions_fields.json), [resources/olap_stock_fields.json](../resources/olap_stock_fields.json) | Снимки каталога полей (2025-10-18, 2026-09-20, 2025-10-18) — запасная копия, если iiko недоступен. В `resources/`, а не в `data/`: в проде `/app/data` перекрыт диском сервера, а релиз, меняющий `data/`, скрипт выкладки не выпускает |
 | [tests/test_olap_constructor.py](../tests/test_olap_constructor.py), [tests/olap_fake_iiko.py](../tests/olap_fake_iiko.py) | Тесты и поддельный iiko (настоящая группировка и уникальные чеки по «фактам») |
 
 ## Как работает

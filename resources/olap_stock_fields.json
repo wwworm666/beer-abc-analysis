@@ -1,0 +1,162 @@
+{
+  "ProductId": {
+    "name": "ID блюда",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "Department.Id": {
+    "name": "ID подразделения",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "User.Id": {
+    "name": "ID сотрудника",
+    "type": "ID_STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "ProductNum": {
+    "name": "Артикул",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "ProductName": {
+    "name": "Блюдо",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "ProductAccountingCategory": {
+    "name": "Бухгалтерская категория блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "EventDate": {
+    "name": "Дата",
+    "type": "DATE",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "EventCookingDate": {
+    "name": "Дата и время приготовления",
+    "type": "DATETIME",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "ProductMeasureUnit": {
+    "name": "Единицы измерения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "ProductCategory": {
+    "name": "Категория блюда",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "Department.Code": {
+    "name": "Код подразделения",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "Amount": {
+    "name": "Количество",
+    "type": "AMOUNT",
+    "aggregationAllowed": true,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "ProductExpirationDuration": {
+    "name": "Просрочка на момент продажи",
+    "type": "DURATION_IN_SECONDS",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": []
+  },
+  "ProductCostBase.ProductCost": {
+    "name": "Себестоимость",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": []
+  },
+  "ProductCostBase.OneItem": {
+    "name": "Себестоимость единицы",
+    "type": "MONEY",
+    "aggregationAllowed": true,
+    "groupingAllowed": false,
+    "filteringAllowed": false,
+    "tags": []
+  },
+  "StoreFrom": {
+    "name": "Склад",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "User": {
+    "name": "Сотрудник",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "AccountTo": {
+    "name": "Счет",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "Event.Type": {
+    "name": "Тип события",
+    "type": "ENUM",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  },
+  "Department": {
+    "name": "Торговое предприятие",
+    "type": "STRING",
+    "aggregationAllowed": false,
+    "groupingAllowed": true,
+    "filteringAllowed": true,
+    "tags": []
+  }
+}

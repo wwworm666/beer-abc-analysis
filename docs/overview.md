@@ -137,8 +137,7 @@ data/
 ├── meeting_notes.json      # Заметки совещаний
 ├── open_check_subscribers.json  # Самоподписавшиеся чаты open-check бота
 ├── nomenclature_cache.json # Кэш номенклатуры iiko (24ч диск + 15 мин память)
-├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns; запасная копия конструктора)
-├── olap_transactions_fields.json  # То же для проводок (снят 2026-09-20)
+├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns 2025-10-18; конструктор читает копию в resources/)
 ├── beer_report.json, kegs_products.json, keg_mapping.json
 ├── cache/
 │   ├── nomenclature__products.xml  # iiko /products XML (баркоды для ЧЗ)

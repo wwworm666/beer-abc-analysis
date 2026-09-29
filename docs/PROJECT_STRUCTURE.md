@@ -21,6 +21,9 @@ beer-abc-analysis/
 ├── templates/              # Jinja2 HTML
 ├── static/                 # CSS, JS, PWA
 ├── data/                   # Кеши и состояние (mounted persistent в проде)
+├── resources/              # Проверенные справочные данные в образе (не перекрываются диском /app/data):
+│                           # реестр Untappd, кухонное меню, снимки каталога OLAP-полей конструктора
+│                           # (olap_all_fields / olap_transactions_fields / olap_stock_fields.json)
 ├── menu_tool/              # Standalone Flask :5050 для печати меню A4 (Playwright)
 ├── chz_test/               # ЧЗ-клиент + утилиты отладки
 ├── mapping/                # Маппинг блюд на кеги (CSV)
@@ -292,8 +295,7 @@ data/
 ├── mcp.db                  # MCP: токены, OAuth, журнал вызовов, настройки, общие лимиты (на проде /kultura, в git нет)
 ├── open_check_subscribers.json   # Самоподписавшиеся чаты open-check ({"chats":[...]})
 ├── nomenclature_cache.json # iiko nomenclature (24ч диск + 15 мин память)
-├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns; запасная копия конструктора)
-├── olap_transactions_fields.json  # То же для проводок (снят 2026-09-20)
+├── olap_all_fields.json    # Справочник OLAP-полей продаж (снимок /columns 2025-10-18; конструктор читает копию в resources/)
 ├── beer_report.json, kegs_products.json, keg_mapping.json
 ├── cache/
 │   ├── nomenclature__products.xml   # iiko /products (баркоды → ЧЗ)

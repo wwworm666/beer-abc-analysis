@@ -24,9 +24,12 @@
     2. Живой iiko. Удачный ответ на проде сохраняется на постоянный диск
        (/kultura/olap_columns_<ТИП>.json) — запасная копия на время, когда iiko недоступен.
     3. Запасные копии: сначала с диска, затем снимки в репозитории
-       (data/olap_all_fields.json — продажи, data/olap_transactions_fields.json —
-       проводки, data/olap_stock_fields.json — контроль хранения). В ответе source
-       говорит, откуда каталог: 'live' | 'disk' | 'repo'.
+       (resources/olap_all_fields.json — продажи, resources/olap_transactions_fields.json
+       — проводки, resources/olap_stock_fields.json — контроль хранения). Снимки лежат
+       в resources/, а не в data/: в проде /app/data перекрыт диском сервера, и файлы
+       data/ из образа не видны, а релиз с изменениями в data/ скрипт выкладки не
+       выпускает (docs/guides/deploy.md). В ответе source говорит, откуда каталог:
+       'live' | 'disk' | 'repo'.
     После неудачи живого запроса iiko не опрашивается LIVE_RETRY_S секунд — страница
     не должна ждать таймаут на каждом открытии, пока сервер лежит.
 
@@ -78,10 +81,14 @@ DATE_FIELD: Dict[str, str] = {
     'STOCK': 'EventDate',
 }
 
-REPO_SNAPSHOTS: Dict[str, str] = {
-    'SALES': 'olap_all_fields.json',
-    'TRANSACTIONS': 'olap_transactions_fields.json',
-    'STOCK': 'olap_stock_fields.json',
+# Снимки каталога в образе: файл в resources/ и дата снимка. Дата — из истории файла,
+# а не время изменения: в образе это время выкладки.
+RESOURCES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             'resources')
+REPO_SNAPSHOTS: Dict[str, Tuple[str, str]] = {
+    'SALES': ('olap_all_fields.json', '2025-10-18'),
+    'TRANSACTIONS': ('olap_transactions_fields.json', '2026-09-20'),
+    'STOCK': ('olap_stock_fields.json', '2025-10-18'),
 }
 DISK_SNAPSHOT = 'olap_columns_{}.json'
 CATALOG_TTL_S = 6 * 3600
@@ -486,9 +493,8 @@ def _disk_path(report_type: str) -> Optional[str]:
 
 
 def _repo_path(report_type: str) -> Optional[str]:
-    from core.storage_paths import get_local_data_path
-    name = REPO_SNAPSHOTS.get(report_type)
-    return get_local_data_path(name) if name else None
+    snapshot = REPO_SNAPSHOTS.get(report_type)
+    return os.path.join(RESOURCES_DIR, snapshot[0]) if snapshot else None
 
 
 def _save_disk(report_type: str, raw: dict) -> None:
@@ -508,7 +514,10 @@ def _fallback(report_type: str, live_error: str) -> Catalog:
             continue
         raw = _read_json(path)
         if isinstance(raw, dict) and raw:
-            stamp = time.strftime('%Y-%m-%d', time.localtime(os.path.getmtime(path)))
+            if source == 'repo':
+                stamp = REPO_SNAPSHOTS[report_type][1]
+            else:
+                stamp = time.strftime('%Y-%m-%d', time.localtime(os.path.getmtime(path)))
             return Catalog(report_type, normalize(raw, report_type), source, stamp, live_error)
     raise IikoError('Каталог полей «' + REPORT_TYPE_TITLES[report_type] + '» недоступен: iiko не '
                     'ответил (' + live_error + '), а запасной копии нет.', 502)
