@@ -7,9 +7,11 @@
    Ничего не считает заново. Множители, премии, коэффициент и итог приходят
    готовыми из core/kpi_calculator.py (/api/kpi-calculate или снимок /me).
    Здесь только представление:
-     - у штучных KPI («на смену») цели и факт показаны на НОРМУ смен:
-       цель за смену × норма, факт ÷ смены × норма. Множитель от этого не
-       меняется: (f − min) / (цель − min) не зависит от масштаба;
+     - у штучных KPI («на смену») линейка — на СМЕНЫ ЧЕЛОВЕКА (кассовые
+       смены периода, shifts_divisor): отметки = цель за смену × его смены,
+       факт — настоящие штуки, без пересчёта. Множитель от этого не меняется:
+       (f − min) / (цель − min) не зависит от масштаба. Цели на норму смен
+       (как их вводят в редакторе) — в пояснении и в «Целях по точкам»;
      - положение маркера на линейке: k = (факт − мин) / (цель − мин);
      - подсказка «пока месяц идёт»: сколько ещё продать за оставшиеся смены
        графика, чтобы к концу месяца выйти на ×1 и на ×max.
@@ -21,7 +23,7 @@
 
    Округление (детерминированно): множитель в чеке — 4 знака (как хранит
    расчёт), на карточке — 2; деньги — до рубля; значения на линейке — по
-   знакам метрики (% — 1 знак, шт/₽ — целые, «на норму» — до 1 знака), в
+   знакам метрики (% — 1 знак, шт/₽ — целые, «на смены» — до 1 знака), в
    формуле — на знак больше, но не больше 2.
 
    Подключение: <script src="/static/js/shared/kpi_breakdown.js"> + стили
@@ -85,15 +87,22 @@
         var maxRatio = model.maxRatio || 2;
         var n = it.shifts_divisor || 0;
         var perShift = !!(it.per_shift && n > 0);
-        var scale = perShift ? norm : 1;
+        // Владелец 2026-10-01: «зачем показывать шкалы для 15 смен у человека,
+        // у которого 10 смен?» — отметки на его смены, факт как есть.
+        var scale = perShift ? n : 1;
         var v0 = (it.min || 0) * scale;
         var v1 = (it.target || 0) * scale;
         var span = v1 - v0;
-        var f = perShift ? (it.fact_raw || 0) / n * norm : (it.fact || 0);
+        var f = perShift ? (it.fact_raw || 0) : (it.fact || 0);
         var k = span !== 0 ? (f - v0) / span : null;
+        // Те же отметки на норму смен — числа из редактора целей
+        var nScale = perShift ? norm : 1;
+        var v0n = (it.min || 0) * nScale;
+        var v1n = (it.target || 0) * nScale;
         return {
             perShift: perShift, norm: norm, maxRatio: maxRatio, n: n,
             v0: v0, v1: v1, v2: v0 + maxRatio * span, span: span, f: f, k: k,
+            v0n: v0n, v1n: v1n, v2n: v0n + maxRatio * (v1n - v0n),
             unit: unitOf(it, model.catalog), dec: decOf(it, model.catalog, perShift)
         };
     }
@@ -140,14 +149,18 @@
         if (!r.perShift) {
             return 'Факт: <b>' + esc(val(it.fact, r.unit, r.dec)) + '</b>';
         }
-        var raw = val(it.fact_raw, r.unit, r.dec);
-        if (r.n === r.norm) {
-            return 'Факт: <b>' + esc(raw) + '</b> за ' + esc(shiftsAcc(r.n));
-        }
-        return 'Факт: <b>' + esc(raw) + '</b> за ' + esc(shiftsAcc(r.n)) + '. Цели заданы на '
-            + esc(shiftsAcc(r.norm)) + ', поэтому факт пересчитан на ' + r.norm + ': <b>'
-            + esc(nf(it.fact_raw, 0, 2)) + ' ÷ ' + r.n + ' × ' + r.norm + ' = '
-            + esc(val(r.f, r.unit, r.dec)) + '</b>';
+        return 'Факт: <b>' + esc(val(it.fact_raw, r.unit, r.dec)) + '</b> за '
+            + esc(shiftsAcc(r.n));
+    }
+
+    // Откуда отметки на смены человека: цели введены на норму смен.
+    function normNote(r) {
+        if (!r.perShift || r.n === r.norm) return '';
+        var marks = [[0, r.v0n], [1, r.v1n], [r.maxRatio, r.v2n]]
+            .filter(function (mk) { return mk[1] >= 0; })
+            .map(function (mk) { return '×' + nf(mk[0], 0, 2) + ' — ' + val(mk[1], r.unit, r.dec); });
+        return 'Цели заданы на ' + shiftsAcc(r.norm) + ' (' + marks.join(', ') + '), на ваши '
+            + shiftsAcc(r.n) + ' они умножены на ' + r.n + ' ÷ ' + r.norm + '. ';
     }
 
     function explainHtml(it, r, model, ratio) {
@@ -155,14 +168,14 @@
         var u = r.unit;
         var base = model.basePerKpi || 0;
         var m = r.maxRatio;
-        var per = r.perShift ? ' на ' + r.norm + ' смен' : '';
+        var per = r.perShift ? ' на ' + shiftsAcc(r.n) : '';
         var f = nf(r.f, 0, d), a = nf(r.v0, 0, d), b = nf(r.v1, 0, d);
         var v = function (x) { return '<span class="kb-n">' + esc(val(x, u, r.dec)) + '</span>'; };
         var out;
         if (r.span > 0) {
-            out = (r.perShift ? 'Меньше ' : 'Ниже ') + v(r.v0) + per + ' — премии нет. '
+            out = (r.perShift ? 'Меньше ' : 'Ниже ') + v(r.v0) + esc(per) + ' — премии нет. '
                 + v(r.v1) + ' — полные ' + money(base) + ', от ' + v(r.v2) + ' — '
-                + money(base * m) + '. ';
+                + money(base * m) + '. ' + esc(normNote(r));
             if (r.k < 0) {
                 out += 'Факт ' + esc(val(r.f, u, r.dec)) + ' ниже ' + esc(val(r.v0, u, r.dec))
                     + ' — множитель 0.';
@@ -174,8 +187,9 @@
             }
         } else {
             // «Меньше — лучше»: минимум (потолок) выше цели
-            out = 'Больше ' + v(r.v0) + per + ' — премии нет. ' + v(r.v1) + ' — полные '
-                + money(base) + (r.v2 >= 0 ? ', до ' + v(r.v2) + ' — ' + money(base * m) : '') + '. ';
+            out = 'Больше ' + v(r.v0) + esc(per) + ' — премии нет. ' + v(r.v1) + ' — полные '
+                + money(base) + (r.v2 >= 0 ? ', до ' + v(r.v2) + ' — ' + money(base * m) : '') + '. '
+                + esc(normNote(r));
             if (r.k < 0) {
                 out += 'Факт ' + esc(val(r.f, u, r.dec)) + ' выше ' + esc(val(r.v0, u, r.dec))
                     + ' — множитель 0.';
@@ -249,7 +263,9 @@
         });
         var d = Math.min(2, r.dec + 1);
         // «на 15 смен» — в заголовке раскрытия, а не в шапке столбцов: иначе
-        // таблица не помещается в ширину телефона
+        // таблица не помещается в ширину телефона. Таблица — в числах
+        // редактора (на норму), последняя строка формулы переводит на смены
+        // человека, как на линейке.
         var per = r.perShift ? ', на ' + r.norm + ' смен' : '';
         var formula;
         if (Object.keys(targets).length <= 1 && Object.keys(mins).length <= 1) {
@@ -261,14 +277,19 @@
                 });
                 return '(' + terms.join(' + ') + ') ÷ ' + inShifts;
             };
-            formula = 'цель = ' + part('target') + ' = ' + nf(r.v1, 0, d)
-                + '<br>минимум = ' + part('min') + ' = ' + nf(r.v0, 0, d);
+            formula = 'цель = ' + part('target') + ' = ' + nf(r.v1n, 0, d)
+                + '<br>минимум = ' + part('min') + ' = ' + nf(r.v0n, 0, d);
+        }
+        if (r.perShift && r.n !== r.norm) {
+            formula += '<br>На ваши ' + esc(shiftsAcc(r.n)) + ': цель ' + nf(r.v1n, 0, d) + ' × '
+                + r.n + ' ÷ ' + r.norm + ' = ' + nf(r.v1, 0, d) + ', минимум ' + nf(r.v0n, 0, d)
+                + ' × ' + r.n + ' ÷ ' + r.norm + ' = ' + nf(r.v0, 0, d);
         }
         return '<details class="kb-more"><summary>Цели по точкам' + per + '</summary>'
             + '<div class="kb-tbl-wrap"><table class="kb-tbl"><thead><tr><th>Точка</th><th>Смены</th>'
             + '<th>Минимум</th><th>Цель</th></tr></thead><tbody>' + rows
-            + '<tr class="is-sum"><td>По вашим сменам</td><td>' + inShifts + '</td><td>'
-            + esc(val(r.v0, r.unit, r.dec)) + '</td><td>' + esc(val(r.v1, r.unit, r.dec))
+            + '<tr class="is-sum"><td>Среднее по сменам</td><td>' + inShifts + '</td><td>'
+            + esc(val(r.v0n, r.unit, r.dec)) + '</td><td>' + esc(val(r.v1n, r.unit, r.dec))
             + '</td></tr></tbody></table></div>'
             + '<div class="kb-formula">' + formula + '</div></details>';
     }
@@ -316,12 +337,12 @@
         } else if (r.span === 0) {
             body = '<div class="kb-fact">' + factLine(it, r) + '</div>'
                 + '<div class="kb-explain">Цель ' + esc(val(r.v1, r.unit, r.dec))
-                + (r.perShift ? ' на ' + r.norm + ' смен' : '') + ': не ниже цели — ×'
+                + (r.perShift ? ' на ' + esc(shiftsAcc(r.n)) : '') + ': не ниже цели — ×'
                 + nf(r.maxRatio, 0, 2) + ', ниже — ×0.</div>';
         } else {
             body = '<div class="kb-fact">' + factLine(it, r) + '</div>'
-                + (r.perShift ? '<div class="kb-unit">Шкала: ' + esc(r.unit) + ' на '
-                    + esc(shiftsAcc(r.norm)) + '</div>' : '')
+                + (r.perShift ? '<div class="kb-unit">Шкала: ' + esc(r.unit) + ' на ваши '
+                    + esc(shiftsAcc(r.n)) + '</div>' : '')
                 + rulerHtml(r)
                 + explainHtml(it, r, model, ratio)
                 + hintHtml(it, r, model);

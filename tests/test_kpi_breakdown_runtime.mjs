@@ -126,14 +126,36 @@ test('линейка доли: отметки 58,3 / 60,7 / 63 %, маркер �
     assert.match(html, /×2<\/span><span class="kb-lab-v">63 %/);
     assert.match(html, /class="kb-mark" style="left:40\.48%"/);
 });
-test('штучный KPI на норму 15 смен: 4 / 7 / 10 шт, факт 6 ÷ 12 × 15 = 7,5', () => {
-    assert.match(html, /×0<\/span><span class="kb-lab-v">4 шт/);
-    assert.match(html, /×1<\/span><span class="kb-lab-v">7 шт/);
-    assert.match(html, /×2<\/span><span class="kb-lab-v">10 шт/);
-    assert.match(plain, /Факт: 6 шт за 12 смен\. Цели заданы на 15 смен, поэтому факт пересчитан на 15: 6 ÷ 12 × 15 = 7,5 шт/);
+test('штучный KPI на смены человека: 12 смен → 3,2 / 5,6 / 8 шт, факт 6 шт как есть', () => {
+    assert.match(html, /×0<\/span><span class="kb-lab-v">3,2 шт/);
+    assert.match(html, /×1<\/span><span class="kb-lab-v">5,6 шт/);
+    assert.match(html, /×2<\/span><span class="kb-lab-v">8 шт/);
+    assert.match(plain, /Факт: 6 шт за 12 сменШкала: шт на ваши 12 смен/);
+    assert.doesNotMatch(plain, /пересчитан/, 'факт не пересчитывается на норму');
+    assert.match(plain, /Цели заданы на 15 смен \(×0 — 4 шт, ×1 — 7 шт, ×2 — 10 шт\), на ваши 12 смен они умножены на 12 ÷ 15\./);
     assert.match(html, /class="kb-mark" style="left:55\.5\d%"/);
 });
-test('масштаб не меняет множитель: на норму он тот же, что считал сервер', () => {
+test('10 смен, 7 шт при цели 7 на 15 смен: отметки 2,7 / 4,7 / 6,7 — ×2', () => {
+    const it = Object.assign(dishes(), {
+        fact: 0.7, fact_raw: 7, shifts_divisor: 10,
+        ratio: 2.1665, capped_ratio: 2, intermediate_premium: 15000,
+    });
+    const h = render(model({ items: [it] }));
+    const p = text(h);
+    assert.match(h, /×0<\/span><span class="kb-lab-v">2,7 шт/);
+    assert.match(h, /×1<\/span><span class="kb-lab-v">4,7 шт/);
+    assert.match(h, /×2<\/span><span class="kb-lab-v">6,7 шт/);
+    assert.match(p, /Факт: 7 шт за 10 смен/);
+    assert.match(p, /\(7 − 2,67\) ÷ \(4,67 − 2,67\) = 2,17, но множитель не больше 2\./);
+    assert.match(h, /class="kb-mult is-ok">×2,00</);
+});
+test('смен ровно норма — без строки о пересчёте целей', () => {
+    const it = Object.assign(dishes(), { fact: 0.4, fact_raw: 6, shifts_divisor: 15 });
+    const p = text(render(model({ items: [it] })));
+    assert.match(p, /Шкала: шт на ваши 15 смен/);
+    assert.doesNotMatch(p, /Цели заданы на|На ваши 15 смен:/);
+});
+test('масштаб не меняет множитель: на смены человека он тот же, что считал сервер', () => {
     const r = KB._rulerOf(dishes(), model());
     assert.ok(Math.abs(r.k - 1.1665) < 0.001, `k=${r.k}`);
     const s = KB._rulerOf(share(), model());
@@ -141,7 +163,7 @@ test('масштаб не меняет множитель: на норму он 
 });
 test('формулы с числами: множитель на карточке — из расчёта, 2 знака', () => {
     assert.match(plain, /\(60 − 58,33\) ÷ \(60,67 − 58,33\) = 0,71\./);
-    assert.match(plain, /\(7,5 − 4\) ÷ \(7 − 4\) = 1,17\./);
+    assert.match(plain, /\(6 − 3,2\) ÷ \(5,6 − 3,2\) = 1,17\./);
     assert.match(html, /class="kb-mult">×0,71</);
     assert.match(html, /class="kb-mult is-ok">×1,17</);
 });
@@ -172,6 +194,11 @@ test('цели по точкам: взвешивание с числами', () 
     assert.match(plain, /минимум = \(8 × 59 \+ 4 × 57\) ÷ 12 = 58,33/);
     assert.match(plain, /Цели одинаковые на всех ваших точках\./);
 });
+test('цели по точкам штучного KPI: числа редактора на 15 смен и перевод на смены человека', () => {
+    assert.match(plain, /Цели по точкам, на 15 смен/);
+    assert.match(plain, /Среднее по сменам124 шт7 шт/);
+    assert.match(plain, /На ваши 12 смен: цель 7 × 12 ÷ 15 = 5,6, минимум 4 × 12 ÷ 15 = 3,2/);
+});
 test('блюда: разбивка факта и предупреждение о непроданном', () => {
     assert.match(plain, /Из чего 6Блюдо/);
     const p = text(render(model({ dishesNotFound: ['щечки bbw блюдо'] })));
@@ -195,7 +222,7 @@ test('«меньше — лучше»: потолок и цель словами
     };
     const h = render(model({ items: [late] }));
     const p = text(h);
-    assert.match(p, /Больше 3 шт на 15 смен — премии нет\. 0 шт — полные 7 500 ₽\./);
+    assert.match(p, /Больше 2,4 шт на 12 смен — премии нет\. 0 шт — полные 7 500 ₽\. Цели заданы на 15 смен \(×0 — 3 шт, ×1 — 0 шт\), на ваши 12 смен они умножены на 12 ÷ 15\./);
     assert.match(h, /×2<\/span><span class="kb-lab-v">—/);
     assert.doesNotMatch(h, /Пока месяц идёт/, 'у «меньше — лучше» не набирают');
 });
