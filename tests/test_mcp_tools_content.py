@@ -288,6 +288,14 @@ def test_bad_args_rejected_by_schema():
         ('content_live_preview', {'bar': 'bolshoy', 'date': '2026-02-30'}),
         ('content_reviews_list', {'from': '2026-9-1'}),
         ('content_media_get', {'name': '../secret.jpg'}),
+        ('content_image_search', {'q': 'a'}),
+        ('content_image_search', {'q': 'пиво', 'orientation': 'round'}),
+        ('content_image_search', {'q': 'пиво', 'site': 'http://rodenbach.be'}),
+        ('content_image_search', {'q': 'пиво', 'page': 10}),
+        ('content_image_search', {'orientation': 'vertical'}),
+        ('content_image_search_collage', {'search_id': '../is_20261002_3f9a1c2b7d4e'}),
+        ('content_media_add_found', {'material_id': 'm_1', 'candidate': 'https://evil.example/x.jpg'}),
+        ('content_media_add_found', {'material_id': 'm_1'}),
     ]
     for name, args in cases:
         schema = tools[name].input_schema
@@ -366,6 +374,39 @@ def test_enums_and_limits_match_code():
     assert _prop('content_materials_bulk', 'material_ids')['maxItems'] == rcp.BULK_MAX
     assert _prop('content_review_add', 'bar')['enum'] == list(gr.BAR_KEYS)
     assert _prop('content_review_reply', 'text')['maxLength'] == gr.MAX_REPLY_LEN
+
+
+def test_image_search_constants_match_code():
+    """Поиск картинок (2026-10-02): перечисления, пределы и формы id — как в
+    core/content_image_search.py; схемы инструментов их действительно используют."""
+    import core.content_image_search as cis
+    assert content.IMAGE_ORIENTATIONS == cis.ORIENTATIONS
+    assert (content.IMAGE_QUERY_MIN, content.IMAGE_QUERY_MAX) == (cis.QUERY_MIN, cis.QUERY_MAX)
+    assert content.IMAGE_PAGE_MAX == cis.PAGE_MAX
+    assert content.IMAGE_CANDIDATES_MAX == cis.CANDIDATES_MAX
+    assert (content.IMAGE_MIN_LONG_SIDE, content.IMAGE_ATTACH_MIN_LONG_SIDE, content.IMAGE_MAX_SIDE) == \
+        (cis.MIN_LONG_SIDE, cis.ATTACH_MIN_LONG_SIDE, cis.MAX_SIDE)
+    assert (content.IMAGE_KEEP_DAYS, content.IMAGE_DAILY_LIMIT, content.IMAGE_CALLER_DAILY_LIMIT) == \
+        (cis.KEEP_DAYS, cis.DAILY_LIMIT, cis.PER_CALLER_DAILY_LIMIT)
+    assert content.SEARCH_ID_PATTERN[:-1] + '\\Z' == cis.SEARCH_ID_RE.pattern
+    assert content.CANDIDATE_PATTERN == '^is_\\d{8}_[0-9a-f]{12}-\\d{1,2}$'
+    for good in ('is_20261002_3f9a1c2b7d4e-1', 'is_20261002_3f9a1c2b7d4e-12'):
+        assert re.match(content.CANDIDATE_PATTERN, good) and cis.CANDIDATE_RE.match(good), good
+    for site in ('rodenbach.be', 'beer.example.co.uk', 'xn--b1agh1afp.xn--p1ai'):
+        assert re.match(content.SITE_PATTERN, site) and cis.SITE_RE.match(site), site
+    for site in ('localhost', 'http://a.be', 'a.be/x'):
+        assert not re.match(content.SITE_PATTERN, site) and not cis.SITE_RE.match(site), site
+    assert _prop('content_image_search', 'orientation')['enum'] == list(cis.ORIENTATIONS)
+    assert _prop('content_image_search', 'q')['maxLength'] == cis.QUERY_MAX
+    assert _prop('content_image_search', 'q')['minLength'] == cis.QUERY_MIN
+    assert _prop('content_image_search', 'page')['maximum'] == cis.PAGE_MAX
+    # числа из описаний (агент читает их как правила) совпадают с кодом
+    search_text = _tools()['content_image_search'].description
+    assert str(cis.CANDIDATES_MAX) in search_text and str(cis.MIN_LONG_SIDE) in search_text
+    assert str(cis.DAILY_LIMIT) in search_text and str(cis.KEEP_DAYS) + ' суток' in search_text
+    assert str(cis.PER_CALLER_DAILY_LIMIT) + ' на одно подключение' in search_text
+    attach_text = _tools()['content_media_add_found'].description
+    assert str(cis.MAX_SIDE) in attach_text and str(cis.ATTACH_MIN_LONG_SIDE) in attach_text
 
 
 def test_material_fields_match_store():
@@ -469,8 +510,20 @@ def test_annotations():
         assert tools[name].read_only and tools[name].method == 'POST', name
     for name in ('content_copy_month', 'content_material_repeat', 'content_material_shift',
                  'content_bulk_pause', 'content_review_reply', 'content_material_create',
-                 'content_placements_add', 'content_media_upload', 'content_brief_update'):
+                 'content_placements_add', 'content_media_upload', 'content_brief_update',
+                 'content_media_add_found'):
         assert not tools[name].read_only, name
+    # картинки из интернета (2026-10-02): поиск — запись-черновик (файл поиска и платный предел;
+    # POST, в коннекторе «Только чтение» его нет), коллаж только читает уже найденное, прикрепление
+    # — черновик (файл в материале агента, наружу ничего не уходит)
+    from core.mcp.spec import allowed_in_mode
+    search = tools['content_image_search']
+    assert search.method == 'POST' and not search.read_only and search.draft_write and not search.open_world
+    assert not allowed_in_mode(search, 'read') and allowed_in_mode(search, 'draft')
+    collage = tools['content_image_search_collage']
+    assert collage.method == 'GET' and collage.read_only and not collage.open_world
+    assert tools['content_media_add_found'].draft_write and not tools['content_media_add_found'].open_world
+    assert not tools['content_media_upload'].draft_write   # загрузка файла владельца — только полный режим
 
 
 # --------------------------------------------------------------------------- тесты: тексты
@@ -641,9 +694,18 @@ class _BridgeRig:
                       (rcp, '_guest_transport', rcp._guest_transport), (rcp, '_bot_token', rcp._bot_token),
                       (rcp, '_guest_bot_token', rcp._guest_bot_token), (rcp, '_audience', rcp._audience),
                       (rcp, '_subscribers_total', rcp._subscribers_total),
+                      (rcp, '_image_finder', rcp._image_finder),
                       (rrev, 'get_review_store', rrev.get_review_store),
                       (rrev, '_content_plan_store', rrev._content_plan_store),
                       (bridge, 'owner_record', bridge.owner_record)]
+        # Поиск картинок: поддельный Яндекс и сайты (tests/image_search_fakes.py), поиски — во
+        # временной папке. В настоящий Яндекс тесты не ходят: каждый запрос платный.
+        from image_search_fakes import doc, jpeg_bytes, make_finder
+        self.image_finder, _session, self.image_web, _tmp = make_finder(
+            [doc(1), doc(2), doc(3, width=600, height=400)],
+            {'https://site1.example/img/1.jpg': jpeg_bytes(1800, 1200),
+             'https://site2.example/img/2.jpg': jpeg_bytes(1500, 1000)}, tmp=self.tmp)
+        rcp._image_finder = lambda: self.image_finder
         rcp._store = lambda: plan
         rcp._brief_store = lambda: brief
         rcp._channels = lambda: channels
@@ -773,6 +835,52 @@ def test_bridge_agent_workflow():
         assert again.is_error and again.http_status == 409
         attention = rig.ok('content_attention', {'bar': 'bolshoy'})
         assert attention['reviews_unanswered'] == 1 and attention['content_available'] is True
+
+
+def test_bridge_image_search_workflow():
+    """Картинки к посту через мост (2026-10-02): поиск -> коллаж изображением -> прикрепление
+    варианта к своему черновику в режиме «чтение и черновики»; к материалу владельца в этом
+    режиме — 409 до скачивания; адрес вместо варианта не пропускает схема."""
+    if not _bridge_available():
+        return
+    import json
+    with _BridgeRig() as rig:
+        found = rig.ok('content_image_search', {'q': 'Rodenbach foeders Roeselare', 'orientation': 'horizontal'})
+        assert [c['n'] for c in found['candidates']] == [1, 2]     # третья мелкая — отброшена
+        assert found['dropped']['small'] == 1
+        collage = rig.call('content_image_search_collage', {'search_id': found['search_id']})
+        assert not collage.is_error, collage.text_value[:300]
+        assert [block['type'] for block in collage.content] == ['text', 'image']
+        assert collage.content[1]['mimeType'] == 'image/jpeg'
+
+        def draft(name, args):
+            return rig.bridge.execute(_tools()[name], args, rig.principal, connector='content', mode='draft')
+
+        again = draft('content_image_search', {'q': 'Rodenbach Grand Cru', 'page': 1})   # расписание тоже ищет
+        assert not again.is_error, again.text_value[:300]
+        assert json.loads(again.text_value)['searches_today'] == 2
+        created = draft('content_material_create', {'title': 'История фудров', 'month': '2026-10',
+                                                    'base_text': 'Текст.', 'media_required': True,
+                                                    'agent_rationale': 'Рубрика «История».'})
+        own = json.loads(created.text_value)['material']
+        attached = draft('content_media_add_found', {'material_id': own['id'],
+                                                     'candidate': found['candidates'][0]['candidate']})
+        assert not attached.is_error, attached.text_value[:300]
+        body = json.loads(attached.text_value)
+        media = body['material']['media']
+        assert len(media) == 1 and media[0]['source']['domain'] == 'site1.example'
+        assert media[0]['uploaded_by'] == 'owner · агент'
+        assert (body['file']['width'], body['file']['height']) == (1800, 1200)
+
+        human = rig.plan.create_material({'title': 'Пост владельца', 'month': '2026-10'}, OWNER)
+        calls = len(rig.image_web.calls)
+        refused = draft('content_media_add_found', {'material_id': human['id'],
+                                                    'candidate': found['candidates'][1]['candidate']})
+        assert refused.is_error and refused.http_status == 409, refused.text_value[:300]
+        assert len(rig.image_web.calls) == calls                   # сайт не трогали
+        wrong = draft('content_media_add_found', {'material_id': own['id'],
+                                                  'candidate': 'https://evil.example/x.jpg'})
+        assert wrong.is_error and 'candidate' in wrong.text_value  # отказ схемы, до маршрута
 
 
 def test_bridge_publish_workflow():

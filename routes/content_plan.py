@@ -49,6 +49,22 @@ core/content_media.py; отправка в площадки — core/content_pub
     POST   /api/content-plan/materials/<id>/media         multipart 'file' -> {material, unapproved}
     DELETE /api/content-plan/materials/<id>/media/<name>  -> {material, unapproved}
     GET    /api/content-plan/media/<name>                 файл; 404 на неверное/неизвестное имя
+    POST   /api/content-plan/image-search                 {q, orientation?, site?, page?} -> {search_id,
+                                                          candidates [{candidate, n, width, height,
+                                                          format, domain, title, page_url,
+                                                          image_url}], dropped, collage,
+                                                          searches_today, daily_limit} — поиск картинок
+                                                          в интернете (Yandex Search API,
+                                                          core/content_image_search.py); только
+                                                          администратор; 429 — суточный предел (сеть
+                                                          и подключение); 502 — Яндекс не ответил;
+                                                          503 — ключ не настроен
+    GET    /api/content-plan/image-search/<id>/collage    JPEG: варианты поиска одной картинкой с
+                                                          номерами; 404 — поиска нет (хранится 3 сут.)
+    POST   /api/content-plan/materials/<id>/media/found   {candidate} -> {material, unapproved, file}:
+                                                          сервер скачивает вариант из своего файла
+                                                          поиска, готовит JPEG и привязывает с
+                                                          media[].source; 400 image_download_failed
     GET    /api/content-plan/approve-preview              ?month=&bar=&channel=&origin= -> {month,
                                                           will_approve, bot, stays_draft}; origin
                                                           (agent|human) — фильтр «Только от ИИ»
@@ -112,11 +128,14 @@ core/content_media.py; отправка в площадки — core/content_pub
 тело загрузки больше предела видео; 503 {error, code: 'content_plan_unavailable'}
 — файл плана есть, но не читается (он НЕ перезаписывается); 503 {error, code:
 'content_brief_unavailable'} — то же для файла брифа; 503 {error, code:
-'content_channels_unavailable'} — то же для настроек каналов.
+'content_channels_unavailable'} — то же для настроек каналов. Поиск картинок: 503
+image_search_not_configured, 502 image_search_failed, 429 image_search_daily_limit,
+400 image_download_failed.
 
 Только администратор (403 {error, code: 'admin_required'}): PUT /channels, POST
 /channels/check, /channels/test, /publish-now, /approve, действия retry, retry_failed,
-resume и bulk-pause с action resume — всё, что может выпустить публикацию наружу.
+resume и bulk-pause с action resume — всё, что может выпустить публикацию наружу; POST
+/image-search — запрос в Яндекс платный.
 
 Отправка в тестах: _transport, _guest_transport, _bot_token, _guest_bot_token, _channels,
 _audience и _subscribers_total — точки подмены (как _store); в настоящий Telegram
@@ -129,18 +148,21 @@ TELEGRAM_BOT_TOKEN) — посты, проверка, тест, напомина
 новых материалов ('agent') и подписывает журнал «<login> · агент» — маршрутам
 ничего передавать не нужно (core/content_plan.py, раздел «ИИ-агент»).
 """
+import io
 from functools import wraps
 
 from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
 
-from core import content_channels, content_media, content_publisher
+from core import content_channels, content_image_search, content_media, content_publisher
 from core.auth_guard import current_user
 from core.content_brief import ContentBriefUnavailable, get_content_brief_store
 from core.content_channels import ContentChannelsUnavailable, get_channels_store
+from core.content_image_search import (ImageDownloadFailed, ImageSearchFailed, ImageSearchLimit,
+                                       ImageSearchNotConfigured, ImageSearchNotFound)
 from core.content_plan import (AUDIENCE_BY_KEY, BAR_ALL, CHANNELS, CROSS_MONTH_STATES, MATERIAL_MEDIA_MAX,
                                ContentPlanConflict, ContentPlanNotFound, ContentPlanUnavailable, add_months,
-                               get_content_plan_store, parse_bar, parse_bool, parse_date, parse_days,
-                               parse_month, placement_content, render_live)
+                               get_content_plan_store, guard_draft_mode, parse_bar, parse_bool, parse_date,
+                               parse_days, parse_month, placement_content, render_live)
 
 content_plan_bp = Blueprint('content_plan', __name__)
 
@@ -199,10 +221,18 @@ def _guard(view):
             return _error(str(e), 503, code='content_brief_unavailable')
         except ContentChannelsUnavailable as e:
             return _error(str(e), 503, code='content_channels_unavailable')
-        except ContentPlanNotFound as e:
+        except ImageSearchNotConfigured as e:
+            return _error(str(e), 503, code='image_search_not_configured')
+        except ImageSearchFailed as e:
+            return _error(str(e), 502, code='image_search_failed')
+        except ImageSearchLimit as e:
+            return _error(str(e), 429, code='image_search_daily_limit')
+        except (ContentPlanNotFound, ImageSearchNotFound) as e:
             return _error(str(e), 404)
         except ContentPlanConflict as e:
             return _error(str(e), 409, **e.extra)
+        except ImageDownloadFailed as e:
+            return _error(str(e), 400, code='image_download_failed')
         except ValueError as e:
             return _error(str(e), 400)
     return wrapper
@@ -216,6 +246,12 @@ def _store():
 def _brief_store():
     """Хранилище брифа для агента (тесты подменяют так же, как _store)."""
     return get_content_brief_store()
+
+
+def _image_finder():
+    """Поиск картинок (core/content_image_search.py): ключ Яндекса из окружения, поиски
+    на постоянном диске. Тесты подменяют поддельным Яндексом и сайтами."""
+    return content_image_search.get_finder()
 
 
 # ---- отправка: точки подмены для тестов (в настоящий Telegram тесты не ходят) ----
@@ -763,3 +799,66 @@ def serve_media(name):
     resp.headers['X-Content-Type-Options'] = 'nosniff'
     resp.headers['Cache-Control'] = 'private, max-age=86400'
     return resp
+
+
+# ------------------------------------------------------- картинки из интернета
+
+@content_plan_bp.route('/api/content-plan/image-search', methods=['POST'])
+@_guard
+def image_search():
+    """Найти картинки к посту (core/content_image_search.py): {q, orientation?, site?, page?}
+    -> до 12 вариантов и id поиска. POST, а не GET: поиск пишет файл поиска и тратит платный
+    суточный предел — это запись (в MCP — черновик, в коннекторе «Только чтение» его нет).
+    Только администратор: запрос в Яндекс платный (MCP работает от имени владельца). Предел
+    считается и на подключение: токен MCP (mcp_token_id) или вход человека.
+    Ответы: 400 — неверный запрос; 429 — суточный предел поисков; 502 — Яндекс не
+    ответил; 503 — ключ Яндекса не настроен."""
+    _require_admin('искать картинки (запрос в Яндекс платный)')
+    body = _json_body()
+    user = current_user() or {}
+    caller = str(user.get('mcp_token_id') or '') or ('login:' + str(user.get('login') or ''))
+    return jsonify(_image_finder().search(body.get('q'), orientation=body.get('orientation'),
+                                          site=body.get('site'), page=body.get('page'), caller=caller))
+
+
+@content_plan_bp.route('/api/content-plan/image-search/<search_id>/collage', methods=['GET'])
+@_guard
+def image_search_collage(search_id):
+    """Коллаж вариантов поиска одной картинкой JPEG: номер, размер оригинала, домен.
+    404 — поиска нет или он устарел (хранится 3 суток)."""
+    data = _image_finder().collage(search_id)
+    resp = send_file(io.BytesIO(data), mimetype='image/jpeg', download_name=search_id + '.jpg')
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Cache-Control'] = 'private, max-age=3600'
+    return resp
+
+
+@content_plan_bp.route('/api/content-plan/materials/<material_id>/media/found', methods=['POST'])
+@_guard
+def add_found_media(material_id):
+    """Прикрепить к материалу вариант из поиска: {candidate} -> {material, unapproved, file}.
+    Порядок: материал есть (404), режим черновиков пускает (409), предел файлов (400) ->
+    сервер сам скачивает картинку по адресу ИЗ СВОЕГО файла поиска (адрес из запроса не
+    принимается) и готовит JPEG (400 image_download_failed — сайт не отдал, мелкая,
+    не картинка) -> запись на диск -> привязка с media[].source. Не привязалось — файл
+    удаляется, сирот не остаётся."""
+    candidate = _json_body().get('candidate')
+    store = _store()
+    user = current_user()
+    material = store.get_material_raw(material_id)
+    guard_draft_mode(user, material)
+    if len(material.get('media') or []) >= MATERIAL_MEDIA_MAX:
+        return _error(f'У материала уже {MATERIAL_MEDIA_MAX} файлов — удалите лишние')
+    data, source = _image_finder().download(candidate)
+    ok, name_or_err = store.media.save(data, store.today())
+    if not ok:
+        return _error(name_or_err)
+    try:
+        material_view, unapproved = store.add_media(material_id, name_or_err, len(data), source.get('domain'),
+                                                    user, _view_month(), source=source)
+    except Exception:
+        store.media.delete(name_or_err)
+        raise
+    return jsonify({'material': material_view, 'unapproved': unapproved,
+                    'file': {'name': name_or_err, 'size': len(data), 'width': source.get('width'),
+                             'height': source.get('height'), 'source': source}})

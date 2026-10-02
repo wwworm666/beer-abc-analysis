@@ -43,14 +43,14 @@ Claude на компьютере и телефоне, задачи Claude по �
 
 | Коннектор | Раздел | Полный доступ | `…/draft` | `…/read` | Своих | Сценариев | Агент-роль в Claude Code |
 |---|---|---|---|---|---|---|---|
-| `/mcp/content` | Контент и отзывы | 60 | 38 | 32 | 43 | 3 (в `…/read` — 2) | `kultura-content` |
-| `/mcp/stocks` | Остатки, заказы, краны и меню | 63 | 40 | 40 | 55 | 3 | `kultura-analyst` |
-| `/mcp/analytics` | Продажи, планы и гости | 64 | 57 | 57 | 50 | 3 | `kultura-analyst` |
+| `/mcp/content` | Контент и отзывы | 63 | 41 | 33 | 46 | 3 (в `…/read` — 2) | `kultura-content` |
+| `/mcp/stocks` | Остатки, заказы, краны и меню | 64 | 40 | 40 | 56 | 3 | `kultura-analyst` |
+| `/mcp/analytics` | Продажи, планы и гости | 71 | 62 | 62 | 57 | 3 | `kultura-analyst` |
 | `/mcp/staff` | Сотрудники, график и зарплаты | 71 | 45 | 45 | 58 | 3 | `kultura-payroll` |
-| `/mcp` | Все разделы | 214 | 139 | 133 | — | 12 (в `…/read` — 11) | общий агент (без отдельного файла) |
+| `/mcp` | Все разделы | 225 | 147 | 139 | — | 12 (в `…/read` — 11) | общий агент (без отдельного файла) |
 
 Числа — сколько инструментов видит агент в каждом режиме: в «чтении» — все инструменты чтения и
-сообщение владельцу; в «черновиках» — ещё 6 инструментов записи черновиков, и все они в разделе
+сообщение владельцу; в «черновиках» — ещё 8 инструментов записи черновиков, и все они в разделе
 «Контент и отзывы». В остальных разделах `/draft` даёт то же, что `/read`. Сценарий «план месяца»
 в коннекторе `…/read` не показывается (ему нужен режим черновиков).
 
@@ -65,7 +65,7 @@ Claude на компьютере и телефоне, задачи Claude по �
 - staff — 5 из analytics: месячные и дневные планы и веса дней (от них считаются премии за дневной
   план).
 
-Числа — на 2026-09-29 (реестр: `registry.tools_for(раздел)` и `spec.allowed_in_mode`). Текущие
+Числа — на 2026-10-02 (реестр: `registry.tools_for(раздел)` и `spec.allowed_in_mode`). Текущие
 показывают `py -3 -m core.mcp.coverage` и страница `/admin/mcp` (таблица «Коннекторы» — полный
 режим).
 
@@ -73,8 +73,8 @@ Claude на компьютере и телефоне, задачи Claude по �
 
 | Раздел | Файлы маршрутов (число инструментов) | Всего |
 |---|---|---|
-| content | `routes/content_plan.py` (33: с 2026-09-28 — каналы и отправка, zip для Instagram, аудитория бота, правки владельца), `routes/reviews.py` (10, включая полосу `/api/guest-hub/attention` и ответ гостю `send-reply`) | 43 |
-| stocks | `routes/stocks.py` (9), `routes/orders.py` (10), `routes/suppliers.py` (4), `routes/expiration.py` (1), `routes/taps.py` (17, включая `/feeds/taplist.yml` и `/feeds/kitchen.yml`), `routes/yml_feeds.py` (6, включая `/feeds/kitchen/<bar_id>`), `routes/menu_editor.py` (8, `/menu/api/*`) | 55 |
+| content | `routes/content_plan.py` (36: с 2026-09-28 — каналы и отправка, zip для Instagram, аудитория бота, правки владельца; с 2026-10-02 — поиск картинок к постам, коллаж вариантов и прикрепление найденного), `routes/reviews.py` (10, включая полосу `/api/guest-hub/attention` и ответ гостю `send-reply`) | 46 |
+| stocks | `routes/stocks.py` (9), `routes/orders.py` (10), `routes/suppliers.py` (4), `routes/expiration.py` (1), `routes/taps.py` (17, включая `/feeds/taplist.yml` и `/feeds/kitchen.yml`), `routes/yml_feeds.py` (7, включая `/feeds/kitchen/<bar_id>`), `routes/menu_editor.py` (8, `/menu/api/*`) | 56 |
 | analytics | `routes/dashboard.py` (26), `routes/analysis.py` (5), `routes/explorer.py` (8: с 2026-09-29 — конструктор OLAP-отчётов iiko: каталог полей, значения, отчёт, Excel, отчёты iikoOffice, сохранённые отчёты — [explorer.md](explorer.md)), `routes/guests.py` (18) | 57 |
 | staff | `routes/employee.py` (10), `routes/salary.py` (4), `routes/schedule.py` (32, включая `/schedule/cal.ics`), `routes/me.py` (3), `routes/cleanliness.py` (4), `routes/temperature.py` (2), `routes/open_check.py` (1), `routes/auth.py` (2: список аккаунтов, имя и сокращение) | 58 |
 | common | `routes/misc.py` (1: `/api/connection-status`) + 7 служебных инструментов без маршрута | 8 |
@@ -660,15 +660,15 @@ CORS (`Access-Control-Allow-Origin: *`) — только на метаданны
 черновика. Описание с ошибкой реестр не публикует (видно на `/admin/mcp` и в `load_errors()`, тест
 покрытия падает); остальные инструменты работают.
 
-| Пометка в описании | В MCP (`annotations`) | Когда ставится | На 2026-09-29 |
+| Пометка в описании | В MCP (`annotations`) | Когда ставится | На 2026-10-02 |
 |---|---|---|---|
-| `read_only` | `readOnlyHint` | только читает (все GET и POST-расчёты, которые ничего не пишут); доступен во всех режимах | 132 из 214 |
-| `draft_write` | — (только для сервера) | запись черновика внутри сервиса, которая ждёт утверждения владельца; доступна в режиме «Чтение и черновики» | 6 |
+| `read_only` | `readOnlyHint` | только читает (все GET и POST-расчёты, которые ничего не пишут); доступен во всех режимах | 138 из 225 |
+| `draft_write` | — (только для сервера) | запись черновика внутри сервиса, которая ждёт утверждения владельца; доступна в режиме «Чтение и черновики» | 8 |
 | `owner_notice` | — (только для сервера) | сообщение только владельцу, в его чат из настроек; доступно в любом режиме; только у служебного инструмента без маршрута | 1 (`common_notify_owner`) |
-| `destructive` | `destructiveHint` | удаление, отправка, выгрузка, необратимое, утверждение публикаций, включение отправки, правка публичного фида | 36 |
-| `idempotent` | `idempotentHint` | повтор с теми же аргументами ничего не меняет | 187: все чтения и 55 изменений (правки, удаления) |
+| `destructive` | `destructiveHint` | удаление, отправка, выгрузка, необратимое, утверждение публикаций, включение отправки, правка публичного фида | 37 |
+| `idempotent` | `idempotentHint` | повтор с теми же аргументами ничего не меняет | 195: все 138 чтений и 57 изменений (правки, удаления) |
 | `open_world` | `openWorldHint` | выходит за пределы сервиса, меняет то, что видят снаружи, или разрешает выход: синхронизации с iiko, Telegram (в том числе посты каналов баров, рассылки и ответ гостю), Google Таблицы, Честный знак, публичные фиды Яндекса, таплист | 27 |
-| `heavy` | — (только для сервера) | живой запрос в iiko, ЧЗ, Chromium или долгий расчёт | 59 |
+| `heavy` | — (только для сервера) | живой запрос в iiko, ЧЗ, Chromium или долгий расчёт | 63 |
 | `no_cache` | — (только для сервера) | ответ должен быть живым, даже если инструмент тяжёлый и читает: мост его не кэширует (с 2026-09-28) | 1 (`common_connection_status`) |
 
 Опасные (`destructive`): `common_notify_owner`; контент — `content_material_delete`,
@@ -679,7 +679,7 @@ CORS (`Access-Control-Allow-Origin: *`) — только на метаданны
 `stocks_order_close`, `stocks_order_cancel`, `stocks_supplier_delete`, `stocks_tap_start`,
 `stocks_tap_stop`, `stocks_tap_replace`, `stocks_yml_feed_save` (правка публичного прайса на
 Яндекс Картах), `stocks_menu_item_delete`; аналитика — `analytics_plan_delete`,
-`analytics_daily_plan_reset_weight`; сотрудники — `staff_kpi_targets_save`,
+`analytics_daily_plan_reset_weight`, `analytics_explorer_saved_delete`; сотрудники — `staff_kpi_targets_save`,
 `staff_salary_handover_penalty`, `staff_salary_export_gsheet`, `staff_salary_sync_gsheet`,
 `staff_schedule_employees_sync`, `staff_schedule_cash_register_set`, `staff_schedule_shift_delete`,
 `staff_schedule_dayoff_delete`, `staff_schedule_wish_save`, `staff_meeting_note_save`,
@@ -904,8 +904,8 @@ blueprint'ами сервиса (`routes.register_blueprints` + mcp + mcp_oauth)
 один инструмент не ведёт на `/api/admin/mcp`, `/mcp` или `/oauth`; в `PUBLIC_ENDPOINTS` есть 7
 MCP-эндпоинтов, а `mcp_oauth.authorize` — нет.
 
-На 2026-09-29 (`py -3 -m core.mcp.coverage`): 216 пар — 199 инструментами и 17 исключениями;
-инструментов всего 214 (7 служебных без маршрута и 8 инструментов редактора меню на
+На 2026-10-02 (`py -3 -m core.mcp.coverage`): 227 пар — 210 инструментами и 17 исключениями;
+инструментов всего 225 (7 служебных без маршрута и 8 инструментов редактора меню на
 `/menu/api/*`, которые описаны добровольно: этот префикс в обязательный охват не входит). Из
 27 записей `EXCLUDED` в охват попадают 17, остальные 10 — маршруты `/telegram/*` (см.
 «Исключения»).
@@ -1286,6 +1286,23 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-02 (картинки к постам)** — Что: три инструмента контента — `content_image_search`
+  (поиск картинок в интернете через Yandex Search API; `POST` и `draft_write`, не чтение: каждый
+  вызов пишет файл поиска и тратит платный суточный предел — 150 на сеть, 60 на подключение, —
+  поэтому в коннекторе «Только чтение» его нет), `content_image_search_collage` (варианты одной
+  картинкой — агент смотрит глазами; чтение), `content_media_add_found` (`draft_write`: сервер сам
+  скачивает вариант из своего файла поиска — только с проверенного публичного IP — и кладёт в
+  черновик агента; произвольный адрес не принимается). Режим «Чтение и черновики» теперь пишет
+  восемью инструментами (`tests/test_mcp_modes.py`). `open_world` у них нет: по правилу раздела это
+  выход наружу (публикация, синхронизация), а эти инструменты только читают интернет и ничего не
+  публикуют — см. докстроку `core/mcp/tools/content.py`. Почему: решение владельца — агент сам
+  находит картинки к историям и сразу добавляет в план (core/content_image_search.py,
+  docs/content-plan.md, раздел «Картинки к постам»). Заодно сверены числа с реестром: 225
+  инструментов (content 46, stocks 56, analytics 57, staff 58, common 8), охват 227 пар — 210
+  инструментами и 17 исключениями; по режимам `/mcp` 225 / 147 / 139, `/mcp/content` 63 / 41 / 33,
+  `/mcp/stocks` 64 / 40 / 40, `/mcp/analytics` 71 / 62 / 62; пометки: `read_only` 138,
+  `draft_write` 8, `destructive` 37 (в список добавлен `analytics_explorer_saved_delete`),
+  `idempotent` 195, `open_world` 27, `heavy` 63. Файлы: docs/mcp.md.
 - **2026-09-29 (сверка документации)** — Что: числа сверены с кодом (`py -3 -m core.mcp.coverage`
   и реестр): 214 инструментов (content 43, stocks 55, analytics 50, staff 58, common 8), охват
   216 пар — 199 инструментами и 17 исключениями, 27 записей `EXCLUDED`; по режимам полный /

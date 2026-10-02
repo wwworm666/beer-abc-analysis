@@ -30,7 +30,8 @@ beer-abc-analysis/
 ├── utils/                  # Утилиты маппинга
 ├── scripts/                # Вспомогательные скрипты (debug, check, maintenance)
 ├── tests/                  # Тесты (pytest + node *.mjs; раздел «Гости»: test_content_plan.py,
-│                           #   test_content_brief.py, test_guest_reviews.py, test_content_plan_render.mjs,
+│                           #   test_content_brief.py, test_content_image_search.py (+ image_search_fakes.py),
+│                           #   test_guest_reviews.py, test_content_plan_render.mjs,
 │                           #   test_reviews_render.mjs, test_guest_hub_render.mjs; MCP: test_mcp_protocol.py,
 │                           #   test_mcp_bridge.py, test_mcp_tokens.py, test_mcp_oauth.py, test_mcp_coverage.py,
 │                           #   test_mcp_docs_allowlist.py, test_mcp_modes.py,
@@ -124,6 +125,7 @@ beer-abc-analysis/
 | `guest_subscribers.py` | **Подписчики гостевого бота** (с 2026-09-28): согласие с версией текста, бары, телефон (канон — только российские формы), сегменты рассылки, шаги диалога бота (`guest_subscribers.db`) — [guides/TELEGRAM_BOT_GUIDE.md](guides/TELEGRAM_BOT_GUIDE.md) |
 | `content_brief.py` | **Бриф сети для ИИ-агента** контент-плана: разделы, бары, примеры, пределы, слияние правок, затравка (`content_brief.json`) — [content-plan.md](content-plan.md), раздел «ИИ-агент» |
 | `content_media.py` | Фото и видео контент-плана на диске: имя `cp_<дата>_<12 hex>`, проверка сигнатуры, атомарная запись (`content_media/`) |
+| `content_image_search.py` | **Картинки к постам** (с 2026-10-02): поиск через Yandex Search API, отбор, поиски на диске (`content_image_search/`, 3 суток), коллаж вариантов для агента, безопасное скачивание, JPEG для Telegram — [content-plan.md](content-plan.md), раздел «Картинки к постам» |
 | `guest_reviews.py` | **Отзывы гостей**: хранилище, проверка полей, статусы, метрики и формулы, слой календаря (`guest_reviews.json`) — [reviews.md](reviews.md) |
 | `yandex_business.py` | Клиент кабинета Яндекс Бизнеса (только чтение): организации, филиалы сетей, отзывы, разбор — [yandex-reviews.md](yandex-reviews.md) |
 | `yandex_reviews_sync.py` | Сверка отзывов Яндекса с «Отзывами» (бары по `permanent_id`, состояние `yandex_reviews_sync.json`) — [yandex-reviews.md](yandex-reviews.md) |
