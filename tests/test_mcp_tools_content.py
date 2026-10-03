@@ -719,7 +719,8 @@ class _BridgeRig:
         rrev.get_review_store = lambda *a, **k: reviews
         rrev._content_plan_store = lambda: plan
         bridge.owner_record = lambda principal: dict(OWNER, via_mcp=True, mcp_client=principal.client_name,
-                                                     mcp_token_id=principal.token_id)
+                                                     mcp_token_id=principal.token_id,
+                                                     mcp_connection_id=principal.connection_id())
         app = Flask(__name__)
         app.register_blueprint(rcp.content_plan_bp)
         app.register_blueprint(rrev.reviews_bp)

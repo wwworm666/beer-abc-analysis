@@ -152,7 +152,10 @@ cd /opt/beer && docker compose up -d --force-recreate caddy
 Для `.env`: `cd /opt/beer && docker compose up -d --no-build --no-deps --force-recreate app` —
 контейнер читает `.env` только при создании; `--no-build` берёт уже выложенный образ
 `beer-abc-analysis:latest` и ничего не собирает из текущего дерева. Не запускать, пока
-идёт «Deploy production» (скрипт держит `/run/lock/beer-deploy.lock`). Для ручного
+идёт «Deploy production» (скрипт держит `/run/lock/beer-deploy.lock`; безопасно —
+`flock -n /run/lock/beer-deploy.lock docker compose up -d --no-build --no-deps --force-recreate app`).
+Если последний выпуск упал, сначала разобраться с ним (разделы ниже): в `/opt/beer` уже новый
+`docker-compose.yml`, а работает прежний образ. Для ручного
 обновления кода без установленного скрипта обязательно `docker compose up -d --build app`.
 В `.dockerignore` исключены `.env`, `.env.*` (включая резервные копии) и `secrets/`.
 
@@ -225,6 +228,8 @@ ssh root@139.100.200.92 "mkdir -p /root/env-backups && chmod 700 /root/env-backu
 
 ## Changelog
 
+- 2026-10-03: пересоздание `app` после правки `.env` — `--no-build --no-deps --force-recreate`, не
+  во время выкладки (раньше было `docker compose up -d app`).
 - 2026-09-29: раздел «Сбой: лишний файл в /opt/beer» — копия `.env` остановила выпуск;
   `.gitignore` теперь пропускает `.env.bak*` и `.env.*.bak`.
 - 2026-09-27: раздел «Сбой: git не может создать файл (Permission denied)» — признак,

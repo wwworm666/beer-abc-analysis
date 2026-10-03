@@ -121,7 +121,7 @@ POST /mcp[/<раздел>][/read|/draft]              routes/mcp.py  (откры
 |---|---|
 | [core/mcp/__init__.py](../core/mcp/__init__.py) | обзор пакета и карта файлов |
 | [core/mcp/db.py](../core/mcp/db.py) | SQLite `mcp.db` на постоянном диске: `read()`, `write()` (`BEGIN IMMEDIATE`), `ensure_schema()`, `set_db_path()` для тестов |
-| [core/mcp/principal.py](../core/mcp/principal.py) | `Principal` — кто вызывает: владелец, токен, клиент, разделы и режим токена; `allows(domain)` |
+| [core/mcp/principal.py](../core/mcp/principal.py) | `Principal` — кто вызывает: владелец, токен, клиент, разделы и режим токена, грант OAuth (`grant_id`); `allows(domain)`, `connection_id()` — подключение (грант OAuth или статический токен) для учёта «на подключение» |
 | [core/mcp/spec.py](../core/mcp/spec.py) | `ToolSpec` (с пометками `draft_write`, `owner_notice`, `no_cache`), `PromptSpec` (с `mode_required`), `DOMAINS`, режимы `MODES`, `allowed_in_mode`, `prompt_allowed_in_mode`, `stricter_mode`, `validate_tool_spec`, `validate_prompt_spec` |
 | [core/mcp/registry.py](../core/mcp/registry.py) | сбор инструментов из модулей доменов, видимость по коннекторам, инструкции агентам, исключения |
 | [core/mcp/protocol.py](../core/mcp/protocol.py) | JSON-RPC и методы MCP, две эпохи протокола, режим подключения, проверки HTTP, общие для процессов лимиты (частота `RateLimiter`, места `CallLeases`, пропуск `admission`), запись журнала |
@@ -1286,6 +1286,12 @@ py -3 scripts/mcp_eval.py          # сухой план эталонного п
 
 ## Changelog
 
+- **2026-10-03 (подключение = грант)** — `Principal.grant_id` и `connection_id()`; мост кладёт
+  `mcp_connection_id` в запись владельца. Предел поиска картинок «60 на подключение» считается
+  по нему: id OAuth-токена меняется при каждом обновлении (раз в час), и предел по токену был
+  60 в час. Журнал «свои вызовы» (`common_audit_recent`) и частота 120 в минуту по-прежнему по
+  `token_id`: для частоты (окно — минута) это не важно, журнал для OAuth показывает вызовы
+  текущего токена (до часа). Урок — docs/lessons.md.
 - **2026-10-02 (картинки к постам)** — Что: три инструмента контента — `content_image_search`
   (поиск картинок в интернете через Yandex Search API; `POST` и `draft_write`, не чтение: каждый
   вызов пишет файл поиска и тратит платный суточный предел — 150 на сеть, 60 на подключение, —

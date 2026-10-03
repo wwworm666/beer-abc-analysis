@@ -19,8 +19,9 @@
   (описание), `core/mcp/principal.py`, `core/mcp/oauth.py`, `core/mcp/bridge.py`,
   `core/bar_photo_store.py` (комментарий); тесты `tests/test_content_image_search.py`,
   `tests/test_mcp_oauth.py`, `tests/test_mcp_bridge.py`, `tests/test_bar_acceptance.py`
+  (комментарий), `tests/test_mcp_tools_content.py` (заглушка моста), `static/js/me/acceptance.js`
   (комментарий); доки `docs/content-plan.md`, `docs/mcp.md`, `docs/guides/deploy.md`,
-  `docs/cleanliness.md`, `docs/lessons.md`, `docs/CHANGELOG.md`.
+  `docs/cleanliness.md`, `docs/lessons.md`, `docs/CHANGELOG.md`, `.claude/INDEX.md`.
 
 ### 2026-10-03 — Поиск картинок: инструкция по включению на сервере
 
