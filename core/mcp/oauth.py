@@ -1687,8 +1687,9 @@ def verify_access_token(raw, resource_url) -> Optional[Principal]:
     (<base>/mcp или <base>/mcp/<домен>, любой регистр хоста и «/» в конце допустимы).
     None — не наш формат, неизвестен, истёк, отозван (сам, грант или клиент), аудитория
     не подходит (token_domains_for) или владелец больше не активный администратор.
-    Иначе Principal(token_kind='oauth', token_id='oa_…', client_name из регистрации,
-    domains по resource токена, expires_at — ISO МСК). Ошибки БД пробрасываются
+    Иначе Principal(token_kind='oauth', token_id='oa_…', grant_id='g_…' (подключение,
+    переживает обновление токена), client_name из регистрации, domains по resource
+    токена, expires_at — ISO МСК). Ошибки БД пробрасываются
     (сбой хранилища — это 5xx, а не «токен неверен» с повторной авторизацией).
     """
     if not isinstance(raw, str) or not raw.startswith(ACCESS_PREFIX) or len(raw) > 200:
@@ -1741,6 +1742,7 @@ def verify_access_token(raw, resource_url) -> Optional[Principal]:
         domains=tuple(domains),
         expires_at=_iso(row['expires_at']),
         mode=stricter_mode(row['grant_mode']),
+        grant_id=row['grant_id'],
     )
 
 

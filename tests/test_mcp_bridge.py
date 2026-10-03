@@ -81,7 +81,7 @@ STATE = {'big_file': None, 'calls': 0}
 def t_whoami():
     user = current_user() or {}
     return jsonify({k: user.get(k) for k in ('login', 'display_name', 'is_admin', 'via_mcp', 'mcp_mode',
-                                            'mcp_client', 'mcp_token_id')})
+                                            'mcp_client', 'mcp_token_id', 'mcp_connection_id')})
 
 
 @test_bp.route('/api/t/item/<item_id>')
@@ -472,7 +472,8 @@ def test_owner_injected_and_gate_passed():
     with Env() as env:
         who = _json_of(env.run(spec('content_t_who', '/api/t/whoami')))
         assert who == {'login': 'owner', 'display_name': 'Владелец', 'is_admin': True, 'via_mcp': True,
-                       'mcp_mode': 'full', 'mcp_client': 'тест-клиент', 'mcp_token_id': 'st_test'}
+                       'mcp_mode': 'full', 'mcp_client': 'тест-клиент', 'mcp_token_id': 'st_test',
+                       'mcp_connection_id': 'st_test'}            # статический токен — сам себе подключение
         assert _json_of(env.run(spec('content_t_admin', '/api/t/admin-only'))) == {'ok': True, 'login': 'owner'}
         anonymous = env.app.test_client().get('/api/t/whoami')
         assert anonymous.status_code == 401, 'без входа гейт закрыт — мост проходит его только как владелец'
@@ -480,6 +481,12 @@ def test_owner_injected_and_gate_passed():
                               token_kind='static', client_name='x')
         denied = env.run(spec('content_t_who', '/api/t/whoami'), principal=not_admin)
         assert denied.is_error and denied.http_status == 401
+        # OAuth: подключение — грант, а не access-токен (тот меняется каждый час)
+        oauth_principal = Principal(user_id=env.principal.user_id, login='owner', display_name='Владелец',
+                                    token_id='oa_0123456789ab', token_kind='oauth', client_name='Claude',
+                                    grant_id='g_0123456789abcdef')
+        who = _json_of(env.run(spec('content_t_who', '/api/t/whoami'), principal=oauth_principal))
+        assert who['mcp_token_id'] == 'oa_0123456789ab' and who['mcp_connection_id'] == 'g_0123456789abcdef'
 
 
 def test_effective_mode_reaches_route_and_handlers():

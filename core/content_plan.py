@@ -337,7 +337,8 @@ POST /api/content-plan/materials/<id>/media/found), сервер скачива�
 привязывает тем же `add_media`, что и загрузку с сайта, плюс source = {image_url,
 page_url, domain, title, query, candidate, width, height} — откуда картинка и по
 какому запросу найдена (`_clean_media_source`: только эти поля, строки до
-MEDIA_SOURCE_TEXT_MAX). original_name — домен сайта. Журнал: «Добавлена картинка из
+MEDIA_SOURCE_TEXT_MAX). original_name — «<домен>.jpg» (content_image_search.found_media_name:
+имя файла, чтобы архив для Instagram не потерял расширение). Журнал: «Добавлена картинка из
 поиска: <домен>». У загруженных людьми файлов source нет. В режиме «чтение и
 черновики» `add_media` пускает только к своим черновикам (guard_draft_mode, 409) —
 раньше загрузка была только в полном режиме, теперь прикрепление найденного

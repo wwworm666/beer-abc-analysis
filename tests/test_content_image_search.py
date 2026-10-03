@@ -37,6 +37,7 @@ import shutil
 import socket
 import sys
 import tempfile
+import zipfile
 from datetime import datetime, timedelta
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -49,6 +50,7 @@ from flask import Flask  # noqa: E402
 
 import core.content_image_search as cis  # noqa: E402
 import core.content_plan as cp  # noqa: E402
+import core.content_publisher as cpub  # noqa: E402
 import routes.content_plan as rcp  # noqa: E402
 from image_search_fakes import (NOW, FakeYandexSession, doc, jpeg_bytes, make_finder, png_bytes,  # noqa: E402
                                 yandex_xml)
@@ -831,6 +833,31 @@ def test_route_search_caller_failed_and_limit():
         assert rig.finder.store.load(found['search_id'])['caller'] == 'login:anna'   # человек — по входу
 
 
+def test_route_search_limit_per_oauth_grant_survives_token_refresh():
+    """claude.ai обновляет access-токен каждый час: новый mcp_token_id, тот же грант.
+    Предел «на подключение» считается по гранту (mcp_connection_id) и не обнуляется."""
+    agent = dict(AGENT_FULL, mcp_token_id='oa_000000000001', mcp_connection_id='g_00000000000000aa')
+    with _Rig(user=agent) as rig:
+        rig.finder.client.session = FakeYandexSession(yandex_xml([doc(1)]))
+        rig.finder.caller_limit = 1
+        found = rig.search()
+        assert rig.finder.store.load(found['search_id'])['caller'] == 'g_00000000000000aa'
+        rig.user = dict(agent, mcp_token_id='oa_000000000002')                  # токен обновился
+        resp = rig.post_search(q='пиво')
+        assert resp.status_code == 429 and resp.get_json()['code'] == 'image_search_daily_limit'
+        rig.user = dict(agent, mcp_token_id='oa_000000000003', mcp_connection_id='g_00000000000000bb')
+        assert rig.post_search(q='пиво').status_code == 200                     # другое подключение
+
+
+def test_found_media_name_keeps_extension():
+    assert cis.found_media_name('upload.wikimedia.org', '20261007_3f9a1c2b.jpg') == 'upload.wikimedia.org.jpg'
+    long_site = 'a' * 250 + '.example'
+    name = cis.found_media_name(long_site, '20261007_3f9a1c2b.jpg')
+    assert name == 'a' * cis.FOUND_NAME_SITE_MAX + '.jpg'
+    assert cis.found_media_name('', '20261007_3f9a1c2b.jpg') == '20261007_3f9a1c2b.jpg'
+    assert cis.found_media_name(None, '20261007_3f9a1c2b.jpg') == '20261007_3f9a1c2b.jpg'
+
+
 def test_route_collage():
     with _Rig() as rig:
         found = rig.search()
@@ -853,7 +880,7 @@ def test_route_add_found_media():
         body = resp.get_json()
         assert (body['file']['width'], body['file']['height']) == (2560, 1707)
         media = body['material']['media']
-        assert len(media) == 1 and media[0]['kind'] == 'image' and media[0]['original_name'] == 'site1.example'
+        assert len(media) == 1 and media[0]['kind'] == 'image' and media[0]['original_name'] == 'site1.example.jpg'
         source = media[0]['source']
         assert source['image_url'] == 'https://site1.example/img/1.jpg'
         assert source['page_url'] == 'https://site1.example/page/1.html'
@@ -861,6 +888,9 @@ def test_route_add_found_media():
         assert rig.store.media.exists(media[0]['name'])
         log = rig.store.log_for(material['id'])
         assert log[0]['text'] == 'Добавлена картинка из поиска: site1.example'
+        # архив для Instagram: файл с расширением, телефон откроет его как фото
+        with zipfile.ZipFile(cpub.build_material_zip(rig.store, rig.store.get_material_raw(material['id']))) as zf:
+            assert 'files/01_site1.example.jpg' in zf.namelist()
         # мелкая — 400 с кодом, файл не остаётся
         before = sorted(os.listdir(rig.store.media.directory))
         resp = rig.client.post(f'/api/content-plan/materials/{material["id"]}/media/found',

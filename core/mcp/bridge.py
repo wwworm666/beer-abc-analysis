@@ -24,8 +24,11 @@ HTTP-запрос и ответ маршрута — в результат MCP.
    маршрут заводит для себя, не смешиваются с g MCP-запроса, и наоборот.
 4. Пользователь: g._current_user = копия записи владельца из auth_manager +
    {'via_mcp': True, 'mcp_mode': действующий режим ('read'|'draft'|'full'),
-    'mcp_client': имя клиента, 'mcp_token_id': id токена}. По mcp_mode маршрут может
-   сузить права агента (контент-план в режиме draft правит только свои черновики).
+    'mcp_client': имя клиента, 'mcp_token_id': id токена, 'mcp_connection_id': id
+    подключения — грант OAuth или статический токен (Principal.connection_id); учёт «на
+    подключение» ведите по нему: id OAuth-токена меняется каждый час}. По mcp_mode
+   маршрут может сузить права агента (контент-план в режиме draft правит только свои
+   черновики).
    core.auth_guard.current_user() берёт пользователя из g — гейт авторизации и
    маршруты видят владельца. Логин не меняется: журналы маршрутов подписываются
    логином владельца; признак via_mcp позволяет маршруту пометить действие агента.
@@ -600,7 +603,7 @@ def owner_record(principal: Principal, mode: str = 'full') -> Optional[Dict[str,
         return None
     record = dict(user)
     record.update({'via_mcp': True, 'mcp_mode': mode, 'mcp_client': principal.client_name,
-                   'mcp_token_id': principal.token_id})
+                   'mcp_token_id': principal.token_id, 'mcp_connection_id': principal.connection_id()})
     return record
 
 
