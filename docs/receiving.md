@@ -51,7 +51,7 @@
 - [templates/receiving.html](../templates/receiving.html), [static/receiving/scan.css](../static/receiving/scan.css), [static/js/receiving/scan.js](../static/js/receiving/scan.js) — экран приёмщика.
 - [templates/receiving_review.html](../templates/receiving_review.html), [static/receiving/review.css](../static/receiving/review.css), [static/js/receiving/review.js](../static/js/receiving/review.js) — «Разбор приёмок».
 - [core/mcp/tools/stocks.py](../core/mcp/tools/stocks.py) — 14 инструментов `stocks_receiving_*`.
-- Тесты: [tests/test_receiving_codes.py](../tests/test_receiving_codes.py) и [.mjs](../tests/test_receiving_codes.mjs) (общая фикстура [tests/fixtures/receiving_codes.json](../tests/fixtures/receiving_codes.json)), [test_receiving_index.py](../tests/test_receiving_index.py), [test_receiving_chz.py](../tests/test_receiving_chz.py), [test_receiving_store.py](../tests/test_receiving_store.py), [test_receiving_photo_store.py](../tests/test_receiving_photo_store.py), [test_receiving_service.py](../tests/test_receiving_service.py), [test_receiving_notify.py](../tests/test_receiving_notify.py), [test_receiving_scheduler.py](../tests/test_receiving_scheduler.py), [test_receiving_routes.py](../tests/test_receiving_routes.py), страницы — `tests/test_receiving_scan_*.mjs`, `tests/test_receiving_review_*.mjs` (`node tests/<файл>.mjs`).
+- Тесты: [tests/test_receiving_codes.py](../tests/test_receiving_codes.py) и [.mjs](../tests/test_receiving_codes.mjs) (общая фикстура [tests/fixtures/receiving_codes.json](../tests/fixtures/receiving_codes.json)), [test_receiving_index.py](../tests/test_receiving_index.py), [test_receiving_chz.py](../tests/test_receiving_chz.py), [test_receiving_store.py](../tests/test_receiving_store.py), [test_receiving_photo_store.py](../tests/test_receiving_photo_store.py), [test_receiving_service.py](../tests/test_receiving_service.py), [test_receiving_notify.py](../tests/test_receiving_notify.py), [test_receiving_scheduler.py](../tests/test_receiving_scheduler.py), [test_receiving_routes.py](../tests/test_receiving_routes.py), страницы — `tests/test_receiving_scan_*.mjs`, `tests/test_receiving_review_*.mjs` (`node tests/<файл>.mjs`; в CI не запускаются, гоняются руками; паритет разбора кода Python и JS проверяет pytest).
 
 Данные на постоянном томе `/kultura` (локально `data/`, в git не попадают):
 `receiving.db` (+ `-wal`, `-shm`), папка `receiving_photos/`, индекс
@@ -308,9 +308,29 @@ SQLite, WAL, `busy_timeout` 5 с, `foreign_keys=ON`, запись — `BEGIN IMM
 - **Сканы не теряются при обрыве связи**: каждый скан сначала ложится в очередь телефона
   (`localStorage`), потом уходит на сервер; без связи очередь ждёт и отправляется
   повторно; «Завершить» не пускает, пока очередь не пуста.
-- «Накладная» — фото каждой страницы (сжатие до 2400 px), без распознавания.
+- «Накладная» — фото каждой страницы (сжатие до 2400 px, JPEG 0,85), без распознавания;
+  ошибочное фото можно удалить.
+- «Код не читается — ввести цифры штрихкода» — запасной ручной ввод (источник `manual`);
+  поле скрыто, пока его не открыли.
+- «Отменить последний» убирает последний **посчитанный** скан: ещё не отправленный —
+  из очереди, уже отправленный — на сервере.
 - Сканер можно настроить читать только DataMatrix: у каждой единицы свой код, и банка не
   посчитается дважды.
+
+Числа экрана (`static/js/receiving/scan.js`):
+
+| Что | Значение | Почему |
+|---|---|---|
+| пауза между символами, после которой начинается новый код | 80 мс | сканер печатает код за доли секунды, человек — медленнее |
+| минимальная длина кода | 4 символа | короче — случайное нажатие, не код (EAN-8 — 8 цифр) |
+| повторы отправки без связи | 2, 5, 10, 30 с, дальше каждые 30 с; плюс при появлении сети и возврате на вкладку | связь на складе пропадает на секунды-минуты |
+| таймаут запроса | скан 15 с, загрузка 20 с, фото 120 с | зависший запрос не держит очередь |
+| камера: тот же код игнорируется | 2,5 с (окно сдвигается, пока код в кадре) | банка в кадре не считается заново |
+
+Очередь — `localStorage['rc.queue.v1']`, снимок открытой приёмки (счётчики, ключи
+DataMatrix, последние сканы) — `localStorage['rc.receipt.v1']`: перезагрузка страницы без
+связи не останавливает сканирование. На `/receiving` горячая клавиша меню «m» не работает —
+все печатные клавиши идут в сканер.
 
 ### Страница `/receiving/review` («Разбор приёмок»)
 

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Приёмка — Пивная культура</title>
+    <link rel="stylesheet" href="/static/dashboard/styles/fonts.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/variables.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/base.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/sidebar.css">
+    <link rel="stylesheet" href="/static/dashboard/styles/mobile.css">
+    <link rel="stylesheet" href="/static/logo.css">
+    <link rel="stylesheet" href="/static/receiving/scan.css?v={{ app_version }}">
+</head>
+<body class="rc-page rc-scope">
+    <div class="container">
+        {% set page_title = "Приёмка" %}
+        {% set page_subtitle = "Сканирование на РЦ" %}
+        {% include 'shared/nav.html' %}
+
+        <!-- Экран приёмщика: старт (новая / открытые приёмки), сканирование, «готово».
+             Поля ввода на экране нет: ручной сканер печатает «как клавиатура», код
+             собирает scan.js из нажатий клавиш (а поле в фокусе открыло бы клавиатуру
+             телефона). Данные — /api/receiving/*, всё недоверенное — через textContent. -->
+        <div class="rc" id="rc">
+            <p class="rc-note is-bad" id="rc-auth" role="alert" hidden>
+                Сессия истекла — сканы сохранены в телефоне.
+                <a id="rc-login" href="/login?next=%2Freceiving">Войдите снова</a>, и они отправятся.
+            </p>
+            <p class="rc-note is-warn" id="rc-storage" hidden>
+                Телефон не сохраняет очередь сканов (частный режим или нет места): не закрывайте
+                страницу, пока счётчик «не отправлено» не обнулится.
+            </p>
+
+            <!-- ==================== Старт ==================== -->
+            <section id="rc-start" aria-label="Приёмки">
+                <div class="rc-panel rc-hero">
+                    <h1 class="rc-h1">Приёмка на РЦ</h1>
+                    <p class="rc-lead">Сканируйте каждую бутылку, банку и кегу. Сканы сначала сохраняются в телефоне и уходят на сервер, когда есть связь.</p>
+                    <div class="rc-hero-actions">
+                        <button class="rc-btn rc-btn-primary rc-btn-lg" id="rc-new" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                            Новая приёмка
+                        </button>
+                        <a class="rc-link" href="/receiving/review">Разбор приёмок</a>
+                    </div>
+                </div>
+                <p class="rc-note is-warn" id="rc-start-pending" hidden></p>
+                <p class="rc-note is-bad" id="rc-start-error" role="alert" hidden></p>
+                <section class="rc-panel" aria-labelledby="rc-open-title">
+                    <div class="rc-panel-head">
+                        <h2 id="rc-open-title">Открытые приёмки</h2>
+                        <span class="rc-muted" id="rc-open-count"></span>
+                    </div>
+                    <div class="rc-open-list" id="rc-open-list"></div>
+                    <p class="rc-empty" id="rc-open-empty" hidden>Открытых приёмок нет.</p>
+                </section>
+            </section>
+
+            <!-- ==================== Сканирование ==================== -->
+            <section id="rc-scan" aria-label="Сканирование" hidden>
+                <div class="rc-scan-head">
+                    <button class="rc-btn rc-btn-sm rc-btn-ghost" id="rc-back" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                        Все приёмки
+                    </button>
+                    <div class="rc-scan-title">
+                        <h1 class="rc-h1" id="rc-title"></h1>
+                        <span class="rc-muted" id="rc-meta"></span>
+                    </div>
+                </div>
+                <p class="rc-note is-warn" id="rc-offline" hidden>
+                    Нет связи с сервером — показаны данные, сохранённые в телефоне. Сканируйте дальше:
+                    сканы копятся и уйдут, когда связь появится.
+                </p>
+
+                <div class="rc-panel rc-counter" id="rc-counter">
+                    <div class="rc-units"><b id="rc-units">0</b><span>шт.</span></div>
+                    <div class="rc-counter-side">
+                        <div class="rc-gtins"><b id="rc-gtins">0</b> <span id="rc-gtins-label">позиций</span></div>
+                        <span class="rc-pending" id="rc-pending" hidden></span>
+                    </div>
+                    <div class="rc-status" id="rc-status" role="status" aria-live="polite">Сканируйте товар</div>
+                    <div class="rc-last" id="rc-last"></div>
+                </div>
+                <details class="rc-how">
+                    <summary>Как считается</summary>
+                    <div class="rc-how-in">
+                        <p><b>Штуки</b> — принятые сканы этой приёмки. Код Честного знака (DataMatrix) у каждой
+                            бутылки свой: повторный скан той же бутылки не считается, сигнал — двойной короткий
+                            и «Уже посчитана». Обычный штрихкод (EAN) одинаков у всех бутылок позиции, поэтому
+                            считается каждый его скан.</p>
+                        <p><b>Позиции</b> — сколько разных GTIN среди принятых сканов.</p>
+                        <p><b>Не считаются</b> код короба или паллеты (SSCC), QR и прочие коды, код с ошибкой
+                            чтения (неверная контрольная цифра). Такой скан сохраняется для разбора, сигнал —
+                            низкий длинный и красная рамка.</p>
+                        <p><b>Не отправлено</b> — сканы, сохранённые в телефоне и ждущие связи. Они уже в счётчике и
+                            уходят на сервер по одному, по порядку; повтор после обрыва связи не считается дважды.
+                            Ответ сервера главнее: если сервер не принял скан, счётчик поправится и прозвучит сигнал.</p>
+                        <p><b>Сканер</b>: код — символы, пришедшие подряд с паузой не больше 80 мс и завершённые
+                            Enter или Tab. Медленный набор руками сканом не считается; раскладка клавиатуры
+                            значения не имеет.</p>
+                        <p><b>Отменить последний</b> убирает последний посчитанный скан: ещё не отправленный —
+                            из телефона, уже отправленный — на сервере.</p>
+                    </div>
+                </details>
+
+                <div class="rc-actions">
+                    <button class="rc-btn rc-btn-lg" id="rc-camera" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                        Камера
+                    </button>
+                    <button class="rc-btn rc-btn-lg" id="rc-photo" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/></svg>
+                        Накладная
+                    </button>
+                    <button class="rc-btn rc-btn-lg" id="rc-undo" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
+                        Отменить последний
+                    </button>
+                    <button class="rc-btn rc-btn-lg rc-btn-primary" id="rc-finish" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>
+                        Завершить
+                    </button>
+                </div>
+                <input type="file" id="rc-photo-input" accept="image/*" capture="environment" hidden>
+                <div class="rc-manual-row">
+                    <button class="rc-link-btn" id="rc-manual" type="button">Код не читается — ввести цифры штрихкода</button>
+                </div>
+
+                <section class="rc-panel" id="rc-invoices-box" aria-labelledby="rc-invoices-title" hidden>
+                    <div class="rc-panel-head">
+                        <h2 id="rc-invoices-title">Фото накладной</h2>
+                        <span class="rc-muted" id="rc-invoices-count"></span>
+                    </div>
+                    <div class="rc-invoices" id="rc-invoices"></div>
+                </section>
+
+                <section class="rc-panel" aria-labelledby="rc-recent-title">
+                    <div class="rc-panel-head">
+                        <h2 id="rc-recent-title">Последние сканы</h2>
+                        <span class="rc-muted" id="rc-recent-count"></span>
+                    </div>
+                    <div class="rc-recent" id="rc-recent"></div>
+                    <p class="rc-empty" id="rc-recent-empty">Сканов пока нет.</p>
+                </section>
+            </section>
+
+            <!-- ==================== Приёмка передана в разбор ==================== -->
+            <section id="rc-done" aria-label="Приёмка завершена" hidden>
+                <div class="rc-panel rc-hero">
+                    <span class="rc-hero-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg>
+                    </span>
+                    <h1 class="rc-h1" id="rc-done-title"></h1>
+                    <p class="rc-lead" id="rc-done-text"></p>
+                    <div class="rc-hero-actions">
+                        <button class="rc-btn rc-btn-primary rc-btn-lg" id="rc-done-new" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                            Новая приёмка
+                        </button>
+                        <a class="rc-link" id="rc-done-review" href="/receiving/review">Открыть разбор</a>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Окно: подтверждение «Завершить», удаление фото, ввод цифр вручную. -->
+        <div class="rc-sheet-wrap" id="rc-sheet-wrap" hidden>
+            <div class="rc-sheet" role="dialog" aria-modal="true" aria-labelledby="rc-sheet-title">
+                <h2 id="rc-sheet-title"></h2>
+                <p class="rc-sheet-text" id="rc-sheet-text"></p>
+                <input class="rc-input" id="rc-sheet-input" type="text" inputmode="numeric" maxlength="64"
+                       autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Цифры штрихкода" hidden>
+                <div class="rc-sheet-actions">
+                    <button class="rc-btn" id="rc-sheet-cancel" type="button">Отмена</button>
+                    <button class="rc-btn rc-btn-primary" id="rc-sheet-ok" type="button">Готово</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Камера: запасной путь, если ручного сканера нет. -->
+        <div class="rc-cam-wrap" id="rc-cam-wrap" hidden>
+            <div class="rc-cam" id="rc-cam" role="dialog" aria-modal="true" aria-label="Сканирование камерой">
+                <video class="rc-video" id="rc-video" playsinline muted autoplay></video>
+                <div class="rc-cam-frame" aria-hidden="true"></div>
+                <div class="rc-cam-top">
+                    <span class="rc-cam-units" id="rc-cam-units">0</span>
+                    <span class="rc-cam-status" id="rc-cam-status" role="status" aria-live="polite"></span>
+                </div>
+                <div class="rc-cam-bar">
+                    <button class="rc-btn" id="rc-torch" type="button" aria-pressed="false" hidden>Фонарик</button>
+                    <button class="rc-btn" id="rc-cam-close" type="button">Закрыть камеру</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="rc-toast" id="rc-toast" role="status" aria-live="polite" hidden></div>
+    </div>
+    <script src="/static/logo.js"></script>
+    <script src="/static/js/receiving/codes.js?v={{ app_version }}"></script>
+    <script src="/static/js/receiving/scan.js?v={{ app_version }}"></script>
+</body>
+</html>
